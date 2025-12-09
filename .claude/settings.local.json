@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(python3 -m py_compile:*)",
+      "Bash(mkdir:*)",
+      "Bash(cat:*)",
+      "Bash(done)",
+      "Bash(pip install:*)",
+      "Bash(mypy:*)",
+      "Bash(pytest tests/ -v:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "WebFetch(domain:developers.asana.com)",
+      "Bash(test:*)",
+      "Bash(grep:*)",
+      "Bash(pip wheel:*)",
+      "Bash(ls:*)",
+      "Bash(pytest:*)",
+      "Bash(du:*)",
+      "Bash(wc:*)",
+      "Bash(ASANA_WORKSPACE_GID=\"test_workspace\" python:*)",
+      "Bash(source .venv/bin/activate)",
+      "Bash(export ASANA_PAT=\"$ASANA_PAT\")"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": []
+}
