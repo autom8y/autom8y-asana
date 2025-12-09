@@ -1,0 +1,192 @@
+"""Intelligent caching layer for the autom8_asana SDK.
+
+This module provides versioned caching with staleness detection,
+configurable TTLs, and support for multiple backends (Redis, in-memory).
+
+Public API:
+    - CacheEntry: Immutable cache entry with version metadata
+    - EntryType: Enum of cacheable entry types
+    - Freshness: Enum for cache freshness modes (strict/eventual)
+    - CacheSettings: Configuration for caching behavior
+    - CacheMetrics: Thread-safe metrics aggregator
+    - CacheEvent: Individual cache operation event
+
+Multi-entry Loading:
+    - load_task_entry: Load single cache entry with fetch-on-miss
+    - load_task_entries: Load multiple entry types concurrently
+    - load_batch_entries: Load entries for multiple tasks with batch fetch
+
+Staleness Detection:
+    - check_entry_staleness: Check if single entry is stale
+    - check_batch_staleness: Check staleness for multiple tasks
+    - partition_by_staleness: Split GIDs into stale/current lists
+
+Batch Modification Checking:
+    - ModificationCheckCache: TTL-cached modification timestamps
+    - fetch_task_modifications: Fetch timestamps with caching
+    - ttl_cached_modifications: Decorator for cached fetchers
+
+Incremental Story Loading (ADR-0020):
+    - load_stories_incremental: Load stories with 'since' parameter
+    - filter_relevant_stories: Filter to struc-relevant story types
+    - get_latest_story_timestamp: Get latest story timestamp
+
+Dataframe (Struc) Caching (ADR-0021):
+    - make_struc_key: Create composite cache key for struc
+    - load_struc_cached: Load struc with cache support
+    - invalidate_struc: Invalidate struc for task+project
+    - invalidate_task_strucs: Invalidate struc across projects
+
+Cache Event Integration (ADR-0023):
+    - create_metrics_callback: Create callback for LogProvider
+    - setup_cache_logging: Wire metrics to log provider
+    - has_cache_logging: Check if provider supports cache logging
+
+autom8 Integration (ADR-0025):
+    - create_autom8_cache_provider: Create Redis provider for autom8
+    - migrate_task_collection_loading: Migrate load_task_collection()
+    - warm_project_tasks: Pre-warm cache for a project
+    - check_redis_health: Check Redis connection health
+    - MigrationResult: Result of migration operation
+
+Two-Tier Caching (ADR-0026):
+    - TieredCacheProvider: Coordinates Redis (hot) and S3 (cold) tiers
+    - TieredConfig: Configuration for two-tier caching behavior
+
+Example:
+    >>> from autom8_asana.cache import (
+    ...     CacheEntry,
+    ...     EntryType,
+    ...     Freshness,
+    ...     CacheSettings,
+    ... )
+    >>> settings = CacheSettings()
+    >>> settings.get_ttl(project_gid="123456")
+    300
+"""
+
+from autom8_asana.cache.batch import (
+    DEFAULT_MODIFICATION_CHECK_TTL,
+    ModificationCheck,
+    ModificationCheckCache,
+    fetch_task_modifications,
+    get_modification_cache,
+    reset_modification_cache,
+    ttl_cached_modifications,
+)
+from autom8_asana.cache.dataframes import (
+    invalidate_struc,
+    invalidate_task_strucs,
+    load_batch_strucs_cached,
+    load_struc_cached,
+    make_struc_key,
+    parse_struc_key,
+)
+from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.events import (
+    create_metrics_callback,
+    has_cache_logging,
+    setup_cache_logging,
+)
+from autom8_asana.cache.freshness import Freshness
+from autom8_asana.cache.loader import (
+    load_batch_entries,
+    load_task_entries,
+    load_task_entry,
+)
+from autom8_asana.cache.metrics import CacheEvent, CacheMetrics
+from autom8_asana.cache.settings import CacheSettings, OverflowSettings, TTLSettings
+from autom8_asana.cache.staleness import (
+    check_batch_staleness,
+    check_entry_staleness,
+    partition_by_staleness,
+)
+from autom8_asana.cache.stories import (
+    DEFAULT_STORY_TYPES,
+    filter_relevant_stories,
+    get_latest_story_timestamp,
+    load_stories_incremental,
+)
+from autom8_asana.cache.versioning import (
+    compare_versions,
+    format_version,
+    is_current,
+    is_stale,
+    parse_version,
+)
+
+# autom8 integration adapter (ADR-0025)
+from autom8_asana.cache.autom8_adapter import (
+    MigrationResult,
+    MissingConfigurationError,
+    check_redis_health,
+    create_autom8_cache_provider,
+    migrate_task_collection_loading,
+    warm_project_tasks,
+)
+
+# Two-tier caching (ADR-0026)
+from autom8_asana.cache.tiered import TieredCacheProvider, TieredConfig
+
+__all__ = [
+    # Entry types
+    "CacheEntry",
+    "EntryType",
+    # Freshness modes
+    "Freshness",
+    # Settings
+    "CacheSettings",
+    "TTLSettings",
+    "OverflowSettings",
+    # Metrics
+    "CacheMetrics",
+    "CacheEvent",
+    # Versioning utilities
+    "compare_versions",
+    "parse_version",
+    "format_version",
+    "is_stale",
+    "is_current",
+    # Staleness detection
+    "check_entry_staleness",
+    "check_batch_staleness",
+    "partition_by_staleness",
+    # Multi-entry loading
+    "load_task_entry",
+    "load_task_entries",
+    "load_batch_entries",
+    # Batch modification checking
+    "ModificationCheck",
+    "ModificationCheckCache",
+    "fetch_task_modifications",
+    "get_modification_cache",
+    "reset_modification_cache",
+    "ttl_cached_modifications",
+    "DEFAULT_MODIFICATION_CHECK_TTL",
+    # Incremental story loading (ADR-0020)
+    "load_stories_incremental",
+    "filter_relevant_stories",
+    "get_latest_story_timestamp",
+    "DEFAULT_STORY_TYPES",
+    # Dataframe (struc) caching (ADR-0021)
+    "make_struc_key",
+    "parse_struc_key",
+    "load_struc_cached",
+    "load_batch_strucs_cached",
+    "invalidate_struc",
+    "invalidate_task_strucs",
+    # Cache event integration (ADR-0023)
+    "create_metrics_callback",
+    "setup_cache_logging",
+    "has_cache_logging",
+    # autom8 integration adapter (ADR-0025)
+    "create_autom8_cache_provider",
+    "migrate_task_collection_loading",
+    "warm_project_tasks",
+    "check_redis_health",
+    "MigrationResult",
+    "MissingConfigurationError",
+    # Two-tier caching (ADR-0026)
+    "TieredCacheProvider",
+    "TieredConfig",
+]

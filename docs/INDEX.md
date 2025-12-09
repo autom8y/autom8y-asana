@@ -20,6 +20,7 @@
 | [TDD-0005](design/TDD-0005-batch-api.md) | Batch API for Bulk Operations | PRD-0001 | Draft | 2025-12-08 |
 | [TDD-0006](design/TDD-0006-backward-compatibility.md) | Backward Compatibility Layer | PRD-0001 | Draft | 2025-12-08 |
 | [TDD-0007](design/TDD-0007-observability.md) | Observability Enhancements | PRD-0001 | Draft | 2025-12-08 |
+| [TDD-0008](design/TDD-0008-intelligent-caching.md) | Intelligent Caching Layer | PRD-0002 | Draft | 2025-12-09 |
 
 ## ADRs
 
@@ -40,10 +41,28 @@
 | [ADR-0013](decisions/ADR-0013-correlation-id-strategy.md) | Correlation ID Strategy for SDK Observability | Proposed | 2025-12-08 |
 | [ADR-0014](decisions/ADR-0014-example-scripts-env-config.md) | Environment Variable Configuration for Example Scripts | Accepted | 2025-12-09 |
 | [ADR-0015](decisions/ADR-0015-batch-api-request-format.md) | Batch API Request Format Fix | Accepted | 2025-12-09 |
+| [ADR-0016](decisions/ADR-0016-cache-protocol-extension.md) | Cache Protocol Extension | Accepted | 2025-12-09 |
+| [ADR-0017](decisions/ADR-0017-redis-backend-architecture.md) | Redis Backend Architecture | Accepted | 2025-12-09 |
+| [ADR-0018](decisions/ADR-0018-batch-modification-checking.md) | Batch Modification Checking | Accepted | 2025-12-09 |
+| [ADR-0019](decisions/ADR-0019-staleness-detection-algorithm.md) | Staleness Detection Algorithm | Accepted | 2025-12-09 |
+| [ADR-0020](decisions/ADR-0020-incremental-story-loading.md) | Incremental Story Loading | Accepted | 2025-12-09 |
+| [ADR-0021](decisions/ADR-0021-dataframe-caching-strategy.md) | Dataframe Caching Strategy | Accepted | 2025-12-09 |
+| [ADR-0022](decisions/ADR-0022-overflow-management.md) | Overflow Management | Accepted | 2025-12-09 |
+| [ADR-0023](decisions/ADR-0023-observability-strategy.md) | Observability Strategy | Accepted | 2025-12-09 |
+| [ADR-0024](decisions/ADR-0024-thread-safety-guarantees.md) | Thread-Safety Guarantees | Accepted | 2025-12-09 |
+| [ADR-0025](decisions/ADR-0025-migration-strategy.md) | Big-Bang Migration Strategy | Accepted | 2025-12-09 |
+| [ADR-0026](decisions/ADR-0026-two-tier-cache-architecture.md) | Two-Tier Cache Architecture (Redis + S3) | Accepted | 2025-12-09 |
+
+## Guides
+
+| Title | Related | Description |
+|-------|---------|-------------|
+| [autom8-migration.md](guides/autom8-migration.md) | ADR-0025 | Migration guide for legacy autom8 S3 cache to SDK Redis cache |
 
 ## Test Plans
 
 | ID | Title | PRD | TDD | Status |
 |----|-------|-----|-----|--------|
 | [TP-0001](testing/TEST-PLAN-0001.md) | autom8_asana SDK Phase 1 Parity Validation | PRD-0001 | TDD-0001 | Draft |
+| [TP-0002](testing/TP-0002-intelligent-caching.md) | Intelligent Caching Layer | PRD-0002 | TDD-0008 | Draft |
 | [TP-batch-api-adversarial](testing/TP-batch-api-adversarial.md) | Batch API Adversarial Testing | PRD-0001 | TDD-0005 | Completed |

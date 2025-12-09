@@ -1,29 +1,21 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find:*)",
-      "Bash(python3 -m py_compile:*)",
-      "Bash(mkdir:*)",
-      "Bash(cat:*)",
-      "Bash(done)",
-      "Bash(pip install:*)",
-      "Bash(mypy:*)",
-      "Bash(pytest tests/ -v:*)",
-      "Bash(python:*)",
-      "Bash(python3:*)",
-      "WebFetch(domain:developers.asana.com)",
-      "Bash(test:*)",
-      "Bash(grep:*)",
-      "Bash(pip wheel:*)",
-      "Bash(ls:*)",
-      "Bash(pytest:*)",
-      "Bash(du:*)",
-      "Bash(wc:*)",
-      "Bash(ASANA_WORKSPACE_GID=\"test_workspace\" python:*)",
-      "Bash(source .venv/bin/activate)",
-      "Bash(export ASANA_PAT=\"$ASANA_PAT\")"
+      "Bash(timeout 10 python -m pytest:*)",
+      "Bash(for f in test_entry test_settings test_versioning test_memory_backend test_metrics test_redis_backend test_staleness test_batch)",
+      "Bash(do echo \"=== $f ===\" timeout 8 python -m pytest tests/unit/cache/$f.py -v --tb=no -q)",
+      "Bash(timeout 8 python -m pytest:*)",
+      "Bash(timeout 15 python -m pytest:*)",
+      "Bash(timeout 20 python -m pytest:*)",
+      "Bash(timeout 25 python -m pytest:*)",
+      "Bash(timeout 30 python -m pytest:*)",
+      "Bash(timeout 60 python -m pytest:*)"
     ]
   },
-  "enableAllProjectMcpServers": true,
-  "enabledMcpjsonServers": []
+  "enabledMcpjsonServers": [],
+  "disabledMcpjsonServers": [
+    "go-semantic",
+    "typescript-semantic",
+    "mermaid-mcp"
+  ]
 }
