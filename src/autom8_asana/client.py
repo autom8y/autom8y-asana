@@ -10,6 +10,7 @@ from autom8_asana._defaults.auth import EnvAuthProvider
 from autom8_asana._defaults.cache import NullCacheProvider
 from autom8_asana._defaults.log import DefaultLogProvider
 from autom8_asana.batch.client import BatchClient
+from autom8_asana.persistence import SaveSession
 from autom8_asana.clients.attachments import AttachmentsClient
 from autom8_asana.clients.custom_fields import CustomFieldsClient
 from autom8_asana.clients.goals import GoalsClient
@@ -447,6 +448,43 @@ class AsanaClient:
                     log_provider=self._log_provider,
                 )
         return self._batch
+
+    # --- Save Session Factory ---
+
+    def save_session(
+        self,
+        batch_size: int = 10,
+        max_concurrent: int = 15,
+    ) -> SaveSession:
+        """Create a SaveSession for batched operations.
+
+        Returns a context manager that enables deferred, batched saves
+        with automatic dependency ordering and partial failure handling.
+
+        Example (async):
+            async with client.save_session() as session:
+                session.track(task)
+                task.name = "Updated"
+                result = await session.commit_async()
+
+        Example (sync):
+            with client.save_session() as session:
+                session.track(task)
+                task.name = "Updated"
+                result = session.commit()
+
+        Args:
+            batch_size: Maximum operations per batch (default: 10, Asana limit).
+            max_concurrent: Maximum concurrent batch requests (default: 15).
+
+        Returns:
+            SaveSession instance (context manager).
+        """
+        return SaveSession(
+            client=self,
+            batch_size=batch_size,
+            max_concurrent=max_concurrent,
+        )
 
     async def close(self) -> None:
         """Close client and release resources.

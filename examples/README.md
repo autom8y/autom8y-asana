@@ -181,6 +181,17 @@ python examples/06_custom_fields.py --workspace WORKSPACE_GID --project PROJECT_
 python examples/07_projects_sections.py --workspace WORKSPACE_GID
 ```
 
+**[12_save_session_basics.py](./12_save_session_basics.py)** - SaveSession Unit of Work Pattern
+- Track-modify-commit workflow
+- Action methods for relationships (tags, projects, sections)
+- Change tracking and inspection
+- Partial failure handling
+- API call comparison (batched vs sequential)
+
+```bash
+python examples/12_save_session_basics.py --workspace WORKSPACE_GID
+```
+
 ### Priority 3: Production Ready
 
 **[08_webhooks.py](./08_webhooks.py)** - Webhook Setup and Verification
@@ -227,6 +238,7 @@ python examples/10_error_handling.py --workspace WORKSPACE_GID
 | Webhooks | 08 |
 | Protocol Adapters | 09 |
 | Error Handling | 10 |
+| **SaveSession** | **12** |
 
 | Client | Used In Examples |
 |--------|-----------------|

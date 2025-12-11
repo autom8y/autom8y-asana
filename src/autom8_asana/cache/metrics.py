@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from threading import Lock
+from threading import Lock, local
 from typing import Any, Callable
 
 
@@ -67,6 +67,7 @@ class CacheMetrics:
         self._operation_count = 0
         self._overflow_skips: dict[str, int] = {}
         self._callbacks: list[Callable[[CacheEvent], None]] = []
+        self._emitting = local()  # Thread-local recursion guard
 
     @property
     def hits(self) -> int:
@@ -434,13 +435,25 @@ class CacheMetrics:
 
         Args:
             event: CacheEvent to emit.
+
+        Note:
+            Uses thread-local recursion guard to prevent infinite loops
+            when callbacks trigger additional cache operations.
         """
+        # Prevent recursive callback execution (thread-local)
+        if getattr(self._emitting, "active", False):
+            return
+
         with self._lock:
             callbacks = self._callbacks.copy()
 
-        for callback in callbacks:
-            try:
-                callback(event)
-            except Exception:
-                # Don't let callback errors break cache operations
-                pass
+        self._emitting.active = True
+        try:
+            for callback in callbacks:
+                try:
+                    callback(event)
+                except Exception:
+                    # Don't let callback errors break cache operations
+                    pass
+        finally:
+            self._emitting.active = False

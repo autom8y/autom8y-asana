@@ -71,6 +71,50 @@ from autom8_asana.models import (
     Workspace,
 )
 
+# Dataframe Layer (TDD-0009)
+from autom8_asana.dataframes import (
+    # Constants
+    LAZY_THRESHOLD,
+    # Models
+    TaskRow,
+    UnitRow,
+    ContactRow,
+    DataFrameSchema,
+    ColumnDef,
+    SchemaRegistry,
+    # Schemas
+    BASE_SCHEMA,
+    UNIT_SCHEMA,
+    CONTACT_SCHEMA,
+    # Builders
+    DataFrameBuilder,
+    SectionDataFrameBuilder,
+    ProjectDataFrameBuilder,
+    # Extractors
+    BaseExtractor,
+    UnitExtractor,
+    ContactExtractor,
+    # Resolver (TDD-0009.1)
+    CustomFieldResolver,
+    DefaultCustomFieldResolver,
+    MockCustomFieldResolver,
+    FailingResolver,
+    NameNormalizer,
+    # Cache Integration
+    CachedRow,
+    DataFrameCacheIntegration,
+    # Exceptions
+    DataFrameError,
+    SchemaNotFoundError,
+    ExtractionError,
+    TypeCoercionError,
+    SchemaVersionError,
+    # Deprecation utilities
+    create_struc_wrapper,
+    struc_project,
+    struc_section,
+)
+
 __version__ = "0.1.0"
 
 __all__ = [
@@ -133,4 +177,46 @@ __all__ = [
     "TeamMembership",
     "Webhook",
     "WebhookFilter",
+    # Dataframe Layer (TDD-0009)
+    # Constants
+    "LAZY_THRESHOLD",
+    # Row Models
+    "TaskRow",
+    "UnitRow",
+    "ContactRow",
+    # Schema Models
+    "DataFrameSchema",
+    "ColumnDef",
+    "SchemaRegistry",
+    # Built-in Schemas
+    "BASE_SCHEMA",
+    "UNIT_SCHEMA",
+    "CONTACT_SCHEMA",
+    # Builders
+    "DataFrameBuilder",
+    "SectionDataFrameBuilder",
+    "ProjectDataFrameBuilder",
+    # Extractors
+    "BaseExtractor",
+    "UnitExtractor",
+    "ContactExtractor",
+    # Resolver (TDD-0009.1)
+    "CustomFieldResolver",
+    "DefaultCustomFieldResolver",
+    "MockCustomFieldResolver",
+    "FailingResolver",
+    "NameNormalizer",
+    # Cache Integration
+    "CachedRow",
+    "DataFrameCacheIntegration",
+    # Dataframe Exceptions
+    "DataFrameError",
+    "SchemaNotFoundError",
+    "ExtractionError",
+    "TypeCoercionError",
+    "SchemaVersionError",
+    # Deprecation Utilities
+    "create_struc_wrapper",
+    "struc_project",
+    "struc_section",
 ]

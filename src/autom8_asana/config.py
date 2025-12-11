@@ -12,6 +12,7 @@ __all__ = [
     "ConcurrencyConfig",
     "TimeoutConfig",
     "ConnectionPoolConfig",
+    "CircuitBreakerConfig",
     "AsanaConfig",
 ]
 
@@ -157,6 +158,39 @@ class ConnectionPoolConfig:
             )
 
 
+@dataclass(frozen=True)
+class CircuitBreakerConfig:
+    """Circuit breaker configuration.
+
+    Per ADR-0048: Opt-in pattern for cascading failure prevention.
+
+    Attributes:
+        enabled: Whether circuit breaker is active (default False for backward compat)
+        failure_threshold: Consecutive failures before opening circuit
+        recovery_timeout: Seconds to wait before half-open probe
+        half_open_max_calls: Successful probes required to close circuit
+    """
+    enabled: bool = False  # Opt-in for backward compatibility
+    failure_threshold: int = 5  # Failures before opening
+    recovery_timeout: float = 60.0  # Seconds before half-open probe
+    half_open_max_calls: int = 1  # Probes before closing
+
+    def __post_init__(self) -> None:
+        """Validate configuration values."""
+        if self.failure_threshold < 1:
+            raise ConfigurationError(
+                f"failure_threshold must be at least 1, got {self.failure_threshold}"
+            )
+        if self.recovery_timeout <= 0:
+            raise ConfigurationError(
+                f"recovery_timeout must be positive, got {self.recovery_timeout}"
+            )
+        if self.half_open_max_calls < 1:
+            raise ConfigurationError(
+                f"half_open_max_calls must be at least 1, got {self.half_open_max_calls}"
+            )
+
+
 @dataclass
 class AsanaConfig:
     """Main configuration for AsanaClient.
@@ -174,6 +208,7 @@ class AsanaConfig:
     concurrency: ConcurrencyConfig = field(default_factory=ConcurrencyConfig)
     timeout: TimeoutConfig = field(default_factory=TimeoutConfig)
     connection_pool: ConnectionPoolConfig = field(default_factory=ConnectionPoolConfig)
+    circuit_breaker: CircuitBreakerConfig = field(default_factory=CircuitBreakerConfig)
 
     # Auth key names (used with AuthProvider.get_secret)
     token_key: str = "ASANA_PAT"

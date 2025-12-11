@@ -228,7 +228,9 @@ class TestModificationCheckCache:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert errors == []
 

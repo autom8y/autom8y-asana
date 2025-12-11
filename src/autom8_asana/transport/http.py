@@ -11,14 +11,17 @@ import httpx
 
 from autom8_asana.exceptions import (
     AsanaError,
+    CircuitBreakerOpenError,
     RateLimitError,
+    ServerError,
     TimeoutError,
 )
+from autom8_asana.transport.circuit_breaker import CircuitBreaker
 from autom8_asana.transport.rate_limiter import TokenBucketRateLimiter
 from autom8_asana.transport.retry import RetryHandler
 
 if TYPE_CHECKING:
-    from autom8_asana.config import AsanaConfig
+    from autom8_asana.config import AsanaConfig, CircuitBreakerConfig
     from autom8_asana.protocols.auth import AuthProvider
     from autom8_asana.protocols.log import LogProvider
 
@@ -56,6 +59,9 @@ class AsyncHTTPClient:
 
         # Initialize retry handler
         self._retry_handler = RetryHandler(config.retry, logger)
+
+        # Initialize circuit breaker (handles backward compat via default config)
+        self._circuit_breaker = CircuitBreaker(config.circuit_breaker, logger)
 
         # Concurrency semaphores
         self._read_semaphore = asyncio.Semaphore(config.concurrency.read_limit)
@@ -129,7 +135,7 @@ class AsyncHTTPClient:
     ) -> dict[str, Any]:
         """Make HTTP request to Asana API.
 
-        Handles rate limiting, retry, and error parsing.
+        Handles circuit breaker, rate limiting, retry, and error parsing.
 
         Args:
             method: HTTP method (GET, POST, PUT, DELETE, etc.)
@@ -142,10 +148,14 @@ class AsyncHTTPClient:
             Parsed JSON response as dict
 
         Raises:
+            CircuitBreakerOpenError: When circuit breaker is open
             AsanaError: On API errors
             TimeoutError: On request timeout
         """
         client = await self._get_client()
+
+        # Circuit breaker check - fast-fail if circuit is open
+        await self._circuit_breaker.check()
 
         # Select semaphore based on method
         semaphore = (
@@ -190,10 +200,16 @@ class AsyncHTTPClient:
                         if self._retry_handler.should_retry(
                             response.status_code, attempt
                         ):
+                            # Record 5xx as failure for circuit breaker before retry
+                            if isinstance(error, ServerError):
+                                await self._circuit_breaker.record_failure(error)
                             await self._retry_handler.wait(attempt)
                             attempt += 1
                             continue
 
+                        # Record 5xx as failure for circuit breaker before raising
+                        if isinstance(error, ServerError):
+                            await self._circuit_breaker.record_failure(error)
                         raise error
 
                     # Success - parse and return
@@ -208,12 +224,17 @@ class AsyncHTTPClient:
                             f"{e}. Body: {body_snippet}"
                         ) from e
 
+                    # Record success for circuit breaker
+                    await self._circuit_breaker.record_success()
+
                     # Asana wraps responses in {"data": ...}
                     if isinstance(result, dict) and "data" in result:
                         return result["data"]  # type: ignore[no-any-return]
                     return result  # type: ignore[no-any-return]
 
                 except httpx.TimeoutException as e:
+                    # Record timeout as failure for circuit breaker (server-side issue)
+                    await self._circuit_breaker.record_failure(e)
                     if self._retry_handler.should_retry(504, attempt):
                         if self._logger:
                             self._logger.warning(f"Timeout on {method} {path}")
@@ -223,6 +244,8 @@ class AsyncHTTPClient:
                     raise TimeoutError(f"Request timed out: {path}") from e
 
                 except httpx.HTTPError as e:
+                    # Record network errors as failures for circuit breaker
+                    await self._circuit_breaker.record_failure(e)
                     raise AsanaError(f"HTTP error: {e}") from e
 
     async def get(
@@ -273,8 +296,16 @@ class AsyncHTTPClient:
 
         Returns:
             Tuple of (data list, next_offset or None)
+
+        Raises:
+            CircuitBreakerOpenError: When circuit breaker is open
+            AsanaError: On API errors
+            TimeoutError: On request timeout
         """
         client = await self._get_client()
+
+        # Circuit breaker check - fast-fail if circuit is open
+        await self._circuit_breaker.check()
 
         # Select semaphore for read operation
         semaphore = self._read_semaphore
@@ -312,10 +343,16 @@ class AsyncHTTPClient:
                         if self._retry_handler.should_retry(
                             response.status_code, attempt
                         ):
+                            # Record 5xx as failure for circuit breaker before retry
+                            if isinstance(error, ServerError):
+                                await self._circuit_breaker.record_failure(error)
                             await self._retry_handler.wait(attempt)
                             attempt += 1
                             continue
 
+                        # Record 5xx as failure for circuit breaker before raising
+                        if isinstance(error, ServerError):
+                            await self._circuit_breaker.record_failure(error)
                         raise error
 
                     # Success - parse response
@@ -330,6 +367,9 @@ class AsyncHTTPClient:
                             f"{e}. Body: {body_snippet}"
                         ) from e
 
+                    # Record success for circuit breaker
+                    await self._circuit_breaker.record_success()
+
                     # Extract data and next_page offset
                     data: list[dict[str, Any]] = []
                     next_offset: str | None = None
@@ -343,6 +383,8 @@ class AsyncHTTPClient:
                     return data, next_offset
 
                 except httpx.TimeoutException as e:
+                    # Record timeout as failure for circuit breaker (server-side issue)
+                    await self._circuit_breaker.record_failure(e)
                     if self._retry_handler.should_retry(504, attempt):
                         if self._logger:
                             self._logger.warning(f"Timeout on GET {path}")
@@ -352,6 +394,8 @@ class AsyncHTTPClient:
                     raise TimeoutError(f"Request timed out: {path}") from e
 
                 except httpx.HTTPError as e:
+                    # Record network errors as failures for circuit breaker
+                    await self._circuit_breaker.record_failure(e)
                     raise AsanaError(f"HTTP error: {e}") from e
 
     @asynccontextmanager
@@ -394,10 +438,14 @@ class AsyncHTTPClient:
             Parsed JSON response as dict
 
         Raises:
+            CircuitBreakerOpenError: When circuit breaker is open
             AsanaError: On API errors
             TimeoutError: On request timeout
         """
         client = await self._get_client()
+
+        # Circuit breaker check - fast-fail if circuit is open
+        await self._circuit_breaker.check()
 
         # Multipart uploads are write operations
         semaphore = self._write_semaphore
@@ -438,10 +486,16 @@ class AsyncHTTPClient:
                         if self._retry_handler.should_retry(
                             response.status_code, attempt
                         ):
+                            # Record 5xx as failure for circuit breaker before retry
+                            if isinstance(error, ServerError):
+                                await self._circuit_breaker.record_failure(error)
                             await self._retry_handler.wait(attempt)
                             attempt += 1
                             continue
 
+                        # Record 5xx as failure for circuit breaker before raising
+                        if isinstance(error, ServerError):
+                            await self._circuit_breaker.record_failure(error)
                         raise error
 
                     # Success - parse and return
@@ -456,12 +510,17 @@ class AsyncHTTPClient:
                             f"{e}. Body: {body_snippet}"
                         ) from e
 
+                    # Record success for circuit breaker
+                    await self._circuit_breaker.record_success()
+
                     # Asana wraps responses in {"data": ...}
                     if isinstance(result, dict) and "data" in result:
                         return result["data"]  # type: ignore[no-any-return]
                     return result  # type: ignore[no-any-return]
 
                 except httpx.TimeoutException as e:
+                    # Record timeout as failure for circuit breaker (server-side issue)
+                    await self._circuit_breaker.record_failure(e)
                     if self._retry_handler.should_retry(504, attempt):
                         if self._logger:
                             self._logger.warning(f"Timeout on POST {path}")
@@ -471,6 +530,8 @@ class AsyncHTTPClient:
                     raise TimeoutError(f"Request timed out: {path}") from e
 
                 except httpx.HTTPError as e:
+                    # Record network errors as failures for circuit breaker
+                    await self._circuit_breaker.record_failure(e)
                     raise AsanaError(f"HTTP error: {e}") from e
 
     async def get_stream_url(

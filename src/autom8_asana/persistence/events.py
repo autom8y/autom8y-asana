@@ -1,0 +1,217 @@
+"""Event hook registration and emission.
+
+Per FR-EVENT-001 through FR-EVENT-005.
+Per ADR-0041: Synchronous event hooks with async support.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from typing import Any, Callable, Coroutine, TYPE_CHECKING
+
+from autom8_asana.persistence.models import OperationType
+
+if TYPE_CHECKING:
+    from autom8_asana.models.base import AsanaResource
+
+
+# Type aliases for hook signatures
+PreSaveHook = (
+    Callable[["AsanaResource", OperationType], None]
+    | Callable[["AsanaResource", OperationType], Coroutine[Any, Any, None]]
+)
+
+PostSaveHook = (
+    Callable[["AsanaResource", OperationType, Any], None]
+    | Callable[["AsanaResource", OperationType, Any], Coroutine[Any, Any, None]]
+)
+
+ErrorHook = (
+    Callable[["AsanaResource", OperationType, Exception], None]
+    | Callable[["AsanaResource", OperationType, Exception], Coroutine[Any, Any, None]]
+)
+
+
+class EventSystem:
+    """Event hook registration and emission.
+
+    Per FR-EVENT-001 through FR-EVENT-005.
+    Per ADR-0041: Synchronous event hooks with async support.
+
+    Responsibilities:
+    - Register pre_save, post_save, and error hooks
+    - Support both sync functions and async coroutines
+    - Invoke hooks at appropriate times during save pipeline
+
+    Pre-save hooks can raise exceptions to abort the save operation.
+    Post-save and error hooks swallow exceptions to not interfere with
+    the save pipeline.
+
+    Example:
+        events = EventSystem()
+
+        @events.register_pre_save
+        def validate_task(entity: AsanaResource, op: OperationType) -> None:
+            if op == OperationType.CREATE and not entity.name:
+                raise ValueError("Task must have a name")
+
+        @events.register_post_save
+        async def log_save(entity: AsanaResource, op: OperationType, data: Any) -> None:
+            await log_to_service(entity.gid, op)
+    """
+
+    def __init__(self) -> None:
+        """Initialize empty hook lists."""
+        self._pre_save_hooks: list[PreSaveHook] = []
+        self._post_save_hooks: list[PostSaveHook] = []
+        self._error_hooks: list[ErrorHook] = []
+
+    def register_pre_save(
+        self,
+        func: PreSaveHook,
+    ) -> Callable[..., Any]:
+        """Register pre-save hook.
+
+        Per FR-EVENT-001: Hook called before each entity save.
+        Per FR-EVENT-004: Receives entity and operation context.
+        Per FR-EVENT-005: Support both function and coroutine hooks.
+
+        Pre-save hooks can raise exceptions to abort the save operation
+        for that entity. The exception will propagate up to the caller.
+
+        Args:
+            func: Hook function receiving (entity, operation_type).
+                  Can be sync or async.
+
+        Returns:
+            The decorated function (for decorator usage).
+        """
+        self._pre_save_hooks.append(func)
+        return func
+
+    def register_post_save(
+        self,
+        func: PostSaveHook,
+    ) -> Callable[..., Any]:
+        """Register post-save hook.
+
+        Per FR-EVENT-002: Called after successful entity save with result.
+
+        Post-save hooks cannot abort the save (it already happened).
+        Any exceptions raised by post-save hooks are swallowed to
+        prevent interfering with subsequent saves.
+
+        Args:
+            func: Hook function receiving (entity, operation_type, response_data).
+                  Can be sync or async.
+
+        Returns:
+            The decorated function (for decorator usage).
+        """
+        self._post_save_hooks.append(func)
+        return func
+
+    def register_error(
+        self,
+        func: ErrorHook,
+    ) -> Callable[..., Any]:
+        """Register error hook.
+
+        Per FR-EVENT-003: Called when save fails.
+
+        Error hooks are for logging/notification purposes only.
+        Any exceptions raised by error hooks are swallowed to
+        prevent interfering with error handling.
+
+        Args:
+            func: Hook function receiving (entity, operation_type, exception).
+                  Can be sync or async.
+
+        Returns:
+            The decorated function (for decorator usage).
+        """
+        self._error_hooks.append(func)
+        return func
+
+    async def emit_pre_save(
+        self,
+        entity: AsanaResource,
+        operation: OperationType,
+    ) -> None:
+        """Emit pre-save event to all registered hooks.
+
+        Per FR-EVENT-005: Handle both sync and async hooks.
+
+        Hooks are called in registration order. If any hook raises
+        an exception, it propagates immediately (aborting the save).
+
+        Args:
+            entity: The entity about to be saved.
+            operation: The operation type (CREATE, UPDATE, DELETE).
+
+        Raises:
+            Any exception raised by a pre-save hook.
+        """
+        for hook in self._pre_save_hooks:
+            result = hook(entity, operation)
+            if asyncio.iscoroutine(result):
+                await result
+
+    async def emit_post_save(
+        self,
+        entity: AsanaResource,
+        operation: OperationType,
+        data: Any,
+    ) -> None:
+        """Emit post-save event to all registered hooks.
+
+        Post-save hooks cannot fail the operation (save already succeeded).
+        All exceptions are swallowed and hooks continue to execute.
+
+        Args:
+            entity: The entity that was saved.
+            operation: The operation type that was performed.
+            data: The response data from the API.
+        """
+        for hook in self._post_save_hooks:
+            try:
+                result = hook(entity, operation, data)
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception:
+                # Post-save hooks should not fail the operation
+                pass
+
+    async def emit_error(
+        self,
+        entity: AsanaResource,
+        operation: OperationType,
+        error: Exception,
+    ) -> None:
+        """Emit error event to all registered hooks.
+
+        Error hooks are for logging/notification purposes only.
+        All exceptions are swallowed and hooks continue to execute.
+
+        Args:
+            entity: The entity that failed to save.
+            operation: The operation type that was attempted.
+            error: The exception that occurred.
+        """
+        for hook in self._error_hooks:
+            try:
+                result = hook(entity, operation, error)
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception:
+                # Error hooks should not fail the operation
+                pass
+
+    def clear_hooks(self) -> None:
+        """Clear all registered hooks.
+
+        Useful for testing or resetting state.
+        """
+        self._pre_save_hooks.clear()
+        self._post_save_hooks.clear()
+        self._error_hooks.clear()

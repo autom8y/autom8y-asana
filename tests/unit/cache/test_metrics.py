@@ -290,7 +290,9 @@ class TestCacheMetrics:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         expected_hits = num_threads * ops_per_thread
         expected_misses = num_threads * ops_per_thread

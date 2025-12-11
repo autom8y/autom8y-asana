@@ -95,8 +95,6 @@ async def demonstrate_delete(client: AsanaClient, task_gid: str) -> None:
     """Delete a task."""
     print("\n=== DELETE ===")
 
-    exit()
-
     # Delete returns None on success
     await client.tasks.delete_async(task_gid)
     print(f"Deleted task: {task_gid}")

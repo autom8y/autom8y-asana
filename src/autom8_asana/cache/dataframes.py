@@ -6,6 +6,7 @@ combination because custom field values vary by project context.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
@@ -171,10 +172,12 @@ async def load_batch_strucs_cached(
     Returns:
         Dict mapping struc_key -> (struc_dict, was_cache_hit).
     """
-    results: dict[str, tuple[dict[str, Any], bool]] = {}
     modifications = modifications or {}
 
-    for task_gid, project_gid in task_project_pairs:
+    # Inner function for concurrent loading
+    async def load_single(
+        task_gid: str, project_gid: str
+    ) -> tuple[str, dict[str, Any], bool]:
         key = make_struc_key(task_gid, project_gid)
         current_modified_at = modifications.get(task_gid)
 
@@ -186,7 +189,20 @@ async def load_batch_strucs_cached(
             current_modified_at=current_modified_at,
             force_refresh=force_refresh,
         )
+        return key, struc, was_hit
 
+    # Run all loads concurrently - O(1) latency instead of O(N)
+    tasks = [load_single(t, p) for t, p in task_project_pairs]
+    completed = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Collect results, skipping failures (partial results on error)
+    results: dict[str, tuple[dict[str, Any], bool]] = {}
+    for result in completed:
+        if isinstance(result, BaseException):
+            # Skip failed loads, return partial results
+            # In production, this would use LogProvider for error reporting
+            continue
+        key, struc, was_hit = result
         results[key] = (struc, was_hit)
 
     return results

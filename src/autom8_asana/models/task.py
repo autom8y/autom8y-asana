@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 
 from autom8_asana.models.base import AsanaResource
 from autom8_asana.models.common import NameGid
+from autom8_asana.models.custom_field_accessor import CustomFieldAccessor
 
 
 class Task(AsanaResource):
@@ -109,3 +110,47 @@ class Task(AsanaResource):
 
     # Actual time tracking
     actual_time_minutes: float | None = None
+
+    # Private accessor instance (not serialized)
+    _custom_fields_accessor: CustomFieldAccessor | None = PrivateAttr(default=None)
+
+    def get_custom_fields(self) -> CustomFieldAccessor:
+        """Get custom fields accessor for fluent API.
+
+        Returns a CustomFieldAccessor that provides set/get/remove methods
+        with automatic name->GID resolution. The accessor tracks modifications
+        for change detection.
+
+        Example:
+            accessor = task.get_custom_fields()
+            accessor.set("Priority", "High")
+            value = accessor.get("Status")
+
+        Returns:
+            CustomFieldAccessor instance (cached for this task).
+        """
+        if self._custom_fields_accessor is None:
+            self._custom_fields_accessor = CustomFieldAccessor(self.custom_fields)
+        return self._custom_fields_accessor
+
+    def model_dump(self, **kwargs: Any) -> dict[str, Any]:
+        """Override to include custom field modifications.
+
+        If the custom fields accessor has pending changes, the serialized
+        output will use the accessor's to_list() format instead of the
+        original custom_fields data.
+
+        Args:
+            **kwargs: Arguments passed to parent model_dump().
+
+        Returns:
+            Dict representation of the task.
+        """
+        data = super().model_dump(**kwargs)
+        # If accessor exists and has changes, use its output
+        if (
+            self._custom_fields_accessor is not None
+            and self._custom_fields_accessor.has_changes()
+        ):
+            data["custom_fields"] = self._custom_fields_accessor.to_list()
+        return data

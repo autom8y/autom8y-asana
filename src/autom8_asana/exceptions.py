@@ -19,6 +19,7 @@ __all__ = [
     "TimeoutError",
     "ConfigurationError",
     "SyncInAsyncContextError",
+    "CircuitBreakerOpenError",
 ]
 
 
@@ -180,6 +181,24 @@ class SyncInAsyncContextError(RuntimeError):
         super().__init__(
             f"Cannot call sync method '{method_name}' from async context. "
             f"Use 'await {async_method_name}(...)' instead."
+        )
+
+
+class CircuitBreakerOpenError(AsanaError):
+    """Raised when circuit breaker is open.
+
+    Per ADR-0048: Fast-fail when service appears degraded.
+
+    Attributes:
+        time_until_recovery: Seconds until circuit breaker enters half-open state
+    """
+
+    def __init__(self, time_until_recovery: float) -> None:
+        self.time_until_recovery = time_until_recovery
+        super().__init__(
+            f"Circuit breaker open. Service appears degraded. "
+            f"Retry in {time_until_recovery:.1f}s. "
+            f"Check Asana status: https://status.asana.com/"
         )
 
 

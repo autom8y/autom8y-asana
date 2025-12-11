@@ -181,20 +181,15 @@ class TestSyncContextManager:
         with AsanaClient(token="test-token") as client:
             assert isinstance(client, AsanaClient)
 
-    def test_sync_context_manager_raises_in_async_context(self) -> None:
+    async def test_sync_context_manager_raises_in_async_context(self) -> None:
         """Sync context manager raises ConfigurationError in async context."""
-        # We need to test this from within an async context
+        client = AsanaClient(token="test-token")
+        with pytest.raises(ConfigurationError) as exc_info:
+            with client:
+                pass
 
-        async def run_test() -> None:
-            client = AsanaClient(token="test-token")
-            with pytest.raises(ConfigurationError) as exc_info:
-                with client:
-                    pass
-
-            assert "async context" in str(exc_info.value).lower()
-            assert "async with" in str(exc_info.value).lower()
-
-        asyncio.run(run_test())
+        assert "async context" in str(exc_info.value).lower()
+        assert "async with" in str(exc_info.value).lower()
 
 
 class TestCloseMethod:
@@ -217,3 +212,62 @@ class TestCloseMethod:
             await client.aclose()
 
             mock_close.assert_called_once()
+
+
+class TestSaveSessionFactory:
+    """Tests for client.save_session() factory method."""
+
+    def test_save_session_returns_session(self) -> None:
+        """save_session() returns a SaveSession instance."""
+        from autom8_asana.persistence import SaveSession
+
+        client = AsanaClient(token="test-token")
+        session = client.save_session()
+
+        assert isinstance(session, SaveSession)
+
+    def test_save_session_with_default_params(self) -> None:
+        """save_session() uses default parameters."""
+        client = AsanaClient(token="test-token")
+        session = client.save_session()
+
+        assert session._batch_size == 10
+        assert session._max_concurrent == 15
+
+    def test_save_session_with_custom_params(self) -> None:
+        """save_session() accepts custom parameters."""
+        client = AsanaClient(token="test-token")
+        session = client.save_session(batch_size=5, max_concurrent=10)
+
+        assert session._batch_size == 5
+        assert session._max_concurrent == 10
+
+    def test_save_session_passes_client(self) -> None:
+        """save_session() passes client to SaveSession."""
+        client = AsanaClient(token="test-token")
+        session = client.save_session()
+
+        assert session._client is client
+
+    async def test_save_session_async_context(self) -> None:
+        """save_session() can be used as async context manager."""
+        client = AsanaClient(token="test-token")
+
+        async with client.save_session() as session:
+            assert session is not None
+
+    def test_save_session_sync_context(self) -> None:
+        """save_session() can be used as sync context manager."""
+        client = AsanaClient(token="test-token")
+
+        with client.save_session() as session:
+            assert session is not None
+
+    def test_save_session_creates_new_session_each_call(self) -> None:
+        """Each call to save_session() creates a new session."""
+        client = AsanaClient(token="test-token")
+
+        session1 = client.save_session()
+        session2 = client.save_session()
+
+        assert session1 is not session2

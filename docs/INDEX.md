@@ -8,6 +8,14 @@
 |----|-------|--------|------|
 | [PRD-0001](requirements/PRD-0001-sdk-extraction.md) | autom8_asana SDK Extraction | Approved | 2025-12-08 |
 | [PRD-0002](requirements/PRD-0002-intelligent-caching.md) | Intelligent Caching Layer | Draft | 2025-12-09 |
+| [PRD-0003](requirements/PRD-0003-structured-dataframe-layer.md) | Structured Dataframe Layer | In Review | 2025-12-09 |
+| [PRD-0003.1](requirements/PRD-0003.1-dynamic-custom-field-resolution.md) | Dynamic Custom Field Resolution | Draft | 2025-12-09 |
+| [PRD-0004](requirements/PRD-0004-test-hang-fix.md) | Test Suite Hang Prevention | Implemented | 2025-12-09 |
+| [PRD-0005](requirements/PRD-0005-save-orchestration.md) | Save Orchestration Layer | Draft | 2025-12-10 |
+| [PRD-0006](requirements/PRD-0006-action-endpoint-support.md) | Action Endpoint Support for Save Orchestration | Draft | 2025-12-10 |
+| [PRD-0007](requirements/PRD-0007-sdk-functional-parity.md) | SDK Functional Parity Initiative | Implemented | 2025-12-10 |
+| [PRD-0008](requirements/PRD-0008-parent-subtask-operations.md) | Parent & Subtask Operations | Implemented | 2025-12-10 |
+| [PRD-0009](requirements/PRD-0009-sdk-ga-readiness.md) | SDK GA Readiness | Draft | 2025-12-10 |
 
 ## TDDs
 
@@ -21,6 +29,13 @@
 | [TDD-0006](design/TDD-0006-backward-compatibility.md) | Backward Compatibility Layer | PRD-0001 | Draft | 2025-12-08 |
 | [TDD-0007](design/TDD-0007-observability.md) | Observability Enhancements | PRD-0001 | Draft | 2025-12-08 |
 | [TDD-0008](design/TDD-0008-intelligent-caching.md) | Intelligent Caching Layer | PRD-0002 | Draft | 2025-12-09 |
+| [TDD-0009](design/TDD-0009-structured-dataframe-layer.md) | Structured Dataframe Layer | PRD-0003 | Draft | 2025-12-09 |
+| [TDD-0009.1](design/TDD-0009.1-dynamic-custom-field-resolution.md) | Dynamic Custom Field Resolution | PRD-0003.1 | Draft | 2025-12-09 |
+| [TDD-0010](design/TDD-0010-save-orchestration.md) | Save Orchestration Layer | PRD-0005 | Draft | 2025-12-10 |
+| [TDD-0011](design/TDD-0011-action-endpoint-support.md) | Action Endpoint Support | PRD-0006 | Draft | 2025-12-10 |
+| [TDD-0012](design/TDD-0012-sdk-functional-parity.md) | SDK Functional Parity Initiative | PRD-0007 | Implemented | 2025-12-10 |
+| [TDD-0013](design/TDD-0013-parent-subtask-operations.md) | Parent & Subtask Operations | PRD-0008 | Implemented | 2025-12-10 |
+| [TDD-0014](design/TDD-0014-sdk-ga-readiness.md) | SDK GA Readiness | PRD-0009 | Draft | 2025-12-10 |
 
 ## ADRs
 
@@ -52,11 +67,46 @@
 | [ADR-0024](decisions/ADR-0024-thread-safety-guarantees.md) | Thread-Safety Guarantees | Accepted | 2025-12-09 |
 | [ADR-0025](decisions/ADR-0025-migration-strategy.md) | Big-Bang Migration Strategy | Accepted | 2025-12-09 |
 | [ADR-0026](decisions/ADR-0026-two-tier-cache-architecture.md) | Two-Tier Cache Architecture (Redis + S3) | Accepted | 2025-12-09 |
+| [ADR-0027](decisions/ADR-0027-dataframe-layer-migration-strategy.md) | Dataframe Layer Migration Strategy | Proposed | 2025-12-09 |
+| [ADR-0028](decisions/ADR-0028-polars-dataframe-library.md) | Polars DataFrame Library | Accepted | 2025-12-09 |
+| [ADR-0029](decisions/ADR-0029-task-subclass-strategy.md) | Task Subclass Strategy | Accepted | 2025-12-09 |
+| [ADR-0030](decisions/ADR-0030-custom-field-typing.md) | Custom Field Typing | Accepted | 2025-12-09 |
+| [ADR-0031](decisions/ADR-0031-lazy-eager-evaluation.md) | Lazy vs Eager Evaluation | Accepted | 2025-12-09 |
+| [ADR-0032](decisions/ADR-0032-cache-granularity.md) | Cache Granularity | Accepted | 2025-12-09 |
+| [ADR-0033](decisions/ADR-0033-schema-enforcement.md) | Schema Enforcement | Accepted | 2025-12-09 |
+| [ADR-0034](decisions/ADR-0034-dynamic-custom-field-resolution.md) | Dynamic Custom Field Resolution Strategy | Accepted | 2025-12-09 |
+| [ADR-0035](decisions/ADR-0035-unit-of-work-pattern.md) | Unit of Work Pattern for Save Orchestration | Accepted | 2025-12-10 |
+| [ADR-0036](decisions/ADR-0036-change-tracking-strategy.md) | Change Tracking via Snapshot Comparison | Accepted | 2025-12-10 |
+| [ADR-0037](decisions/ADR-0037-dependency-graph-algorithm.md) | Kahn's Algorithm for Dependency Ordering | Accepted | 2025-12-10 |
+| [ADR-0038](decisions/ADR-0038-save-concurrency-model.md) | Async-First Concurrency for Save Operations | Accepted | 2025-12-10 |
+| [ADR-0039](decisions/ADR-0039-batch-execution-strategy.md) | Fixed-Size Sequential Batch Execution | Accepted | 2025-12-10 |
+| [ADR-0040](decisions/ADR-0040-partial-failure-handling.md) | Commit and Report on Partial Failure | Accepted | 2025-12-10 |
+| [ADR-0041](decisions/ADR-0041-event-hook-system.md) | Synchronous Event Hooks with Async Support | Accepted | 2025-12-10 |
+| [ADR-0042](decisions/ADR-0042-action-operation-types.md) | Separate ActionType Enum for Action Endpoint Operations | Proposed | 2025-12-10 |
+| [ADR-0043](decisions/ADR-0043-unsupported-operation-detection.md) | Validation-Phase Detection for Unsupported Direct Modifications | Proposed | 2025-12-10 |
+| [ADR-0044](decisions/ADR-0044-extra-params-field.md) | extra_params Field Design for ActionOperation | Accepted | 2025-12-10 |
+| [ADR-0045](decisions/ADR-0045-like-operations-without-target.md) | Like Operations Without Target GID | Accepted | 2025-12-10 |
+| [ADR-0046](decisions/ADR-0046-comment-text-storage.md) | Comment Text Storage Strategy | Accepted | 2025-12-10 |
+| [ADR-0047](decisions/ADR-0047-positioning-validation-timing.md) | Positioning Validation Timing | Accepted | 2025-12-10 |
+| [ADR-0048](decisions/ADR-0048-circuit-breaker-pattern.md) | Circuit Breaker Pattern for Transport Layer | Accepted | 2025-12-10 |
+| [ADR-0049](decisions/ADR-0049-gid-validation-strategy.md) | GID Validation Strategy | Accepted | 2025-12-10 |
+
+## Discovery Documents
+
+| Title | Related PRD | Description | Date |
+|-------|-------------|-------------|------|
+| [save-orchestration-discovery.md](save-orchestration-discovery.md) | [PRD-0005](requirements/PRD-0005-save-orchestration.md) | Save Orchestration Layer feasibility analysis | 2025-12-10 |
 
 ## Guides
 
 | Title | Related | Description |
 |-------|---------|-------------|
+| [concepts.md](guides/concepts.md) | TDD-0010 | Core SDK concepts and mental model (start here) |
+| [quickstart.md](guides/quickstart.md) | TDD-0010 | Get started in 5 minutes |
+| [workflows.md](guides/workflows.md) | TDD-0010, TDD-0011 | Common task recipes (cookbook style) |
+| [patterns.md](guides/patterns.md) | PRD-0009 | Best practices and recommended patterns |
+| [save-session.md](guides/save-session.md) | TDD-0010, TDD-0011 | SaveSession Unit of Work pattern guide |
+| [sdk-adoption.md](guides/sdk-adoption.md) | PRD-0009 | Migration guide from old patterns to SDK |
 | [autom8-migration.md](guides/autom8-migration.md) | ADR-0025 | Migration guide for legacy autom8 S3 cache to SDK Redis cache |
 
 ## Test Plans

@@ -14,6 +14,7 @@ from autom8_asana.models.custom_field import (
     CustomFieldEnumOption,
     CustomFieldSetting,
 )
+from autom8_asana.models.custom_field_accessor import CustomFieldAccessor
 from autom8_asana.models.goal import Goal, GoalMembership, GoalMetric
 from autom8_asana.models.portfolio import Portfolio
 from autom8_asana.models.project import Project
@@ -31,6 +32,8 @@ __all__ = [
     "AsanaResource",
     "NameGid",
     "PageIterator",
+    # Accessors
+    "CustomFieldAccessor",
     # Tier 1 models
     "CustomField",
     "CustomFieldEnumOption",

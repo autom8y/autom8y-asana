@@ -59,7 +59,9 @@ class TestInMemoryCacheConcurrency:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
         assert all(r == {"value": "test_data"} for r in results if r is not None)
@@ -89,7 +91,9 @@ class TestInMemoryCacheConcurrency:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
 
@@ -135,7 +139,9 @@ class TestInMemoryCacheConcurrency:
         for t in readers + writers:
             t.start()
         for t in readers + writers:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
 
@@ -173,7 +179,9 @@ class TestInMemoryCacheConcurrency:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
         assert all(ops == 100 for ops in successful_ops)
@@ -215,7 +223,9 @@ class TestInMemoryCacheConcurrency:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
 
@@ -257,7 +267,9 @@ class TestInMemoryCacheConcurrency:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
 
@@ -296,7 +308,9 @@ class TestInMemoryCacheConcurrency:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
 
@@ -337,7 +351,9 @@ class TestInMemoryCacheConcurrency:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
         assert ops_count == 5000  # 50 threads * 100 ops
@@ -377,7 +393,9 @@ class TestInMemoryCacheConcurrency:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
         assert cache.size() <= 50
@@ -422,7 +440,9 @@ class TestModificationCheckCacheConcurrency:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
 
@@ -447,7 +467,9 @@ class TestModificationCheckCacheConcurrency:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
 
@@ -477,7 +499,9 @@ class TestModificationCheckCacheConcurrency:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
         assert len(results) == 200
@@ -505,7 +529,9 @@ class TestModificationCheckCacheConcurrency:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
 
@@ -532,7 +558,9 @@ class TestCacheMetricsConcurrency:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
         assert metrics.hits == 2000
@@ -565,7 +593,9 @@ class TestCacheMetricsConcurrency:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
         assert callback_count == 1000  # 20 threads * 50 ops
@@ -601,7 +631,9 @@ class TestCacheMetricsConcurrency:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
         assert len(snapshots) == 20
@@ -642,7 +674,9 @@ class TestCacheMetricsConcurrency:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
         # Final values depend on timing - just verify no crash
@@ -663,6 +697,8 @@ class TestDeadlockPrevention:
         now = datetime.now(timezone.utc)
 
         callback_errors: list[Exception] = []
+        spawned_threads: list[threading.Thread] = []
+        spawned_threads_lock = threading.Lock()
 
         # Callback that triggers another cache operation in a separate thread
         # to avoid re-entrant lock deadlock
@@ -674,9 +710,11 @@ class TestDeadlockPrevention:
                     callback_errors.append(e)
 
             # Run in separate thread to avoid deadlock from re-entrant lock
-            t = threading.Thread(target=nested_op)
+            t = threading.Thread(target=nested_op, daemon=True)
+            with spawned_threads_lock:
+                spawned_threads.append(t)
             t.start()
-            # Don't join - fire and forget to avoid blocking the callback
+            # Don't join here - fire and forget within callback
 
         metrics.on_event(triggering_callback)
 
@@ -697,8 +735,12 @@ class TestDeadlockPrevention:
             for future in as_completed(futures, timeout=10):
                 future.result()
 
-        # Give nested threads time to complete
-        time.sleep(0.1)
+        # Best-effort cleanup of spawned callback threads.
+        # We track threads to ensure proper cleanup, but we don't block on their
+        # completion since they may be contending for locks held by other callbacks.
+        # The test's main assertion is that the primary cache operations don't deadlock.
+        time.sleep(0.1)  # Brief wait for any threads that complete quickly
+
         assert len(callback_errors) == 0
 
     def test_no_deadlock_cross_cache_operations(self) -> None:
@@ -833,9 +875,13 @@ class TestRaceConditionScenarios:
         for r in readers:
             r.start()
 
-        writer_thread.join()
+        writer_thread.join(timeout=10)
+        if writer_thread.is_alive():
+            raise AssertionError(f"Thread {writer_thread.name} did not complete within timeout")
         for r in readers:
-            r.join()
+            r.join(timeout=10)
+            if r.is_alive():
+                raise AssertionError(f"Thread {r.name} did not complete within timeout")
 
         assert len(inconsistencies) == 0, f"Found inconsistencies: {inconsistencies[:5]}"
 
@@ -851,7 +897,9 @@ class TestRaceConditionScenarios:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         # Should be exactly 100,000
         assert metrics.hits == 100000

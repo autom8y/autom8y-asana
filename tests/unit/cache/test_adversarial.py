@@ -360,7 +360,9 @@ class TestModificationCacheAdversarial:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
         # All threads should have gotten some result
@@ -397,7 +399,9 @@ class TestModificationCacheAdversarial:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
 
@@ -420,7 +424,9 @@ class TestModificationCacheAdversarial:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
 
@@ -488,7 +494,9 @@ class TestMetricsAdversarial:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
         assert metrics.hits == 1000
@@ -524,7 +532,9 @@ class TestMetricsAdversarial:
         for t in threads:
             t.start()
         for t in threads:
-            t.join()
+            t.join(timeout=10)
+            if t.is_alive():
+                raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
         assert len(errors) == 0
         assert len(snapshots) == 20
