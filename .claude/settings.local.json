@@ -57,7 +57,8 @@
       "WebFetch(domain:apidog.com)",
       "WebFetch(domain:share.apidog.com)",
       "Bash(du:*)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(git mv:*)"
     ]
   },
   "enabledMcpjsonServers": [],
