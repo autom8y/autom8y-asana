@@ -126,13 +126,23 @@
 | [PROMPT-0-INITIATIVE-B](initiatives/PROMPT-0-INITIATIVE-B.md) | Prompt 0 | Initiative B initialization | Implemented |
 | [ADR-DESIGN-B-001](decisions/ADR-DESIGN-B-001-retryable-error-mixin.md) | ADR | RetryableErrorMixin pattern decision | Accepted |
 
+### Initiative D: Async/Sync Method Generator
+
+| Document | Type | Description | Status |
+|----------|------|-------------|--------|
+| [PRD-DESIGN-PATTERNS-D](requirements/PRD-DESIGN-PATTERNS-D.md) | PRD | @async_method decorator requirements | Active |
+| [TDD-DESIGN-PATTERNS-D](design/TDD-DESIGN-PATTERNS-D.md) | TDD | Technical design for method generator | Active |
+| [MIGRATION-ASYNC-METHOD](migration/MIGRATION-ASYNC-METHOD.md) | Guide | Migration guide for remaining clients | Active |
+
 ### Deliverables
 
 | File | Description |
 |------|-------------|
 | `src/autom8_asana/patterns/__init__.py` | Patterns module entry point |
 | `src/autom8_asana/patterns/error_classification.py` | RetryableErrorMixin implementation |
+| `src/autom8_asana/patterns/async_method.py` | @async_method decorator implementation |
 | `tests/unit/patterns/test_error_classification.py` | Mixin unit tests (48 tests) |
+| `tests/unit/patterns/test_async_method.py` | @async_method unit tests (19 tests) |
 
 ---
 

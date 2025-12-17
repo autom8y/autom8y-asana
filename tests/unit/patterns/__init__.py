@@ -1,1 +1,1 @@
-"""Unit tests for design patterns."""
+"""Unit tests for autom8_asana patterns module."""
