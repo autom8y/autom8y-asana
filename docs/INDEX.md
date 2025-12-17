@@ -134,6 +134,16 @@
 | [TDD-DESIGN-PATTERNS-D](design/TDD-DESIGN-PATTERNS-D.md) | TDD | Technical design for method generator | Active |
 | [MIGRATION-ASYNC-METHOD](migration/MIGRATION-ASYNC-METHOD.md) | Guide | Migration guide for remaining clients | Active |
 
+### Initiative E: CRUD Client Metaclass (Evaluated)
+
+| Document | Type | Description | Status |
+|----------|------|-------------|--------|
+| [PRD-DESIGN-PATTERNS-E](requirements/PRD-DESIGN-PATTERNS-E.md) | PRD | CRUD base class requirements | Active |
+| [TDD-DESIGN-PATTERNS-E](design/TDD-DESIGN-PATTERNS-E.md) | TDD | Technical design and analysis | Active |
+| [ADR-DESIGN-E-001](decisions/ADR-DESIGN-E-001-crud-base-class-evaluation.md) | ADR | Evaluation decision: NO-GO | Accepted |
+
+**Result**: After thorough analysis, Initiative E was evaluated as **NOT RECOMMENDED**. The @async_method decorator from Initiative D already captures the major value (~65% reduction). A CRUD base class or metaclass would provide minimal additional benefit (~10%) while adding complexity.
+
 ### Deliverables
 
 | File | Description |
