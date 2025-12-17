@@ -7,16 +7,16 @@
 | ID | Title | Status | Date |
 |----|-------|--------|------|
 | [PRD-0001](requirements/PRD-0001-sdk-extraction.md) | autom8_asana SDK Extraction | Approved | 2025-12-08 |
-| [PRD-0002](requirements/PRD-0002-intelligent-caching.md) | Intelligent Caching Layer | Draft | 2025-12-09 |
+| [PRD-0002](requirements/PRD-0002-intelligent-caching.md) | Intelligent Caching Layer | Implemented | 2025-12-09 |
 | [PRD-0003](requirements/PRD-0003-structured-dataframe-layer.md) | Structured Dataframe Layer | In Review | 2025-12-09 |
 | [PRD-0003.1](requirements/PRD-0003.1-dynamic-custom-field-resolution.md) | Dynamic Custom Field Resolution | Draft | 2025-12-09 |
 | [PRD-0004](requirements/PRD-0004-test-hang-fix.md) | Test Suite Hang Prevention | Implemented | 2025-12-09 |
-| [PRD-0005](requirements/PRD-0005-save-orchestration.md) | Save Orchestration Layer | Draft | 2025-12-10 |
+| [PRD-0005](requirements/PRD-0005-save-orchestration.md) | Save Orchestration Layer | Implemented | 2025-12-10 |
 | [PRD-0006](requirements/PRD-0006-action-endpoint-support.md) | Action Endpoint Support for Save Orchestration | Draft | 2025-12-10 |
 | [PRD-0007](requirements/PRD-0007-sdk-functional-parity.md) | SDK Functional Parity Initiative | Implemented | 2025-12-10 |
 | [PRD-0008](requirements/PRD-0008-parent-subtask-operations.md) | Parent & Subtask Operations | Implemented | 2025-12-10 |
 | [PRD-0009](requirements/PRD-0009-sdk-ga-readiness.md) | SDK GA Readiness | Draft | 2025-12-10 |
-| [PRD-HYDRATION](requirements/PRD-HYDRATION.md) | Business Model Hydration | Draft | 2025-12-16 |
+| [PRD-HYDRATION](requirements/PRD-HYDRATION.md) | Business Model Hydration | Implemented | 2025-12-16 |
 | [PRD-RESOLUTION](requirements/PRD-RESOLUTION.md) | Cross-Holder Relationship Resolution | Implemented | 2025-12-16 |
 | [PRD-PATTERNS-C](requirements/PRD-PATTERNS-C.md) | Holder Factory with `__init_subclass__` | Implemented | 2025-12-16 |
 
@@ -39,7 +39,7 @@
 | [TDD-0012](design/TDD-0012-sdk-functional-parity.md) | SDK Functional Parity Initiative | PRD-0007 | Implemented | 2025-12-10 |
 | [TDD-0013](design/TDD-0013-parent-subtask-operations.md) | Parent & Subtask Operations | PRD-0008 | Implemented | 2025-12-10 |
 | [TDD-0014](design/TDD-0014-sdk-ga-readiness.md) | SDK GA Readiness | PRD-0009 | Draft | 2025-12-10 |
-| [TDD-HYDRATION](design/TDD-HYDRATION.md) | Business Model Hydration | PRD-HYDRATION | Draft | 2025-12-16 |
+| [TDD-HYDRATION](design/TDD-HYDRATION.md) | Business Model Hydration | PRD-HYDRATION | Implemented | 2025-12-16 |
 | [TDD-RESOLUTION](design/TDD-RESOLUTION.md) | Cross-Holder Relationship Resolution | PRD-RESOLUTION | Implemented | 2025-12-16 |
 | [TDD-PATTERNS-C](design/TDD-PATTERNS-C.md) | Holder Factory with `__init_subclass__` | PRD-PATTERNS-C | Implemented | 2025-12-16 |
 
@@ -96,17 +96,47 @@
 | [ADR-0047](decisions/ADR-0047-positioning-validation-timing.md) | Positioning Validation Timing | Accepted | 2025-12-10 |
 | [ADR-0048](decisions/ADR-0048-circuit-breaker-pattern.md) | Circuit Breaker Pattern for Transport Layer | Accepted | 2025-12-10 |
 | [ADR-0049](decisions/ADR-0049-gid-validation-strategy.md) | GID Validation Strategy | Accepted | 2025-12-10 |
+| [ADR-0050](decisions/ADR-0050-holder-lazy-loading-strategy.md) | Holder Lazy Loading Strategy | Accepted | 2025-12-11 |
+| [ADR-0051](decisions/ADR-0051-custom-field-type-safety.md) | Custom Field Type Safety | Accepted | 2025-12-11 |
+| [ADR-0052](decisions/ADR-0052-bidirectional-reference-caching.md) | Bidirectional Reference Caching | Accepted | 2025-12-11 |
+| [ADR-0053](decisions/ADR-0053-composite-savesession-support.md) | Composite SaveSession Support | Accepted | 2025-12-11 |
+| [ADR-0054](decisions/ADR-0054-cascading-custom-fields.md) | Cascading Custom Fields | Accepted | 2025-12-11 |
+| [ADR-0055](decisions/ADR-0055-action-result-integration.md) | Action Result Integration | Accepted | 2025-12-11 |
+| [ADR-0056](decisions/ADR-0056-custom-field-api-format.md) | Custom Field API Format | Accepted | 2025-12-11 |
+| [ADR-0057](decisions/ADR-0057-subtasks-async-method.md) | Subtasks Async Method | Accepted | 2025-12-11 |
+| [ADR-0058](decisions/ADR-0058-bug4-out-of-scope.md) | Bug 4 Out of Scope | Accepted | 2025-12-11 |
+| [ADR-0059](decisions/ADR-0059-direct-methods-vs-session-actions.md) | Direct Methods vs Session Actions | Accepted | 2025-12-11 |
 | [ADR-0060](decisions/ADR-0060-name-resolution-caching-strategy.md) | Name Resolution Caching Strategy | Approved | 2025-12-12 |
 | [ADR-0061](decisions/ADR-0061-implicit-savesession-lifecycle.md) | Implicit SaveSession Lifecycle | Approved | 2025-12-12 |
 | [ADR-0062](decisions/ADR-0062-custom-field-accessor-enhancement.md) | CustomFieldAccessor Enhancement vs. Wrapper | Approved | 2025-12-12 |
 | [ADR-0063](decisions/ADR-0063-client-reference-storage.md) | Client Reference Storage | Approved | 2025-12-12 |
 | [ADR-0064](decisions/ADR-0064-dirty-detection-strategy.md) | Dirty Detection Strategy | Approved | 2025-12-12 |
+| [ADR-0065](decisions/ADR-0065-savesession-error-exception.md) | SaveSession Error Exception | Accepted | 2025-12-12 |
+| [ADR-0066](decisions/ADR-0066-selective-action-clearing.md) | Selective Action Clearing | Accepted | 2025-12-12 |
+| [ADR-0067](decisions/ADR-0067-custom-field-snapshot-detection.md) | Custom Field Snapshot Detection | Accepted | 2025-12-12 |
 | [ADR-0068](decisions/ADR-0068-type-detection-strategy.md) | Type Detection Strategy for Upward Traversal | Accepted | 2025-12-16 |
 | [ADR-0069](decisions/ADR-0069-hydration-api-design.md) | Hydration API Design | Accepted | 2025-12-16 |
 | [ADR-0070](decisions/ADR-0070-hydration-partial-failure.md) | Hydration Partial Failure Handling | Accepted | 2025-12-16 |
 | [ADR-0071](decisions/ADR-0071-resolution-ambiguity-handling.md) | Resolution Ambiguity Handling | Accepted | 2025-12-16 |
 | [ADR-0072](decisions/ADR-0072-resolution-caching-decision.md) | Resolution Caching Decision | Accepted | 2025-12-16 |
 | [ADR-0073](decisions/ADR-0073-batch-resolution-api-design.md) | Batch Resolution API Design | Accepted | 2025-12-16 |
+| [ADR-0074](decisions/ADR-0074-unified-custom-field-tracking.md) | Unified Custom Field Tracking | Accepted | 2025-12-16 |
+| [ADR-0075](decisions/ADR-0075-navigation-descriptor-pattern.md) | Navigation Descriptor Pattern | Accepted | 2025-12-16 |
+| [ADR-0076](decisions/ADR-0076-auto-invalidation-strategy.md) | Auto-Invalidation Strategy | Accepted | 2025-12-16 |
+| [ADR-0077](decisions/ADR-0077-pydantic-descriptor-compatibility.md) | Pydantic Descriptor Compatibility | Accepted | 2025-12-16 |
+| [ADR-0078](decisions/ADR-0078-gid-based-entity-identity.md) | GID-Based Entity Identity | Accepted | 2025-12-16 |
+| [ADR-0079](decisions/ADR-0079-retryable-error-classification.md) | Retryable Error Classification | Accepted | 2025-12-16 |
+| [ADR-0080](decisions/ADR-0080-entity-registry-scope.md) | Entity Registry Scope | Accepted | 2025-12-16 |
+| [ADR-0081](decisions/ADR-0081-custom-field-descriptor-pattern.md) | Custom Field Descriptor Pattern | Accepted | 2025-12-16 |
+| [ADR-0082](decisions/ADR-0082-fields-auto-generation-strategy.md) | Fields Auto-Generation Strategy | Accepted | 2025-12-16 |
+| [ADR-0083](decisions/ADR-0083-datefield-arrow-integration.md) | DateField Arrow Integration | Accepted | 2025-12-16 |
+| [ADR-DEMO-001](decisions/ADR-DEMO-001-state-capture-strategy.md) | State Capture Strategy (SDK Demo) | Accepted | 2025-12-12 |
+| [ADR-DEMO-002](decisions/ADR-DEMO-002-name-resolution-approach.md) | Name Resolution Approach (SDK Demo) | Accepted | 2025-12-12 |
+| [ADR-DEMO-003](decisions/ADR-DEMO-003-error-handling-strategy.md) | Error Handling Strategy (SDK Demo) | Accepted | 2025-12-12 |
+| [ADR-HARDENING-A-001](decisions/ADR-HARDENING-A-001-exception-rename-strategy.md) | Exception Rename Strategy | Accepted | 2025-12-16 |
+| [ADR-HARDENING-A-002](decisions/ADR-HARDENING-A-002-observability-protocol-design.md) | Observability Protocol Design | Accepted | 2025-12-16 |
+| [ADR-HARDENING-A-003](decisions/ADR-HARDENING-A-003-logging-standardization.md) | Logging Standardization | Accepted | 2025-12-16 |
+| [ADR-HARDENING-A-004](decisions/ADR-HARDENING-A-004-minimal-stub-model-pattern.md) | Minimal Stub Model Pattern | Accepted | 2025-12-16 |
 | [ADR-DESIGN-B-001](decisions/ADR-DESIGN-B-001-retryable-error-mixin.md) | RetryableErrorMixin for Error Classification | Accepted | 2025-12-16 |
 
 ## Design Patterns Sprint
@@ -189,30 +219,21 @@ A (Foundation) --> B (Custom Fields) -----> F (SaveSession)
 
 ---
 
-## Session Orchestration Documents
-
-| Title | Session | Status | Date |
-|-------|---------|--------|------|
-| [ORCHESTRATOR-SESSION1-HANDOFF](initiatives/ORCHESTRATOR-SESSION1-HANDOFF.md) | 1 (Discovery) | Complete | 2025-12-11 |
-| [SESSION-4-IMPLEMENTATION-CONTEXT](initiatives/SESSION-4-IMPLEMENTATION-CONTEXT.md) | 4 (P1 Implementation) | Complete | 2025-12-12 |
-| [ENGINEER-READINESS-SUMMARY](initiatives/ENGINEER-READINESS-SUMMARY.md) | 4 (P1 Handoff) | Complete | 2025-12-12 |
-| [SESSION-5-IMPLEMENTATION-CONTEXT](initiatives/SESSION-5-IMPLEMENTATION-CONTEXT.md) | 5 (P2 + P3 Implementation) | Complete | 2025-12-12 |
-| [SESSION-5-READINESS-ASSESSMENT](initiatives/SESSION-5-READINESS-ASSESSMENT.md) | 5 (P2 + P3 Readiness) | Complete | 2025-12-12 |
-| [ORCHESTRATOR-SESSION5-HANDOFF](initiatives/ORCHESTRATOR-SESSION5-HANDOFF.md) | 5 (P2 + P3 Handoff) | Complete | 2025-12-12 |
-| [SESSION-6-IMPLEMENTATION-CONTEXT](initiatives/SESSION-6-IMPLEMENTATION-CONTEXT.md) | 6 (P4 + P5 Implementation) | Complete | 2025-12-12 |
-| [SESSION-6-READINESS-ASSESSMENT](initiatives/SESSION-6-READINESS-ASSESSMENT.md) | 6 (P4 + P5 Readiness) | Complete | 2025-12-12 |
-| [ORCHESTRATOR-SESSION6-HANDOFF](initiatives/ORCHESTRATOR-SESSION6-HANDOFF.md) | 6 (P4 + P5 Handoff) | Complete | 2025-12-12 |
-| [SESSION-7-VALIDATION-CONTEXT](initiatives/SESSION-7-VALIDATION-CONTEXT.md) | 7 (Validation) | Ready | 2025-12-12 |
-| [SESSION-7-READINESS-ASSESSMENT](initiatives/SESSION-7-READINESS-ASSESSMENT.md) | 7 (Validation Readiness) | Ready | 2025-12-12 |
-| [ORCHESTRATOR-SESSION7-HANDOFF](initiatives/ORCHESTRATOR-SESSION7-HANDOFF.md) | 7 (Validation Handoff) | Ready | 2025-12-12 |
-
 ## Discovery Documents
 
 | Title | Related PRD | Description | Date |
 |-------|-------------|-------------|------|
-| [save-orchestration-discovery.md](save-orchestration-discovery.md) | [PRD-0005](requirements/PRD-0005-save-orchestration.md) | Save Orchestration Layer feasibility analysis | 2025-12-10 |
-| [DISCOVERY-HYDRATION-001](decisions/DISCOVERY-HYDRATION-001.md) | [PRD-HYDRATION](requirements/PRD-HYDRATION.md) | Business Model Hydration infrastructure audit | 2025-12-16 |
-| [DISCOVERY-RESOLUTION-001](decisions/DISCOVERY-RESOLUTION-001.md) | PRD-RESOLUTION (pending) | Cross-Holder Relationship Resolution validation | 2025-12-16 |
+| [save-orchestration-discovery.md](discovery/save-orchestration-discovery.md) | [PRD-0005](requirements/PRD-0005-save-orchestration.md) | Save Orchestration Layer feasibility analysis | 2025-12-10 |
+| [DISCOVERY-HYDRATION-001](discovery/DISCOVERY-HYDRATION-001.md) | [PRD-HYDRATION](requirements/PRD-HYDRATION.md) | Business Model Hydration infrastructure audit | 2025-12-16 |
+| [DISCOVERY-RESOLUTION-001](discovery/DISCOVERY-RESOLUTION-001.md) | [PRD-RESOLUTION](requirements/PRD-RESOLUTION.md) | Cross-Holder Relationship Resolution validation | 2025-12-16 |
+| [DISCOVERY-SDKUX-001](discovery/DISCOVERY-SDKUX-001.md) | [PRD-SDKUX](requirements/PRD-SDKUX.md) | SDK User Experience analysis | 2025-12-12 |
+| [DISCOVERY-BIZMODEL-001](discovery/DISCOVERY-BIZMODEL-001.md) | [PRD-BIZMODEL](requirements/PRD-BIZMODEL.md) | Business Model discovery analysis | 2025-12-11 |
+| [DISCOVERY-HARDENING-A](discovery/DISCOVERY-HARDENING-A.md) | PRD-HARDENING-A | Foundation hardening discovery | 2025-12-16 |
+| [DISCOVERY-HARDENING-B](discovery/DISCOVERY-HARDENING-B.md) | PRD-HARDENING-B | Custom Fields hardening discovery | 2025-12-16 |
+| [DISCOVERY-HARDENING-C](discovery/DISCOVERY-HARDENING-C.md) | PRD-HARDENING-C | Navigation hardening discovery | 2025-12-16 |
+| [DISCOVERY-HARDENING-F](discovery/DISCOVERY-HARDENING-F.md) | PRD-HARDENING-F | SaveSession hardening discovery | 2025-12-16 |
+| [DISCOVERY-SDKDEMO](discovery/DISCOVERY-SDKDEMO.md) | PRD-SDKDEMO | SDK Demo discovery analysis | 2025-12-12 |
+| [DISCOVERY-PATTERNS-A-CUSTOM-FIELDS](discovery/DISCOVERY-PATTERNS-A-CUSTOM-FIELDS.md) | PRD-PATTERNS-A | Custom Field Descriptors discovery | 2025-12-16 |
 
 ## Guides
 
@@ -236,3 +257,22 @@ A (Foundation) --> B (Custom Fields) -----> F (SaveSession)
 | [TP-HYDRATION](testing/TP-HYDRATION.md) | Business Model Hydration | PRD-HYDRATION | TDD-HYDRATION | PASS |
 | [TP-RESOLUTION](testing/TP-RESOLUTION.md) | Cross-Holder Relationship Resolution | PRD-RESOLUTION | TDD-RESOLUTION | PASS |
 | [TP-RESOLUTION-BATCH](testing/TP-RESOLUTION-BATCH.md) | Batch Resolution Functions | PRD-RESOLUTION | ADR-0073 | PASS |
+
+## Validation Reports
+
+| Title | Related | Description | Status |
+|-------|---------|-------------|--------|
+| [VR-PATTERNS-A](validation/VR-PATTERNS-A.md) | PRD-PATTERNS-A | Design Patterns Sprint A validation | Current |
+| [VALIDATION-BIZMODEL](validation/VALIDATION-BIZMODEL.md) | PRD-BIZMODEL | Business model validation | Current |
+| [VALIDATION-HYDRATION-E](validation/VALIDATION-HYDRATION-E.md) | PRD-HYDRATION | Hydration validation | PASS |
+| [VALIDATION-SDKDEMO](validation/VALIDATION-SDKDEMO.md) | PRD-SDKDEMO | SDK demo validation | Current |
+
+## Archived Documents
+
+Historical artifacts from completed sessions and initiatives are preserved in `docs/.archive/`:
+
+- **`docs/.archive/initiatives/`**: Completed Prompt 0s, session handoffs, orchestration summaries
+- **`docs/.archive/validation/`**: Point-in-time validation reports from completed sessions
+- **`docs/.archive/`**: Other historical artifacts (executive summaries, superseded documents)
+
+These documents are retained for historical reference but are not part of active development.
