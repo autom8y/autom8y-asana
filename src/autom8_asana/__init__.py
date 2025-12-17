@@ -28,6 +28,7 @@ from autom8_asana.exceptions import (
     ConfigurationError,
     ForbiddenError,
     GoneError,
+    HydrationError,
     NotFoundError,
     RateLimitError,
     ServerError,
@@ -35,8 +36,17 @@ from autom8_asana.exceptions import (
     TimeoutError,
 )
 
+# TDD-HARDENING-A: GID validation exception at root level (FR-EXC-006)
+from autom8_asana.persistence.exceptions import GidValidationError
+
 # Protocols (for type checking and custom implementations)
-from autom8_asana.protocols import AuthProvider, CacheProvider, ItemLoader, LogProvider
+from autom8_asana.protocols import (
+    AuthProvider,
+    CacheProvider,
+    ItemLoader,
+    LogProvider,
+    ObservabilityHook,  # TDD-HARDENING-A/FR-OBS-009
+)
 
 # Observability (per TDD-0007, ADR-0013)
 from autom8_asana.observability import (
@@ -131,8 +141,10 @@ __all__ = [
     "AsanaError",
     "AuthenticationError",
     "ForbiddenError",
-    "NotFoundError",
+    "GidValidationError",  # TDD-HARDENING-A (FR-EXC-006)
     "GoneError",
+    "HydrationError",
+    "NotFoundError",
     "RateLimitError",
     "ServerError",
     "TimeoutError",
@@ -143,6 +155,7 @@ __all__ = [
     "CacheProvider",
     "ItemLoader",
     "LogProvider",
+    "ObservabilityHook",  # TDD-HARDENING-A/FR-OBS-009
     # Observability
     "CorrelationContext",
     "error_handler",

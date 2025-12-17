@@ -15,10 +15,14 @@ from autom8_asana.persistence.exceptions import (
     DependencyResolutionError,
     PartialSaveError,
     SaveOrchestrationError,
+    SaveSessionError,
     SessionClosedError,
     UnsupportedOperationError,
 )
 from autom8_asana.persistence.models import (
+    ActionOperation,
+    ActionResult,
+    ActionType,
     OperationType,
     SaveError,
     SaveResult,
@@ -277,6 +281,138 @@ class TestPartialSaveError:
 
 
 # ---------------------------------------------------------------------------
+# SaveSessionError Tests (TDD-TRIAGE-FIXES, Issue 5)
+# ---------------------------------------------------------------------------
+
+
+class TestSaveSessionError:
+    """Tests for SaveSessionError (Issue 5/ADR-0065)."""
+
+    def test_inherits_from_save_orchestration_error(self) -> None:
+        """SaveSessionError inherits from SaveOrchestrationError."""
+        assert issubclass(SaveSessionError, SaveOrchestrationError)
+
+    def test_stores_save_result(self) -> None:
+        """SaveSessionError stores SaveResult."""
+        task = Task(gid="123")
+        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_456")
+        action_result = ActionResult(action=action, success=False, error=Exception("Tag not found"))
+        result = SaveResult(action_results=[action_result])
+
+        error = SaveSessionError(result)
+
+        assert error.result is result
+
+    def test_message_includes_failure_count(self) -> None:
+        """SaveSessionError message includes failure count."""
+        task = Task(gid="123")
+        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_456")
+        action_result = ActionResult(action=action, success=False, error=Exception("Tag not found"))
+        result = SaveResult(action_results=[action_result])
+
+        error = SaveSessionError(result)
+        message = str(error)
+
+        assert "SaveSession commit failed" in message
+        assert "1 failure(s)" in message
+
+    def test_message_includes_action_failure_details(self) -> None:
+        """SaveSessionError message includes action failure details."""
+        task = Task(gid="task_123")
+        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_456")
+        action_result = ActionResult(action=action, success=False, error=Exception("Tag not found"))
+        result = SaveResult(action_results=[action_result])
+
+        error = SaveSessionError(result)
+        message = str(error)
+
+        assert "Action add_tag" in message
+        assert "task_123" in message
+
+    def test_message_includes_crud_failure_details(self) -> None:
+        """SaveSessionError message includes CRUD failure details."""
+        task = Task(gid="task_123")
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=ValueError("Invalid data"),
+            payload={},
+        )
+        result = SaveResult(failed=[save_error])
+
+        error = SaveSessionError(result)
+        message = str(error)
+
+        assert "CRUD update" in message
+        assert "Task(gid=task_123)" in message
+
+    def test_message_truncates_at_three_failures(self) -> None:
+        """SaveSessionError message truncates after 3 failures."""
+        task = Task(gid="task_123")
+        action_results = []
+        for i in range(5):
+            action = ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid=f"tag_{i}")
+            action_results.append(
+                ActionResult(action=action, success=False, error=Exception(f"Error {i}"))
+            )
+        result = SaveResult(action_results=action_results)
+
+        error = SaveSessionError(result)
+        message = str(error)
+
+        assert "5 failure(s)" in message
+        assert "... and 2 more" in message
+
+    def test_combined_crud_and_action_failures(self) -> None:
+        """SaveSessionError handles both CRUD and action failures."""
+        task = Task(gid="task_123")
+
+        # CRUD failure
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.CREATE,
+            error=ValueError("Create failed"),
+            payload={},
+        )
+
+        # Action failure
+        action = ActionOperation(task=task, action=ActionType.REMOVE_TAG, target_gid="tag_456")
+        action_result = ActionResult(action=action, success=False, error=Exception("Remove failed"))
+
+        result = SaveResult(failed=[save_error], action_results=[action_result])
+
+        error = SaveSessionError(result)
+        message = str(error)
+
+        assert "2 failure(s)" in message
+        assert "CRUD create" in message
+        assert "Action remove_tag" in message
+
+    def test_result_accessible_for_inspection(self) -> None:
+        """SaveSessionError result can be inspected for details."""
+        task = Task(gid="task_123")
+        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_456")
+        action_result = ActionResult(action=action, success=False, error=Exception("Tag error"))
+        result = SaveResult(action_results=[action_result])
+
+        error = SaveSessionError(result)
+
+        # Can inspect result details
+        assert len(error.result.action_results) == 1
+        assert error.result.action_results[0].error is not None
+        assert "Tag error" in str(error.result.action_results[0].error)
+
+    def test_can_catch_as_save_orchestration_error(self) -> None:
+        """SaveSessionError can be caught as SaveOrchestrationError."""
+        result = SaveResult()
+
+        try:
+            raise SaveSessionError(result)
+        except SaveOrchestrationError:
+            pass  # Expected
+
+
+# ---------------------------------------------------------------------------
 # UnsupportedOperationError Tests (TDD-0011)
 # ---------------------------------------------------------------------------
 
@@ -372,6 +508,7 @@ class TestExceptionHierarchy:
             DependencyResolutionError,
             PartialSaveError,
             UnsupportedOperationError,
+            SaveSessionError,
         ]
 
         for exc_class in exceptions:
@@ -382,6 +519,8 @@ class TestExceptionHierarchy:
     def test_can_catch_all_save_errors(self) -> None:
         """All save errors can be caught with SaveOrchestrationError."""
         task = Task(gid="123")
+        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_456")
+        action_result = ActionResult(action=action, success=False, error=Exception("Test"))
         exceptions_to_test = [
             SessionClosedError(),
             CyclicDependencyError([task]),
@@ -391,6 +530,7 @@ class TestExceptionHierarchy:
                           error=ValueError("x"), payload={})
             ])),
             UnsupportedOperationError("tags", ["add_tag", "remove_tag"]),
+            SaveSessionError(SaveResult(action_results=[action_result])),
         ]
 
         for exc in exceptions_to_test:

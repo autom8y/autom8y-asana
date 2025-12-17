@@ -4,8 +4,10 @@ Provides correlation ID generation, error handling decorator,
 and contextual logging for request tracing.
 
 Per TDD-0007 and ADR-0013.
+Per TDD-HARDENING-A/FR-LOG-002: LogContext for structured logging.
 """
 
+from autom8_asana.observability.context import LogContext
 from autom8_asana.observability.correlation import (
     CorrelationContext,
     generate_correlation_id,
@@ -16,4 +18,6 @@ __all__ = [
     "CorrelationContext",
     "error_handler",
     "generate_correlation_id",
+    # TDD-HARDENING-A/FR-LOG-002
+    "LogContext",
 ]

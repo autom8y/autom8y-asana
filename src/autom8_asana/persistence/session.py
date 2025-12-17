@@ -3,6 +3,7 @@
 Per FR-UOW-001 through FR-UOW-008.
 Per ADR-0035: Unit of Work Pattern for Save Orchestration.
 Per TDD-0011: Action endpoint support for tag, project, dependency, and section.
+Per TDD-TRIAGE-FIXES: Cascade execution integration.
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ from autom8_asana.persistence.exceptions import (
     PositioningConflictError,
 )
 from autom8_asana.transport.sync import sync_wrapper
+from autom8_asana.clients.name_resolver import NameResolver
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
@@ -151,6 +153,17 @@ class SaveSession:
         # TDD-0011: Pending action operations
         self._pending_actions: list[ActionOperation] = []
 
+        # TDD-TRIAGE-FIXES: Cascade executor for field propagation
+        from autom8_asana.persistence.cascade import CascadeExecutor, CascadeOperation
+        self._cascade_executor = CascadeExecutor(client)
+
+        # TDD-TRIAGE-FIXES: Initialize cascade operations list in __init__ (not lazily)
+        self._cascade_operations: list[CascadeOperation] = []
+
+        # P3: Name resolver with per-session caching (ADR-0060)
+        self._name_cache: dict[str, str] = {}
+        self._name_resolver = NameResolver(client, self._name_cache)
+
         self._state = SessionState.OPEN
         self._log = getattr(client, "_log", None)
 
@@ -190,13 +203,39 @@ class SaveSession:
         """
         self._state = SessionState.CLOSED
 
+    # --- Name Resolution ---
+
+    @property
+    def name_resolver(self) -> NameResolver:
+        """Get name resolver for this session (cached per-session).
+
+        Per ADR-0060: Name resolution with per-SaveSession caching.
+
+        Returns:
+            NameResolver instance with session-scoped cache.
+
+        Example:
+            >>> async with SaveSession(client) as session:
+            >>>     tag_gid = await session.name_resolver.resolve_tag_async("Urgent")
+        """
+        return self._name_resolver
+
     # --- Entity Registration ---
 
-    def track(self, entity: T) -> T:
+    def track(
+        self,
+        entity: T,
+        *,
+        prefetch_holders: bool = False,
+        recursive: bool = False,
+    ) -> T:
         """Register entity for change tracking.
 
         Per FR-UOW-002: Explicit opt-in tracking.
         Per FR-CHANGE-001: Capture snapshot at track time.
+        Per ADR-0050: Support prefetch_holders for BusinessEntity types.
+        Per ADR-0053: Support recursive tracking of hierarchies.
+        Per ADR-0078: GID-based deduplication returns existing entity if same GID.
 
         Tracks an entity for changes. A snapshot of the entity's current
         state is captured. After tracking, any modifications to the entity
@@ -206,31 +245,76 @@ class SaveSession:
         be created via POST. Existing entities will be updated via PUT if
         they have changes.
 
+        If an entity with the same GID is already tracked, the reference is
+        updated but the original snapshot is preserved, enabling change
+        detection across re-fetches.
+
         Args:
             entity: AsanaResource instance to track. Can be an existing
                    entity from the API or a new entity to be created.
+            prefetch_holders: If True and entity has HOLDER_KEY_MAP,
+                            queue holder subtasks for prefetch at commit time.
+                            (Note: Actual prefetch requires async client operation)
+            recursive: If True, recursively track all descendants in holders.
 
         Returns:
-            The same entity (for chaining).
+            The tracked entity (may be updated reference if same GID).
 
         Raises:
             SessionClosedError: If session is closed.
 
         Example:
+            # Simple tracking
             task = session.track(Task(gid="temp_1", name="New Task"))
             task.notes = "Added notes"  # This change will be detected
+
+            # Track with recursive for full hierarchy
+            session.track(business, recursive=True)
+            # All contacts, units, offers, processes now tracked
         """
         self._ensure_open()
-        self._tracker.track(entity)
+        tracked = self._tracker.track(entity)
 
         if self._log:
             self._log.debug(
                 "session_track",
                 entity_type=type(entity).__name__,
                 entity_gid=entity.gid,
+                prefetch_holders=prefetch_holders,
+                recursive=recursive,
             )
 
-        return entity
+        # Recursive tracking of descendants
+        if recursive:
+            self._track_recursive(entity)
+
+        return tracked  # type: ignore[return-value]  # ChangeTracker.track returns AsanaResource
+
+    def _track_recursive(self, entity: AsanaResource) -> None:
+        """Recursively track all children in entity's holders.
+
+        Per ADR-0053: Optional recursive=True for composite SaveSession.
+
+        Args:
+            entity: Entity that may have HOLDER_KEY_MAP with holders.
+        """
+        # Track holders if entity has HOLDER_KEY_MAP (Business, Unit, etc.)
+        holder_key_map = getattr(entity, "HOLDER_KEY_MAP", None)
+        if holder_key_map:
+            for holder_name in holder_key_map:
+                holder = getattr(entity, f"_{holder_name}", None)
+                if holder is not None:
+                    self._tracker.track(holder)
+                    self._track_recursive(holder)
+
+        # Track direct children based on holder type patterns
+        # Check for known child collection patterns
+        for child_attr in ("_contacts", "_units", "_offers", "_processes"):
+            children = getattr(entity, child_attr, None)
+            if children and isinstance(children, list):
+                for child in children:
+                    self._tracker.track(child)
+                    self._track_recursive(child)
 
     def untrack(self, entity: AsanaResource) -> None:
         """Remove entity from change tracking.
@@ -345,6 +429,47 @@ class SaveSession:
         """
         return self._tracker.get_state(entity)
 
+    def find_by_gid(self, gid: str) -> AsanaResource | None:
+        """Look up entity by GID.
+
+        Per FR-EL-001: New capability enabled by GID-based tracking.
+        Per ADR-0078: GID-based entity identity for deduplication.
+
+        Searches tracked entities by GID, including temp GIDs that have
+        been transitioned to real GIDs after successful CREATE operations.
+
+        Args:
+            gid: The GID to look up (real or temp).
+
+        Returns:
+            Tracked entity or None if not found.
+
+        Example:
+            task = session.find_by_gid("12345")
+            if task:
+                task.completed = True
+        """
+        return self._tracker.find_by_gid(gid)
+
+    def is_tracked(self, gid: str) -> bool:
+        """Check if GID is currently tracked.
+
+        Per FR-EL-005: Boolean helper for tracking state.
+        Per ADR-0078: GID-based entity identity.
+
+        Args:
+            gid: The GID to check.
+
+        Returns:
+            True if entity with this GID is tracked.
+
+        Example:
+            if not session.is_tracked("12345"):
+                task = await client.tasks.get_async("12345")
+                session.track(task)
+        """
+        return self._tracker.is_tracked(gid)
+
     def get_dependency_order(self) -> list[list[AsanaResource]]:
         """Get entities grouped by dependency level.
 
@@ -424,19 +549,20 @@ class SaveSession:
         Per FR-UOW-007: Support multiple commits within session.
         Per FR-CHANGE-009: Reset entity state after successful save.
         Per TDD-0011: Execute action operations after CRUD operations.
+        Per TDD-TRIAGE-FIXES: Execute cascade operations after actions.
 
         Commits all tracked entities with pending changes. Entities are
         saved in dependency order. Then action operations (add_tag, etc.)
-        are executed. Partial failures are reported but don't roll back
-        successful operations.
+        are executed. Finally, cascade operations propagate field values.
+        Partial failures are reported but don't roll back successful operations.
 
         After commit, successfully saved entities are marked clean and
         have their GIDs updated (for new entities). Pending actions are
-        cleared regardless of success.
+        cleared regardless of success. Failed cascades remain for retry.
 
         Returns:
             SaveResult with succeeded/failed lists. Action failures are
-            included in the failed list with SaveError.
+            included in action_results. Cascade results in cascade_results.
 
         Raises:
             SessionClosedError: If session is closed.
@@ -456,12 +582,13 @@ class SaveSession:
 
         dirty_entities = self._tracker.get_dirty_entities()
         pending_actions = list(self._pending_actions)
+        pending_cascades = list(self._cascade_operations)
 
-        if not dirty_entities and not pending_actions:
+        if not dirty_entities and not pending_actions and not pending_cascades:
             if self._log:
                 self._log.warning(
                     "commit_empty_session",
-                    message="No tracked entities or pending actions to commit. "
+                    message="No tracked entities, pending actions, or cascades to commit. "
                             "Did you forget to call track() on your entities?",
                 )
             return SaveResult()
@@ -471,26 +598,49 @@ class SaveSession:
                 "session_commit_start",
                 entity_count=len(dirty_entities),
                 action_count=len(pending_actions),
+                cascade_count=len(pending_cascades),
             )
 
-        # Execute CRUD operations and actions together
+        # Phase 1: Execute CRUD operations and actions together
         crud_result, action_results = await self._pipeline.execute_with_actions(
             entities=dirty_entities,
             actions=pending_actions,
             action_executor=self._action_executor,
         )
 
-        # Clear pending actions after commit (regardless of success)
-        self._pending_actions.clear()
+        # Per TDD-TRIAGE-FIXES/ADR-0066: Selective clearing - only remove successful actions
+        self._clear_successful_actions(action_results)
+
+        # Phase 2: Execute cascade operations
+        from autom8_asana.persistence.cascade import CascadeResult
+        cascade_results: list[CascadeResult] = []
+        if pending_cascades:
+            cascade_result = await self._cascade_executor.execute(pending_cascades)
+            cascade_results = [cascade_result]
+
+            # Clear only successful cascades, keep failed for retry
+            if cascade_result.success:
+                self._cascade_operations.clear()
+            # Failed cascades remain in _cascade_operations for retry
 
         # Reset state for successful entities (FR-CHANGE-009)
+        # DEF-001 FIX: Order matters - clear accessor BEFORE capturing snapshot
         for entity in crud_result.succeeded:
+            # Per ADR-0074: Reset custom field tracking (Systems 2 & 3) FIRST
+            # This clears stale modifications before snapshot capture
+            self._reset_custom_field_tracking(entity)
+            # Then capture clean snapshot (mark_clean calls model_dump())
             self._tracker.mark_clean(entity)
 
         self._state = SessionState.COMMITTED
 
-        # Count action failures for logging
+        # Count failures for logging
         action_failures = sum(1 for r in action_results if not r.success)
+        cascade_failures = sum(1 for r in cascade_results if not r.success)
+
+        # Populate results in the SaveResult (per ADR-0055, TDD-TRIAGE-FIXES)
+        crud_result.action_results = action_results
+        crud_result.cascade_results = cascade_results
 
         if self._log:
             self._log.info(
@@ -499,6 +649,8 @@ class SaveSession:
                 failed=len(crud_result.failed),
                 action_succeeded=len(action_results) - action_failures,
                 action_failed=action_failures,
+                cascade_succeeded=len(cascade_results) - cascade_failures,
+                cascade_failed=cascade_failures,
             )
 
         return crud_result
@@ -633,6 +785,7 @@ class SaveSession:
 
         Raises:
             SessionClosedError: If session is closed.
+            ValidationError: If tag_gid is invalid.
 
         Example:
             session.add_tag(task, tag).add_tag(task, other_tag)
@@ -640,6 +793,9 @@ class SaveSession:
         """
         self._ensure_open()
         tag_gid = tag if isinstance(tag, str) else tag.gid
+
+        from autom8_asana.persistence.validation import validate_gid
+        validate_gid(tag_gid, "tag_gid")
 
         action = ActionOperation(
             task=task,
@@ -673,6 +829,7 @@ class SaveSession:
 
         Raises:
             SessionClosedError: If session is closed.
+            ValidationError: If tag_gid is invalid.
 
         Example:
             session.remove_tag(task, old_tag)
@@ -680,6 +837,9 @@ class SaveSession:
         """
         self._ensure_open()
         tag_gid = tag if isinstance(tag, str) else tag.gid
+
+        from autom8_asana.persistence.validation import validate_gid
+        validate_gid(tag_gid, "tag_gid")
 
         action = ActionOperation(
             task=task,
@@ -728,6 +888,7 @@ class SaveSession:
             SessionClosedError: If session is closed.
             PositioningConflictError: If both insert_before and insert_after
                                      are specified.
+            ValidationError: If project_gid is invalid.
 
         Example:
             session.add_to_project(task, project)
@@ -741,6 +902,9 @@ class SaveSession:
             raise PositioningConflictError(insert_before, insert_after)
 
         project_gid = project if isinstance(project, str) else project.gid
+
+        from autom8_asana.persistence.validation import validate_gid
+        validate_gid(project_gid, "project_gid")
 
         # Build extra_params for positioning
         extra_params: dict[str, str] = {}
@@ -786,6 +950,7 @@ class SaveSession:
 
         Raises:
             SessionClosedError: If session is closed.
+            ValidationError: If project_gid is invalid.
 
         Example:
             session.remove_from_project(task, old_project)
@@ -793,6 +958,9 @@ class SaveSession:
         """
         self._ensure_open()
         project_gid = project if isinstance(project, str) else project.gid
+
+        from autom8_asana.persistence.validation import validate_gid
+        validate_gid(project_gid, "project_gid")
 
         action = ActionOperation(
             task=task,
@@ -830,6 +998,7 @@ class SaveSession:
 
         Raises:
             SessionClosedError: If session is closed.
+            ValidationError: If dependency_gid is invalid.
 
         Example:
             session.add_dependency(subtask, parent_task)
@@ -837,6 +1006,9 @@ class SaveSession:
         """
         self._ensure_open()
         depends_on_gid = depends_on if isinstance(depends_on, str) else depends_on.gid
+
+        from autom8_asana.persistence.validation import validate_gid
+        validate_gid(depends_on_gid, "dependency_gid")
 
         action = ActionOperation(
             task=task,
@@ -872,6 +1044,7 @@ class SaveSession:
 
         Raises:
             SessionClosedError: If session is closed.
+            ValidationError: If dependency_gid is invalid.
 
         Example:
             session.remove_dependency(task, old_dependency)
@@ -879,6 +1052,9 @@ class SaveSession:
         """
         self._ensure_open()
         depends_on_gid = depends_on if isinstance(depends_on, str) else depends_on.gid
+
+        from autom8_asana.persistence.validation import validate_gid
+        validate_gid(depends_on_gid, "dependency_gid")
 
         action = ActionOperation(
             task=task,
@@ -928,6 +1104,7 @@ class SaveSession:
             SessionClosedError: If session is closed.
             PositioningConflictError: If both insert_before and insert_after
                                      are specified.
+            ValidationError: If section_gid is invalid.
 
         Example:
             session.move_to_section(task, done_section)
@@ -941,6 +1118,9 @@ class SaveSession:
             raise PositioningConflictError(insert_before, insert_after)
 
         section_gid = section if isinstance(section, str) else section.gid
+
+        from autom8_asana.persistence.validation import validate_gid
+        validate_gid(section_gid, "section_gid")
 
         # Build extra_params for positioning
         extra_params: dict[str, str] = {}
@@ -1531,6 +1711,81 @@ class SaveSession:
         """
         return list(self._pending_actions)
 
+    # --- TDD-BIZMODEL Phase 3: Cascade Operations ---
+
+    def cascade_field(
+        self,
+        entity: T,
+        field_name: str,
+        *,
+        target_types: tuple[type, ...] | None = None,
+    ) -> SaveSession:
+        """Queue a cascade operation for the commit phase.
+
+        Per ADR-0054: Queue cascade operations to propagate field values
+        from a source entity to its descendants.
+
+        Cascade operations are executed after CRUD operations during commit.
+        The field value from the source entity will be propagated to all
+        descendants based on the CascadingFieldDef rules.
+
+        Args:
+            entity: Source entity owning the cascading field.
+            field_name: Name of the custom field to cascade.
+            target_types: Optional tuple of entity types to cascade to.
+                         If None, uses types from CascadingFieldDef.
+
+        Returns:
+            Self for fluent chaining.
+
+        Raises:
+            SessionClosedError: If session is closed.
+
+        Example:
+            # Cascade office phone to all descendants
+            session.cascade_field(business, "Office Phone")
+
+            # Cascade vertical only to Offers
+            from autom8_asana.models.business import Offer
+            session.cascade_field(unit, "Vertical", target_types=(Offer,))
+
+            await session.commit_async()
+        """
+        self._ensure_open()
+
+        from autom8_asana.persistence.cascade import CascadeOperation
+
+        op = CascadeOperation(
+            source_entity=entity,  # type: ignore[arg-type]  # T is expected to be BusinessEntity for cascades
+            field_name=field_name,
+            target_types=target_types,
+        )
+
+        # TDD-TRIAGE-FIXES: Use pre-initialized list (not hasattr check)
+        self._cascade_operations.append(op)
+
+        if self._log:
+            self._log.debug(
+                "session_cascade_field",
+                entity_type=type(entity).__name__,
+                entity_gid=entity.gid,
+                field_name=field_name,
+                target_types=[t.__name__ for t in target_types] if target_types else None,
+            )
+
+        return self
+
+    def get_pending_cascades(self) -> list[Any]:
+        """Get list of pending cascade operations.
+
+        Per ADR-0054: Allow inspection of pending cascades before commit.
+
+        Returns:
+            Copy of the pending cascade operations list.
+        """
+        # TDD-TRIAGE-FIXES: Use pre-initialized list
+        return list(self._cascade_operations)
+
     # --- Internal ---
 
     def _ensure_open(self) -> None:
@@ -1541,3 +1796,44 @@ class SaveSession:
         """
         if self._state == SessionState.CLOSED:
             raise SessionClosedError()
+
+    def _reset_custom_field_tracking(self, entity: AsanaResource) -> None:
+        """Reset custom field tracking state after successful commit.
+
+        Per ADR-0074: SaveSession coordinates reset across all tracking systems.
+        Only Task has custom fields; uses duck typing for extensibility.
+
+        Args:
+            entity: Successfully committed entity.
+        """
+        if hasattr(entity, 'reset_custom_field_tracking'):
+            entity.reset_custom_field_tracking()
+
+    def _clear_successful_actions(self, action_results: list[ActionResult]) -> None:
+        """Remove only successful actions from pending list.
+
+        Per TDD-TRIAGE-FIXES/ADR-0066: Failed actions remain for inspection/retry.
+
+        Args:
+            action_results: Results from action execution.
+        """
+        if not action_results:
+            # No actions executed, clear all (original behavior for empty case)
+            self._pending_actions.clear()
+            return
+
+        # Build set of successful action identities
+        # Identity = (task.gid, action_type, target_gid)
+        successful_identities: set[tuple[str, ActionType, str | None]] = set()
+        for result in action_results:
+            if result.success:
+                action = result.action
+                identity = (action.task.gid, action.action, action.target_gid)
+                successful_identities.add(identity)
+
+        # Keep only failed actions
+        self._pending_actions = [
+            action for action in self._pending_actions
+            if (action.task.gid, action.action, action.target_gid)
+            not in successful_identities
+        ]

@@ -1,0 +1,467 @@
+"""Unit and UnitHolder models.
+
+Per TDD-BIZMODEL: Unit entity with nested holders and 31 custom fields.
+Per TDD-HARDENING-C: Migrated to descriptor-based navigation pattern.
+Per FR-MODEL-006: Unit.HOLDER_KEY_MAP for nested OfferHolder/ProcessHolder.
+Per FR-CASCADE-003: Unit cascading fields (Platforms, Vertical, Booking Type).
+Per FR-INHERIT-002: Unit inherited fields (Default Vertical from Business).
+Per ADR-0052: Cached upward references with explicit invalidation.
+Per ADR-0075: Navigation descriptors for property consolidation.
+Per ADR-0076: Auto-invalidation on parent reference change.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, ClassVar
+
+from pydantic import PrivateAttr
+
+from autom8_asana.models.business.base import BusinessEntity, HolderMixin
+from autom8_asana.models.business.descriptors import (
+    EnumField,
+    HolderRef,
+    IntField,
+    MultiEnumField,
+    NumberField,
+    ParentRef,
+    PeopleField,
+    TextField,
+)
+from autom8_asana.models.business.fields import CascadingFieldDef, InheritedFieldDef
+from autom8_asana.models.task import Task
+
+if TYPE_CHECKING:
+    from autom8_asana.client import AsanaClient
+    from autom8_asana.models.business.business import Business
+    from autom8_asana.models.business.offer import Offer, OfferHolder
+    from autom8_asana.models.business.process import Process, ProcessHolder
+
+
+class Unit(BusinessEntity):
+    """Unit entity within a UnitHolder.
+
+    Per TDD-BIZMODEL: Units represent service packages or product offerings.
+    Each Unit can contain nested OfferHolder and ProcessHolder subtasks.
+
+    Units are the key entity for determining account structure - each Unit
+    typically represents a distinct service offering with its own Offers.
+
+    Example:
+        for unit in business.units:
+            print(f"{unit.vertical}: ${unit.mrr} MRR")
+            for offer in unit.offers:
+                print(f"  Offer: {offer.name}")
+    """
+
+    # --- Nested Holder Detection (Composite Pattern) ---
+
+    # Per FR-MODEL-006: Map property_name -> (task_name, emoji_indicator)
+    HOLDER_KEY_MAP: ClassVar[dict[str, tuple[str, str]]] = {
+        "offer_holder": ("Offers", "gift"),
+        "process_holder": ("Processes", "gear"),
+    }
+
+    # --- Private Cached References (ADR-0052) ---
+
+    _business: Business | None = PrivateAttr(default=None)
+    _unit_holder: UnitHolder | None = PrivateAttr(default=None)
+    _offer_holder: OfferHolder | None = PrivateAttr(default=None)
+    _process_holder: ProcessHolder | None = PrivateAttr(default=None)
+
+    # Navigation descriptors (TDD-HARDENING-C, ADR-0075)
+    # IMPORTANT: Declared WITHOUT type annotations to avoid Pydantic field creation
+    business = ParentRef["Business"](holder_attr="_unit_holder")
+    unit_holder = HolderRef["UnitHolder"]()
+    offer_holder = HolderRef["OfferHolder"]()
+    process_holder = HolderRef["ProcessHolder"]()
+
+    # _invalidate_refs() inherited from BusinessEntity (ADR-0076)
+
+    # --- Custom Field Descriptors (ADR-0081, TDD-PATTERNS-A) ---
+    # Per ADR-0077: Declared WITHOUT type annotations to avoid Pydantic field creation.
+    # Per ADR-0082: Fields class is auto-generated from these descriptors.
+
+    # Financial fields (8 NumberField + 1 text)
+    mrr = NumberField(field_name="MRR")
+    weekly_ad_spend = NumberField()
+    discount = NumberField()
+    meta_spend = NumberField()
+    meta_spend_sub_id = TextField(field_name="Meta Spend Sub ID")
+    tiktok_spend = NumberField()
+    tiktok_spend_sub_id = TextField(field_name="Tiktok Spend Sub ID")
+    solution_fee_sub_id = TextField(field_name="Solution Fee Sub ID")
+
+    # Ad Account / Platform fields (3)
+    ad_account_id = TextField(field_name="Ad Account ID")
+    platforms = MultiEnumField()
+    tiktok_profile = TextField()
+
+    # Product / Service fields (5)
+    products = MultiEnumField()
+    languages = MultiEnumField()
+    vertical = EnumField()
+    specialty = EnumField()
+    rep = PeopleField()
+
+    # Demographics / Targeting fields (8)
+    currency = EnumField()
+    radius = IntField()
+    min_age = IntField()
+    max_age = IntField()
+    gender = EnumField()
+    zip_code_list = TextField()
+    zip_codes_radius = TextField()
+    excluded_zips = TextField()
+    booking_type = EnumField()
+
+    # Form / Lead Settings fields (7)
+    form_questions = TextField()
+    disabled_questions = TextField()
+    disclaimers = TextField()
+    custom_disclaimer = TextField()
+    sms_lead_verification = EnumField(field_name="Sms Lead Verification")
+    work_email_verification = EnumField()
+    filter_out_x = TextField()
+
+    # --- Cascading Field Definitions (ADR-0054) ---
+
+    class CascadingFields:
+        """Fields that cascade from Unit to descendants (Offers, Processes).
+
+        Per FR-CASCADE-003: Unit declares PLATFORMS, VERTICAL, BOOKING_TYPE.
+
+        CRITICAL: allow_override=False is DEFAULT (parent always wins).
+        Only PLATFORMS has allow_override=True.
+        """
+
+        PLATFORMS = CascadingFieldDef(
+            name="Platforms",
+            target_types={"Offer"},
+            allow_override=True,  # EXPLICIT OPT-IN: Offers can keep their value
+        )
+
+        VERTICAL = CascadingFieldDef(
+            name="Vertical",
+            target_types={"Offer", "Process"},
+            # allow_override=False is DEFAULT - Offers always get Unit's vertical
+        )
+
+        BOOKING_TYPE = CascadingFieldDef(
+            name="Booking Type",
+            target_types={"Offer"},
+            # allow_override=False is DEFAULT
+        )
+
+        @classmethod
+        def all(cls) -> list[CascadingFieldDef]:
+            """Get all cascading field definitions."""
+            return [cls.PLATFORMS, cls.VERTICAL, cls.BOOKING_TYPE]
+
+        @classmethod
+        def get(cls, field_name: str) -> CascadingFieldDef | None:
+            """Get cascading field definition by name."""
+            for field_def in cls.all():
+                if field_def.name == field_name:
+                    return field_def
+            return None
+
+    # --- Inherited Field Definitions (ADR-0054) ---
+
+    class InheritedFields:
+        """Fields inherited from parent entities.
+
+        Per FR-INHERIT-002: Unit inherits Default Vertical from Business.
+        """
+
+        DEFAULT_VERTICAL = InheritedFieldDef(
+            name="Default Vertical",
+            inherit_from=["Business"],
+            allow_override=True,
+            default="General",
+        )
+
+        @classmethod
+        def all(cls) -> list[InheritedFieldDef]:
+            """Get all inherited field definitions."""
+            return [cls.DEFAULT_VERTICAL]
+
+    # --- Convenience Shortcuts ---
+
+    @property
+    def offers(self) -> list[Offer]:
+        """All Offer children (via OfferHolder).
+
+        Returns:
+            List of Offer entities, empty if holder not populated.
+        """
+        if self._offer_holder is None:
+            return []
+        return self._offer_holder.offers
+
+    @property
+    def active_offers(self) -> list[Offer]:
+        """Offers with active ads running.
+
+        Returns:
+            List of Offer entities where has_active_ads is True.
+        """
+        if self._offer_holder is None:
+            return []
+        return [o for o in self._offer_holder.offers if o.has_active_ads]
+
+    @property
+    def processes(self) -> list[Process]:
+        """All Process children (via ProcessHolder).
+
+        Returns:
+            List of Process entities, empty if holder not populated.
+        """
+        if self._process_holder is None:
+            return []
+        return self._process_holder.processes
+
+    # --- Upward Traversal (TDD-HYDRATION Phase 2) ---
+
+    async def to_business_async(
+        self,
+        client: AsanaClient,
+        *,
+        hydrate_full: bool = True,
+        partial_ok: bool = False,
+    ) -> Business:
+        """Navigate to containing Business and optionally hydrate full hierarchy.
+
+        Per ADR-0069: Instance method for upward navigation.
+        Per TDD-HYDRATION Phase 2: Unit upward traversal.
+        Per ADR-0070: partial_ok controls fail-fast vs partial success behavior.
+
+        Path: Unit -> UnitHolder -> Business (2 levels up)
+
+        This method traverses the parent chain to find the Business root,
+        then optionally hydrates the full Business hierarchy. After hydration,
+        this Unit instance's references are updated to point to the
+        hydrated hierarchy.
+
+        Args:
+            client: AsanaClient for API calls.
+            hydrate_full: If True (default), hydrate full Business hierarchy
+                after finding it. If False, only populates the path traversed.
+            partial_ok: If True, continue on partial failures during hydration.
+                If False (default), raise HydrationError on any failure.
+
+        Returns:
+            Business instance (fully hydrated if hydrate_full=True).
+
+        Raises:
+            HydrationError: If traversal fails (no parent, cycle detected,
+                max depth exceeded) or if hydration fails and partial_ok=False.
+
+        Example:
+            unit = Unit.model_validate(task_data)
+            business = await unit.to_business_async(client)
+
+            # Business is fully hydrated
+            print(f"Business: {business.name}")
+            for other_unit in business.units:
+                print(f"  Unit: {other_unit.name}")
+
+            # Unit references are updated
+            assert unit.business is business
+        """
+        from autom8_asana.exceptions import HydrationError
+        from autom8_asana.models.business.hydration import _traverse_upward_async
+
+        # Traverse upward to find Business
+        business, path = await _traverse_upward_async(self, client)
+
+        # Hydrate full hierarchy if requested
+        if hydrate_full:
+            try:
+                await business._fetch_holders_async(client)
+            except Exception as e:
+                if partial_ok:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(
+                        "Hydration failed with partial_ok=True",
+                        extra={"business_gid": business.gid, "error": str(e)},
+                    )
+                else:
+                    if isinstance(e, HydrationError):
+                        raise
+                    raise HydrationError(
+                        f"Downward hydration failed for Business {business.gid}: {e}",
+                        entity_gid=business.gid,
+                        entity_type="business",
+                        phase="downward",
+                        cause=e,
+                    ) from e
+
+        # Update this Unit's references to point to hydrated hierarchy
+        if business._unit_holder is not None:
+            self._unit_holder = business._unit_holder
+            self._business = business
+
+        return business
+
+    # --- Holder Population (Composite Pattern) ---
+
+    def _populate_holders(self, subtasks: list[Task]) -> None:
+        """Populate nested holder properties from fetched subtasks.
+
+        Called by SaveSession after fetching Unit subtasks.
+        Matches subtasks to holders via name and emoji indicators.
+
+        Args:
+            subtasks: List of Task subtasks from API.
+        """
+        # Import here to avoid circular import
+        from autom8_asana.models.business.offer import OfferHolder
+        from autom8_asana.models.business.process import ProcessHolder
+
+        for subtask in subtasks:
+            holder_key = self._identify_holder(subtask)
+            if holder_key == "offer_holder":
+                offer_holder = OfferHolder.model_validate(subtask.model_dump())
+                offer_holder._unit = self
+                offer_holder._business = self._business
+                self._offer_holder = offer_holder
+            elif holder_key == "process_holder":
+                process_holder = ProcessHolder.model_validate(subtask.model_dump())
+                process_holder._unit = self
+                process_holder._business = self._business
+                self._process_holder = process_holder
+
+    def _identify_holder(self, task: Task) -> str | None:
+        """Identify which holder type a task is.
+
+        Args:
+            task: Task to identify.
+
+        Returns:
+            Holder key name or None if not a holder.
+        """
+        for key, (name_pattern, emoji) in self.HOLDER_KEY_MAP.items():
+            if self._matches_holder(task, name_pattern, emoji):
+                return key
+        return None
+
+    def _matches_holder(self, task: Task, name_pattern: str, emoji: str) -> bool:
+        """Check if task matches a holder definition.
+
+        Per FR-HOLDER-009: Name match first, emoji fallback second.
+
+        Args:
+            task: Task to check.
+            name_pattern: Expected task name.
+            emoji: Expected custom emoji name.
+
+        Returns:
+            True if task matches holder pattern.
+        """
+        if task.name == name_pattern:
+            return True
+        return False
+
+    async def _fetch_holders_async(self, client: AsanaClient) -> None:
+        """Fetch and populate nested holder subtasks (OfferHolder, ProcessHolder).
+
+        Per TDD-HYDRATION Phase 1: Implements downward hydration for Unit.
+
+        Algorithm:
+        1. Fetch Unit subtasks (OfferHolder, ProcessHolder)
+        2. Identify and type each holder via _populate_holders()
+        3. Concurrently fetch each holder's children (Offers, Processes)
+        4. Set all bidirectional references
+
+        Args:
+            client: AsanaClient for API calls.
+
+        Raises:
+            HydrationError: If any fetch operation fails (fail-fast default).
+        """
+        import asyncio
+
+        # Step 1: Fetch Unit subtasks (holder tasks)
+        holder_tasks = await client.tasks.subtasks_async(self.gid).collect()
+
+        # Step 2: Populate typed holders from subtasks
+        self._populate_holders(holder_tasks)
+
+        # Step 3: Build list of concurrent fetch tasks for each holder's children
+        fetch_tasks: list[asyncio.Task[None]] = []
+
+        # OfferHolder children
+        if self._offer_holder:
+            fetch_tasks.append(
+                asyncio.create_task(
+                    self._fetch_holder_children_async(client, self._offer_holder)
+                )
+            )
+
+        # ProcessHolder children
+        if self._process_holder:
+            fetch_tasks.append(
+                asyncio.create_task(
+                    self._fetch_holder_children_async(client, self._process_holder)
+                )
+            )
+
+        # Step 4: Execute all holder child fetches concurrently
+        if fetch_tasks:
+            await asyncio.gather(*fetch_tasks)
+
+    async def _fetch_holder_children_async(
+        self,
+        client: AsanaClient,
+        holder: Task,
+    ) -> None:
+        """Fetch children for a holder and populate them.
+
+        Args:
+            client: AsanaClient for API calls.
+            holder: Holder task (OfferHolder or ProcessHolder) to fetch children for.
+        """
+        subtasks = await client.tasks.subtasks_async(holder.gid).collect()
+
+        # Call _populate_children on typed holder
+        if hasattr(holder, "_populate_children"):
+            holder._populate_children(subtasks)
+
+class UnitHolder(Task, HolderMixin["Unit"]):
+    """Holder task containing Unit children.
+
+    Per FR-HOLDER-003: UnitHolder extends Task with _units PrivateAttr.
+    Per TDD-HARDENING-C: Uses ClassVar configuration for generic _populate_children().
+    """
+
+    # ClassVar configuration (TDD-HARDENING-C)
+    CHILD_TYPE: ClassVar[type[Unit]] = Unit
+    PARENT_REF_NAME: ClassVar[str] = "_unit_holder"
+    CHILDREN_ATTR: ClassVar[str] = "_units"
+
+    # Children storage
+    _units: list[Unit] = PrivateAttr(default_factory=list)
+
+    # Back-reference to parent Business (ADR-0052)
+    _business: Business | None = PrivateAttr(default=None)
+
+    # _populate_children() inherited from HolderMixin (TDD-HARDENING-C)
+
+    @property
+    def units(self) -> list[Unit]:
+        """All Unit children.
+
+        Returns:
+            List of Unit entities.
+        """
+        return self._units
+
+    @property
+    def business(self) -> Business | None:
+        """Navigate to parent Business.
+
+        Returns:
+            Business entity or None if not populated.
+        """
+        return self._business

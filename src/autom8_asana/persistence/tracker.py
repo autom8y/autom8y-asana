@@ -1,19 +1,14 @@
 """Change tracking via snapshot comparison.
 
 Per ADR-0036: Snapshot-based dirty detection using model_dump().
+Per ADR-0078: GID-based entity identity for deduplication.
 """
 
 from __future__ import annotations
 
-import re
 from typing import Any, TYPE_CHECKING
 
 from autom8_asana.persistence.models import EntityState
-from autom8_asana.persistence.exceptions import ValidationError
-
-# GID format: numeric string or temp_<number> for new entities
-# Per ADR-0049: Validate at track time for fail-fast behavior
-GID_PATTERN = re.compile(r"^(temp_\d+|\d+)$")
 
 if TYPE_CHECKING:
     from autom8_asana.models.base import AsanaResource
@@ -23,59 +18,112 @@ class ChangeTracker:
     """Tracks entity changes via snapshot comparison.
 
     Per ADR-0036: Snapshot-based dirty detection using model_dump().
+    Per ADR-0078: GID-based entity identity for deduplication.
 
     Responsibilities:
     - Store snapshots at track() time
     - Detect dirty entities by comparing current state to snapshot
     - Compute field-level change sets
     - Track entity lifecycle states
+    - Deduplicate entities by GID
 
-    Uses id(entity) for identity to handle entities that may not
-    have GIDs yet (new entities) or may have duplicate GIDs in
-    different sessions.
+    Uses GID as primary key for identity, with fallback to __id_{id()}
+    for entities without GIDs.
     """
 
     def __init__(self) -> None:
         """Initialize empty tracker state."""
-        # id(entity) -> snapshot dict
-        self._snapshots: dict[int, dict[str, Any]] = {}
-        # id(entity) -> EntityState
-        self._states: dict[int, EntityState] = {}
-        # id(entity) -> entity (for retrieval)
-        self._entities: dict[int, AsanaResource] = {}
+        # key -> snapshot dict (key is GID or __id_{id})
+        self._snapshots: dict[str, dict[str, Any]] = {}
+        # key -> EntityState
+        self._states: dict[str, EntityState] = {}
+        # key -> entity reference
+        self._entities: dict[str, AsanaResource] = {}
+        # temp_gid -> real_gid (transition map for lookups)
+        self._gid_transitions: dict[str, str] = {}
+        # id(entity) -> key (reverse lookup for entity-to-key)
+        self._entity_to_key: dict[int, str] = {}
+        # Optional logger (injected by SaveSession)
+        self._log: Any = None
 
-    def track(self, entity: AsanaResource) -> None:
+    def _get_key(self, entity: AsanaResource) -> str:
+        """Generate tracking key for entity.
+
+        Per ADR-0078: GID-based entity identity.
+
+        Priority:
+        1. Use entity's GID if it exists (works for real and temp_ GIDs)
+        2. Fall back to f"__id_{id(entity)}" for truly GID-less entities
+
+        Args:
+            entity: The entity to generate a key for.
+
+        Returns:
+            String key for tracking dictionaries.
+        """
+        gid: str | None = getattr(entity, "gid", None)
+        if gid:
+            return gid
+        # Edge case: entity has no GID at all
+        return f"__id_{id(entity)}"
+
+    def track(self, entity: AsanaResource) -> AsanaResource:
         """Register entity and capture snapshot.
 
         Per FR-CHANGE-001: Capture original state at track time.
         Per FR-CHANGE-003: Detect new entities by GID.
         Per NFR-REL-002: Re-tracking same entity is idempotent.
+        Per ADR-0078/FR-EID-006: Return existing entity if GID already tracked.
 
         Args:
             entity: The AsanaResource to track.
 
+        Returns:
+            The tracked entity (may be existing if same GID was already tracked).
+
         Raises:
             ValidationError: If GID format is invalid.
         """
-        entity_id = id(entity)
+        key = self._get_key(entity)
 
-        # Idempotent: if already tracked, don't re-capture
-        if entity_id in self._entities:
-            return
+        # Check for existing entity with same GID
+        if key in self._entities:
+            existing = self._entities[key]
+            if existing is not entity:
+                # Same GID, different object - this is a re-fetch
+                # Per FR-EID-007: Log at DEBUG level
+                if self._log:
+                    self._log.debug(
+                        "tracker_duplicate_gid",
+                        gid=key,
+                        message="Entity re-tracked with same GID; updating reference",
+                    )
+                # Update reverse lookup for old entity
+                old_id = id(existing)
+                if old_id in self._entity_to_key:
+                    del self._entity_to_key[old_id]
+                # Update entity reference, keep original snapshot
+                self._entities[key] = entity
+                self._entity_to_key[id(entity)] = key
+                return entity
+            else:
+                # Same entity object, already tracked - idempotent
+                return entity
 
-        # Validate GID format before tracking
-        self._validate_gid_format(entity.gid)
-
-        self._entities[entity_id] = entity
-        self._snapshots[entity_id] = entity.model_dump()
+        # New tracking
+        self._entities[key] = entity
+        self._entity_to_key[id(entity)] = key
+        self._snapshots[key] = entity.model_dump()
 
         # Determine initial state based on GID
         # New entities have no GID or a temp_* GID
         gid = entity.gid
         if not gid or gid.startswith("temp_"):
-            self._states[entity_id] = EntityState.NEW
+            self._states[key] = EntityState.NEW
         else:
-            self._states[entity_id] = EntityState.CLEAN
+            self._states[key] = EntityState.CLEAN
+
+        return entity
 
     def untrack(self, entity: AsanaResource) -> None:
         """Remove entity from tracking.
@@ -85,10 +133,11 @@ class ChangeTracker:
         Args:
             entity: Previously tracked entity.
         """
-        entity_id = id(entity)
-        self._snapshots.pop(entity_id, None)
-        self._states.pop(entity_id, None)
-        self._entities.pop(entity_id, None)
+        key = self._get_key(entity)
+        self._snapshots.pop(key, None)
+        self._states.pop(key, None)
+        self._entities.pop(key, None)
+        self._entity_to_key.pop(id(entity), None)
 
     def mark_deleted(self, entity: AsanaResource) -> None:
         """Mark entity for deletion.
@@ -98,13 +147,13 @@ class ChangeTracker:
         Args:
             entity: Entity to mark for deletion.
         """
-        entity_id = id(entity)
+        key = self._get_key(entity)
 
         # If not tracked, track it first
-        if entity_id not in self._entities:
+        if key not in self._entities:
             self.track(entity)
 
-        self._states[entity_id] = EntityState.DELETED
+        self._states[key] = EntityState.DELETED
 
     def mark_clean(self, entity: AsanaResource) -> None:
         """Mark entity as clean (unmodified) and update snapshot.
@@ -114,12 +163,12 @@ class ChangeTracker:
         Args:
             entity: Entity to mark as clean.
         """
-        entity_id = id(entity)
+        key = self._get_key(entity)
 
-        if entity_id in self._entities:
+        if key in self._entities:
             # Update snapshot to current state
-            self._snapshots[entity_id] = entity.model_dump()
-            self._states[entity_id] = EntityState.CLEAN
+            self._snapshots[key] = entity.model_dump()
+            self._states[key] = EntityState.CLEAN
 
     def get_state(self, entity: AsanaResource) -> EntityState:
         """Get entity lifecycle state.
@@ -139,12 +188,12 @@ class ChangeTracker:
         Raises:
             ValueError: If entity is not tracked.
         """
-        entity_id = id(entity)
+        key = self._get_key(entity)
 
-        if entity_id not in self._states:
+        if key not in self._states:
             raise ValueError(f"Entity not tracked: {type(entity).__name__}")
 
-        state = self._states[entity_id]
+        state = self._states[key]
 
         # CLEAN might have become MODIFIED
         if state == EntityState.CLEAN and self._is_modified(entity):
@@ -167,25 +216,25 @@ class ChangeTracker:
             Dict of {field_name: (old_value, new_value)} for changed fields.
             Empty dict if entity is not tracked or has no changes.
         """
-        entity_id = id(entity)
+        key = self._get_key(entity)
 
-        if entity_id not in self._snapshots:
+        if key not in self._snapshots:
             return {}
 
-        original = self._snapshots[entity_id]
+        original = self._snapshots[key]
         current = entity.model_dump()
 
         changes: dict[str, tuple[Any, Any]] = {}
 
         # Check all fields from both dicts
-        all_keys = set(original.keys()) | set(current.keys())
+        all_field_keys = set(original.keys()) | set(current.keys())
 
-        for key in all_keys:
-            old_val = original.get(key)
-            new_val = current.get(key)
+        for field_key in all_field_keys:
+            old_val = original.get(field_key)
+            new_val = current.get(field_key)
 
             if old_val != new_val:
-                changes[key] = (old_val, new_val)
+                changes[field_key] = (old_val, new_val)
 
         return changes
 
@@ -199,8 +248,8 @@ class ChangeTracker:
         """
         dirty: list[AsanaResource] = []
 
-        for entity_id, entity in self._entities.items():
-            state = self._states[entity_id]
+        for key, entity in self._entities.items():
+            state = self._states.get(key, EntityState.CLEAN)
 
             if state == EntityState.DELETED:
                 dirty.append(entity)
@@ -239,37 +288,89 @@ class ChangeTracker:
         Returns:
             True if entity differs from snapshot.
         """
-        entity_id = id(entity)
+        key = self._get_key(entity)
 
-        if entity_id not in self._snapshots:
+        if key not in self._snapshots:
             return False
 
-        original = self._snapshots[entity_id]
+        original = self._snapshots[key]
         current = entity.model_dump()
 
         return original != current
 
-    def _validate_gid_format(self, gid: str | None) -> None:
-        """Validate GID format.
+    # --- GID Transition Support (ADR-0078) ---
 
-        Per ADR-0049: Validates GID format at track time.
+    def update_gid(self, entity: AsanaResource, old_key: str, new_gid: str) -> None:
+        """Re-key entity after temp GID becomes real GID.
+
+        Per ADR-0078/FR-EID-004: Support temp GID transition.
+
+        Called by pipeline after successful CREATE operation.
+        Maintains transition map for temp GID lookups.
 
         Args:
-            gid: The GID to validate. None is allowed for new entities.
-
-        Raises:
-            ValidationError: If GID format is invalid.
+            entity: The entity being re-keyed.
+            old_key: The original key (temp GID or __id_*).
+            new_gid: The real GID assigned by Asana.
         """
-        if gid is None:
-            return  # New entities have no GID yet
+        if old_key not in self._entities:
+            return
 
-        if gid == "":
-            raise ValidationError(
-                "GID cannot be empty string. Use None for new entities."
+        # Transfer all state to new key
+        self._entities[new_gid] = self._entities.pop(old_key)
+        self._snapshots[new_gid] = self._snapshots.pop(old_key)
+        self._states[new_gid] = self._states.pop(old_key)
+
+        # Record transition for lookup
+        self._gid_transitions[old_key] = new_gid
+
+        # Update reverse lookup
+        self._entity_to_key[id(entity)] = new_gid
+
+        if self._log:
+            self._log.debug(
+                "tracker_gid_transition",
+                old_gid=old_key,
+                new_gid=new_gid,
             )
 
-        if not GID_PATTERN.match(gid):
-            raise ValidationError(
-                f"Invalid GID format: {gid!r}. "
-                f"GID must be a numeric string or temp_<number> for new entities."
-            )
+    # --- Entity Lookup (ADR-0078) ---
+
+    def find_by_gid(self, gid: str) -> AsanaResource | None:
+        """Look up entity by GID.
+
+        Per FR-EL-001: Provide find_by_gid() method.
+        Per FR-EL-003: Return entity for transitioned temp GID.
+
+        Searches direct entities first, then checks transition map
+        for temp GIDs that have been resolved to real GIDs.
+
+        Args:
+            gid: The GID to look up (real or temp).
+
+        Returns:
+            Tracked entity or None if not found.
+        """
+        # Direct lookup
+        if gid in self._entities:
+            return self._entities[gid]
+
+        # Check if it's a transitioned temp GID
+        if gid in self._gid_transitions:
+            real_gid = self._gid_transitions[gid]
+            return self._entities.get(real_gid)
+
+        return None
+
+    def is_tracked(self, gid: str) -> bool:
+        """Check if GID is currently tracked.
+
+        Per FR-EL-005: Provide is_tracked() method.
+
+        Args:
+            gid: The GID to check.
+
+        Returns:
+            True if entity with this GID is tracked.
+        """
+        return self.find_by_gid(gid) is not None

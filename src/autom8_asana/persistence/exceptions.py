@@ -106,6 +106,7 @@ class PartialSaveError(SaveOrchestrationError):
     """Raised when some operations in a commit fail.
 
     Per FR-ERROR-004: Contains SaveResult with full outcome.
+    Per ADR-0079: Enhanced with retryable error classification.
     This exception is raised by SaveResult.raise_on_failure() when
     the caller wants exception-based error handling instead of
     inspecting the result directly.
@@ -123,7 +124,46 @@ class PartialSaveError(SaveOrchestrationError):
         self.result = result
         failed_count = len(result.failed)
         total = result.total_count
-        super().__init__(f"Partial save: {failed_count}/{total} operations failed")
+
+        # Build enhanced message with retryable counts
+        retryable_count = len(result.retryable_failures)
+        non_retryable_count = len(result.non_retryable_failures)
+
+        message = f"Partial save: {failed_count}/{total} operations failed"
+        if failed_count > 0:
+            message += f" ({retryable_count} retryable, {non_retryable_count} non-retryable)"
+
+        super().__init__(message)
+
+    @property
+    def is_retryable(self) -> bool:
+        """Whether any failures in this partial save are retryable.
+
+        Per ADR-0079: Returns True if at least one failure is retryable,
+        indicating that a partial retry may recover some operations.
+
+        Returns:
+            True if any failed operation is retryable.
+        """
+        return self.result.has_retryable_failures
+
+    @property
+    def retryable_count(self) -> int:
+        """Count of retryable failures.
+
+        Returns:
+            Number of SaveErrors that are retryable.
+        """
+        return len(self.result.retryable_failures)
+
+    @property
+    def non_retryable_count(self) -> int:
+        """Count of non-retryable failures.
+
+        Returns:
+            Number of SaveErrors that are not retryable.
+        """
+        return len(self.result.non_retryable_failures)
 
 
 class UnsupportedOperationError(SaveOrchestrationError):
@@ -185,11 +225,13 @@ class PositioningConflictError(SaveOrchestrationError):
         )
 
 
-class ValidationError(SaveOrchestrationError):
-    """Raised when entity validation fails at track time.
+class GidValidationError(SaveOrchestrationError):
+    """Raised when entity GID validation fails at track time.
 
     Per ADR-0049: Fail-fast on invalid GIDs.
     Per FR-VAL-001: Validate GID format at track() time.
+    Per TDD-HARDENING-A/FR-EXC-001: Renamed from ValidationError to avoid
+    conflict with pydantic.ValidationError.
 
     This exception is raised when an entity fails validation during tracking,
     such as having an invalid GID format. The error message provides actionable
@@ -205,4 +247,113 @@ class ValidationError(SaveOrchestrationError):
         Args:
             message: Actionable description of validation failure.
         """
+        super().__init__(message)
+
+
+# --- Backward Compatibility (FR-EXC-002) ---
+
+
+class _DeprecatedValidationErrorMeta(type):
+    """Metaclass that warns on ValidationError access.
+
+    Per ADR-HARDENING-A-001: Use metaclass-based deprecation warning that
+    triggers on isinstance/issubclass checks, catch clauses, and instantiation.
+    """
+
+    _warned = False  # Warn only once per session
+
+    def __call__(cls, *args: object, **kwargs: object) -> object:
+        """Warn on instantiation."""
+        cls._warn()
+        return super().__call__(*args, **kwargs)
+
+    def __instancecheck__(cls, instance: object) -> bool:
+        """Warn on isinstance() checks."""
+        cls._warn()
+        return isinstance(instance, GidValidationError)
+
+    def __subclasscheck__(cls, subclass: type) -> bool:
+        """Warn on issubclass() checks."""
+        cls._warn()
+        return issubclass(subclass, GidValidationError)
+
+    @classmethod
+    def _warn(cls) -> None:
+        """Emit deprecation warning once per session."""
+        if not cls._warned:
+            import warnings
+
+            warnings.warn(
+                "ValidationError is deprecated. Use GidValidationError instead. "
+                "ValidationError will be removed in v2.0.",
+                DeprecationWarning,
+                stacklevel=4,
+            )
+            cls._warned = True
+
+    @classmethod
+    def reset_warning(cls) -> None:
+        """Reset warning state (for testing)."""
+        cls._warned = False
+
+
+class ValidationError(GidValidationError, metaclass=_DeprecatedValidationErrorMeta):
+    """Deprecated alias for GidValidationError.
+
+    .. deprecated:: 1.x
+        Use :class:`GidValidationError` instead. This alias will be removed in v2.0.
+
+    Per FR-EXC-002: Backward compatibility alias with deprecation warning.
+    Warning is emitted once per session on first usage.
+    """
+
+    pass
+
+
+class SaveSessionError(SaveOrchestrationError):
+    """Raised when a SaveSession commit fails in a convenience method.
+
+    Per TDD-TRIAGE-FIXES/ADR-0065: P1 methods must propagate failures to callers.
+
+    This exception wraps the SaveResult so callers can inspect what succeeded
+    and what failed. It is raised by P1 convenience methods (add_tag_async,
+    remove_tag_async, etc.) when the underlying SaveSession commit fails.
+
+    Attributes:
+        result: The SaveResult containing success/failure details.
+    """
+
+    def __init__(self, result: SaveResult) -> None:
+        """Initialize with SaveResult.
+
+        Args:
+            result: The SaveResult from commit_async().
+        """
+        self.result = result
+
+        # Build descriptive message
+        failures: list[str] = []
+
+        # CRUD failures
+        for err in result.failed:
+            failures.append(
+                f"CRUD {err.operation.value} on {type(err.entity).__name__}"
+                f"(gid={err.entity.gid}): {err.error}"
+            )
+
+        # Action failures
+        for action_result in result.action_results:
+            if not action_result.success:
+                failures.append(
+                    f"Action {action_result.action.action.value} on task "
+                    f"{action_result.action.task.gid}: {action_result.error}"
+                )
+
+        message = (
+            f"SaveSession commit failed. {len(failures)} failure(s): "
+            + "; ".join(failures[:3])
+        )
+        if len(failures) > 3:
+            message += f" ... and {len(failures) - 3} more"
+
         super().__init__(message)

@@ -340,13 +340,13 @@ class TestPreviewActions:
         session = SaveSession(mock_client)
 
         task = Task(gid="123", name="Test")
-        session.add_tag(task, "tag_gid")
+        session.add_tag(task, "1111")
 
         crud_ops, action_ops = session.preview()
 
         assert len(action_ops) == 1
         assert action_ops[0].action == ActionType.ADD_TAG
-        assert action_ops[0].target_gid == "tag_gid"
+        assert action_ops[0].target_gid == "1111"
 
     def test_preview_actions_after_crud(self) -> None:
         """FR-PREV-002: Actions returned separately from CRUD operations."""
@@ -356,7 +356,7 @@ class TestPreviewActions:
         task = Task(gid="123", name="Test")
         session.track(task)
         task.name = "Modified"  # CRUD update
-        session.add_tag(task, "tag_gid")  # Action
+        session.add_tag(task, "1111")  # Action
 
         crud_ops, action_ops = session.preview()
 
@@ -372,19 +372,19 @@ class TestPreviewActions:
         session = SaveSession(mock_client)
 
         task = Task(gid="123", name="Test")
-        session.add_tag(task, "tag_1")
-        session.add_tag(task, "tag_2")
-        session.move_to_section(task, "section_1")
+        session.add_tag(task, "1001")
+        session.add_tag(task, "1002")
+        session.move_to_section(task, "3001")
 
         crud_ops, action_ops = session.preview()
 
         assert len(action_ops) == 3
         assert action_ops[0].action == ActionType.ADD_TAG
-        assert action_ops[0].target_gid == "tag_1"
+        assert action_ops[0].target_gid == "1001"
         assert action_ops[1].action == ActionType.ADD_TAG
-        assert action_ops[1].target_gid == "tag_2"
+        assert action_ops[1].target_gid == "1002"
         assert action_ops[2].action == ActionType.MOVE_TO_SECTION
-        assert action_ops[2].target_gid == "section_1"
+        assert action_ops[2].target_gid == "3001"
 
     def test_preview_detects_unsupported_tag_modifications(self) -> None:
         """FR-PREV-003: preview() raises UnsupportedOperationError for tags."""
@@ -398,7 +398,7 @@ class TestPreviewActions:
         # Simulate direct tag modification by modifying the snapshot
         # The tracker compares current state to snapshot
         # We need to modify the task's tags field directly
-        task.tags = [Tag(gid="tag_1", name="Tag")]
+        task.tags = [Tag(gid="1001", name="Tag")]
 
         with pytest.raises(UnsupportedOperationError) as exc:
             session.preview()
@@ -442,7 +442,7 @@ class TestPreviewActions:
         session = SaveSession(mock_client)
 
         task = Task(gid="123", name="Test")
-        session.add_tag(task, "tag_1")
+        session.add_tag(task, "1001")
 
         _, action_ops_1 = session.preview()
         _, action_ops_2 = session.preview()
@@ -456,7 +456,7 @@ class TestPreviewActions:
         session = SaveSession(mock_client)
 
         task = Task(gid="123", name="Test")  # Not tracked
-        session.add_tag(task, "tag_1")
+        session.add_tag(task, "1001")
 
         crud_ops, action_ops = session.preview()
 
@@ -470,7 +470,7 @@ class TestPreviewActions:
 
         # Only add actions, no CRUD operations (no dirty entities)
         task = Task(gid="123", name="Test")  # Not tracked
-        session.add_tag(task, "tag_1")
+        session.add_tag(task, "1001")
 
         # Should not raise even though task has no modifications
         # because task is not tracked (no dirty entities)
@@ -756,7 +756,7 @@ class TestActionMethods:
         session = SaveSession(mock_client)
 
         task = Task(gid="task_123")
-        tag = Tag(gid="tag_456", name="Important")
+        tag = Tag(gid="1456", name="Important")
 
         result = session.add_tag(task, tag)
 
@@ -765,7 +765,7 @@ class TestActionMethods:
         assert len(actions) == 1
         assert actions[0].action == ActionType.ADD_TAG
         assert actions[0].task is task
-        assert actions[0].target_gid == "tag_456"
+        assert actions[0].target_gid == "1456"
 
     def test_add_tag_with_string(self) -> None:
         """add_tag() registers action with string GID."""
@@ -774,11 +774,11 @@ class TestActionMethods:
 
         task = Task(gid="task_123")
 
-        session.add_tag(task, "tag_456")
+        session.add_tag(task, "1456")
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
-        assert actions[0].target_gid == "tag_456"
+        assert actions[0].target_gid == "1456"
 
     def test_remove_tag(self) -> None:
         """remove_tag() registers REMOVE_TAG action."""
@@ -787,7 +787,7 @@ class TestActionMethods:
 
         task = Task(gid="task_123")
 
-        session.remove_tag(task, "tag_456")
+        session.remove_tag(task, "1456")
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
@@ -799,14 +799,14 @@ class TestActionMethods:
         session = SaveSession(mock_client)
 
         task = Task(gid="task_123")
-        project = Project(gid="project_789", name="My Project")
+        project = Project(gid="2789", name="My Project")
 
         session.add_to_project(task, project)
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
         assert actions[0].action == ActionType.ADD_TO_PROJECT
-        assert actions[0].target_gid == "project_789"
+        assert actions[0].target_gid == "2789"
 
     def test_remove_from_project(self) -> None:
         """remove_from_project() registers REMOVE_FROM_PROJECT action."""
@@ -815,7 +815,7 @@ class TestActionMethods:
 
         task = Task(gid="task_123")
 
-        session.remove_from_project(task, "project_789")
+        session.remove_from_project(task, "2789")
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
@@ -827,14 +827,14 @@ class TestActionMethods:
         session = SaveSession(mock_client)
 
         task = Task(gid="task_123")
-        depends_on = Task(gid="task_456")
+        depends_on = Task(gid="4456")
 
         session.add_dependency(task, depends_on)
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
         assert actions[0].action == ActionType.ADD_DEPENDENCY
-        assert actions[0].target_gid == "task_456"
+        assert actions[0].target_gid == "4456"
 
     def test_remove_dependency(self) -> None:
         """remove_dependency() registers REMOVE_DEPENDENCY action."""
@@ -843,7 +843,7 @@ class TestActionMethods:
 
         task = Task(gid="task_123")
 
-        session.remove_dependency(task, "task_456")
+        session.remove_dependency(task, "4456")
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
@@ -855,14 +855,14 @@ class TestActionMethods:
         session = SaveSession(mock_client)
 
         task = Task(gid="task_123")
-        section = Section(gid="section_789", name="Done")
+        section = Section(gid="3789", name="Done")
 
         session.move_to_section(task, section)
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
         assert actions[0].action == ActionType.MOVE_TO_SECTION
-        assert actions[0].target_gid == "section_789"
+        assert actions[0].target_gid == "3789"
 
     def test_fluent_chaining(self) -> None:
         """Action methods support fluent chaining."""
@@ -872,8 +872,8 @@ class TestActionMethods:
         task = Task(gid="task_123")
 
         # Chain multiple actions
-        session.add_tag(task, "tag_1").add_tag(task, "tag_2").move_to_section(
-            task, "section_1"
+        session.add_tag(task, "1001").add_tag(task, "1002").move_to_section(
+            task, "3001"
         )
 
         actions = session.get_pending_actions()
@@ -889,7 +889,7 @@ class TestActionMethods:
         task = Task(gid="task_123")
 
         with pytest.raises(SessionClosedError):
-            session.add_tag(task, "tag_456")
+            session.add_tag(task, "1456")
 
     def test_get_pending_actions_returns_copy(self) -> None:
         """get_pending_actions() returns a copy, not the original."""
@@ -897,7 +897,7 @@ class TestActionMethods:
         session = SaveSession(mock_client)
 
         task = Task(gid="task_123")
-        session.add_tag(task, "tag_456")
+        session.add_tag(task, "1456")
 
         actions1 = session.get_pending_actions()
         actions2 = session.get_pending_actions()
@@ -916,7 +916,7 @@ class TestActionCommit:
         session = SaveSession(mock_client)
 
         task = Task(gid="task_123")
-        session.add_tag(task, "tag_456")
+        session.add_tag(task, "1456")
 
         result = await session.commit_async()
 
@@ -931,7 +931,7 @@ class TestActionCommit:
         session = SaveSession(mock_client)
 
         task = Task(gid="task_123")
-        session.add_tag(task, "tag_456")
+        session.add_tag(task, "1456")
 
         await session.commit_async()
 
@@ -952,7 +952,7 @@ class TestActionCommit:
         task.name = "Modified"
 
         # Action operation
-        session.add_tag(task, "tag_456")
+        session.add_tag(task, "1456")
 
         result = await session.commit_async()
 
@@ -969,7 +969,7 @@ class TestActionCommit:
         session = SaveSession(mock_client)
 
         task = Task(gid="task_123")  # Not tracked
-        session.add_tag(task, "tag_456")
+        session.add_tag(task, "1456")
 
         result = await session.commit_async()
 
@@ -986,12 +986,12 @@ class TestActionCommit:
         task = Task(gid="task_123")
 
         # First commit with actions
-        session.add_tag(task, "tag_1")
+        session.add_tag(task, "1001")
         await session.commit_async()
         assert mock_client._http.request.call_count == 1
 
         # Second commit with new actions
-        session.add_tag(task, "tag_2")
+        session.add_tag(task, "1002")
         await session.commit_async()
         assert mock_client._http.request.call_count == 2
 
@@ -1127,12 +1127,12 @@ class TestPositioning:
 
         task = Task(gid="task_123")
 
-        session.add_to_project(task, "project_456", insert_before="other_task_gid")
+        session.add_to_project(task, "2456", insert_before="4001")
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
         assert actions[0].action == ActionType.ADD_TO_PROJECT
-        assert actions[0].extra_params == {"insert_before": "other_task_gid"}
+        assert actions[0].extra_params == {"insert_before": "4001"}
 
     def test_add_to_project_with_insert_after(self) -> None:
         """add_to_project() accepts insert_after parameter."""
@@ -1141,11 +1141,11 @@ class TestPositioning:
 
         task = Task(gid="task_123")
 
-        session.add_to_project(task, "project_456", insert_after="other_task_gid")
+        session.add_to_project(task, "2456", insert_after="4001")
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
-        assert actions[0].extra_params == {"insert_after": "other_task_gid"}
+        assert actions[0].extra_params == {"insert_after": "4001"}
 
     def test_add_to_project_with_both_raises_positioning_conflict_error(self) -> None:
         """add_to_project() raises PositioningConflictError when both params given."""
@@ -1157,7 +1157,7 @@ class TestPositioning:
         with pytest.raises(PositioningConflictError) as exc:
             session.add_to_project(
                 task,
-                "project_456",
+                "2456",
                 insert_before="task_a",
                 insert_after="task_b",
             )
@@ -1172,7 +1172,7 @@ class TestPositioning:
 
         task = Task(gid="task_123")
 
-        session.add_to_project(task, "project_456")
+        session.add_to_project(task, "2456")
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
@@ -1185,12 +1185,12 @@ class TestPositioning:
 
         task = Task(gid="task_123")
 
-        session.move_to_section(task, "section_456", insert_before="other_task_gid")
+        session.move_to_section(task, "3456", insert_before="4001")
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
         assert actions[0].action == ActionType.MOVE_TO_SECTION
-        assert actions[0].extra_params == {"insert_before": "other_task_gid"}
+        assert actions[0].extra_params == {"insert_before": "4001"}
 
     def test_move_to_section_with_insert_after(self) -> None:
         """move_to_section() accepts insert_after parameter."""
@@ -1199,11 +1199,11 @@ class TestPositioning:
 
         task = Task(gid="task_123")
 
-        session.move_to_section(task, "section_456", insert_after="other_task_gid")
+        session.move_to_section(task, "3456", insert_after="4001")
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
-        assert actions[0].extra_params == {"insert_after": "other_task_gid"}
+        assert actions[0].extra_params == {"insert_after": "4001"}
 
     def test_move_to_section_with_both_raises_positioning_conflict_error(self) -> None:
         """move_to_section() raises PositioningConflictError when both params given."""
@@ -1215,7 +1215,7 @@ class TestPositioning:
         with pytest.raises(PositioningConflictError) as exc:
             session.move_to_section(
                 task,
-                "section_456",
+                "3456",
                 insert_before="task_a",
                 insert_after="task_b",
             )
@@ -1230,7 +1230,7 @@ class TestPositioning:
 
         task = Task(gid="task_123")
 
-        session.move_to_section(task, "section_456")
+        session.move_to_section(task, "3456")
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
@@ -1678,3 +1678,434 @@ class TestParentMethods:
 
         actions = session.get_pending_actions()
         assert actions[0].extra_params["insert_before"] == "sibling_before"
+
+
+# ---------------------------------------------------------------------------
+# TDD-TRIAGE-FIXES: Selective Action Clearing Tests (Issue 10)
+# ---------------------------------------------------------------------------
+
+
+class TestSelectiveActionClearing:
+    """Tests for selective action clearing after commit (Issue 10/ADR-0066)."""
+
+    @pytest.mark.asyncio
+    async def test_all_success_clears_all_actions(self) -> None:
+        """When all actions succeed, pending actions list is empty."""
+        mock_client = create_mock_client()
+        session = SaveSession(mock_client)
+
+        task = Task(gid="task_123")
+        session.add_tag(task, "1001")
+        session.add_tag(task, "1002")
+        session.add_tag(task, "1003")
+
+        assert len(session.get_pending_actions()) == 3
+
+        result = await session.commit_async()
+
+        assert result.success
+        assert session.get_pending_actions() == []
+
+    @pytest.mark.asyncio
+    async def test_all_failure_keeps_all_actions(self) -> None:
+        """When all actions fail, all pending actions remain."""
+        mock_client = create_mock_client()
+        # Make all HTTP requests fail
+        mock_client._http.request = AsyncMock(
+            side_effect=Exception("API Error")
+        )
+        session = SaveSession(mock_client)
+
+        task = Task(gid="task_123")
+        session.add_tag(task, "1001")
+        session.add_tag(task, "1002")
+        session.add_tag(task, "1003")
+
+        original_actions = session.get_pending_actions()
+        assert len(original_actions) == 3
+
+        result = await session.commit_async()
+
+        # All should have failed
+        assert not result.success
+        assert result.action_failed == 3
+
+        # All actions should remain pending
+        remaining = session.get_pending_actions()
+        assert len(remaining) == 3
+
+    @pytest.mark.asyncio
+    async def test_partial_keeps_only_failed(self) -> None:
+        """When some actions fail, only failed actions remain pending."""
+        mock_client = create_mock_client()
+
+        # First request succeeds, subsequent requests fail
+        call_count = 0
+
+        async def selective_failure(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return {"data": {}}  # First action succeeds
+            raise Exception("API Error")  # Others fail
+
+        mock_client._http.request = AsyncMock(side_effect=selective_failure)
+        session = SaveSession(mock_client)
+
+        task = Task(gid="task_123")
+        session.add_tag(task, "1001")  # Will succeed
+        session.add_tag(task, "1002")  # Will fail
+        session.add_tag(task, "1003")  # Will fail
+
+        result = await session.commit_async()
+
+        # Partial success
+        assert not result.success
+        assert result.action_succeeded == 1
+        assert result.action_failed == 2
+
+        # Only failed actions remain
+        remaining = session.get_pending_actions()
+        assert len(remaining) == 2
+        remaining_targets = [a.target_gid for a in remaining]
+        assert "1001" not in remaining_targets  # Succeeded, removed
+        assert "1002" in remaining_targets  # Failed, kept
+        assert "1003" in remaining_targets  # Failed, kept
+
+    @pytest.mark.asyncio
+    async def test_duplicate_operations_both_cleared(self) -> None:
+        """Duplicate operations (same identity) are both cleared on success."""
+        mock_client = create_mock_client()
+        session = SaveSession(mock_client)
+
+        task = Task(gid="task_123")
+        # Add same tag twice (duplicate)
+        session.add_tag(task, "1001")
+        session.add_tag(task, "1001")
+
+        assert len(session.get_pending_actions()) == 2
+
+        result = await session.commit_async()
+
+        assert result.success
+        # Both should be cleared (same identity means one success clears both)
+        assert session.get_pending_actions() == []
+
+    @pytest.mark.asyncio
+    async def test_different_tasks_handled_independently(self) -> None:
+        """Operations on different tasks are tracked separately."""
+        mock_client = create_mock_client()
+
+        # First task's action succeeds, second fails
+        call_count = 0
+
+        async def task_selective(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return {"data": {}}  # task_a succeeds
+            raise Exception("API Error")  # task_b fails
+
+        mock_client._http.request = AsyncMock(side_effect=task_selective)
+        session = SaveSession(mock_client)
+
+        task_a = Task(gid="task_a")
+        task_b = Task(gid="task_b")
+        session.add_tag(task_a, "1001")  # Will succeed
+        session.add_tag(task_b, "1001")  # Same tag, different task - will fail
+
+        result = await session.commit_async()
+
+        assert not result.success
+        assert result.action_succeeded == 1
+        assert result.action_failed == 1
+
+        # Only task_b's action remains
+        remaining = session.get_pending_actions()
+        assert len(remaining) == 1
+        assert remaining[0].task.gid == "task_b"
+
+    @pytest.mark.asyncio
+    async def test_retry_workflow_succeeds(self) -> None:
+        """Failed actions can be retried after fixing issues."""
+        mock_client = create_mock_client()
+
+        # First commit: all fail. Second commit: all succeed.
+        commit_number = 0
+
+        async def retry_behavior(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            nonlocal commit_number
+            if commit_number == 1:
+                raise Exception("API Error")
+            return {"data": {}}
+
+        mock_client._http.request = AsyncMock(side_effect=retry_behavior)
+        session = SaveSession(mock_client)
+
+        task = Task(gid="task_123")
+        session.add_tag(task, "1001")
+
+        # First commit fails
+        commit_number = 1
+        result1 = await session.commit_async()
+        assert not result1.success
+        assert len(session.get_pending_actions()) == 1
+
+        # Retry commit succeeds
+        commit_number = 2
+        result2 = await session.commit_async()
+        assert result2.success
+        assert session.get_pending_actions() == []
+
+    @pytest.mark.asyncio
+    async def test_empty_results_clears_all(self) -> None:
+        """When no action results (no actions), pending is cleared."""
+        mock_client = create_mock_client()
+        session = SaveSession(mock_client)
+
+        # No actions added
+        result = await session.commit_async()
+
+        assert result.success
+        assert session.get_pending_actions() == []
+
+    @pytest.mark.asyncio
+    async def test_none_target_gid_handled_correctly(self) -> None:
+        """Actions with None target_gid (like ADD_LIKE) handled correctly."""
+        mock_client = create_mock_client()
+        session = SaveSession(mock_client)
+
+        task = Task(gid="task_123")
+        # add_like has no target_gid
+        session.add_like(task)
+
+        assert len(session.get_pending_actions()) == 1
+        assert session.get_pending_actions()[0].target_gid is None
+
+        result = await session.commit_async()
+
+        assert result.success
+        assert session.get_pending_actions() == []
+
+
+# ---------------------------------------------------------------------------
+# ADR-0074: Custom Field Tracking Reset Tests
+# ---------------------------------------------------------------------------
+
+
+class TestCustomFieldTrackingReset:
+    """Tests for SaveSession._reset_custom_field_tracking() integration.
+
+    Per ADR-0074: SaveSession coordinates reset across all tracking systems.
+    """
+
+    @pytest.mark.asyncio
+    async def test_savesession_calls_reset_on_success(self) -> None:
+        """commit_async() calls reset_custom_field_tracking() on success.
+
+        Per ADR-0074: SaveSession resets custom field tracking after commit.
+        """
+        mock_client = create_mock_client()
+        success = create_success_result(gid="123")
+        mock_client.batch.execute_async = AsyncMock(return_value=[success])
+
+        session = SaveSession(mock_client)
+        task = Task(
+            gid="123",
+            name="Test",
+            custom_fields=[{"gid": "456", "name": "Priority", "text_value": "High"}],
+        )
+        session.track(task)
+
+        # Make custom field change via accessor
+        accessor = task.get_custom_fields()
+        accessor.set("Priority", "Low")
+
+        # Verify accessor has changes before commit
+        assert accessor.has_changes() is True
+
+        # Commit
+        result = await session.commit_async()
+
+        assert result.success
+        # Accessor changes should be cleared after successful commit
+        assert accessor.has_changes() is False
+
+    @pytest.mark.asyncio
+    async def test_savesession_reset_updates_snapshot(self) -> None:
+        """commit_async() updates _original_custom_fields snapshot on success.
+
+        Per FR-002: Snapshot is updated after successful commit.
+        """
+        mock_client = create_mock_client()
+        success = create_success_result(gid="123")
+        mock_client.batch.execute_async = AsyncMock(return_value=[success])
+
+        session = SaveSession(mock_client)
+        task = Task(
+            gid="123",
+            name="Test",
+            custom_fields=[{"gid": "456", "name": "Priority", "text_value": "High"}],
+        )
+        session.track(task)
+
+        # Make direct custom field change
+        task.custom_fields[0]["text_value"] = "Low"
+
+        # Verify direct change is detected before commit
+        assert task._has_direct_custom_field_changes() is True
+
+        # Commit
+        result = await session.commit_async()
+
+        assert result.success
+        # Direct changes should not be detected after commit (snapshot updated)
+        assert task._has_direct_custom_field_changes() is False
+
+    @pytest.mark.asyncio
+    async def test_savesession_reset_only_on_success(self) -> None:
+        """Failed entities are NOT reset (FR-009).
+
+        Per FR-009: Reset only on success, not failure.
+        """
+        mock_client = create_mock_client()
+        # Make the batch request fail
+        failure = create_failure_result("Error", 400, request_index=0)
+        mock_client.batch.execute_async = AsyncMock(return_value=[failure])
+
+        session = SaveSession(mock_client)
+        task = Task(
+            gid="123",
+            name="Test",
+            custom_fields=[{"gid": "456", "name": "Priority", "text_value": "High"}],
+        )
+        session.track(task)
+
+        # Make custom field change
+        accessor = task.get_custom_fields()
+        accessor.set("Priority", "Low")
+
+        # Make name change to trigger CRUD operation
+        task.name = "Modified"
+
+        # Verify accessor has changes
+        assert accessor.has_changes() is True
+
+        # Commit (will fail)
+        result = await session.commit_async()
+
+        # Commit failed
+        assert not result.success
+        assert len(result.failed) == 1
+
+        # Accessor changes should NOT be cleared (failed entity)
+        assert accessor.has_changes() is True
+
+    @pytest.mark.asyncio
+    async def test_savesession_reset_partial_failure(self) -> None:
+        """Partial failure: only successful entities are reset.
+
+        Per FR-009: Reset only successful entities in partial failure scenario.
+        """
+        mock_client = create_mock_client()
+        # First succeeds, second fails
+        results = [
+            create_success_result(gid="111", request_index=0),
+            create_failure_result("Error", 400, request_index=1),
+        ]
+        mock_client.batch.execute_async = AsyncMock(return_value=results)
+
+        session = SaveSession(mock_client)
+        task1 = Task(
+            gid="111",
+            name="Task 1",
+            custom_fields=[{"gid": "cf1", "name": "Field1", "text_value": "A"}],
+        )
+        task2 = Task(
+            gid="222",
+            name="Task 2",
+            custom_fields=[{"gid": "cf2", "name": "Field2", "text_value": "B"}],
+        )
+
+        session.track(task1)
+        session.track(task2)
+
+        # Make changes to both
+        accessor1 = task1.get_custom_fields()
+        accessor1.set("Field1", "Modified1")
+        accessor2 = task2.get_custom_fields()
+        accessor2.set("Field2", "Modified2")
+
+        task1.name = "Modified 1"
+        task2.name = "Modified 2"
+
+        # Commit (partial success)
+        result = await session.commit_async()
+
+        assert result.partial
+        assert len(result.succeeded) == 1
+        assert len(result.failed) == 1
+
+        # Task1 succeeded - should be reset
+        assert accessor1.has_changes() is False
+        # Task2 failed - should retain changes
+        assert accessor2.has_changes() is True
+
+    @pytest.mark.asyncio
+    async def test_savesession_reset_with_non_task_entity(self) -> None:
+        """SaveSession handles entities without reset method gracefully.
+
+        Per ADR-0074: Duck typing - only call reset if method exists.
+        """
+        mock_client = create_mock_client()
+        success = create_success_result(gid="proj_123")
+        mock_client.batch.execute_async = AsyncMock(return_value=[success])
+
+        session = SaveSession(mock_client)
+
+        # Track a Project (which doesn't have reset_custom_field_tracking)
+        project = Project(gid="proj_123", name="Test Project")
+        session.track(project)
+        project.name = "Modified Project"
+
+        # Should not raise
+        result = await session.commit_async()
+
+        assert result.success
+
+    def test_reset_custom_field_tracking_method_exists(self) -> None:
+        """SaveSession._reset_custom_field_tracking() method exists."""
+        mock_client = create_mock_client()
+        session = SaveSession(mock_client)
+
+        # Method should exist
+        assert hasattr(session, '_reset_custom_field_tracking')
+        assert callable(session._reset_custom_field_tracking)
+
+    def test_reset_custom_field_tracking_duck_typing(self) -> None:
+        """_reset_custom_field_tracking uses hasattr for duck typing."""
+        mock_client = create_mock_client()
+        session = SaveSession(mock_client)
+
+        # Entity without reset method
+        class NoResetEntity:
+            pass
+
+        entity_without = NoResetEntity()
+
+        # Should not raise
+        session._reset_custom_field_tracking(entity_without)  # type: ignore[arg-type]
+
+        # Entity with reset method
+        class HasResetEntity:
+            def __init__(self) -> None:
+                self.reset_called = False
+
+            def reset_custom_field_tracking(self) -> None:
+                self.reset_called = True
+
+        entity_with = HasResetEntity()
+        session._reset_custom_field_tracking(entity_with)  # type: ignore[arg-type]
+
+        # Reset should have been called
+        assert entity_with.reset_called is True

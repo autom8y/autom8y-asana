@@ -1,0 +1,942 @@
+"""Business model - root entity of the business hierarchy.
+
+Per TDD-BIZMODEL: Business model with 7 holder properties and 19 custom fields.
+Per FR-MODEL-001: HOLDER_KEY_MAP defining 7 holder types.
+Per FR-MODEL-002: Holder properties returning typed or stub holders.
+Per FR-MODEL-003: Convenience shortcuts (contacts, units, address, hours).
+Per FR-CASCADE-002: Cascading field definitions.
+Per ADR-0050: Holder lazy loading with prefetch support.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, ClassVar
+
+from pydantic import PrivateAttr
+
+from autom8_asana.models.business.base import BusinessEntity, HolderMixin
+from autom8_asana.models.business.contact import Contact, ContactHolder
+from autom8_asana.models.business.descriptors import (
+    EnumField,
+    IntField,
+    PeopleField,
+    TextField,
+)
+from autom8_asana.models.business.fields import CascadingFieldDef
+from autom8_asana.models.task import Task
+
+if TYPE_CHECKING:
+    from autom8_asana.client import AsanaClient
+    from autom8_asana.models.business.hours import Hours
+    from autom8_asana.models.business.location import Location, LocationHolder
+    from autom8_asana.models.business.unit import Unit, UnitHolder
+
+
+# --- Stub Holder Classes (Phase 3) ---
+
+
+class DNAHolder(Task, HolderMixin[Task]):
+    """Holder task containing DNA children.
+
+    Per TDD-HARDENING-A/FR-STUB-004: Updated to return typed DNA children.
+    Per TDD-HARDENING-C: Uses ClassVar configuration for generic _populate_children().
+    Per FR-STUB-007: CHILD_TYPE set to DNA at runtime.
+    Per FR-STUB-008: Bidirectional navigation refs set during _populate_children.
+    """
+
+    # ClassVar configuration (TDD-HARDENING-C)
+    # Note: CHILD_TYPE dynamically set to DNA at runtime via import
+    CHILD_TYPE: ClassVar[type[Task]] = Task  # Will be DNA at runtime
+    PARENT_REF_NAME: ClassVar[str] = "_dna_holder"
+    CHILDREN_ATTR: ClassVar[str] = "_children"
+
+    _children: list[Any] = PrivateAttr(default_factory=list)
+    _business: Business | None = PrivateAttr(default=None)
+
+    # _populate_children() inherited from HolderMixin (TDD-HARDENING-C)
+    # Note: Override kept temporarily for DNA import handling
+
+    @property
+    def children(self) -> list[Any]:
+        """All DNA children (typed as DNA at runtime).
+
+        Returns:
+            List of DNA entities.
+        """
+        return self._children
+
+    @property
+    def business(self) -> Business | None:
+        """Navigate to parent Business."""
+        return self._business
+
+    def _populate_children(self, subtasks: list[Task]) -> None:
+        """Populate DNA children from fetched subtasks.
+
+        Per FR-STUB-008: Converts Task instances to typed DNA children
+        with bidirectional references.
+
+        Note: Override needed for DNA import handling at runtime.
+
+        Args:
+            subtasks: List of Task subtasks from API.
+        """
+        # Import here to avoid circular import at class definition time
+        from autom8_asana.models.business.dna import DNA as DNAClass
+
+        # Temporarily set CHILD_TYPE for this holder
+        self.__class__.CHILD_TYPE = DNAClass
+
+        sorted_tasks = sorted(
+            subtasks,
+            key=lambda t: (t.created_at or "", t.name or ""),
+        )
+
+        self._children = []
+        for task in sorted_tasks:
+            dna = DNAClass.model_validate(task.model_dump())
+            dna._dna_holder = self
+            dna._business = self._business
+            self._children.append(dna)
+
+
+class ReconciliationHolder(Task, HolderMixin[Task]):
+    """Holder task containing Reconciliation children.
+
+    Per TDD-HARDENING-A/FR-STUB-005: Updated to return typed Reconciliation children.
+    Per TDD-HARDENING-C: Renamed from ReconciliationsHolder (Phase 6 naming standardization).
+    Per FR-STUB-007: CHILD_TYPE set to Reconciliation at runtime.
+    Per FR-STUB-008: Bidirectional navigation refs set during _populate_children.
+    """
+
+    # ClassVar configuration (TDD-HARDENING-C)
+    CHILD_TYPE: ClassVar[type[Task]] = Task  # Will be Reconciliation at runtime
+    PARENT_REF_NAME: ClassVar[str] = "_reconciliation_holder"
+    CHILDREN_ATTR: ClassVar[str] = "_children"
+
+    _children: list[Any] = PrivateAttr(default_factory=list)
+    _business: Business | None = PrivateAttr(default=None)
+
+    # _populate_children() override needed for Reconciliation import handling
+
+    @property
+    def children(self) -> list[Any]:
+        """All Reconciliation children (typed as Reconciliation at runtime).
+
+        Returns:
+            List of Reconciliation entities.
+        """
+        return self._children
+
+    @property
+    def reconciliations(self) -> list[Any]:
+        """Alias for children with semantic name.
+
+        Returns:
+            List of Reconciliation entities.
+        """
+        return self._children
+
+    @property
+    def business(self) -> Business | None:
+        """Navigate to parent Business."""
+        return self._business
+
+    def _populate_children(self, subtasks: list[Task]) -> None:
+        """Populate Reconciliation children from fetched subtasks.
+
+        Per FR-STUB-008: Converts Task instances to typed Reconciliation children
+        with bidirectional references.
+
+        Note: Override needed for Reconciliation import handling at runtime.
+
+        Args:
+            subtasks: List of Task subtasks from API.
+        """
+        # Import here to avoid circular import at class definition time
+        from autom8_asana.models.business.reconciliation import (
+            Reconciliation as ReconciliationClass,
+        )
+
+        # Temporarily set CHILD_TYPE for this holder
+        self.__class__.CHILD_TYPE = ReconciliationClass
+
+        sorted_tasks = sorted(
+            subtasks,
+            key=lambda t: (t.created_at or "", t.name or ""),
+        )
+
+        self._children = []
+        for task in sorted_tasks:
+            recon = ReconciliationClass.model_validate(task.model_dump())
+            recon._reconciliation_holder = self
+            recon._business = self._business
+            self._children.append(recon)
+
+
+# Deprecation alias (Phase 6: Naming Standardization)
+import warnings as _warnings  # noqa: E402
+
+
+class ReconciliationsHolder(ReconciliationHolder):
+    """Deprecated alias for ReconciliationHolder.
+
+    .. deprecated::
+        Use `ReconciliationHolder` instead. This alias will be removed
+        in a future release.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        _warnings.warn(
+            "ReconciliationsHolder is deprecated, use ReconciliationHolder instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(**kwargs)
+
+
+class AssetEditHolder(Task, HolderMixin["AssetEdit"]):
+    """Holder task containing AssetEdit children.
+
+    Per FR-PREREQ-002: Updated to return typed AssetEdit children.
+    Per TDD-HARDENING-C: Uses ClassVar configuration for generic _populate_children().
+    Per TDD-RESOLUTION Appendix: AssetEditHolder returns typed AssetEdit children.
+    """
+
+    # ClassVar configuration (TDD-HARDENING-C)
+    CHILD_TYPE: ClassVar[type[Task]] = Task  # Will be AssetEdit at runtime
+    PARENT_REF_NAME: ClassVar[str] = "_asset_edit_holder"
+    CHILDREN_ATTR: ClassVar[str] = "_asset_edits"
+
+    _asset_edits: list[Any] = PrivateAttr(default_factory=list)
+    _business: Business | None = PrivateAttr(default=None)
+
+    # _populate_children() override needed for AssetEdit import handling
+
+    @property
+    def asset_edits(self) -> list[Any]:
+        """All AssetEdit children.
+
+        Returns:
+            List of AssetEdit entities.
+        """
+        return self._asset_edits
+
+    @property
+    def children(self) -> list[Any]:
+        """Backward-compatible alias for asset_edits.
+
+        Returns:
+            List of AssetEdit entities.
+        """
+        return self._asset_edits
+
+    @property
+    def business(self) -> Business | None:
+        """Navigate to parent Business."""
+        return self._business
+
+    def _populate_children(self, subtasks: list[Task]) -> None:
+        """Populate AssetEdit children from fetched subtasks.
+
+        Per FR-PREREQ-002: Converts Task instances to typed AssetEdit children.
+
+        Note: Override needed for AssetEdit import handling at runtime.
+
+        Args:
+            subtasks: List of Task subtasks from API.
+        """
+        # Import here to avoid circular import at class definition time
+        from autom8_asana.models.business.asset_edit import (
+            AssetEdit as AssetEditClass,
+        )
+
+        # Temporarily set CHILD_TYPE for this holder
+        self.__class__.CHILD_TYPE = AssetEditClass
+
+        sorted_tasks = sorted(
+            subtasks,
+            key=lambda t: (t.created_at or "", t.name or ""),
+        )
+
+        self._asset_edits = []
+        for task in sorted_tasks:
+            asset_edit = AssetEditClass.model_validate(task.model_dump())
+            asset_edit._asset_edit_holder = self
+            asset_edit._business = self._business
+            self._asset_edits.append(asset_edit)
+
+
+class VideographyHolder(Task, HolderMixin[Task]):
+    """Holder task containing Videography children.
+
+    Per TDD-HARDENING-A/FR-STUB-006: Updated to return typed Videography children.
+    Per TDD-HARDENING-C: Uses ClassVar configuration for generic _populate_children().
+    Per FR-STUB-007: CHILD_TYPE set to Videography at runtime.
+    Per FR-STUB-008: Bidirectional navigation refs set during _populate_children.
+    """
+
+    # ClassVar configuration (TDD-HARDENING-C)
+    CHILD_TYPE: ClassVar[type[Task]] = Task  # Will be Videography at runtime
+    PARENT_REF_NAME: ClassVar[str] = "_videography_holder"
+    CHILDREN_ATTR: ClassVar[str] = "_children"
+
+    _children: list[Any] = PrivateAttr(default_factory=list)
+    _business: Business | None = PrivateAttr(default=None)
+
+    # _populate_children() override needed for Videography import handling
+
+    @property
+    def children(self) -> list[Any]:
+        """All Videography children (typed as Videography at runtime).
+
+        Returns:
+            List of Videography entities.
+        """
+        return self._children
+
+    @property
+    def videography(self) -> list[Any]:
+        """Alias for children with semantic name.
+
+        Returns:
+            List of Videography entities.
+        """
+        return self._children
+
+    @property
+    def business(self) -> Business | None:
+        """Navigate to parent Business."""
+        return self._business
+
+    def _populate_children(self, subtasks: list[Task]) -> None:
+        """Populate Videography children from fetched subtasks.
+
+        Per FR-STUB-008: Converts Task instances to typed Videography children
+        with bidirectional references.
+
+        Note: Override needed for Videography import handling at runtime.
+
+        Args:
+            subtasks: List of Task subtasks from API.
+        """
+        # Import here to avoid circular import at class definition time
+        from autom8_asana.models.business.videography import (
+            Videography as VideographyClass,
+        )
+
+        # Temporarily set CHILD_TYPE for this holder
+        self.__class__.CHILD_TYPE = VideographyClass
+
+        sorted_tasks = sorted(
+            subtasks,
+            key=lambda t: (t.created_at or "", t.name or ""),
+        )
+
+        self._children = []
+        for task in sorted_tasks:
+            video = VideographyClass.model_validate(task.model_dump())
+            video._videography_holder = self
+            video._business = self._business
+            self._children.append(video)
+
+
+class Business(BusinessEntity):
+    """Business entity - root of the holder hierarchy.
+
+    Per TDD-BIZMODEL: A Business task contains 7 holder subtasks,
+    each managing a collection of domain-specific child tasks.
+
+    Per TDD-HYDRATION: Business.from_gid_async() supports full hierarchy hydration.
+
+    Only ContactHolder is fully typed in Phase 1. Other holders
+    (Unit, Location, DNA, etc.) are deferred to Phase 2/3.
+
+    Example:
+        # Load fully hydrated Business
+        business = await Business.from_gid_async(client, gid)
+
+        # Navigate hydrated hierarchy
+        for contact in business.contacts:
+            print(f"Contact: {contact.full_name}")
+        for unit in business.units:
+            for offer in unit.offers:
+                print(f"Offer: {offer.name}")
+
+        # Load Business without hydration (metadata only)
+        business = await Business.from_gid_async(client, gid, hydrate=False)
+    """
+
+    @classmethod
+    async def from_gid_async(
+        cls,
+        client: AsanaClient,
+        gid: str,
+        *,
+        hydrate: bool = True,
+        partial_ok: bool = False,
+    ) -> Business:
+        """Load Business from GID with optional hierarchy hydration.
+
+        Per TDD-HYDRATION: Enhanced factory method with full downward hydration.
+        Per TDD-HYDRATION Phase 3: Supports partial_ok for graceful failure handling.
+        Per ADR-0069: Factory method is the primary API for Business loading.
+        Per ADR-0070: partial_ok controls fail-fast vs partial success behavior.
+
+        Args:
+            client: AsanaClient for API calls.
+            gid: Business task GID.
+            hydrate: If True (default), load full hierarchy including all holders
+                and their children (Contacts, Units, Offers, Processes, etc.).
+                If False, only load the Business task metadata.
+            partial_ok: If True, continue on partial failures during hydration
+                (branches that fail will be skipped, but Business is still returned).
+                If False (default), raise HydrationError on any failure.
+                Note: partial_ok only affects hydration, not the initial task fetch.
+
+        Returns:
+            Business instance. If hydrate=True, all holders and children are
+            populated with proper bidirectional references. If partial_ok=True
+            and some branches failed, those holders will remain None.
+
+        Raises:
+            HydrationError: If hydration fails and partial_ok=False.
+            NotFoundError: If Business GID does not exist.
+
+        Example:
+            # Full hydration (default - fail-fast)
+            business = await Business.from_gid_async(client, gid)
+            assert business.contact_holder is not None
+            assert len(business.contacts) > 0
+
+            # Skip hydration
+            business = await Business.from_gid_async(client, gid, hydrate=False)
+            assert business.contact_holder is None  # Not populated
+
+            # Partial failure tolerance
+            business = await Business.from_gid_async(
+                client, gid, partial_ok=True
+            )
+            # Business returned even if some holders failed to hydrate
+        """
+        from autom8_asana.exceptions import HydrationError
+
+        # Fetch Business task
+        task_data = await client.tasks.get_async(gid)
+        business = cls.model_validate(task_data.model_dump())
+
+        # Hydrate full hierarchy if requested
+        if hydrate:
+            try:
+                await business._fetch_holders_async(client)
+            except Exception as e:
+                if partial_ok:
+                    # Log and continue with partially hydrated business
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(
+                        "Hydration failed with partial_ok=True",
+                        extra={"business_gid": gid, "error": str(e)},
+                    )
+                else:
+                    # Re-raise as HydrationError if not already
+                    if isinstance(e, HydrationError):
+                        raise
+                    raise HydrationError(
+                        f"Downward hydration failed for Business {gid}: {e}",
+                        entity_gid=gid,
+                        entity_type="business",
+                        phase="downward",
+                        cause=e,
+                    ) from e
+
+        return business
+
+    # --- Holder Detection Map ---
+
+    # Per FR-MODEL-001: Map property_name -> (task_name, emoji_indicator)
+    # Per TDD-HARDENING-C Phase 6: reconciliation_holder (singular, was reconciliations_holder)
+    HOLDER_KEY_MAP: ClassVar[dict[str, tuple[str, str]]] = {
+        "contact_holder": ("Contacts", "busts_in_silhouette"),
+        "unit_holder": ("Units", "package"),
+        "location_holder": ("Location", "round_pushpin"),
+        "dna_holder": ("DNA", "dna"),
+        "reconciliation_holder": ("Reconciliations", "abacus"),
+        "asset_edit_holder": ("Asset Edit", "art"),
+        "videography_holder": ("Videography", "video_camera"),
+    }
+
+    # --- Private Cached Holder References (ADR-0050) ---
+
+    _contact_holder: ContactHolder | None = PrivateAttr(default=None)
+    _unit_holder: UnitHolder | None = PrivateAttr(default=None)
+    _location_holder: LocationHolder | None = PrivateAttr(default=None)
+    _dna_holder: DNAHolder | None = PrivateAttr(default=None)
+    _reconciliation_holder: ReconciliationHolder | None = PrivateAttr(default=None)
+    _asset_edit_holder: AssetEditHolder | None = PrivateAttr(default=None)
+    _videography_holder: VideographyHolder | None = PrivateAttr(default=None)
+
+    # --- Custom Field Descriptors (ADR-0081, TDD-PATTERNS-A) ---
+    # Per ADR-0077: Declared WITHOUT type annotations to avoid Pydantic field creation.
+    # Per ADR-0082: Fields class is auto-generated from these descriptors.
+
+    # Text fields (13)
+    company_id = TextField()
+    facebook_page_id = TextField()
+    fallback_page_id = TextField()
+    google_cal_id = TextField()
+    office_phone = TextField(cascading=True)
+    owner_name = TextField()
+    owner_nickname = TextField()
+    review_1 = TextField()
+    review_2 = TextField()
+    reviews_link = TextField()
+    stripe_id = TextField()
+    stripe_link = TextField()
+    twilio_phone_num = TextField()
+
+    # Number fields (1)
+    num_reviews = IntField()
+
+    # Enum fields (4)
+    aggression_level = EnumField()
+    booking_type = EnumField()
+    vca_status = EnumField()
+    vertical = EnumField()
+
+    # People fields (1)
+    rep = PeopleField()
+
+    # --- Cascading Field Definitions (ADR-0054) ---
+
+    class CascadingFields:
+        """Fields that cascade from Business to descendants.
+
+        Per FR-CASCADE-002: Business declares OFFICE_PHONE, COMPANY_ID,
+        BUSINESS_NAME, PRIMARY_CONTACT_PHONE cascading definitions.
+
+        All use allow_override=False (DEFAULT) - descendant values are
+        ALWAYS overwritten during cascade.
+        """
+
+        OFFICE_PHONE = CascadingFieldDef(
+            name="Office Phone",
+            target_types={"Unit", "Offer", "Process", "Contact"},
+            # allow_override=False is DEFAULT - no local overrides
+        )
+
+        COMPANY_ID = CascadingFieldDef(
+            name="Company ID",
+            target_types=None,  # None = all descendants
+            # allow_override=False is DEFAULT
+        )
+
+        BUSINESS_NAME = CascadingFieldDef(
+            name="Business Name",
+            target_types={"Unit", "Offer"},
+            source_field="name",  # Maps from Task.name
+            # allow_override=False is DEFAULT
+        )
+
+        PRIMARY_CONTACT_PHONE = CascadingFieldDef(
+            name="Primary Contact Phone",
+            target_types={"Unit", "Offer", "Process"},
+            # allow_override=False is DEFAULT
+        )
+
+        @classmethod
+        def all(cls) -> list[CascadingFieldDef]:
+            """Get all cascading field definitions."""
+            return [
+                cls.OFFICE_PHONE,
+                cls.COMPANY_ID,
+                cls.BUSINESS_NAME,
+                cls.PRIMARY_CONTACT_PHONE,
+            ]
+
+        @classmethod
+        def get(cls, field_name: str) -> CascadingFieldDef | None:
+            """Get cascading field definition by name."""
+            for field_def in cls.all():
+                if field_def.name == field_name:
+                    return field_def
+            return None
+
+    # --- Holder Properties (FR-MODEL-002) ---
+
+    @property
+    def contact_holder(self) -> ContactHolder | None:
+        """ContactHolder subtask containing Contact children.
+
+        Returns:
+            ContactHolder or None if not populated.
+        """
+        return self._contact_holder
+
+    @property
+    def unit_holder(self) -> UnitHolder | None:
+        """UnitHolder subtask containing Unit children.
+
+        Returns:
+            UnitHolder or None if not populated.
+        """
+        return self._unit_holder
+
+    @property
+    def location_holder(self) -> LocationHolder | None:
+        """LocationHolder subtask containing Location and Hours children.
+
+        Per Phase 3: Returns typed LocationHolder.
+
+        Returns:
+            LocationHolder or None if not populated.
+        """
+        return self._location_holder
+
+    @property
+    def dna_holder(self) -> DNAHolder | None:
+        """DNAHolder subtask containing DNA children.
+
+        Per FR-HOLDER-007: Returns typed stub holder.
+
+        Returns:
+            DNAHolder or None if not populated.
+        """
+        return self._dna_holder
+
+    @property
+    def reconciliation_holder(self) -> ReconciliationHolder | None:
+        """ReconciliationHolder subtask containing Reconciliation children.
+
+        Per TDD-HARDENING-C Phase 6: Renamed from reconciliations_holder.
+
+        Returns:
+            ReconciliationHolder or None if not populated.
+        """
+        return self._reconciliation_holder
+
+    @property
+    def reconciliations_holder(self) -> ReconciliationHolder | None:
+        """Deprecated alias for reconciliation_holder.
+
+        .. deprecated::
+            Use `reconciliation_holder` instead. This alias will be removed
+            in a future release.
+
+        Returns:
+            ReconciliationHolder or None if not populated.
+        """
+        import warnings
+
+        warnings.warn(
+            "reconciliations_holder is deprecated, use reconciliation_holder instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._reconciliation_holder
+
+    @property
+    def asset_edit_holder(self) -> AssetEditHolder | None:
+        """AssetEditHolder subtask containing Asset Edit children.
+
+        Returns:
+            AssetEditHolder or None if not populated.
+        """
+        return self._asset_edit_holder
+
+    @property
+    def videography_holder(self) -> VideographyHolder | None:
+        """VideographyHolder subtask containing Videography children.
+
+        Returns:
+            VideographyHolder or None if not populated.
+        """
+        return self._videography_holder
+
+    # --- Convenience Shortcuts (FR-MODEL-003) ---
+
+    @property
+    def contacts(self) -> list[Contact]:
+        """All Contact children (via ContactHolder).
+
+        Returns:
+            List of Contact entities, empty if holder not populated.
+        """
+        if self._contact_holder is None:
+            return []
+        return self._contact_holder.contacts
+
+    @property
+    def units(self) -> list[Unit]:
+        """All Unit children (via UnitHolder).
+
+        Returns:
+            List of Unit entities, empty if holder not populated.
+        """
+        if self._unit_holder is None:
+            return []
+        return self._unit_holder.units
+
+    @property
+    def address(self) -> Location | None:
+        """Primary business address (via LocationHolder).
+
+        Per Phase 3: Returns typed Location from LocationHolder.
+
+        Returns:
+            Primary Location or None if not populated.
+        """
+        if self._location_holder is None:
+            return None
+        return self._location_holder.primary_location
+
+    @property
+    def locations(self) -> list[Location]:
+        """All business locations (via LocationHolder).
+
+        Returns:
+            List of Location entities, empty if holder not populated.
+        """
+        if self._location_holder is None:
+            return []
+        return self._location_holder.locations
+
+    @property
+    def hours(self) -> Hours | None:
+        """Business hours (via LocationHolder).
+
+        Per Phase 3: Returns typed Hours from LocationHolder.
+
+        Returns:
+            Hours entity or None if not populated.
+        """
+        if self._location_holder is None:
+            return None
+        return self._location_holder.hours
+
+    # --- Holder Population (ADR-0050) ---
+
+    def _populate_holders(self, subtasks: list[Task]) -> None:
+        """Populate holder properties from fetched subtasks.
+
+        Called by SaveSession after fetching Business subtasks.
+        Matches subtasks to holders via name and emoji indicators.
+
+        Per FR-HOLDER-009: Uses name match first, emoji fallback second.
+
+        Args:
+            subtasks: List of Task subtasks from API.
+        """
+        for subtask in subtasks:
+            holder_key = self._identify_holder(subtask)
+            if holder_key:
+                holder = self._create_typed_holder(holder_key, subtask)
+                setattr(self, f"_{holder_key}", holder)
+
+    def _identify_holder(self, task: Task) -> str | None:
+        """Identify which holder type a task is.
+
+        Args:
+            task: Task to identify.
+
+        Returns:
+            Holder key name or None if not a holder.
+        """
+        for key, (name_pattern, emoji) in self.HOLDER_KEY_MAP.items():
+            if self._matches_holder(task, name_pattern, emoji):
+                return key
+        return None
+
+    def _matches_holder(self, task: Task, name_pattern: str, emoji: str) -> bool:
+        """Check if task matches a holder definition.
+
+        Per FR-HOLDER-009: Name match first, emoji fallback second.
+
+        Args:
+            task: Task to check.
+            name_pattern: Expected task name.
+            emoji: Expected custom emoji name.
+
+        Returns:
+            True if task matches holder pattern.
+        """
+        # Check name first
+        if task.name == name_pattern:
+            return True
+
+        # Fall back to emoji (not currently implemented in Task model)
+        # Would check task.custom_emoji.name == emoji if available
+        return False
+
+    def _create_typed_holder(self, holder_key: str, task: Task) -> Task:
+        """Create typed holder from generic Task.
+
+        Args:
+            holder_key: Holder property name.
+            task: Task to convert.
+
+        Returns:
+            Typed holder instance.
+        """
+        if holder_key == "contact_holder":
+            holder = ContactHolder.model_validate(task.model_dump())
+            holder._business = self
+            return holder
+        elif holder_key == "unit_holder":
+            # Import here to avoid circular import at module load time
+            from autom8_asana.models.business.unit import UnitHolder as UH
+
+            unit_holder = UH.model_validate(task.model_dump())
+            unit_holder._business = self
+            return unit_holder
+        elif holder_key == "location_holder":
+            # Import here to avoid circular import at module load time
+            from autom8_asana.models.business.location import (
+                LocationHolder as LH,
+            )
+
+            location_holder = LH.model_validate(task.model_dump())
+            location_holder._business = self
+            return location_holder
+        elif holder_key == "dna_holder":
+            dna_holder = DNAHolder.model_validate(task.model_dump())
+            dna_holder._business = self
+            return dna_holder
+        elif holder_key == "reconciliation_holder":
+            recon_holder = ReconciliationHolder.model_validate(task.model_dump())
+            recon_holder._business = self
+            return recon_holder
+        elif holder_key == "asset_edit_holder":
+            asset_holder = AssetEditHolder.model_validate(task.model_dump())
+            asset_holder._business = self
+            return asset_holder
+        elif holder_key == "videography_holder":
+            video_holder = VideographyHolder.model_validate(task.model_dump())
+            video_holder._business = self
+            return video_holder
+        # Fallback: return as plain Task (should not reach here)
+        return task
+
+    async def _fetch_holders_async(self, client: AsanaClient) -> None:
+        """Fetch and populate all holder subtasks with their children.
+
+        Per TDD-HYDRATION Phase 1: Implements downward hydration for Business.
+
+        Algorithm:
+        1. Fetch Business subtasks (holders)
+        2. Identify and type each holder via _populate_holders()
+        3. Concurrently fetch each holder's children
+        4. For Unit children, recursively fetch nested holders (OfferHolder, ProcessHolder)
+        5. Set all bidirectional references
+
+        Args:
+            client: AsanaClient for API calls.
+
+        Raises:
+            HydrationError: If any fetch operation fails (fail-fast default).
+        """
+        import asyncio
+
+        # Step 1: Fetch Business subtasks (holder tasks)
+        holder_tasks = await client.tasks.subtasks_async(self.gid).collect()
+
+        # Step 2: Populate typed holders from subtasks
+        self._populate_holders(holder_tasks)
+
+        # Step 3: Build list of concurrent fetch tasks for each holder's children
+        fetch_tasks: list[asyncio.Task[None]] = []
+
+        # ContactHolder children
+        if self._contact_holder:
+            fetch_tasks.append(
+                asyncio.create_task(
+                    self._fetch_holder_children_async(
+                        client, self._contact_holder, "_contacts"
+                    )
+                )
+            )
+
+        # UnitHolder children (special: recursive fetch for Unit nested holders)
+        if self._unit_holder:
+            fetch_tasks.append(
+                asyncio.create_task(self._fetch_unit_holder_children_async(client))
+            )
+
+        # LocationHolder children
+        if self._location_holder:
+            fetch_tasks.append(
+                asyncio.create_task(
+                    self._fetch_holder_children_async(
+                        client, self._location_holder, "_children"
+                    )
+                )
+            )
+
+        # Stub holders (DNA, Reconciliation, Asset Edit, Videography)
+        stub_holders = [
+            (self._dna_holder, "_children"),
+            (self._reconciliation_holder, "_children"),
+            (self._asset_edit_holder, "_asset_edits"),
+            (self._videography_holder, "_children"),
+        ]
+        for holder, attr in stub_holders:
+            if holder:
+                fetch_tasks.append(
+                    asyncio.create_task(
+                        self._fetch_holder_children_async(client, holder, attr)
+                    )
+                )
+
+        # Step 4: Execute all holder child fetches concurrently
+        if fetch_tasks:
+            await asyncio.gather(*fetch_tasks)
+
+    async def _fetch_unit_holder_children_async(self, client: AsanaClient) -> None:
+        """Fetch Units and their nested holders (OfferHolder, ProcessHolder).
+
+        Per FR-DOWN-004: Units populated by UnitHolder must have their holders fetched.
+
+        Args:
+            client: AsanaClient for API calls.
+        """
+        import asyncio
+
+        if not self._unit_holder:
+            return
+
+        # Fetch Unit subtasks
+        unit_tasks = await client.tasks.subtasks_async(self._unit_holder.gid).collect()
+        self._unit_holder._populate_children(unit_tasks)
+
+        # Recursively fetch each Unit's holders (OfferHolder, ProcessHolder)
+        unit_fetch_tasks = [
+            asyncio.create_task(unit._fetch_holders_async(client))
+            for unit in self._unit_holder.units
+        ]
+
+        if unit_fetch_tasks:
+            await asyncio.gather(*unit_fetch_tasks)
+
+    async def _fetch_holder_children_async(
+        self,
+        client: AsanaClient,
+        holder: Task,
+        children_attr: str,
+    ) -> None:
+        """Fetch children for a holder and populate them.
+
+        Args:
+            client: AsanaClient for API calls.
+            holder: Holder task to fetch children for.
+            children_attr: Name of the children attribute on the holder
+                (e.g., "_contacts", "_children").
+        """
+        subtasks = await client.tasks.subtasks_async(holder.gid).collect()
+
+        # Call _populate_children if available (typed holders)
+        if hasattr(holder, "_populate_children"):
+            holder._populate_children(subtasks)
+        else:
+            # Fallback for stub holders without _populate_children
+            setattr(holder, children_attr, subtasks)
+

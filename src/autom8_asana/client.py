@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from autom8_asana._defaults.auth import EnvAuthProvider
 from autom8_asana._defaults.cache import NullCacheProvider
 from autom8_asana._defaults.log import DefaultLogProvider
+from autom8_asana._defaults.observability import NullObservabilityHook
 from autom8_asana.batch.client import BatchClient
 from autom8_asana.persistence import SaveSession
 from autom8_asana.clients.attachments import AttachmentsClient
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
     from autom8_asana.protocols.auth import AuthProvider
     from autom8_asana.protocols.cache import CacheProvider
     from autom8_asana.protocols.log import LogProvider
+    from autom8_asana.protocols.observability import ObservabilityHook
 
 
 class AsanaClient:
@@ -64,19 +66,37 @@ class AsanaClient:
         self,
         token: str | None = None,
         *,
+        workspace_gid: str | None = None,
         auth_provider: AuthProvider | None = None,
         cache_provider: CacheProvider | None = None,
         log_provider: LogProvider | None = None,
         config: AsanaConfig | None = None,
+        observability_hook: ObservabilityHook | None = None,
     ) -> None:
         """Initialize AsanaClient.
 
         Args:
             token: Asana Personal Access Token (convenience parameter)
+            workspace_gid: Workspace GID (optional). If not provided and exactly
+                          one workspace exists, auto-detects it.
             auth_provider: Custom auth provider (overrides token)
             cache_provider: Custom cache provider (default: NullCacheProvider)
             log_provider: Custom log provider (default: DefaultLogProvider)
             config: SDK configuration (default: AsanaConfig())
+            observability_hook: Custom observability hook for metrics/tracing
+                (default: NullObservabilityHook). Per TDD-HARDENING-A/FR-OBS-011.
+
+        Raises:
+            ConfigurationError: If workspace_gid not provided and:
+                               - 0 workspaces available (token invalid?)
+                               - >1 workspaces available (ambiguous, must specify)
+
+        Example:
+            >>> # Simple: auto-detect if only one workspace
+            >>> client = AsanaClient(token="...")
+
+            >>> # Explicit: specify workspace
+            >>> client = AsanaClient(token="...", workspace_gid="1234567890123456")
         """
         self._config = config or AsanaConfig()
 
@@ -96,6 +116,9 @@ class AsanaClient:
         # Resolve other providers
         self._cache_provider: CacheProvider = cache_provider or NullCacheProvider()
         self._log_provider: LogProvider = log_provider or DefaultLogProvider()
+        self._observability_hook: ObservabilityHook = (
+            observability_hook or NullObservabilityHook()
+        )
 
         # Create HTTP client
         self._http = AsyncHTTPClient(
@@ -103,6 +126,12 @@ class AsanaClient:
             auth_provider=self._auth_provider,
             logger=self._log_provider,
         )
+
+        # Auto-detect workspace if not provided AND token was explicitly provided
+        if workspace_gid is None and token is not None:
+            workspace_gid = self._auto_detect_workspace(self._auth_provider, self._config.token_key)
+
+        self.default_workspace_gid = workspace_gid
 
         # Lazy-initialized resource clients with lock to prevent race conditions
         # Using threading.Lock since property accessors are synchronous
@@ -142,6 +171,18 @@ class AsanaClient:
         self._batch_lock = threading.Lock()
 
     @property
+    def observability(self) -> "ObservabilityHook":
+        """Observability hook for metrics and tracing.
+
+        Per TDD-HARDENING-A/FR-OBS-011: Exposes the configured observability hook.
+        Returns NullObservabilityHook if none was configured.
+
+        Returns:
+            The configured ObservabilityHook implementation.
+        """
+        return self._observability_hook
+
+    @property
     def tasks(self) -> TasksClient:
         """Tasks API client.
 
@@ -161,6 +202,7 @@ class AsanaClient:
                     auth_provider=self._auth_provider,
                     cache_provider=self._cache_provider,
                     log_provider=self._log_provider,
+                    client=self,
                 )
         return self._tasks
 
@@ -448,6 +490,72 @@ class AsanaClient:
                     log_provider=self._log_provider,
                 )
         return self._batch
+
+    # --- Auto-detection ---
+
+    @staticmethod
+    def _auto_detect_workspace(
+        auth_provider: AuthProvider,
+        token_key: str,
+    ) -> str | None:
+        """Auto-detect workspace GID if exactly one exists.
+
+        Makes a synchronous HTTP call to /users/me endpoint to fetch workspaces.
+
+        Args:
+            auth_provider: Authentication provider
+            token_key: Token secret key (from config.token_key)
+
+        Returns:
+            Workspace GID if exactly one found, or None if auto-detection fails/unavailable
+
+        Raises:
+            ConfigurationError: If >1 workspaces found (ambiguous choice)
+        """
+        import httpx
+
+        # Get token from auth provider using the specified key
+        try:
+            token = auth_provider.get_secret(token_key)
+        except KeyError:
+            raise ConfigurationError(
+                f"Cannot auto-detect workspace: auth provider does not have '{token_key}' secret"
+            )
+
+        # Create temporary synchronous HTTP client
+        with httpx.Client(
+            headers={"Authorization": f"Bearer {token}"},
+            base_url="https://app.asana.com/api/1.0",
+        ) as client:
+            try:
+                response = client.get(
+                    "/users/me",
+                    params={"opt_fields": "workspaces.gid,workspaces.name"},
+                    timeout=10.0,
+                )
+                response.raise_for_status()
+                data: dict[str, Any] = response.json()["data"]
+                workspaces: list[dict[str, Any]] = data.get("workspaces", [])
+
+                if len(workspaces) == 0:
+                    raise ConfigurationError(
+                        "No workspaces found. Token may be invalid or have no workspace access."
+                    )
+                elif len(workspaces) == 1:
+                    gid: str = workspaces[0]["gid"]
+                    return gid
+                else:
+                    workspace_names = [w["name"] for w in workspaces]
+                    raise ConfigurationError(
+                        f"Multiple workspaces found: {', '.join(workspace_names)}. "
+                        f"Please specify workspace_gid explicitly: "
+                        f"AsanaClient(token=..., workspace_gid='your_gid')"
+                    )
+            except httpx.HTTPError:
+                # If the token is invalid or the API is unreachable, we can't auto-detect
+                # This is expected for test tokens, so we return None to indicate no auto-detection
+                # The client will continue without a workspace_gid
+                return None
 
     # --- Save Session Factory ---
 

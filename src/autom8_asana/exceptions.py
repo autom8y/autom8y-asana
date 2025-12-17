@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from httpx import Response
@@ -20,6 +20,9 @@ __all__ = [
     "ConfigurationError",
     "SyncInAsyncContextError",
     "CircuitBreakerOpenError",
+    "NameNotFoundError",
+    "HydrationError",
+    "ResolutionError",
 ]
 
 
@@ -202,6 +205,42 @@ class CircuitBreakerOpenError(AsanaError):
         )
 
 
+class NameNotFoundError(AsanaError):
+    """Raised when a resource name cannot be resolved to a GID.
+
+    Per ADR-0060: Name resolution with per-SaveSession caching.
+
+    Attributes:
+        resource_type: Type of resource (e.g., "tag", "project", "user")
+        name: Name that failed to resolve
+        scope: Scope of search (workspace_gid, project_gid, etc.)
+        suggestions: List of close matches (fuzzy matching suggestions)
+        available_names: List of all available names in scope (for debugging)
+    """
+
+    def __init__(
+        self,
+        name: str,
+        resource_type: str,
+        scope: str,
+        suggestions: list[str] | None = None,
+        available_names: list[str] | None = None,
+    ) -> None:
+        self.resource_type = resource_type
+        self.name = name
+        self.scope = scope
+        self.suggestions = suggestions or []
+        self.available_names = available_names or []
+
+        msg = f"{resource_type.capitalize()} '{name}' not found in {scope}"
+        if self.suggestions:
+            msg += f". Did you mean: {', '.join(self.suggestions[:3])}?"
+        if self.available_names and len(self.available_names) <= 20:
+            msg += f" Available: {', '.join(self.available_names)}"
+
+        super().__init__(msg)
+
+
 # Status code to exception class mapping
 _STATUS_CODE_MAP: dict[int, type[AsanaError]] = {
     401: AuthenticationError,
@@ -214,3 +253,87 @@ _STATUS_CODE_MAP: dict[int, type[AsanaError]] = {
     503: ServerError,
     504: ServerError,
 }
+
+
+class HydrationError(AsanaError):
+    """Hydration operation failed.
+
+    Per ADR-0070: Raised when hierarchy hydration fails and partial_ok=False (default).
+
+    This exception is thrown during downward hydration (from Business to children)
+    or upward traversal (from leaf entity to Business) when an unrecoverable error
+    occurs.
+
+    Attributes:
+        entity_gid: GID of the entity where hydration started or failed.
+        entity_type: Detected type of the entity (if known).
+        phase: "downward" or "upward" indicating where failure occurred.
+        partial_result: The HydrationResult with what succeeded before failure.
+            Allows advanced error handlers to salvage partial data.
+        cause: The underlying exception that caused the failure.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        entity_gid: str,
+        entity_type: str | None = None,
+        phase: Literal["downward", "upward"],
+        partial_result: Any = None,  # HydrationResult, but avoiding circular import
+        cause: Exception | None = None,
+    ) -> None:
+        """Initialize HydrationError.
+
+        Args:
+            message: Human-readable error description.
+            entity_gid: GID of the entity where hydration started or failed.
+            entity_type: Detected type of the entity (if known).
+            phase: "downward" or "upward" indicating where failure occurred.
+            partial_result: HydrationResult with what succeeded before failure.
+            cause: The underlying exception that caused the failure.
+        """
+        super().__init__(message)
+        self.entity_gid = entity_gid
+        self.entity_type = entity_type
+        self.phase = phase
+        self.partial_result = partial_result
+        self.__cause__ = cause
+
+
+class ResolutionError(AsanaError):
+    """Resolution operation failed.
+
+    Per FR-AMBIG-003: Raised on unrecoverable resolution failures (not ambiguity).
+
+    This exception is thrown when all resolution strategies fail with errors
+    and no matches were attempted successfully. Ambiguous results (multiple matches)
+    are NOT raised as exceptions - they are returned as ResolutionResult with
+    ambiguous=True.
+
+    Attributes:
+        entity_gid: GID of the AssetEdit being resolved.
+        strategies_tried: List of strategies that were attempted.
+        cause: The underlying exception that caused the failure.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        entity_gid: str,
+        strategies_tried: list[str] | None = None,
+        cause: Exception | None = None,
+    ) -> None:
+        """Initialize ResolutionError.
+
+        Args:
+            message: Human-readable error description.
+            entity_gid: GID of the entity being resolved.
+            strategies_tried: List of strategy names attempted.
+            cause: The underlying exception that caused the failure.
+        """
+        super().__init__(message)
+        self.entity_gid = entity_gid
+        self.strategies_tried = strategies_tried or []
+        self.__cause__ = cause

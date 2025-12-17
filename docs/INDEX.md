@@ -16,6 +16,8 @@
 | [PRD-0007](requirements/PRD-0007-sdk-functional-parity.md) | SDK Functional Parity Initiative | Implemented | 2025-12-10 |
 | [PRD-0008](requirements/PRD-0008-parent-subtask-operations.md) | Parent & Subtask Operations | Implemented | 2025-12-10 |
 | [PRD-0009](requirements/PRD-0009-sdk-ga-readiness.md) | SDK GA Readiness | Draft | 2025-12-10 |
+| [PRD-HYDRATION](requirements/PRD-HYDRATION.md) | Business Model Hydration | Draft | 2025-12-16 |
+| [PRD-RESOLUTION](requirements/PRD-RESOLUTION.md) | Cross-Holder Relationship Resolution | Implemented | 2025-12-16 |
 
 ## TDDs
 
@@ -36,6 +38,8 @@
 | [TDD-0012](design/TDD-0012-sdk-functional-parity.md) | SDK Functional Parity Initiative | PRD-0007 | Implemented | 2025-12-10 |
 | [TDD-0013](design/TDD-0013-parent-subtask-operations.md) | Parent & Subtask Operations | PRD-0008 | Implemented | 2025-12-10 |
 | [TDD-0014](design/TDD-0014-sdk-ga-readiness.md) | SDK GA Readiness | PRD-0009 | Draft | 2025-12-10 |
+| [TDD-HYDRATION](design/TDD-HYDRATION.md) | Business Model Hydration | PRD-HYDRATION | Draft | 2025-12-16 |
+| [TDD-RESOLUTION](design/TDD-RESOLUTION.md) | Cross-Holder Relationship Resolution | PRD-RESOLUTION | Implemented | 2025-12-16 |
 
 ## ADRs
 
@@ -90,12 +94,75 @@
 | [ADR-0047](decisions/ADR-0047-positioning-validation-timing.md) | Positioning Validation Timing | Accepted | 2025-12-10 |
 | [ADR-0048](decisions/ADR-0048-circuit-breaker-pattern.md) | Circuit Breaker Pattern for Transport Layer | Accepted | 2025-12-10 |
 | [ADR-0049](decisions/ADR-0049-gid-validation-strategy.md) | GID Validation Strategy | Accepted | 2025-12-10 |
+| [ADR-0060](decisions/ADR-0060-name-resolution-caching-strategy.md) | Name Resolution Caching Strategy | Approved | 2025-12-12 |
+| [ADR-0061](decisions/ADR-0061-implicit-savesession-lifecycle.md) | Implicit SaveSession Lifecycle | Approved | 2025-12-12 |
+| [ADR-0062](decisions/ADR-0062-custom-field-accessor-enhancement.md) | CustomFieldAccessor Enhancement vs. Wrapper | Approved | 2025-12-12 |
+| [ADR-0063](decisions/ADR-0063-client-reference-storage.md) | Client Reference Storage | Approved | 2025-12-12 |
+| [ADR-0064](decisions/ADR-0064-dirty-detection-strategy.md) | Dirty Detection Strategy | Approved | 2025-12-12 |
+| [ADR-0068](decisions/ADR-0068-type-detection-strategy.md) | Type Detection Strategy for Upward Traversal | Accepted | 2025-12-16 |
+| [ADR-0069](decisions/ADR-0069-hydration-api-design.md) | Hydration API Design | Accepted | 2025-12-16 |
+| [ADR-0070](decisions/ADR-0070-hydration-partial-failure.md) | Hydration Partial Failure Handling | Accepted | 2025-12-16 |
+| [ADR-0071](decisions/ADR-0071-resolution-ambiguity-handling.md) | Resolution Ambiguity Handling | Accepted | 2025-12-16 |
+| [ADR-0072](decisions/ADR-0072-resolution-caching-decision.md) | Resolution Caching Decision | Accepted | 2025-12-16 |
+| [ADR-0073](decisions/ADR-0073-batch-resolution-api-design.md) | Batch Resolution API Design | Accepted | 2025-12-16 |
+
+## Architecture Hardening Sprint
+
+> Meta-initiative addressing 14 architectural issues across 6 coordinated sub-initiatives.
+
+### Meta-Initiative
+
+| Document | Type | Description | Status |
+|----------|------|-------------|--------|
+| [PROMPT-MINUS-1-ARCHITECTURE-HARDENING](initiatives/PROMPT-MINUS-1-ARCHITECTURE-HARDENING.md) | Prompt -1 | Meta-initiative scoping and validation | Ready |
+
+### Sub-Initiative Prompt 0s
+
+| Initiative | Document | Issues Addressed | Risk | Dependencies |
+|------------|----------|------------------|------|--------------|
+| A: Foundation | [PROMPT-0-HARDENING-A-FOUNDATION](initiatives/PROMPT-0-HARDENING-A-FOUNDATION.md) | Exceptions, naming, logging, API hygiene | Low | None |
+| B: Custom Fields | [PROMPT-0-HARDENING-B-CUSTOM-FIELDS](initiatives/PROMPT-0-HARDENING-B-CUSTOM-FIELDS.md) | Dual change tracking, naming | Medium | A |
+| C: Navigation | [PROMPT-0-HARDENING-C-NAVIGATION](initiatives/PROMPT-0-HARDENING-C-NAVIGATION.md) | Navigation DRY, holders, auto-invalidation | Medium | A |
+| D: Resolution | [PROMPT-0-HARDENING-D-RESOLUTION](initiatives/PROMPT-0-HARDENING-D-RESOLUTION.md) | Resolution framework extraction | Medium | A, C |
+| E: Hydration | [PROMPT-0-HARDENING-E-HYDRATION](initiatives/PROMPT-0-HARDENING-E-HYDRATION.md) | Parallel hydration, batching | Medium | A |
+| F: SaveSession | [PROMPT-0-HARDENING-F-SAVESESSION](initiatives/PROMPT-0-HARDENING-F-SAVESESSION.md) | Transaction semantics, GID identity | High | All |
+
+### Execution Order
+
+```
+A (Foundation) --> B (Custom Fields) -----> F (SaveSession)
+              |                        ^
+              +--> C (Navigation) --> D (Resolution) --+
+              |                                        |
+              +--> E (Hydration) ----------------------+
+```
+
+---
+
+## Session Orchestration Documents
+
+| Title | Session | Status | Date |
+|-------|---------|--------|------|
+| [ORCHESTRATOR-SESSION1-HANDOFF](initiatives/ORCHESTRATOR-SESSION1-HANDOFF.md) | 1 (Discovery) | Complete | 2025-12-11 |
+| [SESSION-4-IMPLEMENTATION-CONTEXT](initiatives/SESSION-4-IMPLEMENTATION-CONTEXT.md) | 4 (P1 Implementation) | Complete | 2025-12-12 |
+| [ENGINEER-READINESS-SUMMARY](initiatives/ENGINEER-READINESS-SUMMARY.md) | 4 (P1 Handoff) | Complete | 2025-12-12 |
+| [SESSION-5-IMPLEMENTATION-CONTEXT](initiatives/SESSION-5-IMPLEMENTATION-CONTEXT.md) | 5 (P2 + P3 Implementation) | Complete | 2025-12-12 |
+| [SESSION-5-READINESS-ASSESSMENT](initiatives/SESSION-5-READINESS-ASSESSMENT.md) | 5 (P2 + P3 Readiness) | Complete | 2025-12-12 |
+| [ORCHESTRATOR-SESSION5-HANDOFF](initiatives/ORCHESTRATOR-SESSION5-HANDOFF.md) | 5 (P2 + P3 Handoff) | Complete | 2025-12-12 |
+| [SESSION-6-IMPLEMENTATION-CONTEXT](initiatives/SESSION-6-IMPLEMENTATION-CONTEXT.md) | 6 (P4 + P5 Implementation) | Complete | 2025-12-12 |
+| [SESSION-6-READINESS-ASSESSMENT](initiatives/SESSION-6-READINESS-ASSESSMENT.md) | 6 (P4 + P5 Readiness) | Complete | 2025-12-12 |
+| [ORCHESTRATOR-SESSION6-HANDOFF](initiatives/ORCHESTRATOR-SESSION6-HANDOFF.md) | 6 (P4 + P5 Handoff) | Complete | 2025-12-12 |
+| [SESSION-7-VALIDATION-CONTEXT](initiatives/SESSION-7-VALIDATION-CONTEXT.md) | 7 (Validation) | Ready | 2025-12-12 |
+| [SESSION-7-READINESS-ASSESSMENT](initiatives/SESSION-7-READINESS-ASSESSMENT.md) | 7 (Validation Readiness) | Ready | 2025-12-12 |
+| [ORCHESTRATOR-SESSION7-HANDOFF](initiatives/ORCHESTRATOR-SESSION7-HANDOFF.md) | 7 (Validation Handoff) | Ready | 2025-12-12 |
 
 ## Discovery Documents
 
 | Title | Related PRD | Description | Date |
 |-------|-------------|-------------|------|
 | [save-orchestration-discovery.md](save-orchestration-discovery.md) | [PRD-0005](requirements/PRD-0005-save-orchestration.md) | Save Orchestration Layer feasibility analysis | 2025-12-10 |
+| [DISCOVERY-HYDRATION-001](decisions/DISCOVERY-HYDRATION-001.md) | [PRD-HYDRATION](requirements/PRD-HYDRATION.md) | Business Model Hydration infrastructure audit | 2025-12-16 |
+| [DISCOVERY-RESOLUTION-001](decisions/DISCOVERY-RESOLUTION-001.md) | PRD-RESOLUTION (pending) | Cross-Holder Relationship Resolution validation | 2025-12-16 |
 
 ## Guides
 
@@ -116,3 +183,6 @@
 | [TP-0001](testing/TEST-PLAN-0001.md) | autom8_asana SDK Phase 1 Parity Validation | PRD-0001 | TDD-0001 | Draft |
 | [TP-0002](testing/TP-0002-intelligent-caching.md) | Intelligent Caching Layer | PRD-0002 | TDD-0008 | Draft |
 | [TP-batch-api-adversarial](testing/TP-batch-api-adversarial.md) | Batch API Adversarial Testing | PRD-0001 | TDD-0005 | Completed |
+| [TP-HYDRATION](testing/TP-HYDRATION.md) | Business Model Hydration | PRD-HYDRATION | TDD-HYDRATION | PASS |
+| [TP-RESOLUTION](testing/TP-RESOLUTION.md) | Cross-Holder Relationship Resolution | PRD-RESOLUTION | TDD-RESOLUTION | PASS |
+| [TP-RESOLUTION-BATCH](testing/TP-RESOLUTION-BATCH.md) | Batch Resolution Functions | PRD-RESOLUTION | ADR-0073 | PASS |

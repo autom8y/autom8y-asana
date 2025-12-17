@@ -1063,3 +1063,915 @@ class TestActionOperationPhase2:
                 "insert_before": "sibling_789",
             }
         }
+
+
+# ---------------------------------------------------------------------------
+# TDD-HARDENING-F Phase 2: Retryable Error Classification Tests (ADR-0079)
+# ---------------------------------------------------------------------------
+
+
+class TestSaveErrorRetryable:
+    """Tests for SaveError.is_retryable property per ADR-0079."""
+
+    def test_is_retryable_429_rate_limit(self) -> None:
+        """429 status code is retryable (FR-FH-002)."""
+        from autom8_asana.exceptions import RateLimitError
+
+        task = Task(gid="123")
+        error = RateLimitError("Rate limited", status_code=429, retry_after=60)
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert save_error.is_retryable is True
+
+    def test_is_retryable_500_server_error(self) -> None:
+        """500 status code is retryable (FR-FH-003)."""
+        from autom8_asana.exceptions import ServerError
+
+        task = Task(gid="123")
+        error = ServerError("Internal Server Error", status_code=500)
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert save_error.is_retryable is True
+
+    def test_is_retryable_502_bad_gateway(self) -> None:
+        """502 status code is retryable (FR-FH-003)."""
+        from autom8_asana.exceptions import ServerError
+
+        task = Task(gid="123")
+        error = ServerError("Bad Gateway", status_code=502)
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert save_error.is_retryable is True
+
+    def test_is_retryable_503_service_unavailable(self) -> None:
+        """503 status code is retryable (FR-FH-003)."""
+        from autom8_asana.exceptions import ServerError
+
+        task = Task(gid="123")
+        error = ServerError("Service Unavailable", status_code=503)
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert save_error.is_retryable is True
+
+    def test_is_retryable_504_gateway_timeout(self) -> None:
+        """504 status code is retryable (FR-FH-003)."""
+        from autom8_asana.exceptions import ServerError
+
+        task = Task(gid="123")
+        error = ServerError("Gateway Timeout", status_code=504)
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert save_error.is_retryable is True
+
+    def test_not_retryable_400_bad_request(self) -> None:
+        """400 status code is not retryable (FR-FH-004)."""
+        from autom8_asana.exceptions import AsanaError
+
+        task = Task(gid="123")
+        error = AsanaError("Bad Request", status_code=400)
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.CREATE,
+            error=error,
+            payload={},
+        )
+
+        assert save_error.is_retryable is False
+
+    def test_not_retryable_401_unauthorized(self) -> None:
+        """401 status code is not retryable (FR-FH-004)."""
+        from autom8_asana.exceptions import AuthenticationError
+
+        task = Task(gid="123")
+        error = AuthenticationError("Unauthorized", status_code=401)
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert save_error.is_retryable is False
+
+    def test_not_retryable_403_forbidden(self) -> None:
+        """403 status code is not retryable (FR-FH-004)."""
+        from autom8_asana.exceptions import ForbiddenError
+
+        task = Task(gid="123")
+        error = ForbiddenError("Forbidden", status_code=403)
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert save_error.is_retryable is False
+
+    def test_not_retryable_404_not_found(self) -> None:
+        """404 status code is not retryable (FR-FH-004)."""
+        from autom8_asana.exceptions import NotFoundError
+
+        task = Task(gid="123")
+        error = NotFoundError("Not Found", status_code=404)
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert save_error.is_retryable is False
+
+    def test_not_retryable_unknown_error(self) -> None:
+        """Unknown errors (no status code) are not retryable."""
+        task = Task(gid="123")
+        error = ValueError("Something went wrong")
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert save_error.is_retryable is False
+
+    def test_is_retryable_timeout_error(self) -> None:
+        """TimeoutError is retryable (network error)."""
+        task = Task(gid="123")
+        error = TimeoutError("Connection timed out")
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert save_error.is_retryable is True
+
+    def test_is_retryable_connection_error(self) -> None:
+        """ConnectionError is retryable (network error)."""
+        task = Task(gid="123")
+        error = ConnectionError("Connection refused")
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert save_error.is_retryable is True
+
+    def test_is_retryable_os_error(self) -> None:
+        """OSError is retryable (network error)."""
+        task = Task(gid="123")
+        error = OSError("Network unreachable")
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert save_error.is_retryable is True
+
+
+class TestSaveErrorRecoveryHint:
+    """Tests for SaveError.recovery_hint property."""
+
+    def test_recovery_hint_429(self) -> None:
+        """429 provides rate limit specific hint."""
+        from autom8_asana.exceptions import RateLimitError
+
+        task = Task(gid="123")
+        error = RateLimitError("Rate limited", status_code=429)
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert "retry_after_seconds" in save_error.recovery_hint.lower()
+
+    def test_recovery_hint_500(self) -> None:
+        """500 provides server error hint."""
+        from autom8_asana.exceptions import ServerError
+
+        task = Task(gid="123")
+        error = ServerError("Internal Server Error", status_code=500)
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert "retry" in save_error.recovery_hint.lower()
+        assert "exponential backoff" in save_error.recovery_hint.lower()
+
+    def test_recovery_hint_400(self) -> None:
+        """400 provides bad request hint."""
+        from autom8_asana.exceptions import AsanaError
+
+        task = Task(gid="123")
+        error = AsanaError("Bad Request", status_code=400)
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.CREATE,
+            error=error,
+            payload={},
+        )
+
+        assert "payload" in save_error.recovery_hint.lower()
+
+    def test_recovery_hint_401(self) -> None:
+        """401 provides authentication hint."""
+        from autom8_asana.exceptions import AuthenticationError
+
+        task = Task(gid="123")
+        error = AuthenticationError("Unauthorized", status_code=401)
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert "credential" in save_error.recovery_hint.lower()
+
+    def test_recovery_hint_403(self) -> None:
+        """403 provides permission hint."""
+        from autom8_asana.exceptions import ForbiddenError
+
+        task = Task(gid="123")
+        error = ForbiddenError("Forbidden", status_code=403)
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert "permission" in save_error.recovery_hint.lower()
+
+    def test_recovery_hint_404(self) -> None:
+        """404 provides not found hint."""
+        from autom8_asana.exceptions import NotFoundError
+
+        task = Task(gid="123")
+        error = NotFoundError("Not Found", status_code=404)
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert "not found" in save_error.recovery_hint.lower()
+
+    def test_recovery_hint_timeout(self) -> None:
+        """TimeoutError provides timeout hint."""
+        task = Task(gid="123")
+        error = TimeoutError("Connection timed out")
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert "timed out" in save_error.recovery_hint.lower()
+
+    def test_recovery_hint_connection_error(self) -> None:
+        """ConnectionError provides connectivity hint."""
+        task = Task(gid="123")
+        error = ConnectionError("Connection refused")
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert "connectivity" in save_error.recovery_hint.lower()
+
+    def test_recovery_hint_unknown_error(self) -> None:
+        """Unknown errors provide generic hint."""
+        task = Task(gid="123")
+        error = ValueError("Something went wrong")
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert "unknown" in save_error.recovery_hint.lower()
+
+
+class TestSaveErrorRetryAfterSeconds:
+    """Tests for SaveError.retry_after_seconds property."""
+
+    def test_retry_after_from_rate_limit_error(self) -> None:
+        """retry_after_seconds extracts from RateLimitError."""
+        from autom8_asana.exceptions import RateLimitError
+
+        task = Task(gid="123")
+        error = RateLimitError("Rate limited", status_code=429, retry_after=60)
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert save_error.retry_after_seconds == 60
+
+    def test_retry_after_none_for_non_rate_limit(self) -> None:
+        """retry_after_seconds is None for non-rate-limit errors."""
+        from autom8_asana.exceptions import ServerError
+
+        task = Task(gid="123")
+        error = ServerError("Internal Server Error", status_code=500)
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert save_error.retry_after_seconds is None
+
+    def test_retry_after_none_for_generic_error(self) -> None:
+        """retry_after_seconds is None for generic errors."""
+        task = Task(gid="123")
+        error = ValueError("Something went wrong")
+
+        save_error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=error,
+            payload={},
+        )
+
+        assert save_error.retry_after_seconds is None
+
+
+class TestSaveResultRetryableHelpers:
+    """Tests for SaveResult retryable helper methods (FR-FH-005, FR-FH-006, FR-FH-007)."""
+
+    def test_failed_count(self) -> None:
+        """failed_count returns number of failures (FR-FH-007)."""
+        task1 = Task(gid="123")
+        task2 = Task(gid="456")
+
+        error1 = SaveError(
+            entity=task1,
+            operation=OperationType.UPDATE,
+            error=ValueError("Error 1"),
+            payload={},
+        )
+        error2 = SaveError(
+            entity=task2,
+            operation=OperationType.CREATE,
+            error=ValueError("Error 2"),
+            payload={},
+        )
+
+        result = SaveResult(failed=[error1, error2])
+
+        assert result.failed_count == 2
+
+    def test_failed_count_empty(self) -> None:
+        """failed_count returns 0 when no failures."""
+        result = SaveResult()
+
+        assert result.failed_count == 0
+
+    def test_get_failed_entities(self) -> None:
+        """get_failed_entities returns entities from failures (FR-FH-005)."""
+        task1 = Task(gid="123")
+        task2 = Task(gid="456")
+
+        error1 = SaveError(
+            entity=task1,
+            operation=OperationType.UPDATE,
+            error=ValueError("Error 1"),
+            payload={},
+        )
+        error2 = SaveError(
+            entity=task2,
+            operation=OperationType.CREATE,
+            error=ValueError("Error 2"),
+            payload={},
+        )
+
+        result = SaveResult(failed=[error1, error2])
+        entities = result.get_failed_entities()
+
+        assert len(entities) == 2
+        assert task1 in entities
+        assert task2 in entities
+
+    def test_get_failed_entities_empty(self) -> None:
+        """get_failed_entities returns empty list when no failures."""
+        result = SaveResult()
+
+        assert result.get_failed_entities() == []
+
+    def test_retryable_failures_filters_correctly(self) -> None:
+        """retryable_failures returns only retryable errors."""
+        from autom8_asana.exceptions import RateLimitError, NotFoundError
+
+        task1 = Task(gid="123")
+        task2 = Task(gid="456")
+
+        retryable = SaveError(
+            entity=task1,
+            operation=OperationType.UPDATE,
+            error=RateLimitError("Rate limited", status_code=429),
+            payload={},
+        )
+        non_retryable = SaveError(
+            entity=task2,
+            operation=OperationType.UPDATE,
+            error=NotFoundError("Not found", status_code=404),
+            payload={},
+        )
+
+        result = SaveResult(failed=[retryable, non_retryable])
+
+        assert len(result.retryable_failures) == 1
+        assert result.retryable_failures[0] is retryable
+
+    def test_non_retryable_failures_filters_correctly(self) -> None:
+        """non_retryable_failures returns only non-retryable errors."""
+        from autom8_asana.exceptions import RateLimitError, NotFoundError
+
+        task1 = Task(gid="123")
+        task2 = Task(gid="456")
+
+        retryable = SaveError(
+            entity=task1,
+            operation=OperationType.UPDATE,
+            error=RateLimitError("Rate limited", status_code=429),
+            payload={},
+        )
+        non_retryable = SaveError(
+            entity=task2,
+            operation=OperationType.UPDATE,
+            error=NotFoundError("Not found", status_code=404),
+            payload={},
+        )
+
+        result = SaveResult(failed=[retryable, non_retryable])
+
+        assert len(result.non_retryable_failures) == 1
+        assert result.non_retryable_failures[0] is non_retryable
+
+    def test_has_retryable_failures_true(self) -> None:
+        """has_retryable_failures is True when retryable error present."""
+        from autom8_asana.exceptions import RateLimitError
+
+        task = Task(gid="123")
+        error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=RateLimitError("Rate limited", status_code=429),
+            payload={},
+        )
+
+        result = SaveResult(failed=[error])
+
+        assert result.has_retryable_failures is True
+
+    def test_has_retryable_failures_false(self) -> None:
+        """has_retryable_failures is False when no retryable errors."""
+        from autom8_asana.exceptions import NotFoundError
+
+        task = Task(gid="123")
+        error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=NotFoundError("Not found", status_code=404),
+            payload={},
+        )
+
+        result = SaveResult(failed=[error])
+
+        assert result.has_retryable_failures is False
+
+    def test_has_retryable_failures_false_when_empty(self) -> None:
+        """has_retryable_failures is False when no failures."""
+        result = SaveResult()
+
+        assert result.has_retryable_failures is False
+
+    def test_get_retryable_errors_alias(self) -> None:
+        """get_retryable_errors() is alias for retryable_failures (FR-FH-006)."""
+        from autom8_asana.exceptions import RateLimitError
+
+        task = Task(gid="123")
+        error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=RateLimitError("Rate limited", status_code=429),
+            payload={},
+        )
+
+        result = SaveResult(failed=[error])
+
+        assert result.get_retryable_errors() == result.retryable_failures
+
+    def test_get_recovery_summary_no_failures(self) -> None:
+        """get_recovery_summary returns message when no failures."""
+        result = SaveResult()
+
+        assert result.get_recovery_summary() == "No failures."
+
+    def test_get_recovery_summary_with_failures(self) -> None:
+        """get_recovery_summary includes retryable and non-retryable sections."""
+        from autom8_asana.exceptions import RateLimitError, NotFoundError
+
+        task1 = Task(gid="123")
+        task2 = Task(gid="456")
+
+        retryable = SaveError(
+            entity=task1,
+            operation=OperationType.UPDATE,
+            error=RateLimitError("Rate limited", status_code=429),
+            payload={},
+        )
+        non_retryable = SaveError(
+            entity=task2,
+            operation=OperationType.UPDATE,
+            error=NotFoundError("Not found", status_code=404),
+            payload={},
+        )
+
+        result = SaveResult(failed=[retryable, non_retryable])
+        summary = result.get_recovery_summary()
+
+        assert "Total failures: 2" in summary
+        assert "Retryable (1)" in summary
+        assert "Non-retryable (1)" in summary
+        assert "Task(gid=123)" in summary
+        assert "Task(gid=456)" in summary
+
+
+class TestPartialSaveErrorEnhanced:
+    """Tests for PartialSaveError with retryable classification."""
+
+    def test_partial_save_error_message_includes_retryable_counts(self) -> None:
+        """PartialSaveError message includes retryable/non-retryable counts."""
+        from autom8_asana.exceptions import RateLimitError, NotFoundError
+        from autom8_asana.persistence.exceptions import PartialSaveError
+
+        task1 = Task(gid="123")
+        task2 = Task(gid="456")
+
+        retryable = SaveError(
+            entity=task1,
+            operation=OperationType.UPDATE,
+            error=RateLimitError("Rate limited", status_code=429),
+            payload={},
+        )
+        non_retryable = SaveError(
+            entity=task2,
+            operation=OperationType.UPDATE,
+            error=NotFoundError("Not found", status_code=404),
+            payload={},
+        )
+
+        result = SaveResult(failed=[retryable, non_retryable])
+
+        with pytest.raises(PartialSaveError) as exc_info:
+            result.raise_on_failure()
+
+        message = str(exc_info.value)
+        assert "2/2 operations failed" in message
+        assert "1 retryable" in message
+        assert "1 non-retryable" in message
+
+    def test_partial_save_error_is_retryable_true(self) -> None:
+        """PartialSaveError.is_retryable is True when retryable errors exist."""
+        from autom8_asana.exceptions import RateLimitError
+        from autom8_asana.persistence.exceptions import PartialSaveError
+
+        task = Task(gid="123")
+        error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=RateLimitError("Rate limited", status_code=429),
+            payload={},
+        )
+
+        result = SaveResult(failed=[error])
+
+        with pytest.raises(PartialSaveError) as exc_info:
+            result.raise_on_failure()
+
+        assert exc_info.value.is_retryable is True
+
+    def test_partial_save_error_is_retryable_false(self) -> None:
+        """PartialSaveError.is_retryable is False when no retryable errors."""
+        from autom8_asana.exceptions import NotFoundError
+        from autom8_asana.persistence.exceptions import PartialSaveError
+
+        task = Task(gid="123")
+        error = SaveError(
+            entity=task,
+            operation=OperationType.UPDATE,
+            error=NotFoundError("Not found", status_code=404),
+            payload={},
+        )
+
+        result = SaveResult(failed=[error])
+
+        with pytest.raises(PartialSaveError) as exc_info:
+            result.raise_on_failure()
+
+        assert exc_info.value.is_retryable is False
+
+    def test_partial_save_error_retryable_count(self) -> None:
+        """PartialSaveError.retryable_count returns correct count."""
+        from autom8_asana.exceptions import RateLimitError, ServerError
+        from autom8_asana.persistence.exceptions import PartialSaveError
+
+        task1 = Task(gid="123")
+        task2 = Task(gid="456")
+
+        error1 = SaveError(
+            entity=task1,
+            operation=OperationType.UPDATE,
+            error=RateLimitError("Rate limited", status_code=429),
+            payload={},
+        )
+        error2 = SaveError(
+            entity=task2,
+            operation=OperationType.UPDATE,
+            error=ServerError("Server error", status_code=500),
+            payload={},
+        )
+
+        result = SaveResult(failed=[error1, error2])
+
+        with pytest.raises(PartialSaveError) as exc_info:
+            result.raise_on_failure()
+
+        assert exc_info.value.retryable_count == 2
+
+    def test_partial_save_error_non_retryable_count(self) -> None:
+        """PartialSaveError.non_retryable_count returns correct count."""
+        from autom8_asana.exceptions import NotFoundError, ForbiddenError
+        from autom8_asana.persistence.exceptions import PartialSaveError
+
+        task1 = Task(gid="123")
+        task2 = Task(gid="456")
+
+        error1 = SaveError(
+            entity=task1,
+            operation=OperationType.UPDATE,
+            error=NotFoundError("Not found", status_code=404),
+            payload={},
+        )
+        error2 = SaveError(
+            entity=task2,
+            operation=OperationType.UPDATE,
+            error=ForbiddenError("Forbidden", status_code=403),
+            payload={},
+        )
+
+        result = SaveResult(failed=[error1, error2])
+
+        with pytest.raises(PartialSaveError) as exc_info:
+            result.raise_on_failure()
+
+        assert exc_info.value.non_retryable_count == 2
+
+
+class TestActionResultRetryable:
+    """Tests for ActionResult.is_retryable property."""
+
+    def test_is_retryable_false_on_success(self) -> None:
+        """ActionResult.is_retryable is False for successful actions."""
+        task = Task(gid="task_123")
+        action = ActionOperation(
+            task=task,
+            action=ActionType.ADD_TAG,
+            target_gid="tag_456",
+        )
+
+        result = ActionResult(action=action, success=True)
+
+        assert result.is_retryable is False
+
+    def test_is_retryable_429(self) -> None:
+        """ActionResult.is_retryable is True for 429 errors."""
+        from autom8_asana.exceptions import RateLimitError
+
+        task = Task(gid="task_123")
+        action = ActionOperation(
+            task=task,
+            action=ActionType.ADD_TAG,
+            target_gid="tag_456",
+        )
+        error = RateLimitError("Rate limited", status_code=429)
+
+        result = ActionResult(action=action, success=False, error=error)
+
+        assert result.is_retryable is True
+
+    def test_is_retryable_500(self) -> None:
+        """ActionResult.is_retryable is True for 500 errors."""
+        from autom8_asana.exceptions import ServerError
+
+        task = Task(gid="task_123")
+        action = ActionOperation(
+            task=task,
+            action=ActionType.ADD_TAG,
+            target_gid="tag_456",
+        )
+        error = ServerError("Internal Server Error", status_code=500)
+
+        result = ActionResult(action=action, success=False, error=error)
+
+        assert result.is_retryable is True
+
+    def test_is_retryable_false_for_404(self) -> None:
+        """ActionResult.is_retryable is False for 404 errors."""
+        from autom8_asana.exceptions import NotFoundError
+
+        task = Task(gid="task_123")
+        action = ActionOperation(
+            task=task,
+            action=ActionType.ADD_TAG,
+            target_gid="tag_456",
+        )
+        error = NotFoundError("Not found", status_code=404)
+
+        result = ActionResult(action=action, success=False, error=error)
+
+        assert result.is_retryable is False
+
+    def test_is_retryable_timeout_error(self) -> None:
+        """ActionResult.is_retryable is True for TimeoutError."""
+        task = Task(gid="task_123")
+        action = ActionOperation(
+            task=task,
+            action=ActionType.ADD_TAG,
+            target_gid="tag_456",
+        )
+        error = TimeoutError("Connection timed out")
+
+        result = ActionResult(action=action, success=False, error=error)
+
+        assert result.is_retryable is True
+
+
+class TestActionResultRecoveryHint:
+    """Tests for ActionResult.recovery_hint property."""
+
+    def test_recovery_hint_empty_on_success(self) -> None:
+        """ActionResult.recovery_hint is empty for successful actions."""
+        task = Task(gid="task_123")
+        action = ActionOperation(
+            task=task,
+            action=ActionType.ADD_TAG,
+            target_gid="tag_456",
+        )
+
+        result = ActionResult(action=action, success=True)
+
+        assert result.recovery_hint == ""
+
+    def test_recovery_hint_429(self) -> None:
+        """ActionResult.recovery_hint provides guidance for 429."""
+        from autom8_asana.exceptions import RateLimitError
+
+        task = Task(gid="task_123")
+        action = ActionOperation(
+            task=task,
+            action=ActionType.ADD_TAG,
+            target_gid="tag_456",
+        )
+        error = RateLimitError("Rate limited", status_code=429)
+
+        result = ActionResult(action=action, success=False, error=error)
+
+        assert "rate limit" in result.recovery_hint.lower()
+
+    def test_recovery_hint_500(self) -> None:
+        """ActionResult.recovery_hint provides guidance for 500."""
+        from autom8_asana.exceptions import ServerError
+
+        task = Task(gid="task_123")
+        action = ActionOperation(
+            task=task,
+            action=ActionType.ADD_TAG,
+            target_gid="tag_456",
+        )
+        error = ServerError("Internal Server Error", status_code=500)
+
+        result = ActionResult(action=action, success=False, error=error)
+
+        assert "retry" in result.recovery_hint.lower()
+
+
+class TestActionResultRetryAfterSeconds:
+    """Tests for ActionResult.retry_after_seconds property."""
+
+    def test_retry_after_from_rate_limit_error(self) -> None:
+        """retry_after_seconds extracts from RateLimitError."""
+        from autom8_asana.exceptions import RateLimitError
+
+        task = Task(gid="task_123")
+        action = ActionOperation(
+            task=task,
+            action=ActionType.ADD_TAG,
+            target_gid="tag_456",
+        )
+        error = RateLimitError("Rate limited", status_code=429, retry_after=30)
+
+        result = ActionResult(action=action, success=False, error=error)
+
+        assert result.retry_after_seconds == 30
+
+    def test_retry_after_none_on_success(self) -> None:
+        """retry_after_seconds is None for successful actions."""
+        task = Task(gid="task_123")
+        action = ActionOperation(
+            task=task,
+            action=ActionType.ADD_TAG,
+            target_gid="tag_456",
+        )
+
+        result = ActionResult(action=action, success=True)
+
+        assert result.retry_after_seconds is None
+
+    def test_retry_after_none_for_non_rate_limit(self) -> None:
+        """retry_after_seconds is None for non-rate-limit errors."""
+        from autom8_asana.exceptions import ServerError
+
+        task = Task(gid="task_123")
+        action = ActionOperation(
+            task=task,
+            action=ActionType.ADD_TAG,
+            target_gid="tag_456",
+        )
+        error = ServerError("Server Error", status_code=500)
+
+        result = ActionResult(action=action, success=False, error=error)
+
+        assert result.retry_after_seconds is None

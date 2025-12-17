@@ -426,22 +426,273 @@ class TestEdgeCases:
         changes = tracker.get_changes(task)
         assert "custom_fields" in changes
 
-    def test_same_object_identity(self) -> None:
-        """Same object tracked by id() not by value."""
+    def test_same_gid_deduplicated(self) -> None:
+        """Two objects with same GID are deduplicated (ADR-0078).
+
+        Per FR-EID-006: When the same GID is tracked twice, the entity
+        reference is updated but the original snapshot is preserved.
+        This enables change detection across re-fetches.
+        """
         tracker = ChangeTracker()
 
         # Two different objects with same GID
         task1 = Task(gid="123", name="Task 1")
         task2 = Task(gid="123", name="Task 2")
 
+        # Track first object
+        tracker.track(task1)
+
+        # Track second object with same GID - should deduplicate
+        tracker.track(task2)
+
+        # Changes should be computed from original snapshot (task1's state)
+        # to current entity (task2's state)
+        changes = tracker.get_changes(task2)
+
+        # task1 had name="Task 1", task2 has name="Task 2"
+        assert "name" in changes
+        assert changes["name"] == ("Task 1", "Task 2")
+
+
+# ---------------------------------------------------------------------------
+# GID-Based Entity Identity Tests (ADR-0078)
+# ---------------------------------------------------------------------------
+
+
+class TestGidBasedTracking:
+    """Tests for GID-based entity identity per ADR-0078."""
+
+    def test_track_by_gid(self) -> None:
+        """Entity is keyed by GID (FR-EID-001)."""
+        tracker = ChangeTracker()
+        task = Task(gid="12345", name="Test Task")
+
+        tracker.track(task)
+
+        # Should be able to find by GID
+        assert tracker.find_by_gid("12345") is task
+
+    def test_track_temp_gid_as_new(self) -> None:
+        """Entity with temp_ GID is treated as NEW (FR-EID-003)."""
+        tracker = ChangeTracker()
+        task = Task(gid="temp_123456", name="New Task")
+
+        tracker.track(task)
+
+        assert tracker.get_state(task) == EntityState.NEW
+        assert tracker.find_by_gid("temp_123456") is task
+
+    def test_duplicate_gid_updates_reference(self) -> None:
+        """Same GID tracked twice updates reference, keeps snapshot (FR-EID-006)."""
+        tracker = ChangeTracker()
+
+        task_v1 = Task(gid="123", name="Version 1", notes="Original notes")
+        task_v2 = Task(gid="123", name="Version 2", notes="Updated notes")
+
+        tracker.track(task_v1)
+        tracker.track(task_v2)
+
+        # Entity reference should be v2
+        assert tracker.find_by_gid("123") is task_v2
+
+        # But changes should be computed from v1's snapshot
+        changes = tracker.get_changes(task_v2)
+        assert "name" in changes
+        assert changes["name"] == ("Version 1", "Version 2")
+        assert "notes" in changes
+        assert changes["notes"] == ("Original notes", "Updated notes")
+
+    def test_track_returns_entity(self) -> None:
+        """track() returns the tracked entity for chaining."""
+        tracker = ChangeTracker()
+        task = Task(gid="123", name="Test")
+
+        result = tracker.track(task)
+
+        assert result is task
+
+    def test_track_idempotent_same_object(self) -> None:
+        """Re-tracking same object is idempotent (returns same object)."""
+        tracker = ChangeTracker()
+        task = Task(gid="123", name="Test")
+
+        result1 = tracker.track(task)
+        result2 = tracker.track(task)
+
+        assert result1 is task
+        assert result2 is task
+
+
+class TestTempGidTransition:
+    """Tests for temp GID to real GID transition."""
+
+    def test_update_gid_rekeys_entity(self) -> None:
+        """update_gid() transfers entity to new key (FR-EID-004)."""
+        tracker = ChangeTracker()
+        task = Task(gid="temp_123", name="New Task")
+
+        tracker.track(task)
+        assert tracker.get_state(task) == EntityState.NEW
+
+        # Simulate what pipeline does after CREATE
+        tracker.update_gid(task, "temp_123", "real_456")
+
+        # Should be findable by new GID
+        assert tracker.find_by_gid("real_456") is task
+
+        # State should be preserved
+        assert tracker._states.get("real_456") == EntityState.NEW
+
+    def test_update_gid_maintains_transition_map(self) -> None:
+        """update_gid() records transition for old GID lookup (FR-EID-005)."""
+        tracker = ChangeTracker()
+        task = Task(gid="temp_123", name="New Task")
+
+        tracker.track(task)
+        tracker.update_gid(task, "temp_123", "real_456")
+
+        # Old GID should still resolve via transition map
+        assert tracker.find_by_gid("temp_123") is task
+
+    def test_update_gid_preserves_snapshot(self) -> None:
+        """update_gid() preserves original snapshot under new key."""
+        tracker = ChangeTracker()
+        task = Task(gid="temp_123", name="Original Name")
+
+        tracker.track(task)
+        tracker.update_gid(task, "temp_123", "real_456")
+
+        # Simulate pipeline updating entity's GID (as it does after CREATE)
+        object.__setattr__(task, "gid", "real_456")
+
+        # Modify entity after re-keying
+        task.name = "Modified Name"
+
+        # Changes should still be detected from original snapshot
+        changes = tracker.get_changes(task)
+        assert "name" in changes
+        assert changes["name"] == ("Original Name", "Modified Name")
+
+    def test_update_gid_nonexistent_key_noop(self) -> None:
+        """update_gid() is safe when old key doesn't exist."""
+        tracker = ChangeTracker()
+
+        # Should not raise
+        tracker.update_gid(Task(gid="temp_123"), "nonexistent", "new_gid")
+
+        assert tracker.find_by_gid("new_gid") is None
+
+
+class TestEntityLookup:
+    """Tests for entity lookup by GID."""
+
+    def test_find_by_gid_returns_entity(self) -> None:
+        """find_by_gid() returns tracked entity (FR-EL-002)."""
+        tracker = ChangeTracker()
+        task = Task(gid="12345", name="Test")
+
+        tracker.track(task)
+
+        assert tracker.find_by_gid("12345") is task
+
+    def test_find_by_gid_returns_none_for_unknown(self) -> None:
+        """find_by_gid() returns None for unknown GID (FR-EL-004)."""
+        tracker = ChangeTracker()
+
+        assert tracker.find_by_gid("unknown") is None
+
+    def test_find_by_gid_resolves_transitioned_temp(self) -> None:
+        """find_by_gid() resolves transitioned temp GID (FR-EL-003)."""
+        tracker = ChangeTracker()
+        task = Task(gid="temp_123", name="Test")
+
+        tracker.track(task)
+        tracker.update_gid(task, "temp_123", "real_456")
+
+        # Both should resolve to the same entity
+        assert tracker.find_by_gid("temp_123") is task
+        assert tracker.find_by_gid("real_456") is task
+
+    def test_is_tracked_returns_true(self) -> None:
+        """is_tracked() returns True for tracked GID (FR-EL-005)."""
+        tracker = ChangeTracker()
+        task = Task(gid="12345", name="Test")
+
+        tracker.track(task)
+
+        assert tracker.is_tracked("12345") is True
+
+    def test_is_tracked_returns_false(self) -> None:
+        """is_tracked() returns False for unknown GID."""
+        tracker = ChangeTracker()
+
+        assert tracker.is_tracked("unknown") is False
+
+    def test_is_tracked_resolves_transitioned_temp(self) -> None:
+        """is_tracked() resolves transitioned temp GID."""
+        tracker = ChangeTracker()
+        task = Task(gid="temp_123", name="Test")
+
+        tracker.track(task)
+        tracker.update_gid(task, "temp_123", "real_456")
+
+        assert tracker.is_tracked("temp_123") is True
+        assert tracker.is_tracked("real_456") is True
+
+
+class TestGidFallback:
+    """Tests for fallback key generation when entity has no GID."""
+
+    def test_track_without_gid_uses_fallback(self) -> None:
+        """Entity without GID uses __id_ fallback (FR-EID-002)."""
+        tracker = ChangeTracker()
+
+        # Create a task with empty string GID (falsy value triggers fallback)
+        task = Task(gid="", name="No GID Task")
+
+        tracker.track(task)
+
+        # Entity should be tracked and detected as NEW (empty string is falsy)
+        assert tracker.get_state(task) == EntityState.NEW
+
+        # Empty string is falsy, so it uses __id_ fallback
+        # Entity is NOT findable by empty string, but is findable via internal key
+        assert tracker.find_by_gid("") is None  # Empty string triggers fallback
+
+        # But the entity IS tracked - we can verify via internal structures
+        fallback_key = f"__id_{id(task)}"
+        assert fallback_key in tracker._entities
+        assert tracker._entities[fallback_key] is task
+
+    def test_fallback_key_tracks_independently(self) -> None:
+        """Entities using fallback key are tracked independently."""
+        tracker = ChangeTracker()
+
+        # Two entities with empty GIDs use different fallback keys (based on id())
+        task1 = Task(gid="", name="Task 1")
+        task2 = Task(gid="", name="Task 2")
+
         tracker.track(task1)
         tracker.track(task2)
 
-        # Both should be tracked independently
-        task1.name = "Modified 1"
+        # Both should be tracked independently (different id() = different keys)
+        key1 = f"__id_{id(task1)}"
+        key2 = f"__id_{id(task2)}"
 
-        changes1 = tracker.get_changes(task1)
-        changes2 = tracker.get_changes(task2)
+        assert key1 in tracker._entities
+        assert key2 in tracker._entities
+        assert tracker._entities[key1] is task1
+        assert tracker._entities[key2] is task2
 
-        assert "name" in changes1
-        assert changes2 == {}
+    def test_fallback_key_change_detection(self) -> None:
+        """Change detection works correctly with fallback key."""
+        tracker = ChangeTracker()
+
+        task = Task(gid="", name="Original")
+        tracker.track(task)
+
+        task.name = "Modified"
+
+        changes = tracker.get_changes(task)
+        assert "name" in changes
+        assert changes["name"] == ("Original", "Modified")

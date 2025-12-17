@@ -101,8 +101,20 @@ from autom8_asana.persistence.exceptions import (
     PartialSaveError,
     # TDD-0011: Unsupported operation
     UnsupportedOperationError,
+    # TDD-TRIAGE-FIXES: P1 method error propagation
+    SaveSessionError,
+    # TDD-HARDENING-A: Exception hierarchy cleanup (FR-EXC-003, FR-EXC-004)
+    GidValidationError,
+    PositioningConflictError,
+    ValidationError,  # Deprecated alias for backward compatibility
 )
 from autom8_asana.persistence.session import SaveSession
+from autom8_asana.persistence.cascade import (
+    CascadeOperation,
+    CascadeResult,
+    CascadeExecutor,
+    cascade_field,
+)
 
 __all__ = [
     # Main API
@@ -117,6 +129,11 @@ __all__ = [
     "ActionType",
     "ActionOperation",
     "ActionResult",
+    # Cascade models (Phase 3)
+    "CascadeOperation",
+    "CascadeResult",
+    "CascadeExecutor",
+    "cascade_field",
     # Exceptions
     "SaveOrchestrationError",
     "SessionClosedError",
@@ -124,4 +141,9 @@ __all__ = [
     "DependencyResolutionError",
     "PartialSaveError",
     "UnsupportedOperationError",
+    "SaveSessionError",
+    # TDD-HARDENING-A: Exception hierarchy cleanup (FR-EXC-003, FR-EXC-004)
+    "GidValidationError",
+    "PositioningConflictError",
+    "ValidationError",  # Deprecated alias for backward compatibility
 ]

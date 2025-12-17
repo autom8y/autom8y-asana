@@ -105,8 +105,8 @@ class TestFullCRUDLifecycle:
         self, tasks_client: TasksClient, http_client: AsyncHTTPClient
     ) -> None:
         """Full CRUD lifecycle: create -> get -> update -> delete."""
-        task_gid = "lifecycle123"
-        workspace_gid = "workspace456"
+        task_gid = "1234567890"
+        workspace_gid = "1111111111"
 
         # 1. CREATE
         respx.post("https://app.asana.com/api/1.0/tasks").mock(
@@ -200,19 +200,19 @@ class TestRetryChain:
         self, tasks_client: TasksClient, http_client: AsyncHTTPClient
     ) -> None:
         """Request succeeds after failing twice (third attempt succeeds)."""
-        route = respx.get("https://app.asana.com/api/1.0/tasks/retry123")
+        route = respx.get("https://app.asana.com/api/1.0/tasks/2222222222")
 
         # Fail twice with 503, then succeed
         route.side_effect = [
             httpx.Response(503, json={"errors": [{"message": "Service unavailable"}]}),
             httpx.Response(503, json={"errors": [{"message": "Service unavailable"}]}),
-            httpx.Response(200, json={"data": {"gid": "retry123", "name": "Retry Task"}}),
+            httpx.Response(200, json={"data": {"gid": "2222222222", "name": "Retry Task"}}),
         ]
 
-        result = await tasks_client.get_async("retry123")
+        result = await tasks_client.get_async("2222222222")
 
         assert isinstance(result, Task)
-        assert result.gid == "retry123"
+        assert result.gid == "2222222222"
         assert result.name == "Retry Task"
         assert route.call_count == 3  # 2 failures + 1 success
 
@@ -239,7 +239,7 @@ class TestRetryChain:
             log_provider=logger,
         )
 
-        route = respx.get("https://app.asana.com/api/1.0/tasks/exhausted")
+        route = respx.get("https://app.asana.com/api/1.0/tasks/3333333333")
 
         # Fail all attempts (initial + 2 retries = 3 total)
         route.side_effect = [
@@ -249,7 +249,7 @@ class TestRetryChain:
         ]
 
         with pytest.raises(ServerError) as exc_info:
-            await tasks_client.get_async("exhausted")
+            await tasks_client.get_async("3333333333")
 
         assert exc_info.value.status_code == 503
         assert route.call_count == 3  # 1 initial + 2 retries
@@ -264,21 +264,21 @@ class TestSyncAsyncMixedUsage:
         self, tasks_client: TasksClient
     ) -> None:
         """In async context, async methods work but sync methods fail."""
-        respx.get("https://app.asana.com/api/1.0/tasks/async123").mock(
+        respx.get("https://app.asana.com/api/1.0/tasks/4444444444").mock(
             return_value=httpx.Response(
                 200,
-                json={"data": {"gid": "async123", "name": "Async Task"}},
+                json={"data": {"gid": "4444444444", "name": "Async Task"}},
             )
         )
 
         # Async method should work
-        result = await tasks_client.get_async("async123")
+        result = await tasks_client.get_async("4444444444")
         assert isinstance(result, Task)
-        assert result.gid == "async123"
+        assert result.gid == "4444444444"
 
         # Sync method should fail in async context
         with pytest.raises(SyncInAsyncContextError):
-            tasks_client.get("sync123")
+            tasks_client.get("5555555555")
 
     @respx.mock
     def test_sync_async_mixed_usage_sync_context(
@@ -294,17 +294,17 @@ class TestSyncAsyncMixedUsage:
             log_provider=logger,
         )
 
-        respx.get("https://app.asana.com/api/1.0/tasks/sync123").mock(
+        respx.get("https://app.asana.com/api/1.0/tasks/5555555555").mock(
             return_value=httpx.Response(
                 200,
-                json={"data": {"gid": "sync123", "name": "Sync Task"}},
+                json={"data": {"gid": "5555555555", "name": "Sync Task"}},
             )
         )
 
         # Sync method should work outside async context
-        result = tasks_client.get("sync123")
+        result = tasks_client.get("5555555555")
         assert isinstance(result, Task)
-        assert result.gid == "sync123"
+        assert result.gid == "5555555555"
         assert result.name == "Sync Task"
 
 
@@ -316,12 +316,12 @@ class TestWithOptFields:
         self, tasks_client: TasksClient
     ) -> None:
         """opt_fields parameter reaches the API request."""
-        route = respx.get("https://app.asana.com/api/1.0/tasks/fields123").mock(
+        route = respx.get("https://app.asana.com/api/1.0/tasks/6666666666").mock(
             return_value=httpx.Response(
                 200,
                 json={
                     "data": {
-                        "gid": "fields123",
+                        "gid": "6666666666",
                         "name": "Task with Fields",
                         "completed": False,
                         "due_on": "2024-12-31",
@@ -331,12 +331,12 @@ class TestWithOptFields:
         )
 
         result = await tasks_client.get_async(
-            "fields123",
+            "6666666666",
             opt_fields=["name", "completed", "due_on"],
         )
 
         assert isinstance(result, Task)
-        assert result.gid == "fields123"
+        assert result.gid == "6666666666"
         assert result.name == "Task with Fields"
         assert result.completed is False
         assert result.due_on == "2024-12-31"
@@ -355,20 +355,21 @@ class TestConcurrentRequests:
         self, tasks_client: TasksClient
     ) -> None:
         """Multiple concurrent GET requests are handled correctly."""
-        for i in range(5):
-            respx.get(f"https://app.asana.com/api/1.0/tasks/task{i}").mock(
+        task_gids = ["7000000000", "7000000001", "7000000002", "7000000003", "7000000004"]
+        for i, gid in enumerate(task_gids):
+            respx.get(f"https://app.asana.com/api/1.0/tasks/{gid}").mock(
                 return_value=httpx.Response(
                     200,
-                    json={"data": {"gid": f"task{i}", "name": f"Task {i}"}},
+                    json={"data": {"gid": gid, "name": f"Task {i}"}},
                 )
             )
 
         # Fire 5 concurrent requests
-        tasks = [tasks_client.get_async(f"task{i}") for i in range(5)]
+        tasks = [tasks_client.get_async(gid) for gid in task_gids]
         results = await asyncio.gather(*tasks)
 
         assert len(results) == 5
         for i, result in enumerate(results):
             assert isinstance(result, Task)
-            assert result.gid == f"task{i}"
+            assert result.gid == task_gids[i]
             assert result.name == f"Task {i}"

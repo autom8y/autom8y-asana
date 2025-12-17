@@ -5,6 +5,8 @@ operation planning, and result reporting.
 
 Per TDD-0011: Action operation types for tag, project, dependency,
 and section management via non-batch API endpoints.
+
+Per TDD-TRIAGE-FIXES: Cascade result tracking in SaveResult.
 """
 
 from __future__ import annotations
@@ -15,6 +17,7 @@ from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from autom8_asana.models.base import AsanaResource
+    from autom8_asana.persistence.cascade import CascadeResult
 
 
 class EntityState(Enum):
@@ -85,6 +88,7 @@ class SaveError:
     """Error information for a failed operation.
 
     Per FR-ERROR-003: Attribute errors to specific entities.
+    Per ADR-0079: Provides is_retryable classification and recovery hints.
 
     Attributes:
         entity: The entity that failed to save
@@ -108,29 +112,151 @@ class SaveError:
             f"{entity_type}(gid={entity_gid}), {error_type})"
         )
 
+    @property
+    def is_retryable(self) -> bool:
+        """Determine if this error is potentially retryable.
+
+        Per ADR-0079: Classification based on HTTP status code semantics.
+        Per FR-FH-002: 429 errors classified as retryable.
+        Per FR-FH-003: 5xx errors classified as retryable.
+        Per FR-FH-004: 4xx errors (except 429) not retryable.
+
+        Network errors (TimeoutError, ConnectionError, OSError) are also
+        considered retryable as they represent transient failures.
+
+        Returns:
+            True if error type suggests retry may succeed.
+        """
+        # Network errors are retryable (transient failures)
+        if isinstance(self.error, (TimeoutError, ConnectionError, OSError)):
+            return True
+
+        status_code = self._extract_status_code()
+        if status_code is None:
+            return False  # Unknown errors are not retryable
+
+        # Rate limit is retryable
+        if status_code == 429:
+            return True
+
+        # Server errors are retryable
+        if 500 <= status_code < 600:
+            return True
+
+        # Client errors are not retryable
+        return False
+
+    @property
+    def recovery_hint(self) -> str:
+        """Provide guidance for recovering from this error.
+
+        Returns actionable advice based on the error type and status code.
+
+        Returns:
+            Human-readable recovery guidance string.
+        """
+        # Network errors
+        if isinstance(self.error, TimeoutError):
+            return "Request timed out. Retry with exponential backoff."
+        if isinstance(self.error, ConnectionError):
+            return "Connection failed. Check network connectivity and retry."
+        if isinstance(self.error, OSError):
+            return "Network error. Check connectivity and retry."
+
+        status_code = self._extract_status_code()
+        if status_code is None:
+            return "Unknown error. Inspect the error attribute for details."
+
+        # Status code specific hints
+        hints: dict[int, str] = {
+            400: "Bad request. Check payload format and required fields.",
+            401: "Authentication failed. Verify API credentials.",
+            403: "Permission denied. Check workspace/project access permissions.",
+            404: "Resource not found. Verify the GID exists.",
+            409: "Conflict detected. Resource may have been modified. Refresh and retry.",
+            429: "Rate limit exceeded. Wait for retry_after_seconds and retry.",
+            500: "Server error. Retry with exponential backoff.",
+            502: "Bad gateway. Retry with exponential backoff.",
+            503: "Service unavailable. Retry with exponential backoff.",
+            504: "Gateway timeout. Retry with exponential backoff.",
+        }
+
+        if status_code in hints:
+            return hints[status_code]
+
+        if 400 <= status_code < 500:
+            return f"Client error ({status_code}). Check request parameters."
+        if 500 <= status_code < 600:
+            return f"Server error ({status_code}). Retry with exponential backoff."
+
+        return f"HTTP {status_code}. Inspect the error attribute for details."
+
+    @property
+    def retry_after_seconds(self) -> int | None:
+        """Get recommended wait time before retry (for rate limits).
+
+        Per ADR-0079: Extracts retry_after from RateLimitError when available.
+
+        Returns:
+            Seconds to wait before retrying, or None if not applicable.
+        """
+        return getattr(self.error, 'retry_after', None)
+
+    def _extract_status_code(self) -> int | None:
+        """Extract HTTP status code from error.
+
+        Handles AsanaError and generic exceptions with status_code attribute.
+
+        Returns:
+            HTTP status code or None if not available.
+        """
+        from autom8_asana.exceptions import AsanaError
+
+        if isinstance(self.error, AsanaError):
+            return self.error.status_code
+
+        # Check for status_code attribute on generic exceptions
+        if hasattr(self.error, 'status_code'):
+            status = getattr(self.error, 'status_code')
+            if isinstance(status, int):
+                return status
+
+        return None
+
 
 @dataclass
 class SaveResult:
     """Result of a commit operation.
 
     Per FR-ERROR-002: Provides succeeded, failed, and aggregate info.
+    Per ADR-0055: Includes action operation results for complete reporting.
+    Per TDD-TRIAGE-FIXES: Includes cascade operation results.
 
     Attributes:
-        succeeded: List of entities that were saved successfully
-        failed: List of SaveError for entities that failed
+        succeeded: List of entities that were saved successfully (CRUD operations)
+        failed: List of SaveError for entities that failed (CRUD operations)
+        action_results: List of ActionResult for action operations (tags, projects,
+                       dependencies, sections, etc.). Populated after commit.
+        cascade_results: List of CascadeResult for cascade operations. Populated after
+                        cascade execution during commit.
     """
 
     succeeded: list[AsanaResource] = field(default_factory=list)
     failed: list[SaveError] = field(default_factory=list)
+    action_results: list[ActionResult] = field(default_factory=list)
+    cascade_results: list[CascadeResult] = field(default_factory=list)
 
     @property
     def success(self) -> bool:
-        """True if all operations succeeded (FR-ERROR-002).
+        """True if all operations succeeded (FR-ERROR-002, ADR-0055, TDD-TRIAGE-FIXES).
 
         Returns:
-            True if no operations failed, False otherwise.
+            True if no CRUD failures, all actions succeeded, and all cascades succeeded.
         """
-        return len(self.failed) == 0
+        crud_ok = len(self.failed) == 0
+        actions_ok = all(r.success for r in self.action_results)
+        cascades_ok = all(r.success for r in self.cascade_results)
+        return crud_ok and actions_ok and cascades_ok
 
     @property
     def partial(self) -> bool:
@@ -150,6 +276,134 @@ class SaveResult:
         """
         return len(self.succeeded) + len(self.failed)
 
+    @property
+    def action_succeeded(self) -> int:
+        """Count of successful action operations (ADR-0055).
+
+        Returns:
+            Number of action operations that succeeded.
+        """
+        return sum(1 for r in self.action_results if r.success)
+
+    @property
+    def action_failed(self) -> int:
+        """Count of failed action operations (ADR-0055).
+
+        Returns:
+            Number of action operations that failed.
+        """
+        return sum(1 for r in self.action_results if not r.success)
+
+    @property
+    def cascade_succeeded(self) -> int:
+        """Count of successful cascade operations (TDD-TRIAGE-FIXES).
+
+        Returns:
+            Number of cascade operations that succeeded.
+        """
+        return sum(1 for r in self.cascade_results if r.success)
+
+    @property
+    def cascade_failed(self) -> int:
+        """Count of failed cascade operations (TDD-TRIAGE-FIXES).
+
+        Returns:
+            Number of cascade operations that failed.
+        """
+        return sum(1 for r in self.cascade_results if not r.success)
+
+    @property
+    def failed_count(self) -> int:
+        """Number of failed CRUD operations (FR-FH-007).
+
+        Returns:
+            Count of SaveError entries in the failed list.
+        """
+        return len(self.failed)
+
+    @property
+    def retryable_failures(self) -> list[SaveError]:
+        """Get errors that may be retried (FR-FH-006).
+
+        Per ADR-0079: Filters failed operations to those with is_retryable=True.
+
+        Returns:
+            List of SaveErrors where is_retryable is True.
+        """
+        return [error for error in self.failed if error.is_retryable]
+
+    @property
+    def non_retryable_failures(self) -> list[SaveError]:
+        """Get errors that should not be retried.
+
+        Returns:
+            List of SaveErrors where is_retryable is False.
+        """
+        return [error for error in self.failed if not error.is_retryable]
+
+    @property
+    def has_retryable_failures(self) -> bool:
+        """Check if any failures are retryable.
+
+        Returns:
+            True if at least one failed operation is retryable.
+        """
+        return any(error.is_retryable for error in self.failed)
+
+    def get_failed_entities(self) -> list[AsanaResource]:
+        """Get entities that failed to save (FR-FH-005).
+
+        Returns:
+            List of entities from failed operations.
+        """
+        return [error.entity for error in self.failed]
+
+    def get_retryable_errors(self) -> list[SaveError]:
+        """Get errors that may be retried (FR-FH-006).
+
+        Alias for retryable_failures property for API consistency with TDD.
+
+        Returns:
+            List of SaveErrors where is_retryable is True.
+        """
+        return self.retryable_failures
+
+    def get_recovery_summary(self) -> str:
+        """Generate a summary of all errors with recovery guidance.
+
+        Useful for logging or displaying to users. Groups errors by
+        retryability and includes recovery hints.
+
+        Returns:
+            Multi-line string summarizing all failures with recovery hints.
+        """
+        if not self.failed:
+            return "No failures."
+
+        lines: list[str] = []
+        lines.append(f"Total failures: {self.failed_count}")
+
+        retryable = self.retryable_failures
+        non_retryable = self.non_retryable_failures
+
+        if retryable:
+            lines.append(f"\nRetryable ({len(retryable)}):")
+            for err in retryable:
+                entity_type = type(err.entity).__name__
+                lines.append(
+                    f"  - {entity_type}(gid={err.entity.gid}): {err.recovery_hint}"
+                )
+
+        if non_retryable:
+            lines.append(f"\nNon-retryable ({len(non_retryable)}):")
+            for err in non_retryable:
+                entity_type = type(err.entity).__name__
+                lines.append(
+                    f"  - {entity_type}(gid={err.entity.gid}): {err.recovery_hint}"
+                )
+
+        return "\n".join(lines)
+
     def raise_on_failure(self) -> None:
         """Raise PartialSaveError if any operations failed (FR-ERROR-010).
 
@@ -163,7 +417,10 @@ class SaveResult:
 
     def __repr__(self) -> str:
         """Return string representation for debugging."""
-        return f"SaveResult(succeeded={len(self.succeeded)}, failed={len(self.failed)})"
+        return (
+            f"SaveResult(succeeded={len(self.succeeded)}, failed={len(self.failed)}, "
+            f"actions={self.action_succeeded}/{len(self.action_results)})"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -393,6 +650,7 @@ class ActionResult:
     """Result of an action operation execution.
 
     Per TDD-0011: Track success/failure of individual action operations.
+    Per ADR-0079: Enhanced with retryable error classification.
 
     Attributes:
         action: The ActionOperation that was executed.
@@ -410,3 +668,115 @@ class ActionResult:
         """Return string representation for debugging."""
         status = "success" if self.success else "failed"
         return f"ActionResult({self.action.action.value}, {status})"
+
+    @property
+    def is_retryable(self) -> bool:
+        """Determine if this action error is potentially retryable.
+
+        Per ADR-0079: Classification based on HTTP status code semantics.
+        Follows the same logic as SaveError.is_retryable.
+
+        Returns:
+            True if error type suggests retry may succeed.
+            Always False for successful actions.
+        """
+        if self.success or self.error is None:
+            return False
+
+        # Network errors are retryable
+        if isinstance(self.error, (TimeoutError, ConnectionError, OSError)):
+            return True
+
+        status_code = self._extract_status_code()
+        if status_code is None:
+            return False
+
+        # Rate limit is retryable
+        if status_code == 429:
+            return True
+
+        # Server errors are retryable
+        if 500 <= status_code < 600:
+            return True
+
+        return False
+
+    @property
+    def recovery_hint(self) -> str:
+        """Provide guidance for recovering from this error.
+
+        Returns actionable advice based on the error type and status code.
+
+        Returns:
+            Human-readable recovery guidance string.
+            Empty string for successful actions.
+        """
+        if self.success or self.error is None:
+            return ""
+
+        # Network errors
+        if isinstance(self.error, TimeoutError):
+            return "Request timed out. Retry with exponential backoff."
+        if isinstance(self.error, ConnectionError):
+            return "Connection failed. Check network connectivity and retry."
+        if isinstance(self.error, OSError):
+            return "Network error. Check connectivity and retry."
+
+        status_code = self._extract_status_code()
+        if status_code is None:
+            return "Unknown error. Inspect the error attribute for details."
+
+        hints: dict[int, str] = {
+            400: "Bad request. Check action parameters.",
+            401: "Authentication failed. Verify API credentials.",
+            403: "Permission denied. Check access permissions.",
+            404: "Resource not found. Verify the GID exists.",
+            409: "Conflict detected. Resource may have been modified.",
+            429: "Rate limit exceeded. Wait and retry.",
+            500: "Server error. Retry with exponential backoff.",
+            502: "Bad gateway. Retry with exponential backoff.",
+            503: "Service unavailable. Retry with exponential backoff.",
+            504: "Gateway timeout. Retry with exponential backoff.",
+        }
+
+        if status_code in hints:
+            return hints[status_code]
+
+        if 400 <= status_code < 500:
+            return f"Client error ({status_code}). Check action parameters."
+        if 500 <= status_code < 600:
+            return f"Server error ({status_code}). Retry with exponential backoff."
+
+        return f"HTTP {status_code}. Inspect the error attribute for details."
+
+    @property
+    def retry_after_seconds(self) -> int | None:
+        """Get recommended wait time before retry (for rate limits).
+
+        Returns:
+            Seconds to wait before retrying, or None if not applicable.
+        """
+        if self.error is None:
+            return None
+        return getattr(self.error, 'retry_after', None)
+
+    def _extract_status_code(self) -> int | None:
+        """Extract HTTP status code from error.
+
+        Returns:
+            HTTP status code or None if not available.
+        """
+        if self.error is None:
+            return None
+
+        from autom8_asana.exceptions import AsanaError
+
+        if isinstance(self.error, AsanaError):
+            return self.error.status_code
+
+        if hasattr(self.error, 'status_code'):
+            status = getattr(self.error, 'status_code')
+            if isinstance(status, int):
+                return status
+
+        return None
