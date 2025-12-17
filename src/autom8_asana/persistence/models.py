@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, TYPE_CHECKING
 
+from autom8_asana.patterns import RetryableErrorMixin
+
 if TYPE_CHECKING:
     from autom8_asana.models.base import AsanaResource
     from autom8_asana.persistence.cascade import CascadeResult
@@ -84,11 +86,12 @@ class PlannedOperation:
 
 
 @dataclass
-class SaveError:
+class SaveError(RetryableErrorMixin):
     """Error information for a failed operation.
 
     Per FR-ERROR-003: Attribute errors to specific entities.
     Per ADR-0079: Provides is_retryable classification and recovery hints.
+    Per Initiative DESIGN-PATTERNS-B: Uses RetryableErrorMixin for error classification.
 
     Attributes:
         entity: The entity that failed to save
@@ -112,116 +115,16 @@ class SaveError:
             f"{entity_type}(gid={entity_gid}), {error_type})"
         )
 
-    @property
-    def is_retryable(self) -> bool:
-        """Determine if this error is potentially retryable.
+    def _get_error(self) -> Exception | None:
+        """Return the error for classification.
 
-        Per ADR-0079: Classification based on HTTP status code semantics.
-        Per FR-FH-002: 429 errors classified as retryable.
-        Per FR-FH-003: 5xx errors classified as retryable.
-        Per FR-FH-004: 4xx errors (except 429) not retryable.
-
-        Network errors (TimeoutError, ConnectionError, OSError) are also
-        considered retryable as they represent transient failures.
+        Per RetryableErrorMixin contract: Returns the error to classify.
+        SaveError always has an error (required field).
 
         Returns:
-            True if error type suggests retry may succeed.
+            The exception that caused this save error.
         """
-        # Network errors are retryable (transient failures)
-        if isinstance(self.error, (TimeoutError, ConnectionError, OSError)):
-            return True
-
-        status_code = self._extract_status_code()
-        if status_code is None:
-            return False  # Unknown errors are not retryable
-
-        # Rate limit is retryable
-        if status_code == 429:
-            return True
-
-        # Server errors are retryable
-        if 500 <= status_code < 600:
-            return True
-
-        # Client errors are not retryable
-        return False
-
-    @property
-    def recovery_hint(self) -> str:
-        """Provide guidance for recovering from this error.
-
-        Returns actionable advice based on the error type and status code.
-
-        Returns:
-            Human-readable recovery guidance string.
-        """
-        # Network errors
-        if isinstance(self.error, TimeoutError):
-            return "Request timed out. Retry with exponential backoff."
-        if isinstance(self.error, ConnectionError):
-            return "Connection failed. Check network connectivity and retry."
-        if isinstance(self.error, OSError):
-            return "Network error. Check connectivity and retry."
-
-        status_code = self._extract_status_code()
-        if status_code is None:
-            return "Unknown error. Inspect the error attribute for details."
-
-        # Status code specific hints
-        hints: dict[int, str] = {
-            400: "Bad request. Check payload format and required fields.",
-            401: "Authentication failed. Verify API credentials.",
-            403: "Permission denied. Check workspace/project access permissions.",
-            404: "Resource not found. Verify the GID exists.",
-            409: "Conflict detected. Resource may have been modified. Refresh and retry.",
-            429: "Rate limit exceeded. Wait for retry_after_seconds and retry.",
-            500: "Server error. Retry with exponential backoff.",
-            502: "Bad gateway. Retry with exponential backoff.",
-            503: "Service unavailable. Retry with exponential backoff.",
-            504: "Gateway timeout. Retry with exponential backoff.",
-        }
-
-        if status_code in hints:
-            return hints[status_code]
-
-        if 400 <= status_code < 500:
-            return f"Client error ({status_code}). Check request parameters."
-        if 500 <= status_code < 600:
-            return f"Server error ({status_code}). Retry with exponential backoff."
-
-        return f"HTTP {status_code}. Inspect the error attribute for details."
-
-    @property
-    def retry_after_seconds(self) -> int | None:
-        """Get recommended wait time before retry (for rate limits).
-
-        Per ADR-0079: Extracts retry_after from RateLimitError when available.
-
-        Returns:
-            Seconds to wait before retrying, or None if not applicable.
-        """
-        return getattr(self.error, 'retry_after', None)
-
-    def _extract_status_code(self) -> int | None:
-        """Extract HTTP status code from error.
-
-        Handles AsanaError and generic exceptions with status_code attribute.
-
-        Returns:
-            HTTP status code or None if not available.
-        """
-        from autom8_asana.exceptions import AsanaError
-
-        if isinstance(self.error, AsanaError):
-            return self.error.status_code
-
-        # Check for status_code attribute on generic exceptions
-        if hasattr(self.error, 'status_code'):
-            status = getattr(self.error, 'status_code')
-            if isinstance(status, int):
-                return status
-
-        return None
+        return self.error
 
 
 @dataclass
@@ -646,11 +549,12 @@ class ActionOperation:
 
 
 @dataclass
-class ActionResult:
+class ActionResult(RetryableErrorMixin):
     """Result of an action operation execution.
 
     Per TDD-0011: Track success/failure of individual action operations.
     Per ADR-0079: Enhanced with retryable error classification.
+    Per Initiative DESIGN-PATTERNS-B: Uses RetryableErrorMixin for error classification.
 
     Attributes:
         action: The ActionOperation that was executed.
@@ -669,114 +573,15 @@ class ActionResult:
         status = "success" if self.success else "failed"
         return f"ActionResult({self.action.action.value}, {status})"
 
-    @property
-    def is_retryable(self) -> bool:
-        """Determine if this action error is potentially retryable.
+    def _get_error(self) -> Exception | None:
+        """Return the error for classification.
 
-        Per ADR-0079: Classification based on HTTP status code semantics.
-        Follows the same logic as SaveError.is_retryable.
-
-        Returns:
-            True if error type suggests retry may succeed.
-            Always False for successful actions.
-        """
-        if self.success or self.error is None:
-            return False
-
-        # Network errors are retryable
-        if isinstance(self.error, (TimeoutError, ConnectionError, OSError)):
-            return True
-
-        status_code = self._extract_status_code()
-        if status_code is None:
-            return False
-
-        # Rate limit is retryable
-        if status_code == 429:
-            return True
-
-        # Server errors are retryable
-        if 500 <= status_code < 600:
-            return True
-
-        return False
-
-    @property
-    def recovery_hint(self) -> str:
-        """Provide guidance for recovering from this error.
-
-        Returns actionable advice based on the error type and status code.
+        Per RetryableErrorMixin contract: Returns the error to classify.
+        Returns None for successful actions (is_retryable will be False).
 
         Returns:
-            Human-readable recovery guidance string.
-            Empty string for successful actions.
+            The exception if action failed, None if successful.
         """
-        if self.success or self.error is None:
-            return ""
-
-        # Network errors
-        if isinstance(self.error, TimeoutError):
-            return "Request timed out. Retry with exponential backoff."
-        if isinstance(self.error, ConnectionError):
-            return "Connection failed. Check network connectivity and retry."
-        if isinstance(self.error, OSError):
-            return "Network error. Check connectivity and retry."
-
-        status_code = self._extract_status_code()
-        if status_code is None:
-            return "Unknown error. Inspect the error attribute for details."
-
-        hints: dict[int, str] = {
-            400: "Bad request. Check action parameters.",
-            401: "Authentication failed. Verify API credentials.",
-            403: "Permission denied. Check access permissions.",
-            404: "Resource not found. Verify the GID exists.",
-            409: "Conflict detected. Resource may have been modified.",
-            429: "Rate limit exceeded. Wait and retry.",
-            500: "Server error. Retry with exponential backoff.",
-            502: "Bad gateway. Retry with exponential backoff.",
-            503: "Service unavailable. Retry with exponential backoff.",
-            504: "Gateway timeout. Retry with exponential backoff.",
-        }
-
-        if status_code in hints:
-            return hints[status_code]
-
-        if 400 <= status_code < 500:
-            return f"Client error ({status_code}). Check action parameters."
-        if 500 <= status_code < 600:
-            return f"Server error ({status_code}). Retry with exponential backoff."
-
-        return f"HTTP {status_code}. Inspect the error attribute for details."
-
-    @property
-    def retry_after_seconds(self) -> int | None:
-        """Get recommended wait time before retry (for rate limits).
-
-        Returns:
-            Seconds to wait before retrying, or None if not applicable.
-        """
-        if self.error is None:
+        if self.success:
             return None
-        return getattr(self.error, 'retry_after', None)
-
-    def _extract_status_code(self) -> int | None:
-        """Extract HTTP status code from error.
-
-        Returns:
-            HTTP status code or None if not available.
-        """
-        if self.error is None:
-            return None
-
-        from autom8_asana.exceptions import AsanaError
-
-        if isinstance(self.error, AsanaError):
-            return self.error.status_code
-
-        if hasattr(self.error, 'status_code'):
-            status = getattr(self.error, 'status_code')
-            if isinstance(status, int):
-                return status
-
-        return None
+        return self.error

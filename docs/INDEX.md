@@ -105,6 +105,34 @@
 | [ADR-0071](decisions/ADR-0071-resolution-ambiguity-handling.md) | Resolution Ambiguity Handling | Accepted | 2025-12-16 |
 | [ADR-0072](decisions/ADR-0072-resolution-caching-decision.md) | Resolution Caching Decision | Accepted | 2025-12-16 |
 | [ADR-0073](decisions/ADR-0073-batch-resolution-api-design.md) | Batch Resolution API Design | Accepted | 2025-12-16 |
+| [ADR-DESIGN-B-001](decisions/ADR-DESIGN-B-001-retryable-error-mixin.md) | RetryableErrorMixin for Error Classification | Accepted | 2025-12-16 |
+
+## Design Patterns Sprint
+
+> Meta-initiative addressing code duplication and pattern opportunities.
+
+### Meta-Initiative
+
+| Document | Type | Description | Status |
+|----------|------|-------------|--------|
+| [PROMPT-MINUS-1-DESIGN-PATTERNS](initiatives/PROMPT-MINUS-1-DESIGN-PATTERNS.md) | Prompt -1 | Design patterns meta-initiative | Ready |
+
+### Initiative B: Error Classification Mixin
+
+| Document | Type | Description | Status |
+|----------|------|-------------|--------|
+| [PROMPT-0-INITIATIVE-B](initiatives/PROMPT-0-INITIATIVE-B.md) | Prompt 0 | Initiative B initialization | Implemented |
+| [ADR-DESIGN-B-001](decisions/ADR-DESIGN-B-001-retryable-error-mixin.md) | ADR | RetryableErrorMixin pattern decision | Accepted |
+
+### Deliverables
+
+| File | Description |
+|------|-------------|
+| `src/autom8_asana/patterns/__init__.py` | Patterns module entry point |
+| `src/autom8_asana/patterns/error_classification.py` | RetryableErrorMixin implementation |
+| `tests/unit/patterns/test_error_classification.py` | Mixin unit tests (48 tests) |
+
+---
 
 ## Architecture Hardening Sprint
 
