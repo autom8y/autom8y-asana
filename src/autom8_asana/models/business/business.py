@@ -6,15 +6,17 @@ Per FR-MODEL-002: Holder properties returning typed or stub holders.
 Per FR-MODEL-003: Convenience shortcuts (contacts, units, address, hours).
 Per FR-CASCADE-002: Cascading field definitions.
 Per ADR-0050: Holder lazy loading with prefetch support.
+Per TDD-PATTERNS-C: Stub holders migrated to HolderFactory pattern.
 """
 
 from __future__ import annotations
 
+import warnings as _warnings
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import PrivateAttr
 
-from autom8_asana.models.business.base import BusinessEntity, HolderMixin
+from autom8_asana.models.business.base import BusinessEntity
 from autom8_asana.models.business.contact import Contact, ContactHolder
 from autom8_asana.models.business.descriptors import (
     EnumField,
@@ -23,6 +25,7 @@ from autom8_asana.models.business.descriptors import (
     TextField,
 )
 from autom8_asana.models.business.fields import CascadingFieldDef
+from autom8_asana.models.business.holder_factory import HolderFactory
 from autom8_asana.models.task import Task
 
 if TYPE_CHECKING:
@@ -32,152 +35,40 @@ if TYPE_CHECKING:
     from autom8_asana.models.business.unit import Unit, UnitHolder
 
 
-# --- Stub Holder Classes (Phase 3) ---
+# --- Stub Holder Classes (TDD-PATTERNS-C: Migrated to HolderFactory) ---
 
 
-class DNAHolder(Task, HolderMixin[Task]):
+class DNAHolder(HolderFactory, child_type="DNA", parent_ref="_dna_holder"):
     """Holder task containing DNA children.
 
-    Per TDD-HARDENING-A/FR-STUB-004: Updated to return typed DNA children.
-    Per TDD-HARDENING-C: Uses ClassVar configuration for generic _populate_children().
+    Per TDD-PATTERNS-C: Migrated to HolderFactory pattern.
+    Per TDD-HARDENING-A/FR-STUB-004: Returns typed DNA children.
     Per FR-STUB-007: CHILD_TYPE set to DNA at runtime.
     Per FR-STUB-008: Bidirectional navigation refs set during _populate_children.
     """
 
-    # ClassVar configuration (TDD-HARDENING-C)
-    # Note: CHILD_TYPE dynamically set to DNA at runtime via import
-    CHILD_TYPE: ClassVar[type[Task]] = Task  # Will be DNA at runtime
-    PARENT_REF_NAME: ClassVar[str] = "_dna_holder"
-    CHILDREN_ATTR: ClassVar[str] = "_children"
-
-    _children: list[Any] = PrivateAttr(default_factory=list)
-    _business: Business | None = PrivateAttr(default=None)
-
-    # _populate_children() inherited from HolderMixin (TDD-HARDENING-C)
-    # Note: Override kept temporarily for DNA import handling
-
-    @property
-    def children(self) -> list[Any]:
-        """All DNA children (typed as DNA at runtime).
-
-        Returns:
-            List of DNA entities.
-        """
-        return self._children
-
-    @property
-    def business(self) -> Business | None:
-        """Navigate to parent Business."""
-        return self._business
-
-    def _populate_children(self, subtasks: list[Task]) -> None:
-        """Populate DNA children from fetched subtasks.
-
-        Per FR-STUB-008: Converts Task instances to typed DNA children
-        with bidirectional references.
-
-        Note: Override needed for DNA import handling at runtime.
-
-        Args:
-            subtasks: List of Task subtasks from API.
-        """
-        # Import here to avoid circular import at class definition time
-        from autom8_asana.models.business.dna import DNA as DNAClass
-
-        # Temporarily set CHILD_TYPE for this holder
-        self.__class__.CHILD_TYPE = DNAClass
-
-        sorted_tasks = sorted(
-            subtasks,
-            key=lambda t: (t.created_at or "", t.name or ""),
-        )
-
-        self._children = []
-        for task in sorted_tasks:
-            dna = DNAClass.model_validate(task.model_dump())
-            dna._dna_holder = self
-            dna._business = self._business
-            self._children.append(dna)
+    pass
 
 
-class ReconciliationHolder(Task, HolderMixin[Task]):
+class ReconciliationHolder(
+    HolderFactory,
+    child_type="Reconciliation",
+    parent_ref="_reconciliation_holder",
+    semantic_alias="reconciliations",
+):
     """Holder task containing Reconciliation children.
 
-    Per TDD-HARDENING-A/FR-STUB-005: Updated to return typed Reconciliation children.
-    Per TDD-HARDENING-C: Renamed from ReconciliationsHolder (Phase 6 naming standardization).
+    Per TDD-PATTERNS-C: Migrated to HolderFactory pattern.
+    Per TDD-HARDENING-A/FR-STUB-005: Returns typed Reconciliation children.
+    Per TDD-HARDENING-C: Renamed from ReconciliationsHolder.
     Per FR-STUB-007: CHILD_TYPE set to Reconciliation at runtime.
     Per FR-STUB-008: Bidirectional navigation refs set during _populate_children.
     """
 
-    # ClassVar configuration (TDD-HARDENING-C)
-    CHILD_TYPE: ClassVar[type[Task]] = Task  # Will be Reconciliation at runtime
-    PARENT_REF_NAME: ClassVar[str] = "_reconciliation_holder"
-    CHILDREN_ATTR: ClassVar[str] = "_children"
-
-    _children: list[Any] = PrivateAttr(default_factory=list)
-    _business: Business | None = PrivateAttr(default=None)
-
-    # _populate_children() override needed for Reconciliation import handling
-
-    @property
-    def children(self) -> list[Any]:
-        """All Reconciliation children (typed as Reconciliation at runtime).
-
-        Returns:
-            List of Reconciliation entities.
-        """
-        return self._children
-
-    @property
-    def reconciliations(self) -> list[Any]:
-        """Alias for children with semantic name.
-
-        Returns:
-            List of Reconciliation entities.
-        """
-        return self._children
-
-    @property
-    def business(self) -> Business | None:
-        """Navigate to parent Business."""
-        return self._business
-
-    def _populate_children(self, subtasks: list[Task]) -> None:
-        """Populate Reconciliation children from fetched subtasks.
-
-        Per FR-STUB-008: Converts Task instances to typed Reconciliation children
-        with bidirectional references.
-
-        Note: Override needed for Reconciliation import handling at runtime.
-
-        Args:
-            subtasks: List of Task subtasks from API.
-        """
-        # Import here to avoid circular import at class definition time
-        from autom8_asana.models.business.reconciliation import (
-            Reconciliation as ReconciliationClass,
-        )
-
-        # Temporarily set CHILD_TYPE for this holder
-        self.__class__.CHILD_TYPE = ReconciliationClass
-
-        sorted_tasks = sorted(
-            subtasks,
-            key=lambda t: (t.created_at or "", t.name or ""),
-        )
-
-        self._children = []
-        for task in sorted_tasks:
-            recon = ReconciliationClass.model_validate(task.model_dump())
-            recon._reconciliation_holder = self
-            recon._business = self._business
-            self._children.append(recon)
+    pass
 
 
-# Deprecation alias (Phase 6: Naming Standardization)
-import warnings as _warnings  # noqa: E402
-
-
+# Deprecation alias preserved (FR-FACTORY-006)
 class ReconciliationsHolder(ReconciliationHolder):
     """Deprecated alias for ReconciliationHolder.
 
@@ -195,150 +86,38 @@ class ReconciliationsHolder(ReconciliationHolder):
         super().__init__(**kwargs)
 
 
-class AssetEditHolder(Task, HolderMixin["AssetEdit"]):
+class AssetEditHolder(
+    HolderFactory,
+    child_type="AssetEdit",
+    parent_ref="_asset_edit_holder",
+    children_attr="_asset_edits",
+    semantic_alias="asset_edits",
+):
     """Holder task containing AssetEdit children.
 
-    Per FR-PREREQ-002: Updated to return typed AssetEdit children.
-    Per TDD-HARDENING-C: Uses ClassVar configuration for generic _populate_children().
+    Per TDD-PATTERNS-C: Migrated to HolderFactory pattern.
+    Per FR-PREREQ-002: Returns typed AssetEdit children.
     Per TDD-RESOLUTION Appendix: AssetEditHolder returns typed AssetEdit children.
     """
 
-    # ClassVar configuration (TDD-HARDENING-C)
-    CHILD_TYPE: ClassVar[type[Task]] = Task  # Will be AssetEdit at runtime
-    PARENT_REF_NAME: ClassVar[str] = "_asset_edit_holder"
-    CHILDREN_ATTR: ClassVar[str] = "_asset_edits"
-
-    _asset_edits: list[Any] = PrivateAttr(default_factory=list)
-    _business: Business | None = PrivateAttr(default=None)
-
-    # _populate_children() override needed for AssetEdit import handling
-
-    @property
-    def asset_edits(self) -> list[Any]:
-        """All AssetEdit children.
-
-        Returns:
-            List of AssetEdit entities.
-        """
-        return self._asset_edits
-
-    @property
-    def children(self) -> list[Any]:
-        """Backward-compatible alias for asset_edits.
-
-        Returns:
-            List of AssetEdit entities.
-        """
-        return self._asset_edits
-
-    @property
-    def business(self) -> Business | None:
-        """Navigate to parent Business."""
-        return self._business
-
-    def _populate_children(self, subtasks: list[Task]) -> None:
-        """Populate AssetEdit children from fetched subtasks.
-
-        Per FR-PREREQ-002: Converts Task instances to typed AssetEdit children.
-
-        Note: Override needed for AssetEdit import handling at runtime.
-
-        Args:
-            subtasks: List of Task subtasks from API.
-        """
-        # Import here to avoid circular import at class definition time
-        from autom8_asana.models.business.asset_edit import (
-            AssetEdit as AssetEditClass,
-        )
-
-        # Temporarily set CHILD_TYPE for this holder
-        self.__class__.CHILD_TYPE = AssetEditClass
-
-        sorted_tasks = sorted(
-            subtasks,
-            key=lambda t: (t.created_at or "", t.name or ""),
-        )
-
-        self._asset_edits = []
-        for task in sorted_tasks:
-            asset_edit = AssetEditClass.model_validate(task.model_dump())
-            asset_edit._asset_edit_holder = self
-            asset_edit._business = self._business
-            self._asset_edits.append(asset_edit)
+    pass
 
 
-class VideographyHolder(Task, HolderMixin[Task]):
+class VideographyHolder(
+    HolderFactory,
+    child_type="Videography",
+    parent_ref="_videography_holder",
+    semantic_alias="videography",
+):
     """Holder task containing Videography children.
 
-    Per TDD-HARDENING-A/FR-STUB-006: Updated to return typed Videography children.
-    Per TDD-HARDENING-C: Uses ClassVar configuration for generic _populate_children().
+    Per TDD-PATTERNS-C: Migrated to HolderFactory pattern.
+    Per TDD-HARDENING-A/FR-STUB-006: Returns typed Videography children.
     Per FR-STUB-007: CHILD_TYPE set to Videography at runtime.
     Per FR-STUB-008: Bidirectional navigation refs set during _populate_children.
     """
 
-    # ClassVar configuration (TDD-HARDENING-C)
-    CHILD_TYPE: ClassVar[type[Task]] = Task  # Will be Videography at runtime
-    PARENT_REF_NAME: ClassVar[str] = "_videography_holder"
-    CHILDREN_ATTR: ClassVar[str] = "_children"
-
-    _children: list[Any] = PrivateAttr(default_factory=list)
-    _business: Business | None = PrivateAttr(default=None)
-
-    # _populate_children() override needed for Videography import handling
-
-    @property
-    def children(self) -> list[Any]:
-        """All Videography children (typed as Videography at runtime).
-
-        Returns:
-            List of Videography entities.
-        """
-        return self._children
-
-    @property
-    def videography(self) -> list[Any]:
-        """Alias for children with semantic name.
-
-        Returns:
-            List of Videography entities.
-        """
-        return self._children
-
-    @property
-    def business(self) -> Business | None:
-        """Navigate to parent Business."""
-        return self._business
-
-    def _populate_children(self, subtasks: list[Task]) -> None:
-        """Populate Videography children from fetched subtasks.
-
-        Per FR-STUB-008: Converts Task instances to typed Videography children
-        with bidirectional references.
-
-        Note: Override needed for Videography import handling at runtime.
-
-        Args:
-            subtasks: List of Task subtasks from API.
-        """
-        # Import here to avoid circular import at class definition time
-        from autom8_asana.models.business.videography import (
-            Videography as VideographyClass,
-        )
-
-        # Temporarily set CHILD_TYPE for this holder
-        self.__class__.CHILD_TYPE = VideographyClass
-
-        sorted_tasks = sorted(
-            subtasks,
-            key=lambda t: (t.created_at or "", t.name or ""),
-        )
-
-        self._children = []
-        for task in sorted_tasks:
-            video = VideographyClass.model_validate(task.model_dump())
-            video._videography_holder = self
-            video._business = self._business
-            self._children.append(video)
+    pass
 
 
 class Business(BusinessEntity):

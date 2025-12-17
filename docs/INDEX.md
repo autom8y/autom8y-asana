@@ -18,6 +18,7 @@
 | [PRD-0009](requirements/PRD-0009-sdk-ga-readiness.md) | SDK GA Readiness | Draft | 2025-12-10 |
 | [PRD-HYDRATION](requirements/PRD-HYDRATION.md) | Business Model Hydration | Draft | 2025-12-16 |
 | [PRD-RESOLUTION](requirements/PRD-RESOLUTION.md) | Cross-Holder Relationship Resolution | Implemented | 2025-12-16 |
+| [PRD-PATTERNS-C](requirements/PRD-PATTERNS-C.md) | Holder Factory with `__init_subclass__` | Implemented | 2025-12-16 |
 
 ## TDDs
 
@@ -40,6 +41,7 @@
 | [TDD-0014](design/TDD-0014-sdk-ga-readiness.md) | SDK GA Readiness | PRD-0009 | Draft | 2025-12-10 |
 | [TDD-HYDRATION](design/TDD-HYDRATION.md) | Business Model Hydration | PRD-HYDRATION | Draft | 2025-12-16 |
 | [TDD-RESOLUTION](design/TDD-RESOLUTION.md) | Cross-Holder Relationship Resolution | PRD-RESOLUTION | Implemented | 2025-12-16 |
+| [TDD-PATTERNS-C](design/TDD-PATTERNS-C.md) | Holder Factory with `__init_subclass__` | PRD-PATTERNS-C | Implemented | 2025-12-16 |
 
 ## ADRs
 
