@@ -118,7 +118,7 @@ class Project(AsanaResource):
             task_type: Task type filter ("Unit", "Contact", "*" for base).
             sections: Optional list of section names to filter by.
             resolver: Optional custom field resolver for dynamic fields.
-            cache_integration: Optional cache integration for struc caching.
+            cache_integration: Optional cache integration for dataframe caching.
             use_cache: Whether to use caching (default True, requires cache_integration).
             lazy: If True, force lazy evaluation. If False, force eager.
                   If None, auto-select based on task count threshold.
@@ -163,7 +163,7 @@ class Project(AsanaResource):
             task_type: Task type filter ("Unit", "Contact", "*" for base).
             sections: Optional list of section names to filter by.
             resolver: Optional custom field resolver for dynamic fields.
-            cache_integration: Optional cache integration for struc caching.
+            cache_integration: Optional cache integration for dataframe caching.
             use_cache: Whether to use caching (default True, requires cache_integration).
             lazy: If True, force lazy evaluation. If False, force eager.
                   If None, auto-select based on task count threshold.
@@ -193,42 +193,3 @@ class Project(AsanaResource):
             cache_integration=cache_integration if use_cache else None,
         )
         return await builder.build_async(lazy=lazy, use_cache=use_cache)
-
-    def struc(
-        self,
-        task_type: str = "*",
-        sections: list[str] | None = None,
-        resolver: CustomFieldResolver | None = None,
-        cache_integration: DataFrameCacheIntegration | None = None,
-        use_cache: bool = True,
-        lazy: bool | None = None,
-    ) -> Any:
-        """[DEPRECATED] Generate pandas DataFrame from project tasks.
-
-        .. deprecated:: 1.0.0
-           Use :meth:`to_dataframe()` instead. struc() returns pandas
-           DataFrames for backward compatibility, but to_dataframe()
-           returns more efficient Polars DataFrames.
-
-        Args:
-            task_type: Task type filter ("Unit", "Contact", "*" for base).
-            sections: Optional list of section names to filter by.
-            resolver: Optional custom field resolver for dynamic fields.
-            cache_integration: Optional cache integration for struc caching.
-            use_cache: Whether to use caching (default True).
-            lazy: If True, force lazy evaluation. If False, force eager.
-
-        Returns:
-            Pandas DataFrame with extracted task data.
-        """
-        from autom8_asana.dataframes.deprecation import struc_project
-
-        return struc_project(
-            self,
-            task_type=task_type,
-            sections=sections,
-            resolver=resolver,
-            cache_integration=cache_integration,
-            use_cache=use_cache,
-            lazy=lazy,
-        )

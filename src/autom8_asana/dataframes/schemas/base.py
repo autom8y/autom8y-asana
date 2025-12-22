@@ -28,7 +28,7 @@ BASE_COLUMNS: list[ColumnDef] = [
         name="type",
         dtype="Utf8",
         nullable=False,
-        source="resource_subtype",
+        source=None,  # Derived via _extract_type() with fallback logic
         description="Task type discriminator",
     ),
     ColumnDef(

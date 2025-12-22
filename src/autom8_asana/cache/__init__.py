@@ -28,14 +28,14 @@ Batch Modification Checking:
 
 Incremental Story Loading (ADR-0020):
     - load_stories_incremental: Load stories with 'since' parameter
-    - filter_relevant_stories: Filter to struc-relevant story types
+    - filter_relevant_stories: Filter to dataframe-relevant story types
     - get_latest_story_timestamp: Get latest story timestamp
 
-Dataframe (Struc) Caching (ADR-0021):
-    - make_struc_key: Create composite cache key for struc
-    - load_struc_cached: Load struc with cache support
-    - invalidate_struc: Invalidate struc for task+project
-    - invalidate_task_strucs: Invalidate struc across projects
+Dataframe Caching (ADR-0021):
+    - make_dataframe_key: Create composite cache key for dataframe
+    - load_dataframe_cached: Load dataframe with cache support
+    - invalidate_dataframe: Invalidate dataframe for task+project
+    - invalidate_task_dataframes: Invalidate dataframe across projects
 
 Cache Event Integration (ADR-0023):
     - create_metrics_callback: Create callback for LogProvider
@@ -75,12 +75,12 @@ from autom8_asana.cache.batch import (
     ttl_cached_modifications,
 )
 from autom8_asana.cache.dataframes import (
-    invalidate_struc,
-    invalidate_task_strucs,
-    load_batch_strucs_cached,
-    load_struc_cached,
-    make_struc_key,
-    parse_struc_key,
+    invalidate_dataframe,
+    invalidate_task_dataframes,
+    load_batch_dataframes_cached,
+    load_dataframe_cached,
+    make_dataframe_key,
+    parse_dataframe_key,
 )
 from autom8_asana.cache.entry import CacheEntry, EntryType
 from autom8_asana.cache.events import (
@@ -168,13 +168,13 @@ __all__ = [
     "filter_relevant_stories",
     "get_latest_story_timestamp",
     "DEFAULT_STORY_TYPES",
-    # Dataframe (struc) caching (ADR-0021)
-    "make_struc_key",
-    "parse_struc_key",
-    "load_struc_cached",
-    "load_batch_strucs_cached",
-    "invalidate_struc",
-    "invalidate_task_strucs",
+    # Dataframe caching (ADR-0021)
+    "make_dataframe_key",
+    "parse_dataframe_key",
+    "load_dataframe_cached",
+    "load_batch_dataframes_cached",
+    "invalidate_dataframe",
+    "invalidate_task_dataframes",
     # Cache event integration (ADR-0023)
     "create_metrics_callback",
     "setup_cache_logging",

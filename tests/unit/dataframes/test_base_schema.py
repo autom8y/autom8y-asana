@@ -75,7 +75,7 @@ class TestBaseSchemaColumns:
         assert col is not None
         assert col.dtype == "Utf8"
         assert col.nullable is False
-        assert col.source == "resource_subtype"
+        assert col.source is None  # Derived via _extract_type() with fallback logic
 
     def test_date_column(self) -> None:
         """Verify date column definition."""

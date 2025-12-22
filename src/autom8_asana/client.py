@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import threading
 from typing import TYPE_CHECKING, Any
 
@@ -30,6 +31,7 @@ from autom8_asana.exceptions import AuthenticationError, ConfigurationError
 from autom8_asana.transport.http import AsyncHTTPClient
 
 if TYPE_CHECKING:
+    from autom8_asana.automation.engine import AutomationEngine
     from autom8_asana.protocols.auth import AuthProvider
     from autom8_asana.protocols.cache import CacheProvider
     from autom8_asana.protocols.log import LogProvider
@@ -77,8 +79,10 @@ class AsanaClient:
 
         Args:
             token: Asana Personal Access Token (convenience parameter)
-            workspace_gid: Workspace GID (optional). If not provided and exactly
-                          one workspace exists, auto-detects it.
+            workspace_gid: Workspace GID (optional). Resolution order:
+                          1. Explicit parameter (if provided)
+                          2. ASANA_WORKSPACE_GID environment variable
+                          3. Auto-detection (if exactly one workspace exists)
             auth_provider: Custom auth provider (overrides token)
             cache_provider: Custom cache provider (default: NullCacheProvider)
             log_provider: Custom log provider (default: DefaultLogProvider)
@@ -95,7 +99,11 @@ class AsanaClient:
             >>> # Simple: auto-detect if only one workspace
             >>> client = AsanaClient(token="...")
 
-            >>> # Explicit: specify workspace
+            >>> # From environment variable
+            >>> # export ASANA_WORKSPACE_GID=1234567890123456
+            >>> client = AsanaClient(token="...")
+
+            >>> # Explicit: specify workspace (overrides env var)
             >>> client = AsanaClient(token="...", workspace_gid="1234567890123456")
         """
         self._config = config or AsanaConfig()
@@ -127,9 +135,17 @@ class AsanaClient:
             logger=self._log_provider,
         )
 
-        # Auto-detect workspace if not provided AND token was explicitly provided
-        if workspace_gid is None and token is not None:
-            workspace_gid = self._auto_detect_workspace(self._auth_provider, self._config.token_key)
+        # Resolve workspace_gid: parameter > env var > auto-detect
+        if workspace_gid is None:
+            # Check environment variable
+            env_workspace = os.environ.get("ASANA_WORKSPACE_GID")
+            if env_workspace and env_workspace.strip():
+                workspace_gid = env_workspace.strip()
+            elif token is not None:
+                # Auto-detect only if token was explicitly provided
+                workspace_gid = self._auto_detect_workspace(
+                    self._auth_provider, self._config.token_key
+                )
 
         self.default_workspace_gid = workspace_gid
 
@@ -169,6 +185,28 @@ class AsanaClient:
         # Specialized clients
         self._batch: BatchClient | None = None
         self._batch_lock = threading.Lock()
+
+        # Automation engine (TDD-AUTOMATION-LAYER)
+        from autom8_asana.automation.engine import AutomationEngine
+        self._automation: AutomationEngine | None = None
+        if self._config.automation.enabled:
+            self._automation = AutomationEngine(self._config.automation)
+
+    @property
+    def automation(self) -> "AutomationEngine | None":
+        """Access automation engine for rule registration.
+
+        Per TDD-AUTOMATION-LAYER: Provides access to AutomationEngine.
+
+        Returns:
+            AutomationEngine if automation is enabled, None otherwise.
+
+        Example:
+            if client.automation:
+                client.automation.register(PipelineConversionRule())
+                client.automation.register(MyCustomRule())
+        """
+        return self._automation
 
     @property
     def observability(self) -> "ObservabilityHook":

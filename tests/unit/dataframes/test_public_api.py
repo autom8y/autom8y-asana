@@ -3,12 +3,10 @@
 Per TDD-0009 Phase 5: Validates the public API methods:
 - Project.to_dataframe() and to_dataframe_async()
 - Section.to_dataframe() and to_dataframe_async()
-- Project.struc() and Section.struc() deprecation wrappers
 """
 
 from __future__ import annotations
 
-import warnings
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -19,10 +17,6 @@ from autom8_asana.dataframes import (
     BASE_SCHEMA,
     UNIT_SCHEMA,
     SchemaRegistry,
-)
-from autom8_asana.dataframes.deprecation import (
-    _ensure_pandas,
-    create_struc_wrapper,
 )
 from autom8_asana.models.common import NameGid
 from autom8_asana.models.project import Project
@@ -203,145 +197,6 @@ class TestSectionToDataFrameAsync:
         """to_dataframe_async() should return a Polars DataFrame."""
         df = await section_with_tasks.to_dataframe_async(task_type="Unit")
         assert isinstance(df, pl.DataFrame)
-
-
-# ============================================================================
-# Deprecation Wrapper Tests
-# ============================================================================
-
-
-class TestEnsurePandas:
-    """Test _ensure_pandas helper function."""
-
-    def test_ensure_pandas_when_available(self) -> None:
-        """_ensure_pandas() should return pandas module when available."""
-        try:
-            pd = _ensure_pandas()
-            # If pandas is installed, we get the module
-            assert pd is not None
-        except ImportError:
-            # If pandas is not installed, ImportError is raised
-            pytest.skip("pandas not installed")
-
-
-class TestDeprecationWrapperFactory:
-    """Test create_struc_wrapper factory function."""
-
-    def test_create_struc_wrapper_creates_callable(self) -> None:
-        """create_struc_wrapper() should create a callable."""
-        def mock_to_dataframe(self: Any, **kwargs: Any) -> pl.DataFrame:
-            return pl.DataFrame({"gid": ["test"]})
-
-        wrapper = create_struc_wrapper(mock_to_dataframe, "TestClass")
-        assert callable(wrapper)
-
-
-class TestProjectStrucDeprecation:
-    """Test Project.struc() deprecation wrapper."""
-
-    def test_struc_emits_deprecation_warning(self, project_with_tasks: Project) -> None:
-        """struc() should emit DeprecationWarning."""
-        try:
-            _ensure_pandas()
-        except ImportError:
-            pytest.skip("pandas not installed")
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            _ = project_with_tasks.struc(task_type="Unit")
-
-            # Find deprecation warnings
-            deprecation_warnings = [
-                warning for warning in w
-                if issubclass(warning.category, DeprecationWarning)
-            ]
-
-            assert len(deprecation_warnings) >= 1
-            assert "struc() is deprecated" in str(deprecation_warnings[0].message)
-
-    def test_struc_returns_pandas_dataframe(self, project_with_tasks: Project) -> None:
-        """struc() should return a pandas DataFrame."""
-        try:
-            pd = _ensure_pandas()
-        except ImportError:
-            pytest.skip("pandas not installed")
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            df = project_with_tasks.struc(task_type="Unit")
-
-        assert isinstance(df, pd.DataFrame)
-
-    def test_struc_extracts_data(self, project_with_tasks: Project) -> None:
-        """struc() should extract task data correctly."""
-        try:
-            _ensure_pandas()
-        except ImportError:
-            pytest.skip("pandas not installed")
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            df = project_with_tasks.struc(task_type="Unit")
-
-        assert len(df) == 1
-        assert df["gid"].iloc[0] == "unit-001"
-
-    def test_struc_warning_includes_migration_url(
-        self, project_with_tasks: Project
-    ) -> None:
-        """struc() warning should include migration URL."""
-        try:
-            _ensure_pandas()
-        except ImportError:
-            pytest.skip("pandas not installed")
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            _ = project_with_tasks.struc(task_type="Unit")
-
-            deprecation_warnings = [
-                warning for warning in w
-                if issubclass(warning.category, DeprecationWarning)
-            ]
-
-            assert len(deprecation_warnings) >= 1
-            assert "migration" in str(deprecation_warnings[0].message).lower()
-
-
-class TestSectionStrucDeprecation:
-    """Test Section.struc() deprecation wrapper."""
-
-    def test_struc_emits_deprecation_warning(self, section_with_tasks: Section) -> None:
-        """struc() should emit DeprecationWarning."""
-        try:
-            _ensure_pandas()
-        except ImportError:
-            pytest.skip("pandas not installed")
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            _ = section_with_tasks.struc(task_type="Unit")
-
-            deprecation_warnings = [
-                warning for warning in w
-                if issubclass(warning.category, DeprecationWarning)
-            ]
-
-            assert len(deprecation_warnings) >= 1
-            assert "struc() is deprecated" in str(deprecation_warnings[0].message)
-
-    def test_struc_returns_pandas_dataframe(self, section_with_tasks: Section) -> None:
-        """struc() should return a pandas DataFrame."""
-        try:
-            pd = _ensure_pandas()
-        except ImportError:
-            pytest.skip("pandas not installed")
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            df = section_with_tasks.struc(task_type="Unit")
-
-        assert isinstance(df, pd.DataFrame)
 
 
 # ============================================================================

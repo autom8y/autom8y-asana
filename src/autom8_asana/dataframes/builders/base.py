@@ -20,6 +20,7 @@ from autom8_asana.dataframes.exceptions import SchemaNotFoundError
 from autom8_asana.dataframes.extractors import (
     BaseExtractor,
     ContactExtractor,
+    DefaultExtractor,
     UnitExtractor,
 )
 from autom8_asana.dataframes.models.schema import DataFrameSchema
@@ -379,8 +380,12 @@ class DataFrameBuilder(ABC):
                 return UnitExtractor(self._schema, self._resolver)
             case "Contact":
                 return ContactExtractor(self._schema, self._resolver)
+            case "*":
+                return DefaultExtractor(self._schema, self._resolver)
             case _:
-                raise SchemaNotFoundError(task_type)
+                # For unknown types, fall back to DefaultExtractor
+                # This matches SchemaRegistry's fallback to BASE_SCHEMA
+                return DefaultExtractor(self._schema, self._resolver)
 
     # =========================================================================
     # Cache Integration Methods

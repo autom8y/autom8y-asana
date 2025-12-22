@@ -4,11 +4,11 @@ Per TDD-0008 Session 4 Phase 4: Provides cache integration layer for
 structured dataframe extraction with async operations and schema versioning.
 
 This module provides:
-- CachedRow: Immutable dataclass representing a cached struc row
-- DataFrameCacheIntegration: Class managing cache operations for struc entries
+- CachedRow: Immutable dataclass representing a cached dataframe row
+- DataFrameCacheIntegration: Class managing cache operations for dataframe entries
 
 Design decisions per user requirements:
-- Primary API is async (matches existing load_struc_cached)
+- Primary API is async (matches existing load_dataframe_cached)
 - Sync wrappers use asyncio.run() for backward compatibility
 - Schema version stored in CacheEntry.metadata["schema_version"]
 - Staleness check: invalidate if schema version mismatch OR modified_at is newer
@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
-from autom8_asana.cache.dataframes import make_struc_key
+from autom8_asana.cache.dataframes import make_dataframe_key
 from autom8_asana.cache.entry import CacheEntry, EntryType
 from autom8_asana.cache.freshness import Freshness
 from autom8_asana.cache.versioning import parse_version
@@ -40,7 +40,7 @@ _logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class CachedRow:
-    """Immutable representation of a cached struc row.
+    """Immutable representation of a cached dataframe row.
 
     Per TDD-0008 Session 4 Phase 4: Represents the result of extracting
     a task into a dataframe row, with cache metadata for staleness detection.
@@ -77,7 +77,7 @@ class CachedRow:
     @property
     def cache_key(self) -> str:
         """Get the cache key for this row."""
-        return make_struc_key(self.task_gid, self.project_gid)
+        return make_dataframe_key(self.task_gid, self.project_gid)
 
     def is_schema_current(self, current_schema_version: str) -> bool:
         """Check if row was cached with current schema version.
@@ -114,14 +114,14 @@ class CachedRow:
 
 
 class DataFrameCacheIntegration:
-    """Cache integration for dataframe struc operations.
+    """Cache integration for dataframe operations.
 
-    Per TDD-0008 Session 4 Phase 4: Manages cache operations for struc entries
+    Per TDD-0008 Session 4 Phase 4: Manages cache operations for dataframe entries
     with schema version tracking and staleness detection.
 
     This class coordinates between the dataframe builders and the cache layer,
     handling:
-    - Reading cached struc rows with schema version validation
+    - Reading cached dataframe rows with schema version validation
     - Writing extracted rows to cache with version metadata
     - Batch operations for efficient DataFrame construction
     - Warming cache for anticipated access patterns
@@ -177,9 +177,9 @@ class DataFrameCacheIntegration:
         current_modified_at: datetime | str | None = None,
         freshness: Freshness = Freshness.EVENTUAL,
     ) -> CachedRow | None:
-        """Retrieve a cached struc row if valid.
+        """Retrieve a cached dataframe row if valid.
 
-        Per FR-CACHE-001: Retrieves cached struc with schema version validation.
+        Per FR-CACHE-001: Retrieves cached dataframe with schema version validation.
         Returns None if:
         - Entry not in cache
         - Schema version mismatch (invalidates and returns None)
@@ -196,13 +196,13 @@ class DataFrameCacheIntegration:
         Returns:
             CachedRow if found and valid, None otherwise.
         """
-        key = make_struc_key(task_gid, project_gid)
+        key = make_dataframe_key(task_gid, project_gid)
 
         try:
-            entry = self._cache.get_versioned(key, EntryType.STRUC, freshness)
+            entry = self._cache.get_versioned(key, EntryType.DATAFRAME, freshness)
 
             if entry is None:
-                self._log_cache_event("miss", key, entry_type="struc")
+                self._log_cache_event("miss", key, entry_type="dataframe")
                 return None
 
             # Check schema version - invalidate on mismatch
@@ -211,7 +211,7 @@ class DataFrameCacheIntegration:
                 self._log_cache_event(
                     "evict",
                     key,
-                    entry_type="struc",
+                    entry_type="dataframe",
                     metadata={"reason": "schema_mismatch", "cached": cached_schema, "current": schema_version},
                 )
                 await self.invalidate_async(task_gid, project_gid)
@@ -223,14 +223,14 @@ class DataFrameCacheIntegration:
                     self._log_cache_event(
                         "evict",
                         key,
-                        entry_type="struc",
+                        entry_type="dataframe",
                         metadata={"reason": "data_stale"},
                     )
                     await self.invalidate_async(task_gid, project_gid)
                     return None
 
             # Valid cache hit
-            self._log_cache_event("hit", key, entry_type="struc")
+            self._log_cache_event("hit", key, entry_type="dataframe")
             return CachedRow(
                 task_gid=task_gid,
                 project_gid=project_gid,
@@ -246,7 +246,7 @@ class DataFrameCacheIntegration:
             self._log_cache_event(
                 "error",
                 key,
-                entry_type="struc",
+                entry_type="dataframe",
                 metadata={"error": str(exc)},
             )
             return None
@@ -258,7 +258,7 @@ class DataFrameCacheIntegration:
         modifications: dict[str, datetime | str] | None = None,
         freshness: Freshness = Freshness.EVENTUAL,
     ) -> dict[str, CachedRow | None]:
-        """Retrieve multiple cached struc rows.
+        """Retrieve multiple cached dataframe rows.
 
         Per FR-CACHE-021: Batch retrieval for efficiency.
 
@@ -275,7 +275,7 @@ class DataFrameCacheIntegration:
         results: dict[str, CachedRow | None] = {}
 
         for task_gid, project_gid in task_project_pairs:
-            key = make_struc_key(task_gid, project_gid)
+            key = make_dataframe_key(task_gid, project_gid)
             current_modified_at = modifications.get(task_gid)
             results[key] = await self.get_cached_row_async(
                 task_gid=task_gid,
@@ -296,9 +296,9 @@ class DataFrameCacheIntegration:
         version: datetime | str,
         ttl: int | None = None,
     ) -> bool:
-        """Cache a struc row.
+        """Cache a dataframe row.
 
-        Per FR-CACHE-002: Writes struc to cache with version metadata.
+        Per FR-CACHE-002: Writes dataframe to cache with version metadata.
 
         Args:
             task_gid: The task GID.
@@ -311,7 +311,7 @@ class DataFrameCacheIntegration:
         Returns:
             True if cached successfully, False on error.
         """
-        key = make_struc_key(task_gid, project_gid)
+        key = make_dataframe_key(task_gid, project_gid)
         effective_ttl = ttl if ttl is not None else self._default_ttl
 
         # Normalize version to datetime
@@ -323,7 +323,7 @@ class DataFrameCacheIntegration:
             entry = CacheEntry(
                 key=key,
                 data=data,
-                entry_type=EntryType.STRUC,
+                entry_type=EntryType.DATAFRAME,
                 version=version_dt,
                 cached_at=datetime.now(timezone.utc),
                 ttl=effective_ttl,
@@ -332,7 +332,7 @@ class DataFrameCacheIntegration:
             )
 
             self._cache.set_versioned(key, entry)
-            self._log_cache_event("write", key, entry_type="struc")
+            self._log_cache_event("write", key, entry_type="dataframe")
             return True
 
         except Exception as exc:
@@ -340,7 +340,7 @@ class DataFrameCacheIntegration:
             self._log_cache_event(
                 "error",
                 key,
-                entry_type="struc",
+                entry_type="dataframe",
                 metadata={"error": str(exc), "operation": "write"},
             )
             return False
@@ -351,7 +351,7 @@ class DataFrameCacheIntegration:
         schema_version: str,
         ttl: int | None = None,
     ) -> int:
-        """Cache multiple struc rows.
+        """Cache multiple dataframe rows.
 
         Per FR-CACHE-022: Batch write for efficiency.
 
@@ -369,7 +369,7 @@ class DataFrameCacheIntegration:
 
         try:
             for task_gid, project_gid, data, version in rows:
-                key = make_struc_key(task_gid, project_gid)
+                key = make_dataframe_key(task_gid, project_gid)
 
                 # Normalize version
                 version_dt = parse_version(version) if isinstance(version, str) else version
@@ -379,7 +379,7 @@ class DataFrameCacheIntegration:
                 entry = CacheEntry(
                     key=key,
                     data=data,
-                    entry_type=EntryType.STRUC,
+                    entry_type=EntryType.DATAFRAME,
                     version=version_dt,
                     cached_at=datetime.now(timezone.utc),
                     ttl=effective_ttl,
@@ -393,20 +393,20 @@ class DataFrameCacheIntegration:
             successful = len(entries)
 
             for key in entries:
-                self._log_cache_event("write", key, entry_type="struc")
+                self._log_cache_event("write", key, entry_type="dataframe")
 
         except Exception as exc:
             # FR-CACHE-008: Graceful degradation
             self._log_cache_event(
                 "error",
                 "batch",
-                entry_type="struc",
+                entry_type="dataframe",
                 metadata={"error": str(exc), "operation": "batch_write"},
             )
 
         return successful
 
-    async def warm_struc_async(
+    async def warm_dataframe_async(
         self,
         task_project_pairs: list[tuple[str, str]],
     ) -> int:
@@ -425,24 +425,32 @@ class DataFrameCacheIntegration:
         # This method prepares the warm operation; actual data loading
         # is handled by the caller who has access to task data
         try:
-            gids = [make_struc_key(t, p) for t, p in task_project_pairs]
-            result = self._cache.warm(gids, [EntryType.STRUC])
+            gids = [make_dataframe_key(t, p) for t, p in task_project_pairs]
+            result = self._cache.warm(gids, [EntryType.DATAFRAME])
             return result.warmed + result.skipped
         except Exception as exc:
             self._log_cache_event(
                 "error",
                 "warm",
-                entry_type="struc",
+                entry_type="dataframe",
                 metadata={"error": str(exc)},
             )
             return 0
+
+    # Alias for backward compatibility
+    async def warm_struc_async(
+        self,
+        task_project_pairs: list[tuple[str, str]],
+    ) -> int:
+        """Alias for warm_dataframe_async (backward compatibility)."""
+        return await self.warm_dataframe_async(task_project_pairs)
 
     async def invalidate_async(
         self,
         task_gid: str,
         project_gid: str,
     ) -> bool:
-        """Invalidate cached struc for task+project.
+        """Invalidate cached dataframe for task+project.
 
         Per FR-CACHE-006: Explicit cache invalidation.
 
@@ -453,17 +461,17 @@ class DataFrameCacheIntegration:
         Returns:
             True if invalidated successfully, False on error.
         """
-        key = make_struc_key(task_gid, project_gid)
+        key = make_dataframe_key(task_gid, project_gid)
 
         try:
-            self._cache.invalidate(key, [EntryType.STRUC])
-            self._log_cache_event("evict", key, entry_type="struc")
+            self._cache.invalidate(key, [EntryType.DATAFRAME])
+            self._log_cache_event("evict", key, entry_type="dataframe")
             return True
         except Exception as exc:
             self._log_cache_event(
                 "error",
                 key,
-                entry_type="struc",
+                entry_type="dataframe",
                 metadata={"error": str(exc), "operation": "invalidate"},
             )
             return False
@@ -556,11 +564,11 @@ class DataFrameCacheIntegration:
         self,
         task_project_pairs: list[tuple[str, str]],
     ) -> int:
-        """Sync wrapper for warm_struc_async.
+        """Sync wrapper for warm_dataframe_async.
 
-        See warm_struc_async for full documentation.
+        See warm_dataframe_async for full documentation.
         """
-        return asyncio.run(self.warm_struc_async(task_project_pairs))
+        return asyncio.run(self.warm_dataframe_async(task_project_pairs))
 
     def invalidate(
         self,

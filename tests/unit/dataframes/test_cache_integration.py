@@ -28,7 +28,7 @@ from autom8_asana.dataframes import (
     SectionDataFrameBuilder,
     UNIT_SCHEMA,
 )
-from autom8_asana.dataframes.cache_integration import make_struc_key
+from autom8_asana.dataframes.cache_integration import make_dataframe_key
 from autom8_asana.dataframes.resolver import MockCustomFieldResolver
 from autom8_asana.models.common import NameGid
 from autom8_asana.models.task import Task
@@ -687,7 +687,7 @@ class TestDataFrameCacheIntegration:
         mock_logger.log_cache_event.assert_called_with(
             event_type="miss",
             key="task123:proj456",
-            entry_type="struc",
+            entry_type="dataframe",
             metadata=None,
         )
 
@@ -862,10 +862,10 @@ class TestCacheIntegrationEdgeCases:
 
     def test_cache_key_with_special_characters(self) -> None:
         """Test cache key generation with various GID formats."""
-        key = make_struc_key("12345", "67890")
+        key = make_dataframe_key("12345", "67890")
         assert key == "12345:67890"
 
-        key_long = make_struc_key("1234567890123456", "9876543210123456")
+        key_long = make_dataframe_key("1234567890123456", "9876543210123456")
         assert key_long == "1234567890123456:9876543210123456"
 
     @pytest.mark.asyncio

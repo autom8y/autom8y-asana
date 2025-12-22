@@ -10,7 +10,7 @@ Per TDD-0009 Phase 4: Builders package provides lazy/eager evaluation,
 resolver lifecycle management, and extractor factory pattern.
 
 Per TDD-0008 Session 4 Phase 4: Cache integration layer provides
-schema-version-aware caching for struc rows with async operations.
+schema-version-aware caching for dataframe rows with async operations.
 
 Public API:
     - TaskRow, UnitRow, ContactRow: Row models for type-safe extraction
@@ -36,11 +36,6 @@ from autom8_asana.dataframes.builders import (
 from autom8_asana.dataframes.cache_integration import (
     CachedRow,
     DataFrameCacheIntegration,
-)
-from autom8_asana.dataframes.deprecation import (
-    create_struc_wrapper,
-    struc_project,
-    struc_section,
 )
 from autom8_asana.dataframes.exceptions import (
     DataFrameError,
@@ -106,8 +101,4 @@ __all__ = [
     # Cache Integration (TDD-0008 Session 4 Phase 4)
     "CachedRow",
     "DataFrameCacheIntegration",
-    # Deprecation Utilities (TDD-0009 Phase 5)
-    "create_struc_wrapper",
-    "struc_project",
-    "struc_section",
 ]

@@ -1,11 +1,35 @@
 # ADR-0027: Dataframe Layer Migration Strategy
 
 ## Metadata
-- **Status**: Proposed
+- **Status**: Completed
 - **Author**: Architect
 - **Date**: 2025-12-09
+- **Completed**: 2025-12-22
 - **Deciders**: Architect, Principal Engineer, autom8 team, User
 - **Related**: [PRD-0003](../requirements/PRD-0003-structured-dataframe-layer.md), [ADR-0025](ADR-0025-migration-strategy.md) (caching migration pattern)
+
+## Implementation Notes (v2.0.0)
+
+The struc() deprecation removal was completed in v2.0.0. All struc references have been renamed to dataframe:
+
+### Changes Made
+1. **Deprecated code removed:**
+   - `src/autom8_asana/dataframes/deprecation.py` deleted
+   - `Project.struc()` and `Section.struc()` methods removed
+   - Deprecation exports removed from `__init__.py` files
+
+2. **Cache infrastructure renamed:**
+   - `EntryType.STRUC` -> `EntryType.DATAFRAME`
+   - `make_struc_key()` -> `make_dataframe_key()`
+   - `load_struc_cached()` -> `load_dataframe_cached()`
+   - `invalidate_struc()` -> `invalidate_dataframe()`
+   - `invalidate_task_strucs()` -> `invalidate_task_dataframes()`
+   - S3 and Redis backend key prefixes updated
+
+3. **Backward compatibility:**
+   - `warm_struc()` / `warm_struc_async()` kept as aliases for `warm_dataframe_async()`
+
+4. **Tests updated:** All test files updated to use new naming
 
 ## Context
 

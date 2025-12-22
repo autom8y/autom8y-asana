@@ -213,8 +213,8 @@ class RedisCacheProvider:
         Returns:
             Full Redis key string.
         """
-        if entry_type == EntryType.STRUC:
-            # Struc keys include project GID which should be in key
+        if entry_type == EntryType.DATAFRAME:
+            # Dataframe keys include project GID which should be in key
             return f"{self.STRUC_PREFIX}:{key}"
         return f"{self.TASK_PREFIX}:{key}:{entry_type.value}"
 

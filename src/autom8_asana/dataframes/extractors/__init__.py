@@ -23,10 +23,12 @@ Example:
 
 from autom8_asana.dataframes.extractors.base import BaseExtractor
 from autom8_asana.dataframes.extractors.contact import ContactExtractor
+from autom8_asana.dataframes.extractors.default import DefaultExtractor
 from autom8_asana.dataframes.extractors.unit import UnitExtractor
 
 __all__ = [
     "BaseExtractor",
+    "DefaultExtractor",
     "UnitExtractor",
     "ContactExtractor",
 ]

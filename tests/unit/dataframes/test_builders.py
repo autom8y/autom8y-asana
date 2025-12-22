@@ -511,15 +511,34 @@ class TestDataFrameBuilder:
         from autom8_asana.dataframes.extractors import ContactExtractor
         assert isinstance(extractor, ContactExtractor)
 
-    def test_create_extractor_unknown_type_raises(self) -> None:
-        """Test extractor factory raises for unknown task type."""
+    def test_create_extractor_wildcard_type(self) -> None:
+        """Test extractor factory creates DefaultExtractor for wildcard type.
+
+        The '*' task_type is used with BASE_SCHEMA for generic task extraction.
+        """
+        builder = ConcreteBuilder(
+            BASE_SCHEMA,
+            task_type="*",
+        )
+
+        from autom8_asana.dataframes.extractors import DefaultExtractor
+        extractor = builder._get_extractor()
+        assert isinstance(extractor, DefaultExtractor)
+
+    def test_create_extractor_unknown_type_falls_back_to_default(self) -> None:
+        """Test extractor factory falls back to DefaultExtractor for unknown types.
+
+        This matches SchemaRegistry behavior which falls back to BASE_SCHEMA
+        for unknown task types.
+        """
         builder = ConcreteBuilder(
             BASE_SCHEMA,
             task_type="Unknown",
         )
 
-        with pytest.raises(SchemaNotFoundError):
-            builder._get_extractor()
+        from autom8_asana.dataframes.extractors import DefaultExtractor
+        extractor = builder._get_extractor()
+        assert isinstance(extractor, DefaultExtractor)
 
 
 # =============================================================================

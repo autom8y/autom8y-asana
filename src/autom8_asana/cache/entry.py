@@ -21,7 +21,7 @@ class EntryType(str, Enum):
     DEPENDENTS = "dependents"
     STORIES = "stories"
     ATTACHMENTS = "attachments"
-    STRUC = "struc"
+    DATAFRAME = "dataframe"
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,7 @@ class CacheEntry:
         version: The modified_at timestamp for staleness comparison.
         cached_at: When this entry was written to cache.
         ttl: Time-to-live in seconds, None for no expiration.
-        project_gid: Project context for struc entries (varies by project).
+        project_gid: Project context for dataframe entries (varies by project).
         metadata: Additional entry-type-specific metadata.
 
     Example:

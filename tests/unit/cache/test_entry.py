@@ -18,7 +18,7 @@ class TestEntryType:
         assert EntryType.DEPENDENTS.value == "dependents"
         assert EntryType.STORIES.value == "stories"
         assert EntryType.ATTACHMENTS.value == "attachments"
-        assert EntryType.STRUC.value == "struc"
+        assert EntryType.DATAFRAME.value == "dataframe"
 
     def test_entry_type_is_string_enum(self) -> None:
         """Verify EntryType is a string enum."""
@@ -213,12 +213,12 @@ class TestCacheEntry:
 
         assert entry.is_stale(current_version) != entry.is_current(current_version)
 
-    def test_project_gid_for_struc(self) -> None:
-        """Test project_gid is set for struc entries."""
+    def test_project_gid_for_dataframe(self) -> None:
+        """Test project_gid is set for dataframe entries."""
         entry = CacheEntry(
             key="123",
             data={},
-            entry_type=EntryType.STRUC,
+            entry_type=EntryType.DATAFRAME,
             version=datetime.now(timezone.utc),
             project_gid="project_456",
         )

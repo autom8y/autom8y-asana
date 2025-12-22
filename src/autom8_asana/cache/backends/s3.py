@@ -212,9 +212,9 @@ class S3CacheProvider:
         Returns:
             Full S3 object key string.
         """
-        if entry_type == EntryType.STRUC:
-            # Struc keys include project context
-            return f"{self._config.prefix}/struc/{key}.json"
+        if entry_type == EntryType.DATAFRAME:
+            # Dataframe keys include project context
+            return f"{self._config.prefix}/dataframe/{key}.json"
         return f"{self._config.prefix}/tasks/{key}/{entry_type.value}.json"
 
     def _make_simple_key(self, key: str) -> str:

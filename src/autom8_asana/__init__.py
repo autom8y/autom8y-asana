@@ -119,10 +119,6 @@ from autom8_asana.dataframes import (
     ExtractionError,
     TypeCoercionError,
     SchemaVersionError,
-    # Deprecation utilities
-    create_struc_wrapper,
-    struc_project,
-    struc_section,
 )
 
 __version__ = "0.1.0"
@@ -228,8 +224,4 @@ __all__ = [
     "ExtractionError",
     "TypeCoercionError",
     "SchemaVersionError",
-    # Deprecation Utilities
-    "create_struc_wrapper",
-    "struc_project",
-    "struc_section",
 ]

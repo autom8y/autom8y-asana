@@ -257,16 +257,16 @@ class TestS3CacheProviderKeyGeneration:
             key = provider._make_key("1234567890", EntryType.SUBTASKS)
             assert key == "cache/tasks/1234567890/subtasks.json"
 
-    def test_make_key_struc(self) -> None:
-        """Test key generation for struc entries."""
+    def test_make_key_dataframe(self) -> None:
+        """Test key generation for dataframe entries."""
         from autom8_asana.cache.backends.s3 import S3CacheProvider, S3Config
 
         config = S3Config(bucket="test-bucket", prefix="cache")
         with patch.object(S3CacheProvider, "_initialize_client"):
             provider = S3CacheProvider(config=config)
 
-            key = provider._make_key("task:project", EntryType.STRUC)
-            assert key == "cache/struc/task:project.json"
+            key = provider._make_key("task:project", EntryType.DATAFRAME)
+            assert key == "cache/dataframe/task:project.json"
 
     def test_make_simple_key(self) -> None:
         """Test simple key generation."""
@@ -923,18 +923,18 @@ class TestS3CacheProviderIntegration:
         assert result is not None
         assert result.data["description"] == "A" * 2000
 
-    def test_struc_entry_type(self, s3_provider) -> None:
-        """Test STRUC entry type uses correct key structure."""
+    def test_dataframe_entry_type(self, s3_provider) -> None:
+        """Test DATAFRAME entry type uses correct key structure."""
         now = datetime.now(timezone.utc)
         entry = CacheEntry(
             key="task:project",
             data={"structure": "data"},
-            entry_type=EntryType.STRUC,
+            entry_type=EntryType.DATAFRAME,
             version=now,
         )
 
         s3_provider.set_versioned("task:project", entry)
-        result = s3_provider.get_versioned("task:project", EntryType.STRUC)
+        result = s3_provider.get_versioned("task:project", EntryType.DATAFRAME)
 
         assert result is not None
         assert result.data["structure"] == "data"

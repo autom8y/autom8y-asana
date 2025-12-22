@@ -151,15 +151,15 @@ class TestRedisCacheProviderKeyGeneration:
             key = provider._make_key("1234567890", EntryType.SUBTASKS)
             assert key == "asana:tasks:1234567890:subtasks"
 
-    def test_make_key_struc(self) -> None:
-        """Test key generation for struc entries."""
+    def test_make_key_dataframe(self) -> None:
+        """Test key generation for dataframe entries."""
         from autom8_asana.cache.backends.redis import RedisCacheProvider
 
         with patch.object(RedisCacheProvider, "_initialize_pool"):
             provider = RedisCacheProvider()
 
-            # Struc keys use a different prefix
-            key = provider._make_key("task:project", EntryType.STRUC)
+            # Dataframe keys use a different prefix
+            key = provider._make_key("task:project", EntryType.DATAFRAME)
             assert key == "asana:struc:task:project"
 
     def test_make_meta_key(self) -> None:
