@@ -55,6 +55,42 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
+# Constants
+# =============================================================================
+
+# Fields needed for entity type detection during initial fetch and traversal
+# These are minimal fields for quick detection without full custom_fields
+_DETECTION_OPT_FIELDS: list[str] = [
+    "memberships.project.gid",
+    "memberships.project.name",
+    "name",
+    "parent.gid",
+]
+
+# Full fields needed for Business entities (includes custom_fields for cascading)
+# Per fix for Office Phone cascade bug: Business must have custom_fields populated
+# to support field cascading from Business to descendants during seeding
+_BUSINESS_FULL_OPT_FIELDS: list[str] = [
+    "memberships.project.gid",
+    "memberships.project.name",
+    "name",
+    "parent.gid",
+    # Custom fields for cascading (Office Phone, Company ID, etc.)
+    "custom_fields",
+    "custom_fields.name",
+    "custom_fields.enum_value",
+    "custom_fields.enum_value.name",
+    "custom_fields.multi_enum_values",
+    "custom_fields.multi_enum_values.name",
+    "custom_fields.display_value",
+    "custom_fields.number_value",
+    "custom_fields.text_value",
+    "custom_fields.resource_subtype",
+    "custom_fields.people_value",
+]
+
+
+# =============================================================================
 # Dataclasses (Phase 3 - ADR-0070)
 # =============================================================================
 
@@ -259,9 +295,13 @@ async def hydrate_from_gid_async(
         extra={"gid": gid, "hydrate_full": hydrate_full, "partial_ok": partial_ok},
     )
 
-    # Step 1: Fetch the entry task
+    # Step 1: Fetch the entry task with detection fields
+    # Per ADR-0094: Include memberships.project.name for ProcessType detection
     try:
-        entry_task = await client.tasks.get_async(gid)
+        entry_task = await client.tasks.get_async(
+            gid,
+            opt_fields=_DETECTION_OPT_FIELDS,
+        )
         api_calls += 1
     except Exception as e:
         # Cannot proceed without the entry task
@@ -274,18 +314,44 @@ async def hydrate_from_gid_async(
         ) from e
 
     # Step 2: Detect entity type
-    entry_type = await detect_entity_type_async(entry_task, client)
-    api_calls += 1  # detect_entity_type_async may make 1 API call for structure
+    # Enable structure inspection to detect Business root from arbitrary GIDs
+    detection_result = await detect_entity_type_async(
+        entry_task, client, allow_structure_inspection=True
+    )
+    entry_type = detection_result.entity_type
+    # Tier 4 structure inspection makes 1 API call (subtasks fetch)
+    if detection_result.tier_used == 4:
+        api_calls += 1
 
     logger.debug(
         "Detected entry type",
-        extra={"gid": gid, "entry_type": entry_type.value, "task_name": entry_task.name},
+        extra={
+            "gid": gid,
+            "entry_type": entry_type.value,
+            "task_name": entry_task.name,
+            "detection_tier": detection_result.tier_used,
+        },
     )
 
     # Step 3: Handle based on type
     if entry_type == EntityType.BUSINESS:
-        # Already at Business root - just hydrate downward
-        business = Business.model_validate(entry_task.model_dump())
+        # Already at Business root - re-fetch with full fields for custom_fields
+        # This is required for field cascading (Office Phone, Company ID, etc.)
+        try:
+            business_task = await client.tasks.get_async(
+                gid,
+                opt_fields=_BUSINESS_FULL_OPT_FIELDS,
+            )
+            api_calls += 1
+        except Exception as e:
+            raise HydrationError(
+                f"Failed to fetch Business with full fields {gid}: {e}",
+                entity_gid=gid,
+                entity_type="business",
+                phase="downward",
+                cause=e,
+            ) from e
+        business = Business.model_validate(business_task.model_dump())
         entry_entity = None  # Started at Business
 
         if hydrate_full:
@@ -612,23 +678,31 @@ async def _traverse_upward_async(
         # Cycle detection
         if parent_gid in visited:
             raise HydrationError(
-                f"Cycle detected: GID {parent_gid} already visited. "
-                f"Visited: {visited}",
+                f"Cycle detected: GID {parent_gid} already visited. Visited: {visited}",
                 entity_gid=entity.gid,
                 entity_type=None,
                 phase="upward",
             )
         visited.add(parent_gid)
 
-        # Fetch parent task
+        # Fetch parent task with detection fields
+        # Per ADR-0094: Include memberships.project.name for ProcessType detection
         logger.debug(
             "Fetching parent task",
             extra={"parent_gid": parent_gid, "depth": depth},
         )
-        parent_task = await client.tasks.get_async(parent_gid)
+        parent_task = await client.tasks.get_async(
+            parent_gid,
+            opt_fields=_DETECTION_OPT_FIELDS,
+        )
 
         # Detect type of parent
-        entity_type = await detect_entity_type_async(parent_task, client)
+        # Enable structure inspection for traversal - we're already making API calls
+        # and need full detection capability to find Business root
+        detection_result = await detect_entity_type_async(
+            parent_task, client, allow_structure_inspection=True
+        )
+        entity_type = detection_result.entity_type
 
         logger.debug(
             "Detected parent type",
@@ -636,14 +710,20 @@ async def _traverse_upward_async(
                 "parent_gid": parent_gid,
                 "parent_name": parent_task.name,
                 "entity_type": entity_type.value,
+                "detection_tier": detection_result.tier_used,
             },
         )
 
         if entity_type == EntityType.BUSINESS:
-            # Found Business root - convert and return
+            # Found Business root - re-fetch with full fields for custom_fields
+            # This is required for field cascading (Office Phone, Company ID, etc.)
             from autom8_asana.models.business.business import Business
 
-            business = Business.model_validate(parent_task.model_dump())
+            business_task = await client.tasks.get_async(
+                parent_gid,
+                opt_fields=_BUSINESS_FULL_OPT_FIELDS,
+            )
+            business = Business.model_validate(business_task.model_dump())
 
             logger.info(
                 "Upward traversal complete",

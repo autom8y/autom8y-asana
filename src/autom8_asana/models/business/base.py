@@ -3,11 +3,13 @@
 Per TDD-BIZMODEL: HolderMixin and BusinessEntity base class.
 Per TDD-HARDENING-C: Enhanced with ClassVar configuration and auto-discovery.
 Per TDD-PATTERNS-A: Custom field descriptor support with Fields auto-generation.
+Per TDD-DETECTION: Auto-registration with ProjectTypeRegistry via __init_subclass__.
 Per ADR-0050: Holder lazy loading with prefetch support.
 Per ADR-0052: Cached bidirectional references with explicit invalidation.
 Per ADR-0075: Navigation descriptor pattern support.
 Per ADR-0076: Auto-invalidation strategy.
 Per ADR-0082: Fields class auto-generation from descriptors.
+Per ADR-0093: Project-to-EntityType registry auto-population.
 """
 
 from __future__ import annotations
@@ -46,6 +48,7 @@ class HolderMixin(Generic[T]):
 
     Per ADR-0050: Holder lazy loading with prefetch support.
     Per TDD-HARDENING-C: ClassVar configuration for single _populate_children().
+    Per TDD-DETECTION/ADR-0093: Auto-registration with ProjectTypeRegistry.
 
     Holders group related child tasks under a parent. Each holder
     maintains a cached list of typed children that is populated
@@ -56,12 +59,14 @@ class HolderMixin(Generic[T]):
         PARENT_REF_NAME: PrivateAttr name on child for holder ref (e.g., "_contact_holder").
         BUSINESS_REF_NAME: PrivateAttr name on child for business ref (default "_business").
         CHILDREN_ATTR: PrivateAttr name for children list (e.g., "_contacts").
+        PRIMARY_PROJECT_GID: Optional project GID for registry detection.
 
     Example:
         class ContactHolder(Task, HolderMixin[Contact]):
             CHILD_TYPE: ClassVar[type[Contact]] = Contact
             PARENT_REF_NAME: ClassVar[str] = "_contact_holder"
             CHILDREN_ATTR: ClassVar[str] = "_contacts"
+            PRIMARY_PROJECT_GID: ClassVar[str | None] = "1201500116978260"
 
             _contacts: list[Contact] = PrivateAttr(default_factory=list)
     """
@@ -74,8 +79,26 @@ class HolderMixin(Generic[T]):
     BUSINESS_REF_NAME: ClassVar[str] = "_business"
     CHILDREN_ATTR: ClassVar[str] = "_children_cache"  # Default to legacy attr
 
+    # Per TDD-DETECTION/ADR-0093: Primary project GID for holder type detection
+    PRIMARY_PROJECT_GID: ClassVar[str | None] = None
+
     # Children cache - subclasses should define their own typed PrivateAttr
     _children_cache: list[T] | None = PrivateAttr(default=None)
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Register holder with ProjectTypeRegistry.
+
+        Per ADR-0093: Auto-registration of holder types.
+
+        Args:
+            **kwargs: Passed to parent __init_subclass__.
+        """
+        super().__init_subclass__(**kwargs)
+
+        # Register with ProjectTypeRegistry (ADR-0093, TDD-DETECTION)
+        from autom8_asana.models.business.registry import _register_entity_with_registry
+
+        _register_entity_with_registry(cls)
 
     def _populate_children(self, subtasks: list[Task]) -> None:
         """Populate typed children from fetched subtasks.
@@ -215,7 +238,7 @@ class BusinessEntity(Task):
     # e.g., class CascadingFields: ...
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        """Auto-discover cached reference attributes and generate Fields class.
+        """Auto-discover cached reference attributes, generate Fields class, and register with registry.
 
         Per FR-INV-001: Discovers attrs matching pattern:
         - Starts with underscore
@@ -223,6 +246,7 @@ class BusinessEntity(Task):
         - Not a list type (those are children, not refs)
 
         Per ADR-0082: Generates Fields class from registered custom field descriptors.
+        Per ADR-0093: Registers entity with ProjectTypeRegistry.
 
         IMPORTANT: Works correctly with Pydantic models because Pydantic
         also uses __init_subclass__ and this runs after class creation.
@@ -261,29 +285,50 @@ class BusinessEntity(Task):
         cls._CACHED_REF_ATTRS = tuple(set(parent_refs) | set(ref_attrs))
 
         # NEW: Generate Fields class from registered custom field descriptors (ADR-0082)
+        # Per TDD-SPRINT-1: Also collect fields from mixin base classes
+        field_constants: dict[str, str] = {}
+
+        # First, collect from the entity class itself
         owner_id = id(cls)
         if owner_id in _pending_fields:
-            field_constants = _pending_fields.pop(owner_id)
+            field_constants.update(_pending_fields.pop(owner_id))
 
-            if field_constants:
-                # Get or create Fields inner class
-                existing_fields = getattr(cls, "Fields", None)
+        # Then, collect from mixin base classes (excluding Task, BusinessEntity, object)
+        # This handles fields inherited from SharedCascadingFieldsMixin, FinancialFieldsMixin, etc.
+        for base in cls.__mro__:
+            if base in (cls, Task, BusinessEntity, object):
+                continue
+            base_id = id(base)
+            if base_id in _pending_fields:
+                # Don't pop - mixin may be used by multiple entity classes
+                for const_name, field_name in _pending_fields[base_id].items():
+                    if const_name not in field_constants:
+                        field_constants[const_name] = field_name
 
-                if existing_fields is not None:
-                    # Check if we need to add new constants
-                    new_constants: dict[str, str] = {}
-                    for const_name, field_name in field_constants.items():
-                        if not hasattr(existing_fields, const_name):
-                            new_constants[const_name] = field_name
+        if field_constants:
+            # Get or create Fields inner class
+            existing_fields = getattr(cls, "Fields", None)
 
-                    if new_constants:
-                        # Create subclass with new constants
-                        fields_cls = type("Fields", (existing_fields,), new_constants)
-                        cls.Fields = fields_cls  # type: ignore[attr-defined]
-                else:
-                    # Create new Fields class
-                    fields_cls = type("Fields", (), field_constants)
+            if existing_fields is not None:
+                # Check if we need to add new constants
+                new_constants: dict[str, str] = {}
+                for const_name, field_name in field_constants.items():
+                    if not hasattr(existing_fields, const_name):
+                        new_constants[const_name] = field_name
+
+                if new_constants:
+                    # Create subclass with new constants
+                    fields_cls = type("Fields", (existing_fields,), new_constants)
                     cls.Fields = fields_cls  # type: ignore[attr-defined]
+            else:
+                # Create new Fields class
+                fields_cls = type("Fields", (), field_constants)
+                cls.Fields = fields_cls  # type: ignore[attr-defined]
+
+        # NEW: Register with ProjectTypeRegistry (ADR-0093, TDD-DETECTION)
+        from autom8_asana.models.business.registry import _register_entity_with_registry
+
+        _register_entity_with_registry(cls)
 
     @classmethod
     async def from_gid_async(

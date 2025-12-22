@@ -21,10 +21,13 @@ from autom8_asana.models.business.contact import Contact, ContactHolder
 from autom8_asana.models.business.descriptors import (
     EnumField,
     IntField,
-    PeopleField,
     TextField,
 )
 from autom8_asana.models.business.fields import CascadingFieldDef
+from autom8_asana.models.business.mixins import (
+    FinancialFieldsMixin,
+    SharedCascadingFieldsMixin,
+)
 from autom8_asana.models.business.holder_factory import HolderFactory
 from autom8_asana.models.task import Task
 
@@ -47,7 +50,8 @@ class DNAHolder(HolderFactory, child_type="DNA", parent_ref="_dna_holder"):
     Per FR-STUB-008: Bidirectional navigation refs set during _populate_children.
     """
 
-    pass
+    # Per TDD-DETECTION: Primary project GID for holder type detection
+    PRIMARY_PROJECT_GID: ClassVar[str | None] = "1167650840134033"
 
 
 class ReconciliationHolder(
@@ -65,7 +69,8 @@ class ReconciliationHolder(
     Per FR-STUB-008: Bidirectional navigation refs set during _populate_children.
     """
 
-    pass
+    # Per TDD-DETECTION: Primary project GID for holder type detection
+    PRIMARY_PROJECT_GID: ClassVar[str | None] = "1203404998225231"
 
 
 # Deprecation alias preserved (FR-FACTORY-006)
@@ -100,7 +105,8 @@ class AssetEditHolder(
     Per TDD-RESOLUTION Appendix: AssetEditHolder returns typed AssetEdit children.
     """
 
-    pass
+    # Per TDD-DETECTION: Primary project GID for holder type detection
+    PRIMARY_PROJECT_GID: ClassVar[str | None] = "1203992664400125"
 
 
 class VideographyHolder(
@@ -117,16 +123,18 @@ class VideographyHolder(
     Per FR-STUB-008: Bidirectional navigation refs set during _populate_children.
     """
 
-    pass
+    # Per TDD-DETECTION: Primary project GID for holder type detection
+    PRIMARY_PROJECT_GID: ClassVar[str | None] = "1207984018149338"
 
 
-class Business(BusinessEntity):
+class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin):
     """Business entity - root of the holder hierarchy.
 
     Per TDD-BIZMODEL: A Business task contains 7 holder subtasks,
     each managing a collection of domain-specific child tasks.
 
     Per TDD-HYDRATION: Business.from_gid_async() supports full hierarchy hydration.
+    Per TDD-SPRINT-1: Inherits shared fields from mixins (vertical, rep, booking_type).
 
     Only ContactHolder is fully typed in Phase 1. Other holders
     (Unit, Location, DNA, etc.) are deferred to Phase 2/3.
@@ -145,6 +153,9 @@ class Business(BusinessEntity):
         # Load Business without hydration (metadata only)
         business = await Business.from_gid_async(client, gid, hydrate=False)
     """
+
+    # Per TDD-DETECTION: Primary project GID for entity type detection
+    PRIMARY_PROJECT_GID: ClassVar[str | None] = "1200653012566782"
 
     @classmethod
     async def from_gid_async(
@@ -212,6 +223,7 @@ class Business(BusinessEntity):
                 if partial_ok:
                     # Log and continue with partially hydrated business
                     import logging
+
                     logger = logging.getLogger(__name__)
                     logger.warning(
                         "Hydration failed with partial_ok=True",
@@ -235,13 +247,15 @@ class Business(BusinessEntity):
 
     # Per FR-MODEL-001: Map property_name -> (task_name, emoji_indicator)
     # Per TDD-HARDENING-C Phase 6: reconciliation_holder (singular, was reconciliations_holder)
+    # DEPRECATED: Use detection system (EntityTypeInfo) for new code.
+    # This map is kept for fallback when detection fails.
     HOLDER_KEY_MAP: ClassVar[dict[str, tuple[str, str]]] = {
         "contact_holder": ("Contacts", "busts_in_silhouette"),
-        "unit_holder": ("Units", "package"),
+        "unit_holder": ("Business Units", "package"),  # Fixed: was "Units"
         "location_holder": ("Location", "round_pushpin"),
         "dna_holder": ("DNA", "dna"),
         "reconciliation_holder": ("Reconciliations", "abacus"),
-        "asset_edit_holder": ("Asset Edit", "art"),
+        "asset_edit_holder": ("Asset Edits", "art"),  # Fixed: was "Asset Edit"
         "videography_holder": ("Videography", "video_camera"),
     }
 
@@ -277,14 +291,11 @@ class Business(BusinessEntity):
     # Number fields (1)
     num_reviews = IntField()
 
-    # Enum fields (4)
+    # Enum fields (2) - vertical, booking_type inherited from mixins
     aggression_level = EnumField()
-    booking_type = EnumField()
     vca_status = EnumField()
-    vertical = EnumField()
 
-    # People fields (1)
-    rep = PeopleField()
+    # People fields - rep inherited from SharedCascadingFieldsMixin
 
     # --- Cascading Field Definitions (ADR-0054) ---
 
@@ -515,37 +526,19 @@ class Business(BusinessEntity):
     def _identify_holder(self, task: Task) -> str | None:
         """Identify which holder type a task is.
 
+        Per TDD-SPRINT-1 Phase 2: Delegates to identify_holder_type utility.
+        Per Architect Decision: Uses detection system first, falls back to
+        legacy HOLDER_KEY_MAP matching with logged warning.
+
         Args:
             task: Task to identify.
 
         Returns:
-            Holder key name or None if not a holder.
+            Holder key name (e.g., "contact_holder") or None if not a holder.
         """
-        for key, (name_pattern, emoji) in self.HOLDER_KEY_MAP.items():
-            if self._matches_holder(task, name_pattern, emoji):
-                return key
-        return None
+        from autom8_asana.models.business.detection import identify_holder_type
 
-    def _matches_holder(self, task: Task, name_pattern: str, emoji: str) -> bool:
-        """Check if task matches a holder definition.
-
-        Per FR-HOLDER-009: Name match first, emoji fallback second.
-
-        Args:
-            task: Task to check.
-            name_pattern: Expected task name.
-            emoji: Expected custom emoji name.
-
-        Returns:
-            True if task matches holder pattern.
-        """
-        # Check name first
-        if task.name == name_pattern:
-            return True
-
-        # Fall back to emoji (not currently implemented in Task model)
-        # Would check task.custom_emoji.name == emoji if available
-        return False
+        return identify_holder_type(task, self.HOLDER_KEY_MAP, filter_to_map=False)
 
     def _create_typed_holder(self, holder_key: str, task: Task) -> Task:
         """Create typed holder from generic Task.
@@ -617,7 +610,10 @@ class Business(BusinessEntity):
         import asyncio
 
         # Step 1: Fetch Business subtasks (holder tasks)
-        holder_tasks = await client.tasks.subtasks_async(self.gid).collect()
+        # Per ADR-0094: Include detection fields for Tier 1 project membership detection
+        holder_tasks = await client.tasks.subtasks_async(
+            self.gid, include_detection_fields=True
+        ).collect()
 
         # Step 2: Populate typed holders from subtasks
         self._populate_holders(holder_tasks)
@@ -683,8 +679,10 @@ class Business(BusinessEntity):
         if not self._unit_holder:
             return
 
-        # Fetch Unit subtasks
-        unit_tasks = await client.tasks.subtasks_async(self._unit_holder.gid).collect()
+        # Fetch Unit subtasks with detection fields for type identification
+        unit_tasks = await client.tasks.subtasks_async(
+            self._unit_holder.gid, include_detection_fields=True
+        ).collect()
         self._unit_holder._populate_children(unit_tasks)
 
         # Recursively fetch each Unit's holders (OfferHolder, ProcessHolder)
@@ -710,7 +708,9 @@ class Business(BusinessEntity):
             children_attr: Name of the children attribute on the holder
                 (e.g., "_contacts", "_children").
         """
-        subtasks = await client.tasks.subtasks_async(holder.gid).collect()
+        subtasks = await client.tasks.subtasks_async(
+            holder.gid, include_detection_fields=True
+        ).collect()
 
         # Call _populate_children if available (typed holders)
         if hasattr(holder, "_populate_children"):
@@ -718,4 +718,3 @@ class Business(BusinessEntity):
         else:
             # Fallback for stub holders without _populate_children
             setattr(holder, children_attr, subtasks)
-

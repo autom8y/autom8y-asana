@@ -25,7 +25,7 @@ from autom8_asana.models.business.resolution import ResolutionResult, Resolution
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
-    from autom8_asana.models.business.business import AssetEditHolder, Business
+    from autom8_asana.models.business.business import AssetEditHolder
     from autom8_asana.models.business.offer import Offer
     from autom8_asana.models.business.unit import Unit
 
@@ -61,6 +61,9 @@ class AssetEdit(Process):
 
     NAME_CONVENTION: ClassVar[str] = "[AssetEdit Name]"
 
+    # Per TDD-DETECTION: Primary project GID for entity type detection
+    PRIMARY_PROJECT_GID: ClassVar[str | None] = "1202204184560785"
+
     # Private cached references (ADR-0052)
     _asset_edit_holder: AssetEditHolder | None = PrivateAttr(default=None)
 
@@ -70,13 +73,17 @@ class AssetEdit(Process):
     asset_edit_holder = HolderRef["AssetEditHolder"]()
     business = ParentRef["Business"](holder_attr="_asset_edit_holder")
 
-    def _invalidate_refs(self) -> None:
+    def _invalidate_refs(self, _exclude_attr: str | None = None) -> None:
         """Invalidate cached references on hierarchy change.
 
         Per FR-NAV-006: Clear cached navigation on hierarchy change.
+        Per TDD-SPRINT-5-CLEANUP/LSK-001: Signature matches base class for LSP compliance.
         Override needed because AssetEdit has additional _asset_edit_holder ref.
+
+        Args:
+            _exclude_attr: Passed to parent. Clears _asset_edit_holder unconditionally.
         """
-        super()._invalidate_refs()
+        super()._invalidate_refs(_exclude_attr)
         self._asset_edit_holder = None
 
     class Fields(Process.Fields):
@@ -140,16 +147,17 @@ class AssetEdit(Process):
         self.get_custom_fields().set(self.Fields.REVIEWER, value)
 
     @property
-    def offer_id(self) -> str | None:
-        """Explicit offer ID reference (text custom field).
+    def offer_id(self) -> int | None:
+        """Offer identifier (number custom field).
 
         Key field for EXPLICIT_OFFER_ID resolution strategy.
-        Contains the GID of the associated Offer task.
+        Contains the numeric ID of the associated Offer.
+        Per PRD-0024: Returns int, not str.
         """
-        return self._get_text_field(self.Fields.OFFER_ID)
+        return self._get_int_field(self.Fields.OFFER_ID)
 
     @offer_id.setter
-    def offer_id(self, value: str | None) -> None:
+    def offer_id(self, value: int | None) -> None:
         self.get_custom_fields().set(self.Fields.OFFER_ID, value)
 
     @property
@@ -195,21 +203,27 @@ class AssetEdit(Process):
         )
 
     @property
-    def specialty(self) -> str | None:
-        """Specialty type (enum custom field)."""
-        return self._get_enum_field(self.Fields.SPECIALTY)
+    def specialty(self) -> list[str]:
+        """Specialty types (multi-enum custom field).
+
+        Per PRD-0024: Returns list[str] for multi-enum field.
+        """
+        return self._get_multi_enum_field(self.Fields.SPECIALTY)
 
     @specialty.setter
-    def specialty(self, value: str | None) -> None:
+    def specialty(self, value: list[str] | None) -> None:
         self.get_custom_fields().set(self.Fields.SPECIALTY, value)
 
     @property
-    def template_id(self) -> str | None:
-        """Template identifier (text custom field)."""
-        return self._get_text_field(self.Fields.TEMPLATE_ID)
+    def template_id(self) -> int | None:
+        """Template identifier (number custom field).
+
+        Per PRD-0024: Returns int, not str.
+        """
+        return self._get_int_field(self.Fields.TEMPLATE_ID)
 
     @template_id.setter
-    def template_id(self, value: str | None) -> None:
+    def template_id(self, value: int | None) -> None:
         self.get_custom_fields().set(self.Fields.TEMPLATE_ID, value)
 
     @property
@@ -221,7 +235,25 @@ class AssetEdit(Process):
     def videos_paid(self, value: int | None) -> None:
         self.get_custom_fields().set(self.Fields.VIDEOS_PAID, value)
 
-    # --- Helper for int fields ---
+    # --- Helper methods for custom fields ---
+
+    def _get_text_field(self, field_name: str) -> str | None:
+        """Get text custom field value."""
+        value: Any = self.get_custom_fields().get(field_name)
+        if value is None or isinstance(value, str):
+            return value
+        return str(value)
+
+    def _get_enum_field(self, field_name: str) -> str | None:
+        """Get enum custom field value, extracting name from dict."""
+        value: Any = self.get_custom_fields().get(field_name)
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            return value.get("name")
+        if isinstance(value, str):
+            return value
+        return str(value)
 
     def _get_int_field(self, field_name: str) -> int | None:
         """Get number custom field value as integer."""
@@ -236,6 +268,28 @@ class AssetEdit(Process):
         if value is None:
             return None
         return Decimal(str(value))
+
+    def _get_multi_enum_field(self, field_name: str) -> list[str]:
+        """Get multi-enum custom field value as list of strings.
+
+        Per PRD-0024: Used for specialty field which is multi-enum.
+        """
+        value: Any = self.get_custom_fields().get(field_name)
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            return []
+        result: list[str] = []
+        for item in value:
+            if item is None:
+                continue
+            if isinstance(item, dict):
+                name = item.get("name")
+                if name is not None:
+                    result.append(str(name))
+            elif isinstance(item, str):
+                result.append(item)
+        return result
 
     # --- Resolution Methods ---
 
@@ -569,18 +623,23 @@ class AssetEdit(Process):
         2. If set, fetch Offer via client.tasks.get_async(offer_id)
         3. Navigate to Unit via offer.unit
         4. Handle NotFoundError gracefully
+
+        Per PRD-0024: offer_id is now int, convert to str for API calls.
         """
         from autom8_asana.exceptions import NotFoundError
         from autom8_asana.models.business.offer import Offer
         from autom8_asana.models.business.unit import Unit
 
         # Check if offer_id is set
-        offer_gid = self.offer_id
-        if not offer_gid:
+        offer_id_int = self.offer_id
+        if offer_id_int is None:
             return ResolutionResult[Unit](
                 error="AssetEdit has no offer_id set",
                 strategies_tried=[ResolutionStrategy.EXPLICIT_OFFER_ID],
             )
+
+        # Per PRD-0024: Convert int to str for API call
+        offer_gid = str(offer_id_int)
 
         try:
             # Fetch Offer task
@@ -628,16 +687,22 @@ class AssetEdit(Process):
     async def _resolve_offer_directly_async(
         self, client: AsanaClient
     ) -> ResolutionResult[Offer]:
-        """Fetch Offer directly via offer_id field."""
+        """Fetch Offer directly via offer_id field.
+
+        Per PRD-0024: offer_id is now int, convert to str for API calls.
+        """
         from autom8_asana.exceptions import NotFoundError
         from autom8_asana.models.business.offer import Offer
 
-        offer_gid = self.offer_id
-        if not offer_gid:
+        offer_id_int = self.offer_id
+        if offer_id_int is None:
             return ResolutionResult[Offer](
                 error="AssetEdit has no offer_id set",
                 strategies_tried=[ResolutionStrategy.EXPLICIT_OFFER_ID],
             )
+
+        # Per PRD-0024: Convert int to str for API call
+        offer_gid = str(offer_id_int)
 
         try:
             task = await client.tasks.get_async(offer_gid)

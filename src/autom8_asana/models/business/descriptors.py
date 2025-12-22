@@ -49,7 +49,9 @@ T = TypeVar("T")
 _pending_fields: dict[int, dict[str, str]] = {}
 
 
-def _register_custom_field(owner: type[Any], descriptor: CustomFieldDescriptor[Any]) -> None:
+def _register_custom_field(
+    owner: type[Any], descriptor: CustomFieldDescriptor[Any]
+) -> None:
     """Register a custom field descriptor for Fields class generation.
 
     Called during descriptor.__set_name__() to register field for Fields generation.
@@ -327,9 +329,9 @@ class CustomFieldDescriptor(Generic[T]):
     __slots__ = ("field_name", "cascading", "public_name", "_constant_name")
 
     # Known abbreviations that should remain uppercase (ADR-0082)
-    ABBREVIATIONS: ClassVar[frozenset[str]] = frozenset({
-        "mrr", "ai", "url", "id", "num", "cal", "vca", "sms", "ad"
-    })
+    ABBREVIATIONS: ClassVar[frozenset[str]] = frozenset(
+        {"mrr", "ai", "url", "id", "num", "cal", "vca", "sms", "ad"}
+    )
 
     def __init__(
         self,

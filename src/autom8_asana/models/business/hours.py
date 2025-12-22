@@ -6,36 +6,111 @@ Per FR-MODEL-007: Hours is a sibling to Location within LocationHolder.
 Per ADR-0052: Cached bidirectional references with explicit invalidation.
 Per ADR-0075: Navigation descriptors for property consolidation.
 Per ADR-0076: Auto-invalidation on parent reference change.
+Per ADR-0114: Hours backward compatibility with deprecated aliases.
+Per PRD-0024: Field names corrected to match Asana reality.
+Per TDD-SPRINT-5-CLEANUP/INH-005: Deprecated aliases consolidated via decorator.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar
+import warnings
+from typing import TYPE_CHECKING, Any, Callable, ClassVar
 
 from pydantic import PrivateAttr
 
 from autom8_asana.models.business.base import BusinessEntity
-from autom8_asana.models.business.descriptors import HolderRef, ParentRef
+from autom8_asana.models.business.descriptors import (
+    HolderRef,
+    MultiEnumField,
+    ParentRef,
+)
 
 if TYPE_CHECKING:
     from autom8_asana.models.business.business import Business
     from autom8_asana.models.business.location import LocationHolder
 
 
+def _deprecated_alias(old_name: str, new_name: str) -> Callable[[type], type]:
+    """Decorator to add a deprecated property alias to a class.
+
+    Per TDD-SPRINT-5-CLEANUP/INH-005: Reduces boilerplate for deprecated aliases.
+
+    Creates a property with `old_name` that delegates to `new_name`, emitting
+    a DeprecationWarning on access.
+
+    Args:
+        old_name: Name of the deprecated property to create.
+        new_name: Name of the new property to delegate to.
+
+    Returns:
+        Class decorator that adds the deprecated property.
+
+    Example:
+        @_deprecated_alias("monday_hours", "monday")
+        class Hours(BusinessEntity):
+            monday = MultiEnumField()
+            # monday_hours property is auto-generated
+    """
+
+    def decorator(cls: type) -> type:
+        def getter(self: Any) -> Any:
+            warnings.warn(
+                f"{old_name} is deprecated, use {new_name} instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return getattr(self, new_name)
+
+        def setter(self: Any, value: Any) -> None:
+            warnings.warn(
+                f"{old_name} is deprecated, use {new_name} instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            setattr(self, new_name, value)
+
+        prop = property(getter, setter, doc=f"Deprecated: Use .{new_name} instead.")
+        setattr(cls, old_name, prop)
+        return cls
+
+    return decorator
+
+
+@_deprecated_alias("monday_hours", "monday")
+@_deprecated_alias("tuesday_hours", "tuesday")
+@_deprecated_alias("wednesday_hours", "wednesday")
+@_deprecated_alias("thursday_hours", "thursday")
+@_deprecated_alias("friday_hours", "friday")
+@_deprecated_alias("saturday_hours", "saturday")
 class Hours(BusinessEntity):
     """Operating hours for a Business location.
 
     Per TDD-BIZMODEL Phase 3: Represents business operating hours.
-    Contains hours for each day of the week.
+    Per PRD-0024: Field names are "Monday", "Tuesday", etc. (not "Monday Hours").
+    Per PRD-0024: Fields are multi_enum type containing time strings.
+    Per TDD-SPRINT-5-CLEANUP/INH-005: Deprecated aliases via _deprecated_alias decorator.
 
     Example:
         hours = business.location_holder.hours
         if hours:
-            print(f"Monday: {hours.monday_hours}")
-            print(f"Sunday: {hours.sunday_hours}")
+            print(f"Monday: {hours.monday}")  # Returns ["08:00:00", "17:00:00"]
+            if hours.is_open_on("monday"):
+                print("Open on Monday!")
+
+    Deprecated Aliases (ADR-0114):
+        The following aliases emit DeprecationWarning and delegate to new names:
+        - monday_hours -> monday
+        - tuesday_hours -> tuesday
+        - wednesday_hours -> wednesday
+        - thursday_hours -> thursday
+        - friday_hours -> friday
+        - saturday_hours -> saturday
     """
 
     NAME_CONVENTION: ClassVar[str] = "Hours"
+
+    # Per TDD-DETECTION: Primary project GID for entity type detection
+    PRIMARY_PROJECT_GID: ClassVar[str | None] = "1201614578074026"
 
     # Cached upward references (ADR-0052)
     _business: Business | None = PrivateAttr(default=None)
@@ -49,162 +124,70 @@ class Hours(BusinessEntity):
 
     # _invalidate_refs() inherited from BusinessEntity (ADR-0076)
 
-    # --- Field Constants ---
+    # --- Custom Field Descriptors (TDD-SPRINT-1, ADR-0081) ---
+    # Per ADR-0077: Declared WITHOUT type annotations to avoid Pydantic field creation.
+    # Per ADR-0082: Fields class is auto-generated from these descriptors.
+    # Per PRD-0024: Field names are "Monday", "Tuesday", etc. (not "Monday Hours").
+    # Per Audit: Fields are multi_enum type containing time strings like "08:00:00".
+    # Note: Sunday not found in Asana project per audit.
 
-    class Fields:
-        """Custom field name constants for IDE discoverability.
+    monday = MultiEnumField()
+    tuesday = MultiEnumField()
+    wednesday = MultiEnumField()
+    thursday = MultiEnumField()
+    friday = MultiEnumField()
+    saturday = MultiEnumField()
 
-        Per FR-FIELD-001: Inner Fields class with field name constants.
-        """
-
-        MONDAY_HOURS = "Monday Hours"
-        TUESDAY_HOURS = "Tuesday Hours"
-        WEDNESDAY_HOURS = "Wednesday Hours"
-        THURSDAY_HOURS = "Thursday Hours"
-        FRIDAY_HOURS = "Friday Hours"
-        SATURDAY_HOURS = "Saturday Hours"
-        SUNDAY_HOURS = "Sunday Hours"
-        TIMEZONE = "Timezone"
-        NOTES = "Hours Notes"
-
-    # --- Custom Field Accessors ---
-
-    def _get_text_field(self, field_name: str) -> str | None:
-        """Get text custom field value with proper typing."""
-        value: Any = self.get_custom_fields().get(field_name)
-        if value is None or isinstance(value, str):
-            return value
-        return str(value)
-
-    # --- Hours Fields (7 days) ---
+    # --- Helper Properties (Optional Enhancement per TDD) ---
 
     @property
-    def monday_hours(self) -> str | None:
-        """Monday operating hours (custom field)."""
-        return self._get_text_field(self.Fields.MONDAY_HOURS)
-
-    @monday_hours.setter
-    def monday_hours(self, value: str | None) -> None:
-        self.get_custom_fields().set(self.Fields.MONDAY_HOURS, value)
+    def monday_open(self) -> str | None:
+        """Monday opening time (first value from multi-enum)."""
+        times = self.monday
+        return times[0] if times else None
 
     @property
-    def tuesday_hours(self) -> str | None:
-        """Tuesday operating hours (custom field)."""
-        return self._get_text_field(self.Fields.TUESDAY_HOURS)
+    def monday_close(self) -> str | None:
+        """Monday closing time (last value from multi-enum)."""
+        times = self.monday
+        return times[-1] if times and len(times) > 1 else None
 
-    @tuesday_hours.setter
-    def tuesday_hours(self, value: str | None) -> None:
-        self.get_custom_fields().set(self.Fields.TUESDAY_HOURS, value)
-
-    @property
-    def wednesday_hours(self) -> str | None:
-        """Wednesday operating hours (custom field)."""
-        return self._get_text_field(self.Fields.WEDNESDAY_HOURS)
-
-    @wednesday_hours.setter
-    def wednesday_hours(self, value: str | None) -> None:
-        self.get_custom_fields().set(self.Fields.WEDNESDAY_HOURS, value)
-
-    @property
-    def thursday_hours(self) -> str | None:
-        """Thursday operating hours (custom field)."""
-        return self._get_text_field(self.Fields.THURSDAY_HOURS)
-
-    @thursday_hours.setter
-    def thursday_hours(self, value: str | None) -> None:
-        self.get_custom_fields().set(self.Fields.THURSDAY_HOURS, value)
-
-    @property
-    def friday_hours(self) -> str | None:
-        """Friday operating hours (custom field)."""
-        return self._get_text_field(self.Fields.FRIDAY_HOURS)
-
-    @friday_hours.setter
-    def friday_hours(self, value: str | None) -> None:
-        self.get_custom_fields().set(self.Fields.FRIDAY_HOURS, value)
-
-    @property
-    def saturday_hours(self) -> str | None:
-        """Saturday operating hours (custom field)."""
-        return self._get_text_field(self.Fields.SATURDAY_HOURS)
-
-    @saturday_hours.setter
-    def saturday_hours(self, value: str | None) -> None:
-        self.get_custom_fields().set(self.Fields.SATURDAY_HOURS, value)
-
-    @property
-    def sunday_hours(self) -> str | None:
-        """Sunday operating hours (custom field)."""
-        return self._get_text_field(self.Fields.SUNDAY_HOURS)
-
-    @sunday_hours.setter
-    def sunday_hours(self, value: str | None) -> None:
-        self.get_custom_fields().set(self.Fields.SUNDAY_HOURS, value)
-
-    # --- Additional Fields ---
-
-    @property
-    def timezone(self) -> str | None:
-        """Business timezone (custom field)."""
-        return self._get_text_field(self.Fields.TIMEZONE)
-
-    @timezone.setter
-    def timezone(self, value: str | None) -> None:
-        self.get_custom_fields().set(self.Fields.TIMEZONE, value)
-
-    @property
-    def hours_notes(self) -> str | None:
-        """Additional notes about hours (custom field)."""
-        return self._get_text_field(self.Fields.NOTES)
-
-    @hours_notes.setter
-    def hours_notes(self, value: str | None) -> None:
-        self.get_custom_fields().set(self.Fields.NOTES, value)
+    # Deprecated aliases (monday_hours, etc.) are generated by @_deprecated_alias decorators
+    # on the class definition - see class docstring for list.
 
     # --- Computed Properties ---
 
     @property
-    def weekday_hours(self) -> dict[str, str | None]:
+    def weekday_hours(self) -> dict[str, list[str]]:
         """All weekday hours as a dictionary.
 
         Returns:
-            Dict mapping day names to hours strings.
+            Dict mapping day names to list of time strings.
         """
         return {
-            "monday": self.monday_hours,
-            "tuesday": self.tuesday_hours,
-            "wednesday": self.wednesday_hours,
-            "thursday": self.thursday_hours,
-            "friday": self.friday_hours,
+            "monday": self.monday,
+            "tuesday": self.tuesday,
+            "wednesday": self.wednesday,
+            "thursday": self.thursday,
+            "friday": self.friday,
         }
 
     @property
-    def weekend_hours(self) -> dict[str, str | None]:
-        """Weekend hours as a dictionary.
-
-        Returns:
-            Dict mapping day names to hours strings.
-        """
-        return {
-            "saturday": self.saturday_hours,
-            "sunday": self.sunday_hours,
-        }
-
-    @property
-    def all_hours(self) -> dict[str, str | None]:
+    def all_hours(self) -> dict[str, list[str]]:
         """All hours as a dictionary.
 
+        Per PRD-0024: Sunday not included as field doesn't exist in Asana.
+
         Returns:
-            Dict mapping day names to hours strings.
+            Dict mapping day names to list of time strings.
         """
         return {
-            "monday": self.monday_hours,
-            "tuesday": self.tuesday_hours,
-            "wednesday": self.wednesday_hours,
-            "thursday": self.thursday_hours,
-            "friday": self.friday_hours,
-            "saturday": self.saturday_hours,
-            "sunday": self.sunday_hours,
+            "monday": self.monday,
+            "tuesday": self.tuesday,
+            "wednesday": self.wednesday,
+            "thursday": self.thursday,
+            "friday": self.friday,
+            "saturday": self.saturday,
         }
 
     def is_open_on(self, day: str) -> bool:
@@ -214,11 +197,7 @@ class Hours(BusinessEntity):
             day: Day name (lowercase, e.g., "monday").
 
         Returns:
-            True if hours are set for that day, False otherwise.
+            True if hours are set for that day (non-empty list).
         """
         hours = self.all_hours.get(day.lower())
-        if hours is None:
-            return False
-        # Check for closed indicators
-        closed_indicators = {"closed", "n/a", "none", ""}
-        return hours.lower().strip() not in closed_indicators
+        return bool(hours)  # Empty list = closed

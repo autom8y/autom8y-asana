@@ -16,25 +16,26 @@ from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import PrivateAttr
 
-from autom8_asana.models.business.base import BusinessEntity, HolderMixin
+from autom8_asana.models.business.base import BusinessEntity
 from autom8_asana.models.business.descriptors import (
     EnumField,
     HolderRef,
     ParentRef,
     TextField,
 )
-from autom8_asana.models.task import Task
+from autom8_asana.models.business.holder_factory import HolderFactory
+from autom8_asana.models.business.mixins import UpwardTraversalMixin
 
 if TYPE_CHECKING:
-    from autom8_asana.client import AsanaClient
     from autom8_asana.models.business.business import Business
 
 
-class Contact(BusinessEntity):
+class Contact(BusinessEntity, UpwardTraversalMixin):
     """Contact entity within a ContactHolder.
 
     Per TDD-BIZMODEL: Represents a person associated with a Business.
     One contact can be designated as the "owner" via the position field.
+    Per TDD-SPRINT-1 Phase 2: Uses UpwardTraversalMixin for to_business_async.
 
     Owner detection uses case-insensitive matching against OWNER_POSITIONS.
 
@@ -46,6 +47,9 @@ class Contact(BusinessEntity):
         if contact.is_owner:
             print(f"Owner: {contact.full_name}")
     """
+
+    # Per TDD-DETECTION: Primary project GID for entity type detection
+    PRIMARY_PROJECT_GID: ClassVar[str | None] = "1200775689604552"
 
     # Owner position values (case-insensitive)
     OWNER_POSITIONS: ClassVar[set[str]] = {
@@ -110,90 +114,20 @@ class Contact(BusinessEntity):
             return False
         return position.lower().strip() in self.OWNER_POSITIONS
 
-    # --- Upward Traversal (TDD-HYDRATION Phase 2) ---
+    # --- Upward Traversal (TDD-HYDRATION Phase 2, TDD-SPRINT-1 Phase 2) ---
+    # to_business_async inherited from UpwardTraversalMixin
 
-    async def to_business_async(
-        self,
-        client: AsanaClient,
-        *,
-        hydrate_full: bool = True,
-        partial_ok: bool = False,
-    ) -> Business:
-        """Navigate to containing Business and optionally hydrate full hierarchy.
+    def _update_refs_from_hydrated_business(self, business: Business) -> None:
+        """Update Contact references to point to hydrated hierarchy.
 
-        Per ADR-0069: Instance method for upward navigation.
-        Per FR-UP-001: Contact upward traversal.
-        Per ADR-0070: partial_ok controls fail-fast vs partial success behavior.
-
-        Path: Contact -> ContactHolder -> Business (2 levels up)
-
-        This method traverses the parent chain to find the Business root,
-        then optionally hydrates the full Business hierarchy. After hydration,
-        this Contact instance's references are updated to point to the
-        hydrated hierarchy.
+        Per TDD-SPRINT-1 Phase 2: Hook for UpwardTraversalMixin.
 
         Args:
-            client: AsanaClient for API calls.
-            hydrate_full: If True (default), hydrate full Business hierarchy
-                after finding it. If False, only populates the path traversed.
-            partial_ok: If True, continue on partial failures during hydration.
-                If False (default), raise HydrationError on any failure.
-
-        Returns:
-            Business instance (fully hydrated if hydrate_full=True).
-
-        Raises:
-            HydrationError: If traversal fails (no parent, cycle detected,
-                max depth exceeded) or if hydration fails and partial_ok=False.
-
-        Example:
-            contact = Contact.model_validate(task_data)
-            business = await contact.to_business_async(client)
-
-            # Business is fully hydrated
-            print(f"Business: {business.name}")
-            for unit in business.units:
-                print(f"  Unit: {unit.name}")
-
-            # Contact references are updated
-            assert contact.business is business
+            business: The hydrated Business instance.
         """
-        from autom8_asana.exceptions import HydrationError
-        from autom8_asana.models.business.hydration import _traverse_upward_async
-
-        # Traverse upward to find Business
-        business, path = await _traverse_upward_async(self, client)
-
-        # Hydrate full hierarchy if requested
-        if hydrate_full:
-            try:
-                await business._fetch_holders_async(client)
-            except Exception as e:
-                if partial_ok:
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    logger.warning(
-                        "Hydration failed with partial_ok=True",
-                        extra={"business_gid": business.gid, "error": str(e)},
-                    )
-                else:
-                    if isinstance(e, HydrationError):
-                        raise
-                    raise HydrationError(
-                        f"Downward hydration failed for Business {business.gid}: {e}",
-                        entity_gid=business.gid,
-                        entity_type="business",
-                        phase="downward",
-                        cause=e,
-                    ) from e
-
-        # Update this Contact's references to point to hydrated hierarchy
-        # Find the ContactHolder in the hydrated Business
         if business._contact_holder is not None:
             self._contact_holder = business._contact_holder
             self._business = business
-
-        return business
 
     # --- Name Parsing (FR-MODEL-005) ---
 
@@ -268,35 +202,23 @@ class Contact(BusinessEntity):
         """
         return self.nickname or self.first_name or self.name or ""
 
-class ContactHolder(Task, HolderMixin[Contact]):
+
+class ContactHolder(
+    HolderFactory,
+    child_type="Contact",
+    parent_ref="_contact_holder",
+    children_attr="_contacts",
+    semantic_alias="contacts",
+):
     """Holder task containing Contact children.
 
     Per FR-HOLDER-001: ContactHolder extends Task with _contacts PrivateAttr.
     Per FR-HOLDER-002: Provides owner property for owner detection.
-    Per TDD-HARDENING-C: Uses ClassVar configuration for generic _populate_children().
+    Per TDD-SPRINT-1: Migrated to HolderFactory pattern.
     """
 
-    # ClassVar configuration (TDD-HARDENING-C)
-    CHILD_TYPE: ClassVar[type[Contact]] = Contact
-    PARENT_REF_NAME: ClassVar[str] = "_contact_holder"
-    CHILDREN_ATTR: ClassVar[str] = "_contacts"
-
-    # Children storage
-    _contacts: list[Contact] = PrivateAttr(default_factory=list)
-
-    # Back-reference to parent Business (ADR-0052)
-    _business: Business | None = PrivateAttr(default=None)
-
-    # _populate_children() inherited from HolderMixin (TDD-HARDENING-C)
-
-    @property
-    def contacts(self) -> list[Contact]:
-        """All Contact children.
-
-        Returns:
-            List of Contact entities.
-        """
-        return self._contacts
+    # Per TDD-DETECTION: Primary project GID for holder type detection
+    PRIMARY_PROJECT_GID: ClassVar[str | None] = "1201500116978260"
 
     @property
     def owner(self) -> Contact | None:
@@ -307,16 +229,7 @@ class ContactHolder(Task, HolderMixin[Contact]):
         Returns:
             Owner Contact or None if no owner found.
         """
-        for contact in self._contacts:
+        for contact in self.children:
             if contact.is_owner:
                 return contact
         return None
-
-    @property
-    def business(self) -> Business | None:
-        """Navigate to parent Business.
-
-        Returns:
-            Business entity or None if not populated.
-        """
-        return self._business

@@ -6,16 +6,24 @@ Per FR-MODEL-007: LocationHolder containing Address (Location) and Hours childre
 Per ADR-0052: Cached bidirectional references with explicit invalidation.
 Per ADR-0075: Navigation descriptors for property consolidation.
 Per ADR-0076: Auto-invalidation on parent reference change.
+Per PRD-0024: Updated fields to match Asana reality.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import PrivateAttr
 
-from autom8_asana.models.business.base import BusinessEntity, HolderMixin
-from autom8_asana.models.business.descriptors import HolderRef, ParentRef
+from autom8_asana.models.business.base import BusinessEntity
+from autom8_asana.models.business.descriptors import (
+    EnumField,
+    HolderRef,
+    IntField,
+    ParentRef,
+    TextField,
+)
+from autom8_asana.models.business.holder_factory import HolderFactory
 from autom8_asana.models.task import Task
 
 if TYPE_CHECKING:
@@ -27,16 +35,18 @@ class Location(BusinessEntity):
     """Location entity with address fields.
 
     Per TDD-BIZMODEL Phase 3: Represents a physical location for a Business.
-    Contains address information (street, city, state, zip, country) and
-    contact information (phone).
+    Per PRD-0024: Updated to match actual Asana project schema.
 
     Example:
         location = business.location_holder.primary_location
         if location:
-            print(f"Address: {location.street}, {location.city}")
+            print(f"Address: {location.full_address}")
     """
 
     NAME_CONVENTION: ClassVar[str] = "{name}"
+
+    # Per TDD-DETECTION: Primary project GID for entity type detection
+    PRIMARY_PROJECT_GID: ClassVar[str | None] = "1200836133305610"
 
     # Cached upward references (ADR-0052)
     _business: Business | None = PrivateAttr(default=None)
@@ -49,112 +59,30 @@ class Location(BusinessEntity):
 
     # _invalidate_refs() inherited from BusinessEntity (ADR-0076)
 
-    # --- Field Constants ---
+    # --- Custom Field Descriptors (TDD-SPRINT-1, ADR-0081) ---
+    # Per ADR-0077: Declared WITHOUT type annotations to avoid Pydantic field creation.
+    # Per ADR-0082: Fields class is auto-generated from these descriptors.
+    # Per PRD-0024: Field names match actual Asana project schema.
 
-    class Fields:
-        """Custom field name constants for IDE discoverability.
+    # Address fields - TextField (5)
+    street_name = TextField()
+    city = TextField()
+    state = TextField()
+    zip_code = TextField()
+    suite = TextField()
 
-        Per FR-FIELD-001: Inner Fields class with field name constants.
-        """
+    # Address fields - IntField (3)
+    street_number = IntField(field_name="Street #")
+    min_radius = IntField()
+    max_radius = IntField()
 
-        STREET = "Street"
-        CITY = "City"
-        STATE = "State"
-        ZIP_CODE = "Zip Code"
-        COUNTRY = "Country"
-        PHONE = "Phone"
-        LATITUDE = "Latitude"
-        LONGITUDE = "Longitude"
+    # Address fields - EnumField (2)
+    country = EnumField()  # Returns enum value like "US", "CA", "SE", "AU"
+    time_zone = EnumField()
 
-    # --- Custom Field Accessors ---
-
-    def _get_text_field(self, field_name: str) -> str | None:
-        """Get text custom field value with proper typing."""
-        value: Any = self.get_custom_fields().get(field_name)
-        if value is None or isinstance(value, str):
-            return value
-        return str(value)
-
-    def _get_number_field(self, field_name: str) -> float | None:
-        """Get number custom field value as float."""
-        value: Any = self.get_custom_fields().get(field_name)
-        if value is None:
-            return None
-        return float(value)
-
-    # --- Address Fields ---
-
-    @property
-    def street(self) -> str | None:
-        """Street address (custom field)."""
-        return self._get_text_field(self.Fields.STREET)
-
-    @street.setter
-    def street(self, value: str | None) -> None:
-        self.get_custom_fields().set(self.Fields.STREET, value)
-
-    @property
-    def city(self) -> str | None:
-        """City (custom field)."""
-        return self._get_text_field(self.Fields.CITY)
-
-    @city.setter
-    def city(self, value: str | None) -> None:
-        self.get_custom_fields().set(self.Fields.CITY, value)
-
-    @property
-    def state(self) -> str | None:
-        """State/province (custom field)."""
-        return self._get_text_field(self.Fields.STATE)
-
-    @state.setter
-    def state(self, value: str | None) -> None:
-        self.get_custom_fields().set(self.Fields.STATE, value)
-
-    @property
-    def zip_code(self) -> str | None:
-        """ZIP/postal code (custom field)."""
-        return self._get_text_field(self.Fields.ZIP_CODE)
-
-    @zip_code.setter
-    def zip_code(self, value: str | None) -> None:
-        self.get_custom_fields().set(self.Fields.ZIP_CODE, value)
-
-    @property
-    def country(self) -> str | None:
-        """Country (custom field)."""
-        return self._get_text_field(self.Fields.COUNTRY)
-
-    @country.setter
-    def country(self, value: str | None) -> None:
-        self.get_custom_fields().set(self.Fields.COUNTRY, value)
-
-    @property
-    def phone(self) -> str | None:
-        """Location phone number (custom field)."""
-        return self._get_text_field(self.Fields.PHONE)
-
-    @phone.setter
-    def phone(self, value: str | None) -> None:
-        self.get_custom_fields().set(self.Fields.PHONE, value)
-
-    @property
-    def latitude(self) -> float | None:
-        """Latitude coordinate (custom field)."""
-        return self._get_number_field(self.Fields.LATITUDE)
-
-    @latitude.setter
-    def latitude(self, value: float | None) -> None:
-        self.get_custom_fields().set(self.Fields.LATITUDE, value)
-
-    @property
-    def longitude(self) -> float | None:
-        """Longitude coordinate (custom field)."""
-        return self._get_number_field(self.Fields.LONGITUDE)
-
-    @longitude.setter
-    def longitude(self, value: float | None) -> None:
-        self.get_custom_fields().set(self.Fields.LONGITUDE, value)
+    # Additional text fields (2)
+    neighborhood = TextField()
+    office_location = TextField()
 
     # --- Computed Properties ---
 
@@ -162,60 +90,85 @@ class Location(BusinessEntity):
     def full_address(self) -> str:
         """Formatted full address.
 
+        Per TDD: Uses street_number + street_name instead of old street field.
+
         Returns:
             Formatted address string combining available fields.
         """
         parts: list[str] = []
-        if self.street:
-            parts.append(self.street)
+
+        # Street line: "123 Main Street, Suite 100"
+        street_parts: list[str] = []
+        if self.street_number:
+            street_parts.append(str(self.street_number))
+        if self.street_name:
+            street_parts.append(self.street_name)
+        if street_parts:
+            street_line = " ".join(street_parts)
+            if self.suite:
+                street_line += f", {self.suite}"
+            parts.append(street_line)
+
+        # City, State, Zip
         city_state_zip: list[str] = []
         if self.city:
             city_state_zip.append(self.city)
         if self.state:
             city_state_zip.append(self.state)
         if city_state_zip:
-            parts.append(", ".join(city_state_zip))
-        if self.zip_code:
+            line = ", ".join(city_state_zip)
+            if self.zip_code:
+                line += f" {self.zip_code}"
+            parts.append(line)
+        elif self.zip_code:
             parts.append(self.zip_code)
+
+        # Country
         if self.country:
             parts.append(self.country)
+
         return ", ".join(parts)
 
 
-class LocationHolder(Task, HolderMixin[Location]):
+class LocationHolder(
+    HolderFactory,
+    child_type="Location",
+    parent_ref="_location_holder",
+    children_attr="_locations",
+    semantic_alias="locations",
+):
     """Holder task containing Location children.
 
     Per FR-MODEL-007: LocationHolder contains Address (Location) and Hours siblings.
-    Per TDD-HARDENING-C: KEEPS _populate_children override for Hours sibling logic.
+    Per TDD-SPRINT-1: Migrated to HolderFactory with override for Hours sibling logic.
 
     Note: Hours is a sibling to Location children within LocationHolder, requiring
-    special population logic that cannot use the generic HolderMixin implementation.
+    special population logic via _populate_children override.
+
+    PRIMARY_PROJECT_GID Design (FR-DET-004):
+        LocationHolder intentionally has no dedicated Asana project. It is a
+        **container task** (subtask of Business) that groups Location and Hours
+        children, but does not have custom fields or project membership of its own.
+
+        Detection relies on:
+        - **Tier 2**: Name pattern matching ("location", "address")
+        - **Tier 3**: Parent inference from Business
+
+        Note that Location *entities* (children of LocationHolder) DO have a
+        PRIMARY_PROJECT_GID ("1200836133305610") for Tier 1 detection. This is
+        only the *holder* that has no dedicated project.
+
+        The None value is intentional and correct - LocationHolder is a structural
+        container, not a project member.
     """
 
-    # ClassVar configuration (TDD-HARDENING-C)
-    CHILD_TYPE: ClassVar[type[Location]] = Location
-    PARENT_REF_NAME: ClassVar[str] = "_location_holder"
-    CHILDREN_ATTR: ClassVar[str] = "_locations"
+    # Per TDD-DETECTION/FR-DET-004: LocationHolder is a container task with no dedicated
+    # project. Detection uses Tier 2 (name pattern) and Tier 3 (parent inference from
+    # Business). See class docstring for full explanation.
+    PRIMARY_PROJECT_GID: ClassVar[str | None] = None
 
-    # Children storage
-    _locations: list[Location] = PrivateAttr(default_factory=list)
-
-    # Hours reference (sibling to locations)
+    # Hours reference (sibling to locations) - not managed by HolderFactory
     _hours: Hours | None = PrivateAttr(default=None)
-
-    # Back-reference to parent Business (ADR-0052)
-    _business: Business | None = PrivateAttr(default=None)
-
-    # NOTE: _populate_children KEPT for Hours sibling detection (TDD-HARDENING-C)
-
-    @property
-    def locations(self) -> list[Location]:
-        """All Location children.
-
-        Returns:
-            List of Location entities.
-        """
-        return self._locations
 
     @property
     def primary_location(self) -> Location | None:
@@ -224,7 +177,8 @@ class LocationHolder(Task, HolderMixin[Location]):
         Returns:
             First Location or None if no locations.
         """
-        return self._locations[0] if self._locations else None
+        locations = self.children
+        return locations[0] if locations else None
 
     @property
     def hours(self) -> Hours | None:
@@ -235,30 +189,21 @@ class LocationHolder(Task, HolderMixin[Location]):
         """
         return self._hours
 
-    @property
-    def business(self) -> Business | None:
-        """Navigate to parent Business.
-
-        Returns:
-            Business entity or None if not populated.
-        """
-        return self._business
-
     def _populate_children(self, subtasks: list[Task]) -> None:
         """Populate locations and hours from fetched subtasks.
 
-        NOTE: This override is KEPT per TDD-HARDENING-C because LocationHolder
-        has special logic for Hours sibling detection. The generic HolderMixin
-        implementation cannot handle the Hours/Location split.
+        Override of HolderFactory._populate_children because LocationHolder
+        has special logic for Hours sibling detection. The generic implementation
+        cannot handle the Hours/Location split.
 
+        Per TDD-SPRINT-1: Preserves Hours sibling detection logic.
         Per FR-HOLDER-008: Converts Task instances to typed children.
-        Detects Hours tasks by name pattern and separates from locations.
 
         Args:
             subtasks: List of Task subtasks from API.
         """
         # Import here to avoid circular import
-        from autom8_asana.models.business.hours import Hours
+        from autom8_asana.models.business.hours import Hours as HoursEntity
 
         # Sort by created_at (oldest first), then by name for stability
         sorted_tasks = sorted(
@@ -266,14 +211,14 @@ class LocationHolder(Task, HolderMixin[Location]):
             key=lambda t: (t.created_at or "", t.name or ""),
         )
 
-        self._locations = []
+        locations: list[Location] = []
         self._hours = None
 
         for task in sorted_tasks:
-            # Check if this is an Hours task (name starts with clock emoji or "Hours")
+            # Check if this is an Hours task (name starts with "Hours")
             task_name = task.name or ""
             if task_name.startswith("Hours") or task_name.startswith("hours"):
-                hours = Hours.model_validate(task.model_dump())
+                hours = HoursEntity.model_validate(task.model_dump())
                 hours._location_holder = self
                 hours._business = self._business
                 self._hours = hours
@@ -281,12 +226,15 @@ class LocationHolder(Task, HolderMixin[Location]):
                 location = Location.model_validate(task.model_dump())
                 location._location_holder = self
                 location._business = self._business
-                self._locations.append(location)
+                locations.append(location)
+
+        # Store in configured attribute (per HolderFactory pattern)
+        setattr(self, self.CHILDREN_ATTR, locations)
 
     def invalidate_cache(self) -> None:
         """Invalidate locations and hours cache.
 
-        Override of HolderMixin.invalidate_cache() to also clear Hours.
+        Override to also clear Hours sibling reference.
         """
-        self._locations = []
+        setattr(self, self.CHILDREN_ATTR, [])
         self._hours = None

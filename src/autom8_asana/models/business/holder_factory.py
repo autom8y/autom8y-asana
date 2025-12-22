@@ -2,6 +2,7 @@
 
 Per TDD-PATTERNS-C: Declarative holder definitions with auto-configuration.
 Per PRD-PATTERNS-C: Consolidates 4 near-identical stub holder implementations.
+Per TDD-DETECTION/ADR-0093: Auto-registration with ProjectTypeRegistry.
 
 This module provides HolderFactory, a base class that uses Python's
 __init_subclass__ hook to enable declarative holder definitions:
@@ -56,6 +57,28 @@ class HolderFactory(Task, HolderMixin[Task]):
 
     Per TDD-PATTERNS-C: Automatically configures holder behavior based on
     class keyword arguments.
+    Per TDD-SPRINT-5-CLEANUP: HolderFactory/HolderMixin relationship documented.
+
+    Architecture:
+        HolderFactory inherits from both Task (Pydantic model for Asana tasks)
+        and HolderMixin[Task] (generic protocol for holder behavior).
+
+        - Task: Provides gid, name, custom_fields, and all Asana task attributes
+        - HolderMixin[Task]: Provides holder-specific typing and protocol
+
+        HolderFactory then uses __init_subclass__ to auto-configure subclasses
+        based on keyword arguments (child_type, parent_ref, etc.).
+
+    MRO Note for Subclasses:
+        When a subclass also inherits from UnitNestedHolderMixin (e.g., OfferHolder,
+        ProcessHolder), the mixin must come FIRST to override HolderFactory.business:
+
+            class OfferHolder(UnitNestedHolderMixin, HolderFactory, ...):
+                # UnitNestedHolderMixin.business overrides HolderFactory.business
+                pass
+
+        This is necessary because HolderFactory.business simply returns _business,
+        while UnitNestedHolderMixin.business navigates via _unit when needed.
 
     Usage:
         class DNAHolder(HolderFactory, child_type="DNA", parent_ref="_dna_holder"):
@@ -118,6 +141,9 @@ class HolderFactory(Task, HolderMixin[Task]):
     CHILDREN_ATTR: ClassVar[str] = "_children"
     _CHILD_MODULE: ClassVar[str] = ""
     _CHILD_CLASS_NAME: ClassVar[str] = ""
+
+    # Per TDD-DETECTION/ADR-0093: Primary project GID for holder type detection
+    PRIMARY_PROJECT_GID: ClassVar[str | None] = None
 
     # Storage - inherited by all subclasses
     # Note: Pydantic PrivateAttrs are inherited correctly
@@ -191,6 +217,11 @@ class HolderFactory(Task, HolderMixin[Task]):
                 "semantic_alias": semantic_alias,
             },
         )
+
+        # NEW: Register with ProjectTypeRegistry (ADR-0093, TDD-DETECTION)
+        from autom8_asana.models.business.registry import _register_entity_with_registry
+
+        _register_entity_with_registry(cls)
 
     @property
     def children(self) -> list[Any]:

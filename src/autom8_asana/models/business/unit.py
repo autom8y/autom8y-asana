@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import PrivateAttr
 
-from autom8_asana.models.business.base import BusinessEntity, HolderMixin
+from autom8_asana.models.business.base import BusinessEntity
 from autom8_asana.models.business.descriptors import (
     EnumField,
     HolderRef,
@@ -24,10 +24,17 @@ from autom8_asana.models.business.descriptors import (
     MultiEnumField,
     NumberField,
     ParentRef,
-    PeopleField,
     TextField,
 )
+
+# Note: PeopleField removed - rep field now inherited from SharedCascadingFieldsMixin
 from autom8_asana.models.business.fields import CascadingFieldDef, InheritedFieldDef
+from autom8_asana.models.business.mixins import (
+    FinancialFieldsMixin,
+    SharedCascadingFieldsMixin,
+    UpwardTraversalMixin,
+)
+from autom8_asana.models.business.holder_factory import HolderFactory
 from autom8_asana.models.task import Task
 
 if TYPE_CHECKING:
@@ -37,14 +44,34 @@ if TYPE_CHECKING:
     from autom8_asana.models.business.process import Process, ProcessHolder
 
 
-class Unit(BusinessEntity):
+class Unit(
+    BusinessEntity,
+    SharedCascadingFieldsMixin,
+    FinancialFieldsMixin,
+    UpwardTraversalMixin,
+):
     """Unit entity within a UnitHolder.
 
     Per TDD-BIZMODEL: Units represent service packages or product offerings.
     Each Unit can contain nested OfferHolder and ProcessHolder subtasks.
+    Per TDD-SPRINT-1: Inherits shared fields from mixins.
+    Per TDD-SPRINT-1 Phase 2: Uses UpwardTraversalMixin for to_business_async.
+    Per TDD-SPRINT-5-CLEANUP: MRO documentation added for maintainability.
 
     Units are the key entity for determining account structure - each Unit
     typically represents a distinct service offering with its own Offers.
+
+    MRO (Method Resolution Order):
+        Unit -> BusinessEntity -> SharedCascadingFieldsMixin -> FinancialFieldsMixin
+        -> UpwardTraversalMixin -> Task -> BaseModel
+
+        - BusinessEntity: Core entity behavior (_invalidate_refs, gid, etc.)
+        - SharedCascadingFieldsMixin: vertical, rep descriptors
+        - FinancialFieldsMixin: booking_type, mrr, weekly_ad_spend descriptors
+        - UpwardTraversalMixin: to_business_async implementation
+
+        Mixins come AFTER BusinessEntity so entity methods take precedence.
+        Field descriptors from mixins provide field access patterns.
 
     Example:
         for unit in business.units:
@@ -52,6 +79,9 @@ class Unit(BusinessEntity):
             for offer in unit.offers:
                 print(f"  Offer: {offer.name}")
     """
+
+    # Per TDD-DETECTION: Primary project GID for entity type detection
+    PRIMARY_PROJECT_GID: ClassVar[str | None] = "1201081073731555"
 
     # --- Nested Holder Detection (Composite Pattern) ---
 
@@ -80,11 +110,11 @@ class Unit(BusinessEntity):
     # --- Custom Field Descriptors (ADR-0081, TDD-PATTERNS-A) ---
     # Per ADR-0077: Declared WITHOUT type annotations to avoid Pydantic field creation.
     # Per ADR-0082: Fields class is auto-generated from these descriptors.
+    # Per TDD-SPRINT-1: mrr, weekly_ad_spend, booking_type inherited from FinancialFieldsMixin
+    # Per TDD-SPRINT-1: vertical, rep inherited from SharedCascadingFieldsMixin
 
-    # Financial fields (8 NumberField + 1 text)
-    mrr = NumberField(field_name="MRR")
-    weekly_ad_spend = NumberField()
-    discount = NumberField()
+    # Financial fields (5 - mrr, weekly_ad_spend, booking_type from mixin)
+    discount = EnumField()  # Per PRD-0024: Enum with values like "10%", "20%", "None"
     meta_spend = NumberField()
     meta_spend_sub_id = TextField(field_name="Meta Spend Sub ID")
     tiktok_spend = NumberField()
@@ -96,32 +126,34 @@ class Unit(BusinessEntity):
     platforms = MultiEnumField()
     tiktok_profile = TextField()
 
-    # Product / Service fields (5)
+    # Product / Service fields (3 - vertical, rep from mixins)
     products = MultiEnumField()
     languages = MultiEnumField()
-    vertical = EnumField()
-    specialty = EnumField()
-    rep = PeopleField()
+    specialty = MultiEnumField()  # Per PRD-0024: Multi-enum for multiple specialties
 
-    # Demographics / Targeting fields (8)
+    # Demographics / Targeting fields (8 - booking_type from mixin)
     currency = EnumField()
     radius = IntField()
     min_age = IntField()
     max_age = IntField()
-    gender = EnumField()
+    gender = MultiEnumField()  # Per PRD-0024: Multi-enum for gender targeting
     zip_code_list = TextField()
-    zip_codes_radius = TextField()
+    zip_codes_radius = IntField()  # Per PRD-0024: Number field, not text
     excluded_zips = TextField()
-    booking_type = EnumField()
 
-    # Form / Lead Settings fields (7)
-    form_questions = TextField()
-    disabled_questions = TextField()
-    disclaimers = TextField()
+    # Form / Lead Settings fields (8)
+    form_questions = (
+        MultiEnumField()
+    )  # Per PRD-0024: Multi-enum for question selections
+    disabled_questions = (
+        MultiEnumField()
+    )  # Per PRD-0024: Multi-enum for question selections
+    disclaimers = MultiEnumField()  # Per PRD-0024: Multi-enum for disclaimer selections
     custom_disclaimer = TextField()
+    internal_notes = TextField()  # Per PRD-0024: New field for internal notes
     sms_lead_verification = EnumField(field_name="Sms Lead Verification")
     work_email_verification = EnumField()
-    filter_out_x = TextField()
+    filter_out_x = EnumField(field_name="Filter Out x%")  # Per PRD-0024: Enum field
 
     # --- Cascading Field Definitions (ADR-0054) ---
 
@@ -220,89 +252,20 @@ class Unit(BusinessEntity):
             return []
         return self._process_holder.processes
 
-    # --- Upward Traversal (TDD-HYDRATION Phase 2) ---
+    # --- Upward Traversal (TDD-HYDRATION Phase 2, TDD-SPRINT-1 Phase 2) ---
+    # to_business_async inherited from UpwardTraversalMixin
 
-    async def to_business_async(
-        self,
-        client: AsanaClient,
-        *,
-        hydrate_full: bool = True,
-        partial_ok: bool = False,
-    ) -> Business:
-        """Navigate to containing Business and optionally hydrate full hierarchy.
+    def _update_refs_from_hydrated_business(self, business: Business) -> None:
+        """Update Unit references to point to hydrated hierarchy.
 
-        Per ADR-0069: Instance method for upward navigation.
-        Per TDD-HYDRATION Phase 2: Unit upward traversal.
-        Per ADR-0070: partial_ok controls fail-fast vs partial success behavior.
-
-        Path: Unit -> UnitHolder -> Business (2 levels up)
-
-        This method traverses the parent chain to find the Business root,
-        then optionally hydrates the full Business hierarchy. After hydration,
-        this Unit instance's references are updated to point to the
-        hydrated hierarchy.
+        Per TDD-SPRINT-1 Phase 2: Hook for UpwardTraversalMixin.
 
         Args:
-            client: AsanaClient for API calls.
-            hydrate_full: If True (default), hydrate full Business hierarchy
-                after finding it. If False, only populates the path traversed.
-            partial_ok: If True, continue on partial failures during hydration.
-                If False (default), raise HydrationError on any failure.
-
-        Returns:
-            Business instance (fully hydrated if hydrate_full=True).
-
-        Raises:
-            HydrationError: If traversal fails (no parent, cycle detected,
-                max depth exceeded) or if hydration fails and partial_ok=False.
-
-        Example:
-            unit = Unit.model_validate(task_data)
-            business = await unit.to_business_async(client)
-
-            # Business is fully hydrated
-            print(f"Business: {business.name}")
-            for other_unit in business.units:
-                print(f"  Unit: {other_unit.name}")
-
-            # Unit references are updated
-            assert unit.business is business
+            business: The hydrated Business instance.
         """
-        from autom8_asana.exceptions import HydrationError
-        from autom8_asana.models.business.hydration import _traverse_upward_async
-
-        # Traverse upward to find Business
-        business, path = await _traverse_upward_async(self, client)
-
-        # Hydrate full hierarchy if requested
-        if hydrate_full:
-            try:
-                await business._fetch_holders_async(client)
-            except Exception as e:
-                if partial_ok:
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    logger.warning(
-                        "Hydration failed with partial_ok=True",
-                        extra={"business_gid": business.gid, "error": str(e)},
-                    )
-                else:
-                    if isinstance(e, HydrationError):
-                        raise
-                    raise HydrationError(
-                        f"Downward hydration failed for Business {business.gid}: {e}",
-                        entity_gid=business.gid,
-                        entity_type="business",
-                        phase="downward",
-                        cause=e,
-                    ) from e
-
-        # Update this Unit's references to point to hydrated hierarchy
         if business._unit_holder is not None:
             self._unit_holder = business._unit_holder
             self._business = business
-
-        return business
 
     # --- Holder Population (Composite Pattern) ---
 
@@ -335,33 +298,21 @@ class Unit(BusinessEntity):
     def _identify_holder(self, task: Task) -> str | None:
         """Identify which holder type a task is.
 
+        Per TDD-SPRINT-1 Phase 2: Delegates to identify_holder_type utility.
+        Per Architect Decision: Uses detection system first, falls back to
+        legacy HOLDER_KEY_MAP matching with logged warning.
+
         Args:
             task: Task to identify.
 
         Returns:
-            Holder key name or None if not a holder.
+            Holder key name (e.g., "offer_holder") or None if not a holder.
         """
-        for key, (name_pattern, emoji) in self.HOLDER_KEY_MAP.items():
-            if self._matches_holder(task, name_pattern, emoji):
-                return key
-        return None
+        from autom8_asana.models.business.detection import identify_holder_type
 
-    def _matches_holder(self, task: Task, name_pattern: str, emoji: str) -> bool:
-        """Check if task matches a holder definition.
-
-        Per FR-HOLDER-009: Name match first, emoji fallback second.
-
-        Args:
-            task: Task to check.
-            name_pattern: Expected task name.
-            emoji: Expected custom emoji name.
-
-        Returns:
-            True if task matches holder pattern.
-        """
-        if task.name == name_pattern:
-            return True
-        return False
+        # filter_to_map=True ensures only Unit-level holders (offer_holder, process_holder)
+        # are returned, filtering out Business-level holders
+        return identify_holder_type(task, self.HOLDER_KEY_MAP, filter_to_map=True)
 
     async def _fetch_holders_async(self, client: AsanaClient) -> None:
         """Fetch and populate nested holder subtasks (OfferHolder, ProcessHolder).
@@ -383,7 +334,10 @@ class Unit(BusinessEntity):
         import asyncio
 
         # Step 1: Fetch Unit subtasks (holder tasks)
-        holder_tasks = await client.tasks.subtasks_async(self.gid).collect()
+        # Per ADR-0094: Include detection fields for Tier 1 project membership detection
+        holder_tasks = await client.tasks.subtasks_async(
+            self.gid, include_detection_fields=True
+        ).collect()
 
         # Step 2: Populate typed holders from subtasks
         self._populate_holders(holder_tasks)
@@ -415,53 +369,59 @@ class Unit(BusinessEntity):
         self,
         client: AsanaClient,
         holder: Task,
+        children_attr: str = "_children",
     ) -> None:
         """Fetch children for a holder and populate them.
+
+        Per TDD-SPRINT-5-CLEANUP/DRY-007: Signature matches Business version.
 
         Args:
             client: AsanaClient for API calls.
             holder: Holder task (OfferHolder or ProcessHolder) to fetch children for.
+            children_attr: Fallback attribute name for holders without _populate_children.
         """
-        subtasks = await client.tasks.subtasks_async(holder.gid).collect()
+        subtasks = await client.tasks.subtasks_async(
+            holder.gid, include_detection_fields=True
+        ).collect()
 
-        # Call _populate_children on typed holder
+        # Call _populate_children if available (typed holders)
         if hasattr(holder, "_populate_children"):
             holder._populate_children(subtasks)
+        else:
+            # Fallback for stub holders without _populate_children
+            setattr(holder, children_attr, subtasks)
 
-class UnitHolder(Task, HolderMixin["Unit"]):
+
+class UnitHolder(
+    HolderFactory,
+    child_type="Unit",
+    parent_ref="_unit_holder",
+    children_attr="_units",
+    semantic_alias="units",
+):
     """Holder task containing Unit children.
 
     Per FR-HOLDER-003: UnitHolder extends Task with _units PrivateAttr.
-    Per TDD-HARDENING-C: Uses ClassVar configuration for generic _populate_children().
+    Per TDD-SPRINT-1: Migrated to HolderFactory pattern.
+
+    PRIMARY_PROJECT_GID Design (FR-DET-004):
+        UnitHolder intentionally has no dedicated Asana project. It is a
+        **container task** (subtask of Business) that groups Unit children,
+        but does not have custom fields or project membership of its own.
+
+        Detection relies on:
+        - **Tier 2**: Name pattern matching ("units", "unit", "business units")
+        - **Tier 3**: Parent inference from Business
+
+        Note that Unit *entities* (children of UnitHolder) DO have a
+        PRIMARY_PROJECT_GID ("1201081073731555") for Tier 1 detection. This is
+        only the *holder* that has no dedicated project.
+
+        The None value is intentional and correct - UnitHolder is a structural
+        container, not a project member.
     """
 
-    # ClassVar configuration (TDD-HARDENING-C)
-    CHILD_TYPE: ClassVar[type[Unit]] = Unit
-    PARENT_REF_NAME: ClassVar[str] = "_unit_holder"
-    CHILDREN_ATTR: ClassVar[str] = "_units"
-
-    # Children storage
-    _units: list[Unit] = PrivateAttr(default_factory=list)
-
-    # Back-reference to parent Business (ADR-0052)
-    _business: Business | None = PrivateAttr(default=None)
-
-    # _populate_children() inherited from HolderMixin (TDD-HARDENING-C)
-
-    @property
-    def units(self) -> list[Unit]:
-        """All Unit children.
-
-        Returns:
-            List of Unit entities.
-        """
-        return self._units
-
-    @property
-    def business(self) -> Business | None:
-        """Navigate to parent Business.
-
-        Returns:
-            Business entity or None if not populated.
-        """
-        return self._business
+    # Per TDD-DETECTION/FR-DET-004: UnitHolder is a container task with no dedicated
+    # project. Detection uses Tier 2 (name pattern) and Tier 3 (parent inference from
+    # Business). See class docstring for full explanation.
+    PRIMARY_PROJECT_GID: ClassVar[str | None] = None

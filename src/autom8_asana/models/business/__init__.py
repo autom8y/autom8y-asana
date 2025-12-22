@@ -62,6 +62,7 @@ from autom8_asana.models.business.business import (
     ReconciliationsHolder,  # DEPRECATED: Use ReconciliationHolder
     VideographyHolder,
 )
+
 # TDD-HARDENING-A/FR-STUB-009: Export new stub models
 from autom8_asana.models.business.dna import DNA
 from autom8_asana.models.business.reconciliation import Reconciliation
@@ -81,6 +82,12 @@ from autom8_asana.models.business.detection import (
     detect_by_name,
     detect_entity_type_async,
 )
+from autom8_asana.models.business.registry import (
+    ProjectTypeRegistry,
+    WorkspaceProjectRegistry,
+    get_registry,
+    get_workspace_registry,
+)
 from autom8_asana.models.business.hydration import (
     HydrationBranch,
     HydrationFailure,
@@ -90,10 +97,26 @@ from autom8_asana.models.business.hydration import (
     # _convert_to_typed_entity, _is_recoverable, _traverse_upward_async
 )
 from autom8_asana.models.business.fields import CascadingFieldDef, InheritedFieldDef
+from autom8_asana.models.business.mixins import (
+    FinancialFieldsMixin,
+    SharedCascadingFieldsMixin,
+)
 from autom8_asana.models.business.hours import Hours
 from autom8_asana.models.business.location import Location, LocationHolder
 from autom8_asana.models.business.offer import Offer, OfferHolder
-from autom8_asana.models.business.process import Process, ProcessHolder, ProcessType
+from autom8_asana.models.business.process import (
+    Process,
+    ProcessHolder,
+    ProcessSection,
+    ProcessType,
+)
+from autom8_asana.models.business.seeder import (
+    BusinessData,
+    BusinessSeeder,
+    ContactData,
+    ProcessData,
+    SeederResult,
+)
 from autom8_asana.models.business.unit import Unit, UnitHolder
 
 __all__ = [
@@ -107,7 +130,14 @@ __all__ = [
     "OfferHolder",
     "Process",
     "ProcessHolder",
+    "ProcessSection",
     "ProcessType",
+    # Business Seeder (TDD-PROCESS-PIPELINE Phase 3)
+    "BusinessSeeder",
+    "SeederResult",
+    "BusinessData",
+    "ContactData",
+    "ProcessData",
     # AssetEdit (Phase 4 - Resolution)
     "AssetEdit",
     # Phase 3 Models
@@ -130,11 +160,19 @@ __all__ = [
     # Field definitions
     "CascadingFieldDef",
     "InheritedFieldDef",
+    # Field mixins (TDD-SPRINT-1)
+    "SharedCascadingFieldsMixin",
+    "FinancialFieldsMixin",
     # Detection (Phase 2 - Hydration)
     "EntityType",
     "HOLDER_NAME_MAP",
     "detect_by_name",
     "detect_entity_type_async",
+    # Registry (TDD-DETECTION Phase 1, TDD-WORKSPACE-PROJECT-REGISTRY Phase 1)
+    "ProjectTypeRegistry",
+    "WorkspaceProjectRegistry",
+    "get_registry",
+    "get_workspace_registry",
     # Hydration (Phase 3 - Result Dataclasses)
     # Per TDD-HARDENING-A/FR-ALL-*: Private functions removed from __all__
     "HydrationResult",
