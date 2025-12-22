@@ -23,7 +23,7 @@ Is this a simple question/lookup?
 
 ### Examples
 
-**Simple question**: "What's SaveSession?" --> Check `autom8-asana-domain` skill, answer directly
+**Simple question**: "What's SaveSession?" --> Check `autom8-asana` skill, answer directly
 **Task**: "Add rate limiting" --> Invoke `@orchestrator`
 **Ambiguous**: "Fix the bug" --> Ask for clarification first
 
@@ -35,7 +35,7 @@ Skills load context on-demand. Use the appropriate skill for domain knowledge.
 
 | Skill | When to Activate |
 |-------|------------------|
-| **autom8-asana-domain** | SDK patterns, SaveSession, Asana resources, async-first, batch operations |
+| **autom8-asana** | SDK patterns, SaveSession, Business entities, detection, batch operations |
 | **standards** | General Python/testing patterns (note: generic, not SDK-specific) |
 | **documentation** | PRD/TDD/ADR templates, documentation workflows |
 | **prompting** | Agent invocation patterns, workflow shortcuts |
@@ -44,10 +44,10 @@ Skills load context on-demand. Use the appropriate skill for domain knowledge.
 
 ### Activation Triggers
 
-**autom8-asana-domain** activates on:
-- Keywords: SaveSession, ActionOperation, batch operation, Unit of Work, async client
+**autom8-asana** activates on:
+- Keywords: SaveSession, Business, Contact, Unit, Offer, holder, detect_entity_type, cascade_field, ActionOperation, batch operation, async client
 - File patterns: `src/autom8_asana/**/*.py`, `tests/**/*.py`
-- Tasks: SDK implementation, Asana API integration, cache backends
+- Tasks: SDK implementation, Asana API integration, entity operations, hierarchy navigation
 
 ---
 
@@ -86,14 +86,17 @@ Please analyze this task, create a phased plan, and coordinate execution.
 
 | Question | Where to Look |
 |----------|---------------|
-| What is SaveSession? | `autom8-asana-domain` skill |
-| How do Asana batch ops work? | `autom8-asana-domain` skill |
-| Where does SDK code go? | `autom8-asana-domain/repository-map.md` |
-| What's the tech stack? | `autom8-asana-domain/tech-stack.md` |
+| What is SaveSession? | `autom8-asana` skill |
+| How do Asana batch ops work? | `autom8-asana/persistence.md` |
+| Where does SDK code go? | `autom8-asana/infrastructure.md` |
+| What's the tech stack? | `autom8-asana/infrastructure.md` |
+| How does Business/Contact/Unit work? | `autom8-asana/entities.md` |
+| How do I detect entity types? | `autom8-asana/entities.md#detection` |
 | PRD/TDD templates? | `documentation` skill |
 | Agent workflow patterns? | `prompting` skill |
 | Project overview? | `PROJECT_CONTEXT.md` |
-| Domain glossary? | `GLOSSARY.md` or `autom8-asana-domain/glossary.md` |
+| Domain glossary? | `autom8-asana/glossary.md` |
+| What is Asana-as-database? | `autom8-asana` skill |
 
 ---
 
@@ -104,7 +107,7 @@ Please analyze this task, create a phased plan, and coordinate execution.
 - [`GLOSSARY.md`](./GLOSSARY.md) - Core terminology (SDK terms in skill)
 
 ### Skills (Loaded On-Demand)
-- [`skills/autom8-asana-domain/`](./skills/autom8-asana-domain/) - SDK-specific patterns
+- [`skills/autom8-asana/`](./skills/autom8-asana/) - SDK infrastructure and business entities
 - [`skills/standards/`](./skills/standards/) - General coding standards
 - [`skills/documentation/`](./skills/documentation/) - Document templates
 - [`skills/prompting/`](./skills/prompting/) - Workflow patterns

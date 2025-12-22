@@ -18,18 +18,35 @@
 
 **No business logic.** This is a pure API wrapper. Domain rules stay in consumers.
 
+### Core Architecture
+
+This SDK implements the **Asana-as-database** paradigm—treating Asana as a structured data store rather than just a project management tool. See [paradigm.md](skills/autom8-asana-domain/paradigm.md) for the foundational architecture.
+
 ---
 
 ## Current State
 
 | Metric | Status |
 |--------|--------|
-| Stage | Prototype |
-| Test coverage | ~0% (infrastructure being built) |
+| Stage | Production |
+| Test files | 188 test files |
+| Test coverage | Extensive (business model, detection, persistence) |
 | SaveSession | Implemented (TDD-0010, TDD-0011) |
 | Batch API | Implemented (TDD-0005) |
+| Detection System | Implemented (TDD-DETECTION, ADR-0093/0094/0095) |
 
-**Active work**: PRD-0009 (GA Readiness), ADR-0035+ (Save Orchestration)
+### Test Organization
+
+| Module | Test Files | Focus |
+|--------|-----------|-------|
+| cache | 18 | Cache backends, staleness detection |
+| dataframes | 15 | Polars DataFrame operations |
+| persistence | 16 | SaveSession, change tracking, dependency graph |
+| models/business | 20 | Entity models, detection, hydration, holders |
+| clients | 8 | Resource client operations |
+| transport | 4 | HTTP transport, retry, sync wrappers |
+
+**Living docs**: See `/docs/INDEX.md` for current PRDs, TDDs, and ADRs
 
 ---
 
@@ -68,14 +85,20 @@ All interfaces are async; sync wrappers available via `sync_wrapper` decorator.
 
 ## For Full Details
 
-SDK-specific patterns, Asana domain model, code conventions, and repository structure are in the **autom8-asana-domain** skill:
-
+### SDK Infrastructure (autom8-asana-domain skill)
 - `skills/autom8-asana-domain/context.md` - Full extraction context
 - `skills/autom8-asana-domain/asana-domain.md` - Asana resource hierarchy
 - `skills/autom8-asana-domain/glossary.md` - SDK terminology
 - `skills/autom8-asana-domain/code-conventions.md` - Code patterns
 - `skills/autom8-asana-domain/repository-map.md` - Where code lives
 - `skills/autom8-asana-domain/tech-stack.md` - Dependencies
+
+### Business Entities (autom8-asana-business skill)
+- `skills/autom8-asana-business/entity-lifecycle.md` - Define, detect, populate, navigate, persist
+- `skills/autom8-asana-business/entity-reference.md` - All 7 entity types
+- `skills/autom8-asana-business/detection.md` - 5-tier entity type detection
+- `skills/autom8-asana-business/savesession.md` - SaveSession with business hierarchies
+- `skills/autom8-asana-business/glossary.md` - Business terminology
 
 ---
 

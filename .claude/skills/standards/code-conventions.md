@@ -93,6 +93,34 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="APP_")
 ```
 
+### Security: Never Hardcode Tokens
+
+**CRITICAL ANTI-PATTERN**: Never hardcode API tokens, passwords, or secrets in:
+- Source code files
+- Configuration files (including `.claude/settings.local.json`)
+- Test fixtures
+- Scripts or examples
+
+```python
+# WRONG - Hardcoded token
+ASANA_PAT = "1/1234567890:abcdef123456"  # NEVER DO THIS
+
+# CORRECT - Environment variable
+ASANA_PAT = os.environ.get("ASANA_PAT")
+
+# CORRECT - Typed settings class
+class Settings(BaseSettings):
+    asana_pat: str = Field(..., env="ASANA_PAT")
+```
+
+**Why this matters**:
+- Tokens in code get committed to git history permanently
+- Even after deletion, tokens remain in git history
+- Leaked tokens can compromise entire Asana workspaces
+- Automated scanners detect and flag exposed credentials
+
+**Best practice**: Use environment variables, secret managers, or `.env` files that are gitignored.
+
 ## Patterns We Avoid
 
 ### Avoid
@@ -169,6 +197,54 @@ user = UserFactory.build(email="test@example.com")
 
 # No
 user = FIXTURES["default_user"]  # Static, inflexible
+```
+
+### SDK-Specific Testing Patterns
+
+**MockHTTPClient Pattern** - For transport layer mocking:
+
+```python
+from autom8_asana.testing import MockHTTPClient
+
+@pytest.fixture
+def mock_client():
+    """Create mock client with respx for HTTP interception."""
+    with respx.mock:
+        client = MockHTTPClient()
+        yield client
+```
+
+**Result Builder Fixtures** - For consistent test data:
+
+```python
+def create_success_result(entity, gid_map=None):
+    """Build successful SaveResult for assertions."""
+    return SaveResult(
+        success=True,
+        succeeded=[entity],
+        failed=[],
+        gid_map=gid_map or {},
+    )
+
+def create_failure_result(entity, error):
+    """Build failed SaveResult with specific error."""
+    return SaveResult(
+        success=False,
+        succeeded=[],
+        failed=[FailedOperation(entity=entity, error=error)],
+        gid_map={},
+    )
+```
+
+**Registry Reset Pattern** - For detection system tests:
+
+```python
+@pytest.fixture(autouse=True)
+def reset_registry():
+    """Reset ProjectTypeRegistry between tests."""
+    from autom8_asana.models.business.registry import ProjectTypeRegistry
+    yield
+    ProjectTypeRegistry.reset()
 ```
 
 ## Import Order
