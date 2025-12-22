@@ -1,7 +1,7 @@
 # Documentation Index
 
 > Central registry of all project documentation.
-> **Last Updated**: 2025-12-17 (Post-Refactor)
+> **Last Updated**: 2025-12-18
 
 ---
 
@@ -45,6 +45,14 @@
 | [PRD-0021](requirements/PRD-0021-async-method-generator.md) | Async Method Generator | Active |
 | [PRD-0022](requirements/PRD-0022-crud-base-class.md) | CRUD Base Class | Active |
 | [PRD-0023](requirements/PRD-0023-qa-triage-fixes.md) | QA Triage Fixes | Ready |
+| [PRD-0024](requirements/PRD-0024-custom-field-remediation.md) | Custom Field Reality Remediation | Draft |
+| [PRD-DOCS-EPOCH-RESET](requirements/PRD-DOCS-EPOCH-RESET.md) | Documentation Epoch Reset | Active |
+| [PRD-PROCESS-PIPELINE](requirements/PRD-PROCESS-PIPELINE.md) | Process Pipeline (types, states, seeding) | Superseded |
+| [PRD-PROCESS-PIPELINE-AMENDMENT](requirements/PRD-PROCESS-PIPELINE-AMENDMENT.md) | Process Pipeline Architectural Correction | Draft |
+| [PRD-AUTOMATION-LAYER](requirements/PRD-AUTOMATION-LAYER.md) | Automation Layer for Pipeline Conversion | Draft |
+| [PRD-DETECTION](requirements/PRD-DETECTION.md) | Membership-Based Entity Type Detection | Draft |
+| [PRD-WORKSPACE-PROJECT-REGISTRY](requirements/PRD-WORKSPACE-PROJECT-REGISTRY.md) | Workspace Project Registry for Dynamic Discovery | Draft |
+| [PRD-PIPELINE-AUTOMATION-ENHANCEMENT](requirements/PRD-PIPELINE-AUTOMATION-ENHANCEMENT.md) | Pipeline Automation Enhancement - Legacy Parity | Draft |
 
 ---
 
@@ -82,12 +90,19 @@
 | [TDD-0027](design/TDD-0027-business-model-architecture.md) | Business Model Architecture | PRD-0010 | Draft |
 | [TDD-0028](design/TDD-0028-business-model-implementation.md) | Business Model Implementation | PRD-0010 | Draft |
 | [TDD-0029](design/TDD-0029-sdk-demo.md) | SDK Demo | PRD-0011 | Draft |
+| [TDD-DOCS-EPOCH-RESET](design/TDD-DOCS-EPOCH-RESET.md) | Documentation Epoch Reset | PRD-DOCS-EPOCH-RESET | Active |
+| [TDD-PROCESS-PIPELINE](design/TDD-PROCESS-PIPELINE.md) | Process Pipeline | PRD-PROCESS-PIPELINE | Superseded |
+| [TDD-AUTOMATION-LAYER](design/TDD-AUTOMATION-LAYER.md) | Automation Layer | PRD-AUTOMATION-LAYER | Draft |
+| [TDD-DETECTION](design/TDD-DETECTION.md) | Entity Detection System | PRD-DETECTION | Draft |
+| [TDD-WORKSPACE-PROJECT-REGISTRY](design/TDD-WORKSPACE-PROJECT-REGISTRY.md) | Workspace Project Registry | PRD-WORKSPACE-PROJECT-REGISTRY | Implemented |
+| [TDD-PIPELINE-AUTOMATION-ENHANCEMENT](design/TDD-PIPELINE-AUTOMATION-ENHANCEMENT.md) | Pipeline Automation Enhancement | PRD-PIPELINE-AUTOMATION-ENHANCEMENT | Draft |
+| [TDD-0030](design/TDD-CUSTOM-FIELD-REMEDIATION.md) | Custom Field Reality Remediation | PRD-0024 | Draft |
 
 ---
 
 ## ADRs (Decisions)
 
-92 Architecture Decision Records: [ADR-0001](decisions/ADR-0001-protocol-extensibility.md) through [ADR-0092](decisions/ADR-0092-crud-base-class-nogo.md)
+114 Architecture Decision Records: [ADR-0001](decisions/ADR-0001-protocol-extensibility.md) through [ADR-0114](decisions/ADR-0114-hours-backward-compat.md)
 
 ### Key ADRs by Topic
 
@@ -100,6 +115,9 @@
 | **Hydration/Resolution** | [0068](decisions/ADR-0068-type-detection-strategy.md), [0069](decisions/ADR-0069-hydration-api-design.md), [0071](decisions/ADR-0071-resolution-ambiguity-handling.md), [0073](decisions/ADR-0073-batch-resolution-api-design.md) |
 | **Hardening** | [0074](decisions/ADR-0074-unified-custom-field-tracking.md), [0078](decisions/ADR-0078-gid-based-entity-identity.md), [0084](decisions/ADR-0084-exception-rename-strategy.md), [0086](decisions/ADR-0086-structured-logging.md) |
 | **Design Patterns** | [0081](decisions/ADR-0081-custom-field-descriptor-pattern.md), [0091](decisions/ADR-0091-error-classification-mixin.md), [0092](decisions/ADR-0092-crud-base-class-nogo.md) |
+| **Process Pipeline** | [0096](decisions/ADR-0096-processtype-expansion.md), [0097](decisions/ADR-0097-processsection-state-machine.md), [0098](decisions/ADR-0098-dual-membership-model.md) (Superseded by 0101), [0099](decisions/ADR-0099-businessseeder-factory.md), [0100](decisions/ADR-0100-state-transition-composition.md) (Superseded by 0101), [0101](decisions/ADR-0101-process-pipeline-correction.md) |
+| **Automation Layer** | [0102](decisions/ADR-0102-post-commit-hook-architecture.md), [0103](decisions/ADR-0103-automation-rule-protocol.md), [0104](decisions/ADR-0104-loop-prevention-strategy.md), [0105](decisions/ADR-0105-field-seeding-architecture.md), [0106](decisions/ADR-0106-template-discovery-pattern.md) |
+| **Pipeline Enhancement** | [0110](decisions/ADR-0110-task-duplication-strategy.md), [0111](decisions/ADR-0111-subtask-wait-strategy.md), [0112](decisions/ADR-0112-custom-field-gid-resolution.md), [0113](decisions/ADR-0113-rep-field-cascade-pattern.md) |
 
 ---
 
@@ -116,6 +134,43 @@
 | [TP-0007](testing/TP-0007-navigation-descriptors.md) | Navigation Descriptors | PRD-0017 | Draft |
 | [TP-0008](testing/TP-0008-hierarchy-hydration.md) | Hierarchy Hydration | PRD-0013 | PASS |
 | [TP-0009](testing/TP-0009-savesession-reliability.md) | SaveSession Reliability | PRD-0018 | Draft |
+| [TP-DETECTION](testing/TP-DETECTION.md) | Entity Detection System | PRD-PROCESS-PIPELINE | Draft |
+
+### Validation Reports
+
+| ID | Title | PRD | Status |
+|----|-------|-----|--------|
+| [VALIDATION-PROCESS-PIPELINE](testing/VALIDATION-PROCESS-PIPELINE.md) | Process Pipeline | PRD-PROCESS-PIPELINE | Invalidated |
+| [VP-WORKSPACE-PROJECT-REGISTRY](testing/VP-WORKSPACE-PROJECT-REGISTRY.md) | Workspace Project Registry | PRD-WORKSPACE-PROJECT-REGISTRY | APPROVED |
+| [VP-PIPELINE-AUTOMATION-ENHANCEMENT](testing/VP-PIPELINE-AUTOMATION-ENHANCEMENT.md) | Pipeline Automation Enhancement | PRD-PIPELINE-AUTOMATION-ENHANCEMENT | APPROVED |
+
+---
+
+## Initiatives
+
+| File | Description | Status |
+|------|-------------|--------|
+| [PROMPT-0-AUTOMATION-LAYER](initiatives/PROMPT-0-AUTOMATION-LAYER.md) | Automation Layer for Pipeline Conversion | Draft |
+| [PROMPT-0-PROCESS-CLEANUP](initiatives/PROMPT-0-PROCESS-CLEANUP.md) | Process Pipeline Cleanup Initiative | Pending |
+| [PROMPT-0-PROCESS-PIPELINE](initiatives/PROMPT-0-PROCESS-PIPELINE.md) | Process Pipeline Implementation (Superseded) | Superseded |
+| [PROMPT-0-membership-detection](initiatives/PROMPT-0-membership-detection.md) | Membership Detection Initiative | Active |
+| [PROMPT-0-WORKSPACE-PROJECT-REGISTRY](requirements/PROMPT-0-WORKSPACE-PROJECT-REGISTRY.md) | Workspace Project Registry Initiative | Complete |
+| [PROMPT-0-PIPELINE-AUTOMATION-ENHANCEMENT](requirements/PROMPT-0-PIPELINE-AUTOMATION-ENHANCEMENT.md) | Pipeline Automation Enhancement Initiative | Active |
+
+---
+
+## Analysis Documents
+
+| File | Description | Status |
+|------|-------------|--------|
+| [ANALYSIS-PROCESS-ENTITIES.md](analysis/ANALYSIS-PROCESS-ENTITIES.md) | Process entities as pipeline events - business logic capture | Complete |
+| [DISCOVERY-PROCESS-PIPELINE.md](analysis/DISCOVERY-PROCESS-PIPELINE.md) | Process Pipeline initiative discovery - Session 1 | Complete |
+| [DISCOVERY-DETECTION-SYSTEM.md](analysis/DISCOVERY-DETECTION-SYSTEM.md) | Entity detection system analysis | Complete |
+| [DETECTION-SYSTEM-ANALYSIS.md](analysis/DETECTION-SYSTEM-ANALYSIS.md) | Detection Tier 1-5 deep dive | Complete |
+| [IMPACT-PROCESS-CLEANUP.md](analysis/IMPACT-PROCESS-CLEANUP.md) | Process Pipeline Cleanup - impact analysis | Complete |
+| [DISCOVERY-AUTOMATION-LAYER.md](analysis/DISCOVERY-AUTOMATION-LAYER.md) | Automation Layer discovery - extension points, fields | Complete |
+| [GAP-ANALYSIS-WORKSPACE-PROJECT-REGISTRY.md](analysis/GAP-ANALYSIS-WORKSPACE-PROJECT-REGISTRY.md) | Workspace Project Registry gap analysis | Complete |
+| [DISCOVERY-PIPELINE-AUTOMATION-ENHANCEMENT.md](analysis/DISCOVERY-PIPELINE-AUTOMATION-ENHANCEMENT.md) | Pipeline Automation Enhancement discovery - Session 1 | Complete |
 
 ---
 
@@ -168,7 +223,7 @@ Historical artifacts are preserved in `.archive/`:
 
 | Type | Current Max | Next Available |
 |------|-------------|----------------|
-| PRD | PRD-0023 | PRD-0024 |
-| TDD | TDD-0029 | TDD-0030 |
-| ADR | ADR-0092 | ADR-0093 |
+| PRD | PRD-0024 | PRD-0025 |
+| TDD | TDD-0030 | TDD-0031 |
+| ADR | ADR-0114 | ADR-0115 |
 | TP | TP-0009 | TP-0010 |
