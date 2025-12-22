@@ -15,6 +15,7 @@ from autom8_asana.persistence.graph import DependencyGraph
 from autom8_asana.persistence.pipeline import SavePipeline
 from autom8_asana.persistence.events import EventSystem
 from autom8_asana.persistence.action_executor import ActionExecutor
+from autom8_asana.persistence.actions import ActionBuilder
 from autom8_asana.persistence.models import (
     EntityState,
     OperationType,
@@ -23,23 +24,22 @@ from autom8_asana.persistence.models import (
     ActionType,
     ActionOperation,
     ActionResult,
+    HealingReport,
 )
 from autom8_asana.persistence.exceptions import (
     SessionClosedError,
     PositioningConflictError,
 )
+from autom8_asana.persistence.healing import HealingManager
 from autom8_asana.transport.sync import sync_wrapper
 from autom8_asana.clients.name_resolver import NameResolver
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
     from autom8_asana.models.base import AsanaResource
-    from autom8_asana.models.common import NameGid
-    from autom8_asana.models.tag import Tag
-    from autom8_asana.models.project import Project
-    from autom8_asana.models.section import Section
-    from autom8_asana.models.task import Task
     from autom8_asana.models.user import User
+
+from autom8_asana.models.common import NameGid
 
 T = TypeVar("T", bound="AsanaResource")
 
@@ -120,10 +120,14 @@ class SaveSession:
         client: AsanaClient,
         batch_size: int = 10,
         max_concurrent: int = 15,
+        auto_heal: bool = False,
+        automation_enabled: bool | None = None,
     ) -> None:
         """Initialize save session.
 
         Per FR-UOW-005: Accept optional configuration.
+        Per TDD-DETECTION/ADR-0095: auto_heal enables self-healing.
+        Per TDD-AUTOMATION-LAYER: automation_enabled controls Phase 5 execution.
 
         Args:
             client: AsanaClient instance for API calls. The client's
@@ -131,6 +135,12 @@ class SaveSession:
             batch_size: Maximum operations per batch (default: 10, Asana limit).
             max_concurrent: Maximum concurrent batch requests (default: 15).
                            Reserved for future optimization.
+            auto_heal: If True, entities detected via fallback tiers (2-5)
+                      will be added to their expected project during commit.
+                      Default: False (disabled).
+            automation_enabled: Override for automation execution during commit.
+                              If None, uses client._config.automation.enabled.
+                              If True/False, overrides client config for this session.
         """
         self._client = client
         self._batch_size = batch_size
@@ -155,6 +165,7 @@ class SaveSession:
 
         # TDD-TRIAGE-FIXES: Cascade executor for field propagation
         from autom8_asana.persistence.cascade import CascadeExecutor, CascadeOperation
+
         self._cascade_executor = CascadeExecutor(client)
 
         # TDD-TRIAGE-FIXES: Initialize cascade operations list in __init__ (not lazily)
@@ -163,6 +174,22 @@ class SaveSession:
         # P3: Name resolver with per-session caching (ADR-0060)
         self._name_cache: dict[str, str] = {}
         self._name_resolver = NameResolver(client, self._name_cache)
+
+        # TDD-DETECTION/ADR-0095, TDD-TECH-DEBT-REMEDIATION: Self-healing via HealingManager
+        self._healing_manager = HealingManager(auto_heal=auto_heal)
+
+        # TDD-AUTOMATION-LAYER: Automation configuration
+        # Resolve automation_enabled: explicit override > client config
+        if automation_enabled is not None:
+            self._automation_enabled: bool = automation_enabled
+        else:
+            # Use client config if available
+            client_config = getattr(client, "_config", None)
+            automation_config = getattr(client_config, "automation", None)
+            if automation_config is not None:
+                self._automation_enabled = bool(automation_config.enabled)
+            else:
+                self._automation_enabled = False
 
         self._state = SessionState.OPEN
         self._log = getattr(client, "_log", None)
@@ -203,6 +230,63 @@ class SaveSession:
         """
         self._state = SessionState.CLOSED
 
+    # --- Inspection Properties (TDD-SPRINT-4/FR-INSP-001 through FR-INSP-005) ---
+
+    @property
+    def state(self) -> str:
+        """Current session state for inspection.
+
+        Per FR-INSP-001: Public access to session state.
+
+        Returns:
+            One of SessionState.OPEN, COMMITTED, or CLOSED.
+        """
+        return self._state
+
+    @property
+    def pending_actions(self) -> list[ActionOperation]:
+        """Copy of pending action operations for inspection.
+
+        Per FR-INSP-002: Public access to pending actions.
+
+        Returns:
+            Copy of the pending actions list.
+        """
+        return list(self._pending_actions)
+
+    @property
+    def healing_queue(self) -> list[tuple[AsanaResource, str]]:
+        """Copy of the healing queue for inspection.
+
+        Per FR-INSP-003: Public access to healing queue.
+
+        Returns:
+            List of (entity, expected_project_gid) tuples.
+        """
+        return self._healing_manager.queue
+
+    @property
+    def auto_heal(self) -> bool:
+        """Whether auto-healing is enabled for this session.
+
+        Per FR-INSP-004: Public access to auto_heal configuration.
+
+        Returns:
+            True if auto_heal was passed as True to __init__.
+        """
+        return self._healing_manager.auto_heal
+
+    @property
+    def automation_enabled(self) -> bool:
+        """Whether automation is enabled for this session.
+
+        Per FR-INSP-005: Public access to automation configuration.
+
+        Returns:
+            True if automation will run during commit.
+        """
+        return self._automation_enabled
+
     # --- Name Resolution ---
 
     @property
@@ -228,6 +312,7 @@ class SaveSession:
         *,
         prefetch_holders: bool = False,
         recursive: bool = False,
+        heal: bool | None = None,
     ) -> T:
         """Register entity for change tracking.
 
@@ -236,6 +321,7 @@ class SaveSession:
         Per ADR-0050: Support prefetch_holders for BusinessEntity types.
         Per ADR-0053: Support recursive tracking of hierarchies.
         Per ADR-0078: GID-based deduplication returns existing entity if same GID.
+        Per TDD-DETECTION/ADR-0095: Support heal parameter for self-healing.
 
         Tracks an entity for changes. A snapshot of the entity's current
         state is captured. After tracking, any modifications to the entity
@@ -256,6 +342,8 @@ class SaveSession:
                             queue holder subtasks for prefetch at commit time.
                             (Note: Actual prefetch requires async client operation)
             recursive: If True, recursively track all descendants in holders.
+            heal: Override auto_heal for this entity. None uses session default,
+                 True forces healing, False skips healing.
 
         Returns:
             The tracked entity (may be updated reference if same GID).
@@ -271,6 +359,9 @@ class SaveSession:
             # Track with recursive for full hierarchy
             session.track(business, recursive=True)
             # All contacts, units, offers, processes now tracked
+
+            # Track with explicit healing override
+            session.track(entity, heal=True)  # Force healing even if auto_heal=False
         """
         self._ensure_open()
         tracked = self._tracker.track(entity)
@@ -282,7 +373,27 @@ class SaveSession:
                 entity_gid=entity.gid,
                 prefetch_holders=prefetch_holders,
                 recursive=recursive,
+                heal=heal,
             )
+
+        # TDD-DETECTION/ADR-0095, TDD-TECH-DEBT-REMEDIATION: Healing via HealingManager
+        if heal is not None and entity.gid:
+            self._healing_manager.set_entity_heal_flag(entity.gid, heal)
+
+        # Queue healing if needed (via HealingManager)
+        if self._healing_manager.should_heal(entity, heal):
+            self._healing_manager.enqueue(entity)
+            if self._log:
+                detection = getattr(entity, "_detection_result", None)
+                self._log.debug(
+                    "session_queue_healing",
+                    entity_type=type(entity).__name__,
+                    entity_gid=entity.gid,
+                    expected_project_gid=detection.expected_project_gid
+                    if detection
+                    else None,
+                    tier_used=detection.tier_used if detection else None,
+                )
 
         # Recursive tracking of descendants
         if recursive:
@@ -550,19 +661,23 @@ class SaveSession:
         Per FR-CHANGE-009: Reset entity state after successful save.
         Per TDD-0011: Execute action operations after CRUD operations.
         Per TDD-TRIAGE-FIXES: Execute cascade operations after actions.
+        Per TDD-DETECTION/ADR-0095: Execute healing operations after cascades.
 
         Commits all tracked entities with pending changes. Entities are
         saved in dependency order. Then action operations (add_tag, etc.)
-        are executed. Finally, cascade operations propagate field values.
+        are executed. Then cascade operations propagate field values.
+        Finally, healing operations add missing project memberships.
         Partial failures are reported but don't roll back successful operations.
 
         After commit, successfully saved entities are marked clean and
         have their GIDs updated (for new entities). Pending actions are
         cleared regardless of success. Failed cascades remain for retry.
+        Healing failures are logged but do not fail the commit.
 
         Returns:
             SaveResult with succeeded/failed lists. Action failures are
             included in action_results. Cascade results in cascade_results.
+            Healing results in healing_report.
 
         Raises:
             SessionClosedError: If session is closed.
@@ -583,13 +698,19 @@ class SaveSession:
         dirty_entities = self._tracker.get_dirty_entities()
         pending_actions = list(self._pending_actions)
         pending_cascades = list(self._cascade_operations)
+        pending_healing = bool(self._healing_manager.queue)
 
-        if not dirty_entities and not pending_actions and not pending_cascades:
+        if (
+            not dirty_entities
+            and not pending_actions
+            and not pending_cascades
+            and not pending_healing
+        ):
             if self._log:
                 self._log.warning(
                     "commit_empty_session",
-                    message="No tracked entities, pending actions, or cascades to commit. "
-                            "Did you forget to call track() on your entities?",
+                    message="No tracked entities, pending actions, cascades, or healing to commit. "
+                    "Did you forget to call track() on your entities?",
                 )
             return SaveResult()
 
@@ -599,6 +720,7 @@ class SaveSession:
                 entity_count=len(dirty_entities),
                 action_count=len(pending_actions),
                 cascade_count=len(pending_cascades),
+                healing_count=len(self._healing_manager.queue),
             )
 
         # Phase 1: Execute CRUD operations and actions together
@@ -608,11 +730,16 @@ class SaveSession:
             action_executor=self._action_executor,
         )
 
+        # Phase 1.5: Cache invalidation for modified entities
+        # Per FR-INVALIDATE-001 through FR-INVALIDATE-006
+        await self._invalidate_cache_for_results(crud_result, action_results)
+
         # Per TDD-TRIAGE-FIXES/ADR-0066: Selective clearing - only remove successful actions
         self._clear_successful_actions(action_results)
 
         # Phase 2: Execute cascade operations
         from autom8_asana.persistence.cascade import CascadeResult
+
         cascade_results: list[CascadeResult] = []
         if pending_cascades:
             cascade_result = await self._cascade_executor.execute(pending_cascades)
@@ -622,6 +749,30 @@ class SaveSession:
             if cascade_result.success:
                 self._cascade_operations.clear()
             # Failed cascades remain in _cascade_operations for retry
+
+        # Phase 3: Execute healing operations (TDD-DETECTION/ADR-0095, TDD-TECH-DEBT-REMEDIATION)
+        healing_report: HealingReport | None = None
+        if self._healing_manager.queue:
+            healing_report = await self._healing_manager.execute_async(
+                self._client._http
+            )
+            if self._log:
+                for result in healing_report.results:
+                    if result.success:
+                        self._log.info(
+                            "session_healing_success",
+                            entity_gid=result.entity_gid,
+                            entity_type=result.entity_type,
+                            project_gid=result.project_gid,
+                        )
+                    else:
+                        self._log.warning(
+                            "session_healing_failed",
+                            entity_gid=result.entity_gid,
+                            entity_type=result.entity_type,
+                            project_gid=result.project_gid,
+                            error=result.error,
+                        )
 
         # Reset state for successful entities (FR-CHANGE-009)
         # DEF-001 FIX: Order matters - clear accessor BEFORE capturing snapshot
@@ -637,10 +788,44 @@ class SaveSession:
         # Count failures for logging
         action_failures = sum(1 for r in action_results if not r.success)
         cascade_failures = sum(1 for r in cascade_results if not r.success)
+        healing_attempted = healing_report.attempted if healing_report else 0
+        healing_failures = healing_report.failed if healing_report else 0
 
-        # Populate results in the SaveResult (per ADR-0055, TDD-TRIAGE-FIXES)
+        # Populate results in the SaveResult (per ADR-0055, TDD-TRIAGE-FIXES, TDD-DETECTION)
         crud_result.action_results = action_results
         crud_result.cascade_results = cascade_results
+        crud_result.healing_report = healing_report
+
+        # Phase 5: Execute automation (TDD-AUTOMATION-LAYER)
+        # Per NFR-003: Automation failures do NOT propagate (isolated execution)
+        from autom8_asana.persistence.models import AutomationResult
+
+        automation_results: list[AutomationResult] = []
+
+        if self._automation_enabled and self._client.automation:
+            try:
+                automation_results = await self._client.automation.evaluate_async(
+                    crud_result,
+                    self._client,
+                )
+                crud_result.automation_results = automation_results
+            except Exception as e:
+                # Per NFR-003: Automation failures don't fail commit
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "Automation evaluation failed: %s", e
+                )
+
+        # Emit post-commit hooks (TDD-AUTOMATION-LAYER/FR-002)
+        await self._events.emit_post_commit(crud_result)
+
+        # Count automation metrics for logging
+        automation_succeeded = sum(
+            1 for r in automation_results if r.success and not r.was_skipped
+        )
+        automation_failed = sum(1 for r in automation_results if not r.success)
+        automation_skipped = sum(1 for r in automation_results if r.was_skipped)
 
         if self._log:
             self._log.info(
@@ -651,6 +836,11 @@ class SaveSession:
                 action_failed=action_failures,
                 cascade_succeeded=len(cascade_results) - cascade_failures,
                 cascade_failed=cascade_failures,
+                healing_attempted=healing_attempted,
+                healing_failed=healing_failures,
+                automation_succeeded=automation_succeeded,
+                automation_failed=automation_failed,
+                automation_skipped=automation_skipped,
             )
 
         return crud_result
@@ -743,7 +933,9 @@ class SaveSession:
         self,
         func: (
             Callable[[AsanaResource, OperationType, Exception], None]
-            | Callable[[AsanaResource, OperationType, Exception], Coroutine[Any, Any, None]]
+            | Callable[
+                [AsanaResource, OperationType, Exception], Coroutine[Any, Any, None]
+            ]
         ),
     ) -> Callable[..., Any]:
         """Register error hook (decorator).
@@ -767,476 +959,71 @@ class SaveSession:
         """
         return self._events.register_error(func)
 
-    # --- TDD-0011: Action Operations ---
-
-    def add_tag(self, task: AsanaResource, tag: AsanaResource | str) -> SaveSession:
-        """Add a tag to a task.
-
-        Per TDD-0011: Register action for tag addition.
-
-        The action will be executed at commit time after CRUD operations.
-
-        Args:
-            task: The task to add the tag to.
-            tag: Tag object or tag GID string.
-
-        Returns:
-            Self for fluent chaining.
-
-        Raises:
-            SessionClosedError: If session is closed.
-            ValidationError: If tag_gid is invalid.
-
-        Example:
-            session.add_tag(task, tag).add_tag(task, other_tag)
-            await session.commit_async()
-        """
-        self._ensure_open()
-        tag_gid = tag if isinstance(tag, str) else tag.gid
-
-        from autom8_asana.persistence.validation import validate_gid
-        validate_gid(tag_gid, "tag_gid")
-
-        action = ActionOperation(
-            task=task,
-            action=ActionType.ADD_TAG,
-            target_gid=tag_gid,
-        )
-        self._pending_actions.append(action)
-
-        if self._log:
-            self._log.debug(
-                "session_add_tag",
-                task_gid=task.gid,
-                tag_gid=tag_gid,
-            )
-
-        return self
-
-    def remove_tag(self, task: AsanaResource, tag: AsanaResource | str) -> SaveSession:
-        """Remove a tag from a task.
-
-        Per TDD-0011: Register action for tag removal.
-
-        The action will be executed at commit time after CRUD operations.
-
-        Args:
-            task: The task to remove the tag from.
-            tag: Tag object or tag GID string.
-
-        Returns:
-            Self for fluent chaining.
-
-        Raises:
-            SessionClosedError: If session is closed.
-            ValidationError: If tag_gid is invalid.
-
-        Example:
-            session.remove_tag(task, old_tag)
-            await session.commit_async()
-        """
-        self._ensure_open()
-        tag_gid = tag if isinstance(tag, str) else tag.gid
-
-        from autom8_asana.persistence.validation import validate_gid
-        validate_gid(tag_gid, "tag_gid")
-
-        action = ActionOperation(
-            task=task,
-            action=ActionType.REMOVE_TAG,
-            target_gid=tag_gid,
-        )
-        self._pending_actions.append(action)
-
-        if self._log:
-            self._log.debug(
-                "session_remove_tag",
-                task_gid=task.gid,
-                tag_gid=tag_gid,
-            )
-
-        return self
-
-    def add_to_project(
+    def on_post_commit(
         self,
-        task: AsanaResource,
-        project: AsanaResource | str,
-        *,
-        insert_before: str | None = None,
-        insert_after: str | None = None,
-    ) -> SaveSession:
-        """Add a task to a project with optional positioning.
+        func: (
+            Callable[[SaveResult], None]
+            | Callable[[SaveResult], Coroutine[Any, Any, None]]
+        ),
+    ) -> Callable[..., Any]:
+        """Register post-commit hook (decorator).
 
-        Per TDD-0011: Register action for project addition.
-        Per TDD-0012/ADR-0044: Support positioning via insert_before/insert_after.
-        Per ADR-0047: Fail-fast validation when both positioning params provided.
+        Per TDD-AUTOMATION-LAYER/FR-002: Post-commit hooks receive SaveResult.
 
-        The action will be executed at commit time after CRUD operations.
+        Post-commit hooks are called after the entire commit operation
+        completes, including CRUD, actions, cascades, healing, and automation.
+        They receive the full SaveResult for inspection.
 
-        Args:
-            task: The task to add to the project.
-            project: Project object or project GID string.
-            insert_before: GID of task to insert before. Cannot be used with
-                          insert_after.
-            insert_after: GID of task to insert after. Cannot be used with
-                         insert_before.
-
-        Returns:
-            Self for fluent chaining.
-
-        Raises:
-            SessionClosedError: If session is closed.
-            PositioningConflictError: If both insert_before and insert_after
-                                     are specified.
-            ValidationError: If project_gid is invalid.
-
-        Example:
-            session.add_to_project(task, project)
-            session.add_to_project(task, project, insert_after="other_task_gid")
-            await session.commit_async()
-        """
-        self._ensure_open()
-
-        # Per ADR-0047: Fail-fast validation
-        if insert_before is not None and insert_after is not None:
-            raise PositioningConflictError(insert_before, insert_after)
-
-        project_gid = project if isinstance(project, str) else project.gid
-
-        from autom8_asana.persistence.validation import validate_gid
-        validate_gid(project_gid, "project_gid")
-
-        # Build extra_params for positioning
-        extra_params: dict[str, str] = {}
-        if insert_before is not None:
-            extra_params["insert_before"] = insert_before
-        if insert_after is not None:
-            extra_params["insert_after"] = insert_after
-
-        action = ActionOperation(
-            task=task,
-            action=ActionType.ADD_TO_PROJECT,
-            target_gid=project_gid,
-            extra_params=extra_params,
-        )
-        self._pending_actions.append(action)
-
-        if self._log:
-            self._log.debug(
-                "session_add_to_project",
-                task_gid=task.gid,
-                project_gid=project_gid,
-                insert_before=insert_before,
-                insert_after=insert_after,
-            )
-
-        return self
-
-    def remove_from_project(
-        self, task: AsanaResource, project: AsanaResource | str
-    ) -> SaveSession:
-        """Remove a task from a project.
-
-        Per TDD-0011: Register action for project removal.
-
-        The action will be executed at commit time after CRUD operations.
+        Post-commit hooks cannot fail the commit (it already succeeded).
+        Exceptions are swallowed.
 
         Args:
-            task: The task to remove from the project.
-            project: Project object or project GID string.
+            func: Hook function receiving (SaveResult). Can be sync or async.
 
         Returns:
-            Self for fluent chaining.
-
-        Raises:
-            SessionClosedError: If session is closed.
-            ValidationError: If project_gid is invalid.
+            The decorated function.
 
         Example:
-            session.remove_from_project(task, old_project)
-            await session.commit_async()
+            @session.on_post_commit
+            async def log_automation(result: SaveResult) -> None:
+                for auto_result in result.automation_results:
+                    logger.info("Rule %s: %s", auto_result.rule_name, auto_result.success)
         """
-        self._ensure_open()
-        project_gid = project if isinstance(project, str) else project.gid
+        return self._events.register_post_commit(func)
 
-        from autom8_asana.persistence.validation import validate_gid
-        validate_gid(project_gid, "project_gid")
+    # --- TDD-0011: Action Operations (via ActionBuilder) ---
+    # Per TDD-SPRINT-4/ADR-0122: Descriptor-based factory replaces 770+ lines
+    # with 13 descriptor declarations. Docstrings are in ACTION_REGISTRY.
 
-        action = ActionOperation(
-            task=task,
-            action=ActionType.REMOVE_FROM_PROJECT,
-            target_gid=project_gid,
-        )
-        self._pending_actions.append(action)
+    # Tag operations
+    add_tag = ActionBuilder("add_tag")
+    remove_tag = ActionBuilder("remove_tag")
 
-        if self._log:
-            self._log.debug(
-                "session_remove_from_project",
-                task_gid=task.gid,
-                project_gid=project_gid,
-            )
+    # Project operations
+    add_to_project = ActionBuilder("add_to_project")
+    remove_from_project = ActionBuilder("remove_from_project")
 
-        return self
+    # Dependency operations
+    add_dependency = ActionBuilder("add_dependency")
+    remove_dependency = ActionBuilder("remove_dependency")
 
-    def add_dependency(
-        self, task: AsanaResource, depends_on: AsanaResource | str
-    ) -> SaveSession:
-        """Add a dependency to a task.
+    # Section operations
+    move_to_section = ActionBuilder("move_to_section")
 
-        Per TDD-0011: Register action for dependency addition.
+    # Follower operations
+    add_follower = ActionBuilder("add_follower")
+    remove_follower = ActionBuilder("remove_follower")
 
-        The action will be executed at commit time after CRUD operations.
-        This makes `task` dependent on `depends_on` (task cannot complete
-        until depends_on is complete).
+    # Dependent operations
+    add_dependent = ActionBuilder("add_dependent")
+    remove_dependent = ActionBuilder("remove_dependent")
 
-        Args:
-            task: The task that will depend on another.
-            depends_on: Task object or task GID string that this task depends on.
+    # Like operations
+    add_like = ActionBuilder("add_like")
+    remove_like = ActionBuilder("remove_like")
 
-        Returns:
-            Self for fluent chaining.
-
-        Raises:
-            SessionClosedError: If session is closed.
-            ValidationError: If dependency_gid is invalid.
-
-        Example:
-            session.add_dependency(subtask, parent_task)
-            await session.commit_async()
-        """
-        self._ensure_open()
-        depends_on_gid = depends_on if isinstance(depends_on, str) else depends_on.gid
-
-        from autom8_asana.persistence.validation import validate_gid
-        validate_gid(depends_on_gid, "dependency_gid")
-
-        action = ActionOperation(
-            task=task,
-            action=ActionType.ADD_DEPENDENCY,
-            target_gid=depends_on_gid,
-        )
-        self._pending_actions.append(action)
-
-        if self._log:
-            self._log.debug(
-                "session_add_dependency",
-                task_gid=task.gid,
-                depends_on_gid=depends_on_gid,
-            )
-
-        return self
-
-    def remove_dependency(
-        self, task: AsanaResource, depends_on: AsanaResource | str
-    ) -> SaveSession:
-        """Remove a dependency from a task.
-
-        Per TDD-0011: Register action for dependency removal.
-
-        The action will be executed at commit time after CRUD operations.
-
-        Args:
-            task: The task to remove the dependency from.
-            depends_on: Task object or task GID string to remove as dependency.
-
-        Returns:
-            Self for fluent chaining.
-
-        Raises:
-            SessionClosedError: If session is closed.
-            ValidationError: If dependency_gid is invalid.
-
-        Example:
-            session.remove_dependency(task, old_dependency)
-            await session.commit_async()
-        """
-        self._ensure_open()
-        depends_on_gid = depends_on if isinstance(depends_on, str) else depends_on.gid
-
-        from autom8_asana.persistence.validation import validate_gid
-        validate_gid(depends_on_gid, "dependency_gid")
-
-        action = ActionOperation(
-            task=task,
-            action=ActionType.REMOVE_DEPENDENCY,
-            target_gid=depends_on_gid,
-        )
-        self._pending_actions.append(action)
-
-        if self._log:
-            self._log.debug(
-                "session_remove_dependency",
-                task_gid=task.gid,
-                depends_on_gid=depends_on_gid,
-            )
-
-        return self
-
-    def move_to_section(
-        self,
-        task: AsanaResource,
-        section: AsanaResource | str,
-        *,
-        insert_before: str | None = None,
-        insert_after: str | None = None,
-    ) -> SaveSession:
-        """Move a task to a section with optional positioning.
-
-        Per TDD-0011: Register action for section movement.
-        Per TDD-0012/ADR-0044: Support positioning via insert_before/insert_after.
-        Per ADR-0047: Fail-fast validation when both positioning params provided.
-
-        The action will be executed at commit time after CRUD operations.
-        This moves the task to the specified section within its project.
-
-        Args:
-            task: The task to move.
-            section: Section object or section GID string.
-            insert_before: GID of task to insert before. Cannot be used with
-                          insert_after.
-            insert_after: GID of task to insert after. Cannot be used with
-                         insert_before.
-
-        Returns:
-            Self for fluent chaining.
-
-        Raises:
-            SessionClosedError: If session is closed.
-            PositioningConflictError: If both insert_before and insert_after
-                                     are specified.
-            ValidationError: If section_gid is invalid.
-
-        Example:
-            session.move_to_section(task, done_section)
-            session.move_to_section(task, section, insert_before="other_task_gid")
-            await session.commit_async()
-        """
-        self._ensure_open()
-
-        # Per ADR-0047: Fail-fast validation
-        if insert_before is not None and insert_after is not None:
-            raise PositioningConflictError(insert_before, insert_after)
-
-        section_gid = section if isinstance(section, str) else section.gid
-
-        from autom8_asana.persistence.validation import validate_gid
-        validate_gid(section_gid, "section_gid")
-
-        # Build extra_params for positioning
-        extra_params: dict[str, str] = {}
-        if insert_before is not None:
-            extra_params["insert_before"] = insert_before
-        if insert_after is not None:
-            extra_params["insert_after"] = insert_after
-
-        action = ActionOperation(
-            task=task,
-            action=ActionType.MOVE_TO_SECTION,
-            target_gid=section_gid,
-            extra_params=extra_params,
-        )
-        self._pending_actions.append(action)
-
-        if self._log:
-            self._log.debug(
-                "session_move_to_section",
-                task_gid=task.gid,
-                section_gid=section_gid,
-                insert_before=insert_before,
-                insert_after=insert_after,
-            )
-
-        return self
-
-    def add_follower(
-        self,
-        task: AsanaResource,
-        user: User | NameGid | str,
-    ) -> SaveSession:
-        """Add a follower to a task.
-
-        Per TDD-0012: Register action for follower addition.
-
-        The action will be executed at commit time after CRUD operations.
-
-        Args:
-            task: The task to add the follower to.
-            user: User object, NameGid reference, or user GID string.
-
-        Returns:
-            Self for fluent chaining.
-
-        Raises:
-            SessionClosedError: If session is closed.
-
-        Example:
-            session.add_follower(task, user)
-            session.add_follower(task, "user_gid")
-            await session.commit_async()
-        """
-        self._ensure_open()
-        user_gid = user if isinstance(user, str) else user.gid
-
-        action = ActionOperation(
-            task=task,
-            action=ActionType.ADD_FOLLOWER,
-            target_gid=user_gid,
-        )
-        self._pending_actions.append(action)
-
-        if self._log:
-            self._log.debug(
-                "session_add_follower",
-                task_gid=task.gid,
-                user_gid=user_gid,
-            )
-
-        return self
-
-    def remove_follower(
-        self,
-        task: AsanaResource,
-        user: User | NameGid | str,
-    ) -> SaveSession:
-        """Remove a follower from a task.
-
-        Per TDD-0012: Register action for follower removal.
-
-        The action will be executed at commit time after CRUD operations.
-
-        Args:
-            task: The task to remove the follower from.
-            user: User object, NameGid reference, or user GID string.
-
-        Returns:
-            Self for fluent chaining.
-
-        Raises:
-            SessionClosedError: If session is closed.
-
-        Example:
-            session.remove_follower(task, user)
-            session.remove_follower(task, "user_gid")
-            await session.commit_async()
-        """
-        self._ensure_open()
-        user_gid = user if isinstance(user, str) else user.gid
-
-        action = ActionOperation(
-            task=task,
-            action=ActionType.REMOVE_FOLLOWER,
-            target_gid=user_gid,
-        )
-        self._pending_actions.append(action)
-
-        if self._log:
-            self._log.debug(
-                "session_remove_follower",
-                task_gid=task.gid,
-                user_gid=user_gid,
-            )
-
-        return self
+    # --- Batch and Custom Action Methods ---
+    # These methods have custom logic and cannot be generated by ActionBuilder.
 
     def add_followers(
         self,
@@ -1298,188 +1085,6 @@ class SaveSession:
             self.remove_follower(task, user)
         return self
 
-    # --- TDD-0012 Phase 2: Dependents, Likes, and Comments ---
-
-    def add_dependent(
-        self,
-        task: AsanaResource,
-        dependent_task: AsanaResource | str,
-    ) -> SaveSession:
-        """Add a task as a dependent of another task.
-
-        Per TDD-0012: Register action for dependent addition.
-
-        This is the inverse of add_dependency. When you call add_dependent(A, B),
-        task B becomes dependent on task A (B cannot complete until A completes).
-
-        The action will be executed at commit time after CRUD operations.
-
-        Args:
-            task: The task that will be depended upon (blocking task).
-            dependent_task: Task object or task GID string that will depend on
-                           this task (blocked task).
-
-        Returns:
-            Self for fluent chaining.
-
-        Raises:
-            SessionClosedError: If session is closed.
-
-        Example:
-            # Make task_b dependent on task_a (task_b waits for task_a)
-            session.add_dependent(task_a, task_b)
-            await session.commit_async()
-        """
-        self._ensure_open()
-        dependent_gid = (
-            dependent_task if isinstance(dependent_task, str) else dependent_task.gid
-        )
-
-        action = ActionOperation(
-            task=task,
-            action=ActionType.ADD_DEPENDENT,
-            target_gid=dependent_gid,
-        )
-        self._pending_actions.append(action)
-
-        if self._log:
-            self._log.debug(
-                "session_add_dependent",
-                task_gid=task.gid,
-                dependent_gid=dependent_gid,
-            )
-
-        return self
-
-    def remove_dependent(
-        self,
-        task: AsanaResource,
-        dependent_task: AsanaResource | str,
-    ) -> SaveSession:
-        """Remove a dependent task relationship.
-
-        Per TDD-0012: Register action for dependent removal.
-
-        Removes the dependent relationship where dependent_task was waiting
-        on task to complete.
-
-        The action will be executed at commit time after CRUD operations.
-
-        Args:
-            task: The task that was being depended upon (blocking task).
-            dependent_task: Task object or task GID string to remove as dependent.
-
-        Returns:
-            Self for fluent chaining.
-
-        Raises:
-            SessionClosedError: If session is closed.
-
-        Example:
-            session.remove_dependent(task_a, task_b)
-            await session.commit_async()
-        """
-        self._ensure_open()
-        dependent_gid = (
-            dependent_task if isinstance(dependent_task, str) else dependent_task.gid
-        )
-
-        action = ActionOperation(
-            task=task,
-            action=ActionType.REMOVE_DEPENDENT,
-            target_gid=dependent_gid,
-        )
-        self._pending_actions.append(action)
-
-        if self._log:
-            self._log.debug(
-                "session_remove_dependent",
-                task_gid=task.gid,
-                dependent_gid=dependent_gid,
-            )
-
-        return self
-
-    def add_like(self, task: AsanaResource) -> SaveSession:
-        """Like a task using the authenticated user.
-
-        Per TDD-0012/ADR-0045: Register action for task like.
-
-        Adds a "like" to the task from the currently authenticated user.
-        No user parameter is needed - the API uses the authenticated user.
-
-        The action will be executed at commit time after CRUD operations.
-
-        Args:
-            task: The task to like.
-
-        Returns:
-            Self for fluent chaining.
-
-        Raises:
-            SessionClosedError: If session is closed.
-
-        Example:
-            session.add_like(task)
-            await session.commit_async()
-        """
-        self._ensure_open()
-
-        action = ActionOperation(
-            task=task,
-            action=ActionType.ADD_LIKE,
-            target_gid=None,  # Per ADR-0045: No target_gid for likes
-        )
-        self._pending_actions.append(action)
-
-        if self._log:
-            self._log.debug(
-                "session_add_like",
-                task_gid=task.gid,
-            )
-
-        return self
-
-    def remove_like(self, task: AsanaResource) -> SaveSession:
-        """Remove a like from a task using the authenticated user.
-
-        Per TDD-0012/ADR-0045: Register action for task unlike.
-
-        Removes the "like" from the task for the currently authenticated user.
-        No user parameter is needed - the API uses the authenticated user.
-
-        The action will be executed at commit time after CRUD operations.
-
-        Args:
-            task: The task to unlike.
-
-        Returns:
-            Self for fluent chaining.
-
-        Raises:
-            SessionClosedError: If session is closed.
-
-        Example:
-            session.remove_like(task)
-            await session.commit_async()
-        """
-        self._ensure_open()
-
-        action = ActionOperation(
-            task=task,
-            action=ActionType.REMOVE_LIKE,
-            target_gid=None,  # Per ADR-0045: No target_gid for likes
-        )
-        self._pending_actions.append(action)
-
-        if self._log:
-            self._log.debug(
-                "session_remove_like",
-                task_gid=task.gid,
-            )
-
-        return self
-
     def add_comment(
         self,
         task: AsanaResource,
@@ -1539,7 +1144,7 @@ class SaveSession:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_COMMENT,
-            target_gid=None,  # Comments don't need a target_gid
+            target=None,  # Comments don't need a target
             extra_params=extra_params,
         )
         self._pending_actions.append(action)
@@ -1632,7 +1237,7 @@ class SaveSession:
         action = ActionOperation(
             task=task,
             action=ActionType.SET_PARENT,
-            target_gid=None,  # Per ADR-0045: Not used for SET_PARENT
+            target=None,  # Per ADR-0045: Not used for SET_PARENT
             extra_params=extra_params,
         )
         self._pending_actions.append(action)
@@ -1770,7 +1375,9 @@ class SaveSession:
                 entity_type=type(entity).__name__,
                 entity_gid=entity.gid,
                 field_name=field_name,
-                target_types=[t.__name__ for t in target_types] if target_types else None,
+                target_types=[t.__name__ for t in target_types]
+                if target_types
+                else None,
             )
 
         return self
@@ -1806,7 +1413,7 @@ class SaveSession:
         Args:
             entity: Successfully committed entity.
         """
-        if hasattr(entity, 'reset_custom_field_tracking'):
+        if hasattr(entity, "reset_custom_field_tracking"):
             entity.reset_custom_field_tracking()
 
     def _clear_successful_actions(self, action_results: list[ActionResult]) -> None:
@@ -1823,17 +1430,84 @@ class SaveSession:
             return
 
         # Build set of successful action identities
-        # Identity = (task.gid, action_type, target_gid)
-        successful_identities: set[tuple[str, ActionType, str | None]] = set()
+        # Per ADR-0107: Identity uses NameGid (hashable via gid-based __hash__)
+        # Identity = (task.gid, action_type, target)
+        successful_identities: set[tuple[str, ActionType, NameGid | None]] = set()
         for result in action_results:
             if result.success:
                 action = result.action
-                identity = (action.task.gid, action.action, action.target_gid)
+                identity = (action.task.gid, action.action, action.target)
                 successful_identities.add(identity)
 
         # Keep only failed actions
         self._pending_actions = [
-            action for action in self._pending_actions
-            if (action.task.gid, action.action, action.target_gid)
+            action
+            for action in self._pending_actions
+            if (action.task.gid, action.action, action.target)
             not in successful_identities
         ]
+
+    # --- Cache Invalidation (TDD-CACHE-INTEGRATION, ADR-0125) ---
+
+    async def _invalidate_cache_for_results(
+        self,
+        crud_result: SaveResult,
+        action_results: list[ActionResult],
+    ) -> None:
+        """Invalidate cache entries for successfully mutated entities.
+
+        Per FR-INVALIDATE-001: Invalidates after successful mutations.
+        Per FR-INVALIDATE-002: UPDATE operations invalidate.
+        Per FR-INVALIDATE-003: DELETE operations invalidate.
+        Per FR-INVALIDATE-004: CREATE operations warm cache.
+        Per FR-INVALIDATE-005: Batch invalidation efficiency (O(n)).
+        Per FR-INVALIDATE-006: Action operations invalidate.
+
+        Args:
+            crud_result: Result of CRUD operations.
+            action_results: Results of action operations.
+        """
+        # Check if cache is available
+        cache = getattr(self._client, "_cache_provider", None)
+        if cache is None:
+            return
+
+        from autom8_asana.cache.entry import EntryType
+
+        # Collect all GIDs to invalidate (FR-INVALIDATE-005: batch efficiency)
+        gids_to_invalidate: set[str] = set()
+
+        # FR-INVALIDATE-002, FR-INVALIDATE-003: CRUD succeeded entities
+        for entity in crud_result.succeeded:
+            if hasattr(entity, "gid") and entity.gid:
+                gids_to_invalidate.add(entity.gid)
+
+        # FR-INVALIDATE-006: Action operations
+        for action_result in action_results:
+            if action_result.success and action_result.action.task:
+                if hasattr(action_result.action.task, "gid"):
+                    gids_to_invalidate.add(action_result.action.task.gid)
+
+        # Invalidate all collected GIDs
+        for gid in gids_to_invalidate:
+            try:
+                cache.invalidate(gid, [EntryType.TASK, EntryType.SUBTASKS])
+            except Exception as exc:
+                # NFR-DEGRADE-001: Log and continue - invalidation failure is not fatal
+                if self._log:
+                    self._log.warning(
+                        "cache_invalidation_failed",
+                        gid=gid,
+                        error=str(exc),
+                    )
+
+        if self._log and gids_to_invalidate:
+            self._log.debug(
+                "cache_invalidation_complete",
+                invalidated_count=len(gids_to_invalidate),
+            )
+
+    # --- Self-Healing (TDD-DETECTION/ADR-0095, TDD-TECH-DEBT-REMEDIATION) ---
+    # Healing logic is now in HealingManager. These methods are preserved for
+    # backward compatibility if any subclasses override them.
+    # The track() and commit_async() methods now use self._healing_manager directly.

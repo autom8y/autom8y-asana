@@ -1,15 +1,23 @@
-"""Base client class for all resource clients."""
+"""Base client class for all resource clients.
+
+Per TDD-CACHE-INTEGRATION Section 4.4: Includes cache helper methods.
+"""
 
 from __future__ import annotations
 
+import logging
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from autom8_asana.cache.entry import CacheEntry, EntryType
     from autom8_asana.config import AsanaConfig
     from autom8_asana.protocols.auth import AuthProvider
     from autom8_asana.protocols.cache import CacheProvider
     from autom8_asana.protocols.log import LogProvider
     from autom8_asana.transport.http import AsyncHTTPClient
+
+logger = logging.getLogger(__name__)
 
 
 class BaseClient:
@@ -20,6 +28,7 @@ class BaseClient:
     - Access to providers (auth, cache, log)
     - Request building helpers
     - Response parsing helpers
+    - Cache helpers for check-before-HTTP, store-on-miss pattern
     """
 
     def __init__(
@@ -62,6 +71,163 @@ class BaseClient:
         """Log an operation if logger is available."""
         if self._log:
             if resource_gid:
-                self._log.debug(f"{self.__class__.__name__}.{operation}({resource_gid})")
+                self._log.debug(
+                    f"{self.__class__.__name__}.{operation}({resource_gid})"
+                )
             else:
                 self._log.debug(f"{self.__class__.__name__}.{operation}()")
+
+    # --- Cache Helper Methods (per TDD-CACHE-INTEGRATION Section 4.4) ---
+
+    def _cache_get(
+        self,
+        key: str,
+        entry_type: "EntryType",
+    ) -> "CacheEntry | None":
+        """Check cache for an entry (graceful degradation).
+
+        Per NFR-DEGRADE-001: Cache failures log warnings without raising.
+        Per ADR-0127: Graceful degradation pattern.
+
+        Args:
+            key: Cache key (typically task GID).
+            entry_type: Type of cache entry.
+
+        Returns:
+            CacheEntry if found and not expired, None otherwise.
+        """
+        if self._cache is None:
+            return None
+
+        try:
+            entry = self._cache.get_versioned(key, entry_type)
+            if entry is not None and not entry.is_expired():
+                logger.debug(
+                    "Cache hit for %s (key=%s)",
+                    entry_type.value,
+                    key,
+                )
+                return entry
+            return None
+        except Exception as exc:
+            # NFR-DEGRADE-001: Log and continue
+            logger.warning(
+                "Cache get failed for %s (key=%s): %s",
+                entry_type.value,
+                key,
+                exc,
+            )
+            return None
+
+    def _cache_set(
+        self,
+        key: str,
+        data: dict[str, Any],
+        entry_type: "EntryType",
+        ttl: int | None = None,
+    ) -> None:
+        """Store data in cache (graceful degradation).
+
+        Per NFR-DEGRADE-004: Operation succeeds even if caching fails.
+        Per ADR-0127: Graceful degradation pattern.
+
+        Args:
+            key: Cache key (typically task GID).
+            data: Data to cache (typically API response dict).
+            entry_type: Type of cache entry.
+            ttl: Time-to-live in seconds. If None, uses default from config.
+        """
+        if self._cache is None:
+            return
+
+        try:
+            from autom8_asana.cache.entry import CacheEntry
+
+            # Extract version from modified_at if present
+            modified_at = data.get("modified_at")
+            if modified_at:
+                version = self._parse_modified_at(modified_at)
+            else:
+                version = datetime.now(timezone.utc)
+
+            # Resolve TTL from config if not provided
+            if ttl is None:
+                ttl = self._config.cache.ttl.default_ttl
+
+            entry = CacheEntry(
+                key=key,
+                data=data,
+                entry_type=entry_type,
+                version=version,
+                ttl=ttl,
+            )
+            self._cache.set_versioned(key, entry)
+
+            logger.debug(
+                "Cache set for %s (key=%s, ttl=%d)",
+                entry_type.value,
+                key,
+                ttl,
+            )
+        except Exception as exc:
+            # NFR-DEGRADE-004: Log and continue
+            logger.warning(
+                "Cache set failed for %s (key=%s): %s",
+                entry_type.value,
+                key,
+                exc,
+            )
+
+    def _cache_invalidate(
+        self,
+        key: str,
+        entry_types: list["EntryType"] | None = None,
+    ) -> None:
+        """Invalidate cache entries for a key (graceful degradation).
+
+        Per ADR-0127: Graceful degradation pattern.
+
+        Args:
+            key: Cache key to invalidate (typically task GID).
+            entry_types: Entry types to invalidate. None = all types.
+        """
+        if self._cache is None:
+            return
+
+        try:
+            self._cache.invalidate(key, entry_types)
+            logger.debug(
+                "Cache invalidated (key=%s, types=%s)",
+                key,
+                [t.value for t in entry_types] if entry_types else "all",
+            )
+        except Exception as exc:
+            logger.warning(
+                "Cache invalidate failed (key=%s): %s",
+                key,
+                exc,
+            )
+
+    @staticmethod
+    def _parse_modified_at(value: str | datetime) -> datetime:
+        """Parse modified_at to datetime.
+
+        Args:
+            value: ISO format string or datetime.
+
+        Returns:
+            Timezone-aware datetime (UTC).
+        """
+        if isinstance(value, datetime):
+            if value.tzinfo is None:
+                return value.replace(tzinfo=timezone.utc)
+            return value
+
+        # Handle ISO format with Z suffix
+        if value.endswith("Z"):
+            value = value[:-1] + "+00:00"
+
+        dt = datetime.fromisoformat(value)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt

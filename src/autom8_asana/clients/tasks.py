@@ -91,7 +91,12 @@ class TasksClient(BaseClient):
         raw: bool = False,
         opt_fields: list[str] | None = None,
     ) -> Task | dict[str, Any]:
-        """Get a task by GID.
+        """Get a task by GID with cache support.
+
+        Per FR-CLIENT-001: Checks cache before HTTP request.
+        Per FR-CLIENT-002: Uses task GID as cache key with EntryType.TASK.
+        Per FR-CLIENT-004: Respects TTL expiration.
+        Per FR-CLIENT-007: raw=True returns cached dict directly.
 
         Args:
             task_gid: Task GID
@@ -104,16 +109,112 @@ class TasksClient(BaseClient):
         Raises:
             ValidationError: If task_gid is invalid.
         """
+        from autom8_asana.cache.entry import EntryType
         from autom8_asana.persistence.validation import validate_gid
+
         validate_gid(task_gid, "task_gid")
 
+        # FR-CLIENT-001: Check cache first
+        cached_entry = self._cache_get(task_gid, EntryType.TASK)
+        if cached_entry is not None:
+            # Cache hit
+            data = cached_entry.data
+            if raw:
+                return data
+            task = Task.model_validate(data)
+            task._client = self._client
+            return task
+
+        # Cache miss: fetch from API
         params = self._build_opt_fields(opt_fields)
         data = await self._http.get(f"/tasks/{task_gid}", params=params)
+
+        # Store in cache with entity-type TTL
+        ttl = self._resolve_entity_ttl(data)
+        self._cache_set(task_gid, data, EntryType.TASK, ttl=ttl)
+
         if raw:
             return data
         task = Task.model_validate(data)
         task._client = self._client  # Store client reference for save/refresh
         return task
+
+    def _resolve_entity_ttl(self, data: dict[str, Any]) -> int:
+        """Resolve TTL based on entity type detection.
+
+        Per FR-TTL-001 through FR-TTL-007: Different TTLs for
+        Business (3600s), Contact/Unit (900s), Offer (180s),
+        Process (60s), and generic tasks (300s).
+
+        Priority:
+        1. CacheConfig.get_entity_ttl() if CacheConfig is available
+        2. Detection-based defaults (hardcoded fallback)
+        3. 300s default for unknown entity types
+
+        Args:
+            data: Task data dict from API.
+
+        Returns:
+            TTL in seconds.
+        """
+        # Try to detect entity type from data
+        entity_type = self._detect_entity_type(data)
+
+        # Priority 1: Use CacheConfig.get_entity_ttl() if available (FR-TTL-006)
+        if hasattr(self._config, "cache") and self._config.cache is not None:
+            cache_config = self._config.cache
+            if hasattr(cache_config, "get_entity_ttl"):
+                if entity_type:
+                    return cache_config.get_entity_ttl(entity_type)
+                # No entity type detected - use default TTL
+                if hasattr(cache_config, "ttl") and cache_config._ttl is not None:
+                    return cache_config.ttl.default_ttl
+                return 300
+
+        # Priority 2: Fallback to hardcoded defaults (when CacheConfig unavailable)
+        entity_ttls = {
+            "business": 3600,
+            "contact": 900,
+            "unit": 900,
+            "offer": 180,
+            "process": 60,
+            "address": 3600,
+            "hours": 3600,
+        }
+
+        if entity_type and entity_type.lower() in entity_ttls:
+            return entity_ttls[entity_type.lower()]
+
+        # FR-TTL-005: Default TTL for generic tasks
+        return 300
+
+    def _detect_entity_type(self, data: dict[str, Any]) -> str | None:
+        """Detect entity type from task data.
+
+        Uses existing detection infrastructure if available.
+
+        Args:
+            data: Task data dict.
+
+        Returns:
+            Entity type name or None if not detectable.
+        """
+        try:
+            from autom8_asana.models.business.detection import detect_entity_type
+            from autom8_asana.models import Task as TaskModel
+
+            # Create a temporary Task model to use detection
+            temp_task = TaskModel.model_validate(data)
+            result = detect_entity_type(temp_task)
+            if result and result.entity_type:
+                return result.entity_type.value
+            return None
+        except ImportError:
+            # Detection module not available
+            return None
+        except Exception:
+            # Detection failed, use default
+            return None
 
     @overload
     def get(
@@ -537,11 +638,33 @@ class TasksClient(BaseClient):
 
         return PageIterator(fetch_page, page_size=min(limit, 100))
 
+    # Default fields needed for entity type detection and field cascading
+    # Per ADR-0101: Include project.name for ProcessType detection via project name matching
+    # Per TDD-HYDRATION: Include custom_fields for field cascading (Vertical, Products, etc.)
+    _DETECTION_FIELDS: list[str] = [
+        # Detection fields
+        "memberships.project.gid",
+        "memberships.project.name",
+        "name",
+        # Custom fields for cascading
+        "custom_fields",
+        "custom_fields.name",
+        "custom_fields.enum_value",
+        "custom_fields.enum_value.name",
+        "custom_fields.multi_enum_values",
+        "custom_fields.multi_enum_values.name",
+        "custom_fields.display_value",
+        "custom_fields.number_value",
+        "custom_fields.text_value",
+        "custom_fields.resource_subtype",
+    ]
+
     def subtasks_async(
         self,
         task_gid: str,
         *,
         opt_fields: list[str] | None = None,
+        include_detection_fields: bool = False,
         limit: int = 100,
     ) -> PageIterator[Task]:
         """List subtasks of a task with automatic pagination.
@@ -553,6 +676,14 @@ class TasksClient(BaseClient):
         Args:
             task_gid: GID of the parent task
             opt_fields: Fields to include in response
+            include_detection_fields: If True, automatically include fields needed
+                for entity type detection and field cascading:
+                - Detection: memberships.project.gid, memberships.project.name, name
+                - Custom fields: custom_fields with all subfields for cascading
+                This is useful when hydrating holders to enable detection-based
+                identification, ProcessType detection via project name matching,
+                and access to cascading fields (Vertical, Products, etc.).
+                Default is False to maintain backward compatibility.
             limit: Number of items per page (default 100, max 100)
 
         Returns:
@@ -565,12 +696,27 @@ class TasksClient(BaseClient):
 
             # Collect all subtasks
             all_subtasks = await client.tasks.subtasks_async("parent_gid").collect()
+
+            # With detection fields for holder identification
+            subtasks = await client.tasks.subtasks_async(
+                "parent_gid", include_detection_fields=True
+            ).collect()
         """
         self._log_operation("subtasks_async")
 
+        # Merge detection fields if requested
+        effective_opt_fields = opt_fields
+        if include_detection_fields:
+            detection_fields = set(self._DETECTION_FIELDS)
+            if opt_fields:
+                # Merge, avoiding duplicates
+                effective_opt_fields = list(set(opt_fields) | detection_fields)
+            else:
+                effective_opt_fields = list(detection_fields)
+
         async def fetch_page(offset: str | None) -> tuple[list[Task], str | None]:
             """Fetch a single page of subtasks."""
-            params = self._build_opt_fields(opt_fields)
+            params = self._build_opt_fields(effective_opt_fields)
             params["limit"] = min(limit, 100)
             if offset:
                 params["offset"] = offset
@@ -689,9 +835,7 @@ class TasksClient(BaseClient):
             return await self.get_async(task_gid)
         return task
 
-    def add_tag(
-        self, task_gid: str, tag_gid: str, *, refresh: bool = False
-    ) -> Task:
+    def add_tag(self, task_gid: str, tag_gid: str, *, refresh: bool = False) -> Task:
         """Add tag to task without explicit SaveSession (sync).
 
         Args:
@@ -756,9 +900,7 @@ class TasksClient(BaseClient):
             return await self.get_async(task_gid)
         return task
 
-    def remove_tag(
-        self, task_gid: str, tag_gid: str, *, refresh: bool = False
-    ) -> Task:
+    def remove_tag(self, task_gid: str, tag_gid: str, *, refresh: bool = False) -> Task:
         """Remove tag from task without explicit SaveSession (sync).
 
         Args:
@@ -1083,4 +1225,165 @@ class TasksClient(BaseClient):
         """Internal sync wrapper for remove_from_project_async."""
         return await self.remove_from_project_async(
             task_gid, project_gid, refresh=refresh
+        )
+
+    # --- Task Duplication ---
+    # Per TDD-PIPELINE-AUTOMATION-ENHANCEMENT: Wraps Asana's duplicate endpoint
+
+    @overload
+    async def duplicate_async(
+        self,
+        task_gid: str,
+        *,
+        name: str,
+        include: list[str] | None = ...,
+        raw: Literal[False] = ...,
+    ) -> Task:
+        """Duplicate a task, returning a Task model."""
+        ...
+
+    @overload
+    async def duplicate_async(
+        self,
+        task_gid: str,
+        *,
+        name: str,
+        include: list[str] | None = ...,
+        raw: Literal[True],
+    ) -> dict[str, Any]:
+        """Duplicate a task, returning a raw dict."""
+        ...
+
+    @error_handler
+    async def duplicate_async(
+        self,
+        task_gid: str,
+        *,
+        name: str,
+        include: list[str] | None = None,
+        raw: bool = False,
+    ) -> Task | dict[str, Any]:
+        """Duplicate a task with optional attribute copying.
+
+        Per FR-DUP-001: Wraps Asana's POST /tasks/{task_gid}/duplicate.
+
+        Args:
+            task_gid: GID of the task to duplicate.
+            name: Name for the new task (required by Asana API).
+            include: List of attributes to copy. Valid values:
+                - "subtasks": Copy all subtasks
+                - "notes": Copy task description
+                - "assignee": Copy assignee
+                - "attachments": Copy attachments
+                - "dates": Copy due dates
+                - "dependencies": Copy dependencies
+                - "collaborators": Copy followers
+                - "tags": Copy tags
+            raw: If True, return raw dict instead of Task model.
+
+        Returns:
+            Task model (or dict if raw=True) representing the new task.
+            The new_task.gid is immediately available.
+            Note: Subtasks are created asynchronously by Asana.
+
+        Raises:
+            ValidationError: If task_gid is invalid.
+            NotFoundError: If source task doesn't exist.
+        """
+        from autom8_asana.persistence.validation import validate_gid
+
+        validate_gid(task_gid, "task_gid")
+
+        # Build request payload
+        data: dict[str, Any] = {"name": name}
+        if include:
+            data["include"] = include
+
+        # Call Asana duplicate endpoint
+        result = await self._http.post(
+            f"/tasks/{task_gid}/duplicate",
+            json={"data": data},
+        )
+
+        # Asana returns a job object with new_task embedded
+        # Extract the new_task from the job response
+        new_task_data: dict[str, Any] = result.get("new_task", result)
+
+        if raw:
+            return new_task_data
+        task = Task.model_validate(new_task_data)
+        task._client = self._client
+        return task
+
+    @overload
+    def duplicate(
+        self,
+        task_gid: str,
+        *,
+        name: str,
+        include: list[str] | None = ...,
+        raw: Literal[False] = ...,
+    ) -> Task:
+        """Duplicate a task (sync), returning a Task model."""
+        ...
+
+    @overload
+    def duplicate(
+        self,
+        task_gid: str,
+        *,
+        name: str,
+        include: list[str] | None = ...,
+        raw: Literal[True],
+    ) -> dict[str, Any]:
+        """Duplicate a task (sync), returning a raw dict."""
+        ...
+
+    def duplicate(
+        self,
+        task_gid: str,
+        *,
+        name: str,
+        include: list[str] | None = None,
+        raw: bool = False,
+    ) -> Task | dict[str, Any]:
+        """Duplicate a task (sync).
+
+        Per FR-DUP-001: Wraps Asana's POST /tasks/{task_gid}/duplicate.
+
+        Args:
+            task_gid: GID of the task to duplicate.
+            name: Name for the new task (required by Asana API).
+            include: List of attributes to copy. Valid values:
+                - "subtasks": Copy all subtasks
+                - "notes": Copy task description
+                - "assignee": Copy assignee
+                - "attachments": Copy attachments
+                - "dates": Copy due dates
+                - "dependencies": Copy dependencies
+                - "collaborators": Copy followers
+                - "tags": Copy tags
+            raw: If True, return raw dict instead of Task model.
+
+        Returns:
+            Task model (or dict if raw=True) representing the new task.
+        """
+        return self._duplicate_sync(task_gid, name=name, include=include, raw=raw)
+
+    @sync_wrapper("duplicate_async")
+    async def _duplicate_sync(
+        self,
+        task_gid: str,
+        *,
+        name: str,
+        include: list[str] | None = None,
+        raw: bool = False,
+    ) -> Task | dict[str, Any]:
+        """Internal sync wrapper implementation."""
+        if raw:
+            return await self.duplicate_async(
+                task_gid, name=name, include=include, raw=True
+            )
+        return await self.duplicate_async(
+            task_gid, name=name, include=include, raw=False
         )
