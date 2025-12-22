@@ -58,12 +58,12 @@ class Webhook(AsanaResource):
     target: str | None = Field(
         default=None, description="URL to receive webhook events"
     )
-    active: bool | None = Field(default=None, description="Whether the webhook is active")
+    active: bool | None = Field(
+        default=None, description="Whether the webhook is active"
+    )
 
     # Resource being watched
-    resource: NameGid | None = Field(
-        default=None, description="Resource being watched"
-    )
+    resource: NameGid | None = Field(default=None, description="Resource being watched")
 
     # Filters
     filters: list[WebhookFilter] | None = Field(

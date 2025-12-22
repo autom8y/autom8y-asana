@@ -384,8 +384,12 @@ class AttachmentsClient(BaseClient):
 
         with open(path, "rb") as f:
             if raw:
-                return await self.upload_async(parent=parent, file=f, name=filename, raw=True)
-            return await self.upload_async(parent=parent, file=f, name=filename, raw=False)
+                return await self.upload_async(
+                    parent=parent, file=f, name=filename, raw=True
+                )
+            return await self.upload_async(
+                parent=parent, file=f, name=filename, raw=False
+            )
 
     @overload
     def upload_from_path(

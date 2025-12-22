@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
-from autom8_asana.dataframes.exceptions import SchemaNotFoundError
 from autom8_asana.dataframes.extractors import (
     BaseExtractor,
     ContactExtractor,

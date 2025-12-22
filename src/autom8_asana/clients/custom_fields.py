@@ -124,7 +124,9 @@ class CustomFieldsClient(BaseClient):
     ) -> CustomField | dict[str, Any]:
         """Internal sync wrapper implementation."""
         if raw:
-            return await self.get_async(custom_field_gid, raw=True, opt_fields=opt_fields)
+            return await self.get_async(
+                custom_field_gid, raw=True, opt_fields=opt_fields
+            )
         return await self.get_async(custom_field_gid, raw=False, opt_fields=opt_fields)
 
     @overload
@@ -490,7 +492,9 @@ class CustomFieldsClient(BaseClient):
         """
         self._log_operation("list_for_workspace_async", workspace_gid)
 
-        async def fetch_page(offset: str | None) -> tuple[list[CustomField], str | None]:
+        async def fetch_page(
+            offset: str | None,
+        ) -> tuple[list[CustomField], str | None]:
             """Fetch a single page of CustomField objects."""
             params = self._build_opt_fields(opt_fields)
             params["limit"] = min(limit, 100)  # Asana max is 100
@@ -775,7 +779,9 @@ class CustomFieldsClient(BaseClient):
     ) -> CustomFieldEnumOption | dict[str, Any]:
         """Internal sync wrapper implementation."""
         if raw:
-            return await self.update_enum_option_async(enum_option_gid, raw=True, **kwargs)
+            return await self.update_enum_option_async(
+                enum_option_gid, raw=True, **kwargs
+            )
         return await self.update_enum_option_async(enum_option_gid, raw=False, **kwargs)
 
     # --- Project Settings Operations ---

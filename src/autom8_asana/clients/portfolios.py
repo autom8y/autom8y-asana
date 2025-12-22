@@ -243,7 +243,12 @@ class PortfoliosClient(BaseClient):
             Portfolio model by default, or dict if raw=True
         """
         return self._create_sync(
-            workspace=workspace, name=name, raw=raw, color=color, public=public, **kwargs
+            workspace=workspace,
+            name=name,
+            raw=raw,
+            color=color,
+            public=public,
+            **kwargs,
         )
 
     @sync_wrapper("create_async")
@@ -260,10 +265,20 @@ class PortfoliosClient(BaseClient):
         """Internal sync wrapper implementation."""
         if raw:
             return await self.create_async(
-                workspace=workspace, name=name, raw=True, color=color, public=public, **kwargs
+                workspace=workspace,
+                name=name,
+                raw=True,
+                color=color,
+                public=public,
+                **kwargs,
             )
         return await self.create_async(
-            workspace=workspace, name=name, raw=False, color=color, public=public, **kwargs
+            workspace=workspace,
+            name=name,
+            raw=False,
+            color=color,
+            public=public,
+            **kwargs,
         )
 
     @overload
@@ -676,7 +691,9 @@ class PortfoliosClient(BaseClient):
     ) -> Portfolio | dict[str, Any]:
         """Internal sync wrapper implementation."""
         if raw:
-            return await self.add_members_async(portfolio_gid, members=members, raw=True)
+            return await self.add_members_async(
+                portfolio_gid, members=members, raw=True
+            )
         return await self.add_members_async(portfolio_gid, members=members, raw=False)
 
     @overload
@@ -885,6 +902,4 @@ class PortfoliosClient(BaseClient):
             portfolio_gid: Portfolio GID
             custom_field: Custom field GID
         """
-        self._remove_custom_field_setting_sync(
-            portfolio_gid, custom_field=custom_field
-        )
+        self._remove_custom_field_setting_sync(portfolio_gid, custom_field=custom_field)

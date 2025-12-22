@@ -43,9 +43,9 @@ async def batch_create_tasks(
     # Prepare task data - each dict represents one task
     tasks_data = [
         {
-            "name": f"Batch Task {i+1}",
+            "name": f"Batch Task {i + 1}",
             "projects": [project_gid],
-            "notes": f"This is task number {i+1} from batch creation",
+            "notes": f"This is task number {i + 1} from batch creation",
         }
         for i in range(count)
     ]
@@ -92,14 +92,14 @@ async def sequential_create_tasks(
     start_time = time.time()
     for i in range(count):
         task = await client.tasks.create_async(
-            name=f"Sequential Task {i+1}",
+            name=f"Sequential Task {i + 1}",
             projects=[project_gid],
         )
         created_gids.append(task.gid)
     elapsed = time.time() - start_time
 
     print(f"Sequential complete in {elapsed:.2f}s")
-    print(f"  Average: {elapsed/count:.3f}s per task")
+    print(f"  Average: {elapsed / count:.3f}s per task")
 
     return created_gids
 

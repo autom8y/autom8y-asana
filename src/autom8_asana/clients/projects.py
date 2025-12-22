@@ -472,7 +472,9 @@ class ProjectsClient(BaseClient):
             if offset:
                 params["offset"] = offset
 
-            data, next_offset = await self._http.get_paginated("/projects", params=params)
+            data, next_offset = await self._http.get_paginated(
+                "/projects", params=params
+            )
             projects = [Project.model_validate(p) for p in data]
             return projects, next_offset
 
@@ -681,7 +683,9 @@ class ProjectsClient(BaseClient):
     ) -> Project | dict[str, Any]:
         """Internal sync wrapper implementation."""
         if raw:
-            return await self.remove_members_async(project_gid, members=members, raw=True)
+            return await self.remove_members_async(
+                project_gid, members=members, raw=True
+            )
         return await self.remove_members_async(project_gid, members=members, raw=False)
 
     # --- Section-related convenience ---

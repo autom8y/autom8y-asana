@@ -199,7 +199,9 @@ async def demonstrate_action_methods(
         if result.success:
             print("All operations succeeded!")
         elif result.partial:
-            print(f"Partial success: {len(result.succeeded)} ok, {len(result.failed)} failed")
+            print(
+                f"Partial success: {len(result.succeeded)} ok, {len(result.failed)} failed"
+            )
         else:
             print("All operations failed")
 
@@ -279,7 +281,7 @@ async def demonstrate_partial_failure_handling(
 
         # Inspect failures
         for error in result.failed:
-            print(f"\nFailed operation:")
+            print("\nFailed operation:")
             print(f"  Entity: {type(error.entity).__name__} ({error.entity.gid})")
             print(f"  Operation: {error.operation.value}")
             print(f"  Error: {error.error}")
@@ -382,9 +384,7 @@ async def main(workspace_gid: str, project_gid: str | None) -> None:
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser(
-        description="Demonstrate SaveSession Unit of Work pattern"
-    )
+    parser = ArgumentParser(description="Demonstrate SaveSession Unit of Work pattern")
     parser.add_argument(
         "--workspace",
         default=get_workspace_gid(),

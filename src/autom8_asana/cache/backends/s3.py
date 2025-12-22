@@ -147,7 +147,9 @@ class S3CacheProvider:
             return
 
         if not self._config.bucket:
-            logger.warning("No S3 bucket configured. S3CacheProvider will operate in degraded mode.")
+            logger.warning(
+                "No S3 bucket configured. S3CacheProvider will operate in degraded mode."
+            )
             self._degraded = True
             return
 
@@ -300,8 +302,16 @@ class S3CacheProvider:
             entry_metadata = data.get("metadata", {})
             entry_data = data.get("data", {})
 
-            version = parse_version(version_str) if version_str else datetime.now(timezone.utc)
-            cached_at = parse_version(cached_at_str) if cached_at_str else datetime.now(timezone.utc)
+            version = (
+                parse_version(version_str)
+                if version_str
+                else datetime.now(timezone.utc)
+            )
+            cached_at = (
+                parse_version(cached_at_str)
+                if cached_at_str
+                else datetime.now(timezone.utc)
+            )
 
             return CacheEntry(
                 key=key,
@@ -493,7 +503,9 @@ class S3CacheProvider:
             if self._is_not_found_error(e):
                 self._metrics.record_miss(latency, key=key, entry_type=entry_type_str)
                 return None
-            self._metrics.record_error(key=key, entry_type=entry_type_str, error_message=str(e))
+            self._metrics.record_error(
+                key=key, entry_type=entry_type_str, error_message=str(e)
+            )
             self._handle_s3_error(e)
             return None
 
@@ -539,7 +551,9 @@ class S3CacheProvider:
             self._metrics.record_write(latency, key=key, entry_type=entry_type_str)
 
         except Exception as e:
-            self._metrics.record_error(key=key, entry_type=entry_type_str, error_message=str(e))
+            self._metrics.record_error(
+                key=key, entry_type=entry_type_str, error_message=str(e)
+            )
             self._handle_s3_error(e)
 
     def get_batch(
@@ -615,7 +629,9 @@ class S3CacheProvider:
         """
         # Warming requires integration with Asana API clients
         # which is out of scope for the cache backend
-        logger.info(f"S3 cache warm requested for {len(gids)} GIDs (not yet implemented)")
+        logger.info(
+            f"S3 cache warm requested for {len(gids)} GIDs (not yet implemented)"
+        )
         return WarmResult(warmed=0, failed=0, skipped=len(gids))
 
     def check_freshness(
@@ -760,11 +776,19 @@ class S3CacheProvider:
         # Check for boto3-specific errors
         if self._botocore_module is not None:
             # Common boto3/botocore exceptions
-            no_credentials = getattr(self._botocore_module, "NoCredentialsError", Exception)
-            partial_credentials = getattr(self._botocore_module, "PartialCredentialsError", Exception)
+            no_credentials = getattr(
+                self._botocore_module, "NoCredentialsError", Exception
+            )
+            partial_credentials = getattr(
+                self._botocore_module, "PartialCredentialsError", Exception
+            )
             client_error = getattr(self._botocore_module, "ClientError", Exception)
-            endpoint_error = getattr(self._botocore_module, "EndpointConnectionError", Exception)
-            connect_timeout = getattr(self._botocore_module, "ConnectTimeoutError", Exception)
+            endpoint_error = getattr(
+                self._botocore_module, "EndpointConnectionError", Exception
+            )
+            connect_timeout = getattr(
+                self._botocore_module, "ConnectTimeoutError", Exception
+            )
             read_timeout = getattr(self._botocore_module, "ReadTimeoutError", Exception)
 
             error_types = error_types + (
@@ -784,7 +808,9 @@ class S3CacheProvider:
                 # Access denied or bucket not found are more serious
                 if error_code in ("AccessDenied", "NoSuchBucket"):
                     if not self._degraded:
-                        logger.warning(f"S3 access error, entering degraded mode: {error}")
+                        logger.warning(
+                            f"S3 access error, entering degraded mode: {error}"
+                        )
                         self._degraded = True
                     return
 

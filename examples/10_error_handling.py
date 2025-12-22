@@ -27,12 +27,7 @@ from autom8_asana import AsanaClient
 from autom8_asana.exceptions import (
     AsanaError,
     AuthenticationError,
-    ConfigurationError,
-    ForbiddenError,
     NotFoundError,
-    RateLimitError,
-    ServerError,
-    TimeoutError,
 )
 from _config import get_workspace_gid, get_config_instructions
 
@@ -63,7 +58,7 @@ async def demonstrate_rate_limit_error(client: AsanaClient) -> None:
     print("  - SDK handles most rate limiting automatically")
     print("  - This example shows manual handling if needed")
 
-    example_code = '''
+    example_code = """
 try:
     task = await client.tasks.get_async("123")
 except RateLimitError as e:
@@ -73,7 +68,7 @@ except RateLimitError as e:
         task = await client.tasks.get_async("123")  # Retry
     else:
         print("Rate limited. Wait and retry later")
-'''
+"""
     print(example_code)
 
 
@@ -104,13 +99,13 @@ async def demonstrate_forbidden_error(client: AsanaClient) -> None:
     print("  - Resource is in a premium-only workspace")
 
     print("\nHandling:")
-    example_code = '''
+    example_code = """
 try:
     project = await client.projects.get_async("private_project_gid")
 except ForbiddenError as e:
     print(f"Access denied: {e.message}")
     # Check user permissions or request access
-'''
+"""
     print(example_code)
 
 
@@ -151,7 +146,7 @@ async def demonstrate_server_error() -> None:
     print("  - 503: Service unavailable")
 
     print("\nHandling with exponential backoff:")
-    example_code = '''
+    example_code = """
 import asyncio
 
 max_retries = 3
@@ -167,7 +162,7 @@ for attempt in range(max_retries):
         else:
             print("Max retries exceeded")
             raise
-'''
+"""
     print(example_code)
 
 
@@ -181,7 +176,7 @@ async def demonstrate_timeout_error() -> None:
     print("  - Large data transfers")
 
     print("\nHandling:")
-    example_code = '''
+    example_code = """
 from autom8_asana import AsanaClient
 from autom8_asana.config import AsanaConfig, TimeoutConfig
 
@@ -200,7 +195,7 @@ try:
 except TimeoutError as e:
     print(f"Request timed out: {e.message}")
     # Retry or handle appropriately
-'''
+"""
     print(example_code)
 
 
@@ -213,7 +208,7 @@ async def demonstrate_validation_error() -> None:
     print("  - Missing required fields")
     print("  - Type mismatches")
 
-    example_code = '''
+    example_code = """
 from pydantic import ValidationError
 
 try:
@@ -225,7 +220,7 @@ try:
 except ValidationError as e:
     print(f"Validation error: {e}")
     # Handle validation issues before sending to API
-'''
+"""
     print(example_code)
 
 

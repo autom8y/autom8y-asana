@@ -384,9 +384,7 @@ class StoriesClient(BaseClient):
         if is_pinned is not None:
             data["is_pinned"] = is_pinned
 
-        result = await self._http.post(
-            f"/tasks/{task}/stories", json={"data": data}
-        )
+        result = await self._http.post(f"/tasks/{task}/stories", json={"data": data})
         if raw:
             return result
         return Story.model_validate(result)

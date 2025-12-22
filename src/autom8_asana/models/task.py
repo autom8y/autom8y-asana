@@ -19,7 +19,7 @@ from autom8_asana.models.common import NameGid
 from autom8_asana.models.custom_field_accessor import CustomFieldAccessor
 
 if TYPE_CHECKING:
-    from autom8_asana.client import AsanaClient
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,9 @@ class Task(AsanaResource):
 
     # Hierarchy and dependencies
     num_subtasks: int | None = None
-    num_hearts: int | None = Field(default=None, description="Deprecated: use num_likes")
+    num_hearts: int | None = Field(
+        default=None, description="Deprecated: use num_likes"
+    )
     num_likes: int | None = None
     is_rendered_as_separator: bool | None = None
 
@@ -82,8 +84,12 @@ class Task(AsanaResource):
     custom_fields: list[dict[str, Any]] | None = None
 
     # Metadata
-    created_at: str | None = Field(default=None, description="Created datetime (ISO 8601)")
-    modified_at: str | None = Field(default=None, description="Modified datetime (ISO 8601)")
+    created_at: str | None = Field(
+        default=None, description="Created datetime (ISO 8601)"
+    )
+    modified_at: str | None = Field(
+        default=None, description="Modified datetime (ISO 8601)"
+    )
     created_by: NameGid | None = None  # Changed from dict
 
     # Approval fields
@@ -114,7 +120,9 @@ class Task(AsanaResource):
         default=None,
         description="Deprecated: use likes",
     )
-    likes: list[dict[str, Any]] | None = None  # Keep as dict (user refs with extra data)
+    likes: list[dict[str, Any]] | None = (
+        None  # Keep as dict (user refs with extra data)
+    )
 
     # Actual time tracking
     actual_time_minutes: float | None = None

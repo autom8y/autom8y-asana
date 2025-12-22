@@ -59,7 +59,7 @@ def demonstrate_signature_verification() -> None:
         secret=webhook_secret,
     )
 
-    print(f"Signature verification example:")
+    print("Signature verification example:")
     print(f"  Valid: {is_valid}")
     print("\nIn production, reject requests with invalid signatures:")
     print("  if not WebhooksClient.verify_signature(...):")
@@ -74,7 +74,7 @@ def example_webhook_handler() -> None:
     """
     print("\n=== Example Webhook Handler ===")
 
-    example_code = '''
+    example_code = """
 # Example Flask webhook handler
 from flask import Flask, request, jsonify
 from autom8_asana.clients.webhooks import WebhooksClient
@@ -113,7 +113,7 @@ def handle_webhook():
         print(f"Event: {action} on {resource['resource_type']} {resource['gid']}")
 
     return jsonify({}), 200
-'''
+"""
 
     print(example_code)
 
@@ -166,7 +166,9 @@ async def list_webhooks(client: AsanaClient, workspace_gid: str) -> None:
         print(f"Found {len(webhooks)} webhooks:")
         for webhook in webhooks:
             print(f"  - {webhook.gid}")
-            print(f"    Resource: {webhook.resource.gid if webhook.resource else 'N/A'}")
+            print(
+                f"    Resource: {webhook.resource.gid if webhook.resource else 'N/A'}"
+            )
             print(f"    Target: {webhook.target}")
             print(f"    Active: {webhook.active}")
     else:
@@ -175,7 +177,7 @@ async def list_webhooks(client: AsanaClient, workspace_gid: str) -> None:
 
 async def delete_webhook(client: AsanaClient, webhook_gid: str) -> None:
     """Delete a webhook."""
-    print(f"\n=== Deleting Webhook ===")
+    print("\n=== Deleting Webhook ===")
 
     await client.webhooks.delete_async(webhook_gid)
     print(f"Deleted webhook: {webhook_gid}")
@@ -248,7 +250,9 @@ async def main(project_gid: str, target_url: str | None) -> None:
     else:
         print("\n=== Skipping webhook creation (no --target provided) ===")
         print("To create a webhook, provide a public URL:")
-        print("  python 08_webhooks.py --project GID --target https://your-server.com/webhook")
+        print(
+            "  python 08_webhooks.py --project GID --target https://your-server.com/webhook"
+        )
 
     print("\n=== Complete ===")
     print("Key Takeaways:")

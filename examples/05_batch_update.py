@@ -31,7 +31,7 @@ async def setup_test_tasks(client: AsanaClient, project_gid: str) -> list[str]:
     print("=== Setting up test tasks ===")
 
     tasks_data = [
-        {"name": f"Update Test Task {i+1}", "projects": [project_gid]}
+        {"name": f"Update Test Task {i + 1}", "projects": [project_gid]}
         for i in range(20)
     ]
 
@@ -42,9 +42,7 @@ async def setup_test_tasks(client: AsanaClient, project_gid: str) -> list[str]:
     return task_gids
 
 
-async def demonstrate_batch_updates(
-    client: AsanaClient, task_gids: list[str]
-) -> None:
+async def demonstrate_batch_updates(client: AsanaClient, task_gids: list[str]) -> None:
     """Update multiple tasks at once - most common use case."""
     print("=== Batch Update: Mark Tasks Complete ===")
 
@@ -65,9 +63,7 @@ async def demonstrate_batch_updates(
             print(f"  - Request {r.request_index}: {r.error}")
 
 
-async def demonstrate_batch_summary(
-    client: AsanaClient, task_gids: list[str]
-) -> None:
+async def demonstrate_batch_summary(client: AsanaClient, task_gids: list[str]) -> None:
     """Use BatchSummary for convenient result analysis."""
     print("\n=== Batch Update with Summary ===")
 
@@ -102,9 +98,7 @@ async def demonstrate_batch_summary(
             print(f"  Request {result.request_index}: {result.error}")
 
 
-async def demonstrate_mixed_updates(
-    client: AsanaClient, task_gids: list[str]
-) -> None:
+async def demonstrate_mixed_updates(client: AsanaClient, task_gids: list[str]) -> None:
     """Show different update types in same batch."""
     print("\n=== Batch Update: Mixed Operations ===")
 
@@ -118,18 +112,18 @@ async def demonstrate_mixed_updates(
 
     results = await client.batch.update_tasks_async(updates)
 
-    print(f"Mixed updates: {sum(1 for r in results if r.success)}/{len(updates)} succeeded")
+    print(
+        f"Mixed updates: {sum(1 for r in results if r.success)}/{len(updates)} succeeded"
+    )
 
     # Show what changed
     for i, result in enumerate(results):
         if result.success and result.data:
             update_type = list(updates[i][1].keys())[0]
-            print(f"  Task {i+1}: Updated {update_type}")
+            print(f"  Task {i + 1}: Updated {update_type}")
 
 
-async def demonstrate_error_handling(
-    client: AsanaClient, task_gids: list[str]
-) -> None:
+async def demonstrate_error_handling(client: AsanaClient, task_gids: list[str]) -> None:
     """Show how to handle and recover from failures."""
     print("\n=== Batch Update: Error Handling ===")
 

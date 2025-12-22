@@ -233,7 +233,9 @@ class WebhooksClient(BaseClient):
         Returns:
             Webhook model by default, or dict if raw=True
         """
-        return self._create_sync(resource=resource, target=target, raw=raw, filters=filters)
+        return self._create_sync(
+            resource=resource, target=target, raw=raw, filters=filters
+        )
 
     @sync_wrapper("create_async")
     async def _create_sync(
@@ -412,7 +414,9 @@ class WebhooksClient(BaseClient):
             if offset:
                 params["offset"] = offset
 
-            data, next_offset = await self._http.get_paginated("/webhooks", params=params)
+            data, next_offset = await self._http.get_paginated(
+                "/webhooks", params=params
+            )
             webhooks = [Webhook.model_validate(w) for w in data]
             return webhooks, next_offset
 

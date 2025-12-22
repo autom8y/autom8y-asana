@@ -35,9 +35,7 @@ from autom8_asana.exceptions import AsanaError
 from _config import get_workspace_gid, get_project_gid, get_config_instructions
 
 
-async def create_enum_custom_field(
-    client: AsanaClient, workspace_gid: str
-) -> str:
+async def create_enum_custom_field(client: AsanaClient, workspace_gid: str) -> str:
     """Create an enum custom field with predefined options.
 
     Enum fields are useful for status, priority, category, etc.
@@ -64,7 +62,7 @@ async def create_enum_custom_field(
     print(f"Created custom field: {custom_field.name}")
     print(f"  GID: {custom_field.gid}")
     print(f"  Type: {custom_field.resource_subtype}")
-    print(f"  Options:")
+    print("  Options:")
     if custom_field.enum_options:
         for option in custom_field.enum_options:
             print(f"    - {option.name} ({option.color})")
@@ -72,16 +70,14 @@ async def create_enum_custom_field(
     return custom_field.gid
 
 
-async def list_workspace_custom_fields(
-    client: AsanaClient, workspace_gid: str
-) -> None:
+async def list_workspace_custom_fields(client: AsanaClient, workspace_gid: str) -> None:
     """List all custom fields in a workspace."""
     print("\n=== Listing Workspace Custom Fields ===")
 
     # List returns PageIterator - collect first 5
-    custom_fields = await client.custom_fields.list_async(
-        workspace=workspace_gid
-    ).take(5)
+    custom_fields = await client.custom_fields.list_async(workspace=workspace_gid).take(
+        5
+    )
 
     print(f"Found {len(custom_fields)} custom fields (showing first 5):")
     for cf in custom_fields:
@@ -98,7 +94,7 @@ async def set_custom_field_on_task(
 
     For enum fields, you need to find the option GID by name first.
     """
-    print(f"\n=== Setting Custom Field on Task ===")
+    print("\n=== Setting Custom Field on Task ===")
 
     # Get the custom field to find option GIDs
     custom_field = await client.custom_fields.get_async(custom_field_gid)
@@ -221,9 +217,7 @@ async def main(workspace_gid: str, project_gid: str) -> None:
             print(f"\nCreated test task: {task.gid}")
 
             # Example 3: Set custom field value on task
-            await set_custom_field_on_task(
-                client, task.gid, priority_field_gid, "High"
-            )
+            await set_custom_field_on_task(client, task.gid, priority_field_gid, "High")
 
             # Example 4: Read custom field value from task
             await read_custom_field_from_task(client, task.gid, priority_field_gid)
@@ -251,9 +245,9 @@ async def main(workspace_gid: str, project_gid: str) -> None:
 
     except AsanaError as e:
         if e.status_code == 402:
-            print("\n" + "="*60)
+            print("\n" + "=" * 60)
             print("CUSTOM FIELDS REQUIRE A PAID ASANA PLAN")
-            print("="*60)
+            print("=" * 60)
             print("\nThis example demonstrates custom field operations, but")
             print("custom fields are only available on Asana Premium, Business,")
             print("or Enterprise plans.")
@@ -274,7 +268,7 @@ async def main(workspace_gid: str, project_gid: str) -> None:
             print("  - client.tasks.update_async(custom_fields={...})")
             print("  - task.custom_fields (reading values)")
             print("  - client.custom_fields.delete_async()")
-            print("\n" + "="*60)
+            print("\n" + "=" * 60)
             return
         else:
             # Re-raise other errors

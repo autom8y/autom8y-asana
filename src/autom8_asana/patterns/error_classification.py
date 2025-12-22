@@ -158,7 +158,7 @@ class RetryableErrorMixin:
         error = self._get_error()
         if error is None:
             return None
-        return getattr(error, 'retry_after', None)
+        return getattr(error, "retry_after", None)
 
     @staticmethod
     def _extract_status_code(error: Exception) -> int | None:
@@ -179,8 +179,8 @@ class RetryableErrorMixin:
             return error.status_code
 
         # Check for status_code attribute on generic exceptions
-        if hasattr(error, 'status_code'):
-            status = getattr(error, 'status_code')
+        if hasattr(error, "status_code"):
+            status = getattr(error, "status_code")
             if isinstance(status, int):
                 return status
 

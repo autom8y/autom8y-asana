@@ -104,21 +104,25 @@ class AsanaError(Exception):
 
 class AuthenticationError(AsanaError):
     """Authentication failed (401)."""
+
     pass
 
 
 class ForbiddenError(AsanaError):
     """Access denied (403)."""
+
     pass
 
 
 class NotFoundError(AsanaError):
     """Resource not found (404)."""
+
     pass
 
 
 class GoneError(AsanaError):
     """Resource permanently deleted (410)."""
+
     pass
 
 
@@ -160,16 +164,19 @@ class RateLimitError(AsanaError):
 
 class ServerError(AsanaError):
     """Server-side error (5xx)."""
+
     pass
 
 
 class TimeoutError(AsanaError):
     """Request timed out."""
+
     pass
 
 
 class ConfigurationError(AsanaError):
     """SDK configuration error (not an API error)."""
+
     pass
 
 

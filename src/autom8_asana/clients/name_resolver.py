@@ -136,7 +136,10 @@ class NameResolver:
 
         # Find exact match
         for section in all_sections:
-            if section.name and section.name.lower().strip() == name_or_gid.lower().strip():
+            if (
+                section.name
+                and section.name.lower().strip() == name_or_gid.lower().strip()
+            ):
                 self._cache[cache_key] = section.gid
                 return section.gid
 
@@ -183,14 +186,15 @@ class NameResolver:
 
         # Fetch all projects in workspace
         all_projects = []
-        async for project in self._client.projects.list_async(
-            workspace=workspace_gid
-        ):
+        async for project in self._client.projects.list_async(workspace=workspace_gid):
             all_projects.append(project)
 
         # Find exact match
         for project in all_projects:
-            if project.name and project.name.lower().strip() == name_or_gid.lower().strip():
+            if (
+                project.name
+                and project.name.lower().strip() == name_or_gid.lower().strip()
+            ):
                 self._cache[cache_key] = project.gid
                 return project.gid
 
@@ -244,14 +248,15 @@ class NameResolver:
         for user in all_users:
             user_email = user.email.lower().strip() if user.email else ""
             if (
-                (user.name and user.name.lower().strip() == name_or_gid.lower().strip())
-                or user_email == name_or_gid.lower().strip()
-            ):
+                user.name and user.name.lower().strip() == name_or_gid.lower().strip()
+            ) or user_email == name_or_gid.lower().strip():
                 self._cache[cache_key] = user.gid
                 return user.gid
 
         # Not found
-        available = [f"{u.name} ({u.email})" if u.email else u.name for u in all_users if u.name]
+        available = [
+            f"{u.name} ({u.email})" if u.email else u.name for u in all_users if u.name
+        ]
         suggestions = get_close_matches(
             name_or_gid,
             available,

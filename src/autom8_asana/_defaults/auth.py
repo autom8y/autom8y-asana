@@ -38,8 +38,7 @@ class EnvAuthProvider:
             )
         if not value.strip():
             raise AuthenticationError(
-                f"Environment variable '{key}' is empty. "
-                f"Provide a valid token value."
+                f"Environment variable '{key}' is empty. Provide a valid token value."
             )
         return value
 

@@ -79,9 +79,7 @@ class ObservabilityHook(Protocol):
         """
         ...
 
-    async def on_request_error(
-        self, method: str, path: str, error: Exception
-    ) -> None:
+    async def on_request_error(self, method: str, path: str, error: Exception) -> None:
         """Called when HTTP request fails with an exception.
 
         Per FR-OBS-004: Hook point for request errors.
@@ -117,9 +115,7 @@ class ObservabilityHook(Protocol):
         """
         ...
 
-    async def on_retry(
-        self, attempt: int, max_attempts: int, error: Exception
-    ) -> None:
+    async def on_retry(self, attempt: int, max_attempts: int, error: Exception) -> None:
         """Called before retry attempt.
 
         Per FR-OBS-007: Hook point for retry events.

@@ -289,9 +289,7 @@ class BatchClient(BaseClient):
         return self._execute_sync(requests)
 
     @sync_wrapper("execute_async")
-    async def _execute_sync(
-        self, requests: list[BatchRequest]
-    ) -> list[BatchResult]:
+    async def _execute_sync(self, requests: list[BatchRequest]) -> list[BatchResult]:
         """Internal sync wrapper implementation."""
         return await self.execute_async(requests)
 

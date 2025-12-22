@@ -158,7 +158,9 @@ class BaseExtractor(ABC):
         # Direct attribute access with dtype-aware parsing
         return self._extract_attribute(task, col.source, col)
 
-    def _extract_attribute(self, task: Task, source: str, col: ColumnDef | None = None) -> Any:
+    def _extract_attribute(
+        self, task: Task, source: str, col: ColumnDef | None = None
+    ) -> Any:
         """Extract a direct attribute from a task.
 
         Handles simple attribute names, datetime parsing, and type coercion.

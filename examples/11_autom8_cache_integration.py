@@ -34,12 +34,12 @@ import asyncio
 import os
 from argparse import ArgumentParser
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any
 
 
 # Mock implementations for demonstration without actual Redis/Asana
 # In production, these would be actual API calls
+
 
 @dataclass
 class MockTask:
@@ -173,9 +173,9 @@ async def example_migrate_task_collection(use_mock: bool = True) -> None:
         # Simulate the result
         print("\nSimulated MigrationResult:")
         print(f"  total_tasks: {len(task_dicts)}")
-        print(f"  cache_hits: 0 (cold cache)")
+        print("  cache_hits: 0 (cold cache)")
         print(f"  cache_misses: {len(task_dicts)}")
-        print(f"  hit_rate: 0.0%")
+        print("  hit_rate: 0.0%")
         print(f"  tasks: [{len(task_dicts)} task dicts returned]")
         return
 
@@ -231,7 +231,7 @@ async def example_warm_cache(use_mock: bool = True) -> None:
 
     if use_mock:
         print("Mock demonstration of cache warming:")
-        print(f"  Project GID: project_123")
+        print("  Project GID: project_123")
         print(f"  Tasks warmed: {len(MOCK_TASKS)}")
         print("\nUse warm_project_tasks() after deployment to")
         print("reduce cache miss spike for high-traffic projects.")

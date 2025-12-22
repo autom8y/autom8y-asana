@@ -36,9 +36,7 @@ class Attachment(AsanaResource):
         default=None,
         description="Host type (asana, dropbox, gdrive, onedrive, box, vimeo, external)",
     )
-    view_url: str | None = Field(
-        default=None, description="URL to view the attachment"
-    )
+    view_url: str | None = Field(default=None, description="URL to view the attachment")
     download_url: str | None = Field(
         default=None, description="URL to download the file"
     )

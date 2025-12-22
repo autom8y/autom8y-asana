@@ -173,7 +173,11 @@ class DefaultCustomFieldResolver:
         # Find custom field in task by GID
         # Note: task.custom_fields is list[dict[str, Any]] in the model
         for cf_data in task.custom_fields or []:
-            cf_gid = cf_data.get("gid") if isinstance(cf_data, dict) else getattr(cf_data, "gid", None)
+            cf_gid = (
+                cf_data.get("gid")
+                if isinstance(cf_data, dict)
+                else getattr(cf_data, "gid", None)
+            )
             if cf_gid == gid:
                 raw_value = self._extract_raw_value(cf_data)
                 if expected_type is not None and raw_value is not None:

@@ -71,9 +71,7 @@ class TaskRow(BaseModel):
             elif isinstance(value, dict):
                 result[key] = TaskRow._convert_decimals(value)
             elif isinstance(value, list):
-                result[key] = [
-                    float(v) if isinstance(v, Decimal) else v for v in value
-                ]
+                result[key] = [float(v) if isinstance(v, Decimal) else v for v in value]
             else:
                 result[key] = value
         return result

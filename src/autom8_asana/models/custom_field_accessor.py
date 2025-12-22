@@ -53,7 +53,9 @@ class CustomFieldAccessor:
         self._data: list[dict[str, Any]] = list(data) if data else []
         self._resolver = resolver
         self._strict = strict
-        self._modifications: dict[str, Any] = {}  # gid -> new_value (or None for removal)
+        self._modifications: dict[
+            str, Any
+        ] = {}  # gid -> new_value (or None for removal)
         self._name_to_gid: dict[str, str] = {}  # Cache name->gid from data
         self._build_index()
 
@@ -213,8 +215,28 @@ class CustomFieldAccessor:
         """
         result: dict[str, Any] = {}
         for gid, value in self._modifications.items():
-            result[gid] = self._format_value_for_api(value)
+            formatted_value = self._format_value_for_api(value)
+
+            # Wrap date values in required API format
+            # Asana API requires: {"date": "YYYY-MM-DD"} not just "YYYY-MM-DD"
+            field = self._get_field_by_gid(gid)
+            if field and field.get("resource_subtype") == "date":
+                if isinstance(formatted_value, str):
+                    formatted_value = {"date": formatted_value}
+
+            result[gid] = formatted_value
         return result
+
+    def _get_field_by_gid(self, gid: str) -> dict[str, Any] | None:
+        """Get field definition by GID.
+
+        Args:
+            gid: Field GID.
+
+        Returns:
+            Field dict or None if not found.
+        """
+        return next((f for f in self._data if f.get("gid") == gid), None)
 
     def _format_value_for_api(self, value: Any) -> Any:
         """Format a value for the Asana API.
@@ -344,9 +366,7 @@ class CustomFieldAccessor:
             available = self.list_available_fields()
 
             # Use difflib to find close matches (fuzzy)
-            suggestions = get_close_matches(
-                name_or_gid, available, n=3, cutoff=0.6
-            )
+            suggestions = get_close_matches(name_or_gid, available, n=3, cutoff=0.6)
 
             # Raise error with suggestions
             raise NameNotFoundError(

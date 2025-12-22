@@ -25,17 +25,6 @@ from typing import Any
 from autom8_asana.client import AsanaClient
 from autom8_asana.models.business import (
     Business,
-    Contact,
-    ContactHolder,
-    Unit,
-    UnitHolder,
-    Offer,
-    OfferHolder,
-    Location,
-    LocationHolder,
-    Hours,
-    Process,
-    ProcessHolder,
 )
 
 from _demo_utils import DemoLogger
@@ -273,13 +262,13 @@ async def demo_sibling_navigation(
             position.append("LAST")
 
         pos_str = f" [{', '.join(position)}]" if position else ""
-        print(f"  {i+1}. {unit.name}{pos_str}")
+        print(f"  {i + 1}. {unit.name}{pos_str}")
 
         # Show previous/next if available
         if i > 0:
-            print(f"      Previous: {units[i-1].name}")
+            print(f"      Previous: {units[i - 1].name}")
         if i < len(units) - 1:
-            print(f"      Next: {units[i+1].name}")
+            print(f"      Next: {units[i + 1].name}")
 
     # Do the same for offers if available
     if units and units[0].offers:
@@ -287,7 +276,7 @@ async def demo_sibling_navigation(
         if len(offers) >= 2:
             print(f"\n--- Offer Siblings in first Unit ({len(offers)} total) ---")
             for i, offer in enumerate(offers[:5]):  # Show first 5
-                print(f"  {i+1}. {offer.name}")
+                print(f"  {i + 1}. {offer.name}")
             if len(offers) > 5:
                 print(f"  ... and {len(offers) - 5} more")
 
@@ -373,7 +362,9 @@ async def demo_typed_field_access(
 
                 for attr, display_name in location_fields:
                     value = getattr(location, attr, None)
-                    print(f"  {display_name}: {value if value is not None else '(not set)'}")
+                    print(
+                        f"  {display_name}: {value if value is not None else '(not set)'}"
+                    )
                 break
 
     logger.category_end("Typed Field Access", True)
@@ -420,7 +411,9 @@ async def demo_holder_inspection(
                 children = getattr(business, "locations", None) or []
             else:
                 children = []
-            print(f"  {holder_type}: {holder_name} ({holder_gid}) - {len(children)} children")
+            print(
+                f"  {holder_type}: {holder_name} ({holder_gid}) - {len(children)} children"
+            )
         else:
             print(f"  {holder_type}: (not loaded)")
 
@@ -602,22 +595,26 @@ Examples:
 """,
     )
     parser.add_argument(
-        "-g", "--gid",
+        "-g",
+        "--gid",
         default=DEFAULT_BUSINESS_GID,
         help=f"Business task GID to load (default: {DEFAULT_BUSINESS_GID})",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose logging",
     )
 
     args = parser.parse_args()
 
-    exit_code = asyncio.run(run_demo(
-        business_gid=args.gid,
-        verbose=args.verbose,
-    ))
+    exit_code = asyncio.run(
+        run_demo(
+            business_gid=args.gid,
+            verbose=args.verbose,
+        )
+    )
     sys.exit(exit_code)
 
 

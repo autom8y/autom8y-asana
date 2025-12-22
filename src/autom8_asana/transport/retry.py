@@ -63,9 +63,7 @@ class RetryHandler:
             return min(float(retry_after), self._config.max_delay)
 
         # Exponential backoff
-        delay = self._config.base_delay * (
-            self._config.exponential_base ** attempt
-        )
+        delay = self._config.base_delay * (self._config.exponential_base**attempt)
 
         # Add jitter if enabled (0.5x to 1.5x)
         if self._config.jitter:

@@ -11,7 +11,6 @@ import httpx
 
 from autom8_asana.exceptions import (
     AsanaError,
-    CircuitBreakerOpenError,
     RateLimitError,
     ServerError,
     TimeoutError,
@@ -21,7 +20,7 @@ from autom8_asana.transport.rate_limiter import TokenBucketRateLimiter
 from autom8_asana.transport.retry import RetryHandler
 
 if TYPE_CHECKING:
-    from autom8_asana.config import AsanaConfig, CircuitBreakerConfig
+    from autom8_asana.config import AsanaConfig
     from autom8_asana.protocols.auth import AuthProvider
     from autom8_asana.protocols.log import LogProvider
 
@@ -159,9 +158,7 @@ class AsyncHTTPClient:
 
         # Select semaphore based on method
         semaphore = (
-            self._read_semaphore
-            if method.upper() == "GET"
-            else self._write_semaphore
+            self._read_semaphore if method.upper() == "GET" else self._write_semaphore
         )
 
         attempt = 0
@@ -217,7 +214,9 @@ class AsyncHTTPClient:
                         result = response.json()
                     except json_module.JSONDecodeError as e:
                         request_id = response.headers.get("X-Request-Id", "unknown")
-                        body_snippet = response.text[:200] if response.text else "(empty)"
+                        body_snippet = (
+                            response.text[:200] if response.text else "(empty)"
+                        )
                         raise AsanaError(
                             f"Invalid JSON response from Asana API "
                             f"(HTTP {response.status_code}, request_id={request_id}): "
@@ -360,7 +359,9 @@ class AsyncHTTPClient:
                         result = response.json()
                     except json_module.JSONDecodeError as e:
                         request_id = response.headers.get("X-Request-Id", "unknown")
-                        body_snippet = response.text[:200] if response.text else "(empty)"
+                        body_snippet = (
+                            response.text[:200] if response.text else "(empty)"
+                        )
                         raise AsanaError(
                             f"Invalid JSON response from Asana API "
                             f"(HTTP {response.status_code}, request_id={request_id}): "
@@ -503,7 +504,9 @@ class AsyncHTTPClient:
                         result = response.json()
                     except json_module.JSONDecodeError as e:
                         request_id = response.headers.get("X-Request-Id", "unknown")
-                        body_snippet = response.text[:200] if response.text else "(empty)"
+                        body_snippet = (
+                            response.text[:200] if response.text else "(empty)"
+                        )
                         raise AsanaError(
                             f"Invalid JSON response from Asana API "
                             f"(HTTP {response.status_code}, request_id={request_id}): "

@@ -40,9 +40,7 @@ class TokenBucketRateLimiter:
             ConfigurationError: If max_tokens or refill_period are invalid
         """
         if max_tokens <= 0:
-            raise ConfigurationError(
-                f"max_tokens must be positive, got {max_tokens}"
-            )
+            raise ConfigurationError(f"max_tokens must be positive, got {max_tokens}")
         if refill_period <= 0:
             raise ConfigurationError(
                 f"refill_period must be positive, got {refill_period}"
@@ -89,20 +87,14 @@ class TokenBucketRateLimiter:
         """Refill tokens based on elapsed time."""
         now = time.monotonic()
         elapsed = now - self._last_refill
-        self._tokens = min(
-            self._max_tokens,
-            self._tokens + elapsed * self._refill_rate
-        )
+        self._tokens = min(self._max_tokens, self._tokens + elapsed * self._refill_rate)
         self._last_refill = now
 
     @property
     def available_tokens(self) -> float:
         """Current available tokens (approximate, not locked)."""
         elapsed = time.monotonic() - self._last_refill
-        return min(
-            self._max_tokens,
-            self._tokens + elapsed * self._refill_rate
-        )
+        return min(self._max_tokens, self._tokens + elapsed * self._refill_rate)
 
     def get_stats(self) -> dict[str, Any]:
         """Return rate limiter statistics for monitoring.

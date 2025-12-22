@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from threading import Lock
 from types import ModuleType
@@ -272,8 +272,16 @@ class RedisCacheProvider:
             metadata_str = data.get("metadata", "{}")
 
             entry_type = EntryType(entry_type_str)
-            version = parse_version(version_str) if version_str else datetime.now(timezone.utc)
-            cached_at = parse_version(cached_at_str) if cached_at_str else datetime.now(timezone.utc)
+            version = (
+                parse_version(version_str)
+                if version_str
+                else datetime.now(timezone.utc)
+            )
+            cached_at = (
+                parse_version(cached_at_str)
+                if cached_at_str
+                else datetime.now(timezone.utc)
+            )
             ttl = int(ttl_str) if ttl_str else None
             metadata = json.loads(metadata_str) if metadata_str else {}
 
@@ -414,19 +422,25 @@ class RedisCacheProvider:
                 latency = (time.perf_counter() - start) * 1000
 
                 if not data:
-                    self._metrics.record_miss(latency, key=key, entry_type=entry_type_str)
+                    self._metrics.record_miss(
+                        latency, key=key, entry_type=entry_type_str
+                    )
                     return None
 
                 entry = self._deserialize_entry(data, key)
                 if entry is None:
-                    self._metrics.record_miss(latency, key=key, entry_type=entry_type_str)
+                    self._metrics.record_miss(
+                        latency, key=key, entry_type=entry_type_str
+                    )
                     return None
 
                 # Check TTL expiration
                 if entry.is_expired():
                     # Delete expired entry
                     conn.delete(redis_key)
-                    self._metrics.record_miss(latency, key=key, entry_type=entry_type_str)
+                    self._metrics.record_miss(
+                        latency, key=key, entry_type=entry_type_str
+                    )
                     return None
 
                 # For STRICT freshness, caller must validate against source
@@ -437,7 +451,9 @@ class RedisCacheProvider:
                 conn.close()
         except Exception as e:
             latency = (time.perf_counter() - start) * 1000
-            self._metrics.record_error(key=key, entry_type=entry_type_str, error_message=str(e))
+            self._metrics.record_error(
+                key=key, entry_type=entry_type_str, error_message=str(e)
+            )
             self._handle_redis_error(e)
             return None
 
@@ -484,7 +500,9 @@ class RedisCacheProvider:
             finally:
                 conn.close()
         except Exception as e:
-            self._metrics.record_error(key=key, entry_type=entry_type_str, error_message=str(e))
+            self._metrics.record_error(
+                key=key, entry_type=entry_type_str, error_message=str(e)
+            )
             self._handle_redis_error(e)
 
     def get_batch(
@@ -570,7 +588,9 @@ class RedisCacheProvider:
 
                     # Update metadata
                     meta_key = self._make_meta_key(key)
-                    pipe.hset(meta_key, entry.entry_type.value, format_version(entry.version))
+                    pipe.hset(
+                        meta_key, entry.entry_type.value, format_version(entry.version)
+                    )
 
                 pipe.execute()
             finally:
@@ -721,7 +741,9 @@ class RedisCacheProvider:
 
         # Check for redis-specific errors
         if self._redis_module is not None:
-            redis_connection_error = getattr(self._redis_module, "ConnectionError", Exception)
+            redis_connection_error = getattr(
+                self._redis_module, "ConnectionError", Exception
+            )
             redis_timeout_error = getattr(self._redis_module, "TimeoutError", Exception)
             redis_error = getattr(self._redis_module, "RedisError", Exception)
             error_types = error_types + (

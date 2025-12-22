@@ -8,8 +8,8 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 from autom8_asana._defaults.auth import EnvAuthProvider
-from autom8_asana._defaults.cache import NullCacheProvider
 from autom8_asana._defaults.log import DefaultLogProvider
+from autom8_asana.cache.factory import create_cache_provider
 from autom8_asana._defaults.observability import NullObservabilityHook
 from autom8_asana.batch.client import BatchClient
 from autom8_asana.persistence import SaveSession
@@ -84,7 +84,10 @@ class AsanaClient:
                           2. ASANA_WORKSPACE_GID environment variable
                           3. Auto-detection (if exactly one workspace exists)
             auth_provider: Custom auth provider (overrides token)
-            cache_provider: Custom cache provider (default: NullCacheProvider)
+            cache_provider: Custom cache provider. If None, uses environment-aware
+                auto-selection based on config.cache settings. Pass
+                NullCacheProvider() explicitly to disable all caching.
+                Per TDD-CACHE-INTEGRATION: FR-CLIENT-006, NFR-COMPAT-004.
             log_provider: Custom log provider (default: DefaultLogProvider)
             config: SDK configuration (default: AsanaConfig())
             observability_hook: Custom observability hook for metrics/tracing
@@ -122,7 +125,13 @@ class AsanaClient:
         self._auth_provider: AuthProvider = resolved_auth_provider
 
         # Resolve other providers
-        self._cache_provider: CacheProvider = cache_provider or NullCacheProvider()
+        # Per TDD-CACHE-INTEGRATION: Use factory for environment-aware selection
+        # FR-CLIENT-006: Explicit provider takes precedence
+        # NFR-COMPAT-004: NullCacheProvider explicit still works
+        self._cache_provider: CacheProvider = create_cache_provider(
+            config=self._config.cache,
+            explicit_provider=cache_provider,
+        )
         self._log_provider: LogProvider = log_provider or DefaultLogProvider()
         self._observability_hook: ObservabilityHook = (
             observability_hook or NullObservabilityHook()
@@ -188,6 +197,7 @@ class AsanaClient:
 
         # Automation engine (TDD-AUTOMATION-LAYER)
         from autom8_asana.automation.engine import AutomationEngine
+
         self._automation: AutomationEngine | None = None
         if self._config.automation.enabled:
             self._automation = AutomationEngine(self._config.automation)

@@ -99,9 +99,11 @@ class CachedRow:
         Returns:
             True if cached version >= current, False if stale.
         """
-        current = parse_version(current_modified_at) if isinstance(
-            current_modified_at, str
-        ) else current_modified_at
+        current = (
+            parse_version(current_modified_at)
+            if isinstance(current_modified_at, str)
+            else current_modified_at
+        )
 
         # Normalize timezones
         cached_version = self.version
@@ -212,7 +214,11 @@ class DataFrameCacheIntegration:
                     "evict",
                     key,
                     entry_type="dataframe",
-                    metadata={"reason": "schema_mismatch", "cached": cached_schema, "current": schema_version},
+                    metadata={
+                        "reason": "schema_mismatch",
+                        "cached": cached_schema,
+                        "current": schema_version,
+                    },
                 )
                 await self.invalidate_async(task_gid, project_gid)
                 return None
@@ -372,7 +378,9 @@ class DataFrameCacheIntegration:
                 key = make_dataframe_key(task_gid, project_gid)
 
                 # Normalize version
-                version_dt = parse_version(version) if isinstance(version, str) else version
+                version_dt = (
+                    parse_version(version) if isinstance(version, str) else version
+                )
                 if version_dt.tzinfo is None:
                     version_dt = version_dt.replace(tzinfo=timezone.utc)
 
@@ -601,9 +609,11 @@ class DataFrameCacheIntegration:
         Returns:
             True if cache is current (not stale), False if stale.
         """
-        current = parse_version(current_version) if isinstance(
-            current_version, str
-        ) else current_version
+        current = (
+            parse_version(current_version)
+            if isinstance(current_version, str)
+            else current_version
+        )
 
         # Normalize timezones
         if cached_version.tzinfo is None:

@@ -34,9 +34,7 @@ class NullObservabilityHook:
         """No-op: called after HTTP request completes."""
         pass
 
-    async def on_request_error(
-        self, method: str, path: str, error: Exception
-    ) -> None:
+    async def on_request_error(self, method: str, path: str, error: Exception) -> None:
         """No-op: called on HTTP request error."""
         pass
 
@@ -50,9 +48,7 @@ class NullObservabilityHook:
         """No-op: called on circuit breaker state change."""
         pass
 
-    async def on_retry(
-        self, attempt: int, max_attempts: int, error: Exception
-    ) -> None:
+    async def on_retry(self, attempt: int, max_attempts: int, error: Exception) -> None:
         """No-op: called before retry attempt."""
         pass
 

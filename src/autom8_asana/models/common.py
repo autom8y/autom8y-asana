@@ -5,7 +5,7 @@ Per TDD-0002 and ADR-0006: NameGid as standalone frozen model.
 
 from __future__ import annotations
 
-from typing import Any, Awaitable, Callable, Generic, TypeVar
+from typing import Awaitable, Callable, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict
 

@@ -150,7 +150,9 @@ class WorkspacesClient(BaseClient):
             if offset:
                 params["offset"] = offset
 
-            data, next_offset = await self._http.get_paginated("/workspaces", params=params)
+            data, next_offset = await self._http.get_paginated(
+                "/workspaces", params=params
+            )
             workspaces = [Workspace.model_validate(w) for w in data]
             return workspaces, next_offset
 

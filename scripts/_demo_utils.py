@@ -12,7 +12,6 @@ Per TDD-SDKDEMO: Module-level implementation for SDK validation.
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, TYPE_CHECKING
@@ -133,7 +132,9 @@ def confirm_with_preview(
             entity_gid = op.entity.gid
             # Summarize payload (just keys for brevity)
             payload_summary = ", ".join(op.payload.keys()) if op.payload else "(empty)"
-            print(f"  {op.operation.value.upper()} {entity_type}({entity_gid}): {{{payload_summary}}}")
+            print(
+                f"  {op.operation.value.upper()} {entity_type}({entity_gid}): {{{payload_summary}}}"
+            )
 
     if action_ops:
         print("\nAction Operations:")
@@ -341,9 +342,13 @@ class NameResolver:
         # Caches (lazily populated)
         self._tag_cache: dict[str, str] | None = None  # name.lower() -> gid
         self._user_cache: dict[str, str] | None = None  # name.lower() -> gid
-        self._section_cache: dict[str, dict[str, str]] = {}  # project_gid -> {name.lower() -> gid}
+        self._section_cache: dict[
+            str, dict[str, str]
+        ] = {}  # project_gid -> {name.lower() -> gid}
         self._project_cache: dict[str, str] | None = None  # name.lower() -> gid
-        self._enum_cache: dict[str, dict[str, str]] = {}  # cf_gid -> {option_name.lower() -> gid}
+        self._enum_cache: dict[
+            str, dict[str, str]
+        ] = {}  # cf_gid -> {option_name.lower() -> gid}
 
     async def resolve_tag(self, name: str) -> str | None:
         """Resolve tag name to GID. Case-insensitive.
@@ -563,9 +568,13 @@ class NameResolver:
             if hasattr(cf, "enum_options") and cf.enum_options:
                 for opt in cf.enum_options:
                     if isinstance(opt, dict) and opt.get("name"):
-                        self._enum_cache[custom_field_gid][opt["name"].lower()] = opt["gid"]
+                        self._enum_cache[custom_field_gid][opt["name"].lower()] = opt[
+                            "gid"
+                        ]
         except Exception as e:
-            print(f"[WARN] Failed to load enum options for field {custom_field_gid}: {e}")
+            print(
+                f"[WARN] Failed to load enum options for field {custom_field_gid}: {e}"
+            )
             self._enum_cache[custom_field_gid] = {}
 
 
@@ -632,15 +641,21 @@ class StateManager:
                     if cf_type == "enum":
                         # Store enum option GID
                         enum_value = cf.get("enum_value")
-                        entity_state.custom_fields[cf_gid] = enum_value.get("gid") if enum_value else None
+                        entity_state.custom_fields[cf_gid] = (
+                            enum_value.get("gid") if enum_value else None
+                        )
                     elif cf_type == "multi_enum":
                         # Store list of enum option GIDs
                         enum_values = cf.get("multi_enum_values") or []
-                        entity_state.custom_fields[cf_gid] = [ev.get("gid") for ev in enum_values if ev.get("gid")]
+                        entity_state.custom_fields[cf_gid] = [
+                            ev.get("gid") for ev in enum_values if ev.get("gid")
+                        ]
                     elif cf_type == "people":
                         # Store list of user GIDs
                         people = cf.get("people_value") or []
-                        entity_state.custom_fields[cf_gid] = [p.get("gid") for p in people if p.get("gid")]
+                        entity_state.custom_fields[cf_gid] = [
+                            p.get("gid") for p in people if p.get("gid")
+                        ]
                     elif cf_type == "number":
                         entity_state.custom_fields[cf_gid] = cf.get("number_value")
                     elif cf_type == "text":
@@ -666,10 +681,12 @@ class StateManager:
                 project = m.get("project", {})
                 section = m.get("section", {})
                 if project.get("gid"):
-                    memberships.append(MembershipState(
-                        project_gid=project["gid"],
-                        section_gid=section.get("gid") if section else None,
-                    ))
+                    memberships.append(
+                        MembershipState(
+                            project_gid=project["gid"],
+                            section_gid=section.get("gid") if section else None,
+                        )
+                    )
 
         # Note: Dependency/dependent GIDs would require additional API calls
         # For now, we return empty lists (can be populated via separate fetch)
@@ -815,9 +832,9 @@ class DemoLogger:
             gid: Resolved GID or None if not found.
         """
         if gid:
-            print(f"[RESOLVE] {resource_type} \"{name}\" -> {gid}")
+            print(f'[RESOLVE] {resource_type} "{name}" -> {gid}')
         else:
-            print(f"[RESOLVE] {resource_type} \"{name}\" -> NOT FOUND")
+            print(f'[RESOLVE] {resource_type} "{name}" -> NOT FOUND')
 
     def error(self, error: DemoError) -> None:
         """Log error with recovery hint.
@@ -825,7 +842,9 @@ class DemoLogger:
         Args:
             error: DemoError instance.
         """
-        print(f"[ERROR] {error.operation} failed on {error.entity_gid}: {error.message}")
+        print(
+            f"[ERROR] {error.operation} failed on {error.entity_gid}: {error.message}"
+        )
         if error.recovery_hint:
             print(f"        Recovery: {error.recovery_hint}")
 

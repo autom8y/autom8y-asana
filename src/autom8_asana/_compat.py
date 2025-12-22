@@ -33,74 +33,167 @@ _logger = logging.getLogger("autom8_asana._compat")
 
 # Mapping of old names to (new_module_path, new_import_statement)
 _MODEL_ALIASES: dict[str, tuple[str, str]] = {
-    "AsanaResource": ("autom8_asana.models", "from autom8_asana.models import AsanaResource"),
+    "AsanaResource": (
+        "autom8_asana.models",
+        "from autom8_asana.models import AsanaResource",
+    ),
     "NameGid": ("autom8_asana.models", "from autom8_asana.models import NameGid"),
-    "PageIterator": ("autom8_asana.models", "from autom8_asana.models import PageIterator"),
+    "PageIterator": (
+        "autom8_asana.models",
+        "from autom8_asana.models import PageIterator",
+    ),
     "Task": ("autom8_asana.models", "from autom8_asana import Task"),
     "Project": ("autom8_asana.models", "from autom8_asana import Project"),
     "Section": ("autom8_asana.models", "from autom8_asana import Section"),
     "User": ("autom8_asana.models", "from autom8_asana import User"),
     "Workspace": ("autom8_asana.models", "from autom8_asana import Workspace"),
     "CustomField": ("autom8_asana.models", "from autom8_asana import CustomField"),
-    "CustomFieldEnumOption": ("autom8_asana.models", "from autom8_asana import CustomFieldEnumOption"),
-    "CustomFieldSetting": ("autom8_asana.models", "from autom8_asana import CustomFieldSetting"),
+    "CustomFieldEnumOption": (
+        "autom8_asana.models",
+        "from autom8_asana import CustomFieldEnumOption",
+    ),
+    "CustomFieldSetting": (
+        "autom8_asana.models",
+        "from autom8_asana import CustomFieldSetting",
+    ),
     "Attachment": ("autom8_asana.models", "from autom8_asana import Attachment"),
     "Goal": ("autom8_asana.models", "from autom8_asana import Goal"),
-    "GoalMembership": ("autom8_asana.models", "from autom8_asana import GoalMembership"),
+    "GoalMembership": (
+        "autom8_asana.models",
+        "from autom8_asana import GoalMembership",
+    ),
     "GoalMetric": ("autom8_asana.models", "from autom8_asana import GoalMetric"),
     "Portfolio": ("autom8_asana.models", "from autom8_asana import Portfolio"),
     "Story": ("autom8_asana.models", "from autom8_asana import Story"),
     "Tag": ("autom8_asana.models", "from autom8_asana import Tag"),
     "Team": ("autom8_asana.models", "from autom8_asana import Team"),
-    "TeamMembership": ("autom8_asana.models", "from autom8_asana import TeamMembership"),
+    "TeamMembership": (
+        "autom8_asana.models",
+        "from autom8_asana import TeamMembership",
+    ),
     "Webhook": ("autom8_asana.models", "from autom8_asana import Webhook"),
     "WebhookFilter": ("autom8_asana.models", "from autom8_asana import WebhookFilter"),
 }
 
 _CLIENT_ALIASES: dict[str, tuple[str, str]] = {
-    "TasksClient": ("autom8_asana.clients", "from autom8_asana.clients import TasksClient"),
-    "ProjectsClient": ("autom8_asana.clients", "from autom8_asana.clients import ProjectsClient"),
-    "SectionsClient": ("autom8_asana.clients", "from autom8_asana.clients import SectionsClient"),
-    "UsersClient": ("autom8_asana.clients", "from autom8_asana.clients import UsersClient"),
-    "WorkspacesClient": ("autom8_asana.clients", "from autom8_asana.clients import WorkspacesClient"),
-    "CustomFieldsClient": ("autom8_asana.clients", "from autom8_asana.clients import CustomFieldsClient"),
-    "WebhooksClient": ("autom8_asana.clients", "from autom8_asana.clients import WebhooksClient"),
-    "TeamsClient": ("autom8_asana.clients", "from autom8_asana.clients import TeamsClient"),
-    "AttachmentsClient": ("autom8_asana.clients", "from autom8_asana.clients import AttachmentsClient"),
-    "TagsClient": ("autom8_asana.clients", "from autom8_asana.clients import TagsClient"),
-    "GoalsClient": ("autom8_asana.clients", "from autom8_asana.clients import GoalsClient"),
-    "PortfoliosClient": ("autom8_asana.clients", "from autom8_asana.clients import PortfoliosClient"),
-    "StoriesClient": ("autom8_asana.clients", "from autom8_asana.clients import StoriesClient"),
-    "BaseClient": ("autom8_asana.clients", "from autom8_asana.clients import BaseClient"),
+    "TasksClient": (
+        "autom8_asana.clients",
+        "from autom8_asana.clients import TasksClient",
+    ),
+    "ProjectsClient": (
+        "autom8_asana.clients",
+        "from autom8_asana.clients import ProjectsClient",
+    ),
+    "SectionsClient": (
+        "autom8_asana.clients",
+        "from autom8_asana.clients import SectionsClient",
+    ),
+    "UsersClient": (
+        "autom8_asana.clients",
+        "from autom8_asana.clients import UsersClient",
+    ),
+    "WorkspacesClient": (
+        "autom8_asana.clients",
+        "from autom8_asana.clients import WorkspacesClient",
+    ),
+    "CustomFieldsClient": (
+        "autom8_asana.clients",
+        "from autom8_asana.clients import CustomFieldsClient",
+    ),
+    "WebhooksClient": (
+        "autom8_asana.clients",
+        "from autom8_asana.clients import WebhooksClient",
+    ),
+    "TeamsClient": (
+        "autom8_asana.clients",
+        "from autom8_asana.clients import TeamsClient",
+    ),
+    "AttachmentsClient": (
+        "autom8_asana.clients",
+        "from autom8_asana.clients import AttachmentsClient",
+    ),
+    "TagsClient": (
+        "autom8_asana.clients",
+        "from autom8_asana.clients import TagsClient",
+    ),
+    "GoalsClient": (
+        "autom8_asana.clients",
+        "from autom8_asana.clients import GoalsClient",
+    ),
+    "PortfoliosClient": (
+        "autom8_asana.clients",
+        "from autom8_asana.clients import PortfoliosClient",
+    ),
+    "StoriesClient": (
+        "autom8_asana.clients",
+        "from autom8_asana.clients import StoriesClient",
+    ),
+    "BaseClient": (
+        "autom8_asana.clients",
+        "from autom8_asana.clients import BaseClient",
+    ),
 }
 
 _PROTOCOL_ALIASES: dict[str, tuple[str, str]] = {
     "AuthProvider": ("autom8_asana.protocols", "from autom8_asana import AuthProvider"),
-    "CacheProvider": ("autom8_asana.protocols", "from autom8_asana import CacheProvider"),
+    "CacheProvider": (
+        "autom8_asana.protocols",
+        "from autom8_asana import CacheProvider",
+    ),
     "LogProvider": ("autom8_asana.protocols", "from autom8_asana import LogProvider"),
     "ItemLoader": ("autom8_asana.protocols", "from autom8_asana import ItemLoader"),
 }
 
 _EXCEPTION_ALIASES: dict[str, tuple[str, str]] = {
     "AsanaError": ("autom8_asana.exceptions", "from autom8_asana import AsanaError"),
-    "AuthenticationError": ("autom8_asana.exceptions", "from autom8_asana import AuthenticationError"),
-    "RateLimitError": ("autom8_asana.exceptions", "from autom8_asana import RateLimitError"),
-    "NotFoundError": ("autom8_asana.exceptions", "from autom8_asana import NotFoundError"),
-    "ForbiddenError": ("autom8_asana.exceptions", "from autom8_asana import ForbiddenError"),
+    "AuthenticationError": (
+        "autom8_asana.exceptions",
+        "from autom8_asana import AuthenticationError",
+    ),
+    "RateLimitError": (
+        "autom8_asana.exceptions",
+        "from autom8_asana import RateLimitError",
+    ),
+    "NotFoundError": (
+        "autom8_asana.exceptions",
+        "from autom8_asana import NotFoundError",
+    ),
+    "ForbiddenError": (
+        "autom8_asana.exceptions",
+        "from autom8_asana import ForbiddenError",
+    ),
     "GoneError": ("autom8_asana.exceptions", "from autom8_asana import GoneError"),
     "ServerError": ("autom8_asana.exceptions", "from autom8_asana import ServerError"),
-    "TimeoutError": ("autom8_asana.exceptions", "from autom8_asana import TimeoutError"),
-    "ConfigurationError": ("autom8_asana.exceptions", "from autom8_asana import ConfigurationError"),
-    "SyncInAsyncContextError": ("autom8_asana.exceptions", "from autom8_asana import SyncInAsyncContextError"),
+    "TimeoutError": (
+        "autom8_asana.exceptions",
+        "from autom8_asana import TimeoutError",
+    ),
+    "ConfigurationError": (
+        "autom8_asana.exceptions",
+        "from autom8_asana import ConfigurationError",
+    ),
+    "SyncInAsyncContextError": (
+        "autom8_asana.exceptions",
+        "from autom8_asana import SyncInAsyncContextError",
+    ),
 }
 
 _CONFIG_ALIASES: dict[str, tuple[str, str]] = {
     "AsanaConfig": ("autom8_asana.config", "from autom8_asana import AsanaConfig"),
-    "RateLimitConfig": ("autom8_asana.config", "from autom8_asana import RateLimitConfig"),
+    "RateLimitConfig": (
+        "autom8_asana.config",
+        "from autom8_asana import RateLimitConfig",
+    ),
     "RetryConfig": ("autom8_asana.config", "from autom8_asana import RetryConfig"),
-    "ConcurrencyConfig": ("autom8_asana.config", "from autom8_asana import ConcurrencyConfig"),
+    "ConcurrencyConfig": (
+        "autom8_asana.config",
+        "from autom8_asana import ConcurrencyConfig",
+    ),
     "TimeoutConfig": ("autom8_asana.config", "from autom8_asana import TimeoutConfig"),
-    "ConnectionPoolConfig": ("autom8_asana.config", "from autom8_asana import ConnectionPoolConfig"),
+    "ConnectionPoolConfig": (
+        "autom8_asana.config",
+        "from autom8_asana import ConnectionPoolConfig",
+    ),
 }
 
 _MAIN_ALIASES: dict[str, tuple[str, str]] = {

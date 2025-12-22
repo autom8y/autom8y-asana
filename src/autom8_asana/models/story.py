@@ -40,9 +40,7 @@ class Story(AsanaResource):
     html_text: str | None = Field(default=None, description="HTML formatted text")
 
     # Relationships
-    target: NameGid | None = Field(
-        default=None, description="Task this story is on"
-    )
+    target: NameGid | None = Field(default=None, description="Task this story is on")
     created_by: NameGid | None = None
 
     # Timestamps

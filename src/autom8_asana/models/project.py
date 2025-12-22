@@ -52,8 +52,12 @@ class Project(AsanaResource):
     )
 
     # Dates
-    created_at: str | None = Field(default=None, description="Created datetime (ISO 8601)")
-    modified_at: str | None = Field(default=None, description="Modified datetime (ISO 8601)")
+    created_at: str | None = Field(
+        default=None, description="Created datetime (ISO 8601)"
+    )
+    modified_at: str | None = Field(
+        default=None, description="Modified datetime (ISO 8601)"
+    )
     due_on: str | None = Field(default=None, description="Due date (YYYY-MM-DD)")
     due_at: str | None = Field(default=None, description="Due datetime (ISO 8601)")
     start_on: str | None = Field(default=None, description="Start date (YYYY-MM-DD)")

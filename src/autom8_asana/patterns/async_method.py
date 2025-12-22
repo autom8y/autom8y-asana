@@ -138,9 +138,7 @@ class AsyncMethodPair(Generic[R]):
             return asyncio.run(async_impl(self_, *args, **kwargs))
 
         # Update sync wrapper metadata
-        sync_wrapper.__doc__ = (
-            f"{async_impl.__doc__ or ''}\n\n(Sync wrapper - see {async_name} for async variant)"
-        )
+        sync_wrapper.__doc__ = f"{async_impl.__doc__ or ''}\n\n(Sync wrapper - see {async_name} for async variant)"
         sync_wrapper.__name__ = sync_name
 
         # Inject both methods into the class
@@ -183,9 +181,7 @@ class AsyncMethodPair(Generic[R]):
         )
 
 
-def async_method(
-    fn: Callable[..., Coroutine[Any, Any, R]]
-) -> AsyncMethodPair[R]:
+def async_method(fn: Callable[..., Coroutine[Any, Any, R]]) -> AsyncMethodPair[R]:
     """Decorator that creates async/sync method pair from single implementation.
 
     The decorated async function becomes the implementation for both:

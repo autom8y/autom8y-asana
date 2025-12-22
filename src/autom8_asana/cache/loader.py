@@ -158,7 +158,9 @@ async def load_task_entries(
     results: dict[EntryType, tuple[CacheEntry | None, bool]] = {}
 
     # Create tasks for concurrent loading
-    async def load_single(entry_type: EntryType) -> tuple[EntryType, CacheEntry | None, bool]:
+    async def load_single(
+        entry_type: EntryType,
+    ) -> tuple[EntryType, CacheEntry | None, bool]:
         fetcher = fetchers.get(entry_type)
         if fetcher is None:
             return entry_type, None, False

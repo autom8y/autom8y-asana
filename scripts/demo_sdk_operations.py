@@ -23,27 +23,20 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-from typing import Any
 
 from autom8_asana.client import AsanaClient
 from autom8_asana.models.task import Task
-from autom8_asana.persistence import SaveSession
 
 from _demo_utils import (
     UserAction,
     confirm,
     confirm_with_preview,
-    ResolutionError,
-    EntityState,
     MembershipState,
-    TaskSnapshot,
     SubtaskState,
-    RestoreResult,
     DemoError,
     NameResolver,
     StateManager,
     DemoLogger,
-    CustomFieldInfo,
     find_custom_field_by_type,
     get_enum_option_by_index,
 )
@@ -357,7 +350,9 @@ async def demo_dependencies(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("add_dependency", unit_task.gid, {"depends_on": dep_task.gid})
+            logger.operation(
+                "add_dependency", unit_task.gid, {"depends_on": dep_task.gid}
+            )
             logger.success(f"Added dependency: {result}")
         else:
             logger.info("Skipped add dependency")
@@ -380,7 +375,9 @@ async def demo_dependencies(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("remove_dependency", unit_task.gid, {"depends_on": dep_task.gid})
+            logger.operation(
+                "remove_dependency", unit_task.gid, {"depends_on": dep_task.gid}
+            )
             logger.success(f"Removed dependency: {result}")
         else:
             logger.info("Skipped remove dependency")
@@ -403,7 +400,9 @@ async def demo_dependencies(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("add_dependent", dep_task.gid, {"dependent": unit_task.gid})
+            logger.operation(
+                "add_dependent", dep_task.gid, {"dependent": unit_task.gid}
+            )
             logger.success(f"Added dependent: {result}")
         else:
             logger.info("Skipped add dependent")
@@ -426,7 +425,9 @@ async def demo_dependencies(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("remove_dependent", dep_task.gid, {"dependent": unit_task.gid})
+            logger.operation(
+                "remove_dependent", dep_task.gid, {"dependent": unit_task.gid}
+            )
             logger.success(f"Removed dependent: {result}")
         else:
             logger.info("Skipped remove dependent")
@@ -476,7 +477,9 @@ async def demo_description(
 
     # Capture and store initial state
     original_notes = task.notes
-    logger.info(f"Original notes: {repr(original_notes[:100] + '...' if original_notes and len(original_notes) > 100 else original_notes)}")
+    logger.info(
+        f"Original notes: {repr(original_notes[:100] + '...' if original_notes and len(original_notes) > 100 else original_notes)}"
+    )
 
     # --- Step 1: Set Notes ---
     logger.info("\nStep 1: Set notes to a new value")
@@ -589,7 +592,9 @@ async def demo_description(
 
     # Verify final state
     task = await client.tasks.get_async(task.gid, opt_fields=["notes"])
-    logger.info(f"Final notes: {repr(task.notes[:100] + '...' if task.notes and len(task.notes) > 100 else task.notes)}")
+    logger.info(
+        f"Final notes: {repr(task.notes[:100] + '...' if task.notes and len(task.notes) > 100 else task.notes)}"
+    )
 
     logger.category_end("Description Operations", True)
     return True
@@ -663,7 +668,11 @@ async def demo_string_cf(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("set_string_cf", task.gid, {"field": field_info.name, "value": test_value_1})
+            logger.operation(
+                "set_string_cf",
+                task.gid,
+                {"field": field_info.name, "value": test_value_1},
+            )
             logger.success(f"Set string field: {result}")
         else:
             logger.info("Skipped set string field")
@@ -693,7 +702,11 @@ async def demo_string_cf(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("update_string_cf", task.gid, {"field": field_info.name, "value": test_value_2})
+            logger.operation(
+                "update_string_cf",
+                task.gid,
+                {"field": field_info.name, "value": test_value_2},
+            )
             logger.success(f"Updated string field: {result}")
         else:
             logger.info("Skipped update string field")
@@ -721,7 +734,9 @@ async def demo_string_cf(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("clear_string_cf", task.gid, {"field": field_info.name, "value": None})
+            logger.operation(
+                "clear_string_cf", task.gid, {"field": field_info.name, "value": None}
+            )
             logger.success(f"Cleared string field: {result}")
         else:
             logger.info("Skipped clear string field")
@@ -749,7 +764,11 @@ async def demo_string_cf(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("restore_string_cf", task.gid, {"field": field_info.name, "value": "(original)"})
+            logger.operation(
+                "restore_string_cf",
+                task.gid,
+                {"field": field_info.name, "value": "(original)"},
+            )
             logger.success(f"Restored string field: {result}")
         else:
             logger.info("Skipped restore string field")
@@ -757,7 +776,9 @@ async def demo_string_cf(
     # Verify final state
     task = await client.tasks.get_async(task.gid, opt_fields=["custom_fields"])
     final_info = find_custom_field_by_type(task.custom_fields, "text")
-    logger.info(f"Final value: {repr(final_info.current_value if final_info else None)}")
+    logger.info(
+        f"Final value: {repr(final_info.current_value if final_info else None)}"
+    )
 
     logger.category_end("String Custom Field Operations", True)
     return True
@@ -820,7 +841,9 @@ async def demo_people_cf(
 
     # Find a user that's different from current value
     current_user_gids = set(original_value or [])
-    available_users = [(name, gid) for name, gid in all_users.items() if gid not in current_user_gids]
+    available_users = [
+        (name, gid) for name, gid in all_users.items() if gid not in current_user_gids
+    ]
 
     if not available_users:
         logger.warn("No alternative users available. Skipping demo.")
@@ -852,7 +875,11 @@ async def demo_people_cf(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("set_people_cf", task.gid, {"field": field_info.name, "user": test_user_name})
+            logger.operation(
+                "set_people_cf",
+                task.gid,
+                {"field": field_info.name, "user": test_user_name},
+            )
             logger.success(f"Set people field: {result}")
         else:
             logger.info("Skipped set people field")
@@ -880,7 +907,9 @@ async def demo_people_cf(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("clear_people_cf", task.gid, {"field": field_info.name, "value": None})
+            logger.operation(
+                "clear_people_cf", task.gid, {"field": field_info.name, "value": None}
+            )
             logger.success(f"Cleared people field: {result}")
         else:
             logger.info("Skipped clear people field")
@@ -910,7 +939,11 @@ async def demo_people_cf(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("restore_people_cf", task.gid, {"field": field_info.name, "value": "(original)"})
+            logger.operation(
+                "restore_people_cf",
+                task.gid,
+                {"field": field_info.name, "value": "(original)"},
+            )
             logger.success(f"Restored people field: {result}")
         else:
             logger.info("Skipped restore people field")
@@ -969,7 +1002,9 @@ async def demo_enum_cf(
     original_value = field_info.current_value  # Option GID or None
     logger.info(f"Original value (option GID): {original_value}")
     logger.info(f"Display value: {field_info.display_value}")
-    logger.info(f"Available options: {[opt['name'] for opt in field_info.enum_options]}")
+    logger.info(
+        f"Available options: {[opt['name'] for opt in field_info.enum_options]}"
+    )
 
     # Find an option that's different from current
     new_option = get_enum_option_by_index(field_info, 0, exclude_current=True)
@@ -1006,7 +1041,11 @@ async def demo_enum_cf(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("set_enum_cf", task.gid, {"field": field_info.name, "option": new_option_name})
+            logger.operation(
+                "set_enum_cf",
+                task.gid,
+                {"field": field_info.name, "option": new_option_name},
+            )
             logger.success(f"Set enum field: {result}")
         else:
             logger.info("Skipped set enum field")
@@ -1034,7 +1073,9 @@ async def demo_enum_cf(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("clear_enum_cf", task.gid, {"field": field_info.name, "value": None})
+            logger.operation(
+                "clear_enum_cf", task.gid, {"field": field_info.name, "value": None}
+            )
             logger.success(f"Cleared enum field: {result}")
         else:
             logger.info("Skipped clear enum field")
@@ -1070,7 +1111,11 @@ async def demo_enum_cf(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("restore_enum_cf", task.gid, {"field": field_info.name, "value": "(original)"})
+            logger.operation(
+                "restore_enum_cf",
+                task.gid,
+                {"field": field_info.name, "value": "(original)"},
+            )
             logger.success(f"Restored enum field: {result}")
         else:
             logger.info("Skipped restore enum field")
@@ -1152,7 +1197,11 @@ async def demo_number_cf(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("set_number_cf", task.gid, {"field": field_info.name, "value": test_value_1})
+            logger.operation(
+                "set_number_cf",
+                task.gid,
+                {"field": field_info.name, "value": test_value_1},
+            )
             logger.success(f"Set number field: {result}")
         else:
             logger.info("Skipped set number field")
@@ -1182,7 +1231,11 @@ async def demo_number_cf(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("update_number_cf", task.gid, {"field": field_info.name, "value": test_value_2})
+            logger.operation(
+                "update_number_cf",
+                task.gid,
+                {"field": field_info.name, "value": test_value_2},
+            )
             logger.success(f"Updated number field: {result}")
         else:
             logger.info("Skipped update number field")
@@ -1210,7 +1263,9 @@ async def demo_number_cf(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("clear_number_cf", task.gid, {"field": field_info.name, "value": None})
+            logger.operation(
+                "clear_number_cf", task.gid, {"field": field_info.name, "value": None}
+            )
             logger.success(f"Cleared number field: {result}")
         else:
             logger.info("Skipped clear number field")
@@ -1238,7 +1293,11 @@ async def demo_number_cf(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("restore_number_cf", task.gid, {"field": field_info.name, "value": "(original)"})
+            logger.operation(
+                "restore_number_cf",
+                task.gid,
+                {"field": field_info.name, "value": "(original)"},
+            )
             logger.success(f"Restored number field: {result}")
         else:
             logger.info("Skipped restore number field")
@@ -1301,7 +1360,9 @@ async def demo_multienum_cf(
     original_value = field_info.current_value  # List of option GIDs
     logger.info(f"Original values (option GIDs): {original_value}")
     logger.info(f"Display value: {field_info.display_value}")
-    logger.info(f"Available options: {[opt['name'] for opt in field_info.enum_options]}")
+    logger.info(
+        f"Available options: {[opt['name'] for opt in field_info.enum_options]}"
+    )
 
     # Get at least 2 different options for the demo
     all_options = field_info.enum_options
@@ -1344,7 +1405,11 @@ async def demo_multienum_cf(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("set_single_multienum", task.gid, {"field": field_info.name, "options": [option_1["name"]]})
+            logger.operation(
+                "set_single_multienum",
+                task.gid,
+                {"field": field_info.name, "options": [option_1["name"]]},
+            )
             logger.success(f"Set multi-enum to single option: {result}")
         else:
             logger.info("Skipped set single option")
@@ -1373,7 +1438,14 @@ async def demo_multienum_cf(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("set_multiple_multienum", task.gid, {"field": field_info.name, "options": [option_1["name"], option_2["name"]]})
+            logger.operation(
+                "set_multiple_multienum",
+                task.gid,
+                {
+                    "field": field_info.name,
+                    "options": [option_1["name"], option_2["name"]],
+                },
+            )
             logger.success(f"Set multi-enum to multiple options: {result}")
         else:
             logger.info("Skipped set multiple options")
@@ -1401,7 +1473,9 @@ async def demo_multienum_cf(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("clear_multienum", task.gid, {"field": field_info.name, "value": None})
+            logger.operation(
+                "clear_multienum", task.gid, {"field": field_info.name, "value": None}
+            )
             logger.success(f"Cleared multi-enum field: {result}")
         else:
             logger.info("Skipped clear multi-enum field")
@@ -1437,7 +1511,11 @@ async def demo_multienum_cf(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("restore_multienum", task.gid, {"field": field_info.name, "value": "(original)"})
+            logger.operation(
+                "restore_multienum",
+                task.gid,
+                {"field": field_info.name, "value": "(original)"},
+            )
             logger.success(f"Restored multi-enum field: {result}")
         else:
             logger.info("Skipped restore multi-enum field")
@@ -1557,7 +1635,9 @@ async def demo_subtask(
     logger.info("\nStep 2: Add subtask back to parent")
 
     # Refresh subtask
-    subtask = await client.tasks.get_async(subtask.gid, opt_fields=["parent", "parent.name"])
+    subtask = await client.tasks.get_async(
+        subtask.gid, opt_fields=["parent", "parent.name"]
+    )
 
     async with client.save_session() as session:
         session.set_parent(subtask, recon_holder.gid)
@@ -1606,7 +1686,9 @@ async def demo_subtask(
 
     if last_sibling_gid and len(siblings) > 1:
         # Refresh subtask with parent
-        subtask = await client.tasks.get_async(subtask.gid, opt_fields=["parent", "parent.name", "parent.gid"])
+        subtask = await client.tasks.get_async(
+            subtask.gid, opt_fields=["parent", "parent.name", "parent.gid"]
+        )
 
         async with client.save_session() as session:
             session.set_parent(subtask, recon_holder.gid, insert_after=last_sibling_gid)
@@ -1623,7 +1705,9 @@ async def demo_subtask(
                 return False
             if action == UserAction.PROCEED:
                 result = await session.commit_async()
-                logger.operation("reorder_bottom", subtask.gid, {"insert_after": last_sibling_gid})
+                logger.operation(
+                    "reorder_bottom", subtask.gid, {"insert_after": last_sibling_gid}
+                )
                 logger.success(f"Moved to bottom: {result}")
             else:
                 logger.info("Skipped reorder to bottom")
@@ -1654,10 +1738,14 @@ async def demo_subtask(
 
     if first_sibling_gid and len(siblings) > 1:
         # Refresh subtask
-        subtask = await client.tasks.get_async(subtask.gid, opt_fields=["parent", "parent.name", "parent.gid"])
+        subtask = await client.tasks.get_async(
+            subtask.gid, opt_fields=["parent", "parent.name", "parent.gid"]
+        )
 
         async with client.save_session() as session:
-            session.set_parent(subtask, recon_holder.gid, insert_before=first_sibling_gid)
+            session.set_parent(
+                subtask, recon_holder.gid, insert_before=first_sibling_gid
+            )
             crud_ops, action_ops = session.preview()
 
             action = confirm_with_preview(
@@ -1671,7 +1759,9 @@ async def demo_subtask(
                 return False
             if action == UserAction.PROCEED:
                 result = await session.commit_async()
-                logger.operation("reorder_top", subtask.gid, {"insert_before": first_sibling_gid})
+                logger.operation(
+                    "reorder_top", subtask.gid, {"insert_before": first_sibling_gid}
+                )
                 logger.success(f"Moved to top: {result}")
             else:
                 logger.info("Skipped reorder to top")
@@ -1682,12 +1772,16 @@ async def demo_subtask(
     logger.info("\nStep 5: Restore original position")
 
     # Refresh subtask
-    subtask = await client.tasks.get_async(subtask.gid, opt_fields=["parent", "parent.name", "parent.gid"])
+    subtask = await client.tasks.get_async(
+        subtask.gid, opt_fields=["parent", "parent.name", "parent.gid"]
+    )
 
     if subtask_state.insert_after_gid:
         # Restore by inserting after the original predecessor
         async with client.save_session() as session:
-            session.set_parent(subtask, recon_holder.gid, insert_after=subtask_state.insert_after_gid)
+            session.set_parent(
+                subtask, recon_holder.gid, insert_after=subtask_state.insert_after_gid
+            )
             crud_ops, action_ops = session.preview()
 
             action = confirm_with_preview(
@@ -1701,16 +1795,26 @@ async def demo_subtask(
                 return False
             if action == UserAction.PROCEED:
                 result = await session.commit_async()
-                logger.operation("restore_position", subtask.gid, {"insert_after": subtask_state.insert_after_gid})
+                logger.operation(
+                    "restore_position",
+                    subtask.gid,
+                    {"insert_after": subtask_state.insert_after_gid},
+                )
                 logger.success(f"Restored position: {result}")
             else:
                 logger.info("Skipped restore position")
     elif subtask_state.position_index == 0 and len(subtask_state.sibling_gids) > 1:
         # Was first - insert before second sibling
-        second_sibling = subtask_state.sibling_gids[1] if len(subtask_state.sibling_gids) > 1 else None
+        second_sibling = (
+            subtask_state.sibling_gids[1]
+            if len(subtask_state.sibling_gids) > 1
+            else None
+        )
         if second_sibling:
             async with client.save_session() as session:
-                session.set_parent(subtask, recon_holder.gid, insert_before=second_sibling)
+                session.set_parent(
+                    subtask, recon_holder.gid, insert_before=second_sibling
+                )
                 crud_ops, action_ops = session.preview()
 
                 action = confirm_with_preview(
@@ -1724,7 +1828,9 @@ async def demo_subtask(
                     return False
                 if action == UserAction.PROCEED:
                     result = await session.commit_async()
-                    logger.operation("restore_first", subtask.gid, {"insert_before": second_sibling})
+                    logger.operation(
+                        "restore_first", subtask.gid, {"insert_before": second_sibling}
+                    )
                     logger.success(f"Restored to first position: {result}")
                 else:
                     logger.info("Skipped restore first position")
@@ -1732,8 +1838,12 @@ async def demo_subtask(
         logger.info("No position restoration needed (was only/first sibling)")
 
     # Verify final state
-    subtask = await client.tasks.get_async(subtask.gid, opt_fields=["parent", "parent.name"])
-    logger.info(f"Final parent: {subtask.parent.name if subtask.parent else '(none)'} ({subtask.parent.gid if subtask.parent else 'N/A'})")
+    subtask = await client.tasks.get_async(
+        subtask.gid, opt_fields=["parent", "parent.name"]
+    )
+    logger.info(
+        f"Final parent: {subtask.parent.name if subtask.parent else '(none)'} ({subtask.parent.gid if subtask.parent else 'N/A'})"
+    )
 
     logger.category_end("Subtask Operations", True)
     return True
@@ -1782,11 +1892,15 @@ async def demo_membership(
             project = m.get("project", {})
             section = m.get("section", {})
             if project.get("gid"):
-                original_memberships.append(MembershipState(
-                    project_gid=project["gid"],
-                    section_gid=section.get("gid") if section else None,
-                ))
-                logger.info(f"Original membership: project={project.get('name')} ({project.get('gid')}), section={section.get('name') if section else '(none)'}")
+                original_memberships.append(
+                    MembershipState(
+                        project_gid=project["gid"],
+                        section_gid=section.get("gid") if section else None,
+                    )
+                )
+                logger.info(
+                    f"Original membership: project={project.get('name')} ({project.get('gid')}), section={section.get('name') if section else '(none)'}"
+                )
 
     if not original_memberships:
         logger.warn("Task has no project memberships. Skipping demo.")
@@ -1836,7 +1950,9 @@ async def demo_membership(
                 return False
             if action == UserAction.PROCEED:
                 result = await session.commit_async()
-                logger.operation("move_to_section", task.gid, {"section": target_section_name})
+                logger.operation(
+                    "move_to_section", task.gid, {"section": target_section_name}
+                )
                 logger.success(f"Moved to section: {result}")
             else:
                 logger.info("Skipped move to section")
@@ -1861,7 +1977,9 @@ async def demo_membership(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("remove_from_project", task.gid, {"project": primary_project_gid})
+            logger.operation(
+                "remove_from_project", task.gid, {"project": primary_project_gid}
+            )
             logger.success(f"Removed from project: {result}")
         else:
             logger.info("Skipped remove from project")
@@ -1870,7 +1988,11 @@ async def demo_membership(
     logger.info("\nStep 3: Add task back to project")
 
     # We'll add back to the original section if available
-    restore_section = original_section_gid if original_section_gid else (section_gids[0] if section_gids else None)
+    restore_section = (
+        original_section_gid
+        if original_section_gid
+        else (section_gids[0] if section_gids else None)
+    )
 
     async with client.save_session() as session:
         session.add_to_project(task, primary_project_gid)
@@ -1887,7 +2009,9 @@ async def demo_membership(
             return False
         if action == UserAction.PROCEED:
             result = await session.commit_async()
-            logger.operation("add_to_project", task.gid, {"project": primary_project_gid})
+            logger.operation(
+                "add_to_project", task.gid, {"project": primary_project_gid}
+            )
             logger.success(f"Added to project: {result}")
         else:
             logger.info("Skipped add to project")
@@ -1911,7 +2035,9 @@ async def demo_membership(
                 return False
             if action == UserAction.PROCEED:
                 result = await session.commit_async()
-                logger.operation("restore_section", task.gid, {"section": original_section_gid})
+                logger.operation(
+                    "restore_section", task.gid, {"section": original_section_gid}
+                )
                 logger.success(f"Restored to original section: {result}")
             else:
                 logger.info("Skipped restore to original section")
@@ -1950,7 +2076,9 @@ async def demo_membership(
                 return False
             if action == UserAction.PROCEED:
                 result = await session.commit_async()
-                logger.operation("add_to_second_project", task.gid, {"project": second_project_name})
+                logger.operation(
+                    "add_to_second_project", task.gid, {"project": second_project_name}
+                )
                 logger.success(f"Added to second project: {result}")
             else:
                 logger.info("Skipped add to second project")
@@ -1973,7 +2101,11 @@ async def demo_membership(
                 return False
             if action == UserAction.PROCEED:
                 result = await session.commit_async()
-                logger.operation("remove_from_second_project", task.gid, {"project": second_project_name})
+                logger.operation(
+                    "remove_from_second_project",
+                    task.gid,
+                    {"project": second_project_name},
+                )
                 logger.success(f"Removed from second project: {result}")
             else:
                 logger.info("Skipped remove from second project")
@@ -1983,14 +2115,22 @@ async def demo_membership(
     # Verify final state
     task = await client.tasks.get_async(
         task.gid,
-        opt_fields=["memberships", "memberships.project", "memberships.project.name", "memberships.section", "memberships.section.name"],
+        opt_fields=[
+            "memberships",
+            "memberships.project",
+            "memberships.project.name",
+            "memberships.section",
+            "memberships.section.name",
+        ],
     )
     logger.info("\nFinal memberships:")
     if task.memberships:
         for m in task.memberships:
             project = m.get("project", {})
             section = m.get("section", {})
-            logger.info(f"  project={project.get('name')}, section={section.get('name') if section else '(none)'}")
+            logger.info(
+                f"  project={project.get('name')}, section={section.get('name') if section else '(none)'}"
+            )
     else:
         logger.info("  (no memberships)")
 
@@ -2044,7 +2184,11 @@ async def run_demo(
 
     # Determine which categories to run
     if categories:
-        selected = [(code, DEMO_CATEGORIES[code]) for code in categories if code in DEMO_CATEGORIES]
+        selected = [
+            (code, DEMO_CATEGORIES[code])
+            for code in categories
+            if code in DEMO_CATEGORIES
+        ]
         invalid = [code for code in categories if code not in DEMO_CATEGORIES]
         if invalid:
             logger.warn(f"Unknown categories ignored: {', '.join(invalid)}")
@@ -2062,13 +2206,15 @@ async def run_demo(
     try:
         client = AsanaClient()
     except Exception as e:
-        logger.error(DemoError(
-            category="initialization",
-            operation="create_client",
-            entity_gid="N/A",
-            message=str(e),
-            recovery_hint="Ensure ASANA_PAT environment variable is set",
-        ))
+        logger.error(
+            DemoError(
+                category="initialization",
+                operation="create_client",
+                entity_gid="N/A",
+                message=str(e),
+                recovery_hint="Ensure ASANA_PAT environment variable is set",
+            )
+        )
         return 1
 
     try:
@@ -2103,12 +2249,14 @@ async def run_demo(
                 success = await func(client, entities, resolver, state_manager, logger)
                 results[code] = success
             except Exception as e:
-                logger.error(DemoError(
-                    category=code,
-                    operation="run_category",
-                    entity_gid="N/A",
-                    message=str(e),
-                ))
+                logger.error(
+                    DemoError(
+                        category=code,
+                        operation="run_category",
+                        entity_gid="N/A",
+                        message=str(e),
+                    )
+                )
                 results[code] = False
 
             # Check if user wants to continue
@@ -2167,24 +2315,28 @@ Examples:
 """,
     )
     parser.add_argument(
-        "-c", "--category",
+        "-c",
+        "--category",
         action="append",
         dest="categories",
         choices=list(DEMO_CATEGORIES.keys()),
         help="Category code to run (can be specified multiple times)",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable verbose logging",
     )
 
     args = parser.parse_args()
 
-    exit_code = asyncio.run(run_demo(
-        categories=args.categories,
-        verbose=args.verbose,
-    ))
+    exit_code = asyncio.run(
+        run_demo(
+            categories=args.categories,
+            verbose=args.verbose,
+        )
+    )
     sys.exit(exit_code)
 
 

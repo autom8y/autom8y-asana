@@ -202,10 +202,7 @@ def filter_relevant_stories(
     if include_types is None:
         include_types = DEFAULT_STORY_TYPES
 
-    return [
-        s for s in stories
-        if s.get("resource_subtype") in include_types
-    ]
+    return [s for s in stories if s.get("resource_subtype") in include_types]
 
 
 def get_latest_story_timestamp(stories: list[dict[str, Any]]) -> str | None:

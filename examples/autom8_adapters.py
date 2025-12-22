@@ -73,9 +73,7 @@ class SecretManagerAuthProvider:
         except Exception as e:
             from autom8_asana import AuthenticationError
 
-            raise AuthenticationError(
-                f"Failed to retrieve secret '{key}': {e}"
-            ) from e
+            raise AuthenticationError(f"Failed to retrieve secret '{key}': {e}") from e
 
 
 class S3CacheProvider:

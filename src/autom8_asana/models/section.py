@@ -44,7 +44,9 @@ class Section(AsanaResource):
     project: NameGid | None = None
 
     # Metadata
-    created_at: str | None = Field(default=None, description="Created datetime (ISO 8601)")
+    created_at: str | None = Field(
+        default=None, description="Created datetime (ISO 8601)"
+    )
 
     # Tasks attribute for DataFrame building (populated externally)
     tasks: list[Any] | None = Field(default=None, exclude=True)

@@ -29,9 +29,7 @@ from autom8_asana import AsanaClient
 from _config import get_workspace_gid, get_config_instructions
 
 
-async def get_team_for_project(
-    client: AsanaClient, workspace_gid: str
-) -> str | None:
+async def get_team_for_project(client: AsanaClient, workspace_gid: str) -> str | None:
     """Get a team GID for creating a project.
 
     Tries to find an available team in the workspace.
@@ -139,9 +137,9 @@ async def create_and_organize_tasks(
     # Create tasks in the "To Do" section (first section)
     for i in range(5):
         task = await client.tasks.create_async(
-            name=f"Task {i+1}",
+            name=f"Task {i + 1}",
             projects=[project_gid],
-            notes=f"This is task number {i+1}",
+            notes=f"This is task number {i + 1}",
         )
         task_gids.append(task.gid)
 
@@ -273,16 +271,16 @@ async def main(workspace_gid: str) -> None:
         team_gid = await get_team_for_project(client, workspace_gid)
 
         if not team_gid:
-            print("\n" + "="*60)
+            print("\n" + "=" * 60)
             print("NO TEAMS AVAILABLE")
-            print("="*60)
+            print("=" * 60)
             print("\nProjects in Asana must belong to a team. This workspace")
             print("appears to have no teams available for project creation.")
             print("\nTo run this example:")
             print("  1. Create a team in your Asana workspace")
             print("  2. Or use a different workspace with teams")
             print("\nNote: Most Asana workspaces have at least one default team.")
-            print("="*60)
+            print("=" * 60)
             return
 
         project_gids = []
@@ -298,9 +296,7 @@ async def main(workspace_gid: str) -> None:
         await list_project_sections(client, project_gid)
 
         # Example 3: Create and organize tasks
-        task_gids = await create_and_organize_tasks(
-            client, project_gid, section_gids
-        )
+        task_gids = await create_and_organize_tasks(client, project_gid, section_gids)
 
         # Example 4: Move task between sections
         if task_gids and len(section_gids) >= 2:
@@ -314,9 +310,7 @@ async def main(workspace_gid: str) -> None:
 
         # Example 5: List tasks in a section
         if section_gids:
-            await list_tasks_in_section(
-                client, section_gids[0], "To Do"
-            )
+            await list_tasks_in_section(client, section_gids[0], "To Do")
 
         # Example 6: Task in multiple projects
         if task_gids:
@@ -341,9 +335,7 @@ async def main(workspace_gid: str) -> None:
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser(
-        description="Demonstrate project and section organization"
-    )
+    parser = ArgumentParser(description="Demonstrate project and section organization")
     parser.add_argument(
         "--workspace",
         default=get_workspace_gid(),

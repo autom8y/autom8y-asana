@@ -108,9 +108,7 @@ def error_handler(
 
             if log_provider:
                 # Log error with correlation ID
-                log_provider.error(
-                    f"[{correlation_id}] {operation_str} failed: {e}"
-                )
+                log_provider.error(f"[{correlation_id}] {operation_str} failed: {e}")
 
             raise
 

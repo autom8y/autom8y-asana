@@ -326,7 +326,9 @@ class CacheMetrics:
             correlation_id: Optional correlation ID for tracing.
         """
         with self._lock:
-            self._overflow_skips[entry_type] = self._overflow_skips.get(entry_type, 0) + 1
+            self._overflow_skips[entry_type] = (
+                self._overflow_skips.get(entry_type, 0) + 1
+            )
 
         metadata: dict[str, Any] = {}
         if count is not None:

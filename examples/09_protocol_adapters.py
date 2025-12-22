@@ -27,7 +27,6 @@ import asyncio
 import time
 from typing import Any
 
-from autom8_asana import AsanaClient
 
 
 # ============================================================================
@@ -248,7 +247,7 @@ async def example_composition() -> None:
     # This shows how to use all custom providers together
     # In production, these would integrate with your infrastructure
 
-    example_code = '''
+    example_code = """
 # Production example with all custom providers
 from autom8_asana import AsanaClient
 
@@ -261,7 +260,7 @@ client = AsanaClient(
 async with client:
     # SDK uses your providers for all operations
     task = await client.tasks.get_async("123")
-'''
+"""
 
     print(example_code)
 
@@ -282,7 +281,7 @@ async def example_autom8_integration() -> None:
     print("   - Maintains consistent logging format")
 
     print("\nUsage in autom8:")
-    autom8_example = '''
+    autom8_example = """
 from examples.autom8_adapters import (
     SecretManagerAuthProvider,
     TaskCacheAdapter,
@@ -295,7 +294,7 @@ client = AsanaClient(
     cache_provider=TaskCacheAdapter(),
     log_provider=LogAdapter(),
 )
-'''
+"""
     print(autom8_example)
 
 

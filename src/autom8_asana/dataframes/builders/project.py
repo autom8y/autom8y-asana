@@ -123,8 +123,7 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
         # Apply section filtering if sections specified
         if self._sections:
             tasks = [
-                task for task in tasks
-                if self._task_in_sections(task, self._sections)
+                task for task in tasks if self._task_in_sections(task, self._sections)
             ]
 
         # Cast to list[Task] for type checker since tasks comes from Any

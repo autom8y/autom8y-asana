@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from functools import wraps
-from typing import Any, Coroutine, Callable, TypeVar, cast
+from typing import Any, Coroutine, Callable, TypeVar
 
 from autom8_asana.exceptions import SyncInAsyncContextError
 
@@ -37,6 +37,7 @@ def sync_wrapper(
             def get(self, task_gid: str) -> Task:
                 return self._get_impl(task_gid)
     """
+
     def decorator(func: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., T]:
         """Decorator that wraps an async function for synchronous execution."""
 
@@ -63,4 +64,5 @@ def sync_wrapper(
             return asyncio.run(func(*args, **kwargs))
 
         return wrapper
+
     return decorator

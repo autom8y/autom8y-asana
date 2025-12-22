@@ -911,7 +911,9 @@ class GoalsClient(BaseClient):
             goal_gid: Goal GID
             supporting_resource: Project or portfolio GID to remove
         """
-        self._remove_supporting_work_sync(goal_gid, supporting_resource=supporting_resource)
+        self._remove_supporting_work_sync(
+            goal_gid, supporting_resource=supporting_resource
+        )
 
     # --- Followers ---
 
@@ -1012,7 +1014,9 @@ class GoalsClient(BaseClient):
     ) -> Goal | dict[str, Any]:
         """Internal sync wrapper implementation."""
         if raw:
-            return await self.add_followers_async(goal_gid, followers=followers, raw=True)
+            return await self.add_followers_async(
+                goal_gid, followers=followers, raw=True
+            )
         return await self.add_followers_async(goal_gid, followers=followers, raw=False)
 
     @overload

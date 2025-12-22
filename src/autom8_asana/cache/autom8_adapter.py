@@ -43,7 +43,6 @@ from autom8_asana.cache.batch import fetch_task_modifications
 from autom8_asana.cache.entry import CacheEntry, EntryType
 from autom8_asana.cache.settings import CacheSettings
 from autom8_asana.cache.staleness import check_batch_staleness, partition_by_staleness
-from autom8_asana.cache.versioning import format_version
 
 if TYPE_CHECKING:
     from autom8_asana.cache.backends.redis import RedisCacheProvider
@@ -134,7 +133,11 @@ def create_autom8_cache_provider(
             "For AWS ElastiCache, use the primary endpoint hostname."
         )
 
-    port = redis_port if redis_port is not None else int(os.environ.get("REDIS_PORT", "6379"))
+    port = (
+        redis_port
+        if redis_port is not None
+        else int(os.environ.get("REDIS_PORT", "6379"))
+    )
     password = redis_password or os.environ.get("REDIS_PASSWORD")
 
     # Default to SSL for production (ElastiCache uses TLS)
@@ -255,7 +258,9 @@ async def migrate_task_collection_loading(
     fetch_errors = 0
 
     # Get cached task data for current GIDs
-    cached_entries = cache.get_batch(current_gids, EntryType.TASK) if current_gids else {}
+    cached_entries = (
+        cache.get_batch(current_gids, EntryType.TASK) if current_gids else {}
+    )
     cached_tasks = {
         gid: entry.data for gid, entry in cached_entries.items() if entry is not None
     }
@@ -367,7 +372,11 @@ async def warm_project_tasks(
 
         modified_at = task.get("modified_at")
         if modified_at:
-            version = _parse_version(modified_at) if isinstance(modified_at, str) else modified_at
+            version = (
+                _parse_version(modified_at)
+                if isinstance(modified_at, str)
+                else modified_at
+            )
         else:
             version = now
 
