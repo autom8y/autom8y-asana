@@ -1,0 +1,760 @@
+id: 46374f0f-c680-4127-8236-e033c1492f95
+name: Troubleshooting
+version: 1
+forkedFrom: null
+content:
+- id: 5e724f40-b21f-4409-8594-71bdb5f8219b
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 1
+    isToggleable: false
+  content:
+  - type: text
+    text: Troubleshooting
+    styles: {}
+  children: []
+- id: 331fd04e-961d-4f8b-af80-771e11c756ec
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Common issues and solutions for autom8_asana development and API usage.
+    styles: {}
+  children: []
+- id: c91d94da-9e4d-45e3-be77-782c6bec1fc2
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: 'Time:'
+    styles:
+      bold: true
+  - type: text
+    text: ' as needed'
+    styles: {}
+  children: []
+- id: 912c3bda-dd4e-4486-b424-a8421b4bb537
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: ee797538-1c64-4903-bd40-28016eff313b
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Environment Issues
+    styles: {}
+  children: []
+- id: 61c75fc3-3a5c-442a-8d71-ef2fbbf88e3c
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 3
+    isToggleable: false
+  content:
+  - type: text
+    text: ASANA_PAT Not Set
+    styles: {}
+  children: []
+- id: 5aab74cb-38c7-4261-b445-e8e79bda7b56
+  type: script
+  props:
+    interpreter: bash
+    name: diagnose_pat
+    code: |-
+      echo "=== PAT Diagnostic ==="
+
+      ENV_FILE="${HOME}/.config/autom8y/envs/autom8-asana/runbook.env"
+
+      if [ ! -f "$ENV_FILE" ]; then
+          echo "ERROR: Environment file not found"
+          echo "Location: $ENV_FILE"
+          echo ""
+          echo "FIX: Run 'just setup-env' to create it"
+          exit 1
+      fi
+
+      echo "Environment file: $ENV_FILE"
+      echo ""
+
+      # Check if ASANA_PAT is in the file
+      if grep -q "^ASANA_PAT=" "$ENV_FILE"; then
+          echo "ASANA_PAT is defined in file"
+
+          # Load and check value
+          set -a && source "$ENV_FILE" && set +a
+
+          if [ -z "${ASANA_PAT:-}" ]; then
+              echo "ERROR: ASANA_PAT is empty"
+              echo ""
+              echo "FIX: Edit $ENV_FILE and add your PAT"
+          else
+              echo "ASANA_PAT is set: ****${ASANA_PAT: -4}"
+          fi
+      else
+          echo "ERROR: ASANA_PAT not found in file"
+          echo ""
+          echo "FIX: Add this line to $ENV_FILE:"
+          echo "  ASANA_PAT=your_personal_access_token"
+      fi
+    outputVariable: ''
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 15
+  children: []
+- id: bb7e6e30-47a9-4d5d-b6ba-6bb8859a9488
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 18510667-7f48-441c-a6a9-21a9ddb89f42
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 3
+    isToggleable: false
+  content:
+  - type: text
+    text: Path Configuration Issues
+    styles: {}
+  children: []
+- id: 5c554ff8-00f4-4937-a8a3-18ffcfd08568
+  type: script
+  props:
+    interpreter: bash
+    name: diagnose_paths
+    code: |-
+      echo "=== Path Diagnostic ==="
+
+      PATHS_FILE="${HOME}/.config/autom8y/paths.env"
+
+      if [ ! -f "$PATHS_FILE" ]; then
+          echo "ERROR: Paths file not found"
+          echo "Location: $PATHS_FILE"
+          echo ""
+          echo "FIX: Run 'just bootstrap-paths' from the repository"
+          exit 1
+      fi
+
+      echo "Paths file: $PATHS_FILE"
+      echo ""
+      echo "Contents:"
+      cat "$PATHS_FILE"
+      echo ""
+
+      # Load and check
+      source "$PATHS_FILE"
+      if [ -z "${AUTOM8Y_ASANA_PATH:-}" ]; then
+          echo "ERROR: AUTOM8Y_ASANA_PATH not set"
+          echo "FIX: Run 'just bootstrap-paths'"
+      elif [ ! -d "${AUTOM8Y_ASANA_PATH}" ]; then
+          echo "ERROR: Path does not exist: ${AUTOM8Y_ASANA_PATH}"
+          echo "FIX: Run 'just bootstrap-paths' to update"
+      else
+          echo "AUTOM8Y_ASANA_PATH: ${AUTOM8Y_ASANA_PATH} (valid)"
+      fi
+    outputVariable: ''
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 12
+  children: []
+- id: 8ec131e5-ff5b-431f-a955-549c05e8a644
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 5d15aa34-dbab-4195-937b-cb9f8bd1b912
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Authentication Issues
+    styles: {}
+  children: []
+- id: 72b72f00-5e4b-4ec4-9b2c-ec31a93ccebc
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 3
+    isToggleable: false
+  content:
+  - type: text
+    text: Test PAT Validity
+    styles: {}
+  children: []
+- id: 0c742a3c-c00a-43d7-b1fe-221383fca331
+  type: script
+  props:
+    interpreter: bash
+    name: test_pat_validity
+    code: |-
+      echo "=== PAT Validity Test ==="
+
+      # Load environment
+      ENV_FILE="${HOME}/.config/autom8y/envs/autom8-asana/runbook.env"
+      if [ -f "$ENV_FILE" ]; then
+          set -a && source "$ENV_FILE" && set +a
+      fi
+
+      if [ -z "${ASANA_PAT:-}" ]; then
+          echo "ERROR: ASANA_PAT not configured"
+          exit 1
+      fi
+
+      echo "Testing PAT: ****${ASANA_PAT: -4}"
+      echo ""
+
+      RESPONSE=$(curl -s -w "\n%{http_code}" \
+          -H "Authorization: Bearer ${ASANA_PAT}" \
+          "https://app.asana.com/api/1.0/users/me")
+
+      STATUS=$(echo "$RESPONSE" | tail -1)
+      BODY=$(echo "$RESPONSE" | head -n -1)
+
+      case "$STATUS" in
+          200)
+              echo "SUCCESS: PAT is valid"
+              echo "$BODY" | jq -r '.data | "Authenticated as: \(.name) (\(.email))"'
+              ;;
+          401)
+              echo "ERROR: Invalid PAT (401 Unauthorized)"
+              echo ""
+              echo "Possible causes:"
+              echo "  - PAT is incorrect or mistyped"
+              echo "  - PAT has been revoked"
+              echo "  - PAT has expired"
+              echo ""
+              echo "FIX: Generate a new PAT at https://app.asana.com/0/my-apps"
+              ;;
+          403)
+              echo "ERROR: Forbidden (403)"
+              echo "PAT is valid but lacks required permissions"
+              ;;
+          *)
+              echo "ERROR: Unexpected status $STATUS"
+              echo "$BODY" | jq '.' 2>/dev/null || echo "$BODY"
+              ;;
+      esac
+    outputVariable: ''
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 15
+  children: []
+- id: bc8d323d-9688-487f-b729-a3f4ddbb8197
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: f395b218-f019-426e-b322-eb4baa6ffee0
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Rate Limiting
+    styles: {}
+  children: []
+- id: 6c7b02ca-45b4-472e-94bc-04acd2e86ed6
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 3
+    isToggleable: false
+  content:
+  - type: text
+    text: Check Rate Limit Status
+    styles: {}
+  children: []
+- id: bc220c01-1f47-4b60-b84a-20a6650d7f6f
+  type: script
+  props:
+    interpreter: bash
+    name: check_rate_limit
+    code: |-
+      echo "=== Rate Limit Check ==="
+
+      # Load environment
+      ENV_FILE="${HOME}/.config/autom8y/envs/autom8-asana/runbook.env"
+      if [ -f "$ENV_FILE" ]; then
+          set -a && source "$ENV_FILE" && set +a
+      fi
+
+      if [ -z "${ASANA_PAT:-}" ]; then
+          echo "ERROR: ASANA_PAT not configured"
+          exit 1
+      fi
+
+      # Make request and capture headers
+      HEADERS=$(curl -s -I \
+          -H "Authorization: Bearer ${ASANA_PAT}" \
+          "https://app.asana.com/api/1.0/users/me")
+
+      echo "Rate limit headers:"
+      echo "$HEADERS" | grep -i "x-asana" || echo "(no rate limit headers found)"
+      echo ""
+      echo "If rate limited, you'll see:"
+      echo "  X-Asana-Retry-After: <seconds to wait>"
+    outputVariable: ''
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 12
+  children: []
+- id: 7cd62a24-ce06-48bd-8d45-61584c2cd4ac
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 8bf2a38c-859a-4de6-97bc-5901d9d75314
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Connection Issues
+    styles: {}
+  children: []
+- id: 8b776963-431c-4e6a-950b-a687d96c6787
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 3
+    isToggleable: false
+  content:
+  - type: text
+    text: Test Asana API Connectivity
+    styles: {}
+  children: []
+- id: ebeed26c-79ca-4455-9769-a240885736ba
+  type: script
+  props:
+    interpreter: bash
+    name: test_connectivity
+    code: |-
+      echo "=== Connectivity Test ==="
+
+      # Test DNS resolution
+      echo "1. DNS resolution..."
+      if host app.asana.com > /dev/null 2>&1; then
+          echo "   SUCCESS: app.asana.com resolves"
+      else
+          echo "   ERROR: Cannot resolve app.asana.com"
+          echo "   Check your DNS settings"
+          exit 1
+      fi
+
+      # Test HTTPS connection
+      echo "2. HTTPS connection..."
+      if curl -s --max-time 10 -o /dev/null -w "%{http_code}" https://app.asana.com > /dev/null; then
+          echo "   SUCCESS: HTTPS connection works"
+      else
+          echo "   ERROR: Cannot connect to app.asana.com"
+          echo "   Check firewall/proxy settings"
+          exit 1
+      fi
+
+      # Test API endpoint
+      echo "3. API endpoint..."
+      STATUS=$(curl -s --max-time 10 -o /dev/null -w "%{http_code}" \
+          "https://app.asana.com/api/1.0/users/me" \
+          -H "Authorization: Bearer invalid")
+
+      if [ "$STATUS" = "401" ]; then
+          echo "   SUCCESS: API endpoint responds (401 expected without valid PAT)"
+      else
+          echo "   WARNING: Unexpected status $STATUS"
+      fi
+
+      echo ""
+      echo "=== Connectivity OK ==="
+    outputVariable: ''
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 12
+  children: []
+- id: b85277a0-7d22-437c-a118-8afbb744b4f0
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: daa5acf5-c14e-4e62-a553-3198ed78adc5
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Development Server Issues
+    styles: {}
+  children: []
+- id: 50cdad9c-974b-448c-bc9f-33ecfffeb772
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 3
+    isToggleable: false
+  content:
+  - type: text
+    text: Port Already in Use
+    styles: {}
+  children: []
+- id: 742e5cc6-ad08-41d5-8937-a8d145618546
+  type: script
+  props:
+    interpreter: bash
+    name: check_port
+    code: |-
+      PORT="${1:-8000}"
+      echo "=== Checking port $PORT ==="
+
+      if lsof -i :$PORT > /dev/null 2>&1; then
+          echo "Port $PORT is in use by:"
+          lsof -i :$PORT
+          echo ""
+          echo "FIX: Either stop the process or use a different port:"
+          echo "  just serve-api port=8080"
+      else
+          echo "Port $PORT is available"
+      fi
+    outputVariable: ''
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 10
+  children: []
+- id: cfecad3b-553e-4048-b3a8-4aa788d86182
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 085bd924-3106-404e-8695-115a036b29da
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 3
+    isToggleable: false
+  content:
+  - type: text
+    text: Check Server Health
+    styles: {}
+  children: []
+- id: 310b0cf7-aa9e-4f13-af92-2a425f5a9e50
+  type: script
+  props:
+    interpreter: bash
+    name: diagnose_server
+    code: |-
+      PORT="${1:-8000}"
+      URL="http://localhost:$PORT/health"
+
+      echo "=== Server Diagnostic ==="
+      echo "Checking: $URL"
+      echo ""
+
+      RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 5 "$URL" 2>&1)
+      STATUS=$(echo "$RESPONSE" | tail -1)
+      BODY=$(echo "$RESPONSE" | head -n -1)
+
+      case "$STATUS" in
+          200)
+              echo "SUCCESS: Server is healthy"
+              echo "$BODY" | jq '.' 2>/dev/null || echo "$BODY"
+              ;;
+          000)
+              echo "ERROR: Cannot connect to server"
+              echo ""
+              echo "Possible causes:"
+              echo "  - Server not running"
+              echo "  - Wrong port"
+              echo ""
+              echo "FIX: Start the server with: just serve-api"
+              ;;
+          *)
+              echo "ERROR: Server returned status $STATUS"
+              echo "$BODY"
+              ;;
+      esac
+    outputVariable: ''
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 12
+  children: []
+- id: ddd168ab-8809-425b-b50a-83171c220166
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: d9e29263-7079-45b1-8114-62d93935132a
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Quick Reference
+    styles: {}
+  children: []
+- id: 47599f09-9b8a-4fce-96bd-4b8db2c4650d
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Issue | Diagnostic | Solution |'
+    styles: {}
+  children: []
+- id: 7682094a-f262-49c7-8be2-4dcc33c4d78a
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '|-------|------------|----------|'
+    styles: {}
+  children: []
+- id: 06060e60-a030-42e5-9b3b-e79893c0d82a
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| PAT not set | '
+    styles: {}
+  - type: text
+    text: diagnose_pat
+    styles:
+      code: true
+  - type: text
+    text: ' | Add PAT to env file |'
+    styles: {}
+  children: []
+- id: d7da2188-cc1f-4786-a57a-e157b273784c
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Invalid PAT | '
+    styles: {}
+  - type: text
+    text: test_pat_validity
+    styles:
+      code: true
+  - type: text
+    text: ' | Regenerate at Asana |'
+    styles: {}
+  children: []
+- id: 6ff5bbff-7124-40fd-8169-96a3514edf90
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Path not found | '
+    styles: {}
+  - type: text
+    text: diagnose_paths
+    styles:
+      code: true
+  - type: text
+    text: ' | Run '
+    styles: {}
+  - type: text
+    text: just bootstrap-paths
+    styles:
+      code: true
+  - type: text
+    text: ' |'
+    styles: {}
+  children: []
+- id: a6b56e7c-a253-4de7-ad26-fd2a14bea508
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Rate limited | '
+    styles: {}
+  - type: text
+    text: check_rate_limit
+    styles:
+      code: true
+  - type: text
+    text: ' | Wait for retry-after |'
+    styles: {}
+  children: []
+- id: 678170cc-e9fd-4d4b-92c5-81c443067f27
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Can''t connect | '
+    styles: {}
+  - type: text
+    text: test_connectivity
+    styles:
+      code: true
+  - type: text
+    text: ' | Check network/firewall |'
+    styles: {}
+  children: []
+- id: bf994d15-78c6-4258-8705-5bff32495493
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Server not responding | '
+    styles: {}
+  - type: text
+    text: diagnose_server
+    styles:
+      code: true
+  - type: text
+    text: ' | Start with '
+    styles: {}
+  - type: text
+    text: just serve-api
+    styles:
+      code: true
+  - type: text
+    text: ' |'
+    styles: {}
+  children: []
+- id: 19cc1f08-a393-4bdb-a91c-32920a4d69d9
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Port in use | '
+    styles: {}
+  - type: text
+    text: check_port
+    styles:
+      code: true
+  - type: text
+    text: ' | Use alternate port |'
+    styles: {}
+  children: []
+- id: c9384a73-5c98-492a-93ad-67d01576e0d8
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content: []
+  children: []

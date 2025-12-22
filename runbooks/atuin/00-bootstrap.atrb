@@ -1,0 +1,450 @@
+id: 71617513-8aa9-4ab9-906e-f1eeb3e0a137
+name: Bootstrap autom8_asana Environment
+version: 1
+forkedFrom: null
+content:
+- id: c6653acf-b922-46f7-843c-4d53a57fcb0d
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 1
+    isToggleable: false
+  content:
+  - type: text
+    text: Bootstrap autom8_asana Environment
+    styles: {}
+  children: []
+- id: 6ee934f3-860c-4496-958e-eb6b12c487a9
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: First-time environment setup for the autom8_asana SDK and API service. Configures
+      Asana Personal Access Token (PAT) for API access.
+    styles: {}
+  children: []
+- id: 6b1d2b1c-deaf-4ab7-a425-2c9380172594
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: 'Time:'
+    styles:
+      bold: true
+  - type: text
+    text: ' ~3 minutes'
+    styles: {}
+  children: []
+- id: ce3b5044-6686-4f5f-94e3-8117de48c823
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: 'Prerequisites:'
+    styles:
+      bold: true
+  children: []
+- id: 3a093a58-e41f-4c82-93b9-335a08d2f25a
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '- Atuin Desktop installed'
+    styles: {}
+  children: []
+- id: cd34a40b-b965-47c5-b932-63ee2a4f904d
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '- Asana Personal Access Token (PAT) from [Asana Developer Console](https://app.asana.com/0/my-apps)'
+    styles: {}
+  children: []
+- id: 36c9cc10-54cb-4e0c-a2f4-193764aaf3da
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: 'Environment location:'
+    styles:
+      bold: true
+  - type: text
+    text: ' '
+    styles: {}
+  - type: text
+    text: ~/.config/autom8y/envs/autom8-asana/runbook.env
+    styles:
+      code: true
+  children: []
+- id: e8156606-de8a-4803-b0e2-2eeb0bc85715
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 4798ae0e-6298-4f9d-98fc-1d7872bf322e
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Path Configuration
+    styles: {}
+  children: []
+- id: 0dc1f479-2b7e-45f2-98de-cfa1604b3760
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Auto-configures repository paths on first run. This enables portable runbooks
+      that work regardless of where you cloned the repository.
+    styles: {}
+  children: []
+- id: 75ba9dd3-682f-4e1e-b31b-7bd29f926d45
+  type: script
+  props:
+    interpreter: bash
+    name: configure_paths
+    code: |-
+      PATHS_FILE="${HOME}/.config/autom8y/paths.env"
+      REPO_PATH=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+      VAR_NAME="AUTOM8Y_ASANA_PATH"
+
+      if [ ! -f "$PATHS_FILE" ] || ! grep -q "^export ${VAR_NAME}=" "$PATHS_FILE" 2>/dev/null; then
+          echo "=== Auto-configuring repository path ==="
+          mkdir -p "$(dirname "$PATHS_FILE")"
+          [ ! -f "$PATHS_FILE" ] && printf '%s\n' "# autom8y Repository Paths" "" > "$PATHS_FILE"
+          echo "export ${VAR_NAME}=\"${REPO_PATH}\"" >> "$PATHS_FILE"
+          echo "Configured: ${VAR_NAME}=${REPO_PATH}"
+      else
+          echo "Path already configured."
+      fi
+
+      source "$PATHS_FILE"
+      echo "AUTOM8Y paths loaded from: $PATHS_FILE"
+      echo "  AUTOM8Y_ASANA_PATH: ${AUTOM8Y_ASANA_PATH:-not set}"
+    outputVariable: ''
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 10
+  children: []
+- id: 2216f1ed-ce5e-491a-a2ed-8f4fb95157f1
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 56f748ee-eb16-4542-b3a5-a06ff9302788
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: 'Step 1: Setup Environment'
+    styles: {}
+  children: []
+- id: 7881eb83-4997-42a6-8143-962689a4330f
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Create your runbook environment file (first time only).
+    styles: {}
+  children: []
+- id: ba158d83-1b59-45ab-9375-81754e9e1922
+  type: run
+  props:
+    type: terminal
+    name: setup_env
+    code: cd ${AUTOM8Y_ASANA_PATH} && just setup-env
+    pty: true
+    global: false
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 10
+  children: []
+- id: 5aa078a4-4263-4b9b-9c04-d7f0a0e4df72
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: 'Note:'
+    styles:
+      bold: true
+  - type: text
+    text: ' After setup, edit '
+    styles: {}
+  - type: text
+    text: ~/.config/autom8y/envs/autom8-asana/runbook.env
+    styles:
+      code: true
+  - type: text
+    text: ' to add your '
+    styles: {}
+  - type: text
+    text: ASANA_PAT
+    styles:
+      code: true
+  - type: text
+    text: ' from the Asana Developer Console.'
+    styles: {}
+  children: []
+- id: 5e37b31e-bf92-4492-b7cd-03947bc222fd
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: b5df2a81-6ac6-45fa-8243-198ac22081ea
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: 'Step 2: Environment Check'
+    styles: {}
+  children: []
+- id: b8ad36f6-71ea-46b6-a2f7-9fff1d228bf4
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Verify required environment variables are set.
+    styles: {}
+  children: []
+- id: 2cbafc69-15d9-427a-8d12-d4297d4957f0
+  type: run
+  props:
+    type: terminal
+    name: check_env
+    code: cd ${AUTOM8Y_ASANA_PATH} && just check-env
+    pty: true
+    global: false
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 10
+  children: []
+- id: 1a15639a-1584-46a9-859e-d06a03ba7a16
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: d6fcda1f-2d76-4c23-b582-eb2311459315
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: 'Step 3: Verify Asana Connectivity'
+    styles: {}
+  children: []
+- id: 00815600-8a79-4c3e-ade1-4035326f0ea0
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Test that your PAT can authenticate with the Asana API.
+    styles: {}
+  children: []
+- id: f13e3dc3-5fed-4c59-9743-928ea8efb7d9
+  type: script
+  props:
+    interpreter: bash
+    name: test_asana_api
+    code: |-
+      # Load environment
+      ENV_FILE="${HOME}/.config/autom8y/envs/autom8-asana/runbook.env"
+      if [ -f "$ENV_FILE" ]; then
+          set -a && source "$ENV_FILE" && set +a
+      fi
+
+      if [ -z "${ASANA_PAT:-}" ]; then
+          echo "ERROR: ASANA_PAT not set"
+          echo "Run: just setup-env, then add your PAT"
+          exit 1
+      fi
+
+      echo "Testing Asana API connectivity..."
+      RESPONSE=$(curl -s -w "\n%{http_code}" \
+          -H "Authorization: Bearer ${ASANA_PAT}" \
+          "https://app.asana.com/api/1.0/users/me")
+
+      STATUS=$(echo "$RESPONSE" | tail -1)
+      BODY=$(echo "$RESPONSE" | head -n -1)
+
+      if [ "$STATUS" -eq 200 ]; then
+          echo "SUCCESS: Asana API reachable"
+          echo "$BODY" | jq -r '.data | "User: \(.name) (\(.email))"'
+      else
+          echo "ERROR: Asana API returned status $STATUS"
+          echo "$BODY" | jq '.' 2>/dev/null || echo "$BODY"
+          exit 1
+      fi
+    outputVariable: ''
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 12
+  children: []
+- id: b837be9c-790b-47b1-bf3b-719f2ef055f5
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 157e6a89-92e8-4601-8d39-8d4d1142acb0
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Bootstrap Complete
+    styles: {}
+  children: []
+- id: e249e629-38b4-424b-89d1-b9855c7f22c1
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: If all steps passed, your environment is configured correctly.
+    styles: {}
+  children: []
+- id: 01ca233e-7b62-44b7-87d4-2f6eed60d954
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: 'Next steps:'
+    styles:
+      bold: true
+  children: []
+- id: 37e5d68a-bca6-4be3-b30f-79e88a6a0bd9
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '- '
+    styles: {}
+  - type: text
+    text: 01-authentication.md
+    styles:
+      code: true
+  - type: text
+    text: ' - PAT validation and Asana API testing'
+    styles: {}
+  children: []
+- id: 1b3126b4-cd7b-4480-a955-1c461f63e7f0
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '- '
+    styles: {}
+  - type: text
+    text: 02-local-development.md
+    styles:
+      code: true
+  - type: text
+    text: ' - Development server and testing'
+    styles: {}
+  children: []
+- id: 85be969d-5d7d-48b9-9b9b-06eb2131963e
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content: []
+  children: []

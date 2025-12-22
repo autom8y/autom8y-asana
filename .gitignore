@@ -41,3 +41,8 @@ htmlcov/
 
 # Project-specific
 .envrc
+
+# Environment files
+.env
+.env.*
+!.env.example

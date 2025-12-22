@@ -1,0 +1,65 @@
+# Git
+.git/
+.github/
+.gitignore
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Testing and coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+coverage_report/
+
+# Type checking and linting
+.mypy_cache/
+.ruff_cache/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Environment and secrets
+.env
+.env.*
+.envrc
+*.pem
+*.key
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation (not needed in runtime)
+docs/
+*.md
+!README.md
+
+# Examples and tests (not needed in runtime)
+examples/
+tests/
+
+# Runbooks (local tooling only)
+runbooks/
+
+# Claude/AI tooling
+.claude/
+
+# Lock files (uv.lock is needed, exclude others)
+poetry.lock

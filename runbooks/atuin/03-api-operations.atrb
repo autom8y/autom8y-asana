@@ -1,0 +1,891 @@
+id: 8f9c8fc5-fb31-49d5-8ea9-cb1c0ddbfdd7
+name: API Operations
+version: 1
+forkedFrom: null
+content:
+- id: 1615ac00-1d17-4268-8c0b-694d79aa895d
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 1
+    isToggleable: false
+  content:
+  - type: text
+    text: API Operations
+    styles: {}
+  children: []
+- id: 6978711e-c441-402a-a221-1992a6b1b40f
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: 'API usage guide for autom8_asana service: health checks, task operations,
+      and endpoint examples.'
+    styles: {}
+  children: []
+- id: 9d79b563-cb5c-4590-8dd2-d6f6c7553277
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: 'Time:'
+    styles:
+      bold: true
+  - type: text
+    text: ' varies'
+    styles: {}
+  children: []
+- id: 1d536bca-1d80-4e88-9b54-2c7673aba39c
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 6e126e12-3d19-49ea-8302-37eed3f2e9cf
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Prerequisites
+    styles: {}
+  children: []
+- id: a0d26e43-d6c3-4472-a3e5-7e8d30da0083
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '- Complete [00-bootstrap.md](./00-bootstrap.md) first'
+    styles: {}
+  children: []
+- id: 1252d61b-f374-4933-8598-5f5faf295df3
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '- Complete [01-authentication.md](./01-authentication.md) (PAT configured)'
+    styles: {}
+  children: []
+- id: d3694a5b-ff92-471a-896d-3c0614cbc242
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '- Development server running (see [02-local-development.md](./02-local-development.md))'
+    styles: {}
+  children: []
+- id: 805c1bf9-e959-40e2-b6f8-32fa66cd0b4f
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 73552c90-67b9-498f-ba9c-7fbfedbd04e2
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Service Health Check
+    styles: {}
+  children: []
+- id: 7fbb0c2c-d145-49eb-a4a6-89532c126ad9
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Check if the autom8_asana API service is healthy.
+    styles: {}
+  children: []
+- id: 01bc65b3-567a-4477-b28a-d63e43a08d41
+  type: http
+  props:
+    name: service_health
+    url: http://localhost:8000/health
+    verb: GET
+    body: ''
+    headers: '{"Accept": "application/json"}'
+    dependency: '{}'
+  children: []
+- id: 6701f2a7-c352-4ce3-a635-9ebcaa113967
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 855a04fc-f72f-4524-b0bd-6a6f6d0c3c57
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: 'Direct Asana API: Get User'
+    styles: {}
+  children: []
+- id: 00105159-2346-413c-a914-007d7f10c2a6
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Call Asana API directly to get current user info.
+    styles: {}
+  children: []
+- id: 500f616b-497a-472d-9188-1a350b825716
+  type: http
+  props:
+    name: asana_get_user
+    url: https://app.asana.com/api/1.0/users/me
+    verb: GET
+    body: ''
+    headers: "{\"Authorization\": \"Bearer {{env.ASANA_PAT}}\", \"Accept\": \"application/json\"\
+      }"
+    dependency: '{}'
+  children: []
+- id: 4fc879d9-33ff-4dfb-a0fd-7f84e5620abe
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: a8face51-1a53-4821-8395-e78d6531c033
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: 'Direct Asana API: List Workspaces'
+    styles: {}
+  children: []
+- id: 7d752e34-555b-4704-878d-c3cdb62e8c29
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Get all accessible workspaces.
+    styles: {}
+  children: []
+- id: f4574117-007e-4f99-8486-e449946bc98e
+  type: http
+  props:
+    name: asana_list_workspaces
+    url: https://app.asana.com/api/1.0/workspaces
+    verb: GET
+    body: ''
+    headers: "{\"Authorization\": \"Bearer {{env.ASANA_PAT}}\", \"Accept\": \"application/json\"\
+      }"
+    dependency: '{}'
+  children: []
+- id: 013bab07-99e6-48b4-81af-ac2ce89082a6
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: afd66ead-f82d-4fbd-877e-3f90a8c2742f
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: 'Direct Asana API: List Projects'
+    styles: {}
+  children: []
+- id: 933401ce-0d00-4365-a765-6ee46bdcc1bc
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: 'List projects in a workspace. Replace '
+    styles: {}
+  - type: text
+    text: WORKSPACE_GID
+    styles:
+      code: true
+  - type: text
+    text: ' with actual workspace ID.'
+    styles: {}
+  children: []
+- id: 805b6737-abe5-4125-bfee-f6cd2eca103b
+  type: var
+  props:
+    name: WORKSPACE_GID
+    value: your_workspace_gid
+  children: []
+- id: c678877a-0bc1-4a61-abdd-9f8f3d4f5bd4
+  type: http
+  props:
+    name: asana_list_projects
+    url: "https://app.asana.com/api/1.0/workspaces/{{var.WORKSPACE_GID}}/projects"
+    verb: GET
+    body: ''
+    headers: "{\"Authorization\": \"Bearer {{env.ASANA_PAT}}\", \"Accept\": \"application/json\"\
+      }"
+    dependency: '{}'
+  children: []
+- id: bd2e9524-ff1f-4107-a0d4-6c0973e88c07
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 25061cd2-c65d-43ce-b393-402f8abefaf1
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: 'Direct Asana API: Get Task'
+    styles: {}
+  children: []
+- id: 42c3824a-23ae-4829-b378-27368afd1424
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Get details for a specific task. Replace with actual task GID.
+    styles: {}
+  children: []
+- id: 87f3a7f0-332c-440b-82a9-c8c9c91cf828
+  type: var
+  props:
+    name: TASK_GID
+    value: your_task_gid
+  children: []
+- id: 9635248c-15e1-48d3-9642-f809f3d0d990
+  type: http
+  props:
+    name: asana_get_task
+    url: "https://app.asana.com/api/1.0/tasks/{{var.TASK_GID}}"
+    verb: GET
+    body: ''
+    headers: "{\"Authorization\": \"Bearer {{env.ASANA_PAT}}\", \"Accept\": \"application/json\"\
+      }"
+    dependency: '{}'
+  children: []
+- id: bbdc5d78-4b99-4c23-940d-71f29070e14c
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 74dcbaf7-a7b6-40a6-8dfe-967a945afd18
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: 'Direct Asana API: Create Task'
+    styles: {}
+  children: []
+- id: 13cdb5e8-e344-4bae-a9a0-b6a9a9175dca
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Create a new task in a project. Replace project GID.
+    styles: {}
+  children: []
+- id: d75c12f4-36c8-4be3-96c1-9dff9d09c365
+  type: var
+  props:
+    name: PROJECT_GID
+    value: your_project_gid
+  children: []
+- id: 47264ccb-e4ec-4c3b-9150-de1ae6a08c30
+  type: http
+  props:
+    name: asana_create_task
+    url: https://app.asana.com/api/1.0/tasks
+    verb: POST
+    body: |-
+      {
+        "data": {
+          "name": "Test Task from Runbook",
+          "notes": "Created via autom8_asana runbook",
+          "projects": ["{{var.PROJECT_GID}}"]
+        }
+      }
+    headers: "{\"Authorization\": \"Bearer {{env.ASANA_PAT}}\", \"Content-Type\":\
+      \ \"application/json\", \"Accept\": \"application/json\"}"
+    dependency: '{}'
+  children: []
+- id: 5747766f-f270-488f-b6ab-ded75b552d82
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 38b8f99f-05a8-4695-a08d-7c6aec429ada
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: 'Direct Asana API: Update Task'
+    styles: {}
+  children: []
+- id: 6a7894e2-6319-4459-a931-08fcaed05793
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Update an existing task's name and notes.
+    styles: {}
+  children: []
+- id: 9a235676-fcae-4d6a-ab28-42c13d350f8a
+  type: http
+  props:
+    name: asana_update_task
+    url: "https://app.asana.com/api/1.0/tasks/{{var.TASK_GID}}"
+    verb: PUT
+    body: |-
+      {
+        "data": {
+          "name": "Updated Task Name",
+          "notes": "Updated via autom8_asana runbook"
+        }
+      }
+    headers: "{\"Authorization\": \"Bearer {{env.ASANA_PAT}}\", \"Content-Type\":\
+      \ \"application/json\", \"Accept\": \"application/json\"}"
+    dependency: '{}'
+  children: []
+- id: 12ca9aec-6656-4873-b7bd-ff02b20e41be
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: d9b609df-6c80-4c40-9cd1-e2c507be0917
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: 'Direct Asana API: Complete Task'
+    styles: {}
+  children: []
+- id: 88bbcb2f-fbfd-40ca-94dc-92e77f718465
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Mark a task as complete.
+    styles: {}
+  children: []
+- id: 4ed13c91-8113-45c1-8b0f-a9ce39e7ae85
+  type: http
+  props:
+    name: asana_complete_task
+    url: "https://app.asana.com/api/1.0/tasks/{{var.TASK_GID}}"
+    verb: PUT
+    body: |-
+      {
+        "data": {
+          "completed": true
+        }
+      }
+    headers: "{\"Authorization\": \"Bearer {{env.ASANA_PAT}}\", \"Content-Type\":\
+      \ \"application/json\", \"Accept\": \"application/json\"}"
+    dependency: '{}'
+  children: []
+- id: f7e5a004-d4f7-497a-85e7-4da64553a0ef
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 31adfaa6-f8c2-46c9-ac82-9036b6a55c23
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Quick Reference
+    styles: {}
+  children: []
+- id: 46738e8e-ec05-42d8-ab93-7b446d09b39f
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Operation | Method | Endpoint |'
+    styles: {}
+  children: []
+- id: 346015b1-1429-4d04-8a78-7515bf6de1e5
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '|-----------|--------|----------|'
+    styles: {}
+  children: []
+- id: 3af33d40-3d59-412c-acf8-b03297771f52
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Get User | GET | '
+    styles: {}
+  - type: text
+    text: /users/me
+    styles:
+      code: true
+  - type: text
+    text: ' |'
+    styles: {}
+  children: []
+- id: 5754dc94-5633-408b-b7f1-70b1c06f0d01
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| List Workspaces | GET | '
+    styles: {}
+  - type: text
+    text: /workspaces
+    styles:
+      code: true
+  - type: text
+    text: ' |'
+    styles: {}
+  children: []
+- id: 8bddedec-270b-4f7a-a3b5-f6e38532bdd4
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| List Projects | GET | '
+    styles: {}
+  - type: text
+    text: /workspaces/{gid}/projects
+    styles:
+      code: true
+  - type: text
+    text: ' |'
+    styles: {}
+  children: []
+- id: ece986f8-7e57-4333-8632-35a08f1b6698
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Get Task | GET | '
+    styles: {}
+  - type: text
+    text: /tasks/{gid}
+    styles:
+      code: true
+  - type: text
+    text: ' |'
+    styles: {}
+  children: []
+- id: 67290a6b-89f4-402a-800d-55839483e742
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Create Task | POST | '
+    styles: {}
+  - type: text
+    text: /tasks
+    styles:
+      code: true
+  - type: text
+    text: ' |'
+    styles: {}
+  children: []
+- id: 0be04efa-7e6b-4710-8fd6-7632fa5b6077
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Update Task | PUT | '
+    styles: {}
+  - type: text
+    text: /tasks/{gid}
+    styles:
+      code: true
+  - type: text
+    text: ' |'
+    styles: {}
+  children: []
+- id: a59e1cfa-5c4c-4bab-9a1c-20c50f8578ff
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Delete Task | DELETE | '
+    styles: {}
+  - type: text
+    text: /tasks/{gid}
+    styles:
+      code: true
+  - type: text
+    text: ' |'
+    styles: {}
+  children: []
+- id: 5fc18f39-5ec6-4067-b790-7b26b4ff721f
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 68c60e74-9f9d-4cc5-8938-708f7909329d
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Rate Limits
+    styles: {}
+  children: []
+- id: 7a6440c0-c0cc-4b82-95bc-9282ce376597
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Limit Type | Value |'
+    styles: {}
+  children: []
+- id: 0aefac4c-ed07-4ce5-ae8a-5b26f5504adb
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '|------------|-------|'
+    styles: {}
+  children: []
+- id: 5117f2bc-85fd-46ec-954e-dff7307d26a4
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Standard | 1500 requests/minute |'
+    styles: {}
+  children: []
+- id: e0fe51ac-2d6b-41d1-a75a-5ad9a09efa2a
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Free tier | 150 requests/minute |'
+    styles: {}
+  children: []
+- id: a21a08b3-37ce-4928-8cc1-f22fe607b25c
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Retry-After | Check header on 429 |'
+    styles: {}
+  children: []
+- id: 98053cb3-f59d-44fb-ad8d-5fd1126e604a
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 22713baf-7ddf-4a7c-a8b4-f2d32a9fdb4c
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Troubleshooting
+    styles: {}
+  children: []
+- id: 2d7c891e-55d3-497e-b8d3-29546f2e7e16
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 3
+    isToggleable: false
+  content:
+  - type: text
+    text: 401 Unauthorized
+    styles: {}
+  children: []
+- id: 0a4bfc72-0ac1-4112-a11e-04f02fb6f308
+  type: codeBlock
+  props:
+    language: text
+  content:
+  - type: text
+    text: |-
+      Cause: Invalid or expired PAT
+      ACTION: Regenerate PAT at https://app.asana.com/0/my-apps
+    styles: {}
+  children: []
+- id: e7b73760-d602-4df6-84b8-8507cf1a50f1
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 3
+    isToggleable: false
+  content:
+  - type: text
+    text: 403 Forbidden
+    styles: {}
+  children: []
+- id: b952a150-21a4-4603-ba7b-53d0df4db8ff
+  type: codeBlock
+  props:
+    language: text
+  content:
+  - type: text
+    text: |-
+      Cause: No access to resource
+      ACTION: Check project/workspace membership in Asana
+    styles: {}
+  children: []
+- id: c17927c6-56bb-4149-b9a0-292c5060abd7
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 3
+    isToggleable: false
+  content:
+  - type: text
+    text: 404 Not Found
+    styles: {}
+  children: []
+- id: 5a380f6a-8fe5-41dd-97db-9ac793f6d61f
+  type: codeBlock
+  props:
+    language: text
+  content:
+  - type: text
+    text: |-
+      Cause: Resource doesn't exist or no access
+      ACTION: Verify GID is correct and accessible
+    styles: {}
+  children: []
+- id: 01131f37-8a84-464e-917b-dbedc7301fc9
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 3
+    isToggleable: false
+  content:
+  - type: text
+    text: 429 Rate Limited
+    styles: {}
+  children: []
+- id: 790bbc3e-4bd1-452d-924b-ca4d55019955
+  type: codeBlock
+  props:
+    language: text
+  content:
+  - type: text
+    text: |-
+      Cause: Too many requests
+      ACTION: Wait for Retry-After header value, then retry
+    styles: {}
+  children: []
+- id: ad800065-7748-4488-92b9-ede5c5c7ca33
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content: []
+  children: []

@@ -1,0 +1,52 @@
+name: Satellite Dispatch
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: autom8y
+          repositories: autom8y-platform
+
+      - name: Determine trigger type
+        id: trigger
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "triggered_by=workflow_dispatch" >> $GITHUB_OUTPUT
+          else
+            echo "triggered_by=push" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Dispatch to autom8y-platform
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          repository: autom8y/autom8y-platform
+          event-type: satellite-deploy
+          client-payload: |
+            {
+              "service_name": "asana",
+              "satellite_repo": "autom8_asana",
+              "ref": "${{ github.ref_name }}",
+              "sha": "${{ github.sha }}",
+              "triggered_by": "${{ steps.trigger.outputs.triggered_by }}"
+            }
+
+      - name: Log dispatch success
+        run: |
+          echo "Successfully dispatched satellite-deploy event to autom8y/autom8y-platform"
+          echo "  Service: asana"
+          echo "  Repository: autom8_asana"
+          echo "  Ref: ${{ github.ref_name }}"
+          echo "  SHA: ${{ github.sha }}"
+          echo "  Triggered by: ${{ steps.trigger.outputs.triggered_by }}"

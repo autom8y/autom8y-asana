@@ -1,0 +1,855 @@
+id: 1361a252-4f57-42f5-a589-ad162f023455
+name: Local Development
+version: 1
+forkedFrom: null
+content:
+- id: 90df2185-75bb-40d0-9eec-1c42d6971c2a
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 1
+    isToggleable: false
+  content:
+  - type: text
+    text: Local Development
+    styles: {}
+  children: []
+- id: 766dfac8-2066-42c4-8c89-4a758448ad53
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: 'Development workflows for autom8_asana: running the API server, testing,
+      and Docker builds.'
+    styles: {}
+  children: []
+- id: 8ab94d66-a5dc-4911-8fb7-40be3ad42ef9
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: 'Time:'
+    styles:
+      bold: true
+  - type: text
+    text: ' varies'
+    styles: {}
+  children: []
+- id: 2ce67b2a-7e7a-48be-85c6-cc494e2ebef8
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: ebf5f537-e761-47e5-bcd9-a4cc2fd5b312
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Prerequisites
+    styles: {}
+  children: []
+- id: 839ff38a-34d0-4b7e-bb1b-4469315368b1
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '- Complete [00-bootstrap.md](./00-bootstrap.md) first'
+    styles: {}
+  children: []
+- id: 56a2c2b0-8b95-4ba9-88e9-74838672c7e8
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '- Complete [01-authentication.md](./01-authentication.md) (PAT configured)'
+    styles: {}
+  children: []
+- id: e294fde2-ff9a-445d-b845-c8bcabacde12
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: fb11201d-0879-4731-89bd-0ead612c985e
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Environment Check
+    styles: {}
+  children: []
+- id: 6e608ad8-a47b-443e-89c6-307cbcc10955
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Verify environment is configured before development.
+    styles: {}
+  children: []
+- id: e2b39a5c-6a17-459e-87c7-e261a3d717ec
+  type: run
+  props:
+    type: terminal
+    name: check_env
+    code: cd ${AUTOM8Y_ASANA_PATH} && just check-env
+    pty: true
+    global: false
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 10
+  children: []
+- id: e0afda2e-2b71-42e5-b85d-97d52af55836
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: c9b4ea2d-0e4a-40bf-a28a-16c532d29714
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Start Development Server
+    styles: {}
+  children: []
+- id: 206a145e-b8c3-41fc-9f43-a3b317a3f3f5
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Start the API server with hot reload for development.
+    styles: {}
+  children: []
+- id: 94eaad99-a467-4293-8d7f-8952be26c4e3
+  type: run
+  props:
+    type: terminal
+    name: serve_api
+    code: cd ${AUTOM8Y_ASANA_PATH} && just serve-api
+    pty: true
+    global: true
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 15
+  children: []
+- id: ce57a3b2-1846-4603-9903-f53ff837a7dd
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: 'Note:'
+    styles:
+      bold: true
+  - type: text
+    text: ' Server runs at '
+    styles: {}
+  - type: text
+    text: http://localhost:8000
+    styles:
+      code: true
+  - type: text
+    text: ' by default. Use '
+    styles: {}
+  - type: text
+    text: just serve-api port=8080
+    styles:
+      code: true
+  - type: text
+    text: ' for alternate port.'
+    styles: {}
+  children: []
+- id: 7b8a2c15-a8b5-4229-bbac-a4feba368fcc
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 0ccad197-12b3-46ee-bc13-c7dace99848d
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Health Check
+    styles: {}
+  children: []
+- id: e3aaad19-fef1-4876-b583-1dd2a080bcc4
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Verify the development server is running.
+    styles: {}
+  children: []
+- id: ef1d376a-6dc6-49d1-a1a7-9a126c5467b4
+  type: run
+  props:
+    type: terminal
+    name: health_check
+    code: cd ${AUTOM8Y_ASANA_PATH} && just health
+    pty: true
+    global: false
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 10
+  children: []
+- id: 71ba4676-aaa4-4f94-8385-f2ad969eb0a8
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 8cc60abc-bb6d-4bbe-b50b-da0bd15acc62
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Run Tests
+    styles: {}
+  children: []
+- id: c04ddea2-04c6-451b-b2ad-ee78190b563c
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Execute the test suite.
+    styles: {}
+  children: []
+- id: 61c7ccb6-ec48-4ed3-b40c-35354d135770
+  type: run
+  props:
+    type: terminal
+    name: run_tests
+    code: cd ${AUTOM8Y_ASANA_PATH} && just test
+    pty: true
+    global: false
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 20
+  children: []
+- id: 278b4f26-324a-4052-9af0-6c84679977a2
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 99577368-2a4f-4898-bb4e-bcb5f02463cf
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Run Tests with Coverage
+    styles: {}
+  children: []
+- id: 02acf07e-30ac-4516-a5e7-4b267b030036
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Execute tests with coverage report.
+    styles: {}
+  children: []
+- id: 0fbd3695-52aa-42a7-a22a-50d02a1f04e6
+  type: run
+  props:
+    type: terminal
+    name: run_tests_coverage
+    code: cd ${AUTOM8Y_ASANA_PATH} && just test-cov
+    pty: true
+    global: false
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 20
+  children: []
+- id: b9bd365f-ca08-4de1-a686-2f227f04ac8e
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: a34a0531-b319-4536-856e-7a307473236a
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Code Quality Checks
+    styles: {}
+  children: []
+- id: 9bf42039-35a5-436c-809f-431806e49c92
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Run linting, formatting, and type checking.
+    styles: {}
+  children: []
+- id: 7373759e-43d6-4436-a172-66e279acefa1
+  type: run
+  props:
+    type: terminal
+    name: check_all
+    code: cd ${AUTOM8Y_ASANA_PATH} && just check-all
+    pty: true
+    global: false
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 15
+  children: []
+- id: 0523cc40-f141-4383-9fea-424e77822e02
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 0af58993-7588-4e36-8067-74804d1577d6
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Docker Build
+    styles: {}
+  children: []
+- id: 539b7405-b056-4beb-af0d-757bb521ba7c
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Build the Docker image for deployment.
+    styles: {}
+  children: []
+- id: bd2eb654-ec5c-496a-b951-597a0af7a7a5
+  type: run
+  props:
+    type: terminal
+    name: docker_build
+    code: cd ${AUTOM8Y_ASANA_PATH} && just docker-build
+    pty: true
+    global: false
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 15
+  children: []
+- id: 9e21c4b7-f2df-4c40-bd6a-c5231a452498
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 164c1302-796a-4d16-8ab5-580ee3ca6500
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Docker Run
+    styles: {}
+  children: []
+- id: 6c68572e-70c4-4262-b989-a4ebe7cf995a
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Run the service in Docker container.
+    styles: {}
+  children: []
+- id: 9a0f17bc-ebab-4b24-96b5-52b1fbf44b5e
+  type: run
+  props:
+    type: terminal
+    name: docker_run
+    code: cd ${AUTOM8Y_ASANA_PATH} && just docker-run
+    pty: true
+    global: true
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 15
+  children: []
+- id: a956aaa3-0f47-41c0-a8be-880cbb99ec23
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: f4dc296b-5721-4f8f-84b2-3528d4c6ca5d
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Docker Build and Run
+    styles: {}
+  children: []
+- id: 674f6f55-981c-44d1-bc57-660fb70885de
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Build and run in one step.
+    styles: {}
+  children: []
+- id: 50121f0b-962a-4c9b-b2e2-471d8f823cb5
+  type: run
+  props:
+    type: terminal
+    name: docker_serve
+    code: cd ${AUTOM8Y_ASANA_PATH} && just docker-serve
+    pty: true
+    global: true
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 15
+  children: []
+- id: ea05b205-68f8-4d26-a5a0-750f0eae5072
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 263e7625-1f3d-4396-a90c-e339d0e29301
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Quick Reference
+    styles: {}
+  children: []
+- id: ff1d55fd-2317-4f4d-bcda-fbd0f26e6f16
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Command | Description |'
+    styles: {}
+  children: []
+- id: 943ff8b6-94c8-42c1-af6f-5e15f14f2182
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '|---------|-------------|'
+    styles: {}
+  children: []
+- id: 2bca578d-f296-4625-bff9-665638b7b80c
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| '
+    styles: {}
+  - type: text
+    text: just serve-api
+    styles:
+      code: true
+  - type: text
+    text: ' | Start dev server (port 8000) |'
+    styles: {}
+  children: []
+- id: 6937a13e-ed0d-4ca5-8423-baa3c3578527
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| '
+    styles: {}
+  - type: text
+    text: just serve-api port=8080
+    styles:
+      code: true
+  - type: text
+    text: ' | Start on alternate port |'
+    styles: {}
+  children: []
+- id: 93dbc776-117a-47c8-a9df-f7a2639012a5
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| '
+    styles: {}
+  - type: text
+    text: just health
+    styles:
+      code: true
+  - type: text
+    text: ' | Check server health |'
+    styles: {}
+  children: []
+- id: dd1aecae-bef0-43a6-96a5-7d55d42a4628
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| '
+    styles: {}
+  - type: text
+    text: just test
+    styles:
+      code: true
+  - type: text
+    text: ' | Run tests |'
+    styles: {}
+  children: []
+- id: dd058b22-65bd-46aa-b9a9-f96a1f5e1253
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| '
+    styles: {}
+  - type: text
+    text: just test-cov
+    styles:
+      code: true
+  - type: text
+    text: ' | Tests with coverage |'
+    styles: {}
+  children: []
+- id: cd283c87-fbaa-45c0-b4cf-e5d3fe8788db
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| '
+    styles: {}
+  - type: text
+    text: just check-all
+    styles:
+      code: true
+  - type: text
+    text: ' | Format + lint + typecheck + test |'
+    styles: {}
+  children: []
+- id: aa3be362-73d4-4127-a645-d30d2981877a
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| '
+    styles: {}
+  - type: text
+    text: just docker-build
+    styles:
+      code: true
+  - type: text
+    text: ' | Build Docker image |'
+    styles: {}
+  children: []
+- id: c99620a5-3b1c-4099-bb33-44b99d7f1d1c
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| '
+    styles: {}
+  - type: text
+    text: just docker-run
+    styles:
+      code: true
+  - type: text
+    text: ' | Run in Docker |'
+    styles: {}
+  children: []
+- id: 91d7f65d-c642-4468-bb81-50564c9ffbc7
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| '
+    styles: {}
+  - type: text
+    text: just docker-serve
+    styles:
+      code: true
+  - type: text
+    text: ' | Build and run Docker |'
+    styles: {}
+  children: []
+- id: c2317ad0-14d8-4000-a45f-584aa99551c2
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 1278e477-e8f9-4e7f-a109-18b7556f65ca
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Troubleshooting
+    styles: {}
+  children: []
+- id: 18636d82-a9fe-4684-b32d-69b69fd03c34
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 3
+    isToggleable: false
+  content:
+  - type: text
+    text: Port Already in Use
+    styles: {}
+  children: []
+- id: b45016aa-5233-4762-aaf4-01def54daf40
+  type: codeBlock
+  props:
+    language: text
+  content:
+  - type: text
+    text: |-
+      Cause: Another process using port 8000
+      ACTION: Use alternate port: just serve-api port=8080
+    styles: {}
+  children: []
+- id: af972188-8585-452d-a05e-a99b2c6fdc61
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 3
+    isToggleable: false
+  content:
+  - type: text
+    text: Missing Dependencies
+    styles: {}
+  children: []
+- id: eb0839b4-b2b5-4e4a-b40e-bc2b6dc37a53
+  type: codeBlock
+  props:
+    language: text
+  content:
+  - type: text
+    text: |-
+      Cause: Dependencies not installed
+      ACTION: Run: uv sync
+    styles: {}
+  children: []
+- id: e8cc6e21-5e38-4110-b3c6-871093eeda4e
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 3
+    isToggleable: false
+  content:
+  - type: text
+    text: Import Errors
+    styles: {}
+  children: []
+- id: 9739ebfc-916e-4303-93df-fcda49c661fc
+  type: codeBlock
+  props:
+    language: text
+  content:
+  - type: text
+    text: |-
+      Cause: Package not in editable mode
+      ACTION: Run: uv pip install -e .
+    styles: {}
+  children: []
+- id: e0ee4556-b97f-48d4-9886-90ff9c034afb
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content: []
+  children: []

@@ -1,0 +1,555 @@
+id: 94ab6e00-e332-428b-9bfc-b83a1a48306b
+name: Authentication Flows
+version: 1
+forkedFrom: null
+content:
+- id: feb15db9-c4f2-44a3-b332-1ef3383964f3
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 1
+    isToggleable: false
+  content:
+  - type: text
+    text: Authentication Flows
+    styles: {}
+  children: []
+- id: c9836276-0bfd-468e-9e76-2f553f230636
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: 'All authentication workflows for autom8_asana: PAT validation, Asana API
+      access, and workspace discovery.'
+    styles: {}
+  children: []
+- id: 7998d0d4-60ee-45d3-b0bc-83eded4e7f6d
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: 'Time:'
+    styles:
+      bold: true
+  - type: text
+    text: ' ~5 minutes'
+    styles: {}
+  children: []
+- id: e54d094e-033d-4b4e-a5de-0804c9d46fe5
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 0da3fc32-a9e3-4619-afd8-ccf1fcca9805
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Prerequisites
+    styles: {}
+  children: []
+- id: 203e5aa1-effe-4846-932b-9bf2f25e890b
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '- Complete [00-bootstrap.md](./00-bootstrap.md) first'
+    styles: {}
+  children: []
+- id: b082ac01-49fd-4dc4-b8b4-75acf468534a
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '- '
+    styles: {}
+  - type: text
+    text: ASANA_PAT
+    styles:
+      code: true
+  - type: text
+    text: ' configured in environment'
+    styles: {}
+  children: []
+- id: 052d91a5-d9ee-47a5-8038-0029a8ecbf38
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: b064caea-a880-4ac9-bd67-cd07d4ae1925
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Prerequisite Check
+    styles: {}
+  children: []
+- id: 576dbfec-7bb8-444a-9033-e3942afb208c
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Validates Asana PAT is available before proceeding.
+    styles: {}
+  children: []
+- id: 374f0c54-1446-4dae-ba2d-146bafd4b2dc
+  type: script
+  props:
+    interpreter: bash
+    name: validate_pat
+    code: |-
+      # Prerequisite validation with actionable error
+      ENV_FILE="${HOME}/.config/autom8y/envs/autom8-asana/runbook.env"
+
+      # Check env file exists
+      if [ ! -f "$ENV_FILE" ]; then
+          echo "ERROR: Environment file not found: $ENV_FILE"
+          echo ""
+          echo "Run: cd \${AUTOM8Y_ASANA_PATH} && just setup-env"
+          exit 1
+      fi
+
+      # Load environment
+      set -a
+      source "$ENV_FILE"
+      set +a
+
+      # Check required credentials
+      if [ -z "${ASANA_PAT:-}" ]; then
+          echo "ERROR: Missing ASANA_PAT"
+          echo ""
+          echo "Add your Personal Access Token to:"
+          echo "  $ENV_FILE"
+          exit 1
+      fi
+
+      echo "PAT validated:"
+      echo "  ASANA_PAT: ****${ASANA_PAT: -4}"
+      echo "  ENV_FILE: $ENV_FILE"
+    outputVariable: ''
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 12
+  children: []
+- id: 68a65d11-89f9-47ec-81e5-8a4dfda23401
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 40ea753b-7674-440b-902d-1ba518d56094
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Get Current User
+    styles: {}
+  children: []
+- id: 634ce5fd-0369-4822-84ff-b74b3d8a30bd
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Verify PAT works by fetching current user info from Asana API.
+    styles: {}
+  children: []
+- id: da66e8e4-0ac9-4cd5-901e-4fb6f74af6d4
+  type: http
+  props:
+    name: get_current_user
+    url: https://app.asana.com/api/1.0/users/me
+    verb: GET
+    body: ''
+    headers: "{\"Authorization\": \"Bearer {{env.ASANA_PAT}}\", \"Accept\": \"application/json\"\
+      }"
+    dependency: '{}'
+  children: []
+- id: 3e546b18-5424-4455-8a0c-cc043ee2e5cf
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 5f69e4bd-4f32-450e-afb1-b1b86f0a7cc4
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: List Workspaces
+    styles: {}
+  children: []
+- id: 3a34c42b-2c6a-462c-8e11-a9fa129c4f5f
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: Get all workspaces accessible with your PAT.
+    styles: {}
+  children: []
+- id: ec1e7398-505c-4e41-bc32-456f6b524614
+  type: http
+  props:
+    name: list_workspaces
+    url: https://app.asana.com/api/1.0/workspaces
+    verb: GET
+    body: ''
+    headers: "{\"Authorization\": \"Bearer {{env.ASANA_PAT}}\", \"Accept\": \"application/json\"\
+      }"
+    dependency: '{}'
+  children: []
+- id: ab5692c4-eada-4560-9543-5eebfb081c9c
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: edd87250-e8c5-4ccb-84d6-fe58f6a1f559
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Test Full Authentication Flow
+    styles: {}
+  children: []
+- id: c02112d7-ac11-4811-ac8e-7134757303e0
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: 'End-to-end test: load environment, validate PAT, call API.'
+    styles: {}
+  children: []
+- id: 7dd937c0-f0b1-418a-9462-05ed06c363e8
+  type: script
+  props:
+    interpreter: bash
+    name: test_auth_flow
+    code: |-
+      # Load environment
+      ENV_FILE="${HOME}/.config/autom8y/envs/autom8-asana/runbook.env"
+      if [ -f "$ENV_FILE" ]; then
+          set -a && source "$ENV_FILE" && set +a
+      fi
+
+      echo "=== Authentication Flow Test ==="
+      echo ""
+
+      # Step 1: Validate PAT format
+      if [ -z "${ASANA_PAT:-}" ]; then
+          echo "FAIL: ASANA_PAT not set"
+          exit 1
+      fi
+      echo "1. PAT configured: ****${ASANA_PAT: -4}"
+
+      # Step 2: Call API
+      echo "2. Testing API call..."
+      RESPONSE=$(curl -s -w "\n%{http_code}" \
+          -H "Authorization: Bearer ${ASANA_PAT}" \
+          -H "Accept: application/json" \
+          "https://app.asana.com/api/1.0/users/me")
+
+      STATUS=$(echo "$RESPONSE" | tail -1)
+      BODY=$(echo "$RESPONSE" | head -n -1)
+
+      if [ "$STATUS" -eq 200 ]; then
+          USER_NAME=$(echo "$BODY" | jq -r '.data.name')
+          USER_EMAIL=$(echo "$BODY" | jq -r '.data.email')
+          echo "   SUCCESS: Authenticated as $USER_NAME ($USER_EMAIL)"
+      else
+          echo "   FAIL: API returned status $STATUS"
+          echo "$BODY" | jq '.' 2>/dev/null || echo "$BODY"
+          exit 1
+      fi
+
+      # Step 3: Get workspace count
+      echo "3. Checking workspaces..."
+      WS_RESPONSE=$(curl -s \
+          -H "Authorization: Bearer ${ASANA_PAT}" \
+          -H "Accept: application/json" \
+          "https://app.asana.com/api/1.0/workspaces")
+
+      WS_COUNT=$(echo "$WS_RESPONSE" | jq '.data | length')
+      echo "   Found $WS_COUNT workspace(s)"
+
+      echo ""
+      echo "=== Authentication Flow Complete ==="
+    outputVariable: ''
+    outputVisible: true
+    dependency: '{}'
+    terminalRows: 15
+  children: []
+- id: acf13d87-f0c0-4561-b440-a3f75091e1e9
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 58c95787-0f2b-4455-ad08-49c5745a10ff
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Quick Reference
+    styles: {}
+  children: []
+- id: 9289b2bd-ce2b-4494-a959-007a82775680
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Component | Value |'
+    styles: {}
+  children: []
+- id: 421dc0e8-d0df-4e2c-af0c-09b7762f4192
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '|-----------|-------|'
+    styles: {}
+  children: []
+- id: aa6cf665-a4d7-4013-a71c-5895b32d5584
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| API Base URL | '
+    styles: {}
+  - type: text
+    text: https://app.asana.com/api/1.0
+    styles:
+      code: true
+  - type: text
+    text: ' |'
+    styles: {}
+  children: []
+- id: d8c2a27f-24f5-41aa-b436-6424fe733c80
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Auth Header | '
+    styles: {}
+  - type: text
+    text: 'Authorization: Bearer <PAT>'
+    styles:
+      code: true
+  - type: text
+    text: ' |'
+    styles: {}
+  children: []
+- id: 494bf5b1-dde9-44a0-86fd-0bb863e306b2
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '| Rate Limit | 1500 requests/minute |'
+    styles: {}
+  children: []
+- id: f0d79946-6160-4be3-ac58-1bf3ab5b2873
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+  - type: text
+    text: '---'
+    styles: {}
+  children: []
+- id: 7b31096d-6b5f-460a-867c-1940f4846b76
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+  - type: text
+    text: Troubleshooting
+    styles: {}
+  children: []
+- id: e19dd299-d41c-4b68-8921-646ef8f21fc9
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 3
+    isToggleable: false
+  content:
+  - type: text
+    text: Invalid Token (401)
+    styles: {}
+  children: []
+- id: 28e8cc73-0379-4798-b5c8-e0b68ef968a5
+  type: codeBlock
+  props:
+    language: text
+  content:
+  - type: text
+    text: |-
+      Cause: PAT is invalid, expired, or revoked
+      ACTION: Generate new PAT at https://app.asana.com/0/my-apps
+    styles: {}
+  children: []
+- id: 0bc0286b-87b0-477a-8249-9873ad9c19e9
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 3
+    isToggleable: false
+  content:
+  - type: text
+    text: Forbidden (403)
+    styles: {}
+  children: []
+- id: 4fae5c6a-1cce-437b-ac07-3e587e336718
+  type: codeBlock
+  props:
+    language: text
+  content:
+  - type: text
+    text: |-
+      Cause: PAT doesn't have access to requested resource
+      ACTION: Check workspace permissions in Asana
+    styles: {}
+  children: []
+- id: a131842a-5099-41ef-ab58-6b5ceb412809
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 3
+    isToggleable: false
+  content:
+  - type: text
+    text: Rate Limited (429)
+    styles: {}
+  children: []
+- id: efe2a818-fccc-42bd-b1c7-990a7335359f
+  type: codeBlock
+  props:
+    language: text
+  content:
+  - type: text
+    text: |-
+      Cause: Too many requests
+      ACTION: Wait 60 seconds before retrying
+    styles: {}
+  children: []
+- id: d3030bdb-50cf-42e5-87a7-626994a8441e
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content: []
+  children: []
