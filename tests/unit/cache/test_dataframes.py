@@ -128,7 +128,9 @@ class TestLoadDataframeCached:
         assert entry is not None
         assert not was_hit
         # Verify cached
-        assert cache.get_versioned("task123:project456", EntryType.DATAFRAME) is not None
+        assert (
+            cache.get_versioned("task123:project456", EntryType.DATAFRAME) is not None
+        )
 
     @pytest.mark.asyncio
     async def test_cache_hit_returns_cached(
@@ -344,8 +346,10 @@ class TestLoadBatchDataframesCached:
     @pytest.fixture
     def compute_fn(self) -> AsyncMock:
         """Create a mock compute function."""
+
         async def compute(task_gid: str, project_gid: str) -> dict[str, Any]:
             return {"task": task_gid, "project": project_gid}
+
         return AsyncMock(side_effect=compute)
 
     @pytest.mark.asyncio

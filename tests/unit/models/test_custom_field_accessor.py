@@ -199,18 +199,33 @@ class TestCustomFieldAccessorValueExtraction:
 
     def test_extract_enum_value(self) -> None:
         """Extract enum_value dict."""
-        data = [{"gid": "123", "name": "Status", "enum_value": {"gid": "456", "name": "Done"}}]
+        data = [
+            {
+                "gid": "123",
+                "name": "Status",
+                "enum_value": {"gid": "456", "name": "Done"},
+            }
+        ]
         accessor = CustomFieldAccessor(data)
         assert accessor.get("Status") == {"gid": "456", "name": "Done"}
 
     def test_extract_multi_enum_values(self) -> None:
         """Extract multi_enum_values list."""
-        data = [{"gid": "123", "name": "Tags", "multi_enum_values": [
+        data = [
+            {
+                "gid": "123",
+                "name": "Tags",
+                "multi_enum_values": [
+                    {"gid": "a", "name": "Tag1"},
+                    {"gid": "b", "name": "Tag2"},
+                ],
+            }
+        ]
+        accessor = CustomFieldAccessor(data)
+        assert accessor.get("Tags") == [
             {"gid": "a", "name": "Tag1"},
             {"gid": "b", "name": "Tag2"},
-        ]}]
-        accessor = CustomFieldAccessor(data)
-        assert accessor.get("Tags") == [{"gid": "a", "name": "Tag1"}, {"gid": "b", "name": "Tag2"}]
+        ]
 
     def test_extract_date_value(self) -> None:
         """Extract date_value field."""
@@ -220,9 +235,15 @@ class TestCustomFieldAccessorValueExtraction:
 
     def test_extract_people_value(self) -> None:
         """Extract people_value list."""
-        data = [{"gid": "123", "name": "Owner", "people_value": [
-            {"gid": "user1", "name": "Alice"},
-        ]}]
+        data = [
+            {
+                "gid": "123",
+                "name": "Owner",
+                "people_value": [
+                    {"gid": "user1", "name": "Alice"},
+                ],
+            }
+        ]
         accessor = CustomFieldAccessor(data)
         assert accessor.get("Owner") == [{"gid": "user1", "name": "Alice"}]
 
@@ -396,7 +417,13 @@ class TestCustomFieldAccessorToApiDict:
 
     def test_to_api_dict_with_enum_value_dict(self) -> None:
         """to_api_dict extracts GID from enum_value dict."""
-        data = [{"gid": "123", "name": "Status", "enum_value": {"gid": "opt1", "name": "Open"}}]
+        data = [
+            {
+                "gid": "123",
+                "name": "Status",
+                "enum_value": {"gid": "opt1", "name": "Open"},
+            }
+        ]
         accessor = CustomFieldAccessor(data)
         # Setting enum as dict (common pattern)
         accessor.set("Status", {"gid": "opt2", "name": "Closed"})
@@ -406,7 +433,13 @@ class TestCustomFieldAccessorToApiDict:
 
     def test_to_api_dict_with_enum_value_string(self) -> None:
         """to_api_dict passes through string GID for enum."""
-        data = [{"gid": "123", "name": "Status", "enum_value": {"gid": "opt1", "name": "Open"}}]
+        data = [
+            {
+                "gid": "123",
+                "name": "Status",
+                "enum_value": {"gid": "opt1", "name": "Open"},
+            }
+        ]
         accessor = CustomFieldAccessor(data)
         # Setting enum directly as GID string
         accessor.set("Status", "opt2")
@@ -417,7 +450,9 @@ class TestCustomFieldAccessorToApiDict:
         """to_api_dict extracts GIDs from multi_enum list of dicts."""
         data = [{"gid": "123", "name": "Tags", "multi_enum_values": []}]
         accessor = CustomFieldAccessor(data)
-        accessor.set("Tags", [{"gid": "a", "name": "Tag1"}, {"gid": "b", "name": "Tag2"}])
+        accessor.set(
+            "Tags", [{"gid": "a", "name": "Tag1"}, {"gid": "b", "name": "Tag2"}]
+        )
         result = accessor.to_api_dict()
         # API expects list of GIDs
         assert result == {"123": ["a", "b"]}
@@ -434,7 +469,10 @@ class TestCustomFieldAccessorToApiDict:
         """to_api_dict extracts GIDs from people_value list of dicts."""
         data = [{"gid": "123", "name": "Owner", "people_value": []}]
         accessor = CustomFieldAccessor(data)
-        accessor.set("Owner", [{"gid": "user1", "name": "Alice"}, {"gid": "user2", "name": "Bob"}])
+        accessor.set(
+            "Owner",
+            [{"gid": "user1", "name": "Alice"}, {"gid": "user2", "name": "Bob"}],
+        )
         result = accessor.to_api_dict()
         # API expects list of user GIDs
         assert result == {"123": ["user1", "user2"]}
@@ -478,6 +516,42 @@ class TestCustomFieldAccessorToApiDict:
         accessor.set("789", "New Value")
         result = accessor.to_api_dict()
         assert result == {"789": "New Value"}
+
+    def test_to_api_dict_wraps_date_value(self) -> None:
+        """to_api_dict wraps date string in required API format.
+
+        Asana API requires date fields as {"date": "YYYY-MM-DD"}, not raw strings.
+        The accessor handles this wrapping during serialization so callers can
+        set date fields with plain ISO strings.
+        """
+        data = [{"gid": "123", "name": "Launch Date", "resource_subtype": "date"}]
+        accessor = CustomFieldAccessor(data)
+        accessor.set("Launch Date", "2025-12-18")
+        result = accessor.to_api_dict()
+        # API expects {"date": "YYYY-MM-DD"} format
+        assert result == {"123": {"date": "2025-12-18"}}
+
+    def test_to_api_dict_wraps_date_value_none_passthrough(self) -> None:
+        """to_api_dict passes None through for date fields (to clear)."""
+        data = [{"gid": "123", "name": "Launch Date", "resource_subtype": "date"}]
+        accessor = CustomFieldAccessor(data)
+        accessor.set("Launch Date", None)
+        result = accessor.to_api_dict()
+        # None clears the field, should not be wrapped
+        assert result == {"123": None}
+
+    def test_to_api_dict_date_wrapping_only_for_date_fields(self) -> None:
+        """to_api_dict only wraps dates for date-type fields, not text."""
+        data = [
+            {"gid": "123", "name": "Launch Date", "resource_subtype": "date"},
+            {"gid": "456", "name": "Notes", "resource_subtype": "text"},
+        ]
+        accessor = CustomFieldAccessor(data)
+        accessor.set("Launch Date", "2025-12-18")
+        accessor.set("Notes", "2025-12-18")  # Same string, but text field
+        result = accessor.to_api_dict()
+        # Date field wrapped, text field not wrapped
+        assert result == {"123": {"date": "2025-12-18"}, "456": "2025-12-18"}
 
 
 class TestCustomFieldAccessorDictSyntax:
@@ -556,23 +630,29 @@ class TestCustomFieldAccessorDictSyntax:
     def test_dict_syntax_preserves_types(self) -> None:
         """Dictionary syntax preserves field types."""
         # Text field
-        accessor = CustomFieldAccessor([
-            {"gid": "cf_text", "name": "Category", "text_value": "Internal"}
-        ])
+        accessor = CustomFieldAccessor(
+            [{"gid": "cf_text", "name": "Category", "text_value": "Internal"}]
+        )
         assert accessor["Category"] == "Internal"
         assert isinstance(accessor["Category"], str)
 
         # Number field
-        accessor = CustomFieldAccessor([
-            {"gid": "cf_num", "name": "MRR", "number_value": 1000.50}
-        ])
+        accessor = CustomFieldAccessor(
+            [{"gid": "cf_num", "name": "MRR", "number_value": 1000.50}]
+        )
         assert accessor["MRR"] == 1000.50
         assert isinstance(accessor["MRR"], (int, float))
 
         # Enum field
-        accessor = CustomFieldAccessor([
-            {"gid": "cf_enum", "name": "Status", "enum_value": {"gid": "e_123", "name": "Active"}}
-        ])
+        accessor = CustomFieldAccessor(
+            [
+                {
+                    "gid": "cf_enum",
+                    "name": "Status",
+                    "enum_value": {"gid": "e_123", "name": "Active"},
+                }
+            ]
+        )
         result = accessor["Status"]
         assert isinstance(result, dict)
         assert result.get("gid") == "e_123"
@@ -698,10 +778,12 @@ class TestFormatValueForApi:
     def test_format_list_of_dicts_with_gid(self) -> None:
         """List of dicts with gid extracts GIDs."""
         accessor = CustomFieldAccessor()
-        result = accessor._format_value_for_api([
-            {"gid": "a", "name": "A"},
-            {"gid": "b", "name": "B"},
-        ])
+        result = accessor._format_value_for_api(
+            [
+                {"gid": "a", "name": "A"},
+                {"gid": "b", "name": "B"},
+            ]
+        )
         assert result == ["a", "b"]
 
     def test_format_list_of_strings(self) -> None:
@@ -713,11 +795,13 @@ class TestFormatValueForApi:
     def test_format_list_mixed_types(self) -> None:
         """List with mixed types handles each appropriately."""
         accessor = CustomFieldAccessor()
-        result = accessor._format_value_for_api([
-            {"gid": "a", "name": "A"},
-            "b",
-            123,
-        ])
+        result = accessor._format_value_for_api(
+            [
+                {"gid": "a", "name": "A"},
+                "b",
+                123,
+            ]
+        )
         assert result == ["a", "b", 123]
 
     def test_format_object_with_gid_attribute(self) -> None:

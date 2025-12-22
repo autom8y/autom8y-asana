@@ -7,15 +7,11 @@ Per TDD-0009 Phase 5: Validates the public API methods:
 
 from __future__ import annotations
 
-from typing import Any
-from unittest.mock import MagicMock
 
 import polars as pl
 import pytest
 
 from autom8_asana.dataframes import (
-    BASE_SCHEMA,
-    UNIT_SCHEMA,
     SchemaRegistry,
 )
 from autom8_asana.models.common import NameGid
@@ -122,7 +118,9 @@ class TestProjectToDataFrame:
         # Should preserve schema columns
         assert "gid" in df.columns
 
-    def test_to_dataframe_with_use_cache_false(self, project_with_tasks: Project) -> None:
+    def test_to_dataframe_with_use_cache_false(
+        self, project_with_tasks: Project
+    ) -> None:
         """to_dataframe() should work with use_cache=False."""
         df = project_with_tasks.to_dataframe(task_type="Unit", use_cache=False)
         assert isinstance(df, pl.DataFrame)

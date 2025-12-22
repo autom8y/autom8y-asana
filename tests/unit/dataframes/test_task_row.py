@@ -301,9 +301,7 @@ class TestUnitRowDecimalHandling:
         assert isinstance(result["weekly_ad_spend"], float)
         assert result["weekly_ad_spend"] == 500.00
 
-    def test_to_dict_handles_none_decimal(
-        self, base_task_data: dict[str, Any]
-    ) -> None:
+    def test_to_dict_handles_none_decimal(self, base_task_data: dict[str, Any]) -> None:
         """Test to_dict handles None Decimal fields."""
         data = {k: v for k, v in base_task_data.items() if k != "type"}
         row = UnitRow(**data)
@@ -321,9 +319,7 @@ class TestUnitRowDecimalHandling:
 class TestContactRowCreation:
     """Tests for ContactRow construction."""
 
-    def test_creation_with_all_fields(
-        self, contact_task_data: dict[str, Any]
-    ) -> None:
+    def test_creation_with_all_fields(self, contact_task_data: dict[str, Any]) -> None:
         """Test ContactRow creation with all fields."""
         row = ContactRow(**contact_task_data)
 

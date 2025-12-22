@@ -25,7 +25,6 @@ from autom8_asana.models.business.descriptors import (
     NumberField,
     PeopleField,
     TextField,
-    _pending_fields,
 )
 
 
@@ -335,12 +334,14 @@ class TestMultiEnumField:
     def test_get_extracts_names_from_list_of_dicts(self) -> None:
         """Extracts names from list of enum dicts."""
         entity = StubEntityWithDescriptors(gid="test-1")
-        entity.set_mock_data({
-            "AD Types": [
-                {"gid": "1", "name": "Image"},
-                {"gid": "2", "name": "Video"},
-            ]
-        })
+        entity.set_mock_data(
+            {
+                "AD Types": [
+                    {"gid": "1", "name": "Image"},
+                    {"gid": "2", "name": "Video"},
+                ]
+            }
+        )
 
         result = entity.ad_types
         assert result == ["Image", "Video"]
@@ -372,13 +373,15 @@ class TestMultiEnumField:
     def test_get_skips_none_items(self) -> None:
         """Skips None items in list."""
         entity = StubEntityWithDescriptors(gid="test-1")
-        entity.set_mock_data({
-            "AD Types": [
-                {"gid": "1", "name": "Image"},
-                None,
-                {"gid": "2", "name": "Video"},
-            ]
-        })
+        entity.set_mock_data(
+            {
+                "AD Types": [
+                    {"gid": "1", "name": "Image"},
+                    None,
+                    {"gid": "2", "name": "Video"},
+                ]
+            }
+        )
 
         result = entity.ad_types
         assert result == ["Image", "Video"]
@@ -386,12 +389,14 @@ class TestMultiEnumField:
     def test_get_skips_dict_without_name(self) -> None:
         """Skips dict items without name."""
         entity = StubEntityWithDescriptors(gid="test-1")
-        entity.set_mock_data({
-            "AD Types": [
-                {"gid": "1", "name": "Image"},
-                {"gid": "2"},  # No name
-            ]
-        })
+        entity.set_mock_data(
+            {
+                "AD Types": [
+                    {"gid": "1", "name": "Image"},
+                    {"gid": "2"},  # No name
+                ]
+            }
+        )
 
         result = entity.ad_types
         assert result == ["Image"]
@@ -578,12 +583,14 @@ class TestPeopleField:
     def test_get_returns_list_of_dicts(self) -> None:
         """Returns list of person dicts."""
         entity = StubEntityWithDescriptors(gid="test-1")
-        entity.set_mock_data({
-            "Rep": [
-                {"gid": "123", "name": "John Doe", "email": "john@example.com"},
-                {"gid": "456", "name": "Jane Smith", "email": "jane@example.com"},
-            ]
-        })
+        entity.set_mock_data(
+            {
+                "Rep": [
+                    {"gid": "123", "name": "John Doe", "email": "john@example.com"},
+                    {"gid": "456", "name": "Jane Smith", "email": "jane@example.com"},
+                ]
+            }
+        )
 
         result = entity.rep
         assert len(result) == 2
@@ -639,9 +646,9 @@ class TestPeopleField:
     def test_explicit_field_name(self) -> None:
         """Uses explicit field name when provided."""
         entity = StubEntityWithDescriptors(gid="test-1")
-        entity.set_mock_data({
-            "Team Members": [{"gid": "111", "name": "Team Member 1"}]
-        })
+        entity.set_mock_data(
+            {"Team Members": [{"gid": "111", "name": "Team Member 1"}]}
+        )
 
         result = entity.team_members
         assert len(result) == 1

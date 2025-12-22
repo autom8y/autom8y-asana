@@ -246,9 +246,7 @@ class TestClientGIDValidation:
 
         async def run_test():
             with pytest.raises(ValidationError):
-                await client_fixture.tasks.set_assignee_async(
-                    "invalid-task", "123"
-                )
+                await client_fixture.tasks.set_assignee_async("invalid-task", "123")
 
             with pytest.raises(ValidationError):
                 await client_fixture.tasks.set_assignee_async("123", "invalid-user")
@@ -262,12 +260,12 @@ class TestClientGIDValidation:
 
         async def run_test():
             with pytest.raises(ValidationError):
-                await client_fixture.tasks.add_to_project_async(
-                    "invalid-task", "123"
-                )
+                await client_fixture.tasks.add_to_project_async("invalid-task", "123")
 
             with pytest.raises(ValidationError):
-                await client_fixture.tasks.add_to_project_async("123", "invalid-project")
+                await client_fixture.tasks.add_to_project_async(
+                    "123", "invalid-project"
+                )
 
         asyncio.run(run_test())
 

@@ -1,14 +1,12 @@
 """Tests for EnhancedInMemoryCacheProvider and InMemoryCacheProvider."""
 
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
-import pytest
 
 from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvider
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
 from autom8_asana.cache.entry import CacheEntry, EntryType
-from autom8_asana.cache.freshness import Freshness
 from autom8_asana.protocols.cache import WarmResult
 
 
@@ -74,7 +72,10 @@ class TestNullCacheProvider:
         """Test check_freshness always returns False."""
         cache = NullCacheProvider()
 
-        assert cache.check_freshness("key", EntryType.TASK, datetime.now(timezone.utc)) is False
+        assert (
+            cache.check_freshness("key", EntryType.TASK, datetime.now(timezone.utc))
+            is False
+        )
 
     def test_is_healthy_returns_true(self) -> None:
         """Test is_healthy returns True."""
@@ -208,12 +209,24 @@ class TestInMemoryCacheProvider:
         cache = InMemoryCacheProvider()
         now = datetime.now(timezone.utc)
 
-        cache.set_versioned("123", CacheEntry(
-            key="123", data={}, entry_type=EntryType.TASK, version=now,
-        ))
-        cache.set_versioned("123", CacheEntry(
-            key="123", data={}, entry_type=EntryType.SUBTASKS, version=now,
-        ))
+        cache.set_versioned(
+            "123",
+            CacheEntry(
+                key="123",
+                data={},
+                entry_type=EntryType.TASK,
+                version=now,
+            ),
+        )
+        cache.set_versioned(
+            "123",
+            CacheEntry(
+                key="123",
+                data={},
+                entry_type=EntryType.SUBTASKS,
+                version=now,
+            ),
+        )
 
         cache.invalidate("123", [EntryType.TASK])
 
@@ -225,12 +238,24 @@ class TestInMemoryCacheProvider:
         cache = InMemoryCacheProvider()
         now = datetime.now(timezone.utc)
 
-        cache.set_versioned("123", CacheEntry(
-            key="123", data={}, entry_type=EntryType.TASK, version=now,
-        ))
-        cache.set_versioned("123", CacheEntry(
-            key="123", data={}, entry_type=EntryType.SUBTASKS, version=now,
-        ))
+        cache.set_versioned(
+            "123",
+            CacheEntry(
+                key="123",
+                data={},
+                entry_type=EntryType.TASK,
+                version=now,
+            ),
+        )
+        cache.set_versioned(
+            "123",
+            CacheEntry(
+                key="123",
+                data={},
+                entry_type=EntryType.SUBTASKS,
+                version=now,
+            ),
+        )
 
         cache.invalidate("123")
 
@@ -242,12 +267,24 @@ class TestInMemoryCacheProvider:
         cache = InMemoryCacheProvider()
         now = datetime.now(timezone.utc)
 
-        cache.set_versioned("1", CacheEntry(
-            key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now,
-        ))
-        cache.set_versioned("2", CacheEntry(
-            key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now,
-        ))
+        cache.set_versioned(
+            "1",
+            CacheEntry(
+                key="1",
+                data={"id": 1},
+                entry_type=EntryType.TASK,
+                version=now,
+            ),
+        )
+        cache.set_versioned(
+            "2",
+            CacheEntry(
+                key="2",
+                data={"id": 2},
+                entry_type=EntryType.TASK,
+                version=now,
+            ),
+        )
 
         result = cache.get_batch(["1", "2", "3"], EntryType.TASK)
 
@@ -263,8 +300,12 @@ class TestInMemoryCacheProvider:
         now = datetime.now(timezone.utc)
 
         entries = {
-            "1": CacheEntry(key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now),
-            "2": CacheEntry(key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now),
+            "1": CacheEntry(
+                key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now
+            ),
+            "2": CacheEntry(
+                key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now
+            ),
         }
 
         cache.set_batch(entries)
@@ -344,12 +385,15 @@ class TestEnhancedInMemoryCacheProvider:
         cache = EnhancedInMemoryCacheProvider()
         cache.set("key1", {"data": 1})
         cache.set("key2", {"data": 2})
-        cache.set_versioned("123", CacheEntry(
-            key="123",
-            data={},
-            entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
-        ))
+        cache.set_versioned(
+            "123",
+            CacheEntry(
+                key="123",
+                data={},
+                entry_type=EntryType.TASK,
+                version=datetime.now(timezone.utc),
+            ),
+        )
 
         cache.clear()
 
@@ -366,12 +410,15 @@ class TestEnhancedInMemoryCacheProvider:
         cache.set("key1", {"data": 1})
         assert cache.size() == 1
 
-        cache.set_versioned("123", CacheEntry(
-            key="123",
-            data={},
-            entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
-        ))
+        cache.set_versioned(
+            "123",
+            CacheEntry(
+                key="123",
+                data={},
+                entry_type=EntryType.TASK,
+                version=datetime.now(timezone.utc),
+            ),
+        )
         assert cache.size() == 2
 
     def test_reset_metrics(self) -> None:

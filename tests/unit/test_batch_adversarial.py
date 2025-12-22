@@ -213,8 +213,10 @@ class TestAutoChunkingEdgeCases:
         """100 requests executes in 10 chunks sequentially."""
         # Mock 10 chunks of 10 responses each
         mock_http.request.side_effect = [
-            [{"status_code": 200, "body": {"data": {"gid": str(i + j * 10)}}}
-             for i in range(10)]
+            [
+                {"status_code": 200, "body": {"data": {"gid": str(i + j * 10)}}}
+                for i in range(10)
+            ]
             for j in range(10)
         ]
 
@@ -232,8 +234,7 @@ class TestAutoChunkingEdgeCases:
         """101 requests executes in 11 chunks."""
         # Mock 10 chunks of 10 + 1 chunk of 1
         responses = [
-            [{"status_code": 200, "body": {}} for _ in range(10)]
-            for _ in range(10)
+            [{"status_code": 200, "body": {}} for _ in range(10)] for _ in range(10)
         ]
         responses.append([{"status_code": 200, "body": {}}])  # 11th chunk with 1 item
         mock_http.request.side_effect = responses
@@ -256,8 +257,7 @@ class TestPartialFailureScenarios:
     ) -> None:
         """All requests succeed."""
         mock_http.request.return_value = [
-            {"status_code": 200, "body": {"data": {"gid": str(i)}}}
-            for i in range(5)
+            {"status_code": 200, "body": {"data": {"gid": str(i)}}} for i in range(5)
         ]
 
         requests = [BatchRequest(f"/tasks/{i}", "GET") for i in range(5)]
@@ -288,8 +288,7 @@ class TestPartialFailureScenarios:
         responses = [
             {"status_code": 400, "body": {"errors": [{"message": "Bad request"}]}},
         ] + [
-            {"status_code": 200, "body": {"data": {"gid": str(i)}}}
-            for i in range(1, 5)
+            {"status_code": 200, "body": {"data": {"gid": str(i)}}} for i in range(1, 5)
         ]
         mock_http.request.return_value = responses
 
@@ -305,8 +304,7 @@ class TestPartialFailureScenarios:
     ) -> None:
         """Last request fails, rest succeed."""
         responses = [
-            {"status_code": 200, "body": {"data": {"gid": str(i)}}}
-            for i in range(4)
+            {"status_code": 200, "body": {"data": {"gid": str(i)}}} for i in range(4)
         ] + [
             {"status_code": 500, "body": {"errors": [{"message": "Server error"}]}},
         ]
@@ -326,9 +324,13 @@ class TestPartialFailureScenarios:
         responses = []
         for i in range(6):
             if i % 2 == 0:
-                responses.append({"status_code": 200, "body": {"data": {"gid": str(i)}}})
+                responses.append(
+                    {"status_code": 200, "body": {"data": {"gid": str(i)}}}
+                )
             else:
-                responses.append({"status_code": 404, "body": {"errors": [{"message": "Not found"}]}})
+                responses.append(
+                    {"status_code": 404, "body": {"errors": [{"message": "Not found"}]}}
+                )
         mock_http.request.return_value = responses
 
         requests = [BatchRequest(f"/tasks/{i}", "GET") for i in range(6)]
@@ -348,7 +350,8 @@ class TestPartialFailureScenarios:
         chunk1 = [{"status_code": 200, "body": {}} for _ in range(10)]
         # Chunk 2 (10): mixed failures
         chunk2 = [
-            {"status_code": 200, "body": {}} if i % 2 == 0
+            {"status_code": 200, "body": {}}
+            if i % 2 == 0
             else {"status_code": 404, "body": {}}
             for i in range(10)
         ]
@@ -432,7 +435,16 @@ class TestBatchRequestValidationEdgeCases:
 
     def test_method_variations_invalid(self) -> None:
         """Invalid HTTP methods are rejected."""
-        invalid_methods = ["PATCH", "OPTIONS", "HEAD", "CONNECT", "TRACE", "", " ", "GE T"]
+        invalid_methods = [
+            "PATCH",
+            "OPTIONS",
+            "HEAD",
+            "CONNECT",
+            "TRACE",
+            "",
+            " ",
+            "GE T",
+        ]
         for method in invalid_methods:
             with pytest.raises(ValueError) as exc_info:
                 BatchRequest(relative_path="/tasks", method=method)
@@ -490,17 +502,15 @@ class TestBatchRequestValidationEdgeCases:
     def test_nested_data_structure(self) -> None:
         """Deeply nested data structure is preserved."""
         nested_data = {
-            "level1": {
-                "level2": {
-                    "level3": {
-                        "level4": {"value": [1, 2, 3]}
-                    }
-                }
-            }
+            "level1": {"level2": {"level3": {"level4": {"value": [1, 2, 3]}}}}
         }
         req = BatchRequest(relative_path="/tasks", method="POST", data=nested_data)
         action = req.to_action_dict()
-        assert action["data"]["level1"]["level2"]["level3"]["level4"]["value"] == [1, 2, 3]
+        assert action["data"]["level1"]["level2"]["level3"]["level4"]["value"] == [
+            1,
+            2,
+            3,
+        ]
 
 
 # --- BatchResult Property Edge Cases ---
@@ -618,8 +628,7 @@ class TestBatchResultPropertyEdgeCases:
     def test_error_single_message(self) -> None:
         """Single error message is extracted."""
         result = BatchResult(
-            status_code=400,
-            body={"errors": [{"message": "Field is required"}]}
+            status_code=400, body={"errors": [{"message": "Field is required"}]}
         )
         assert result.error is not None
         assert result.error.message == "Field is required"
@@ -628,10 +637,12 @@ class TestBatchResultPropertyEdgeCases:
         """Multiple error messages are joined."""
         result = BatchResult(
             status_code=400,
-            body={"errors": [
-                {"message": "Field A is required"},
-                {"message": "Field B is invalid"},
-            ]}
+            body={
+                "errors": [
+                    {"message": "Field A is required"},
+                    {"message": "Field B is invalid"},
+                ]
+            },
         )
         assert result.error is not None
         assert "Field A is required" in result.error.message
@@ -646,10 +657,7 @@ class TestBatchResultPropertyEdgeCases:
 
     def test_error_missing_message_field(self) -> None:
         """Missing message field in error uses default."""
-        result = BatchResult(
-            status_code=400,
-            body={"errors": [{"code": "INVALID"}]}
-        )
+        result = BatchResult(status_code=400, body={"errors": [{"code": "INVALID"}]})
         assert result.error is not None
         assert "Unknown error" in result.error.message
 
@@ -666,20 +674,14 @@ class TestBatchResultPropertyEdgeCases:
         Severity: Low - Asana API always returns errors as a list, so
         this only affects malformed/unexpected responses.
         """
-        result = BatchResult(
-            status_code=400,
-            body={"errors": "Something went wrong"}
-        )
+        result = BatchResult(status_code=400, body={"errors": "Something went wrong"})
         # Current behavior: raises AttributeError when accessing .error
         with pytest.raises(AttributeError):
             _ = result.error
 
     def test_error_without_errors_key(self) -> None:
         """Body without errors key uses default message."""
-        result = BatchResult(
-            status_code=400,
-            body={"message": "Something failed"}
-        )
+        result = BatchResult(status_code=400, body={"message": "Something failed"})
         assert result.error is not None
         assert result.error.message == "Batch action failed"
 
@@ -694,17 +696,13 @@ class TestBatchResultPropertyEdgeCases:
     def test_data_with_data_wrapper(self) -> None:
         """Data unwraps from {"data": ...} wrapper."""
         result = BatchResult(
-            status_code=200,
-            body={"data": {"gid": "123", "name": "Task"}}
+            status_code=200, body={"data": {"gid": "123", "name": "Task"}}
         )
         assert result.data == {"gid": "123", "name": "Task"}
 
     def test_data_without_wrapper(self) -> None:
         """Data returns body as-is when no wrapper."""
-        result = BatchResult(
-            status_code=200,
-            body={"gid": "123", "name": "Task"}
-        )
+        result = BatchResult(status_code=200, body={"gid": "123", "name": "Task"})
         assert result.data == {"gid": "123", "name": "Task"}
 
     def test_data_with_null_data_value(self) -> None:
@@ -716,8 +714,7 @@ class TestBatchResultPropertyEdgeCases:
     def test_data_with_list_data_value(self) -> None:
         """Data returns None when data value is a list (not dict)."""
         result = BatchResult(
-            status_code=200,
-            body={"data": [{"gid": "1"}, {"gid": "2"}]}
+            status_code=200, body={"data": [{"gid": "1"}, {"gid": "2"}]}
         )
         # data is a list, not a dict, so should return None
         assert result.data is None
@@ -726,7 +723,7 @@ class TestBatchResultPropertyEdgeCases:
         """Data property returns None for failed results."""
         result = BatchResult(
             status_code=404,
-            body={"data": {"gid": "123"}}  # Even if body has data
+            body={"data": {"gid": "123"}},  # Even if body has data
         )
         assert result.data is None
 
@@ -835,8 +832,10 @@ class TestBatchSummaryStatistics:
             [],  # Empty
             [BatchResult(status_code=200)],  # Single success
             [BatchResult(status_code=404)],  # Single failure
-            [BatchResult(status_code=200, request_index=i) for i in range(50)] +
-            [BatchResult(status_code=404, request_index=i) for i in range(50, 100)],  # Half and half
+            [BatchResult(status_code=200, request_index=i) for i in range(50)]
+            + [
+                BatchResult(status_code=404, request_index=i) for i in range(50, 100)
+            ],  # Half and half
         ]
         for results in test_cases:
             summary = BatchSummary(results=results)
@@ -882,9 +881,9 @@ class TestConvenienceMethodEdgeCases:
             [{"status_code": 201, "body": {"data": {"gid": str(i)}}} for i in range(10)]
             for _ in range(10)
         ]
-        responses.append([
-            {"status_code": 201, "body": {"data": {"gid": str(i)}}} for i in range(5)
-        ])
+        responses.append(
+            [{"status_code": 201, "body": {"data": {"gid": str(i)}}} for i in range(5)]
+        )
         mock_http.request.side_effect = responses
 
         tasks = [{"name": f"Task {i}"} for i in range(105)]
@@ -903,9 +902,9 @@ class TestConvenienceMethodEdgeCases:
             [{"status_code": 200, "body": {"data": {"gid": str(i)}}} for i in range(10)]
             for _ in range(10)
         ]
-        responses.append([
-            {"status_code": 200, "body": {"data": {"gid": str(i)}}} for i in range(5)
-        ])
+        responses.append(
+            [{"status_code": 200, "body": {"data": {"gid": str(i)}}} for i in range(5)]
+        )
         mock_http.request.side_effect = responses
 
         updates = [(f"gid_{i}", {"completed": True}) for i in range(105)]
@@ -920,8 +919,7 @@ class TestConvenienceMethodEdgeCases:
         """delete_tasks_async with 100+ tasks chunks correctly."""
         # Mock 11 chunks
         responses = [
-            [{"status_code": 200, "body": {}} for _ in range(10)]
-            for _ in range(10)
+            [{"status_code": 200, "body": {}} for _ in range(10)] for _ in range(10)
         ]
         responses.append([{"status_code": 200, "body": {}} for _ in range(5)])
         mock_http.request.side_effect = responses
@@ -1040,12 +1038,10 @@ class TestRequestIndexCorrelation:
     ) -> None:
         """Request indices are correct even when some requests fail."""
         chunk1 = [
-            {"status_code": 200 if i % 2 == 0 else 404, "body": {}}
-            for i in range(10)
+            {"status_code": 200 if i % 2 == 0 else 404, "body": {}} for i in range(10)
         ]
         chunk2 = [
-            {"status_code": 200 if i % 2 == 0 else 500, "body": {}}
-            for i in range(5)
+            {"status_code": 200 if i % 2 == 0 else 500, "body": {}} for i in range(5)
         ]
         mock_http.request.side_effect = [chunk1, chunk2]
 
@@ -1061,7 +1057,9 @@ class TestRequestIndexCorrelation:
                 expected_success = i % 2 == 0
             else:
                 expected_success = (i - 10) % 2 == 0
-            assert r.success == expected_success, f"Index {i}: expected success={expected_success}"
+            assert r.success == expected_success, (
+                f"Index {i}: expected success={expected_success}"
+            )
 
 
 # --- from_asana_response Edge Cases ---
@@ -1077,17 +1075,13 @@ class TestFromAsanaResponseEdgeCases:
 
     def test_missing_body_defaults_to_none(self) -> None:
         """Missing body defaults to None."""
-        result = BatchResult.from_asana_response(
-            {"status_code": 200},
-            request_index=0
-        )
+        result = BatchResult.from_asana_response({"status_code": 200}, request_index=0)
         assert result.body is None
 
     def test_missing_headers_defaults_to_none(self) -> None:
         """Missing headers defaults to None."""
         result = BatchResult.from_asana_response(
-            {"status_code": 200, "body": {}},
-            request_index=0
+            {"status_code": 200, "body": {}}, request_index=0
         )
         assert result.headers is None
 
@@ -1181,7 +1175,7 @@ class TestResponseParsingEdgeCases:
         """Response dict without 'data' key wraps as single result."""
         mock_http.request.return_value = {
             "status_code": 200,
-            "body": {"data": {"gid": "1"}}
+            "body": {"data": {"gid": "1"}},
         }
 
         requests = [BatchRequest("/tasks/1", "GET")]
@@ -1211,7 +1205,9 @@ class TestBatchSizeLimitConstant:
         assert len(chunks[0]) == BATCH_SIZE_LIMIT
 
         # Test just over boundary
-        requests = [BatchRequest(f"/tasks/{i}", "GET") for i in range(BATCH_SIZE_LIMIT + 1)]
+        requests = [
+            BatchRequest(f"/tasks/{i}", "GET") for i in range(BATCH_SIZE_LIMIT + 1)
+        ]
         chunks = _chunk_requests(requests)
         assert len(chunks) == 2
         assert len(chunks[0]) == BATCH_SIZE_LIMIT

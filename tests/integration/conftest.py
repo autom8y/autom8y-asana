@@ -5,10 +5,29 @@ Provides mock client and task fixtures for testing GID validation.
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+from autom8_asana.models.business.registry import (
+    ProjectTypeRegistry,
+    WorkspaceProjectRegistry,
+)
+
+
+@pytest.fixture(autouse=True)
+def reset_registries_after_test() -> Generator[None, None, None]:
+    """Auto-reset registries after each integration test.
+
+    Per ADR-0093/ADR-0108: Singleton registries must be reset between tests
+    to ensure test isolation. This fixture runs automatically for all
+    integration tests.
+    """
+    yield
+    ProjectTypeRegistry.reset()
+    WorkspaceProjectRegistry.reset()
 
 
 class MockHTTPClient:

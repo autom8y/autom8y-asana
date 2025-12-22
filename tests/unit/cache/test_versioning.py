@@ -1,6 +1,6 @@
 """Tests for version comparison utilities."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import pytest
 

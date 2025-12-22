@@ -24,8 +24,7 @@ import pytest
 # Skip all tests if no API token
 pytestmark = [
     pytest.mark.skipif(
-        not os.getenv("ASANA_ACCESS_TOKEN"),
-        reason="ASANA_ACCESS_TOKEN not set"
+        not os.getenv("ASANA_ACCESS_TOKEN"), reason="ASANA_ACCESS_TOKEN not set"
     ),
     pytest.mark.integration,
 ]

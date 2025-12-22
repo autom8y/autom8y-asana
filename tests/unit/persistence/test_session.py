@@ -7,7 +7,7 @@ Per TDD-0011: Verify action method support.
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, PropertyMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -26,7 +26,6 @@ from autom8_asana.persistence.models import (
     PlannedOperation,
     SaveResult,
     ActionType,
-    ActionOperation,
 )
 from autom8_asana.persistence.session import SaveSession, SessionState
 
@@ -91,24 +90,24 @@ class TestContextManager:
         mock_client = create_mock_client()
 
         async with SaveSession(mock_client) as session:
-            assert session._state == SessionState.OPEN
+            assert session.state == SessionState.OPEN
             # Can track entities
             task = Task(gid="123", name="Test")
             session.track(task)
 
         # After exit, session is closed
-        assert session._state == SessionState.CLOSED
+        assert session.state == SessionState.CLOSED
 
     def test_context_manager_sync(self) -> None:
         """SaveSession works as sync context manager."""
         mock_client = create_mock_client()
 
         with SaveSession(mock_client) as session:
-            assert session._state == SessionState.OPEN
+            assert session.state == SessionState.OPEN
             task = Task(gid="123", name="Test")
             session.track(task)
 
-        assert session._state == SessionState.CLOSED
+        assert session.state == SessionState.CLOSED
 
     @pytest.mark.asyncio
     async def test_async_context_closes_on_exception(self) -> None:
@@ -119,7 +118,7 @@ class TestContextManager:
             async with SaveSession(mock_client) as session:
                 raise ValueError("Test error")
 
-        assert session._state == SessionState.CLOSED
+        assert session.state == SessionState.CLOSED
 
     def test_sync_context_closes_on_exception(self) -> None:
         """Sync context manager closes session on exception."""
@@ -129,7 +128,7 @@ class TestContextManager:
             with SaveSession(mock_client) as session:
                 raise ValueError("Test error")
 
-        assert session._state == SessionState.CLOSED
+        assert session.state == SessionState.CLOSED
 
 
 # ---------------------------------------------------------------------------
@@ -346,7 +345,7 @@ class TestPreviewActions:
 
         assert len(action_ops) == 1
         assert action_ops[0].action == ActionType.ADD_TAG
-        assert action_ops[0].target_gid == "1111"
+        assert action_ops[0].target.gid == "1111"
 
     def test_preview_actions_after_crud(self) -> None:
         """FR-PREV-002: Actions returned separately from CRUD operations."""
@@ -380,11 +379,11 @@ class TestPreviewActions:
 
         assert len(action_ops) == 3
         assert action_ops[0].action == ActionType.ADD_TAG
-        assert action_ops[0].target_gid == "1001"
+        assert action_ops[0].target.gid == "1001"
         assert action_ops[1].action == ActionType.ADD_TAG
-        assert action_ops[1].target_gid == "1002"
+        assert action_ops[1].target.gid == "1002"
         assert action_ops[2].action == ActionType.MOVE_TO_SECTION
-        assert action_ops[2].target_gid == "3001"
+        assert action_ops[2].target.gid == "3001"
 
     def test_preview_detects_unsupported_tag_modifications(self) -> None:
         """FR-PREV-003: preview() raises UnsupportedOperationError for tags."""
@@ -428,7 +427,9 @@ class TestPreviewActions:
 
         task = Task(gid="123", name="Test", memberships=[])
         session.track(task)
-        task.memberships = [{"project": {"gid": "proj_1"}, "section": {"gid": "sect_1"}}]
+        task.memberships = [
+            {"project": {"gid": "proj_1"}, "section": {"gid": "sect_1"}}
+        ]
 
         with pytest.raises(UnsupportedOperationError) as exc:
             session.preview()
@@ -739,7 +740,9 @@ class TestEdgeCases:
         # Note: Order depends on graph internals, so check both possibilities
         states = [session.get_state(task1), session.get_state(task2)]
         assert EntityState.CLEAN in states, "One entity should be CLEAN after success"
-        assert EntityState.MODIFIED in states, "One entity should remain MODIFIED after failure"
+        assert EntityState.MODIFIED in states, (
+            "One entity should remain MODIFIED after failure"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -765,7 +768,7 @@ class TestActionMethods:
         assert len(actions) == 1
         assert actions[0].action == ActionType.ADD_TAG
         assert actions[0].task is task
-        assert actions[0].target_gid == "1456"
+        assert actions[0].target.gid == "1456"
 
     def test_add_tag_with_string(self) -> None:
         """add_tag() registers action with string GID."""
@@ -778,7 +781,7 @@ class TestActionMethods:
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
-        assert actions[0].target_gid == "1456"
+        assert actions[0].target.gid == "1456"
 
     def test_remove_tag(self) -> None:
         """remove_tag() registers REMOVE_TAG action."""
@@ -806,7 +809,7 @@ class TestActionMethods:
         actions = session.get_pending_actions()
         assert len(actions) == 1
         assert actions[0].action == ActionType.ADD_TO_PROJECT
-        assert actions[0].target_gid == "2789"
+        assert actions[0].target.gid == "2789"
 
     def test_remove_from_project(self) -> None:
         """remove_from_project() registers REMOVE_FROM_PROJECT action."""
@@ -834,7 +837,7 @@ class TestActionMethods:
         actions = session.get_pending_actions()
         assert len(actions) == 1
         assert actions[0].action == ActionType.ADD_DEPENDENCY
-        assert actions[0].target_gid == "4456"
+        assert actions[0].target.gid == "4456"
 
     def test_remove_dependency(self) -> None:
         """remove_dependency() registers REMOVE_DEPENDENCY action."""
@@ -862,7 +865,7 @@ class TestActionMethods:
         actions = session.get_pending_actions()
         assert len(actions) == 1
         assert actions[0].action == ActionType.MOVE_TO_SECTION
-        assert actions[0].target_gid == "3789"
+        assert actions[0].target.gid == "3789"
 
     def test_fluent_chaining(self) -> None:
         """Action methods support fluent chaining."""
@@ -1019,7 +1022,7 @@ class TestFollowerMethods:
         assert len(actions) == 1
         assert actions[0].action == ActionType.ADD_FOLLOWER
         assert actions[0].task is task
-        assert actions[0].target_gid == "user_456"
+        assert actions[0].target.gid == "user_456"
 
     def test_add_follower_with_string_gid(self) -> None:
         """add_follower() accepts string GID."""
@@ -1032,7 +1035,7 @@ class TestFollowerMethods:
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
-        assert actions[0].target_gid == "user_456"
+        assert actions[0].target.gid == "user_456"
 
     def test_add_follower_with_namegid(self) -> None:
         """add_follower() accepts NameGid reference."""
@@ -1046,7 +1049,7 @@ class TestFollowerMethods:
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
-        assert actions[0].target_gid == "user_456"
+        assert actions[0].target.gid == "user_456"
 
     def test_remove_follower_creates_action_operation(self) -> None:
         """remove_follower() creates ActionOperation with REMOVE_FOLLOWER type."""
@@ -1062,7 +1065,7 @@ class TestFollowerMethods:
         actions = session.get_pending_actions()
         assert len(actions) == 1
         assert actions[0].action == ActionType.REMOVE_FOLLOWER
-        assert actions[0].target_gid == "user_456"
+        assert actions[0].target.gid == "user_456"
 
     def test_add_followers_creates_multiple_operations(self) -> None:
         """add_followers() creates multiple ActionOperations."""
@@ -1079,9 +1082,9 @@ class TestFollowerMethods:
         actions = session.get_pending_actions()
         assert len(actions) == 3
         assert all(a.action == ActionType.ADD_FOLLOWER for a in actions)
-        assert actions[0].target_gid == "user_1"
-        assert actions[1].target_gid == "user_2"
-        assert actions[2].target_gid == "user_3"
+        assert actions[0].target.gid == "user_1"
+        assert actions[1].target.gid == "user_2"
+        assert actions[2].target.gid == "user_3"
 
     def test_remove_followers_creates_multiple_operations(self) -> None:
         """remove_followers() creates multiple ActionOperations."""
@@ -1260,7 +1263,7 @@ class TestDependentMethods:
         assert len(actions) == 1
         assert actions[0].action == ActionType.ADD_DEPENDENT
         assert actions[0].task is task
-        assert actions[0].target_gid == "dependent_456"
+        assert actions[0].target.gid == "dependent_456"
 
     def test_remove_dependent_creates_action_operation(self) -> None:
         """remove_dependent() creates ActionOperation with REMOVE_DEPENDENT type."""
@@ -1276,7 +1279,7 @@ class TestDependentMethods:
         actions = session.get_pending_actions()
         assert len(actions) == 1
         assert actions[0].action == ActionType.REMOVE_DEPENDENT
-        assert actions[0].target_gid == "dependent_456"
+        assert actions[0].target.gid == "dependent_456"
 
     def test_add_dependent_with_string_gid(self) -> None:
         """add_dependent() accepts string GID."""
@@ -1289,7 +1292,7 @@ class TestDependentMethods:
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
-        assert actions[0].target_gid == "dependent_456"
+        assert actions[0].target.gid == "dependent_456"
 
     def test_dependent_methods_require_open_session(self) -> None:
         """Dependent methods raise SessionClosedError when session closed."""
@@ -1342,7 +1345,7 @@ class TestLikeMethods:
         assert actions[0].action == ActionType.REMOVE_LIKE
 
     def test_add_like_has_no_target_gid(self) -> None:
-        """add_like() creates ActionOperation with target_gid=None (ADR-0045)."""
+        """add_like() creates ActionOperation with target=None (ADR-0045)."""
         mock_client = create_mock_client()
         session = SaveSession(mock_client)
 
@@ -1352,10 +1355,10 @@ class TestLikeMethods:
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
-        assert actions[0].target_gid is None
+        assert actions[0].target is None
 
     def test_remove_like_has_no_target_gid(self) -> None:
-        """remove_like() creates ActionOperation with target_gid=None (ADR-0045)."""
+        """remove_like() creates ActionOperation with target=None (ADR-0045)."""
         mock_client = create_mock_client()
         session = SaveSession(mock_client)
 
@@ -1365,7 +1368,7 @@ class TestLikeMethods:
 
         actions = session.get_pending_actions()
         assert len(actions) == 1
-        assert actions[0].target_gid is None
+        assert actions[0].target is None
 
     def test_like_methods_require_open_session(self) -> None:
         """Like methods raise SessionClosedError when session closed."""
@@ -1422,7 +1425,10 @@ class TestCommentMethods:
         actions = session.get_pending_actions()
         assert len(actions) == 1
         assert actions[0].extra_params["text"] == "Plain text"
-        assert actions[0].extra_params["html_text"] == "<body>Rich <strong>HTML</strong> text</body>"
+        assert (
+            actions[0].extra_params["html_text"]
+            == "<body>Rich <strong>HTML</strong> text</body>"
+        )
 
     def test_add_comment_stores_text_in_extra_params(self) -> None:
         """add_comment() stores text in extra_params per ADR-0046."""
@@ -1436,7 +1442,7 @@ class TestCommentMethods:
         actions = session.get_pending_actions()
         assert len(actions) == 1
         assert actions[0].extra_params == {"text": "Test comment text"}
-        assert actions[0].target_gid is None  # Comments don't need target_gid
+        assert actions[0].target is None  # Comments don't need target_gid
 
     def test_add_comment_empty_raises_value_error(self) -> None:
         """add_comment() raises ValueError if both text and html_text are empty."""
@@ -1499,7 +1505,7 @@ class TestParentMethods:
         assert len(actions) == 1
         assert actions[0].action == ActionType.SET_PARENT
         assert actions[0].task is task
-        assert actions[0].target_gid is None
+        assert actions[0].target is None
         assert actions[0].extra_params["parent"] == "parent_456"
 
     def test_set_parent_with_none_promotes_to_top_level(self) -> None:
@@ -1711,9 +1717,7 @@ class TestSelectiveActionClearing:
         """When all actions fail, all pending actions remain."""
         mock_client = create_mock_client()
         # Make all HTTP requests fail
-        mock_client._http.request = AsyncMock(
-            side_effect=Exception("API Error")
-        )
+        mock_client._http.request = AsyncMock(side_effect=Exception("API Error"))
         session = SaveSession(mock_client)
 
         task = Task(gid="task_123")
@@ -1767,7 +1771,7 @@ class TestSelectiveActionClearing:
         # Only failed actions remain
         remaining = session.get_pending_actions()
         assert len(remaining) == 2
-        remaining_targets = [a.target_gid for a in remaining]
+        remaining_targets = [a.target.gid for a in remaining]
         assert "1001" not in remaining_targets  # Succeeded, removed
         assert "1002" in remaining_targets  # Failed, kept
         assert "1003" in remaining_targets  # Failed, kept
@@ -1876,11 +1880,11 @@ class TestSelectiveActionClearing:
         session = SaveSession(mock_client)
 
         task = Task(gid="task_123")
-        # add_like has no target_gid
+        # add_like has no target
         session.add_like(task)
 
         assert len(session.get_pending_actions()) == 1
-        assert session.get_pending_actions()[0].target_gid is None
+        assert session.get_pending_actions()[0].target is None
 
         result = await session.commit_async()
 
@@ -2079,7 +2083,7 @@ class TestCustomFieldTrackingReset:
         session = SaveSession(mock_client)
 
         # Method should exist
-        assert hasattr(session, '_reset_custom_field_tracking')
+        assert hasattr(session, "_reset_custom_field_tracking")
         assert callable(session._reset_custom_field_tracking)
 
     def test_reset_custom_field_tracking_duck_typing(self) -> None:

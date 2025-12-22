@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -22,7 +21,6 @@ import pytest
 
 from autom8_asana.batch.models import BatchResult
 from autom8_asana.models import Task
-from autom8_asana.models.common import NameGid
 from autom8_asana.persistence import SaveSession, SaveResult
 from autom8_asana.persistence.tracker import ChangeTracker
 from autom8_asana.persistence.graph import DependencyGraph
@@ -79,6 +77,7 @@ class TestSessionIsolation:
             session2.track(task)
             # Should not be marked as deleted in session2
             from autom8_asana.persistence import EntityState
+
             state = session2.get_state(task)
             # Task was not modified in session2, so it should be CLEAN
             assert state == EntityState.CLEAN
@@ -86,11 +85,12 @@ class TestSessionIsolation:
     @pytest.mark.asyncio
     async def test_concurrent_sessions_commit_independently(self) -> None:
         """Multiple sessions can be active and commit independently."""
+
         def make_mock_client() -> MagicMock:
             client = create_mock_client()
-            client.batch.execute_async = AsyncMock(return_value=[
-                create_success_result(gid="new_gid")
-            ])
+            client.batch.execute_async = AsyncMock(
+                return_value=[create_success_result(gid="new_gid")]
+            )
             return client
 
         # Two concurrent sessions
@@ -193,10 +193,7 @@ class TestThreadSafety:
 
         def build_graph(idx: int) -> None:
             try:
-                tasks = [
-                    Task(gid=f"g{idx}_t{i}", name=f"Task {i}")
-                    for i in range(10)
-                ]
+                tasks = [Task(gid=f"g{idx}_t{i}", name=f"Task {i}") for i in range(10)]
                 graph.build(tasks)
                 _ = graph.get_levels()
             except Exception as e:
@@ -278,11 +275,12 @@ class TestConcurrentCommits:
     @pytest.mark.asyncio
     async def test_concurrent_session_commits(self) -> None:
         """Multiple sessions can commit concurrently."""
+
         def make_mock_client() -> MagicMock:
             client = create_mock_client()
-            client.batch.execute_async = AsyncMock(return_value=[
-                create_success_result(gid="new_gid")
-            ])
+            client.batch.execute_async = AsyncMock(
+                return_value=[create_success_result(gid="new_gid")]
+            )
             return client
 
         async def run_session(idx: int) -> SaveResult:
@@ -302,6 +300,7 @@ class TestConcurrentCommits:
     @pytest.mark.asyncio
     async def test_concurrent_commits_with_delays(self) -> None:
         """Concurrent commits with varying delays complete correctly."""
+
         async def make_slow_client(delay: float) -> MagicMock:
             client = create_mock_client()
 
@@ -335,9 +334,9 @@ class TestConcurrentCommits:
 
         def make_mock_client() -> MagicMock:
             client = create_mock_client()
-            client.batch.execute_async = AsyncMock(return_value=[
-                create_success_result(gid="shared")
-            ])
+            client.batch.execute_async = AsyncMock(
+                return_value=[create_success_result(gid="shared")]
+            )
             return client
 
         async def run_session(idx: int) -> SaveResult:
@@ -366,11 +365,12 @@ class TestThreadPoolExecution:
 
     def test_sync_commit_in_thread_pool(self) -> None:
         """Sync commit works in thread pool executor."""
+
         def run_sync_session() -> SaveResult:
             client = create_mock_client()
-            client.batch.execute_async = AsyncMock(return_value=[
-                create_success_result(gid="new_gid")
-            ])
+            client.batch.execute_async = AsyncMock(
+                return_value=[create_success_result(gid="new_gid")]
+            )
 
             task = Task(gid="temp_1", name="Test")
             with SaveSession(client) as session:
@@ -440,9 +440,9 @@ class TestRaceConditions:
     async def test_commit_during_modifications(self) -> None:
         """Commit captures consistent state even during modifications."""
         client = create_mock_client()
-        client.batch.execute_async = AsyncMock(return_value=[
-            create_success_result(gid="123")
-        ])
+        client.batch.execute_async = AsyncMock(
+            return_value=[create_success_result(gid="123")]
+        )
 
         task = Task(gid="123", name="Original")
 
@@ -475,6 +475,9 @@ class TestRaceConditions:
 
         # Snapshot before should show no changes (at track time)
         # Snapshot after should show the change
-        assert "name" not in snapshot_before or snapshot_before.get("name") == ("Original", "Original")
+        assert "name" not in snapshot_before or snapshot_before.get("name") == (
+            "Original",
+            "Original",
+        )
         assert "name" in snapshot_after
         assert snapshot_after["name"] == ("Original", "Modified")

@@ -34,6 +34,11 @@ class TestAssetEditEntity:
         assert hasattr(AssetEdit, "NAME_CONVENTION")
         assert AssetEdit.NAME_CONVENTION == "[AssetEdit Name]"
 
+    def test_asset_edit_has_primary_project_gid(self) -> None:
+        """AssetEdit has PRIMARY_PROJECT_GID per PRD-0024."""
+        assert hasattr(AssetEdit, "PRIMARY_PROJECT_GID")
+        assert AssetEdit.PRIMARY_PROJECT_GID == "1202204184560785"
+
     def test_asset_edit_holder_property(self) -> None:
         """asset_edit_holder returns cached reference."""
         asset_edit = AssetEdit(gid="ae1")
@@ -87,7 +92,11 @@ class TestAssetEditFields:
         asset_edit = AssetEdit(
             gid="ae1",
             custom_fields=[
-                {"gid": "1", "name": "Asset Approval", "enum_value": {"name": "Approved"}}
+                {
+                    "gid": "1",
+                    "name": "Asset Approval",
+                    "enum_value": {"name": "Approved"},
+                }
             ],
         )
         assert asset_edit.asset_approval == "Approved"
@@ -140,27 +149,31 @@ class TestAssetEditFields:
         assert asset_edit.reviewer[0]["name"] == "Jane Smith"
 
     def test_offer_id_getter(self) -> None:
-        """offer_id getter returns text value."""
+        """offer_id getter returns int value per PRD-0024."""
         asset_edit = AssetEdit(
             gid="ae1",
             custom_fields=[
-                {"gid": "1", "name": "Offer ID", "text_value": "1234567890"}
+                {"gid": "1", "name": "Offer ID", "number_value": 1234567890}
             ],
         )
-        assert asset_edit.offer_id == "1234567890"
+        assert asset_edit.offer_id == 1234567890
 
     def test_offer_id_setter(self) -> None:
         """offer_id setter updates value."""
         asset_edit = AssetEdit(gid="ae1", custom_fields=[])
-        asset_edit.offer_id = "9876543210"
-        assert asset_edit.get_custom_fields().get("Offer ID") == "9876543210"
+        asset_edit.offer_id = 9876543210
+        assert asset_edit.get_custom_fields().get("Offer ID") == 9876543210
 
     def test_raw_assets_getter(self) -> None:
         """raw_assets getter returns text value."""
         asset_edit = AssetEdit(
             gid="ae1",
             custom_fields=[
-                {"gid": "1", "name": "Raw Assets", "text_value": "https://drive.google.com/..."}
+                {
+                    "gid": "1",
+                    "name": "Raw Assets",
+                    "text_value": "https://drive.google.com/...",
+                }
             ],
         )
         assert asset_edit.raw_assets == "https://drive.google.com/..."
@@ -207,9 +220,7 @@ class TestAssetEditFields:
         """score getter returns Decimal value."""
         asset_edit = AssetEdit(
             gid="ae1",
-            custom_fields=[
-                {"gid": "1", "name": "Score", "number_value": 95.5}
-            ],
+            custom_fields=[{"gid": "1", "name": "Score", "number_value": 95.5}],
         )
         assert asset_edit.score == Decimal("95.5")
 
@@ -220,32 +231,35 @@ class TestAssetEditFields:
         assert asset_edit.get_custom_fields().get("Score") == 88.3
 
     def test_specialty_getter(self) -> None:
-        """specialty getter extracts enum value."""
-        asset_edit = AssetEdit(
-            gid="ae1",
-            custom_fields=[
-                {"gid": "1", "name": "Specialty", "enum_value": {"name": "Video"}}
+        """specialty getter returns list from multi-enum per PRD-0024."""
+        asset_edit = AssetEdit(gid="ae1", custom_fields=[])
+        asset_edit.get_custom_fields().set(
+            "Specialty",
+            [
+                {"gid": "s1", "name": "Video"},
+                {"gid": "s2", "name": "Image"},
             ],
         )
-        assert asset_edit.specialty == "Video"
+        assert asset_edit.specialty == ["Video", "Image"]
+
+    def test_specialty_empty(self) -> None:
+        """specialty returns empty list when not set."""
+        asset_edit = AssetEdit(gid="ae1", custom_fields=[])
+        assert asset_edit.specialty == []
 
     def test_template_id_getter(self) -> None:
-        """template_id getter returns text value."""
+        """template_id getter returns int value per PRD-0024."""
         asset_edit = AssetEdit(
             gid="ae1",
-            custom_fields=[
-                {"gid": "1", "name": "Template ID", "text_value": "TPL-001"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Template ID", "number_value": 42}],
         )
-        assert asset_edit.template_id == "TPL-001"
+        assert asset_edit.template_id == 42
 
     def test_videos_paid_getter(self) -> None:
         """videos_paid getter returns integer value."""
         asset_edit = AssetEdit(
             gid="ae1",
-            custom_fields=[
-                {"gid": "1", "name": "Videos Paid", "number_value": 5}
-            ],
+            custom_fields=[{"gid": "1", "name": "Videos Paid", "number_value": 5}],
         )
         assert asset_edit.videos_paid == 5
 
@@ -480,14 +494,12 @@ class TestAssetEditResolution:
         """resolve_offer_async can fetch Offer directly via offer_id."""
         from autom8_asana.models.task import Task
 
-        offer_task = Task(gid="o1", name="Test Offer")
+        offer_task = Task(gid="123456789", name="Test Offer")
         mock_client.tasks.get_async.return_value = offer_task
 
         asset_edit = AssetEdit(
             gid="ae1",
-            custom_fields=[
-                {"gid": "1", "name": "Offer ID", "text_value": "o1"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Offer ID", "number_value": 123456789}],
         )
 
         result = await asset_edit.resolve_offer_async(
@@ -497,7 +509,7 @@ class TestAssetEditResolution:
 
         assert result.success
         assert result.entity is not None
-        assert result.entity.gid == "o1"
+        assert result.entity.gid == "123456789"
 
 
 class TestAssetEditEdgeCases:
@@ -534,9 +546,7 @@ class TestAssetEditEdgeCases:
 
         asset_edit = AssetEdit(
             gid="ae1",
-            custom_fields=[
-                {"gid": "1", "name": "Offer ID", "text_value": "nonexistent_gid"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Offer ID", "number_value": 999999999}],
         )
 
         result = await asset_edit.resolve_unit_async(
@@ -720,9 +730,7 @@ class TestAssetEditEdgeCases:
         """
         # DEPENDENT_TASKS will error
         mock_iterator = MagicMock()
-        mock_iterator.collect = AsyncMock(
-            side_effect=Exception("Network error")
-        )
+        mock_iterator.collect = AsyncMock(side_effect=Exception("Network error"))
         mock_client.tasks.dependents_async.return_value = mock_iterator
 
         # Set up Business for CUSTOM_FIELD_MAPPING success
@@ -879,7 +887,6 @@ class TestAssetEditEdgeCases:
         )
         asset_edit._business = business
 
-        from autom8_asana.models.business.offer import Offer
 
         result = await asset_edit.resolve_offer_async(
             mock_client,
@@ -893,9 +900,7 @@ class TestAssetEditEdgeCases:
 
     # --- Edge Case: Unknown strategy ---
 
-    async def test_resolve_unit_unknown_strategy(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_unit_unknown_strategy(self, mock_client: MagicMock) -> None:
         """resolve_unit_async handles unknown strategy gracefully."""
         asset_edit = AssetEdit(gid="ae1", custom_fields=[])
 

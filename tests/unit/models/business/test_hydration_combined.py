@@ -17,8 +17,6 @@ from autom8_asana.exceptions import HydrationError
 from autom8_asana.models.business.business import Business
 from autom8_asana.models.business.detection import EntityType
 from autom8_asana.models.business.hydration import (
-    HydrationBranch,
-    HydrationFailure,
     HydrationResult,
     hydrate_from_gid_async,
 )
@@ -50,7 +48,7 @@ class TestHydrateFromBusinessGid:
             "uh1": [],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -83,7 +81,7 @@ class TestHydrateFromBusinessGid:
             ],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -112,7 +110,7 @@ class TestHydrateFromBusinessGid:
             ],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -139,7 +137,7 @@ class TestHydrateFromContactGid:
         """Starting from Contact GID traverses up to Business."""
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "c1": Task(
                     gid="c1",
@@ -163,7 +161,7 @@ class TestHydrateFromContactGid:
             "ch1": [Task(gid="c1", name="John Doe")],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -180,7 +178,7 @@ class TestHydrateFromContactGid:
         """Starting from Contact GID hydrates full Business hierarchy."""
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "c1": Task(
                     gid="c1",
@@ -210,7 +208,7 @@ class TestHydrateFromContactGid:
             "oh1": [],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -236,7 +234,7 @@ class TestHydrateFromOfferGid:
         """Starting from Offer GID traverses 4 levels to Business."""
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "o1": Task(
                     gid="o1",
@@ -273,7 +271,7 @@ class TestHydrateFromOfferGid:
             "ph1": [],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -291,7 +289,7 @@ class TestHydrateFromOfferGid:
         """Starting Offer is findable in hydrated hierarchy."""
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "o1": Task(
                     gid="o1",
@@ -327,7 +325,7 @@ class TestHydrateFromOfferGid:
             "oh1": [Task(gid="o1", name="Offer 1")],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -359,7 +357,7 @@ class TestHydrateFromUnitGid:
         """Starting from Unit GID traverses 2 levels to Business."""
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "u1": Task(
                     gid="u1",
@@ -384,7 +382,7 @@ class TestHydrateFromUnitGid:
             "oh1": [],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -413,7 +411,7 @@ class TestHydrateFullParameter:
         business_task = Task(gid="b1", name="Acme Corp")
         client.tasks.get_async = AsyncMock(return_value=business_task)
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             if gid == "b1":
                 mock.collect = AsyncMock(
@@ -443,7 +441,7 @@ class TestHydrateFullParameter:
             "ch1": [Task(gid="c1", name="John")],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -474,7 +472,7 @@ class TestPartialOkParameter:
 
         call_count = 0
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             nonlocal call_count
             call_count += 1
             mock = AsyncMock()
@@ -507,7 +505,7 @@ class TestPartialOkParameter:
 
         call_count = 0
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             nonlocal call_count
             call_count += 1
             mock = AsyncMock()
@@ -539,7 +537,7 @@ class TestPartialOkParameter:
 
         call_count = 0
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             nonlocal call_count
             call_count += 1
             mock = AsyncMock()
@@ -583,7 +581,7 @@ class TestHydrationResultProperties:
             "ch1": [Task(gid="c1", name="John")],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -612,7 +610,7 @@ class TestHydrationResultProperties:
             "oh1": [],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -631,7 +629,7 @@ class TestHydrationResultProperties:
         """HydrationResult tracks path when starting from non-Business."""
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "c1": Task(
                     gid="c1",
@@ -655,7 +653,7 @@ class TestHydrationResultProperties:
             "ch1": [Task(gid="c1", name="John Doe")],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -679,7 +677,7 @@ class TestHydrationResultProperties:
             "ch1": [],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -722,7 +720,7 @@ class TestHydrateFromGidErrorHandling:
         task = Task(gid="orphan", name="Orphan", parent=None)
         client.tasks.get_async = AsyncMock(return_value=task)
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=[])
             return mock
@@ -749,7 +747,7 @@ class TestHydrateFromGidIntegration:
         """Full hierarchy hydration starting from deep Offer."""
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "o1": Task(
                     gid="o1",
@@ -801,7 +799,7 @@ class TestHydrateFromGidIntegration:
             "ph1": [Task(gid="p1", name="Build Process")],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -846,7 +844,7 @@ class TestHydrateFromGidIntegration:
             "ph2": [Task(gid="p1", name="Process 1")],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock

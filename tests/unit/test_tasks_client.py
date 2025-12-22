@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -127,7 +126,11 @@ class TestGetAsync:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """get_async passes opt_fields as comma-separated query param."""
-        mock_http.get.return_value = {"gid": "123", "name": "Test Task", "notes": "Notes"}
+        mock_http.get.return_value = {
+            "gid": "123",
+            "name": "Test Task",
+            "notes": "Notes",
+        }
 
         result = await tasks_client.get_async(
             "123", opt_fields=["name", "notes", "completed"]
@@ -147,7 +150,10 @@ class TestGetSync:
     """Tests for TasksClient.get() sync wrapper."""
 
     def test_get_sync_returns_task_model(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """get() returns Task model by default outside async context."""
         # Create fresh client for sync test (avoids shared event loop issues)
@@ -166,7 +172,10 @@ class TestGetSync:
         mock_http.get.assert_called_once_with("/tasks/456", params={})
 
     def test_get_sync_raw_returns_dict(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """get() with raw=True returns dict outside async context."""
         client = TasksClient(
@@ -378,7 +387,10 @@ class TestSyncWrappers:
     """Test sync wrapper variants for all methods."""
 
     def test_create_sync_returns_task_model(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """create() sync wrapper returns Task model by default."""
         client = TasksClient(
@@ -395,7 +407,10 @@ class TestSyncWrappers:
         assert result.name == "Sync Create"
 
     def test_create_sync_raw_returns_dict(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """create() sync wrapper with raw=True returns dict."""
         client = TasksClient(
@@ -411,7 +426,10 @@ class TestSyncWrappers:
         assert result == {"gid": "7123", "name": "Sync Create"}
 
     def test_update_sync_returns_task_model(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """update() sync wrapper returns Task model by default."""
         client = TasksClient(
@@ -428,7 +446,10 @@ class TestSyncWrappers:
         assert result.name == "Updated"
 
     def test_update_sync_raw_returns_dict(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """update() sync wrapper with raw=True returns dict."""
         client = TasksClient(
@@ -444,7 +465,10 @@ class TestSyncWrappers:
         assert result == {"gid": "7456", "name": "Updated"}
 
     def test_delete_sync_works(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """delete() sync wrapper works outside async context."""
         client = TasksClient(
@@ -493,7 +517,10 @@ class TestSubtasksAsync:
     ) -> None:
         """subtasks_async returns PageIterator[Task]."""
         mock_http.get_paginated.return_value = (
-            [{"gid": "sub1", "name": "Subtask 1"}, {"gid": "sub2", "name": "Subtask 2"}],
+            [
+                {"gid": "sub1", "name": "Subtask 1"},
+                {"gid": "sub2", "name": "Subtask 2"},
+            ],
             None,
         )
 
@@ -649,16 +676,14 @@ class TestP1DirectMethodsAddTag:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """add_tag_async returns updated Task object."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
 
         # Mock SaveSession
         mock_session = MagicMock()
         mock_session.add_tag = MagicMock()
         mock_session.commit_async = AsyncMock()
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -683,15 +708,13 @@ class TestP1DirectMethodsAddTag:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """add_tag_async creates and uses SaveSession internally."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
 
         mock_session = MagicMock()
         mock_session.add_tag = MagicMock()
         mock_session.commit_async = AsyncMock()
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -717,15 +740,13 @@ class TestP1DirectMethodsAddTag:
     ) -> None:
         """add_tag_async raises error if task doesn't exist."""
         from autom8_asana.exceptions import NotFoundError
-        from unittest.mock import patch, AsyncMock, MagicMock
+        from unittest.mock import patch, AsyncMock
 
         mock_session = MagicMock()
         mock_session.add_tag = MagicMock()
         mock_session.commit_async = AsyncMock()
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -740,10 +761,13 @@ class TestP1DirectMethodsAddTag:
                 await tasks_client.add_tag_async("5999", "1456")
 
     def test_add_tag_sync_delegates_to_async(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """add_tag sync wrapper delegates to add_tag_async."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
 
         client = TasksClient(
             http=mock_http,  # type: ignore[arg-type]
@@ -756,9 +780,7 @@ class TestP1DirectMethodsAddTag:
         mock_session.add_tag = MagicMock()
         mock_session.commit_async = AsyncMock()
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -785,15 +807,13 @@ class TestP1DirectMethodsRemoveTag:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """remove_tag_async returns updated Task object."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
 
         mock_session = MagicMock()
         mock_session.remove_tag = MagicMock()
         mock_session.commit_async = AsyncMock()
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -814,10 +834,13 @@ class TestP1DirectMethodsRemoveTag:
             assert mock_http.get.called
 
     def test_remove_tag_sync_delegates_to_async(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """remove_tag sync wrapper delegates to remove_tag_async."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
 
         client = TasksClient(
             http=mock_http,  # type: ignore[arg-type]
@@ -830,9 +853,7 @@ class TestP1DirectMethodsRemoveTag:
         mock_session.remove_tag = MagicMock()
         mock_session.commit_async = AsyncMock()
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -858,15 +879,13 @@ class TestP1DirectMethodsMoveToSection:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """move_to_section_async returns updated Task object."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
 
         mock_session = MagicMock()
         mock_session.move_to_section = MagicMock()
         mock_session.commit_async = AsyncMock()
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -880,19 +899,20 @@ class TestP1DirectMethodsMoveToSection:
                 "section": {"gid": "3789"},
             }
 
-            result = await tasks_client.move_to_section_async(
-                "5123", "3789", "2456"
-            )
+            result = await tasks_client.move_to_section_async("5123", "3789", "2456")
 
             assert isinstance(result, Task)
             assert result.gid == "5123"
             assert mock_http.get.called
 
     def test_move_to_section_sync_delegates_to_async(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """move_to_section sync wrapper delegates to move_to_section_async."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
 
         client = TasksClient(
             http=mock_http,  # type: ignore[arg-type]
@@ -905,9 +925,7 @@ class TestP1DirectMethodsMoveToSection:
         mock_session.move_to_section = MagicMock()
         mock_session.commit_async = AsyncMock()
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -963,7 +981,10 @@ class TestP1DirectMethodsSetAssignee:
         )
 
     def test_set_assignee_sync_delegates_to_async(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """set_assignee sync wrapper delegates to set_assignee_async."""
         client = TasksClient(
@@ -990,15 +1011,13 @@ class TestP1DirectMethodsAddToProject:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """add_to_project_async returns updated Task object."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
 
         mock_session = MagicMock()
         mock_session.add_to_project = MagicMock()
         mock_session.commit_async = AsyncMock()
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -1022,15 +1041,13 @@ class TestP1DirectMethodsAddToProject:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """add_to_project_async with section_gid parameter."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
 
         mock_session = MagicMock()
         mock_session.add_to_project = MagicMock()
         mock_session.commit_async = AsyncMock()
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -1053,10 +1070,13 @@ class TestP1DirectMethodsAddToProject:
             assert result.gid == "5123"
 
     def test_add_to_project_sync_delegates_to_async(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """add_to_project sync wrapper delegates to add_to_project_async."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
 
         client = TasksClient(
             http=mock_http,  # type: ignore[arg-type]
@@ -1069,9 +1089,7 @@ class TestP1DirectMethodsAddToProject:
         mock_session.add_to_project = MagicMock()
         mock_session.commit_async = AsyncMock()
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -1097,15 +1115,13 @@ class TestP1DirectMethodsRemoveFromProject:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """remove_from_project_async returns updated Task object."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
 
         mock_session = MagicMock()
         mock_session.remove_from_project = MagicMock()
         mock_session.commit_async = AsyncMock()
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -1126,10 +1142,13 @@ class TestP1DirectMethodsRemoveFromProject:
             assert mock_http.get.called
 
     def test_remove_from_project_sync_delegates_to_async(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """remove_from_project sync wrapper delegates to remove_from_project_async."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
 
         client = TasksClient(
             http=mock_http,  # type: ignore[arg-type]
@@ -1142,9 +1161,7 @@ class TestP1DirectMethodsRemoveFromProject:
         mock_session.remove_from_project = MagicMock()
         mock_session.commit_async = AsyncMock()
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -1170,23 +1187,31 @@ class TestP1DirectMethodsSaveSessionError:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """add_tag_async raises SaveSessionError when commit fails."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
         from autom8_asana.persistence.exceptions import SaveSessionError
-        from autom8_asana.persistence.models import SaveResult, ActionResult, ActionOperation, ActionType
+        from autom8_asana.persistence.models import (
+            SaveResult,
+            ActionResult,
+            ActionOperation,
+            ActionType,
+        )
+        from autom8_asana.models.common import NameGid
 
         # Create a failed SaveResult
         task = Task(gid="5123", name="Test Task")
-        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="1999")
-        action_result = ActionResult(action=action, success=False, error=Exception("Tag not found"))
+        action = ActionOperation(
+            task=task, action=ActionType.ADD_TAG, target=NameGid(gid="1999")
+        )
+        action_result = ActionResult(
+            action=action, success=False, error=Exception("Tag not found")
+        )
         failed_result = SaveResult(action_results=[action_result])
 
         mock_session = MagicMock()
         mock_session.add_tag = MagicMock()
         mock_session.commit_async = AsyncMock(return_value=failed_result)
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -1207,22 +1232,30 @@ class TestP1DirectMethodsSaveSessionError:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """remove_tag_async raises SaveSessionError when commit fails."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
         from autom8_asana.persistence.exceptions import SaveSessionError
-        from autom8_asana.persistence.models import SaveResult, ActionResult, ActionOperation, ActionType
+        from autom8_asana.persistence.models import (
+            SaveResult,
+            ActionResult,
+            ActionOperation,
+            ActionType,
+        )
+        from autom8_asana.models.common import NameGid
 
         task = Task(gid="5123", name="Test Task")
-        action = ActionOperation(task=task, action=ActionType.REMOVE_TAG, target_gid="1456")
-        action_result = ActionResult(action=action, success=False, error=Exception("Permission denied"))
+        action = ActionOperation(
+            task=task, action=ActionType.REMOVE_TAG, target=NameGid(gid="1456")
+        )
+        action_result = ActionResult(
+            action=action, success=False, error=Exception("Permission denied")
+        )
         failed_result = SaveResult(action_results=[action_result])
 
         mock_session = MagicMock()
         mock_session.remove_tag = MagicMock()
         mock_session.commit_async = AsyncMock(return_value=failed_result)
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -1239,22 +1272,30 @@ class TestP1DirectMethodsSaveSessionError:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """move_to_section_async raises SaveSessionError when commit fails."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
         from autom8_asana.persistence.exceptions import SaveSessionError
-        from autom8_asana.persistence.models import SaveResult, ActionResult, ActionOperation, ActionType
+        from autom8_asana.persistence.models import (
+            SaveResult,
+            ActionResult,
+            ActionOperation,
+            ActionType,
+        )
+        from autom8_asana.models.common import NameGid
 
         task = Task(gid="5123", name="Test Task")
-        action = ActionOperation(task=task, action=ActionType.MOVE_TO_SECTION, target_gid="3789")
-        action_result = ActionResult(action=action, success=False, error=Exception("Section not found"))
+        action = ActionOperation(
+            task=task, action=ActionType.MOVE_TO_SECTION, target=NameGid(gid="3789")
+        )
+        action_result = ActionResult(
+            action=action, success=False, error=Exception("Section not found")
+        )
         failed_result = SaveResult(action_results=[action_result])
 
         mock_session = MagicMock()
         mock_session.move_to_section = MagicMock()
         mock_session.commit_async = AsyncMock(return_value=failed_result)
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -1271,22 +1312,30 @@ class TestP1DirectMethodsSaveSessionError:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """add_to_project_async raises SaveSessionError when commit fails."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
         from autom8_asana.persistence.exceptions import SaveSessionError
-        from autom8_asana.persistence.models import SaveResult, ActionResult, ActionOperation, ActionType
+        from autom8_asana.persistence.models import (
+            SaveResult,
+            ActionResult,
+            ActionOperation,
+            ActionType,
+        )
+        from autom8_asana.models.common import NameGid
 
         task = Task(gid="5123", name="Test Task")
-        action = ActionOperation(task=task, action=ActionType.ADD_TO_PROJECT, target_gid="2456")
-        action_result = ActionResult(action=action, success=False, error=Exception("Project not found"))
+        action = ActionOperation(
+            task=task, action=ActionType.ADD_TO_PROJECT, target=NameGid(gid="2456")
+        )
+        action_result = ActionResult(
+            action=action, success=False, error=Exception("Project not found")
+        )
         failed_result = SaveResult(action_results=[action_result])
 
         mock_session = MagicMock()
         mock_session.add_to_project = MagicMock()
         mock_session.commit_async = AsyncMock(return_value=failed_result)
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -1303,22 +1352,30 @@ class TestP1DirectMethodsSaveSessionError:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """remove_from_project_async raises SaveSessionError when commit fails."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
         from autom8_asana.persistence.exceptions import SaveSessionError
-        from autom8_asana.persistence.models import SaveResult, ActionResult, ActionOperation, ActionType
+        from autom8_asana.persistence.models import (
+            SaveResult,
+            ActionResult,
+            ActionOperation,
+            ActionType,
+        )
+        from autom8_asana.models.common import NameGid
 
         task = Task(gid="5123", name="Test Task")
-        action = ActionOperation(task=task, action=ActionType.REMOVE_FROM_PROJECT, target_gid="2456")
-        action_result = ActionResult(action=action, success=False, error=Exception("Not in project"))
+        action = ActionOperation(
+            task=task, action=ActionType.REMOVE_FROM_PROJECT, target=NameGid(gid="2456")
+        )
+        action_result = ActionResult(
+            action=action, success=False, error=Exception("Not in project")
+        )
         failed_result = SaveResult(action_results=[action_result])
 
         mock_session = MagicMock()
         mock_session.remove_from_project = MagicMock()
         mock_session.commit_async = AsyncMock(return_value=failed_result)
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -1339,16 +1396,14 @@ class TestP1DirectMethodsRefreshParameter:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """add_tag_async with default refresh=False makes only one GET call."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
         from autom8_asana.persistence.models import SaveResult
 
         mock_session = MagicMock()
         mock_session.add_tag = MagicMock()
         mock_session.commit_async = AsyncMock(return_value=SaveResult())
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -1368,16 +1423,14 @@ class TestP1DirectMethodsRefreshParameter:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """add_tag_async with refresh=True makes two GET calls."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
         from autom8_asana.persistence.models import SaveResult
 
         mock_session = MagicMock()
         mock_session.add_tag = MagicMock()
         mock_session.commit_async = AsyncMock(return_value=SaveResult())
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -1397,16 +1450,14 @@ class TestP1DirectMethodsRefreshParameter:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """remove_tag_async respects refresh parameter."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
         from autom8_asana.persistence.models import SaveResult
 
         mock_session = MagicMock()
         mock_session.remove_tag = MagicMock()
         mock_session.commit_async = AsyncMock(return_value=SaveResult())
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -1430,16 +1481,14 @@ class TestP1DirectMethodsRefreshParameter:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """move_to_section_async respects refresh parameter."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
         from autom8_asana.persistence.models import SaveResult
 
         mock_session = MagicMock()
         mock_session.move_to_section = MagicMock()
         mock_session.commit_async = AsyncMock(return_value=SaveResult())
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -1465,16 +1514,14 @@ class TestP1DirectMethodsRefreshParameter:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """add_to_project_async respects refresh parameter."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
         from autom8_asana.persistence.models import SaveResult
 
         mock_session = MagicMock()
         mock_session.add_to_project = MagicMock()
         mock_session.commit_async = AsyncMock(return_value=SaveResult())
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -1498,16 +1545,14 @@ class TestP1DirectMethodsRefreshParameter:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """remove_from_project_async respects refresh parameter."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
         from autom8_asana.persistence.models import SaveResult
 
         mock_session = MagicMock()
         mock_session.remove_from_project = MagicMock()
         mock_session.commit_async = AsyncMock(return_value=SaveResult())
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -1563,7 +1608,10 @@ class TestP1DirectMethodsIntegration:
         assert callable(tasks_client.remove_from_project_async)
 
     def test_all_sync_methods_are_callable(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """All sync methods are callable."""
         client = TasksClient(
@@ -1582,7 +1630,7 @@ class TestP1DirectMethodsIntegration:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """All async methods return Task objects."""
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, patch
 
         mock_session = MagicMock()
         mock_session.add_tag = MagicMock()
@@ -1592,9 +1640,7 @@ class TestP1DirectMethodsIntegration:
         mock_session.remove_from_project = MagicMock()
         mock_session.commit_async = AsyncMock()
 
-        with patch(
-            "autom8_asana.clients.tasks.SaveSession"
-        ) as mock_save_session_class:
+        with patch("autom8_asana.clients.tasks.SaveSession") as mock_save_session_class:
             mock_save_session_class.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
@@ -1614,9 +1660,7 @@ class TestP1DirectMethodsIntegration:
             assert isinstance(result, Task)
 
             # Test move_to_section
-            result = await tasks_client.move_to_section_async(
-                "5123", "3789", "2456"
-            )
+            result = await tasks_client.move_to_section_async("5123", "3789", "2456")
             assert isinstance(result, Task)
 
             # Test set_assignee

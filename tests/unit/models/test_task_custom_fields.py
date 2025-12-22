@@ -56,7 +56,9 @@ class TestTaskCustomFieldsEditor:
             task.custom_fields_editor()
             # No deprecation warnings should be emitted
             deprecation_warnings = [
-                warning for warning in w if issubclass(warning.category, DeprecationWarning)
+                warning
+                for warning in w
+                if issubclass(warning.category, DeprecationWarning)
             ]
             assert len(deprecation_warnings) == 0
 
@@ -126,10 +128,14 @@ class TestTaskGetCustomFieldsDeprecation:
 
             # Should emit exactly one deprecation warning
             deprecation_warnings = [
-                warning for warning in w if issubclass(warning.category, DeprecationWarning)
+                warning
+                for warning in w
+                if issubclass(warning.category, DeprecationWarning)
             ]
             assert len(deprecation_warnings) == 1
-            assert "get_custom_fields() is deprecated" in str(deprecation_warnings[0].message)
+            assert "get_custom_fields() is deprecated" in str(
+                deprecation_warnings[0].message
+            )
             assert "custom_fields_editor()" in str(deprecation_warnings[0].message)
 
     def test_get_custom_fields_warning_stacklevel(self) -> None:

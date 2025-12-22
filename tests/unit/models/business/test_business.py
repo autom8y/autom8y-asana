@@ -5,7 +5,6 @@ Per TDD-BIZMODEL: Tests for Business model with holders and typed fields.
 
 from __future__ import annotations
 
-import pytest
 
 from autom8_asana.models.business.business import Business
 from autom8_asana.models.business.contact import Contact, ContactHolder
@@ -135,17 +134,25 @@ class TestBusinessHolderPopulation:
         task = Task(gid="456", name="Some Task")
         assert business._identify_holder(task) is None
 
-    def test_matches_holder_by_name(self) -> None:
-        """_matches_holder returns True for name match."""
-        business = Business(gid="123")
-        task = Task(gid="456", name="Contacts")
-        assert business._matches_holder(task, "Contacts", "busts_in_silhouette")
+    def test_matches_holder_pattern_by_name(self) -> None:
+        """_matches_holder_pattern returns True for name match.
 
-    def test_matches_holder_no_match(self) -> None:
-        """_matches_holder returns False when neither name nor emoji match."""
-        business = Business(gid="123")
+        Per TDD-SPRINT-1 Phase 2: Extracted to detection.py.
+        """
+        from autom8_asana.models.business.detection import _matches_holder_pattern
+
+        task = Task(gid="456", name="Contacts")
+        assert _matches_holder_pattern(task, "Contacts", "busts_in_silhouette")
+
+    def test_matches_holder_pattern_no_match(self) -> None:
+        """_matches_holder_pattern returns False when neither name nor emoji match.
+
+        Per TDD-SPRINT-1 Phase 2: Extracted to detection.py.
+        """
+        from autom8_asana.models.business.detection import _matches_holder_pattern
+
         task = Task(gid="456", name="Other")
-        assert not business._matches_holder(task, "Contacts", "busts_in_silhouette")
+        assert not _matches_holder_pattern(task, "Contacts", "busts_in_silhouette")
 
     def test_create_typed_holder_contact(self) -> None:
         """_create_typed_holder creates ContactHolder."""
@@ -262,9 +269,7 @@ class TestBusinessCustomFields:
         """num_reviews converts to int."""
         business = Business(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "Num Reviews", "number_value": 42.0}
-            ],
+            custom_fields=[{"gid": "456", "name": "Num Reviews", "number_value": 42.0}],
         )
         assert business.num_reviews == 42
         assert isinstance(business.num_reviews, int)
@@ -330,10 +335,18 @@ class TestBusinessFieldsClass:
     """Tests for Business.Fields constants."""
 
     def test_fields_class_has_constants(self) -> None:
-        """Business.Fields has all 19 field constants."""
+        """Business.Fields has all field constants including those from mixins.
+
+        Per TDD-SPRINT-1/ADR-0119: Business inherits fields from mixins:
+        - SharedCascadingFieldsMixin: VERTICAL, REP
+        - FinancialFieldsMixin: BOOKING_TYPE, MRR, WEEKLY_AD_SPEND
+
+        Note: MRR and WEEKLY_AD_SPEND are inherited but return None on Business
+        since the underlying Asana task doesn't have those custom fields.
+        """
         expected_fields = {
+            # Entity-specific fields
             "AGGRESSION_LEVEL",
-            "BOOKING_TYPE",
             "COMPANY_ID",
             "FACEBOOK_PAGE_ID",
             "FALLBACK_PAGE_ID",
@@ -342,7 +355,6 @@ class TestBusinessFieldsClass:
             "OFFICE_PHONE",
             "OWNER_NAME",
             "OWNER_NICKNAME",
-            "REP",
             "REVIEW_1",
             "REVIEW_2",
             "REVIEWS_LINK",
@@ -350,10 +362,17 @@ class TestBusinessFieldsClass:
             "STRIPE_LINK",
             "TWILIO_PHONE_NUM",
             "VCA_STATUS",
+            # From SharedCascadingFieldsMixin
             "VERTICAL",
+            "REP",
+            # From FinancialFieldsMixin
+            "BOOKING_TYPE",
+            "MRR",
+            "WEEKLY_AD_SPEND",
         }
         actual_fields = {
-            name for name in dir(Business.Fields)
+            name
+            for name in dir(Business.Fields)
             if not name.startswith("_") and name.isupper()
         }
         assert actual_fields == expected_fields

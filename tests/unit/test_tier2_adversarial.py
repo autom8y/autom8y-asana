@@ -21,7 +21,6 @@ import hashlib
 import hmac
 import os
 import tempfile
-import time
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -34,8 +33,6 @@ from autom8_asana.clients.attachments import AttachmentsClient
 from autom8_asana.clients.goals import GoalsClient
 from autom8_asana.clients.portfolios import PortfoliosClient
 from autom8_asana.clients.stories import StoriesClient
-from autom8_asana.clients.tags import TagsClient
-from autom8_asana.clients.teams import TeamsClient
 from autom8_asana.clients.webhooks import WebhooksClient
 from autom8_asana.config import AsanaConfig
 from autom8_asana.exceptions import AsanaError, SyncInAsyncContextError
@@ -350,7 +347,10 @@ class TestWebhookSignatureTimingSafety:
         # Try various partial matches that could pass with naive comparison
         assert WebhooksClient.verify_signature(body, correct_sig[:-1], secret) is False
         assert WebhooksClient.verify_signature(body, correct_sig + "x", secret) is False
-        assert WebhooksClient.verify_signature(body, "0" + correct_sig[1:], secret) is False
+        assert (
+            WebhooksClient.verify_signature(body, "0" + correct_sig[1:], secret)
+            is False
+        )
 
 
 class TestWebhookHandshakeSecretExtraction:
@@ -536,9 +536,7 @@ class TestAttachmentUploadFromPath:
         }
 
         # Create a temp file
-        with tempfile.NamedTemporaryFile(
-            mode="wb", suffix=".txt", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".txt", delete=False) as f:
             f.write(b"test content")
             temp_path = f.name
 
@@ -564,9 +562,7 @@ class TestAttachmentUploadFromPath:
             "name": "custom_name.pdf",
         }
 
-        with tempfile.NamedTemporaryFile(
-            mode="wb", suffix=".txt", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".txt", delete=False) as f:
             f.write(b"content")
             temp_path = f.name
 
@@ -670,9 +666,7 @@ class TestAttachmentDownload:
         mock_http.get_stream_url = mock_stream
 
         buffer = BytesIO()
-        result = await attachments_client.download_async(
-            "att123", destination=buffer
-        )
+        result = await attachments_client.download_async("att123", destination=buffer)
 
         assert result is None  # None when destination is file object
         assert buffer.getvalue() == b"data"
@@ -858,9 +852,7 @@ class TestGoalsFollowers:
         """Add single follower to goal."""
         mock_http.post.return_value = {"gid": "goal123", "name": "Goal"}
 
-        result = await goals_client.add_followers_async(
-            "goal123", followers=["user1"]
-        )
+        result = await goals_client.add_followers_async("goal123", followers=["user1"])
 
         assert isinstance(result, Goal)
         call_data = mock_http.post.call_args[1]["json"]["data"]
@@ -911,16 +903,18 @@ class TestGoalsMetricHandling:
 
     def test_goal_metric_model_validation(self) -> None:
         """GoalMetric model validates correctly."""
-        metric = GoalMetric.model_validate({
-            "gid": "metric123",
-            "resource_subtype": "number",
-            "unit": "items",
-            "precision": 2,
-            "current_number_value": 50.5,
-            "target_number_value": 100.0,
-            "initial_number_value": 0.0,
-            "progress_source": "manual",
-        })
+        metric = GoalMetric.model_validate(
+            {
+                "gid": "metric123",
+                "resource_subtype": "number",
+                "unit": "items",
+                "precision": 2,
+                "current_number_value": 50.5,
+                "target_number_value": 100.0,
+                "initial_number_value": 0.0,
+                "progress_source": "manual",
+            }
+        )
 
         assert metric.gid == "metric123"
         assert metric.resource_subtype == "number"
@@ -929,17 +923,19 @@ class TestGoalsMetricHandling:
 
     def test_goal_with_metric_nested(self) -> None:
         """Goal with nested metric deserializes correctly."""
-        goal = Goal.model_validate({
-            "gid": "goal123",
-            "name": "Revenue Target",
-            "metric": {
-                "gid": "metric1",
-                "resource_subtype": "currency",
-                "currency_code": "USD",
-                "current_number_value": 75000,
-                "target_number_value": 100000,
-            },
-        })
+        goal = Goal.model_validate(
+            {
+                "gid": "goal123",
+                "name": "Revenue Target",
+                "metric": {
+                    "gid": "metric1",
+                    "resource_subtype": "currency",
+                    "currency_code": "USD",
+                    "current_number_value": 75000,
+                    "target_number_value": 100000,
+                },
+            }
+        )
 
         assert goal.metric is not None
         assert isinstance(goal.metric, GoalMetric)
@@ -949,34 +945,42 @@ class TestGoalsMetricHandling:
     def test_goal_metric_boundary_values(self) -> None:
         """GoalMetric handles boundary values."""
         # Zero values
-        metric = GoalMetric.model_validate({
-            "gid": "m1",
-            "current_number_value": 0,
-            "target_number_value": 0,
-        })
+        metric = GoalMetric.model_validate(
+            {
+                "gid": "m1",
+                "current_number_value": 0,
+                "target_number_value": 0,
+            }
+        )
         assert metric.current_number_value == 0
 
         # Large values
-        metric = GoalMetric.model_validate({
-            "gid": "m2",
-            "current_number_value": 1_000_000_000,
-            "target_number_value": 1_000_000_000,
-        })
+        metric = GoalMetric.model_validate(
+            {
+                "gid": "m2",
+                "current_number_value": 1_000_000_000,
+                "target_number_value": 1_000_000_000,
+            }
+        )
         assert metric.current_number_value == 1_000_000_000
 
         # Negative values (some metrics allow this)
-        metric = GoalMetric.model_validate({
-            "gid": "m3",
-            "current_number_value": -50.5,
-            "target_number_value": 100.0,
-        })
+        metric = GoalMetric.model_validate(
+            {
+                "gid": "m3",
+                "current_number_value": -50.5,
+                "target_number_value": 100.0,
+            }
+        )
         assert metric.current_number_value == -50.5
 
         # Float precision
-        metric = GoalMetric.model_validate({
-            "gid": "m4",
-            "current_number_value": 0.123456789,
-        })
+        metric = GoalMetric.model_validate(
+            {
+                "gid": "m4",
+                "current_number_value": 0.123456789,
+            }
+        )
         assert metric.current_number_value == 0.123456789
 
 
@@ -1050,9 +1054,7 @@ class TestPortfoliosMemberManagement:
         """Add single member to portfolio."""
         mock_http.post.return_value = {"gid": "port123", "name": "Portfolio"}
 
-        result = await portfolios_client.add_members_async(
-            "port123", members=["user1"]
-        )
+        result = await portfolios_client.add_members_async("port123", members=["user1"])
 
         assert isinstance(result, Portfolio)
         call_data = mock_http.post.call_args[1]["json"]["data"]
@@ -1228,10 +1230,12 @@ class TestNameGidInNestedContexts:
 
     def test_webhook_resource_namegid(self) -> None:
         """Webhook.resource deserializes as NameGid."""
-        webhook = Webhook.model_validate({
-            "gid": "wh123",
-            "resource": {"gid": "proj456", "name": "My Project"},
-        })
+        webhook = Webhook.model_validate(
+            {
+                "gid": "wh123",
+                "resource": {"gid": "proj456", "name": "My Project"},
+            }
+        )
 
         assert webhook.resource is not None
         assert isinstance(webhook.resource, NameGid)
@@ -1239,11 +1243,13 @@ class TestNameGidInNestedContexts:
 
     def test_attachment_parent_namegid(self) -> None:
         """Attachment.parent deserializes as NameGid."""
-        attachment = Attachment.model_validate({
-            "gid": "att123",
-            "parent": {"gid": "task456", "name": "Task Name"},
-            "created_by": {"gid": "user789", "name": "Creator"},
-        })
+        attachment = Attachment.model_validate(
+            {
+                "gid": "att123",
+                "parent": {"gid": "task456", "name": "Task Name"},
+                "created_by": {"gid": "user789", "name": "Creator"},
+            }
+        )
 
         assert attachment.parent is not None
         assert isinstance(attachment.parent, NameGid)
@@ -1253,13 +1259,15 @@ class TestNameGidInNestedContexts:
 
     def test_goal_relationships_namegid(self) -> None:
         """Goal relationship fields deserialize as NameGid."""
-        goal = Goal.model_validate({
-            "gid": "goal123",
-            "owner": {"gid": "user1", "name": "Owner"},
-            "workspace": {"gid": "ws1", "name": "Workspace"},
-            "team": {"gid": "team1", "name": "Team"},
-            "time_period": {"gid": "tp1", "name": "Q4 2024"},
-        })
+        goal = Goal.model_validate(
+            {
+                "gid": "goal123",
+                "owner": {"gid": "user1", "name": "Owner"},
+                "workspace": {"gid": "ws1", "name": "Workspace"},
+                "team": {"gid": "team1", "name": "Team"},
+                "time_period": {"gid": "tp1", "name": "Q4 2024"},
+            }
+        )
 
         assert isinstance(goal.owner, NameGid)
         assert isinstance(goal.workspace, NameGid)
@@ -1268,14 +1276,16 @@ class TestNameGidInNestedContexts:
 
     def test_goal_followers_list_namegid(self) -> None:
         """Goal.followers deserializes as list of NameGid."""
-        goal = Goal.model_validate({
-            "gid": "goal123",
-            "followers": [
-                {"gid": "user1", "name": "User 1"},
-                {"gid": "user2", "name": "User 2"},
-                {"gid": "user3"},  # Name is optional
-            ],
-        })
+        goal = Goal.model_validate(
+            {
+                "gid": "goal123",
+                "followers": [
+                    {"gid": "user1", "name": "User 1"},
+                    {"gid": "user2", "name": "User 2"},
+                    {"gid": "user3"},  # Name is optional
+                ],
+            }
+        )
 
         assert goal.followers is not None
         assert len(goal.followers) == 3
@@ -1284,14 +1294,16 @@ class TestNameGidInNestedContexts:
 
     def test_story_namegid_fields(self) -> None:
         """Story NameGid fields deserialize correctly."""
-        story = Story.model_validate({
-            "gid": "story123",
-            "target": {"gid": "task456", "name": "Task"},
-            "created_by": {"gid": "user789", "name": "Author"},
-            "assignee": {"gid": "user111", "name": "Assignee"},
-            "new_section": {"gid": "sec222", "name": "In Progress"},
-            "old_section": {"gid": "sec333", "name": "To Do"},
-        })
+        story = Story.model_validate(
+            {
+                "gid": "story123",
+                "target": {"gid": "task456", "name": "Task"},
+                "created_by": {"gid": "user789", "name": "Author"},
+                "assignee": {"gid": "user111", "name": "Assignee"},
+                "new_section": {"gid": "sec222", "name": "In Progress"},
+                "old_section": {"gid": "sec333", "name": "To Do"},
+            }
+        )
 
         assert isinstance(story.target, NameGid)
         assert isinstance(story.created_by, NameGid)
@@ -1305,23 +1317,25 @@ class TestComplexNestedStructures:
 
     def test_webhook_with_filters(self) -> None:
         """Webhook with nested filters deserializes correctly."""
-        webhook = Webhook.model_validate({
-            "gid": "wh123",
-            "target": "https://example.com/hook",
-            "filters": [
-                {
-                    "gid": "f1",
-                    "resource_type": "task",
-                    "action": "changed",
-                    "fields": ["completed", "name"],
-                },
-                {
-                    "gid": "f2",
-                    "resource_type": "task",
-                    "action": "added",
-                },
-            ],
-        })
+        webhook = Webhook.model_validate(
+            {
+                "gid": "wh123",
+                "target": "https://example.com/hook",
+                "filters": [
+                    {
+                        "gid": "f1",
+                        "resource_type": "task",
+                        "action": "changed",
+                        "fields": ["completed", "name"],
+                    },
+                    {
+                        "gid": "f2",
+                        "resource_type": "task",
+                        "action": "added",
+                    },
+                ],
+            }
+        )
 
         assert webhook.filters is not None
         assert len(webhook.filters) == 2
@@ -1332,42 +1346,50 @@ class TestComplexNestedStructures:
     def test_story_change_tracking_fields(self) -> None:
         """Story change tracking fields work correctly."""
         # Assignment change story
-        story = Story.model_validate({
-            "gid": "s1",
-            "resource_subtype": "assigned",
-            "assignee": {"gid": "user1", "name": "Alice"},
-        })
+        story = Story.model_validate(
+            {
+                "gid": "s1",
+                "resource_subtype": "assigned",
+                "assignee": {"gid": "user1", "name": "Alice"},
+            }
+        )
         assert story.resource_subtype == "assigned"
         assert story.assignee is not None
 
         # Name change story
-        story = Story.model_validate({
-            "gid": "s2",
-            "resource_subtype": "name_changed",
-            "old_name": "Old Task Name",
-            "new_name": "New Task Name",
-        })
+        story = Story.model_validate(
+            {
+                "gid": "s2",
+                "resource_subtype": "name_changed",
+                "old_name": "Old Task Name",
+                "new_name": "New Task Name",
+            }
+        )
         assert story.old_name == "Old Task Name"
         assert story.new_name == "New Task Name"
 
         # Section move story
-        story = Story.model_validate({
-            "gid": "s3",
-            "resource_subtype": "section_changed",
-            "old_section": {"gid": "sec1", "name": "To Do"},
-            "new_section": {"gid": "sec2", "name": "Done"},
-        })
+        story = Story.model_validate(
+            {
+                "gid": "s3",
+                "resource_subtype": "section_changed",
+                "old_section": {"gid": "sec1", "name": "To Do"},
+                "new_section": {"gid": "sec2", "name": "Done"},
+            }
+        )
         assert story.old_section.gid == "sec1"
         assert story.new_section.gid == "sec2"
 
     def test_goal_membership_model(self) -> None:
         """GoalMembership model works correctly."""
-        membership = GoalMembership.model_validate({
-            "gid": "mem123",
-            "member": {"gid": "user456", "name": "Team Member"},
-            "goal": {"gid": "goal789", "name": "Q4 Goals"},
-            "role": "editor",
-        })
+        membership = GoalMembership.model_validate(
+            {
+                "gid": "mem123",
+                "member": {"gid": "user456", "name": "Team Member"},
+                "goal": {"gid": "goal789", "name": "Q4 Goals"},
+                "role": "editor",
+            }
+        )
 
         assert membership.gid == "mem123"
         assert isinstance(membership.member, NameGid)
@@ -1380,12 +1402,14 @@ class TestExtraFieldsIgnoredTier2:
 
     def test_webhook_ignores_unknown_fields(self) -> None:
         """Webhook ignores unknown API fields."""
-        webhook = Webhook.model_validate({
-            "gid": "wh123",
-            "target": "https://example.com",
-            "future_field": "ignored",
-            "another_field": {"nested": "data"},
-        })
+        webhook = Webhook.model_validate(
+            {
+                "gid": "wh123",
+                "target": "https://example.com",
+                "future_field": "ignored",
+                "another_field": {"nested": "data"},
+            }
+        )
 
         assert webhook.gid == "wh123"
         assert not hasattr(webhook, "future_field")
@@ -1393,22 +1417,26 @@ class TestExtraFieldsIgnoredTier2:
 
     def test_goal_ignores_unknown_fields(self) -> None:
         """Goal ignores unknown API fields."""
-        goal = Goal.model_validate({
-            "gid": "g123",
-            "name": "Goal",
-            "new_api_field": True,
-        })
+        goal = Goal.model_validate(
+            {
+                "gid": "g123",
+                "name": "Goal",
+                "new_api_field": True,
+            }
+        )
 
         assert goal.gid == "g123"
         assert not hasattr(goal, "new_api_field")
 
     def test_story_ignores_unknown_fields(self) -> None:
         """Story ignores unknown API fields."""
-        story = Story.model_validate({
-            "gid": "s123",
-            "text": "Comment",
-            "experimental_feature": {"data": "here"},
-        })
+        story = Story.model_validate(
+            {
+                "gid": "s123",
+                "text": "Comment",
+                "experimental_feature": {"data": "here"},
+            }
+        )
 
         assert story.gid == "s123"
         assert not hasattr(story, "experimental_feature")
@@ -1478,9 +1506,7 @@ class TestTier2SyncWrapperBehavior:
         with pytest.raises(SyncInAsyncContextError):
             attachments_client.get("att123")
 
-    async def test_goals_sync_fails_in_async(
-        self, goals_client: GoalsClient
-    ) -> None:
+    async def test_goals_sync_fails_in_async(self, goals_client: GoalsClient) -> None:
         """GoalsClient sync methods fail in async context."""
         with pytest.raises(SyncInAsyncContextError):
             goals_client.get("goal123")
@@ -1509,33 +1535,39 @@ class TestUnicodeHandlingTier2:
 
     def test_goal_unicode_name_and_notes(self) -> None:
         """Goal handles Unicode in name and notes."""
-        goal = Goal.model_validate({
-            "gid": "g123",
-            "name": "Goal Name",
-            "notes": "Notes with emoji and Chinese",
-            "html_notes": "<p>HTML notes</p>",
-        })
+        goal = Goal.model_validate(
+            {
+                "gid": "g123",
+                "name": "Goal Name",
+                "notes": "Notes with emoji and Chinese",
+                "html_notes": "<p>HTML notes</p>",
+            }
+        )
 
         assert "Goal" in goal.name
         assert goal.notes is not None
 
     def test_story_unicode_text(self) -> None:
         """Story handles Unicode in text content."""
-        story = Story.model_validate({
-            "gid": "s123",
-            "text": "Comment with mixed content",
-            "html_text": "<p>HTML content</p>",
-        })
+        story = Story.model_validate(
+            {
+                "gid": "s123",
+                "text": "Comment with mixed content",
+                "html_text": "<p>HTML content</p>",
+            }
+        )
 
         assert story.text is not None
 
     def test_webhook_unicode_target(self) -> None:
         """Webhook handles Unicode in target URL (escaped)."""
         # URLs can contain percent-encoded Unicode
-        webhook = Webhook.model_validate({
-            "gid": "wh123",
-            "target": "https://example.com/path?name=%E4%B8%AD%E6%96%87",
-        })
+        webhook = Webhook.model_validate(
+            {
+                "gid": "wh123",
+                "target": "https://example.com/path?name=%E4%B8%AD%E6%96%87",
+            }
+        )
 
         assert "example.com" in webhook.target
 
@@ -1572,19 +1604,23 @@ class TestBoundaryConditionsTier2:
     def test_story_long_text(self) -> None:
         """Story handles long text content."""
         long_text = "A" * 50000
-        story = Story.model_validate({
-            "gid": "s123",
-            "text": long_text,
-        })
+        story = Story.model_validate(
+            {
+                "gid": "s123",
+                "text": long_text,
+            }
+        )
         assert len(story.text) == 50000
 
     def test_attachment_large_size(self) -> None:
         """Attachment handles large file size values."""
-        attachment = Attachment.model_validate({
-            "gid": "a123",
-            "name": "large_file.bin",
-            "size": 10_000_000_000,  # 10GB
-        })
+        attachment = Attachment.model_validate(
+            {
+                "gid": "a123",
+                "name": "large_file.bin",
+                "size": 10_000_000_000,  # 10GB
+            }
+        )
         assert attachment.size == 10_000_000_000
 
 
@@ -1613,9 +1649,7 @@ class TestRawModeTier2:
         """GoalsClient.create_async with raw=True returns dict."""
         mock_http.post.return_value = {"gid": "g123", "extra": "data"}
 
-        result = await goals_client.create_async(
-            workspace="ws1", name="Goal", raw=True
-        )
+        result = await goals_client.create_async(workspace="ws1", name="Goal", raw=True)
 
         assert isinstance(result, dict)
         assert result["extra"] == "data"

@@ -10,6 +10,7 @@ import pytest
 
 from autom8_asana.exceptions import AsanaError
 from autom8_asana.models import Task
+from autom8_asana.models.common import NameGid
 from autom8_asana.persistence.exceptions import (
     CyclicDependencyError,
     DependencyResolutionError,
@@ -295,8 +296,12 @@ class TestSaveSessionError:
     def test_stores_save_result(self) -> None:
         """SaveSessionError stores SaveResult."""
         task = Task(gid="123")
-        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_456")
-        action_result = ActionResult(action=action, success=False, error=Exception("Tag not found"))
+        action = ActionOperation(
+            task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_456")
+        )
+        action_result = ActionResult(
+            action=action, success=False, error=Exception("Tag not found")
+        )
         result = SaveResult(action_results=[action_result])
 
         error = SaveSessionError(result)
@@ -306,8 +311,12 @@ class TestSaveSessionError:
     def test_message_includes_failure_count(self) -> None:
         """SaveSessionError message includes failure count."""
         task = Task(gid="123")
-        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_456")
-        action_result = ActionResult(action=action, success=False, error=Exception("Tag not found"))
+        action = ActionOperation(
+            task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_456")
+        )
+        action_result = ActionResult(
+            action=action, success=False, error=Exception("Tag not found")
+        )
         result = SaveResult(action_results=[action_result])
 
         error = SaveSessionError(result)
@@ -319,8 +328,12 @@ class TestSaveSessionError:
     def test_message_includes_action_failure_details(self) -> None:
         """SaveSessionError message includes action failure details."""
         task = Task(gid="task_123")
-        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_456")
-        action_result = ActionResult(action=action, success=False, error=Exception("Tag not found"))
+        action = ActionOperation(
+            task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_456")
+        )
+        action_result = ActionResult(
+            action=action, success=False, error=Exception("Tag not found")
+        )
         result = SaveResult(action_results=[action_result])
 
         error = SaveSessionError(result)
@@ -351,9 +364,13 @@ class TestSaveSessionError:
         task = Task(gid="task_123")
         action_results = []
         for i in range(5):
-            action = ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid=f"tag_{i}")
+            action = ActionOperation(
+                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
+            )
             action_results.append(
-                ActionResult(action=action, success=False, error=Exception(f"Error {i}"))
+                ActionResult(
+                    action=action, success=False, error=Exception(f"Error {i}")
+                )
             )
         result = SaveResult(action_results=action_results)
 
@@ -376,8 +393,12 @@ class TestSaveSessionError:
         )
 
         # Action failure
-        action = ActionOperation(task=task, action=ActionType.REMOVE_TAG, target_gid="tag_456")
-        action_result = ActionResult(action=action, success=False, error=Exception("Remove failed"))
+        action = ActionOperation(
+            task=task, action=ActionType.REMOVE_TAG, target=NameGid(gid="tag_456")
+        )
+        action_result = ActionResult(
+            action=action, success=False, error=Exception("Remove failed")
+        )
 
         result = SaveResult(failed=[save_error], action_results=[action_result])
 
@@ -391,8 +412,12 @@ class TestSaveSessionError:
     def test_result_accessible_for_inspection(self) -> None:
         """SaveSessionError result can be inspected for details."""
         task = Task(gid="task_123")
-        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_456")
-        action_result = ActionResult(action=action, success=False, error=Exception("Tag error"))
+        action = ActionOperation(
+            task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_456")
+        )
+        action_result = ActionResult(
+            action=action, success=False, error=Exception("Tag error")
+        )
         result = SaveResult(action_results=[action_result])
 
         error = SaveSessionError(result)
@@ -519,16 +544,28 @@ class TestExceptionHierarchy:
     def test_can_catch_all_save_errors(self) -> None:
         """All save errors can be caught with SaveOrchestrationError."""
         task = Task(gid="123")
-        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_456")
-        action_result = ActionResult(action=action, success=False, error=Exception("Test"))
+        action = ActionOperation(
+            task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_456")
+        )
+        action_result = ActionResult(
+            action=action, success=False, error=Exception("Test")
+        )
         exceptions_to_test = [
             SessionClosedError(),
             CyclicDependencyError([task]),
             DependencyResolutionError(task, task, ValueError("test")),
-            PartialSaveError(SaveResult(failed=[
-                SaveError(entity=task, operation=OperationType.CREATE,
-                          error=ValueError("x"), payload={})
-            ])),
+            PartialSaveError(
+                SaveResult(
+                    failed=[
+                        SaveError(
+                            entity=task,
+                            operation=OperationType.CREATE,
+                            error=ValueError("x"),
+                            payload={},
+                        )
+                    ]
+                )
+            ),
             UnsupportedOperationError("tags", ["add_tag", "remove_tag"]),
             SaveSessionError(SaveResult(action_results=[action_result])),
         ]

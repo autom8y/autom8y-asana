@@ -10,7 +10,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from autom8_asana.models import Task
-from autom8_asana.persistence.exceptions import ValidationError
 from autom8_asana.persistence.session import SaveSession
 from autom8_asana.persistence.tracker import ChangeTracker
 
@@ -41,8 +40,6 @@ def create_mock_client_with_logger() -> MagicMock:
     mock_log = MagicMock()
     mock_client._log = mock_log
     return mock_client
-
-
 
 
 # ---------------------------------------------------------------------------

@@ -250,10 +250,15 @@ class TestGetLevels:
         chain2_mid = Task(gid="Y", name="Y", parent=NameGid(gid="X"))
         chain2_leaf = Task(gid="Z", name="Z", parent=NameGid(gid="Y"))
 
-        graph.build([
-            chain1_child, chain2_leaf, chain1_root,
-            chain2_mid, chain2_root,
-        ])
+        graph.build(
+            [
+                chain1_child,
+                chain2_leaf,
+                chain1_root,
+                chain2_mid,
+                chain2_root,
+            ]
+        )
         levels = graph.get_levels()
 
         # Level 0: both roots

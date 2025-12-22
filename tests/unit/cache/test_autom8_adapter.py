@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -155,18 +154,30 @@ class TestMigrateTaskCollectionLoading:
     @pytest.fixture
     def mock_batch_api(self) -> AsyncMock:
         """Create mock batch API."""
-        return AsyncMock(return_value={
-            "123": "2025-01-15T10:00:00Z",
-            "456": "2025-01-15T11:00:00Z",
-        })
+        return AsyncMock(
+            return_value={
+                "123": "2025-01-15T10:00:00Z",
+                "456": "2025-01-15T11:00:00Z",
+            }
+        )
 
     @pytest.fixture
     def mock_task_fetcher(self) -> AsyncMock:
         """Create mock task fetcher."""
-        return AsyncMock(return_value=[
-            {"gid": "123", "name": "Task 123", "modified_at": "2025-01-15T10:00:00Z"},
-            {"gid": "456", "name": "Task 456", "modified_at": "2025-01-15T11:00:00Z"},
-        ])
+        return AsyncMock(
+            return_value=[
+                {
+                    "gid": "123",
+                    "name": "Task 123",
+                    "modified_at": "2025-01-15T10:00:00Z",
+                },
+                {
+                    "gid": "456",
+                    "name": "Task 456",
+                    "modified_at": "2025-01-15T11:00:00Z",
+                },
+            ]
+        )
 
     @pytest.mark.asyncio
     async def test_empty_task_dicts(
@@ -401,10 +412,12 @@ class TestWarmProjectTasks:
     async def test_warms_all_tasks(self) -> None:
         """Test that all project tasks are cached."""
         cache = EnhancedInMemoryCacheProvider()
-        mock_fetcher = AsyncMock(return_value=[
-            {"gid": "123", "name": "Task 1", "modified_at": "2025-01-15T10:00:00Z"},
-            {"gid": "456", "name": "Task 2", "modified_at": "2025-01-15T11:00:00Z"},
-        ])
+        mock_fetcher = AsyncMock(
+            return_value=[
+                {"gid": "123", "name": "Task 1", "modified_at": "2025-01-15T10:00:00Z"},
+                {"gid": "456", "name": "Task 2", "modified_at": "2025-01-15T11:00:00Z"},
+            ]
+        )
 
         warmed = await warm_project_tasks(
             cache=cache,
@@ -439,9 +452,11 @@ class TestWarmProjectTasks:
     async def test_custom_ttl(self) -> None:
         """Test that custom TTL is applied during warming."""
         cache = EnhancedInMemoryCacheProvider()
-        mock_fetcher = AsyncMock(return_value=[
-            {"gid": "123", "name": "Task 1", "modified_at": "2025-01-15T10:00:00Z"},
-        ])
+        mock_fetcher = AsyncMock(
+            return_value=[
+                {"gid": "123", "name": "Task 1", "modified_at": "2025-01-15T10:00:00Z"},
+            ]
+        )
 
         await warm_project_tasks(
             cache=cache,
@@ -458,10 +473,12 @@ class TestWarmProjectTasks:
     async def test_tasks_without_gid_skipped(self) -> None:
         """Test that tasks without GID are skipped."""
         cache = EnhancedInMemoryCacheProvider()
-        mock_fetcher = AsyncMock(return_value=[
-            {"gid": "123", "name": "Task 1", "modified_at": "2025-01-15T10:00:00Z"},
-            {"name": "Task without GID"},  # No GID
-        ])
+        mock_fetcher = AsyncMock(
+            return_value=[
+                {"gid": "123", "name": "Task 1", "modified_at": "2025-01-15T10:00:00Z"},
+                {"name": "Task without GID"},  # No GID
+            ]
+        )
 
         warmed = await warm_project_tasks(
             cache=cache,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, Mock, PropertyMock, patch
+from unittest.mock import Mock
 
 import pytest
 

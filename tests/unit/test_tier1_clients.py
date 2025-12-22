@@ -152,7 +152,10 @@ class TestWorkspacesClientGetSync:
     """Tests for WorkspacesClient.get() sync wrapper."""
 
     def test_get_sync_returns_workspace_model(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """get() returns Workspace model outside async context."""
         client = WorkspacesClient(
@@ -288,7 +291,10 @@ class TestUsersClientMeSync:
     """Tests for UsersClient.me() sync wrapper."""
 
     def test_me_sync_returns_user_model(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """me() returns User model outside async context."""
         client = UsersClient(
@@ -389,7 +395,9 @@ class TestProjectsClientCreateAsync:
         """create_async returns Project model by default."""
         mock_http.post.return_value = {"gid": "newproj123", "name": "New Project"}
 
-        result = await projects_client.create_async(name="New Project", workspace="ws123")
+        result = await projects_client.create_async(
+            name="New Project", workspace="ws123"
+        )
 
         assert isinstance(result, Project)
         assert result.gid == "newproj123"
@@ -520,7 +528,10 @@ class TestProjectsClientSyncWrappers:
     """Test sync wrappers for ProjectsClient."""
 
     def test_get_sync_returns_project_model(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """get() sync wrapper returns Project model."""
         client = ProjectsClient(
@@ -536,7 +547,10 @@ class TestProjectsClientSyncWrappers:
         assert result.gid == "proj123"
 
     def test_create_sync_returns_project_model(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """create() sync wrapper returns Project model."""
         client = ProjectsClient(
@@ -551,7 +565,10 @@ class TestProjectsClientSyncWrappers:
         assert isinstance(result, Project)
 
     def test_delete_sync_works(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """delete() sync wrapper works."""
         client = ProjectsClient(
@@ -619,7 +636,9 @@ class TestSectionsClientCreateAsync:
         """create_async returns Section model by default."""
         mock_http.post.return_value = {"gid": "newsec123", "name": "New Section"}
 
-        result = await sections_client.create_async(name="New Section", project="proj123")
+        result = await sections_client.create_async(
+            name="New Section", project="proj123"
+        )
 
         assert isinstance(result, Section)
         assert result.gid == "newsec123"
@@ -697,7 +716,10 @@ class TestSectionsClientSyncWrappers:
     """Test sync wrappers for SectionsClient."""
 
     def test_add_task_sync_works(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """add_task() sync wrapper works."""
         client = SectionsClient(
@@ -929,7 +951,10 @@ class TestCustomFieldsClientSyncWrappers:
     """Test sync wrappers for CustomFieldsClient."""
 
     def test_get_sync_returns_custom_field_model(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """get() sync wrapper returns CustomField model."""
         client = CustomFieldsClient(
@@ -944,7 +969,10 @@ class TestCustomFieldsClientSyncWrappers:
         assert isinstance(result, CustomField)
 
     def test_create_enum_option_sync_works(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """create_enum_option() sync wrapper works."""
         client = CustomFieldsClient(
@@ -1020,22 +1048,26 @@ class TestModelValidation:
 
     def test_workspace_extra_fields_ignored(self) -> None:
         """Workspace ignores unknown fields per ADR-0005."""
-        ws = Workspace.model_validate({
-            "gid": "123",
-            "name": "Test",
-            "unknown_field": "ignored",
-        })
+        ws = Workspace.model_validate(
+            {
+                "gid": "123",
+                "name": "Test",
+                "unknown_field": "ignored",
+            }
+        )
         assert ws.gid == "123"
         assert not hasattr(ws, "unknown_field")
 
     def test_project_with_namegid_references(self) -> None:
         """Project validates NameGid references."""
-        project = Project.model_validate({
-            "gid": "proj123",
-            "name": "Project",
-            "owner": {"gid": "user123", "name": "Alice"},
-            "workspace": {"gid": "ws123", "name": "Workspace"},
-        })
+        project = Project.model_validate(
+            {
+                "gid": "proj123",
+                "name": "Project",
+                "owner": {"gid": "user123", "name": "Alice"},
+                "workspace": {"gid": "ws123", "name": "Workspace"},
+            }
+        )
         assert project.owner is not None
         assert project.owner.gid == "user123"
         assert project.workspace is not None
@@ -1043,15 +1075,17 @@ class TestModelValidation:
 
     def test_custom_field_with_enum_options(self) -> None:
         """CustomField validates nested enum options."""
-        cf = CustomField.model_validate({
-            "gid": "cf123",
-            "name": "Status",
-            "resource_subtype": "enum",
-            "enum_options": [
-                {"gid": "opt1", "name": "Active", "enabled": True},
-                {"gid": "opt2", "name": "Inactive", "enabled": False},
-            ],
-        })
+        cf = CustomField.model_validate(
+            {
+                "gid": "cf123",
+                "name": "Status",
+                "resource_subtype": "enum",
+                "enum_options": [
+                    {"gid": "opt1", "name": "Active", "enabled": True},
+                    {"gid": "opt2", "name": "Inactive", "enabled": False},
+                ],
+            }
+        )
         assert cf.enum_options is not None
         assert len(cf.enum_options) == 2
         assert cf.enum_options[0].name == "Active"

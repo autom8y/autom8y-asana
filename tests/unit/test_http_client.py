@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
-from unittest.mock import MagicMock
 
 import httpx
 import pytest
@@ -94,9 +92,7 @@ class TestRequestSuccessUnwrapsData:
     """Test that successful responses have 'data' unwrapped."""
 
     @respx.mock
-    async def test_request_success_unwraps_data(
-        self, client: AsyncHTTPClient
-    ) -> None:
+    async def test_request_success_unwraps_data(self, client: AsyncHTTPClient) -> None:
         """Successful response returns unwrapped 'data' field."""
         respx.get("https://app.asana.com/api/1.0/tasks/123").mock(
             return_value=httpx.Response(
@@ -151,9 +147,7 @@ class TestRequestErrorCreatesTypedException:
         await client.close()
 
     @respx.mock
-    async def test_request_error_403_forbidden(
-        self, client: AsyncHTTPClient
-    ) -> None:
+    async def test_request_error_403_forbidden(self, client: AsyncHTTPClient) -> None:
         """403 response raises ForbiddenError."""
         respx.get("https://app.asana.com/api/1.0/tasks/123").mock(
             return_value=httpx.Response(
@@ -169,9 +163,7 @@ class TestRequestErrorCreatesTypedException:
         await client.close()
 
     @respx.mock
-    async def test_request_error_404_not_found(
-        self, client: AsyncHTTPClient
-    ) -> None:
+    async def test_request_error_404_not_found(self, client: AsyncHTTPClient) -> None:
         """404 response raises NotFoundError."""
         respx.get("https://app.asana.com/api/1.0/tasks/999").mock(
             return_value=httpx.Response(
@@ -187,9 +179,7 @@ class TestRequestErrorCreatesTypedException:
         await client.close()
 
     @respx.mock
-    async def test_request_error_410_gone(
-        self, client: AsyncHTTPClient
-    ) -> None:
+    async def test_request_error_410_gone(self, client: AsyncHTTPClient) -> None:
         """410 response raises GoneError."""
         respx.get("https://app.asana.com/api/1.0/tasks/deleted").mock(
             return_value=httpx.Response(
@@ -534,7 +524,9 @@ class TestConvenienceMethods:
     async def test_put_convenience_method(self, client: AsyncHTTPClient) -> None:
         """PUT convenience method works correctly."""
         respx.put("https://app.asana.com/api/1.0/tasks/123").mock(
-            return_value=httpx.Response(200, json={"data": {"gid": "123", "name": "Updated"}})
+            return_value=httpx.Response(
+                200, json={"data": {"gid": "123", "name": "Updated"}}
+            )
         )
 
         result = await client.put("/tasks/123", json={"data": {"name": "Updated"}})
@@ -628,9 +620,7 @@ class TestInvalidJSONResponse:
         await client.close()
 
     @respx.mock
-    async def test_invalid_json_no_request_id(
-        self, client: AsyncHTTPClient
-    ) -> None:
+    async def test_invalid_json_no_request_id(self, client: AsyncHTTPClient) -> None:
         """Invalid JSON response without X-Request-Id includes 'unknown'."""
         respx.get("https://app.asana.com/api/1.0/tasks/123").mock(
             return_value=httpx.Response(
@@ -648,9 +638,7 @@ class TestInvalidJSONResponse:
         await client.close()
 
     @respx.mock
-    async def test_invalid_json_empty_body(
-        self, client: AsyncHTTPClient
-    ) -> None:
+    async def test_invalid_json_empty_body(self, client: AsyncHTTPClient) -> None:
         """Empty response body shows '(empty)' in error."""
         respx.get("https://app.asana.com/api/1.0/tasks/123").mock(
             return_value=httpx.Response(

@@ -11,7 +11,7 @@ Tests follow established patterns from test_tier2_clients.py and test_http_clien
 
 from __future__ import annotations
 
-from typing import Any, AsyncIterator
+from typing import Any
 from unittest.mock import AsyncMock
 
 import httpx
@@ -22,7 +22,7 @@ from autom8_asana.clients.stories import StoriesClient
 from autom8_asana.clients.tags import TagsClient
 from autom8_asana.clients.teams import TeamsClient
 from autom8_asana.config import AsanaConfig, RetryConfig
-from autom8_asana.exceptions import AsanaError, RateLimitError
+from autom8_asana.exceptions import AsanaError
 from autom8_asana.models import PageIterator, Story, Tag, Team, User
 from autom8_asana.models.team import TeamMembership
 from autom8_asana.transport.http import AsyncHTTPClient
@@ -1288,9 +1288,7 @@ class TestAsyncHTTPClientStream:
             )
         )
 
-        async with http_client.stream(
-            "GET", "/attachments/123/download"
-        ) as response:
+        async with http_client.stream("GET", "/attachments/123/download") as response:
             assert isinstance(response, httpx.Response)
             content = await response.aread()
             assert content == b"file content here"

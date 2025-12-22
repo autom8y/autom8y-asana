@@ -236,6 +236,7 @@ class TestPageIteratorEmptyResults:
 
     async def test_empty_first_page(self) -> None:
         """Empty result on first page."""
+
         async def fetch_page(offset: str | None) -> tuple[list[str], str | None]:
             return [], None
 
@@ -247,6 +248,7 @@ class TestPageIteratorEmptyResults:
 
     async def test_first_on_empty_returns_none(self) -> None:
         """first() on empty iterator returns None."""
+
         async def fetch_page(offset: str | None) -> tuple[list[str], str | None]:
             return [], None
 
@@ -257,6 +259,7 @@ class TestPageIteratorEmptyResults:
 
     async def test_take_on_empty_returns_empty(self) -> None:
         """take(n) on empty iterator returns empty list."""
+
         async def fetch_page(offset: str | None) -> tuple[list[str], str | None]:
             return [], None
 
@@ -283,6 +286,7 @@ class TestPageIteratorBoundaryConditions:
 
     async def test_take_zero_items(self) -> None:
         """take(0) should return empty list."""
+
         async def fetch_page(offset: str | None) -> tuple[list[int], str | None]:
             return [1, 2, 3], None
 
@@ -293,6 +297,7 @@ class TestPageIteratorBoundaryConditions:
 
     async def test_take_negative_items(self) -> None:
         """take(-1) - negative n behavior."""
+
         async def fetch_page(offset: str | None) -> tuple[list[int], str | None]:
             return [1, 2, 3], None
 
@@ -309,6 +314,7 @@ class TestPageIteratorExceptionHandling:
 
     async def test_fetch_raises_on_first_page(self) -> None:
         """fetch_page raises exception on first call."""
+
         async def fetch_page(offset: str | None) -> tuple[list[str], str | None]:
             raise ValueError("Network error")
 
@@ -365,6 +371,7 @@ class TestPageIteratorStateManagement:
         FINDING: Second collect() returns empty list because iterator
         is exhausted. This is expected behavior but worth documenting.
         """
+
         async def fetch_page(offset: str | None) -> tuple[list[int], str | None]:
             return [1, 2, 3], None
 
@@ -379,6 +386,7 @@ class TestPageIteratorStateManagement:
 
     async def test_first_then_collect(self) -> None:
         """Calling first() then collect()."""
+
         async def fetch_page(offset: str | None) -> tuple[list[int], str | None]:
             return [1, 2, 3], None
 
@@ -404,6 +412,7 @@ class TestPageIteratorStateManagement:
         This is a defect in PageIterator.take() - the break happens after
         __anext__ has already consumed the item from the buffer.
         """
+
         async def fetch_page(offset: str | None) -> tuple[list[int], str | None]:
             return [1, 2, 3, 4, 5], None
 
@@ -419,6 +428,7 @@ class TestPageIteratorStateManagement:
 
     async def test_iteration_after_exhaustion(self) -> None:
         """Iterating after iterator is exhausted."""
+
         async def fetch_page(offset: str | None) -> tuple[list[int], str | None]:
             return [1], None
 
@@ -483,7 +493,9 @@ class TestPageIteratorMemoryEfficiency:
             pages_fetched.append(page_num)
 
             if page_num < 10:  # 10 pages
-                return list(range(page_num * 100, (page_num + 1) * 100)), f"page{page_num + 1}"
+                return list(
+                    range(page_num * 100, (page_num + 1) * 100)
+                ), f"page{page_num + 1}"
             return [], None
 
         iterator = PageIterator(fetch_page)
@@ -497,6 +509,7 @@ class TestPageIteratorMemoryEfficiency:
 
     async def test_buffer_cleared_after_consumption(self) -> None:
         """Buffer is cleared as items are consumed."""
+
         async def fetch_page(offset: str | None) -> tuple[list[int], str | None]:
             return list(range(100)), None
 
@@ -523,10 +536,12 @@ class TestTaskNameGidBackwardCompatibility:
 
     def test_dict_assignee_converts_to_namegid(self) -> None:
         """Dict for assignee field is converted to NameGid."""
-        task = Task.model_validate({
-            "gid": "123",
-            "assignee": {"gid": "user1", "name": "Alice"},
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "assignee": {"gid": "user1", "name": "Alice"},
+            }
+        )
 
         assert isinstance(task.assignee, NameGid)
         assert task.assignee.gid == "user1"
@@ -534,13 +549,15 @@ class TestTaskNameGidBackwardCompatibility:
 
     def test_dict_projects_converts_to_list_namegid(self) -> None:
         """Dict list for projects field is converted to list[NameGid]."""
-        task = Task.model_validate({
-            "gid": "123",
-            "projects": [
-                {"gid": "proj1", "name": "Project A"},
-                {"gid": "proj2", "name": "Project B"},
-            ],
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "projects": [
+                    {"gid": "proj1", "name": "Project A"},
+                    {"gid": "proj2", "name": "Project B"},
+                ],
+            }
+        )
 
         assert isinstance(task.projects, list)
         assert all(isinstance(p, NameGid) for p in task.projects)
@@ -549,13 +566,15 @@ class TestTaskNameGidBackwardCompatibility:
     def test_mixed_dict_and_namegid_in_list(self) -> None:
         """Mix of dict and NameGid in list field - both should work."""
         # When deserializing from JSON, all would be dicts
-        task = Task.model_validate({
-            "gid": "123",
-            "followers": [
-                {"gid": "f1", "name": "Follower 1"},
-                {"gid": "f2", "name": "Follower 2"},
-            ],
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "followers": [
+                    {"gid": "f1", "name": "Follower 1"},
+                    {"gid": "f2", "name": "Follower 2"},
+                ],
+            }
+        )
 
         # All should be converted to NameGid
         assert all(isinstance(f, NameGid) for f in (task.followers or []))
@@ -566,10 +585,12 @@ class TestTaskNameGidNullHandling:
 
     def test_null_assignee(self) -> None:
         """Explicit null assignee is accepted."""
-        task = Task.model_validate({
-            "gid": "123",
-            "assignee": None,
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "assignee": None,
+            }
+        )
 
         assert task.assignee is None
 
@@ -580,14 +601,18 @@ class TestTaskNameGidNullHandling:
 
     def test_empty_projects_list(self) -> None:
         """Empty projects list vs None."""
-        task_empty = Task.model_validate({
-            "gid": "123",
-            "projects": [],
-        })
-        task_none = Task.model_validate({
-            "gid": "123",
-            "projects": None,
-        })
+        task_empty = Task.model_validate(
+            {
+                "gid": "123",
+                "projects": [],
+            }
+        )
+        task_none = Task.model_validate(
+            {
+                "gid": "123",
+                "projects": None,
+            }
+        )
         task_missing = Task.model_validate({"gid": "123"})
 
         assert task_empty.projects == []
@@ -597,13 +622,15 @@ class TestTaskNameGidNullHandling:
     def test_null_inside_list_rejected(self) -> None:
         """Null values inside a NameGid list should fail validation."""
         with pytest.raises(ValidationError):
-            Task.model_validate({
-                "gid": "123",
-                "projects": [
-                    {"gid": "proj1"},
-                    None,  # Invalid - can't have None in list[NameGid]
-                ],
-            })
+            Task.model_validate(
+                {
+                    "gid": "123",
+                    "projects": [
+                        {"gid": "proj1"},
+                        None,  # Invalid - can't have None in list[NameGid]
+                    ],
+                }
+            )
 
 
 class TestTaskModelDumpOutput:
@@ -611,11 +638,13 @@ class TestTaskModelDumpOutput:
 
     def test_namegid_fields_serialize_to_dict(self) -> None:
         """NameGid fields serialize to dict in model_dump()."""
-        task = Task.model_validate({
-            "gid": "123",
-            "assignee": {"gid": "user1", "name": "Alice"},
-            "workspace": {"gid": "ws1", "name": "Workspace"},
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "assignee": {"gid": "user1", "name": "Alice"},
+                "workspace": {"gid": "ws1", "name": "Workspace"},
+            }
+        )
 
         dumped = task.model_dump()
 
@@ -625,13 +654,15 @@ class TestTaskModelDumpOutput:
 
     def test_list_namegid_fields_serialize_to_list_dict(self) -> None:
         """list[NameGid] fields serialize to list[dict]."""
-        task = Task.model_validate({
-            "gid": "123",
-            "projects": [
-                {"gid": "p1", "name": "Proj1"},
-                {"gid": "p2", "name": "Proj2"},
-            ],
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "projects": [
+                    {"gid": "p1", "name": "Proj1"},
+                    {"gid": "p2", "name": "Proj2"},
+                ],
+            }
+        )
 
         dumped = task.model_dump()
 
@@ -640,12 +671,14 @@ class TestTaskModelDumpOutput:
 
     def test_json_roundtrip_with_namegid(self) -> None:
         """JSON serialization roundtrip preserves NameGid data."""
-        original = Task.model_validate({
-            "gid": "123",
-            "name": "Test Task",
-            "assignee": {"gid": "user1", "name": "Alice"},
-            "projects": [{"gid": "p1", "name": "Project"}],
-        })
+        original = Task.model_validate(
+            {
+                "gid": "123",
+                "name": "Test Task",
+                "assignee": {"gid": "user1", "name": "Alice"},
+                "projects": [{"gid": "p1", "name": "Project"}],
+            }
+        )
 
         json_str = original.model_dump_json()
         parsed = json.loads(json_str)
@@ -660,15 +693,17 @@ class TestTaskNameGidEdgeCases:
 
     def test_assignee_with_extra_fields_ignored(self) -> None:
         """Extra fields in assignee dict are ignored (per ADR-0005)."""
-        task = Task.model_validate({
-            "gid": "123",
-            "assignee": {
-                "gid": "user1",
-                "name": "Alice",
-                "email": "alice@example.com",  # Extra field
-                "photo": {"small": "url"},  # Extra field
-            },
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "assignee": {
+                    "gid": "user1",
+                    "name": "Alice",
+                    "email": "alice@example.com",  # Extra field
+                    "photo": {"small": "url"},  # Extra field
+                },
+            }
+        )
 
         assert task.assignee is not None
         assert task.assignee.gid == "user1"
@@ -677,10 +712,12 @@ class TestTaskNameGidEdgeCases:
 
     def test_namegid_field_with_empty_gid(self) -> None:
         """NameGid field with empty gid string."""
-        task = Task.model_validate({
-            "gid": "123",
-            "assignee": {"gid": "", "name": "Empty GID User"},
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "assignee": {"gid": "", "name": "Empty GID User"},
+            }
+        )
 
         # This is allowed but likely indicates bad data
         assert task.assignee is not None
@@ -688,30 +725,36 @@ class TestTaskNameGidEdgeCases:
 
     def test_completed_by_as_namegid(self) -> None:
         """completed_by field accepts NameGid-compatible dict."""
-        task = Task.model_validate({
-            "gid": "123",
-            "completed": True,
-            "completed_by": {"gid": "user1", "name": "Completer"},
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "completed": True,
+                "completed_by": {"gid": "user1", "name": "Completer"},
+            }
+        )
 
         assert isinstance(task.completed_by, NameGid)
         assert task.completed_by.gid == "user1"
 
     def test_created_by_as_namegid(self) -> None:
         """created_by field accepts NameGid-compatible dict."""
-        task = Task.model_validate({
-            "gid": "123",
-            "created_by": {"gid": "creator1", "name": "Creator"},
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "created_by": {"gid": "creator1", "name": "Creator"},
+            }
+        )
 
         assert isinstance(task.created_by, NameGid)
 
     def test_parent_as_namegid(self) -> None:
         """parent field (for subtasks) accepts NameGid."""
-        task = Task.model_validate({
-            "gid": "subtask1",
-            "parent": {"gid": "parent1", "name": "Parent Task"},
-        })
+        task = Task.model_validate(
+            {
+                "gid": "subtask1",
+                "parent": {"gid": "parent1", "name": "Parent Task"},
+            }
+        )
 
         assert isinstance(task.parent, NameGid)
         assert task.parent.name == "Parent Task"

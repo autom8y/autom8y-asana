@@ -44,18 +44,18 @@ def mock_client() -> MagicMock:
 @pytest.fixture
 def mock_client_with_success(mock_client: MagicMock) -> MagicMock:
     """Fixture providing mock client configured for single success response."""
-    mock_client.batch.execute_async = AsyncMock(return_value=[
-        create_success_result(gid="new_gid_123")
-    ])
+    mock_client.batch.execute_async = AsyncMock(
+        return_value=[create_success_result(gid="new_gid_123")]
+    )
     return mock_client
 
 
 @pytest.fixture
 def mock_client_with_failure(mock_client: MagicMock) -> MagicMock:
     """Fixture providing mock client configured for single failure response."""
-    mock_client.batch.execute_async = AsyncMock(return_value=[
-        create_failure_result(message="API Error", status_code=400)
-    ])
+    mock_client.batch.execute_async = AsyncMock(
+        return_value=[create_failure_result(message="API Error", status_code=400)]
+    )
     return mock_client
 
 
@@ -132,17 +132,21 @@ def create_multi_result(
 
     for i in range(count):
         if i in failure_indices:
-            results.append(create_failure_result(
-                message=f"Error at index {i}",
-                status_code=400,
-                request_index=i,
-            ))
+            results.append(
+                create_failure_result(
+                    message=f"Error at index {i}",
+                    status_code=400,
+                    request_index=i,
+                )
+            )
         else:
-            results.append(create_success_result(
-                gid=f"gid_{i}",
-                name=f"Result {i}",
-                request_index=i,
-            ))
+            results.append(
+                create_success_result(
+                    gid=f"gid_{i}",
+                    name=f"Result {i}",
+                    request_index=i,
+                )
+            )
 
     return results
 

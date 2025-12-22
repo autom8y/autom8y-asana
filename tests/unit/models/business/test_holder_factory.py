@@ -5,7 +5,7 @@ Per TDD-PATTERNS-C: Comprehensive test coverage for __init_subclass__ pattern.
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest

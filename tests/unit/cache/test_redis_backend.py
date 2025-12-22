@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from autom8_asana.cache.entry import CacheEntry, EntryType
-from autom8_asana.cache.freshness import Freshness
 
 # Try to import fakeredis, skip tests if not available
 try:
@@ -439,7 +438,9 @@ class TestRedisCacheProviderIntegration:
         redis_provider.set_versioned("123", entry)
 
         # Same version should be fresh
-        assert redis_provider.check_freshness("123", EntryType.TASK, cached_time) is True
+        assert (
+            redis_provider.check_freshness("123", EntryType.TASK, cached_time) is True
+        )
 
         # Newer version should be stale
         newer = datetime(2025, 1, 1, 14, 0, 0, tzinfo=timezone.utc)
@@ -449,12 +450,24 @@ class TestRedisCacheProviderIntegration:
         """Test invalidate operation."""
         now = datetime.now(timezone.utc)
 
-        redis_provider.set_versioned("123", CacheEntry(
-            key="123", data={}, entry_type=EntryType.TASK, version=now,
-        ))
-        redis_provider.set_versioned("123", CacheEntry(
-            key="123", data={}, entry_type=EntryType.SUBTASKS, version=now,
-        ))
+        redis_provider.set_versioned(
+            "123",
+            CacheEntry(
+                key="123",
+                data={},
+                entry_type=EntryType.TASK,
+                version=now,
+            ),
+        )
+        redis_provider.set_versioned(
+            "123",
+            CacheEntry(
+                key="123",
+                data={},
+                entry_type=EntryType.SUBTASKS,
+                version=now,
+            ),
+        )
 
         redis_provider.invalidate("123", [EntryType.TASK])
 
@@ -465,12 +478,24 @@ class TestRedisCacheProviderIntegration:
         """Test get_batch operation."""
         now = datetime.now(timezone.utc)
 
-        redis_provider.set_versioned("1", CacheEntry(
-            key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now,
-        ))
-        redis_provider.set_versioned("2", CacheEntry(
-            key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now,
-        ))
+        redis_provider.set_versioned(
+            "1",
+            CacheEntry(
+                key="1",
+                data={"id": 1},
+                entry_type=EntryType.TASK,
+                version=now,
+            ),
+        )
+        redis_provider.set_versioned(
+            "2",
+            CacheEntry(
+                key="2",
+                data={"id": 2},
+                entry_type=EntryType.TASK,
+                version=now,
+            ),
+        )
 
         result = redis_provider.get_batch(["1", "2", "3"], EntryType.TASK)
 
@@ -484,8 +509,12 @@ class TestRedisCacheProviderIntegration:
         now = datetime.now(timezone.utc)
 
         entries = {
-            "1": CacheEntry(key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now),
-            "2": CacheEntry(key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now),
+            "1": CacheEntry(
+                key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now
+            ),
+            "2": CacheEntry(
+                key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now
+            ),
         }
 
         redis_provider.set_batch(entries)

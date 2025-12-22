@@ -6,9 +6,7 @@ Per Initiative DESIGN-PATTERNS-B: Tests for the error classification mixin.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
-import pytest
 
 from autom8_asana.exceptions import (
     AsanaError,

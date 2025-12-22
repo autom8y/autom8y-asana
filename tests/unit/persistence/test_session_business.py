@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, AsyncMock
 
-import pytest
 
 from autom8_asana.models import Task
 from autom8_asana.persistence.session import SaveSession

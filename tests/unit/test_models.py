@@ -154,19 +154,23 @@ class TestAsanaResourceBase:
         resource = AsanaResource.model_validate({"gid": "123"})
         assert resource.resource_type is None
 
-        resource_with_type = AsanaResource.model_validate({
-            "gid": "123",
-            "resource_type": "custom_type",
-        })
+        resource_with_type = AsanaResource.model_validate(
+            {
+                "gid": "123",
+                "resource_type": "custom_type",
+            }
+        )
         assert resource_with_type.resource_type == "custom_type"
 
     def test_extra_fields_ignored(self) -> None:
         """Unknown fields are silently ignored per ADR-0005."""
-        resource = AsanaResource.model_validate({
-            "gid": "123",
-            "unknown_field": "should be ignored",
-            "another_unknown": {"nested": "data"},
-        })
+        resource = AsanaResource.model_validate(
+            {
+                "gid": "123",
+                "unknown_field": "should be ignored",
+                "another_unknown": {"nested": "data"},
+            }
+        )
 
         assert resource.gid == "123"
         assert not hasattr(resource, "unknown_field")
@@ -174,10 +178,12 @@ class TestAsanaResourceBase:
 
     def test_string_whitespace_stripped(self) -> None:
         """String fields have whitespace stripped (str_strip_whitespace=True)."""
-        resource = AsanaResource.model_validate({
-            "gid": "  123  ",
-            "resource_type": "  task  ",
-        })
+        resource = AsanaResource.model_validate(
+            {
+                "gid": "  123  ",
+                "resource_type": "  task  ",
+            }
+        )
 
         assert resource.gid == "123"
         assert resource.resource_type == "task"
@@ -217,7 +223,10 @@ class TestTaskSerialization:
         assert task.resource_type == "task"
         assert task.name == "Complete SDK Hardening"
         assert task.notes == "Implement comprehensive test coverage for models"
-        assert task.html_notes == "<body>Implement comprehensive test coverage for models</body>"
+        assert (
+            task.html_notes
+            == "<body>Implement comprehensive test coverage for models</body>"
+        )
 
         # Status fields
         assert task.completed is False
@@ -443,14 +452,16 @@ class TestFieldValidation:
 
     def test_none_values_handled_correctly(self) -> None:
         """Explicit None values are accepted for optional fields."""
-        task = Task.model_validate({
-            "gid": "123",
-            "name": None,
-            "completed": None,
-            "due_on": None,
-            "assignee": None,
-            "projects": None,
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "name": None,
+                "completed": None,
+                "due_on": None,
+                "assignee": None,
+                "projects": None,
+            }
+        )
 
         assert task.gid == "123"
         assert task.name is None
@@ -474,15 +485,17 @@ class TestNestedObjectHandling:
 
     def test_assignee_as_namegid(self) -> None:
         """Assignee is converted to NameGid (extra fields ignored per ADR-0005)."""
-        task = Task.model_validate({
-            "gid": "123",
-            "assignee": {
-                "gid": "user123",
-                "name": "John Doe",
-                "email": "john@example.com",  # Extra field - will be ignored
-                "resource_type": "user",
-            },
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "assignee": {
+                    "gid": "user123",
+                    "name": "John Doe",
+                    "email": "john@example.com",  # Extra field - will be ignored
+                    "resource_type": "user",
+                },
+            }
+        )
 
         assert task.assignee is not None
         assert isinstance(task.assignee, NameGid)
@@ -494,13 +507,19 @@ class TestNestedObjectHandling:
 
     def test_projects_as_list_of_namegid(self) -> None:
         """Projects list contains NameGid objects (extra fields ignored)."""
-        task = Task.model_validate({
-            "gid": "123",
-            "projects": [
-                {"gid": "proj1", "name": "Project A", "resource_type": "project"},
-                {"gid": "proj2", "name": "Project B", "color": "blue"},  # color ignored
-            ],
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "projects": [
+                    {"gid": "proj1", "name": "Project A", "resource_type": "project"},
+                    {
+                        "gid": "proj2",
+                        "name": "Project B",
+                        "color": "blue",
+                    },  # color ignored
+                ],
+            }
+        )
 
         assert task.projects is not None
         assert len(task.projects) == 2
@@ -514,14 +533,16 @@ class TestNestedObjectHandling:
 
     def test_workspace_as_namegid(self) -> None:
         """Workspace is converted to NameGid (extra fields ignored)."""
-        task = Task.model_validate({
-            "gid": "123",
-            "workspace": {
-                "gid": "ws1",
-                "name": "My Workspace",
-                "is_organization": True,  # Extra field - will be ignored
-            },
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "workspace": {
+                    "gid": "ws1",
+                    "name": "My Workspace",
+                    "is_organization": True,  # Extra field - will be ignored
+                },
+            }
+        )
 
         assert task.workspace is not None
         assert isinstance(task.workspace, NameGid)
@@ -532,14 +553,16 @@ class TestNestedObjectHandling:
 
     def test_parent_as_namegid(self) -> None:
         """Parent is converted to NameGid for subtasks."""
-        task = Task.model_validate({
-            "gid": "subtask1",
-            "parent": {
-                "gid": "parent1",
-                "name": "Parent Task",
-                "resource_type": "task",
-            },
-        })
+        task = Task.model_validate(
+            {
+                "gid": "subtask1",
+                "parent": {
+                    "gid": "parent1",
+                    "name": "Parent Task",
+                    "resource_type": "task",
+                },
+            }
+        )
 
         assert task.parent is not None
         assert isinstance(task.parent, NameGid)
@@ -548,13 +571,15 @@ class TestNestedObjectHandling:
 
     def test_followers_as_list_of_namegid(self) -> None:
         """Followers list contains NameGid objects."""
-        task = Task.model_validate({
-            "gid": "123",
-            "followers": [
-                {"gid": "f1", "name": "Follower 1"},
-                {"gid": "f2", "name": "Follower 2"},
-            ],
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "followers": [
+                    {"gid": "f1", "name": "Follower 1"},
+                    {"gid": "f2", "name": "Follower 2"},
+                ],
+            }
+        )
 
         assert task.followers is not None
         assert len(task.followers) == 2
@@ -563,13 +588,15 @@ class TestNestedObjectHandling:
 
     def test_tags_as_list_of_namegid(self) -> None:
         """Tags list contains NameGid objects (extra fields ignored)."""
-        task = Task.model_validate({
-            "gid": "123",
-            "tags": [
-                {"gid": "tag1", "name": "urgent", "color": "red"},  # color ignored
-                {"gid": "tag2", "name": "feature"},
-            ],
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "tags": [
+                    {"gid": "tag1", "name": "urgent", "color": "red"},  # color ignored
+                    {"gid": "tag2", "name": "feature"},
+                ],
+            }
+        )
 
         assert task.tags is not None
         assert len(task.tags) == 2
@@ -580,28 +607,30 @@ class TestNestedObjectHandling:
 
     def test_custom_fields_list_preserved(self) -> None:
         """Custom fields list is preserved with all nested data."""
-        task = Task.model_validate({
-            "gid": "123",
-            "custom_fields": [
-                {
-                    "gid": "cf1",
-                    "name": "Priority",
-                    "type": "enum",
-                    "enum_value": {"gid": "ev1", "name": "High", "color": "red"},
-                    "enum_options": [
-                        {"gid": "ev1", "name": "High"},
-                        {"gid": "ev2", "name": "Medium"},
-                        {"gid": "ev3", "name": "Low"},
-                    ],
-                },
-                {
-                    "gid": "cf2",
-                    "name": "Story Points",
-                    "type": "number",
-                    "number_value": 5,
-                },
-            ],
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "custom_fields": [
+                    {
+                        "gid": "cf1",
+                        "name": "Priority",
+                        "type": "enum",
+                        "enum_value": {"gid": "ev1", "name": "High", "color": "red"},
+                        "enum_options": [
+                            {"gid": "ev1", "name": "High"},
+                            {"gid": "ev2", "name": "Medium"},
+                            {"gid": "ev3", "name": "Low"},
+                        ],
+                    },
+                    {
+                        "gid": "cf2",
+                        "name": "Story Points",
+                        "type": "number",
+                        "number_value": 5,
+                    },
+                ],
+            }
+        )
 
         assert task.custom_fields is not None
         assert len(task.custom_fields) == 2
@@ -611,15 +640,17 @@ class TestNestedObjectHandling:
 
     def test_memberships_list_preserved(self) -> None:
         """Memberships list with nested project/section is preserved."""
-        task = Task.model_validate({
-            "gid": "123",
-            "memberships": [
-                {
-                    "project": {"gid": "proj1", "name": "Project A"},
-                    "section": {"gid": "sec1", "name": "To Do"},
-                },
-            ],
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "memberships": [
+                    {
+                        "project": {"gid": "proj1", "name": "Project A"},
+                        "section": {"gid": "sec1", "name": "To Do"},
+                    },
+                ],
+            }
+        )
 
         assert task.memberships is not None
         assert len(task.memberships) == 1
@@ -637,21 +668,25 @@ class TestFieldAliasHandling:
 
     def test_field_name_works_for_input(self) -> None:
         """Standard field names work for input."""
-        task = Task.model_validate({
-            "gid": "123",
-            "due_on": "2024-12-31",
-            "start_on": "2024-12-01",
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "due_on": "2024-12-31",
+                "start_on": "2024-12-01",
+            }
+        )
 
         assert task.due_on == "2024-12-31"
         assert task.start_on == "2024-12-01"
 
     def test_model_dump_uses_field_names(self) -> None:
         """model_dump() uses Python field names by default."""
-        task = Task.model_validate({
-            "gid": "123",
-            "due_on": "2024-12-31",
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "due_on": "2024-12-31",
+            }
+        )
 
         dumped = task.model_dump()
         assert "due_on" in dumped
@@ -659,10 +694,12 @@ class TestFieldAliasHandling:
 
     def test_model_dump_by_alias_option(self) -> None:
         """model_dump(by_alias=True) uses alias names when defined."""
-        task = Task.model_validate({
-            "gid": "123",
-            "due_on": "2024-12-31",
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "due_on": "2024-12-31",
+            }
+        )
 
         # Currently no aliases differ from field names, so this should work the same
         dumped_by_alias = task.model_dump(by_alias=True)
@@ -704,17 +741,21 @@ class TestTaskInheritance:
 
     def test_task_resource_type_can_be_overridden(self) -> None:
         """Task resource_type can be overridden (for milestone, etc.)."""
-        task = Task.model_validate({
-            "gid": "123",
-            "resource_type": "task",  # Explicit
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "resource_type": "task",  # Explicit
+            }
+        )
         assert task.resource_type == "task"
 
         # Could theoretically be overridden in response
-        task2 = Task.model_validate({
-            "gid": "456",
-            "resource_type": "milestone",
-        })
+        task2 = Task.model_validate(
+            {
+                "gid": "456",
+                "resource_type": "milestone",
+            }
+        )
         assert task2.resource_type == "milestone"
 
 
@@ -728,21 +769,25 @@ class TestEdgeCases:
 
     def test_empty_string_name(self) -> None:
         """Empty string name is valid."""
-        task = Task.model_validate({
-            "gid": "123",
-            "name": "",
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "name": "",
+            }
+        )
         assert task.name == ""
 
     def test_empty_lists(self) -> None:
         """Empty lists are valid for list fields."""
-        task = Task.model_validate({
-            "gid": "123",
-            "projects": [],
-            "followers": [],
-            "tags": [],
-            "custom_fields": [],
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "projects": [],
+                "followers": [],
+                "tags": [],
+                "custom_fields": [],
+            }
+        )
 
         assert task.projects == []
         assert task.followers == []
@@ -751,23 +796,27 @@ class TestEdgeCases:
 
     def test_boolean_fields(self) -> None:
         """Boolean fields accept True/False."""
-        task_true = Task.model_validate({
-            "gid": "123",
-            "completed": True,
-            "liked": True,
-            "is_rendered_as_separator": True,
-        })
+        task_true = Task.model_validate(
+            {
+                "gid": "123",
+                "completed": True,
+                "liked": True,
+                "is_rendered_as_separator": True,
+            }
+        )
 
         assert task_true.completed is True
         assert task_true.liked is True
         assert task_true.is_rendered_as_separator is True
 
-        task_false = Task.model_validate({
-            "gid": "456",
-            "completed": False,
-            "liked": False,
-            "is_rendered_as_separator": False,
-        })
+        task_false = Task.model_validate(
+            {
+                "gid": "456",
+                "completed": False,
+                "liked": False,
+                "is_rendered_as_separator": False,
+            }
+        )
 
         assert task_false.completed is False
         assert task_false.liked is False
@@ -775,13 +824,15 @@ class TestEdgeCases:
 
     def test_numeric_fields(self) -> None:
         """Numeric fields accept various numeric values."""
-        task = Task.model_validate({
-            "gid": "123",
-            "num_subtasks": 0,
-            "num_likes": 100,
-            "num_hearts": 50,
-            "actual_time_minutes": 0.0,
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "num_subtasks": 0,
+                "num_likes": 100,
+                "num_hearts": 50,
+                "actual_time_minutes": 0.0,
+            }
+        )
 
         assert task.num_subtasks == 0
         assert task.num_likes == 100
@@ -790,10 +841,12 @@ class TestEdgeCases:
 
     def test_float_actual_time(self) -> None:
         """actual_time_minutes accepts float values."""
-        task = Task.model_validate({
-            "gid": "123",
-            "actual_time_minutes": 123.456,
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "actual_time_minutes": 123.456,
+            }
+        )
 
         assert task.actual_time_minutes == 123.456
 
@@ -806,11 +859,13 @@ class TestEdgeCases:
 
     def test_unicode_in_strings(self) -> None:
         """Unicode characters in string fields are preserved."""
-        task = Task.model_validate({
-            "gid": "123",
-            "name": "Task with unicode: ",
-            "notes": "Notes with accents: cafe, resume, naive",
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "name": "Task with unicode: ",
+                "notes": "Notes with accents: cafe, resume, naive",
+            }
+        )
 
         assert "" in task.name
         assert "" in (task.notes or "")
@@ -818,10 +873,12 @@ class TestEdgeCases:
     def test_very_long_notes(self) -> None:
         """Very long notes field is accepted."""
         long_notes = "A" * 10000
-        task = Task.model_validate({
-            "gid": "123",
-            "notes": long_notes,
-        })
+        task = Task.model_validate(
+            {
+                "gid": "123",
+                "notes": long_notes,
+            }
+        )
 
         assert task.notes == long_notes
         assert len(task.notes) == 10000

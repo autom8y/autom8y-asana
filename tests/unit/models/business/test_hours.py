@@ -1,6 +1,9 @@
 """Tests for Hours model.
 
 Per TDD-BIZMODEL Phase 3: Tests for Hours entity with operating hours.
+Per PRD-0024: Field names are "Monday", etc. (not "Monday Hours").
+Per PRD-0024: Fields are multi_enum returning list[str].
+Per ADR-0114: Deprecated aliases emit DeprecationWarning.
 """
 
 from __future__ import annotations
@@ -21,109 +24,180 @@ class TestHours:
         assert hours.name == "Hours"
 
 
-class TestHoursDayProperties:
-    """Tests for Hours day-specific properties."""
+class TestHoursNewProperties:
+    """Tests for Hours new property names per PRD-0024."""
 
-    def test_monday_hours_getter(self) -> None:
-        """monday_hours getter returns value."""
-        hours = Hours(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Monday Hours", "text_value": "9:00 AM - 5:00 PM"}
+    def test_monday_getter(self) -> None:
+        """monday getter returns list from multi-enum."""
+        hours = Hours(gid="123", custom_fields=[])
+        hours.get_custom_fields().set(
+            "Monday",
+            [
+                {"gid": "t1", "name": "08:00:00"},
+                {"gid": "t2", "name": "17:00:00"},
             ],
         )
-        assert hours.monday_hours == "9:00 AM - 5:00 PM"
+        assert hours.monday == ["08:00:00", "17:00:00"]
 
-    def test_monday_hours_setter(self) -> None:
-        """monday_hours setter updates value."""
+    def test_monday_empty(self) -> None:
+        """monday returns empty list when not set."""
         hours = Hours(gid="123", custom_fields=[])
-        hours.monday_hours = "8:00 AM - 6:00 PM"
-        assert hours.get_custom_fields().get("Monday Hours") == "8:00 AM - 6:00 PM"
+        assert hours.monday == []
+
+    def test_monday_setter(self) -> None:
+        """monday setter updates value."""
+        hours = Hours(gid="123", custom_fields=[])
+        hours.monday = ["09:00:00", "18:00:00"]
+        assert hours.get_custom_fields().get("Monday") == ["09:00:00", "18:00:00"]
         assert hours.get_custom_fields().has_changes()
 
-    def test_tuesday_hours_getter(self) -> None:
-        """tuesday_hours getter returns value."""
-        hours = Hours(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Tuesday Hours", "text_value": "9:00 AM - 5:00 PM"}
+    def test_tuesday_getter(self) -> None:
+        """tuesday getter returns list from multi-enum."""
+        hours = Hours(gid="123", custom_fields=[])
+        hours.get_custom_fields().set(
+            "Tuesday",
+            [
+                {"gid": "t1", "name": "09:00:00"},
             ],
         )
-        assert hours.tuesday_hours == "9:00 AM - 5:00 PM"
+        assert hours.tuesday == ["09:00:00"]
 
-    def test_wednesday_hours_getter(self) -> None:
-        """wednesday_hours getter returns value."""
-        hours = Hours(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Wednesday Hours", "text_value": "9:00 AM - 5:00 PM"}
+    def test_wednesday_getter(self) -> None:
+        """wednesday getter returns list from multi-enum."""
+        hours = Hours(gid="123", custom_fields=[])
+        hours.get_custom_fields().set(
+            "Wednesday",
+            [
+                {"gid": "t1", "name": "10:00:00"},
             ],
         )
-        assert hours.wednesday_hours == "9:00 AM - 5:00 PM"
+        assert hours.wednesday == ["10:00:00"]
 
-    def test_thursday_hours_getter(self) -> None:
-        """thursday_hours getter returns value."""
-        hours = Hours(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Thursday Hours", "text_value": "9:00 AM - 5:00 PM"}
+    def test_thursday_getter(self) -> None:
+        """thursday getter returns list from multi-enum."""
+        hours = Hours(gid="123", custom_fields=[])
+        hours.get_custom_fields().set(
+            "Thursday",
+            [
+                {"gid": "t1", "name": "08:30:00"},
             ],
         )
-        assert hours.thursday_hours == "9:00 AM - 5:00 PM"
+        assert hours.thursday == ["08:30:00"]
 
-    def test_friday_hours_getter(self) -> None:
-        """friday_hours getter returns value."""
-        hours = Hours(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Friday Hours", "text_value": "9:00 AM - 5:00 PM"}
+    def test_friday_getter(self) -> None:
+        """friday getter returns list from multi-enum."""
+        hours = Hours(gid="123", custom_fields=[])
+        hours.get_custom_fields().set(
+            "Friday",
+            [
+                {"gid": "t1", "name": "08:00:00"},
+                {"gid": "t2", "name": "16:00:00"},
             ],
         )
-        assert hours.friday_hours == "9:00 AM - 5:00 PM"
+        assert hours.friday == ["08:00:00", "16:00:00"]
 
-    def test_saturday_hours_getter(self) -> None:
-        """saturday_hours getter returns value."""
-        hours = Hours(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Saturday Hours", "text_value": "10:00 AM - 2:00 PM"}
+    def test_saturday_getter(self) -> None:
+        """saturday getter returns list from multi-enum."""
+        hours = Hours(gid="123", custom_fields=[])
+        hours.get_custom_fields().set(
+            "Saturday",
+            [
+                {"gid": "t1", "name": "10:00:00"},
+                {"gid": "t2", "name": "14:00:00"},
             ],
         )
-        assert hours.saturday_hours == "10:00 AM - 2:00 PM"
+        assert hours.saturday == ["10:00:00", "14:00:00"]
 
-    def test_sunday_hours_getter(self) -> None:
-        """sunday_hours getter returns value."""
-        hours = Hours(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Sunday Hours", "text_value": "Closed"}
+
+class TestHoursHelperProperties:
+    """Tests for Hours helper properties per TDD."""
+
+    def test_monday_open(self) -> None:
+        """monday_open returns first value from multi-enum."""
+        hours = Hours(gid="123", custom_fields=[])
+        hours.get_custom_fields().set(
+            "Monday",
+            [
+                {"gid": "t1", "name": "08:00:00"},
+                {"gid": "t2", "name": "17:00:00"},
             ],
         )
-        assert hours.sunday_hours == "Closed"
+        assert hours.monday_open == "08:00:00"
 
+    def test_monday_open_empty(self) -> None:
+        """monday_open returns None when not set."""
+        hours = Hours(gid="123", custom_fields=[])
+        assert hours.monday_open is None
 
-class TestHoursAdditionalFields:
-    """Tests for Hours additional fields."""
-
-    def test_timezone_getter(self) -> None:
-        """timezone getter returns value."""
-        hours = Hours(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Timezone", "text_value": "America/New_York"}
+    def test_monday_close(self) -> None:
+        """monday_close returns last value from multi-enum."""
+        hours = Hours(gid="123", custom_fields=[])
+        hours.get_custom_fields().set(
+            "Monday",
+            [
+                {"gid": "t1", "name": "08:00:00"},
+                {"gid": "t2", "name": "17:00:00"},
             ],
         )
-        assert hours.timezone == "America/New_York"
+        assert hours.monday_close == "17:00:00"
 
-    def test_hours_notes_getter(self) -> None:
-        """hours_notes getter returns value."""
-        hours = Hours(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Hours Notes", "text_value": "Closed on holidays"}
+    def test_monday_close_single_value(self) -> None:
+        """monday_close returns None when only one value."""
+        hours = Hours(gid="123", custom_fields=[])
+        hours.get_custom_fields().set(
+            "Monday",
+            [
+                {"gid": "t1", "name": "08:00:00"},
             ],
         )
-        assert hours.hours_notes == "Closed on holidays"
+        assert hours.monday_close is None
+
+
+class TestHoursDeprecatedAliases:
+    """Tests for deprecated aliases per ADR-0114."""
+
+    def test_monday_hours_deprecated(self) -> None:
+        """monday_hours emits DeprecationWarning."""
+        hours = Hours(gid="123", custom_fields=[])
+        hours.get_custom_fields().set(
+            "Monday",
+            [
+                {"gid": "t1", "name": "08:00:00"},
+            ],
+        )
+        with pytest.warns(DeprecationWarning, match="monday_hours is deprecated"):
+            result = hours.monday_hours
+        assert result == ["08:00:00"]
+
+    def test_tuesday_hours_deprecated(self) -> None:
+        """tuesday_hours emits DeprecationWarning."""
+        hours = Hours(gid="123", custom_fields=[])
+        with pytest.warns(DeprecationWarning, match="tuesday_hours is deprecated"):
+            _ = hours.tuesday_hours
+
+    def test_wednesday_hours_deprecated(self) -> None:
+        """wednesday_hours emits DeprecationWarning."""
+        hours = Hours(gid="123", custom_fields=[])
+        with pytest.warns(DeprecationWarning, match="wednesday_hours is deprecated"):
+            _ = hours.wednesday_hours
+
+    def test_thursday_hours_deprecated(self) -> None:
+        """thursday_hours emits DeprecationWarning."""
+        hours = Hours(gid="123", custom_fields=[])
+        with pytest.warns(DeprecationWarning, match="thursday_hours is deprecated"):
+            _ = hours.thursday_hours
+
+    def test_friday_hours_deprecated(self) -> None:
+        """friday_hours emits DeprecationWarning."""
+        hours = Hours(gid="123", custom_fields=[])
+        with pytest.warns(DeprecationWarning, match="friday_hours is deprecated"):
+            _ = hours.friday_hours
+
+    def test_saturday_hours_deprecated(self) -> None:
+        """saturday_hours emits DeprecationWarning."""
+        hours = Hours(gid="123", custom_fields=[])
+        with pytest.warns(DeprecationWarning, match="saturday_hours is deprecated"):
+            _ = hours.saturday_hours
 
 
 class TestHoursComputedProperties:
@@ -131,100 +205,65 @@ class TestHoursComputedProperties:
 
     def test_weekday_hours(self) -> None:
         """weekday_hours returns Monday-Friday hours."""
-        hours = Hours(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Monday Hours", "text_value": "9-5"},
-                {"gid": "2", "name": "Tuesday Hours", "text_value": "9-5"},
-                {"gid": "3", "name": "Wednesday Hours", "text_value": "9-5"},
-                {"gid": "4", "name": "Thursday Hours", "text_value": "9-5"},
-                {"gid": "5", "name": "Friday Hours", "text_value": "9-5"},
-            ],
-        )
+        hours = Hours(gid="123", custom_fields=[])
+        hours.get_custom_fields().set("Monday", [{"gid": "1", "name": "9-5"}])
+        hours.get_custom_fields().set("Tuesday", [{"gid": "2", "name": "9-5"}])
+        hours.get_custom_fields().set("Wednesday", [{"gid": "3", "name": "9-5"}])
+        hours.get_custom_fields().set("Thursday", [{"gid": "4", "name": "9-5"}])
+        hours.get_custom_fields().set("Friday", [{"gid": "5", "name": "9-5"}])
+
         weekday = hours.weekday_hours
-        assert weekday["monday"] == "9-5"
-        assert weekday["tuesday"] == "9-5"
-        assert weekday["wednesday"] == "9-5"
-        assert weekday["thursday"] == "9-5"
-        assert weekday["friday"] == "9-5"
+        assert weekday["monday"] == ["9-5"]
+        assert weekday["tuesday"] == ["9-5"]
+        assert weekday["wednesday"] == ["9-5"]
+        assert weekday["thursday"] == ["9-5"]
+        assert weekday["friday"] == ["9-5"]
 
-    def test_weekend_hours(self) -> None:
-        """weekend_hours returns Saturday-Sunday hours."""
-        hours = Hours(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Saturday Hours", "text_value": "10-2"},
-                {"gid": "2", "name": "Sunday Hours", "text_value": "Closed"},
-            ],
-        )
-        weekend = hours.weekend_hours
-        assert weekend["saturday"] == "10-2"
-        assert weekend["sunday"] == "Closed"
-
-    def test_all_hours(self) -> None:
-        """all_hours returns all days."""
-        hours = Hours(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Monday Hours", "text_value": "9-5"},
-                {"gid": "2", "name": "Sunday Hours", "text_value": "Closed"},
-            ],
-        )
+    def test_all_hours_excludes_sunday(self) -> None:
+        """all_hours includes 6 days (no Sunday per PRD-0024)."""
+        hours = Hours(gid="123", custom_fields=[])
         all_hrs = hours.all_hours
         assert "monday" in all_hrs
-        assert "sunday" in all_hrs
-        assert len(all_hrs) == 7
+        assert "saturday" in all_hrs
+        assert "sunday" not in all_hrs  # Removed per PRD-0024
+        assert len(all_hrs) == 6
 
 
 class TestHoursIsOpenOn:
     """Tests for Hours.is_open_on method."""
 
     def test_is_open_on_returns_true_when_hours_set(self) -> None:
-        """is_open_on returns True when hours are set."""
-        hours = Hours(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Monday Hours", "text_value": "9:00 AM - 5:00 PM"}
+        """is_open_on returns True when hours are set (non-empty list)."""
+        hours = Hours(gid="123", custom_fields=[])
+        hours.get_custom_fields().set(
+            "Monday",
+            [
+                {"gid": "t1", "name": "08:00:00"},
             ],
         )
         assert hours.is_open_on("monday") is True
 
-    def test_is_open_on_returns_false_when_closed(self) -> None:
-        """is_open_on returns False when hours are 'Closed'."""
-        hours = Hours(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Sunday Hours", "text_value": "Closed"}
-            ],
-        )
-        assert hours.is_open_on("sunday") is False
-
-    def test_is_open_on_returns_false_when_not_set(self) -> None:
-        """is_open_on returns False when hours not set."""
+    def test_is_open_on_returns_false_when_empty(self) -> None:
+        """is_open_on returns False when hours are empty list."""
         hours = Hours(gid="123", custom_fields=[])
         assert hours.is_open_on("monday") is False
 
     def test_is_open_on_case_insensitive(self) -> None:
         """is_open_on is case-insensitive for day names."""
-        hours = Hours(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Monday Hours", "text_value": "9-5"}
+        hours = Hours(gid="123", custom_fields=[])
+        hours.get_custom_fields().set(
+            "Monday",
+            [
+                {"gid": "t1", "name": "08:00:00"},
             ],
         )
         assert hours.is_open_on("MONDAY") is True
         assert hours.is_open_on("Monday") is True
 
-    @pytest.mark.parametrize("closed_value", ["Closed", "closed", "N/A", "none", ""])
-    def test_is_open_on_recognizes_closed_indicators(self, closed_value: str) -> None:
-        """is_open_on recognizes various closed indicators."""
-        hours = Hours(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Monday Hours", "text_value": closed_value}
-            ],
-        )
-        assert hours.is_open_on("monday") is False
+    def test_is_open_on_unknown_day(self) -> None:
+        """is_open_on returns False for unknown day."""
+        hours = Hours(gid="123", custom_fields=[])
+        assert hours.is_open_on("sunday") is False  # Sunday not in Asana
 
 
 class TestHoursNavigation:
@@ -245,3 +284,22 @@ class TestHoursNavigation:
         hours._invalidate_refs()
         assert hours._location_holder is None
         assert hours._business is None
+
+
+class TestHoursFieldsClass:
+    """Tests for Hours.Fields class constants per PRD-0024."""
+
+    def test_field_names_match_asana(self) -> None:
+        """Fields class has correct names per PRD-0024."""
+        assert Hours.Fields.MONDAY == "Monday"
+        assert Hours.Fields.TUESDAY == "Tuesday"
+        assert Hours.Fields.WEDNESDAY == "Wednesday"
+        assert Hours.Fields.THURSDAY == "Thursday"
+        assert Hours.Fields.FRIDAY == "Friday"
+        assert Hours.Fields.SATURDAY == "Saturday"
+
+    def test_stale_fields_removed(self) -> None:
+        """Stale fields are removed per PRD-0024."""
+        assert not hasattr(Hours.Fields, "SUNDAY_HOURS")
+        assert not hasattr(Hours.Fields, "TIMEZONE")
+        assert not hasattr(Hours.Fields, "NOTES")

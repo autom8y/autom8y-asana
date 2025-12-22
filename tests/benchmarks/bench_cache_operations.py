@@ -34,7 +34,9 @@ class BenchmarkResult(NamedTuple):
     throughput_ops_per_sec: float
 
 
-def benchmark_cache_hit(cache: EnhancedInMemoryCacheProvider, iterations: int = 10000) -> BenchmarkResult:
+def benchmark_cache_hit(
+    cache: EnhancedInMemoryCacheProvider, iterations: int = 10000
+) -> BenchmarkResult:
     """Benchmark cache hit latency.
 
     Pre-populates cache, then measures read latency.
@@ -73,7 +75,9 @@ def benchmark_cache_hit(cache: EnhancedInMemoryCacheProvider, iterations: int = 
     )
 
 
-def benchmark_cache_miss(cache: EnhancedInMemoryCacheProvider, iterations: int = 10000) -> BenchmarkResult:
+def benchmark_cache_miss(
+    cache: EnhancedInMemoryCacheProvider, iterations: int = 10000
+) -> BenchmarkResult:
     """Benchmark cache miss latency.
 
     Measures read latency for non-existent keys.
@@ -100,7 +104,9 @@ def benchmark_cache_miss(cache: EnhancedInMemoryCacheProvider, iterations: int =
     )
 
 
-def benchmark_cache_write(cache: EnhancedInMemoryCacheProvider, iterations: int = 10000) -> BenchmarkResult:
+def benchmark_cache_write(
+    cache: EnhancedInMemoryCacheProvider, iterations: int = 10000
+) -> BenchmarkResult:
     """Benchmark cache write latency.
 
     Measures write latency for new entries.
@@ -136,7 +142,9 @@ def benchmark_cache_write(cache: EnhancedInMemoryCacheProvider, iterations: int 
     )
 
 
-def benchmark_cache_overwrite(cache: EnhancedInMemoryCacheProvider, iterations: int = 10000) -> BenchmarkResult:
+def benchmark_cache_overwrite(
+    cache: EnhancedInMemoryCacheProvider, iterations: int = 10000
+) -> BenchmarkResult:
     """Benchmark cache overwrite latency.
 
     Measures write latency when overwriting existing entries.
@@ -183,7 +191,9 @@ def benchmark_cache_overwrite(cache: EnhancedInMemoryCacheProvider, iterations: 
     )
 
 
-def benchmark_invalidation(cache: EnhancedInMemoryCacheProvider, iterations: int = 10000) -> BenchmarkResult:
+def benchmark_invalidation(
+    cache: EnhancedInMemoryCacheProvider, iterations: int = 10000
+) -> BenchmarkResult:
     """Benchmark cache invalidation latency."""
     now = datetime.now(timezone.utc)
 
@@ -250,7 +260,7 @@ def main() -> None:
     print("\n" + "=" * 60)
     print("CACHE OPERATIONS BENCHMARK")
     print("=" * 60)
-    print(f"Backend: EnhancedInMemoryCacheProvider")
+    print("Backend: EnhancedInMemoryCacheProvider")
     print(f"Time: {datetime.now().isoformat()}")
 
     # Create cache with large capacity to avoid eviction during benchmarks
@@ -281,7 +291,9 @@ def main() -> None:
     print("=" * 60)
     for result in results:
         avg_ms = result.avg_latency_us / 1000
-        print(f"{result.operation:20s}: {avg_ms:.4f} ms avg, {result.throughput_ops_per_sec:,.0f} ops/sec")
+        print(
+            f"{result.operation:20s}: {avg_ms:.4f} ms avg, {result.throughput_ops_per_sec:,.0f} ops/sec"
+        )
 
 
 if __name__ == "__main__":

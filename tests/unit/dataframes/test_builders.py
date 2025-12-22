@@ -7,7 +7,6 @@ lazy/eager evaluation, section filtering, and extractor selection.
 
 from __future__ import annotations
 
-import datetime as dt
 from decimal import Decimal
 from typing import Any
 from unittest.mock import MagicMock
@@ -21,10 +20,8 @@ from autom8_asana.dataframes.builders import (
     ProjectDataFrameBuilder,
     SectionDataFrameBuilder,
 )
-from autom8_asana.dataframes.exceptions import SchemaNotFoundError
 from autom8_asana.dataframes.extractors.base import BaseExtractor
 from autom8_asana.dataframes.models.schema import DataFrameSchema
-from autom8_asana.dataframes.models.task_row import TaskRow, UnitRow
 from autom8_asana.dataframes.resolver import MockCustomFieldResolver
 from autom8_asana.dataframes.schemas import BASE_SCHEMA, CONTACT_SCHEMA, UNIT_SCHEMA
 from autom8_asana.models.common import NameGid
@@ -130,31 +127,35 @@ def task_no_memberships() -> Task:
 @pytest.fixture
 def unit_resolver() -> MockCustomFieldResolver:
     """Create a mock resolver with Unit custom field values."""
-    return MockCustomFieldResolver({
-        "mrr": Decimal("5000.00"),
-        "weekly_ad_spend": Decimal("1500.50"),
-        "products": ["Product A", "Product B"],
-        "languages": ["English", "Spanish"],
-        "discount": Decimal("10.5"),
-        "vertical": "Healthcare",
-        "specialty": "Dental",
-    })
+    return MockCustomFieldResolver(
+        {
+            "mrr": Decimal("5000.00"),
+            "weekly_ad_spend": Decimal("1500.50"),
+            "products": ["Product A", "Product B"],
+            "languages": ["English", "Spanish"],
+            "discount": Decimal("10.5"),
+            "vertical": "Healthcare",
+            "specialty": "Dental",
+        }
+    )
 
 
 @pytest.fixture
 def contact_resolver() -> MockCustomFieldResolver:
     """Create a mock resolver with Contact custom field values."""
-    return MockCustomFieldResolver({
-        "full_name": "John Doe",
-        "nickname": "Johnny",
-        "contact_phone": "+1-555-0123",
-        "contact_email": "john.doe@example.com",
-        "position": "Manager",
-        "employee_id": "EMP001",
-        "contact_url": "https://linkedin.com/in/johndoe",
-        "time_zone": "America/New_York",
-        "city": "New York",
-    })
+    return MockCustomFieldResolver(
+        {
+            "full_name": "John Doe",
+            "nickname": "Johnny",
+            "contact_phone": "+1-555-0123",
+            "contact_email": "john.doe@example.com",
+            "position": "Manager",
+            "employee_id": "EMP001",
+            "contact_url": "https://linkedin.com/in/johndoe",
+            "time_zone": "America/New_York",
+            "city": "New York",
+        }
+    )
 
 
 @pytest.fixture
@@ -185,14 +186,16 @@ def many_tasks() -> list[Task]:
     """Create a list of tasks exceeding LAZY_THRESHOLD."""
     tasks = []
     for i in range(LAZY_THRESHOLD + 50):  # 150 tasks
-        tasks.append(Task(
-            gid=f"task_{i:06d}",
-            name=f"Task {i}",
-            resource_subtype="default_task",
-            completed=False,
-            created_at="2024-01-15T10:30:00.000Z",
-            modified_at="2024-01-16T15:45:30.000Z",
-        ))
+        tasks.append(
+            Task(
+                gid=f"task_{i:06d}",
+                name=f"Task {i}",
+                resource_subtype="default_task",
+                completed=False,
+                created_at="2024-01-15T10:30:00.000Z",
+                modified_at="2024-01-16T15:45:30.000Z",
+            )
+        )
     return tasks
 
 
@@ -494,6 +497,7 @@ class TestDataFrameBuilder:
         extractor = builder._get_extractor()
 
         from autom8_asana.dataframes.extractors import UnitExtractor
+
         assert isinstance(extractor, UnitExtractor)
 
     def test_create_extractor_contact(
@@ -509,6 +513,7 @@ class TestDataFrameBuilder:
         extractor = builder._get_extractor()
 
         from autom8_asana.dataframes.extractors import ContactExtractor
+
         assert isinstance(extractor, ContactExtractor)
 
     def test_create_extractor_wildcard_type(self) -> None:
@@ -522,6 +527,7 @@ class TestDataFrameBuilder:
         )
 
         from autom8_asana.dataframes.extractors import DefaultExtractor
+
         extractor = builder._get_extractor()
         assert isinstance(extractor, DefaultExtractor)
 
@@ -537,6 +543,7 @@ class TestDataFrameBuilder:
         )
 
         from autom8_asana.dataframes.extractors import DefaultExtractor
+
         extractor = builder._get_extractor()
         assert isinstance(extractor, DefaultExtractor)
 

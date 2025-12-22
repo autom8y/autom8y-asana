@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import pytest
 
 from autom8_asana.models.business.unit import Unit, UnitHolder
 from autom8_asana.models.business.offer import Offer, OfferHolder
@@ -223,12 +222,14 @@ class TestUnitCustomFields:
         assert unit.weekly_ad_spend == Decimal("1200.00")
 
     def test_discount(self) -> None:
-        """discount getter/setter works."""
+        """discount getter returns enum value per PRD-0024."""
         unit = Unit(
             gid="123",
-            custom_fields=[{"gid": "1", "name": "Discount", "number_value": 10.5}],
+            custom_fields=[
+                {"gid": "1", "name": "Discount", "enum_value": {"name": "10%"}}
+            ],
         )
-        assert unit.discount == Decimal("10.5")
+        assert unit.discount == "10%"
 
     def test_meta_spend(self) -> None:
         """meta_spend getter/setter works."""
@@ -242,7 +243,9 @@ class TestUnitCustomFields:
         """tiktok_spend getter/setter works."""
         unit = Unit(
             gid="123",
-            custom_fields=[{"gid": "1", "name": "Tiktok Spend", "number_value": 300.00}],
+            custom_fields=[
+                {"gid": "1", "name": "Tiktok Spend", "number_value": 300.00}
+            ],
         )
         assert unit.tiktok_spend == Decimal("300.00")
 
@@ -262,10 +265,13 @@ class TestUnitCustomFields:
         """platforms returns list from multi-enum field."""
         unit = Unit(gid="123", custom_fields=[])
         # Use set() method to properly add multi-value fields
-        unit.get_custom_fields().set("Platforms", [
-            {"gid": "e1", "name": "Google"},
-            {"gid": "e2", "name": "Meta"},
-        ])
+        unit.get_custom_fields().set(
+            "Platforms",
+            [
+                {"gid": "e1", "name": "Google"},
+                {"gid": "e2", "name": "Meta"},
+            ],
+        )
         assert unit.platforms == ["Google", "Meta"]
 
     def test_platforms_empty(self) -> None:
@@ -285,32 +291,45 @@ class TestUnitCustomFields:
         )
         assert unit.vertical == "Retail"
 
-    def test_specialty_enum(self) -> None:
-        """specialty extracts name from enum dict."""
-        unit = Unit(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Specialty", "enum_value": {"name": "Dental"}}
+    def test_specialty_multi_enum(self) -> None:
+        """specialty returns list from multi-enum per PRD-0024."""
+        unit = Unit(gid="123", custom_fields=[])
+        unit.get_custom_fields().set(
+            "Specialty",
+            [
+                {"gid": "s1", "name": "Dental"},
+                {"gid": "s2", "name": "Chiro"},
             ],
         )
-        assert unit.specialty == "Dental"
+        assert unit.specialty == ["Dental", "Chiro"]
+
+    def test_specialty_empty(self) -> None:
+        """specialty returns empty list when not set."""
+        unit = Unit(gid="123", custom_fields=[])
+        assert unit.specialty == []
 
     def test_products_multi_enum(self) -> None:
         """products returns list from multi-enum field."""
         unit = Unit(gid="123", custom_fields=[])
-        unit.get_custom_fields().set("Products", [
-            {"gid": "p1", "name": "Product A"},
-            {"gid": "p2", "name": "Product B"},
-        ])
+        unit.get_custom_fields().set(
+            "Products",
+            [
+                {"gid": "p1", "name": "Product A"},
+                {"gid": "p2", "name": "Product B"},
+            ],
+        )
         assert unit.products == ["Product A", "Product B"]
 
     def test_languages_multi_enum(self) -> None:
         """languages returns list from multi-enum field."""
         unit = Unit(gid="123", custom_fields=[])
-        unit.get_custom_fields().set("Languages", [
-            {"gid": "l1", "name": "English"},
-            {"gid": "l2", "name": "Spanish"},
-        ])
+        unit.get_custom_fields().set(
+            "Languages",
+            [
+                {"gid": "l1", "name": "English"},
+                {"gid": "l2", "name": "Spanish"},
+            ],
+        )
         assert unit.languages == ["English", "Spanish"]
 
     # --- Demographics Fields ---
@@ -339,15 +358,22 @@ class TestUnitCustomFields:
         )
         assert unit.max_age == 65
 
-    def test_gender_enum(self) -> None:
-        """gender extracts name from enum dict."""
-        unit = Unit(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Gender", "enum_value": {"name": "Female"}}
+    def test_gender_multi_enum(self) -> None:
+        """gender returns list from multi-enum per PRD-0024."""
+        unit = Unit(gid="123", custom_fields=[])
+        unit.get_custom_fields().set(
+            "Gender",
+            [
+                {"gid": "g1", "name": "Female"},
+                {"gid": "g2", "name": "Male"},
             ],
         )
-        assert unit.gender == "Female"
+        assert unit.gender == ["Female", "Male"]
+
+    def test_gender_empty(self) -> None:
+        """gender returns empty list when not set."""
+        unit = Unit(gid="123", custom_fields=[])
+        assert unit.gender == []
 
     def test_booking_type_enum(self) -> None:
         """booking_type extracts name from enum dict."""
@@ -361,15 +387,43 @@ class TestUnitCustomFields:
 
     # --- Form Settings Fields ---
 
-    def test_form_questions(self) -> None:
-        """form_questions getter/setter works."""
+    def test_form_questions_multi_enum(self) -> None:
+        """form_questions returns list from multi-enum per PRD-0024."""
+        unit = Unit(gid="123", custom_fields=[])
+        unit.get_custom_fields().set(
+            "Form Questions",
+            [
+                {"gid": "q1", "name": "Name"},
+                {"gid": "q2", "name": "Email"},
+                {"gid": "q3", "name": "Phone"},
+            ],
+        )
+        assert unit.form_questions == ["Name", "Email", "Phone"]
+
+    def test_form_questions_empty(self) -> None:
+        """form_questions returns empty list when not set."""
+        unit = Unit(gid="123", custom_fields=[])
+        assert unit.form_questions == []
+
+    def test_zip_codes_radius_int(self) -> None:
+        """zip_codes_radius returns int per PRD-0024."""
         unit = Unit(
             gid="123",
             custom_fields=[
-                {"gid": "1", "name": "Form Questions", "text_value": "Q1;Q2;Q3"}
+                {"gid": "1", "name": "Zip Codes Radius", "number_value": 25}
             ],
         )
-        assert unit.form_questions == "Q1;Q2;Q3"
+        assert unit.zip_codes_radius == 25
+
+    def test_internal_notes(self) -> None:
+        """internal_notes getter works per PRD-0024."""
+        unit = Unit(
+            gid="123",
+            custom_fields=[
+                {"gid": "1", "name": "Internal Notes", "text_value": "Some notes here"}
+            ],
+        )
+        assert unit.internal_notes == "Some notes here"
 
     def test_sms_lead_verification(self) -> None:
         """sms_lead_verification getter/setter works."""

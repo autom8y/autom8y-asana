@@ -356,7 +356,9 @@ class TestCircuitBreakerEventHooks:
         cb.on_success(bad_hook)
 
         # These should not raise despite bad hooks
-        await cb.record_failure(Exception("error"))  # Triggers state change + failure hooks
+        await cb.record_failure(
+            Exception("error")
+        )  # Triggers state change + failure hooks
         assert cb.state == CircuitState.OPEN
 
         # Set up for success test

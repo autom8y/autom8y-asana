@@ -43,7 +43,11 @@ class TestContactOwnerDetection:
         contact = Contact(
             gid="123",
             custom_fields=[
-                {"gid": "456", "name": "Position", "enum_value": {"name": position_value}}
+                {
+                    "gid": "456",
+                    "name": "Position",
+                    "enum_value": {"name": position_value},
+                }
             ],
         )
         assert contact.is_owner is True
@@ -57,7 +61,11 @@ class TestContactOwnerDetection:
         contact = Contact(
             gid="123",
             custom_fields=[
-                {"gid": "456", "name": "Position", "enum_value": {"name": position_value}}
+                {
+                    "gid": "456",
+                    "name": "Position",
+                    "enum_value": {"name": position_value},
+                }
             ],
         )
         assert contact.is_owner is False
@@ -133,7 +141,11 @@ class TestContactCustomFields:
         contact = Contact(
             gid="123",
             custom_fields=[
-                {"gid": "456", "name": "Contact Email", "text_value": "john@example.com"}
+                {
+                    "gid": "456",
+                    "name": "Contact Email",
+                    "text_value": "john@example.com",
+                }
             ],
         )
         assert contact.contact_email == "john@example.com"
@@ -173,9 +185,7 @@ class TestContactCustomFields:
         """position returns plain string when not dict."""
         contact = Contact(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "Position", "text_value": "Manager"}
-            ],
+            custom_fields=[{"gid": "456", "name": "Position", "text_value": "Manager"}],
         )
         assert contact.position == "Manager"
 

@@ -22,11 +22,13 @@ class TestLoadTaskEntry:
     async def test_cache_miss_fetches_data(self) -> None:
         """Test that cache miss triggers API fetch."""
         cache = EnhancedInMemoryCacheProvider()
-        fetcher = AsyncMock(return_value={
-            "gid": "123",
-            "name": "Test Task",
-            "modified_at": "2025-01-01T00:00:00Z",
-        })
+        fetcher = AsyncMock(
+            return_value={
+                "gid": "123",
+                "name": "Test Task",
+                "modified_at": "2025-01-01T00:00:00Z",
+            }
+        )
 
         entry, hit = await load_task_entry(
             task_gid="123",
@@ -87,11 +89,13 @@ class TestLoadTaskEntry:
         )
         cache.set_versioned("123", cached_entry)
 
-        fetcher = AsyncMock(return_value={
-            "gid": "123",
-            "name": "New Task",
-            "modified_at": new_time.isoformat(),
-        })
+        fetcher = AsyncMock(
+            return_value={
+                "gid": "123",
+                "name": "New Task",
+                "modified_at": new_time.isoformat(),
+            }
+        )
 
         entry, hit = await load_task_entry(
             task_gid="123",
@@ -177,11 +181,13 @@ class TestLoadTaskEntry:
     async def test_caches_fetched_data(self) -> None:
         """Test that fetched data is cached."""
         cache = EnhancedInMemoryCacheProvider()
-        fetcher = AsyncMock(return_value={
-            "gid": "123",
-            "name": "Test Task",
-            "modified_at": "2025-01-01T00:00:00Z",
-        })
+        fetcher = AsyncMock(
+            return_value={
+                "gid": "123",
+                "name": "Test Task",
+                "modified_at": "2025-01-01T00:00:00Z",
+            }
+        )
 
         await load_task_entry(
             task_gid="123",
@@ -199,11 +205,13 @@ class TestLoadTaskEntry:
     async def test_custom_ttl(self) -> None:
         """Test custom TTL is applied to cached entry."""
         cache = EnhancedInMemoryCacheProvider()
-        fetcher = AsyncMock(return_value={
-            "gid": "123",
-            "name": "Test Task",
-            "modified_at": "2025-01-01T00:00:00Z",
-        })
+        fetcher = AsyncMock(
+            return_value={
+                "gid": "123",
+                "name": "Test Task",
+                "modified_at": "2025-01-01T00:00:00Z",
+            }
+        )
 
         entry, _ = await load_task_entry(
             task_gid="123",
@@ -220,15 +228,17 @@ class TestLoadTaskEntry:
     async def test_project_gid_stored(self) -> None:
         """Test project_gid is stored in cache entry."""
         cache = EnhancedInMemoryCacheProvider()
-        fetcher = AsyncMock(return_value={
-            "gid": "123",
-            "name": "Test Task",
-            "modified_at": "2025-01-01T00:00:00Z",
-        })
+        fetcher = AsyncMock(
+            return_value={
+                "gid": "123",
+                "name": "Test Task",
+                "modified_at": "2025-01-01T00:00:00Z",
+            }
+        )
 
         entry, _ = await load_task_entry(
             task_gid="123",
-            entry_type=EntryType.STRUC,
+            entry_type=EntryType.DATAFRAME,
             cache=cache,
             fetcher=fetcher,
             project_gid="project_456",
@@ -241,11 +251,13 @@ class TestLoadTaskEntry:
     async def test_version_extracted_from_data(self) -> None:
         """Test version is extracted from fetched data."""
         cache = EnhancedInMemoryCacheProvider()
-        fetcher = AsyncMock(return_value={
-            "gid": "123",
-            "name": "Test Task",
-            "modified_at": "2025-06-15T12:30:00Z",
-        })
+        fetcher = AsyncMock(
+            return_value={
+                "gid": "123",
+                "name": "Test Task",
+                "modified_at": "2025-06-15T12:30:00Z",
+            }
+        )
 
         entry, _ = await load_task_entry(
             task_gid="123",
@@ -263,11 +275,13 @@ class TestLoadTaskEntry:
         cache = EnhancedInMemoryCacheProvider()
         before = datetime.now(timezone.utc)
 
-        fetcher = AsyncMock(return_value={
-            "gid": "123",
-            "name": "Test Task",
-            # No modified_at
-        })
+        fetcher = AsyncMock(
+            return_value={
+                "gid": "123",
+                "name": "Test Task",
+                # No modified_at
+            }
+        )
 
         entry, _ = await load_task_entry(
             task_gid="123",
@@ -290,15 +304,19 @@ class TestLoadTaskEntries:
         """Test loading multiple entry types concurrently."""
         cache = EnhancedInMemoryCacheProvider()
 
-        task_fetcher = AsyncMock(return_value={
-            "gid": "123",
-            "name": "Task",
-            "modified_at": "2025-01-01T00:00:00Z",
-        })
-        subtasks_fetcher = AsyncMock(return_value={
-            "subtasks": [],
-            "modified_at": "2025-01-01T00:00:00Z",
-        })
+        task_fetcher = AsyncMock(
+            return_value={
+                "gid": "123",
+                "name": "Task",
+                "modified_at": "2025-01-01T00:00:00Z",
+            }
+        )
+        subtasks_fetcher = AsyncMock(
+            return_value={
+                "subtasks": [],
+                "modified_at": "2025-01-01T00:00:00Z",
+            }
+        )
 
         results = await load_task_entries(
             task_gid="123",
@@ -341,10 +359,12 @@ class TestLoadTaskEntries:
         )
 
         task_fetcher = AsyncMock()
-        subtasks_fetcher = AsyncMock(return_value={
-            "subtasks": [],
-            "modified_at": now.isoformat(),
-        })
+        subtasks_fetcher = AsyncMock(
+            return_value={
+                "subtasks": [],
+                "modified_at": now.isoformat(),
+            }
+        )
 
         results = await load_task_entries(
             task_gid="123",
@@ -369,10 +389,12 @@ class TestLoadTaskEntries:
         """Test missing fetcher returns None for that type."""
         cache = EnhancedInMemoryCacheProvider()
 
-        task_fetcher = AsyncMock(return_value={
-            "gid": "123",
-            "modified_at": "2025-01-01T00:00:00Z",
-        })
+        task_fetcher = AsyncMock(
+            return_value={
+                "gid": "123",
+                "modified_at": "2025-01-01T00:00:00Z",
+            }
+        )
 
         results = await load_task_entries(
             task_gid="123",
@@ -397,10 +419,12 @@ class TestLoadTaskEntries:
         cache = EnhancedInMemoryCacheProvider()
 
         task_fetcher = AsyncMock(side_effect=Exception("API Error"))
-        subtasks_fetcher = AsyncMock(return_value={
-            "subtasks": [],
-            "modified_at": "2025-01-01T00:00:00Z",
-        })
+        subtasks_fetcher = AsyncMock(
+            return_value={
+                "subtasks": [],
+                "modified_at": "2025-01-01T00:00:00Z",
+            }
+        )
 
         results = await load_task_entries(
             task_gid="123",
@@ -443,10 +467,20 @@ class TestLoadBatchEntries:
         """Test all GIDs are fetched when cache is empty."""
         cache = EnhancedInMemoryCacheProvider()
 
-        batch_fetcher = AsyncMock(return_value={
-            "123": {"gid": "123", "name": "Task 1", "modified_at": "2025-01-01T00:00:00Z"},
-            "456": {"gid": "456", "name": "Task 2", "modified_at": "2025-01-01T00:00:00Z"},
-        })
+        batch_fetcher = AsyncMock(
+            return_value={
+                "123": {
+                    "gid": "123",
+                    "name": "Task 1",
+                    "modified_at": "2025-01-01T00:00:00Z",
+                },
+                "456": {
+                    "gid": "456",
+                    "name": "Task 2",
+                    "modified_at": "2025-01-01T00:00:00Z",
+                },
+            }
+        )
 
         results = await load_batch_entries(
             task_gids=["123", "456"],
@@ -487,9 +521,15 @@ class TestLoadBatchEntries:
             ),
         )
 
-        batch_fetcher = AsyncMock(return_value={
-            "456": {"gid": "456", "name": "Fetched Task", "modified_at": now.isoformat()},
-        })
+        batch_fetcher = AsyncMock(
+            return_value={
+                "456": {
+                    "gid": "456",
+                    "name": "Fetched Task",
+                    "modified_at": now.isoformat(),
+                },
+            }
+        )
 
         results = await load_batch_entries(
             task_gids=["123", "456"],
@@ -564,9 +604,15 @@ class TestLoadBatchEntries:
             ),
         )
 
-        batch_fetcher = AsyncMock(return_value={
-            "123": {"gid": "123", "name": "New Task", "modified_at": new_time.isoformat()},
-        })
+        batch_fetcher = AsyncMock(
+            return_value={
+                "123": {
+                    "gid": "123",
+                    "name": "New Task",
+                    "modified_at": new_time.isoformat(),
+                },
+            }
+        )
 
         results = await load_batch_entries(
             task_gids=["123"],
@@ -587,10 +633,20 @@ class TestLoadBatchEntries:
         """Test fetched entries are batch cached."""
         cache = EnhancedInMemoryCacheProvider()
 
-        batch_fetcher = AsyncMock(return_value={
-            "123": {"gid": "123", "name": "Task 1", "modified_at": "2025-01-01T00:00:00Z"},
-            "456": {"gid": "456", "name": "Task 2", "modified_at": "2025-01-01T00:00:00Z"},
-        })
+        batch_fetcher = AsyncMock(
+            return_value={
+                "123": {
+                    "gid": "123",
+                    "name": "Task 1",
+                    "modified_at": "2025-01-01T00:00:00Z",
+                },
+                "456": {
+                    "gid": "456",
+                    "name": "Task 2",
+                    "modified_at": "2025-01-01T00:00:00Z",
+                },
+            }
+        )
 
         await load_batch_entries(
             task_gids=["123", "456"],
@@ -608,10 +664,16 @@ class TestLoadBatchEntries:
         """Test GIDs not returned by fetcher have None entries."""
         cache = EnhancedInMemoryCacheProvider()
 
-        batch_fetcher = AsyncMock(return_value={
-            "123": {"gid": "123", "name": "Task 1", "modified_at": "2025-01-01T00:00:00Z"},
-            # "456" not returned
-        })
+        batch_fetcher = AsyncMock(
+            return_value={
+                "123": {
+                    "gid": "123",
+                    "name": "Task 1",
+                    "modified_at": "2025-01-01T00:00:00Z",
+                },
+                # "456" not returned
+            }
+        )
 
         results = await load_batch_entries(
             task_gids=["123", "456"],
@@ -648,9 +710,15 @@ class TestLoadBatchEntries:
         """Test custom TTL is applied to cached entries."""
         cache = EnhancedInMemoryCacheProvider()
 
-        batch_fetcher = AsyncMock(return_value={
-            "123": {"gid": "123", "name": "Task 1", "modified_at": "2025-01-01T00:00:00Z"},
-        })
+        batch_fetcher = AsyncMock(
+            return_value={
+                "123": {
+                    "gid": "123",
+                    "name": "Task 1",
+                    "modified_at": "2025-01-01T00:00:00Z",
+                },
+            }
+        )
 
         results = await load_batch_entries(
             task_gids=["123"],
@@ -670,10 +738,16 @@ class TestLoadBatchEntries:
         cache = EnhancedInMemoryCacheProvider()
         gids = [str(i) for i in range(150)]
 
-        batch_fetcher = AsyncMock(return_value={
-            gid: {"gid": gid, "name": f"Task {gid}", "modified_at": "2025-01-01T00:00:00Z"}
-            for gid in gids
-        })
+        batch_fetcher = AsyncMock(
+            return_value={
+                gid: {
+                    "gid": gid,
+                    "name": f"Task {gid}",
+                    "modified_at": "2025-01-01T00:00:00Z",
+                }
+                for gid in gids
+            }
+        )
 
         results = await load_batch_entries(
             task_gids=gids,
@@ -706,10 +780,16 @@ class TestLoadBatchEntries:
 
         gids = [str(i) for i in range(150)]
 
-        batch_fetcher = AsyncMock(return_value={
-            str(i): {"gid": str(i), "name": f"Fetched {i}", "modified_at": now.isoformat()}
-            for i in range(50, 150)
-        })
+        batch_fetcher = AsyncMock(
+            return_value={
+                str(i): {
+                    "gid": str(i),
+                    "name": f"Fetched {i}",
+                    "modified_at": now.isoformat(),
+                }
+                for i in range(50, 150)
+            }
+        )
 
         results = await load_batch_entries(
             task_gids=gids,

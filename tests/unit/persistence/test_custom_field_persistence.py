@@ -20,7 +20,7 @@ import pytest
 
 from autom8_asana.batch.models import BatchResult
 from autom8_asana.models import Task
-from autom8_asana.persistence.models import OperationType, PlannedOperation
+from autom8_asana.persistence.models import OperationType
 from autom8_asana.persistence.session import SaveSession
 
 

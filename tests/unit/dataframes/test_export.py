@@ -29,7 +29,6 @@ import pytest
 from polars.exceptions import ComputeError
 
 from autom8_asana.dataframes.builders import (
-    LAZY_THRESHOLD,
     DataFrameBuilder,
     ProjectDataFrameBuilder,
     SectionDataFrameBuilder,
@@ -37,7 +36,7 @@ from autom8_asana.dataframes.builders import (
 from autom8_asana.dataframes.extractors.base import BaseExtractor
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.dataframes.resolver import MockCustomFieldResolver
-from autom8_asana.dataframes.schemas import BASE_SCHEMA, CONTACT_SCHEMA, UNIT_SCHEMA
+from autom8_asana.dataframes.schemas import UNIT_SCHEMA
 from autom8_asana.models.common import NameGid
 from autom8_asana.models.task import Task
 
@@ -106,12 +105,15 @@ class SimpleExtractor(BaseExtractor):
 
     def _create_row(self, data: dict[str, Any]) -> Any:
         """Create a simple dict row."""
+
         # Return a simple object that has to_dict method
         class SimpleRow:
             def __init__(self, d: dict[str, Any]) -> None:
                 self._data = d
+
             def to_dict(self) -> dict[str, Any]:
                 return self._data
+
         return SimpleRow(data)
 
 
@@ -204,15 +206,17 @@ def task_with_null_fields() -> Task:
 @pytest.fixture
 def unit_resolver() -> MockCustomFieldResolver:
     """Create a mock resolver with Unit custom field values."""
-    return MockCustomFieldResolver({
-        "mrr": Decimal("5000.00"),
-        "weekly_ad_spend": Decimal("1500.50"),
-        "products": ["Product A", "Product B"],
-        "languages": ["English", "Spanish"],
-        "discount": Decimal("10.5"),
-        "vertical": "Healthcare",
-        "specialty": "Dental",
-    })
+    return MockCustomFieldResolver(
+        {
+            "mrr": Decimal("5000.00"),
+            "weekly_ad_spend": Decimal("1500.50"),
+            "products": ["Product A", "Product B"],
+            "languages": ["English", "Spanish"],
+            "discount": Decimal("10.5"),
+            "vertical": "Healthcare",
+            "specialty": "Dental",
+        }
+    )
 
 
 @pytest.fixture
@@ -234,7 +238,12 @@ def mock_project_multiple_tasks(
     """Create a mock project with multiple tasks."""
     project = MagicMock()
     project.gid = "proj123"
-    project.tasks = [simple_task, unicode_task, special_chars_task, task_with_null_fields]
+    project.tasks = [
+        simple_task,
+        unicode_task,
+        special_chars_task,
+        task_with_null_fields,
+    ]
     return project
 
 
@@ -690,7 +699,9 @@ class TestExportCSV:
         )
         output_path = tmp_path / "nested_types_test.csv"
 
-        with pytest.raises(ComputeError, match="CSV format does not support nested data"):
+        with pytest.raises(
+            ComputeError, match="CSV format does not support nested data"
+        ):
             builder.to_csv(output_path)
 
     def test_csv_section_builder_simple_schema(

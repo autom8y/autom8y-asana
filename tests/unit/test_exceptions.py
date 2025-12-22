@@ -2,7 +2,6 @@
 
 from unittest.mock import MagicMock
 
-import pytest
 
 from autom8_asana.exceptions import (
     AsanaError,
@@ -50,9 +49,7 @@ class TestFromResponse:
         """Test 401 returns AuthenticationError."""
         mock_response = MagicMock()
         mock_response.status_code = 401
-        mock_response.json.return_value = {
-            "errors": [{"message": "Invalid token"}]
-        }
+        mock_response.json.return_value = {"errors": [{"message": "Invalid token"}]}
 
         error = AsanaError.from_response(mock_response)
 
@@ -64,9 +61,7 @@ class TestFromResponse:
         """Test 403 returns ForbiddenError."""
         mock_response = MagicMock()
         mock_response.status_code = 403
-        mock_response.json.return_value = {
-            "errors": [{"message": "Access denied"}]
-        }
+        mock_response.json.return_value = {"errors": [{"message": "Access denied"}]}
 
         error = AsanaError.from_response(mock_response)
 
@@ -77,9 +72,7 @@ class TestFromResponse:
         """Test 404 returns NotFoundError."""
         mock_response = MagicMock()
         mock_response.status_code = 404
-        mock_response.json.return_value = {
-            "errors": [{"message": "Task not found"}]
-        }
+        mock_response.json.return_value = {"errors": [{"message": "Task not found"}]}
 
         error = AsanaError.from_response(mock_response)
 
@@ -90,9 +83,7 @@ class TestFromResponse:
         """Test 410 returns GoneError."""
         mock_response = MagicMock()
         mock_response.status_code = 410
-        mock_response.json.return_value = {
-            "errors": [{"message": "Resource deleted"}]
-        }
+        mock_response.json.return_value = {"errors": [{"message": "Resource deleted"}]}
 
         error = AsanaError.from_response(mock_response)
 
@@ -129,9 +120,7 @@ class TestFromResponse:
         """Test unknown status returns base AsanaError."""
         mock_response = MagicMock()
         mock_response.status_code = 418  # I'm a teapot
-        mock_response.json.return_value = {
-            "errors": [{"message": "I'm a teapot"}]
-        }
+        mock_response.json.return_value = {"errors": [{"message": "I'm a teapot"}]}
 
         error = AsanaError.from_response(mock_response)
 
@@ -180,14 +169,14 @@ class TestFromResponse:
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_response.headers = {}  # No X-Request-Id
-        mock_response.json.return_value = {
-            "errors": [{"message": "Server error"}]
-        }
+        mock_response.json.return_value = {"errors": [{"message": "Server error"}]}
 
         error = AsanaError.from_response(mock_response)
 
         assert "HTTP 500" in error.message
-        assert "request_id" not in error.message  # Should not include request_id context
+        assert (
+            "request_id" not in error.message
+        )  # Should not include request_id context
         assert "Server error" in error.message
 
 

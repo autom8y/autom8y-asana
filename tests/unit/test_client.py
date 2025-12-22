@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -55,7 +53,9 @@ class TestAsanaClientInit:
         assert client._config.base_url == "https://custom.asana.com/api/1.0"
         assert client._config.token_key == "CUSTOM_TOKEN_KEY"
 
-    def test_init_without_token_uses_env_provider(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_init_without_token_uses_env_provider(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """When no token is provided, EnvAuthProvider is used."""
         monkeypatch.setenv("ASANA_PAT", "env-token-value")
         client = AsanaClient()
@@ -76,7 +76,10 @@ class TestAsanaClientInit:
         with pytest.raises(AuthenticationError) as exc_info:
             AsanaClient(token="   ")
 
-        assert "empty" in str(exc_info.value).lower() or "whitespace" in str(exc_info.value).lower()
+        assert (
+            "empty" in str(exc_info.value).lower()
+            or "whitespace" in str(exc_info.value).lower()
+        )
 
 
 class TestTokenAuthProvider:

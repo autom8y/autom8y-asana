@@ -24,7 +24,6 @@ from autom8_asana.config import AsanaConfig
 from autom8_asana.models import (
     Attachment,
     Goal,
-    PageIterator,
     Portfolio,
     Story,
     Tag,
@@ -176,7 +175,9 @@ class TestWebhooksClientCreateAsync:
         assert result.gid == "wh123"
         mock_http.post.assert_called_once_with(
             "/webhooks",
-            json={"data": {"resource": "proj123", "target": "https://example.com/webhook"}},
+            json={
+                "data": {"resource": "proj123", "target": "https://example.com/webhook"}
+            },
         )
 
 
@@ -352,7 +353,9 @@ class TestTagsClientCreateAsync:
         assert result.gid == "tag123"
         mock_http.post.assert_called_once_with(
             "/tags",
-            json={"data": {"workspace": "ws1", "name": "Priority", "color": "dark-blue"}},
+            json={
+                "data": {"workspace": "ws1", "name": "Priority", "color": "dark-blue"}
+            },
         )
 
 
@@ -678,7 +681,13 @@ class TestPortfoliosClientCreateAsync:
         assert result.gid == "port123"
         mock_http.post.assert_called_once_with(
             "/portfolios",
-            json={"data": {"workspace": "ws1", "name": "New Portfolio", "color": "dark-green"}},
+            json={
+                "data": {
+                    "workspace": "ws1",
+                    "name": "New Portfolio",
+                    "color": "dark-green",
+                }
+            },
         )
 
 

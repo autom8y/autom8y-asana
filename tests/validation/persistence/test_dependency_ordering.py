@@ -156,11 +156,13 @@ class TestCycleDetection:
         tasks = []
         for i in range(5):
             next_idx = (i + 1) % 5  # Creates cycle: 0->1->2->3->4->0
-            tasks.append(Task(
-                gid=f"task_{i}",
-                name=f"Task {i}",
-                parent=NameGid(gid=f"task_{next_idx}"),
-            ))
+            tasks.append(
+                Task(
+                    gid=f"task_{i}",
+                    name=f"Task {i}",
+                    parent=NameGid(gid=f"task_{next_idx}"),
+                )
+            )
 
         graph = DependencyGraph()
         graph.build(tasks)

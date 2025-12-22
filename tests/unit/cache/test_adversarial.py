@@ -11,8 +11,6 @@ These tests attempt to break the cache implementation through:
 from __future__ import annotations
 
 import gc
-import json
-import sys
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -24,15 +22,19 @@ from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
 from autom8_asana.cache.batch import (
     ModificationCheckCache,
     fetch_task_modifications,
-    get_modification_cache,
     reset_modification_cache,
 )
-from autom8_asana.cache.entry import CacheEntry, EntryType, _parse_datetime
+from autom8_asana.cache.entry import CacheEntry, EntryType
 from autom8_asana.cache.freshness import Freshness
 from autom8_asana.cache.metrics import CacheEvent, CacheMetrics
 from autom8_asana.cache.settings import CacheSettings, OverflowSettings, TTLSettings
 from autom8_asana.cache.staleness import check_entry_staleness, partition_by_staleness
-from autom8_asana.cache.versioning import compare_versions, is_current, is_stale, parse_version
+from autom8_asana.cache.versioning import (
+    compare_versions,
+    is_current,
+    is_stale,
+    parse_version,
+)
 
 
 class TestMalformedDataEntry:
@@ -85,7 +87,7 @@ class TestMalformedDataEntry:
                 "emoji": "Task with emoji flag",
                 "chinese": "Chinese characters",
                 "arabic": "Arabic text",
-                "special": "Tab\tNewline\nQuote\"Backslash\\",
+                "special": 'Tab\tNewline\nQuote"Backslash\\',
             },
             entry_type=EntryType.TASK,
             version=datetime.now(timezone.utc),
@@ -356,7 +358,9 @@ class TestModificationCacheAdversarial:
             except Exception as e:
                 errors.append(e)
 
-        threads = [threading.Thread(target=set_modification, args=(i,)) for i in range(10)]
+        threads = [
+            threading.Thread(target=set_modification, args=(i,)) for i in range(10)
+        ]
         for t in threads:
             t.start()
         for t in threads:
@@ -374,7 +378,7 @@ class TestModificationCacheAdversarial:
 
         # Pre-populate
         for i in range(100):
-            cache.set(f"gid_{i}", f"2025-01-01T00:00:00Z")
+            cache.set(f"gid_{i}", "2025-01-01T00:00:00Z")
 
         errors: list[Exception] = []
 
@@ -792,6 +796,7 @@ class TestFetchModificationsAdversarial:
     @pytest.mark.asyncio
     async def test_api_returns_partial(self) -> None:
         """Test handling when API returns fewer GIDs than requested."""
+
         async def mock_api(gids: list[str]) -> dict[str, str]:
             # Only return half
             return {gid: "2025-01-01T00:00:00Z" for gid in gids[: len(gids) // 2]}
@@ -803,6 +808,7 @@ class TestFetchModificationsAdversarial:
     @pytest.mark.asyncio
     async def test_api_returns_extra(self) -> None:
         """Test handling when API returns more GIDs than requested."""
+
         async def mock_api(gids: list[str]) -> dict[str, str]:
             result = {gid: "2025-01-01T00:00:00Z" for gid in gids}
             result["extra_gid"] = "2025-01-01T00:00:00Z"  # Extra

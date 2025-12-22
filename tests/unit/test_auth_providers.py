@@ -11,7 +11,9 @@ from autom8_asana.exceptions import AuthenticationError
 class TestEnvAuthProvider:
     """Tests for EnvAuthProvider."""
 
-    def test_reads_from_environment_variable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_reads_from_environment_variable(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """get_secret reads value from environment variable."""
         monkeypatch.setenv("ASANA_PAT", "my-secret-token")
         provider = EnvAuthProvider()
@@ -68,7 +70,9 @@ class TestEnvAuthProvider:
 
         assert result == "custom-token-value"
 
-    def test_preserves_whitespace_in_value(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_preserves_whitespace_in_value(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """get_secret preserves leading/trailing whitespace in non-empty values.
 
         Note: The token itself has surrounding whitespace, but it's not empty

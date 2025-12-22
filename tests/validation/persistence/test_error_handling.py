@@ -15,8 +15,7 @@ Test Coverage:
 
 from __future__ import annotations
 
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -42,7 +41,6 @@ from .conftest import (
     create_mock_client,
     create_success_result,
     create_failure_result,
-    create_multi_result,
 )
 
 
@@ -58,10 +56,14 @@ class TestPartialFailure:
     async def test_some_succeed_some_fail(self) -> None:
         """SaveResult contains both succeeded and failed (FR-ERROR-002)."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(return_value=[
-            create_success_result(gid="1", request_index=0),
-            create_failure_result(message="Error", status_code=400, request_index=1),
-        ])
+        mock_client.batch.execute_async = AsyncMock(
+            return_value=[
+                create_success_result(gid="1", request_index=0),
+                create_failure_result(
+                    message="Error", status_code=400, request_index=1
+                ),
+            ]
+        )
 
         task1 = Task(gid="1", name="Task 1")
         task2 = Task(gid="2", name="Task 2")
@@ -81,10 +83,16 @@ class TestPartialFailure:
     async def test_all_fail(self) -> None:
         """All operations failing returns failed result."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(return_value=[
-            create_failure_result(message="Error 1", status_code=400, request_index=0),
-            create_failure_result(message="Error 2", status_code=500, request_index=1),
-        ])
+        mock_client.batch.execute_async = AsyncMock(
+            return_value=[
+                create_failure_result(
+                    message="Error 1", status_code=400, request_index=0
+                ),
+                create_failure_result(
+                    message="Error 2", status_code=500, request_index=1
+                ),
+            ]
+        )
 
         task1 = Task(gid="1", name="Task 1")
         task2 = Task(gid="2", name="Task 2")
@@ -105,9 +113,11 @@ class TestPartialFailure:
     async def test_save_error_contains_entity_info(self) -> None:
         """SaveError contains entity, operation, error, and payload (FR-ERROR-003)."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(return_value=[
-            create_failure_result(message="API Error", status_code=400),
-        ])
+        mock_client.batch.execute_async = AsyncMock(
+            return_value=[
+                create_failure_result(message="API Error", status_code=400),
+            ]
+        )
 
         task = Task(gid="123", name="Test")
 
@@ -130,9 +140,11 @@ class TestPartialFailure:
         """Child fails with DependencyResolutionError when parent fails (FR-ERROR-006)."""
         mock_client = create_mock_client()
         # Parent fails
-        mock_client.batch.execute_async = AsyncMock(return_value=[
-            create_failure_result(message="Parent failed", status_code=400),
-        ])
+        mock_client.batch.execute_async = AsyncMock(
+            return_value=[
+                create_failure_result(message="Parent failed", status_code=400),
+            ]
+        )
 
         parent = Task(gid="parent", name="Parent")
         child = Task(gid="child", name="Child", parent=NameGid(gid="parent"))
@@ -161,10 +173,14 @@ class TestPartialFailure:
     async def test_partial_success_commits_succeeded_entities(self) -> None:
         """Successful entities are committed even when others fail (FR-ERROR-001)."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(return_value=[
-            create_success_result(gid="1", request_index=0),
-            create_failure_result(message="Error", status_code=400, request_index=1),
-        ])
+        mock_client.batch.execute_async = AsyncMock(
+            return_value=[
+                create_success_result(gid="1", request_index=0),
+                create_failure_result(
+                    message="Error", status_code=400, request_index=1
+                ),
+            ]
+        )
 
         task1 = Task(gid="1", name="Task 1")
         task2 = Task(gid="2", name="Task 2")
@@ -186,9 +202,11 @@ class TestPartialFailure:
         """Cascading failure propagates through multiple levels."""
         mock_client = create_mock_client()
         # Root fails
-        mock_client.batch.execute_async = AsyncMock(return_value=[
-            create_failure_result(message="Root failed", status_code=400),
-        ])
+        mock_client.batch.execute_async = AsyncMock(
+            return_value=[
+                create_failure_result(message="Root failed", status_code=400),
+            ]
+        )
 
         root = Task(gid="root", name="Root")
         child = Task(gid="child", name="Child", parent=NameGid(gid="root"))
@@ -264,12 +282,14 @@ class TestExceptionTypes:
         task = Task(gid="123", name="Test")
         result = SaveResult(
             succeeded=[],
-            failed=[SaveError(
-                entity=task,
-                operation=OperationType.UPDATE,
-                error=Exception("API Error"),
-                payload={"name": "Test"},
-            )]
+            failed=[
+                SaveError(
+                    entity=task,
+                    operation=OperationType.UPDATE,
+                    error=Exception("API Error"),
+                    payload={"name": "Test"},
+                )
+            ],
         )
 
         with pytest.raises(PartialSaveError) as exc_info:
@@ -461,9 +481,9 @@ class TestErrorEdgeCases:
     async def test_batch_result_with_empty_body(self) -> None:
         """Handle batch result with empty body gracefully."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(return_value=[
-            BatchResult(status_code=200, body=None, request_index=0)
-        ])
+        mock_client.batch.execute_async = AsyncMock(
+            return_value=[BatchResult(status_code=200, body=None, request_index=0)]
+        )
 
         task = Task(gid="123", name="Test")
 
@@ -479,9 +499,11 @@ class TestErrorEdgeCases:
     async def test_batch_result_with_missing_data_field(self) -> None:
         """Handle batch result without data field."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(return_value=[
-            BatchResult(status_code=200, body={"other": "field"}, request_index=0)
-        ])
+        mock_client.batch.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(status_code=200, body={"other": "field"}, request_index=0)
+            ]
+        )
 
         task = Task(gid="123", name="Test")
 
@@ -497,9 +519,11 @@ class TestErrorEdgeCases:
     async def test_5xx_error_code_handling(self) -> None:
         """Server errors (5xx) are properly captured."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(return_value=[
-            create_failure_result(message="Internal Server Error", status_code=500),
-        ])
+        mock_client.batch.execute_async = AsyncMock(
+            return_value=[
+                create_failure_result(message="Internal Server Error", status_code=500),
+            ]
+        )
 
         task = Task(gid="123", name="Test")
 
@@ -515,9 +539,11 @@ class TestErrorEdgeCases:
     async def test_rate_limit_error_handling(self) -> None:
         """Rate limit errors (429) are captured."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(return_value=[
-            create_failure_result(message="Rate limited", status_code=429),
-        ])
+        mock_client.batch.execute_async = AsyncMock(
+            return_value=[
+                create_failure_result(message="Rate limited", status_code=429),
+            ]
+        )
 
         task = Task(gid="123", name="Test")
 
@@ -532,9 +558,11 @@ class TestErrorEdgeCases:
     async def test_auth_error_handling(self) -> None:
         """Authentication errors (401, 403) are captured."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(return_value=[
-            create_failure_result(message="Unauthorized", status_code=401),
-        ])
+        mock_client.batch.execute_async = AsyncMock(
+            return_value=[
+                create_failure_result(message="Unauthorized", status_code=401),
+            ]
+        )
 
         task = Task(gid="123", name="Test")
 

@@ -5,17 +5,16 @@ Per TDD-0011: Verify action execution and GID resolution.
 
 from __future__ import annotations
 
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
 from autom8_asana.models import Task
+from autom8_asana.models.common import NameGid
 from autom8_asana.persistence.action_executor import ActionExecutor
 from autom8_asana.persistence.models import (
     ActionType,
     ActionOperation,
-    ActionResult,
 )
 
 
@@ -56,9 +55,7 @@ class TestActionExecutorExecuteAsync:
     """Tests for execute_async method."""
 
     @pytest.mark.asyncio
-    async def test_execute_empty_actions(
-        self, executor: ActionExecutor
-    ) -> None:
+    async def test_execute_empty_actions(self, executor: ActionExecutor) -> None:
         """execute_async handles empty action list."""
         results = await executor.execute_async([], {})
         assert results == []
@@ -72,7 +69,7 @@ class TestActionExecutorExecuteAsync:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
 
         results = await executor.execute_async([action], {})
@@ -93,9 +90,15 @@ class TestActionExecutorExecuteAsync:
         """execute_async executes multiple actions sequentially."""
         task = Task(gid="task_123")
         actions = [
-            ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_1"),
-            ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_2"),
-            ActionOperation(task=task, action=ActionType.REMOVE_TAG, target_gid="tag_3"),
+            ActionOperation(
+                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
+            ),
+            ActionOperation(
+                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_2")
+            ),
+            ActionOperation(
+                task=task, action=ActionType.REMOVE_TAG, target=NameGid(gid="tag_3")
+            ),
         ]
 
         results = await executor.execute_async(actions, {})
@@ -113,7 +116,7 @@ class TestActionExecutorExecuteAsync:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
 
         mock_http.request.side_effect = RuntimeError("API error")
@@ -132,9 +135,15 @@ class TestActionExecutorExecuteAsync:
         """execute_async continues processing after an error."""
         task = Task(gid="task_123")
         actions = [
-            ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_1"),
-            ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_2"),
-            ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_3"),
+            ActionOperation(
+                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
+            ),
+            ActionOperation(
+                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_2")
+            ),
+            ActionOperation(
+                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_3")
+            ),
         ]
 
         # Second call fails
@@ -158,17 +167,25 @@ class TestActionExecutorExecuteAsync:
         """execute_async preserves action order in results."""
         task = Task(gid="task_123")
         actions = [
-            ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_1"),
-            ActionOperation(task=task, action=ActionType.REMOVE_TAG, target_gid="tag_2"),
-            ActionOperation(task=task, action=ActionType.ADD_TO_PROJECT, target_gid="proj_3"),
+            ActionOperation(
+                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
+            ),
+            ActionOperation(
+                task=task, action=ActionType.REMOVE_TAG, target=NameGid(gid="tag_2")
+            ),
+            ActionOperation(
+                task=task,
+                action=ActionType.ADD_TO_PROJECT,
+                target=NameGid(gid="proj_3"),
+            ),
         ]
 
         results = await executor.execute_async(actions, {})
 
         assert len(results) == 3
-        assert results[0].action.target_gid == "tag_1"
-        assert results[1].action.target_gid == "tag_2"
-        assert results[2].action.target_gid == "proj_3"
+        assert results[0].action.target.gid == "tag_1"
+        assert results[1].action.target.gid == "tag_2"
+        assert results[2].action.target.gid == "proj_3"
 
 
 class TestActionExecutorGidResolution:
@@ -183,7 +200,7 @@ class TestActionExecutorGidResolution:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="temp_tag_456",
+            target=NameGid(gid="temp_tag_456", name="Urgent"),
         )
 
         gid_map = {"temp_tag_456": "real_tag_789"}
@@ -206,7 +223,7 @@ class TestActionExecutorGidResolution:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",  # Not a temp GID
+            target=NameGid(gid="tag_456"),  # Not a temp GID
         )
 
         gid_map = {"temp_other": "real_other"}
@@ -229,7 +246,7 @@ class TestActionExecutorGidResolution:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="temp_not_in_map",
+            target=NameGid(gid="temp_not_in_map"),
         )
 
         gid_map = {"temp_other": "real_other"}
@@ -253,7 +270,9 @@ class TestActionExecutorApiCalls:
     ) -> None:
         """ADD_TAG generates correct API call."""
         task = Task(gid="task_123")
-        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_456")
+        action = ActionOperation(
+            task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_456")
+        )
 
         await executor.execute_async([action], {})
 
@@ -269,7 +288,9 @@ class TestActionExecutorApiCalls:
     ) -> None:
         """REMOVE_TAG generates correct API call."""
         task = Task(gid="task_123")
-        action = ActionOperation(task=task, action=ActionType.REMOVE_TAG, target_gid="tag_456")
+        action = ActionOperation(
+            task=task, action=ActionType.REMOVE_TAG, target=NameGid(gid="tag_456")
+        )
 
         await executor.execute_async([action], {})
 
@@ -286,7 +307,7 @@ class TestActionExecutorApiCalls:
         """ADD_TO_PROJECT generates correct API call."""
         task = Task(gid="task_123")
         action = ActionOperation(
-            task=task, action=ActionType.ADD_TO_PROJECT, target_gid="proj_789"
+            task=task, action=ActionType.ADD_TO_PROJECT, target=NameGid(gid="proj_789")
         )
 
         await executor.execute_async([action], {})
@@ -304,7 +325,9 @@ class TestActionExecutorApiCalls:
         """REMOVE_FROM_PROJECT generates correct API call."""
         task = Task(gid="task_123")
         action = ActionOperation(
-            task=task, action=ActionType.REMOVE_FROM_PROJECT, target_gid="proj_789"
+            task=task,
+            action=ActionType.REMOVE_FROM_PROJECT,
+            target=NameGid(gid="proj_789"),
         )
 
         await executor.execute_async([action], {})
@@ -322,7 +345,7 @@ class TestActionExecutorApiCalls:
         """ADD_DEPENDENCY generates correct API call."""
         task = Task(gid="task_123")
         action = ActionOperation(
-            task=task, action=ActionType.ADD_DEPENDENCY, target_gid="task_456"
+            task=task, action=ActionType.ADD_DEPENDENCY, target=NameGid(gid="task_456")
         )
 
         await executor.execute_async([action], {})
@@ -340,7 +363,9 @@ class TestActionExecutorApiCalls:
         """REMOVE_DEPENDENCY generates correct API call."""
         task = Task(gid="task_123")
         action = ActionOperation(
-            task=task, action=ActionType.REMOVE_DEPENDENCY, target_gid="task_456"
+            task=task,
+            action=ActionType.REMOVE_DEPENDENCY,
+            target=NameGid(gid="task_456"),
         )
 
         await executor.execute_async([action], {})
@@ -358,7 +383,9 @@ class TestActionExecutorApiCalls:
         """MOVE_TO_SECTION generates correct API call."""
         task = Task(gid="task_123")
         action = ActionOperation(
-            task=task, action=ActionType.MOVE_TO_SECTION, target_gid="section_789"
+            task=task,
+            action=ActionType.MOVE_TO_SECTION,
+            target=NameGid(gid="section_789"),
         )
 
         await executor.execute_async([action], {})
@@ -379,14 +406,20 @@ class TestActionExecutorResponseHandling:
     ) -> None:
         """Successful action stores response data."""
         task = Task(gid="task_123")
-        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_456")
+        action = ActionOperation(
+            task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_456")
+        )
 
-        mock_http.request.return_value = {"data": {"gid": "tag_456", "name": "Important"}}
+        mock_http.request.return_value = {
+            "data": {"gid": "tag_456", "name": "Important"}
+        }
 
         results = await executor.execute_async([action], {})
 
         assert results[0].success is True
-        assert results[0].response_data == {"data": {"gid": "tag_456", "name": "Important"}}
+        assert results[0].response_data == {
+            "data": {"gid": "tag_456", "name": "Important"}
+        }
         assert results[0].error is None
 
     @pytest.mark.asyncio
@@ -395,7 +428,9 @@ class TestActionExecutorResponseHandling:
     ) -> None:
         """Failed action stores error information."""
         task = Task(gid="task_123")
-        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target_gid="tag_456")
+        action = ActionOperation(
+            task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_456")
+        )
 
         error = ValueError("Invalid tag")
         mock_http.request.side_effect = error

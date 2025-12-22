@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-import pytest
 
 from autom8_asana.models.business.base import BusinessEntity, HolderMixin
 from autom8_asana.models.task import Task
@@ -76,9 +75,7 @@ class TestBusinessEntitySubclass:
 
         entity = MyEntity(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "Test Field", "text_value": "test"}
-            ],
+            custom_fields=[{"gid": "456", "name": "Test Field", "text_value": "test"}],
         )
         assert entity.get_custom_fields().get("Test Field") == "test"
 

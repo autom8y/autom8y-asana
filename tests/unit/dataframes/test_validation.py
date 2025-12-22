@@ -41,31 +41,35 @@ from autom8_asana.models.task import Task
 @pytest.fixture
 def unit_resolver() -> MockCustomFieldResolver:
     """Create a mock resolver with Unit custom field values."""
-    return MockCustomFieldResolver({
-        "mrr": Decimal("5000.00"),
-        "weekly_ad_spend": Decimal("1500.50"),
-        "products": ["Product A", "Product B"],
-        "languages": ["English", "Spanish"],
-        "discount": Decimal("10.5"),
-        "vertical": "Healthcare",
-        "specialty": "Dental",
-    })
+    return MockCustomFieldResolver(
+        {
+            "mrr": Decimal("5000.00"),
+            "weekly_ad_spend": Decimal("1500.50"),
+            "products": ["Product A", "Product B"],
+            "languages": ["English", "Spanish"],
+            "discount": Decimal("10.5"),
+            "vertical": "Healthcare",
+            "specialty": "Dental",
+        }
+    )
 
 
 @pytest.fixture
 def contact_resolver() -> MockCustomFieldResolver:
     """Create a mock resolver with Contact custom field values."""
-    return MockCustomFieldResolver({
-        "full_name": "John Doe",
-        "nickname": "Johnny",
-        "contact_phone": "+1-555-0123",
-        "contact_email": "john.doe@example.com",
-        "position": "Manager",
-        "employee_id": "EMP001",
-        "contact_url": "https://linkedin.com/in/johndoe",
-        "time_zone": "America/New_York",
-        "city": "New York",
-    })
+    return MockCustomFieldResolver(
+        {
+            "full_name": "John Doe",
+            "nickname": "Johnny",
+            "contact_phone": "+1-555-0123",
+            "contact_email": "john.doe@example.com",
+            "position": "Manager",
+            "employee_id": "EMP001",
+            "contact_url": "https://linkedin.com/in/johndoe",
+            "time_zone": "America/New_York",
+            "city": "New York",
+        }
+    )
 
 
 def create_task(
@@ -527,10 +531,12 @@ class TestCustomFieldExtraction:
     def test_null_custom_field_handling(self) -> None:
         """Test null custom fields are handled correctly."""
         # Resolver returns None for missing fields
-        resolver = MockCustomFieldResolver({
-            "mrr": None,
-            "products": None,
-        })
+        resolver = MockCustomFieldResolver(
+            {
+                "mrr": None,
+                "products": None,
+            }
+        )
 
         tasks = create_task_batch(1)
         project = MagicMock()

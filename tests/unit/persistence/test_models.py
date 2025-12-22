@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 
 from autom8_asana.models import Task
+from autom8_asana.models.common import NameGid
 from autom8_asana.persistence.models import (
     EntityState,
     OperationType,
@@ -429,12 +430,12 @@ class TestActionOperation:
         op = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
 
         assert op.task is task
         assert op.action == ActionType.ADD_TAG
-        assert op.target_gid == "tag_456"
+        assert op.target.gid == "tag_456"
 
     def test_action_operation_is_frozen(self) -> None:
         """ActionOperation is immutable (frozen=True)."""
@@ -442,11 +443,11 @@ class TestActionOperation:
         op = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
 
         with pytest.raises(AttributeError):
-            op.target_gid = "tag_789"  # type: ignore[misc]
+            op.target = NameGid(gid="tag_789")  # type: ignore[misc]
 
     def test_action_operation_repr(self) -> None:
         """ActionOperation repr is readable."""
@@ -454,7 +455,7 @@ class TestActionOperation:
         op = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
 
         repr_str = repr(op)
@@ -470,7 +471,7 @@ class TestActionOperation:
         op = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
 
         method, endpoint, payload = op.to_api_call()
@@ -485,7 +486,7 @@ class TestActionOperation:
         op = ActionOperation(
             task=task,
             action=ActionType.REMOVE_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
 
         method, endpoint, payload = op.to_api_call()
@@ -500,7 +501,7 @@ class TestActionOperation:
         op = ActionOperation(
             task=task,
             action=ActionType.ADD_TO_PROJECT,
-            target_gid="project_789",
+            target=NameGid(gid="project_789"),
         )
 
         method, endpoint, payload = op.to_api_call()
@@ -515,7 +516,7 @@ class TestActionOperation:
         op = ActionOperation(
             task=task,
             action=ActionType.REMOVE_FROM_PROJECT,
-            target_gid="project_789",
+            target=NameGid(gid="project_789"),
         )
 
         method, endpoint, payload = op.to_api_call()
@@ -530,7 +531,7 @@ class TestActionOperation:
         op = ActionOperation(
             task=task,
             action=ActionType.ADD_DEPENDENCY,
-            target_gid="task_456",
+            target=NameGid(gid="task_456"),
         )
 
         method, endpoint, payload = op.to_api_call()
@@ -545,7 +546,7 @@ class TestActionOperation:
         op = ActionOperation(
             task=task,
             action=ActionType.REMOVE_DEPENDENCY,
-            target_gid="task_456",
+            target=NameGid(gid="task_456"),
         )
 
         method, endpoint, payload = op.to_api_call()
@@ -560,7 +561,7 @@ class TestActionOperation:
         op = ActionOperation(
             task=task,
             action=ActionType.MOVE_TO_SECTION,
-            target_gid="section_789",
+            target=NameGid(gid="section_789"),
         )
 
         method, endpoint, payload = op.to_api_call()
@@ -584,7 +585,7 @@ class TestActionResult:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
 
         result = ActionResult(
@@ -604,7 +605,7 @@ class TestActionResult:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
         error = RuntimeError("API error")
 
@@ -625,7 +626,7 @@ class TestActionResult:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
 
         result = ActionResult(action=action, success=True)
@@ -641,7 +642,7 @@ class TestActionResult:
         action = ActionOperation(
             task=task,
             action=ActionType.REMOVE_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
 
         result = ActionResult(
@@ -661,7 +662,7 @@ class TestActionResult:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
 
         result = ActionResult(action=action, success=True)
@@ -684,7 +685,7 @@ class TestActionOperationExtended:
         op = ActionOperation(
             task=task,
             action=ActionType.ADD_FOLLOWER,
-            target_gid="user_456",
+            target=NameGid(gid="user_456"),
         )
 
         method, endpoint, payload = op.to_api_call()
@@ -699,7 +700,7 @@ class TestActionOperationExtended:
         op = ActionOperation(
             task=task,
             action=ActionType.REMOVE_FOLLOWER,
-            target_gid="user_456",
+            target=NameGid(gid="user_456"),
         )
 
         method, endpoint, payload = op.to_api_call()
@@ -714,7 +715,7 @@ class TestActionOperationExtended:
         op = ActionOperation(
             task=task,
             action=ActionType.ADD_TO_PROJECT,
-            target_gid="project_789",
+            target=NameGid(gid="project_789"),
             extra_params={"insert_before": "other_task"},
         )
 
@@ -735,7 +736,7 @@ class TestActionOperationExtended:
         op = ActionOperation(
             task=task,
             action=ActionType.ADD_TO_PROJECT,
-            target_gid="project_789",
+            target=NameGid(gid="project_789"),
             extra_params={"insert_after": "other_task"},
         )
 
@@ -754,7 +755,7 @@ class TestActionOperationExtended:
         op = ActionOperation(
             task=task,
             action=ActionType.MOVE_TO_SECTION,
-            target_gid="section_789",
+            target=NameGid(gid="section_789"),
             extra_params={"insert_before": "other_task"},
         )
 
@@ -775,7 +776,7 @@ class TestActionOperationExtended:
         op = ActionOperation(
             task=task,
             action=ActionType.MOVE_TO_SECTION,
-            target_gid="section_789",
+            target=NameGid(gid="section_789"),
             extra_params={"insert_after": "other_task"},
         )
 
@@ -794,22 +795,22 @@ class TestActionOperationExtended:
         op = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
 
         assert op.extra_params == {}
 
-    def test_action_operation_target_gid_optional(self) -> None:
-        """ActionOperation target_gid can be None."""
+    def test_action_operation_target_optional(self) -> None:
+        """ActionOperation target can be None."""
         task = Task(gid="task_123")
         # This is valid for potential future actions that don't need a target
         op = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid=None,
+            target=None,
         )
 
-        assert op.target_gid is None
+        assert op.target is None
 
 
 class TestActionTypeExtended:
@@ -880,7 +881,7 @@ class TestActionOperationPhase2:
         op = ActionOperation(
             task=task,
             action=ActionType.ADD_DEPENDENT,
-            target_gid="dependent_456",
+            target=NameGid(gid="dependent_456"),
         )
 
         method, endpoint, payload = op.to_api_call()
@@ -895,7 +896,7 @@ class TestActionOperationPhase2:
         op = ActionOperation(
             task=task,
             action=ActionType.REMOVE_DEPENDENT,
-            target_gid="dependent_456",
+            target=NameGid(gid="dependent_456"),
         )
 
         method, endpoint, payload = op.to_api_call()
@@ -910,7 +911,7 @@ class TestActionOperationPhase2:
         op = ActionOperation(
             task=task,
             action=ActionType.ADD_LIKE,
-            target_gid=None,  # Per ADR-0045: No target_gid for likes
+            target=None,  # Per ADR-0045: No target_gid for likes
         )
 
         method, endpoint, payload = op.to_api_call()
@@ -925,7 +926,7 @@ class TestActionOperationPhase2:
         op = ActionOperation(
             task=task,
             action=ActionType.REMOVE_LIKE,
-            target_gid=None,  # Per ADR-0045: No target_gid for likes
+            target=None,  # Per ADR-0045: No target_gid for likes
         )
 
         method, endpoint, payload = op.to_api_call()
@@ -940,7 +941,7 @@ class TestActionOperationPhase2:
         op = ActionOperation(
             task=task,
             action=ActionType.ADD_COMMENT,
-            target_gid=None,
+            target=None,
             extra_params={"text": "This is a comment"},
         )
 
@@ -956,7 +957,7 @@ class TestActionOperationPhase2:
         op = ActionOperation(
             task=task,
             action=ActionType.ADD_COMMENT,
-            target_gid=None,
+            target=None,
             extra_params={
                 "text": "Plain text",
                 "html_text": "<body>Rich <strong>HTML</strong></body>",
@@ -980,7 +981,7 @@ class TestActionOperationPhase2:
         op = ActionOperation(
             task=task,
             action=ActionType.ADD_COMMENT,
-            target_gid=None,
+            target=None,
             extra_params={"text": ""},
         )
 
@@ -994,7 +995,7 @@ class TestActionOperationPhase2:
         op = ActionOperation(
             task=task,
             action=ActionType.SET_PARENT,
-            target_gid=None,
+            target=None,
             extra_params={"parent": "parent_456"},
         )
 
@@ -1010,7 +1011,7 @@ class TestActionOperationPhase2:
         op = ActionOperation(
             task=task,
             action=ActionType.SET_PARENT,
-            target_gid=None,
+            target=None,
             extra_params={"parent": None},
         )
 
@@ -1026,7 +1027,7 @@ class TestActionOperationPhase2:
         op = ActionOperation(
             task=task,
             action=ActionType.SET_PARENT,
-            target_gid=None,
+            target=None,
             extra_params={
                 "parent": "parent_456",
                 "insert_after": "sibling_789",
@@ -1048,7 +1049,7 @@ class TestActionOperationPhase2:
         op = ActionOperation(
             task=task,
             action=ActionType.SET_PARENT,
-            target_gid=None,
+            target=None,
             extra_params={
                 "parent": "parent_456",
                 "insert_before": "sibling_789",
@@ -1809,7 +1810,7 @@ class TestActionResultRetryable:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
 
         result = ActionResult(action=action, success=True)
@@ -1824,7 +1825,7 @@ class TestActionResultRetryable:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
         error = RateLimitError("Rate limited", status_code=429)
 
@@ -1840,7 +1841,7 @@ class TestActionResultRetryable:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
         error = ServerError("Internal Server Error", status_code=500)
 
@@ -1856,7 +1857,7 @@ class TestActionResultRetryable:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
         error = NotFoundError("Not found", status_code=404)
 
@@ -1870,7 +1871,7 @@ class TestActionResultRetryable:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
         error = TimeoutError("Connection timed out")
 
@@ -1888,7 +1889,7 @@ class TestActionResultRecoveryHint:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
 
         result = ActionResult(action=action, success=True)
@@ -1903,7 +1904,7 @@ class TestActionResultRecoveryHint:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
         error = RateLimitError("Rate limited", status_code=429)
 
@@ -1919,7 +1920,7 @@ class TestActionResultRecoveryHint:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
         error = ServerError("Internal Server Error", status_code=500)
 
@@ -1939,7 +1940,7 @@ class TestActionResultRetryAfterSeconds:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
         error = RateLimitError("Rate limited", status_code=429, retry_after=30)
 
@@ -1953,7 +1954,7 @@ class TestActionResultRetryAfterSeconds:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
 
         result = ActionResult(action=action, success=True)
@@ -1968,7 +1969,7 @@ class TestActionResultRetryAfterSeconds:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
         error = ServerError("Server Error", status_code=500)
 

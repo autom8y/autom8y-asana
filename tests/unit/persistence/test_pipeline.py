@@ -7,7 +7,7 @@ Per TDD-0011: Verify action support and unsupported field validation.
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -17,12 +17,10 @@ from autom8_asana.models.common import NameGid
 from autom8_asana.persistence.action_executor import ActionExecutor
 from autom8_asana.persistence.events import EventSystem
 from autom8_asana.persistence.exceptions import (
-    CyclicDependencyError,
     UnsupportedOperationError,
 )
 from autom8_asana.persistence.graph import DependencyGraph
 from autom8_asana.persistence.models import (
-    EntityState,
     OperationType,
     PlannedOperation,
     SaveResult,
@@ -764,7 +762,7 @@ class TestExecuteWithActions:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
 
         mock_action_executor.execute_async.return_value = [
@@ -797,7 +795,7 @@ class TestExecuteWithActions:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="tag_456",
+            target=NameGid(gid="tag_456"),
         )
 
         mock_action_executor.execute_async.return_value = [
@@ -848,7 +846,7 @@ class TestExecuteWithActions:
         action = ActionOperation(
             task=task,
             action=ActionType.ADD_TAG,
-            target_gid="456456456",
+            target=NameGid(gid="456456456"),
         )
 
         mock_action_executor.execute_async.return_value = [

@@ -628,7 +628,6 @@ class TestBatchResolutionEdgeCases:
         """Exception during hydration doesn't prevent resolution attempts."""
         from autom8_asana.models.business.asset_edit import AssetEdit
         from autom8_asana.models.business.business import Business
-        from autom8_asana.models.business.resolution import _ensure_units_hydrated
 
         # Create business without unit holder (needs hydration)
         business = Business(gid="b1", name="Test Business")
@@ -652,7 +651,9 @@ class TestBatchResolutionEdgeCases:
                 new=AsyncMock(side_effect=RuntimeError("Hydration failed")),
             ),
             patch.object(
-                AssetEdit, "resolve_unit_async", new=AsyncMock(return_value=success_result)
+                AssetEdit,
+                "resolve_unit_async",
+                new=AsyncMock(return_value=success_result),
             ),
         ):
             results = await resolve_units_async([asset_edit], client)
@@ -668,7 +669,6 @@ class TestBatchResolutionEdgeCases:
         """CRITICAL: Business.units fetched once per unique Business, not per AssetEdit."""
         from autom8_asana.models.business.asset_edit import AssetEdit
         from autom8_asana.models.business.business import Business
-        from autom8_asana.models.business.resolution import _ensure_units_hydrated
 
         # Create ONE business
         business = Business(gid="b1", name="Test Business")
@@ -759,7 +759,6 @@ class TestBatchResolutionEdgeCases:
     async def test_resolve_offers_async_exception_creates_error_result(self) -> None:
         """Exception during offer resolution creates error result."""
         from autom8_asana.models.business.asset_edit import AssetEdit
-        from autom8_asana.models.business.offer import Offer
 
         asset_edit = AssetEdit(gid="ae1", name="Asset Edit 1")
 

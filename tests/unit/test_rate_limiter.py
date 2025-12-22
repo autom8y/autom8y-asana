@@ -245,9 +245,7 @@ class TestRateLimitLogging:
         logger = MockLogger()
         # Configure: 1 token max, 0.5 tokens/second refill rate
         # When bucket is empty, waiting for 1 token takes 2 seconds
-        limiter = TokenBucketRateLimiter(
-            max_tokens=1, refill_period=2.0, logger=logger
-        )
+        limiter = TokenBucketRateLimiter(max_tokens=1, refill_period=2.0, logger=logger)
 
         # Deplete the single token
         await limiter.acquire(1)
@@ -275,7 +273,5 @@ class TestRateLimitLogging:
         await limiter.acquire(5)
 
         # No rate limit logs expected
-        rate_limit_logs = [
-            msg for level, msg in logger.messages if "Rate limit" in msg
-        ]
+        rate_limit_logs = [msg for level, msg in logger.messages if "Rate limit" in msg]
         assert len(rate_limit_logs) == 0

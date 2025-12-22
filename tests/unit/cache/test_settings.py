@@ -1,6 +1,5 @@
 """Tests for CacheSettings, TTLSettings, and OverflowSettings."""
 
-import pytest
 
 from autom8_asana.cache.entry import EntryType
 from autom8_asana.cache.settings import CacheSettings, OverflowSettings, TTLSettings
@@ -43,7 +42,7 @@ class TestOverflowSettings:
         settings = OverflowSettings()
 
         assert settings.get_threshold(EntryType.TASK) is None
-        assert settings.get_threshold(EntryType.STRUC) is None
+        assert settings.get_threshold(EntryType.DATAFRAME) is None
 
     def test_should_cache_within_threshold(self) -> None:
         """Test should_cache returns True when within threshold."""
@@ -66,7 +65,7 @@ class TestOverflowSettings:
 
         assert settings.should_cache(EntryType.TASK, 0)
         assert settings.should_cache(EntryType.TASK, 1000000)
-        assert settings.should_cache(EntryType.STRUC, 100)
+        assert settings.should_cache(EntryType.DATAFRAME, 100)
 
 
 class TestTTLSettings:
@@ -181,9 +180,7 @@ class TestCacheSettings:
 
     def test_should_cache_delegates(self) -> None:
         """Test should_cache delegates to OverflowSettings."""
-        settings = CacheSettings(
-            overflow=OverflowSettings(subtasks=30)
-        )
+        settings = CacheSettings(overflow=OverflowSettings(subtasks=30))
 
         assert settings.should_cache(EntryType.SUBTASKS, 30)
         assert not settings.should_cache(EntryType.SUBTASKS, 31)

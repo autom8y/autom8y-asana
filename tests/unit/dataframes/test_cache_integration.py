@@ -12,15 +12,12 @@ Coverage targets:
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import polars as pl
 import pytest
 
 from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvider
-from autom8_asana.cache.entry import CacheEntry, EntryType
-from autom8_asana.cache.freshness import Freshness
 from autom8_asana.dataframes import (
     CachedRow,
     DataFrameCacheIntegration,
@@ -64,7 +61,9 @@ def null_cache() -> NullCacheProvider:
 
 
 @pytest.fixture
-def cache_integration(in_memory_cache: InMemoryCacheProvider) -> DataFrameCacheIntegration:
+def cache_integration(
+    in_memory_cache: InMemoryCacheProvider,
+) -> DataFrameCacheIntegration:
     """Cache integration with in-memory backend."""
     return DataFrameCacheIntegration(cache=in_memory_cache, default_ttl=300)
 
@@ -115,15 +114,18 @@ def task_with_project(now: datetime) -> Task:
 def unit_resolver() -> MockCustomFieldResolver:
     """Mock resolver for Unit tasks."""
     from decimal import Decimal
-    return MockCustomFieldResolver({
-        "mrr": Decimal("5000.00"),
-        "weekly_ad_spend": Decimal("1500.50"),
-        "products": ["Product A"],
-        "languages": ["English"],
-        "discount": Decimal("10.5"),
-        "vertical": "Healthcare",
-        "specialty": "Dental",
-    })
+
+    return MockCustomFieldResolver(
+        {
+            "mrr": Decimal("5000.00"),
+            "weekly_ad_spend": Decimal("1500.50"),
+            "products": ["Product A"],
+            "languages": ["English"],
+            "discount": Decimal("10.5"),
+            "vertical": "Healthcare",
+            "specialty": "Dental",
+        }
+    )
 
 
 @pytest.fixture
@@ -445,7 +447,11 @@ class TestDataFrameCacheIntegration:
 
         # Batch get
         results = await cache_integration.get_cached_batch_async(
-            task_project_pairs=[("task1", "proj1"), ("task2", "proj1"), ("task3", "proj1")],
+            task_project_pairs=[
+                ("task1", "proj1"),
+                ("task2", "proj1"),
+                ("task3", "proj1"),
+            ],
             schema_version="1.0.0",
         )
 
@@ -960,10 +966,12 @@ class TestCacheIntegrationEdgeCases:
         cache_integration: DataFrameCacheIntegration,
     ) -> None:
         """Test warming cache for struc entries."""
-        count = await cache_integration.warm_struc_async([
-            ("task1", "proj1"),
-            ("task2", "proj1"),
-        ])
+        count = await cache_integration.warm_struc_async(
+            [
+                ("task1", "proj1"),
+                ("task2", "proj1"),
+            ]
+        )
 
         # Should return count of entries to warm
         assert count >= 0
@@ -1038,10 +1046,12 @@ class TestCacheIntegrationSyncWrappers:
         cache_integration: DataFrameCacheIntegration,
     ) -> None:
         """Test sync warm_struc wrapper."""
-        count = cache_integration.warm_struc([
-            ("task1", "proj1"),
-            ("task2", "proj1"),
-        ])
+        count = cache_integration.warm_struc(
+            [
+                ("task1", "proj1"),
+                ("task2", "proj1"),
+            ]
+        )
 
         assert count >= 0
 
@@ -1177,9 +1187,11 @@ class TestCacheIntegrationErrorHandling:
         )
 
         # Should not raise, should return 0
-        count = await integration.warm_struc_async([
-            ("task1", "proj1"),
-        ])
+        count = await integration.warm_struc_async(
+            [
+                ("task1", "proj1"),
+            ]
+        )
 
         assert count == 0
 

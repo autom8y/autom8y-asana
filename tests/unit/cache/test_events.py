@@ -1,11 +1,8 @@
 """Tests for cache event integration with LogProvider."""
 
 import logging
-from datetime import datetime, timezone
 from typing import Any
-from unittest.mock import MagicMock
 
-import pytest
 
 from autom8_asana.cache.events import (
     _normalize_event_type,
@@ -29,12 +26,14 @@ class MockCacheLoggingProvider:
         entry_type: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        self.events.append({
-            "event_type": event_type,
-            "key": key,
-            "entry_type": entry_type,
-            "metadata": metadata,
-        })
+        self.events.append(
+            {
+                "event_type": event_type,
+                "key": key,
+                "entry_type": entry_type,
+                "metadata": metadata,
+            }
+        )
 
 
 class MockCacheProvider:

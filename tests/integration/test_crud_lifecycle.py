@@ -206,7 +206,9 @@ class TestRetryChain:
         route.side_effect = [
             httpx.Response(503, json={"errors": [{"message": "Service unavailable"}]}),
             httpx.Response(503, json={"errors": [{"message": "Service unavailable"}]}),
-            httpx.Response(200, json={"data": {"gid": "2222222222", "name": "Retry Task"}}),
+            httpx.Response(
+                200, json={"data": {"gid": "2222222222", "name": "Retry Task"}}
+            ),
         ]
 
         result = await tasks_client.get_async("2222222222")
@@ -312,9 +314,7 @@ class TestWithOptFields:
     """Test that opt_fields are passed correctly through the stack."""
 
     @respx.mock
-    async def test_opt_fields_passed_through(
-        self, tasks_client: TasksClient
-    ) -> None:
+    async def test_opt_fields_passed_through(self, tasks_client: TasksClient) -> None:
         """opt_fields parameter reaches the API request."""
         route = respx.get("https://app.asana.com/api/1.0/tasks/6666666666").mock(
             return_value=httpx.Response(
@@ -351,11 +351,15 @@ class TestConcurrentRequests:
     """Test concurrent request handling."""
 
     @respx.mock
-    async def test_concurrent_reads(
-        self, tasks_client: TasksClient
-    ) -> None:
+    async def test_concurrent_reads(self, tasks_client: TasksClient) -> None:
         """Multiple concurrent GET requests are handled correctly."""
-        task_gids = ["7000000000", "7000000001", "7000000002", "7000000003", "7000000004"]
+        task_gids = [
+            "7000000000",
+            "7000000001",
+            "7000000002",
+            "7000000003",
+            "7000000004",
+        ]
         for i, gid in enumerate(task_gids):
             respx.get(f"https://app.asana.com/api/1.0/tasks/{gid}").mock(
                 return_value=httpx.Response(

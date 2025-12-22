@@ -1,11 +1,11 @@
 """Tests for Location and LocationHolder models.
 
 Per TDD-BIZMODEL Phase 3: Tests for Location entity with address fields.
+Per PRD-0024: Updated field schema to match Asana reality.
 """
 
 from __future__ import annotations
 
-import pytest
 
 from autom8_asana.models.business.location import Location, LocationHolder
 from autom8_asana.models.business.hours import Hours
@@ -21,30 +21,45 @@ class TestLocation:
         assert location.gid == "123"
         assert location.name == "Main Office"
 
-    def test_street_property(self) -> None:
-        """street getter returns value."""
+
+class TestLocationNewFields:
+    """Tests for new Location fields per PRD-0024."""
+
+    def test_street_number_property(self) -> None:
+        """street_number returns int value."""
+        location = Location(
+            gid="123",
+            custom_fields=[{"gid": "456", "name": "Street #", "number_value": 123}],
+        )
+        assert location.street_number == 123
+
+    def test_street_number_setter(self) -> None:
+        """street_number setter updates value."""
+        location = Location(gid="123", custom_fields=[])
+        location.street_number = 456
+        assert location.get_custom_fields().get("Street #") == 456
+
+    def test_street_name_property(self) -> None:
+        """street_name returns text value."""
         location = Location(
             gid="123",
             custom_fields=[
-                {"gid": "456", "name": "Street", "text_value": "123 Main St"}
+                {"gid": "456", "name": "Street Name", "text_value": "Main St"}
             ],
         )
-        assert location.street == "123 Main St"
+        assert location.street_name == "Main St"
 
-    def test_street_setter(self) -> None:
-        """street setter updates value."""
+    def test_street_name_setter(self) -> None:
+        """street_name setter updates value."""
         location = Location(gid="123", custom_fields=[])
-        location.street = "456 Oak Ave"
-        assert location.get_custom_fields().get("Street") == "456 Oak Ave"
-        assert location.get_custom_fields().has_changes()
+        location.street_name = "Oak Ave"
+        assert location.get_custom_fields().get("Street Name") == "Oak Ave"
 
     def test_city_property(self) -> None:
         """city getter returns value."""
         location = Location(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "City", "text_value": "Springfield"}
-            ],
+            custom_fields=[{"gid": "456", "name": "City", "text_value": "Springfield"}],
         )
         assert location.city == "Springfield"
 
@@ -52,9 +67,7 @@ class TestLocation:
         """state getter returns value."""
         location = Location(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "State", "text_value": "IL"}
-            ],
+            custom_fields=[{"gid": "456", "name": "State", "text_value": "IL"}],
         )
         assert location.state == "IL"
 
@@ -62,85 +75,139 @@ class TestLocation:
         """zip_code getter returns value."""
         location = Location(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "Zip Code", "text_value": "62701"}
-            ],
+            custom_fields=[{"gid": "456", "name": "Zip Code", "text_value": "62701"}],
         )
         assert location.zip_code == "62701"
 
-    def test_country_property(self) -> None:
-        """country getter returns value."""
+    def test_country_property_enum(self) -> None:
+        """country getter extracts name from enum dict per PRD-0024."""
         location = Location(
             gid="123",
             custom_fields=[
-                {"gid": "456", "name": "Country", "text_value": "USA"}
+                {"gid": "456", "name": "Country", "enum_value": {"name": "US"}}
             ],
         )
-        assert location.country == "USA"
+        assert location.country == "US"
 
-    def test_phone_property(self) -> None:
-        """phone getter returns value."""
-        location = Location(
-            gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "Phone", "text_value": "555-1234"}
-            ],
-        )
-        assert location.phone == "555-1234"
+    def test_time_zone_property(self) -> None:
+        """time_zone getter extracts name from enum dict."""
+        location = Location(gid="123", custom_fields=[])
+        location.get_custom_fields().set("Time Zone", {"name": "America/New_York"})
+        assert location.time_zone == "America/New_York"
 
-    def test_latitude_property(self) -> None:
-        """latitude getter returns float value."""
+    def test_suite_property(self) -> None:
+        """suite getter returns text value."""
         location = Location(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "Latitude", "number_value": 39.7817}
-            ],
+            custom_fields=[{"gid": "456", "name": "Suite", "text_value": "Suite 100"}],
         )
-        assert location.latitude == 39.7817
+        assert location.suite == "Suite 100"
 
-    def test_longitude_property(self) -> None:
-        """longitude getter returns float value."""
+    def test_neighborhood_property(self) -> None:
+        """neighborhood getter returns text value."""
         location = Location(
             gid="123",
             custom_fields=[
-                {"gid": "456", "name": "Longitude", "number_value": -89.6501}
+                {"gid": "456", "name": "Neighborhood", "text_value": "Downtown"}
             ],
         )
-        assert location.longitude == -89.6501
+        assert location.neighborhood == "Downtown"
+
+    def test_office_location_property(self) -> None:
+        """office_location getter returns text value."""
+        location = Location(
+            gid="123",
+            custom_fields=[
+                {"gid": "456", "name": "Office Location", "text_value": "2nd Floor"}
+            ],
+        )
+        assert location.office_location == "2nd Floor"
+
+    def test_min_radius_property(self) -> None:
+        """min_radius getter returns int value."""
+        location = Location(
+            gid="123",
+            custom_fields=[{"gid": "456", "name": "Min Radius", "number_value": 5}],
+        )
+        assert location.min_radius == 5
+
+    def test_max_radius_property(self) -> None:
+        """max_radius getter returns int value."""
+        location = Location(
+            gid="123",
+            custom_fields=[{"gid": "456", "name": "Max Radius", "number_value": 50}],
+        )
+        assert location.max_radius == 50
 
 
 class TestLocationFullAddress:
     """Tests for Location.full_address computed property."""
 
     def test_full_address_complete(self) -> None:
-        """full_address combines all address fields."""
-        location = Location(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Street", "text_value": "123 Main St"},
-                {"gid": "2", "name": "City", "text_value": "Springfield"},
-                {"gid": "3", "name": "State", "text_value": "IL"},
-                {"gid": "4", "name": "Zip Code", "text_value": "62701"},
-                {"gid": "5", "name": "Country", "text_value": "USA"},
-            ],
-        )
-        assert location.full_address == "123 Main St, Springfield, IL, 62701, USA"
+        """full_address combines all address fields per TDD."""
+        location = Location(gid="123", custom_fields=[])
+        location.get_custom_fields().set("Street #", 123)
+        location.get_custom_fields().set("Street Name", "Main St")
+        location.get_custom_fields().set("Suite", "Suite 100")
+        location.get_custom_fields().set("City", "Springfield")
+        location.get_custom_fields().set("State", "IL")
+        location.get_custom_fields().set("Zip Code", "62701")
+        location.get_custom_fields().set("Country", {"name": "US"})
+
+        expected = "123 Main St, Suite 100, Springfield, IL 62701, US"
+        assert location.full_address == expected
+
+    def test_full_address_no_suite(self) -> None:
+        """full_address works without suite."""
+        location = Location(gid="123", custom_fields=[])
+        location.get_custom_fields().set("Street #", 123)
+        location.get_custom_fields().set("Street Name", "Main St")
+        location.get_custom_fields().set("City", "Springfield")
+        location.get_custom_fields().set("State", "IL")
+
+        expected = "123 Main St, Springfield, IL"
+        assert location.full_address == expected
 
     def test_full_address_partial(self) -> None:
         """full_address handles missing fields."""
-        location = Location(
-            gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Street", "text_value": "123 Main St"},
-                {"gid": "2", "name": "City", "text_value": "Springfield"},
-            ],
-        )
-        assert location.full_address == "123 Main St, Springfield"
+        location = Location(gid="123", custom_fields=[])
+        location.get_custom_fields().set("City", "Springfield")
+
+        assert location.full_address == "Springfield"
 
     def test_full_address_empty(self) -> None:
         """full_address returns empty string when no fields set."""
         location = Location(gid="123", custom_fields=[])
         assert location.full_address == ""
+
+
+class TestLocationFieldsClass:
+    """Tests for Location.Fields class constants per PRD-0024."""
+
+    def test_field_names_match_asana(self) -> None:
+        """Fields class has correct names per PRD-0024."""
+        assert Location.Fields.STREET_NUMBER == "Street #"
+        assert Location.Fields.STREET_NAME == "Street Name"
+        assert Location.Fields.CITY == "City"
+        assert Location.Fields.STATE == "State"
+        assert Location.Fields.ZIP_CODE == "Zip Code"
+        assert Location.Fields.COUNTRY == "Country"
+
+    def test_new_fields_present(self) -> None:
+        """New fields are present per PRD-0024."""
+        assert Location.Fields.TIME_ZONE == "Time Zone"
+        assert Location.Fields.SUITE == "Suite"
+        assert Location.Fields.NEIGHBORHOOD == "Neighborhood"
+        assert Location.Fields.OFFICE_LOCATION == "Office Location"
+        assert Location.Fields.MIN_RADIUS == "Min Radius"
+        assert Location.Fields.MAX_RADIUS == "Max Radius"
+
+    def test_stale_fields_removed(self) -> None:
+        """Stale fields are removed per PRD-0024."""
+        assert not hasattr(Location.Fields, "STREET")
+        assert not hasattr(Location.Fields, "PHONE")
+        assert not hasattr(Location.Fields, "LATITUDE")
+        assert not hasattr(Location.Fields, "LONGITUDE")
 
 
 class TestLocationNavigation:

@@ -286,7 +286,6 @@ class TestAsanaClientObservability:
 
     def test_accepts_observability_hook_parameter(self) -> None:
         """AsanaClient accepts observability_hook parameter."""
-        from autom8_asana._defaults.observability import NullObservabilityHook
 
         # This should not raise TypeError
         from autom8_asana.client import AsanaClient

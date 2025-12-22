@@ -65,10 +65,12 @@ class TestNameGidBasics:
 
     def test_whitespace_stripped(self) -> None:
         """String fields have whitespace stripped."""
-        ref = NameGid.model_validate({
-            "gid": "  123  ",
-            "name": "  Test  ",
-        })
+        ref = NameGid.model_validate(
+            {
+                "gid": "  123  ",
+                "name": "  Test  ",
+            }
+        )
 
         assert ref.gid == "123"
         assert ref.name == "Test"
@@ -182,6 +184,7 @@ class TestPageIteratorBasics:
 
     async def test_empty_result(self) -> None:
         """PageIterator handles empty results."""
+
         async def fetch_page(offset: str | None) -> tuple[list[str], str | None]:
             return [], None
 
@@ -192,6 +195,7 @@ class TestPageIteratorBasics:
 
     async def test_single_page(self) -> None:
         """PageIterator handles single page."""
+
         async def fetch_page(offset: str | None) -> tuple[list[str], str | None]:
             return ["a", "b", "c"], None
 
@@ -222,6 +226,7 @@ class TestPageIteratorBasics:
 
     async def test_async_for_iteration(self) -> None:
         """PageIterator works with async for."""
+
         async def fetch_page(offset: str | None) -> tuple[list[int], str | None]:
             return [1, 2, 3], None
 
@@ -234,6 +239,7 @@ class TestPageIteratorBasics:
 
     async def test_first_returns_first_item(self) -> None:
         """first() returns first item."""
+
         async def fetch_page(offset: str | None) -> tuple[list[str], str | None]:
             return ["first", "second", "third"], None
 
@@ -244,6 +250,7 @@ class TestPageIteratorBasics:
 
     async def test_first_returns_none_when_empty(self) -> None:
         """first() returns None for empty results."""
+
         async def fetch_page(offset: str | None) -> tuple[list[str], str | None]:
             return [], None
 
@@ -254,6 +261,7 @@ class TestPageIteratorBasics:
 
     async def test_take_n_items(self) -> None:
         """take(n) returns up to n items."""
+
         async def fetch_page(offset: str | None) -> tuple[list[int], str | None]:
             return [1, 2, 3, 4, 5], None
 
@@ -264,6 +272,7 @@ class TestPageIteratorBasics:
 
     async def test_take_more_than_available(self) -> None:
         """take(n) returns all items if fewer than n available."""
+
         async def fetch_page(offset: str | None) -> tuple[list[int], str | None]:
             return [1, 2], None
 

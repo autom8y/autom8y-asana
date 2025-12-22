@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import pytest
 
 from autom8_asana.models.business.offer import Offer, OfferHolder
 from autom8_asana.models.business.unit import Unit, UnitHolder
@@ -198,9 +197,7 @@ class TestOfferCustomFields:
         """ad_set_id getter/setter works."""
         offer = Offer(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Ad Set ID", "text_value": "adset789"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Ad Set ID", "text_value": "adset789"}],
         )
         assert offer.ad_set_id == "adset789"
 
@@ -253,10 +250,13 @@ class TestOfferCustomFields:
     def test_platforms_multi_enum(self) -> None:
         """platforms returns list from multi-enum field."""
         offer = Offer(gid="123", custom_fields=[])
-        offer.get_custom_fields().set("Platforms", [
-            {"gid": "e1", "name": "Google"},
-            {"gid": "e2", "name": "Meta"},
-        ])
+        offer.get_custom_fields().set(
+            "Platforms",
+            [
+                {"gid": "e1", "name": "Google"},
+                {"gid": "e2", "name": "Meta"},
+            ],
+        )
         assert offer.platforms == ["Google", "Meta"]
 
     # --- Content Fields ---
@@ -304,7 +304,11 @@ class TestOfferCustomFields:
         offer = Offer(
             gid="123",
             custom_fields=[
-                {"gid": "1", "name": "Preview Link", "text_value": "https://preview.com"}
+                {
+                    "gid": "1",
+                    "name": "Preview Link",
+                    "text_value": "https://preview.com",
+                }
             ],
         )
         assert offer.preview_link == "https://preview.com"
@@ -362,7 +366,11 @@ class TestOfferCustomFields:
         offer = Offer(
             gid="123",
             custom_fields=[
-                {"gid": "1", "name": "Campaign Type", "enum_value": {"name": "Lead Gen"}}
+                {
+                    "gid": "1",
+                    "name": "Campaign Type",
+                    "enum_value": {"name": "Lead Gen"},
+                }
             ],
         )
         assert offer.campaign_type == "Lead Gen"
@@ -384,10 +392,13 @@ class TestOfferCustomFields:
     def test_targeting_strategies_multi_enum(self) -> None:
         """targeting_strategies returns list from multi-enum field."""
         offer = Offer(gid="123", custom_fields=[])
-        offer.get_custom_fields().set("Targeting Strategies", [
-            {"gid": "t1", "name": "Lookalike"},
-            {"gid": "t2", "name": "Interest"},
-        ])
+        offer.get_custom_fields().set(
+            "Targeting Strategies",
+            [
+                {"gid": "t1", "name": "Lookalike"},
+                {"gid": "t2", "name": "Interest"},
+            ],
+        )
         assert offer.targeting_strategies == ["Lookalike", "Interest"]
 
     def test_office_phone(self) -> None:
@@ -483,10 +494,13 @@ class TestOfferCustomFields:
     def test_rep_people_field(self) -> None:
         """rep returns list of people dicts."""
         offer = Offer(gid="123", custom_fields=[])
-        offer.get_custom_fields().set("Rep", [
-            {"gid": "u1", "name": "John Doe"},
-            {"gid": "u2", "name": "Jane Smith"},
-        ])
+        offer.get_custom_fields().set(
+            "Rep",
+            [
+                {"gid": "u1", "name": "John Doe"},
+                {"gid": "u2", "name": "Jane Smith"},
+            ],
+        )
         assert len(offer.rep) == 2
         assert offer.rep[0]["name"] == "John Doe"
 

@@ -9,7 +9,6 @@ import os
 import pytest
 
 from autom8_asana.cache.entry import CacheEntry, EntryType
-from autom8_asana.cache.freshness import Freshness
 from autom8_asana.protocols.cache import WarmResult
 
 # Try to import moto, skip integration tests if not available
@@ -214,7 +213,9 @@ class TestS3CacheProviderDegraded:
 
             now = datetime.now(timezone.utc)
             entries = {
-                "1": CacheEntry(key="1", data={}, entry_type=EntryType.TASK, version=now),
+                "1": CacheEntry(
+                    key="1", data={}, entry_type=EntryType.TASK, version=now
+                ),
             }
 
             # Should not raise
@@ -229,7 +230,12 @@ class TestS3CacheProviderDegraded:
             provider = S3CacheProvider(config=config)
             provider._degraded = True
 
-            assert provider.check_freshness("key", EntryType.TASK, datetime.now(timezone.utc)) is False
+            assert (
+                provider.check_freshness(
+                    "key", EntryType.TASK, datetime.now(timezone.utc)
+                )
+                is False
+            )
 
 
 class TestS3CacheProviderKeyGeneration:
@@ -478,7 +484,9 @@ class TestS3CacheProviderMetrics:
             provider = S3CacheProvider(config=config)
 
             # Manually record an error
-            provider._metrics.record_error(key="test-key", error_message="Connection failed")
+            provider._metrics.record_error(
+                key="test-key", error_message="Connection failed"
+            )
 
             metrics = provider.get_metrics()
             assert metrics.errors == 1
@@ -802,22 +810,37 @@ class TestS3CacheProviderIntegration:
 
     def test_check_freshness_missing(self, s3_provider) -> None:
         """Test check_freshness returns False for missing entry."""
-        assert s3_provider.check_freshness(
-            "nonexistent",
-            EntryType.TASK,
-            datetime.now(timezone.utc),
-        ) is False
+        assert (
+            s3_provider.check_freshness(
+                "nonexistent",
+                EntryType.TASK,
+                datetime.now(timezone.utc),
+            )
+            is False
+        )
 
     def test_invalidate_single_type(self, s3_provider) -> None:
         """Test invalidate removes specified entry types."""
         now = datetime.now(timezone.utc)
 
-        s3_provider.set_versioned("123", CacheEntry(
-            key="123", data={}, entry_type=EntryType.TASK, version=now,
-        ))
-        s3_provider.set_versioned("123", CacheEntry(
-            key="123", data={}, entry_type=EntryType.SUBTASKS, version=now,
-        ))
+        s3_provider.set_versioned(
+            "123",
+            CacheEntry(
+                key="123",
+                data={},
+                entry_type=EntryType.TASK,
+                version=now,
+            ),
+        )
+        s3_provider.set_versioned(
+            "123",
+            CacheEntry(
+                key="123",
+                data={},
+                entry_type=EntryType.SUBTASKS,
+                version=now,
+            ),
+        )
 
         s3_provider.invalidate("123", [EntryType.TASK])
 
@@ -828,12 +851,24 @@ class TestS3CacheProviderIntegration:
         """Test invalidate removes all entry types when None specified."""
         now = datetime.now(timezone.utc)
 
-        s3_provider.set_versioned("123", CacheEntry(
-            key="123", data={}, entry_type=EntryType.TASK, version=now,
-        ))
-        s3_provider.set_versioned("123", CacheEntry(
-            key="123", data={}, entry_type=EntryType.SUBTASKS, version=now,
-        ))
+        s3_provider.set_versioned(
+            "123",
+            CacheEntry(
+                key="123",
+                data={},
+                entry_type=EntryType.TASK,
+                version=now,
+            ),
+        )
+        s3_provider.set_versioned(
+            "123",
+            CacheEntry(
+                key="123",
+                data={},
+                entry_type=EntryType.SUBTASKS,
+                version=now,
+            ),
+        )
 
         s3_provider.invalidate("123", None)
 
@@ -844,12 +879,24 @@ class TestS3CacheProviderIntegration:
         """Test get_batch operation."""
         now = datetime.now(timezone.utc)
 
-        s3_provider.set_versioned("1", CacheEntry(
-            key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now,
-        ))
-        s3_provider.set_versioned("2", CacheEntry(
-            key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now,
-        ))
+        s3_provider.set_versioned(
+            "1",
+            CacheEntry(
+                key="1",
+                data={"id": 1},
+                entry_type=EntryType.TASK,
+                version=now,
+            ),
+        )
+        s3_provider.set_versioned(
+            "2",
+            CacheEntry(
+                key="2",
+                data={"id": 2},
+                entry_type=EntryType.TASK,
+                version=now,
+            ),
+        )
 
         result = s3_provider.get_batch(["1", "2", "3"], EntryType.TASK)
 
@@ -869,8 +916,12 @@ class TestS3CacheProviderIntegration:
         now = datetime.now(timezone.utc)
 
         entries = {
-            "1": CacheEntry(key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now),
-            "2": CacheEntry(key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now),
+            "1": CacheEntry(
+                key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now
+            ),
+            "2": CacheEntry(
+                key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now
+            ),
         }
 
         s3_provider.set_batch(entries)

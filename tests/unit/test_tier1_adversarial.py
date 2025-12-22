@@ -29,8 +29,6 @@ from autom8_asana.clients.users import UsersClient
 from autom8_asana.clients.workspaces import WorkspacesClient
 from autom8_asana.config import AsanaConfig
 from autom8_asana.exceptions import (
-    ForbiddenError,
-    NotFoundError,
     SyncInAsyncContextError,
 )
 from autom8_asana.models import (
@@ -195,23 +193,27 @@ class TestNameGidDeserialization:
 
     def test_deserialize_from_full_dict(self) -> None:
         """NameGid deserializes from dict with all fields."""
-        ref = NameGid.model_validate({
-            "gid": "123",
-            "name": "Test User",
-            "resource_type": "user",
-        })
+        ref = NameGid.model_validate(
+            {
+                "gid": "123",
+                "name": "Test User",
+                "resource_type": "user",
+            }
+        )
         assert ref.gid == "123"
         assert ref.name == "Test User"
         assert ref.resource_type == "user"
 
     def test_deserialize_nested_in_model(self) -> None:
         """NameGid deserializes correctly when nested in parent model."""
-        project = Project.model_validate({
-            "gid": "proj123",
-            "owner": {"gid": "user123", "name": "Alice"},
-            "team": {"gid": "team123", "name": "Engineering"},
-            "workspace": {"gid": "ws123", "name": "My Workspace"},
-        })
+        project = Project.model_validate(
+            {
+                "gid": "proj123",
+                "owner": {"gid": "user123", "name": "Alice"},
+                "team": {"gid": "team123", "name": "Engineering"},
+                "workspace": {"gid": "ws123", "name": "My Workspace"},
+            }
+        )
 
         assert project.owner is not None
         assert isinstance(project.owner, NameGid)
@@ -226,14 +228,16 @@ class TestNameGidDeserialization:
 
     def test_deserialize_list_of_namegid(self) -> None:
         """List[NameGid] deserializes correctly."""
-        project = Project.model_validate({
-            "gid": "proj123",
-            "members": [
-                {"gid": "user1", "name": "Alice"},
-                {"gid": "user2", "name": "Bob"},
-                {"gid": "user3"},  # Name is optional
-            ],
-        })
+        project = Project.model_validate(
+            {
+                "gid": "proj123",
+                "members": [
+                    {"gid": "user1", "name": "Alice"},
+                    {"gid": "user2", "name": "Bob"},
+                    {"gid": "user3"},  # Name is optional
+                ],
+            }
+        )
 
         assert project.members is not None
         assert len(project.members) == 3
@@ -247,12 +251,14 @@ class TestExtraFieldsIgnored:
 
     def test_workspace_ignores_unknown_fields(self) -> None:
         """Workspace ignores unknown API fields."""
-        ws = Workspace.model_validate({
-            "gid": "123",
-            "name": "Test",
-            "future_field": "ignored",
-            "another_new_field": {"nested": "data"},
-        })
+        ws = Workspace.model_validate(
+            {
+                "gid": "123",
+                "name": "Test",
+                "future_field": "ignored",
+                "another_new_field": {"nested": "data"},
+            }
+        )
 
         assert ws.gid == "123"
         assert ws.name == "Test"
@@ -262,13 +268,15 @@ class TestExtraFieldsIgnored:
 
     def test_user_ignores_unknown_fields(self) -> None:
         """User ignores unknown API fields."""
-        user = User.model_validate({
-            "gid": "456",
-            "name": "Test User",
-            "email": "test@example.com",
-            "avatar_url": "https://example.com/avatar.png",  # Unknown field
-            "department": "Engineering",  # Unknown field
-        })
+        user = User.model_validate(
+            {
+                "gid": "456",
+                "name": "Test User",
+                "email": "test@example.com",
+                "avatar_url": "https://example.com/avatar.png",  # Unknown field
+                "department": "Engineering",  # Unknown field
+            }
+        )
 
         assert user.gid == "456"
         assert not hasattr(user, "avatar_url")
@@ -276,12 +284,14 @@ class TestExtraFieldsIgnored:
 
     def test_project_ignores_unknown_fields(self) -> None:
         """Project ignores unknown API fields."""
-        project = Project.model_validate({
-            "gid": "789",
-            "name": "Test Project",
-            "new_feature_flag": True,  # Unknown field
-            "experimental": {"data": "here"},  # Unknown field
-        })
+        project = Project.model_validate(
+            {
+                "gid": "789",
+                "name": "Test Project",
+                "new_feature_flag": True,  # Unknown field
+                "experimental": {"data": "here"},  # Unknown field
+            }
+        )
 
         assert project.gid == "789"
         assert not hasattr(project, "new_feature_flag")
@@ -289,12 +299,14 @@ class TestExtraFieldsIgnored:
 
     def test_namegid_ignores_extra_fields(self) -> None:
         """NameGid ignores extra fields in nested objects."""
-        ref = NameGid.model_validate({
-            "gid": "123",
-            "name": "Test",
-            "email": "extra@example.com",
-            "photo": {"url": "https://..."},
-        })
+        ref = NameGid.model_validate(
+            {
+                "gid": "123",
+                "name": "Test",
+                "email": "extra@example.com",
+                "photo": {"url": "https://..."},
+            }
+        )
 
         assert ref.gid == "123"
         assert ref.name == "Test"
@@ -389,7 +401,9 @@ class TestCRUDOperationsAllClients:
     ) -> None:
         """WorkspacesClient.get_async calls correct API endpoint."""
         client = WorkspacesClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.get.return_value = {"gid": "ws123", "name": "Test"}
 
@@ -405,7 +419,9 @@ class TestCRUDOperationsAllClients:
     ) -> None:
         """UsersClient.get_async calls correct API endpoint."""
         client = UsersClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.get.return_value = {"gid": "user123", "name": "Test"}
 
@@ -421,7 +437,9 @@ class TestCRUDOperationsAllClients:
     ) -> None:
         """ProjectsClient uses correct endpoints for all CRUD operations."""
         client = ProjectsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
 
         # GET
@@ -458,7 +476,9 @@ class TestCRUDOperationsAllClients:
     ) -> None:
         """SectionsClient uses correct endpoints for all CRUD operations."""
         client = SectionsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
 
         # GET
@@ -495,7 +515,9 @@ class TestCRUDOperationsAllClients:
     ) -> None:
         """CustomFieldsClient uses correct endpoints for all CRUD operations."""
         client = CustomFieldsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
 
         # GET
@@ -544,7 +566,9 @@ class TestRawModeAllClients:
     ) -> None:
         """WorkspacesClient returns dict when raw=True."""
         client = WorkspacesClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.get.return_value = {"gid": "ws123", "custom_field": "preserved"}
 
@@ -561,7 +585,9 @@ class TestRawModeAllClients:
     ) -> None:
         """UsersClient returns dict when raw=True."""
         client = UsersClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.get.return_value = {"gid": "user123", "extra": "data"}
 
@@ -583,7 +609,9 @@ class TestRawModeAllClients:
     ) -> None:
         """ProjectsClient returns dict when raw=True for all operations."""
         client = ProjectsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
 
         # get_async raw
@@ -618,7 +646,9 @@ class TestRawModeAllClients:
     ) -> None:
         """SectionsClient returns dict when raw=True."""
         client = SectionsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
 
         mock_http.get.return_value = {"gid": "sec123", "extra": "data"}
@@ -637,7 +667,9 @@ class TestRawModeAllClients:
     ) -> None:
         """CustomFieldsClient returns dict when raw=True."""
         client = CustomFieldsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
 
         mock_http.get.return_value = {"gid": "cf123", "extra": "data"}
@@ -660,7 +692,9 @@ class TestPageIteratorReturnsCorrectType:
     ) -> None:
         """WorkspacesClient.list_async returns PageIterator[Workspace]."""
         client = WorkspacesClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.get_paginated.return_value = (
             [{"gid": "ws1", "name": "WS1"}, {"gid": "ws2", "name": "WS2"}],
@@ -682,7 +716,9 @@ class TestPageIteratorReturnsCorrectType:
     ) -> None:
         """UsersClient.list_for_workspace_async returns PageIterator[User]."""
         client = UsersClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.get_paginated.return_value = (
             [{"gid": "u1", "name": "User1"}, {"gid": "u2", "name": "User2"}],
@@ -702,7 +738,9 @@ class TestPageIteratorReturnsCorrectType:
     ) -> None:
         """ProjectsClient.list_async returns PageIterator[Project]."""
         client = ProjectsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.get_paginated.return_value = (
             [{"gid": "p1", "name": "Project1"}],
@@ -722,7 +760,9 @@ class TestPageIteratorReturnsCorrectType:
     ) -> None:
         """SectionsClient.list_for_project_async returns PageIterator[Section]."""
         client = SectionsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.get_paginated.return_value = (
             [{"gid": "s1", "name": "To Do"}],
@@ -742,7 +782,9 @@ class TestPageIteratorReturnsCorrectType:
     ) -> None:
         """CustomFieldsClient.list_for_workspace_async returns PageIterator[CustomField]."""
         client = CustomFieldsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.get_paginated.return_value = (
             [{"gid": "cf1", "name": "Priority"}],
@@ -762,7 +804,9 @@ class TestPageIteratorReturnsCorrectType:
     ) -> None:
         """CustomFieldsClient.get_settings_for_project_async returns PageIterator[CustomFieldSetting]."""
         client = CustomFieldsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.get_paginated.return_value = (
             [{"gid": "set1", "is_important": True}],
@@ -786,7 +830,9 @@ class TestSyncWrapperBehavior:
     ) -> None:
         """WorkspacesClient sync methods fail in async context."""
         client = WorkspacesClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
 
         with pytest.raises(SyncInAsyncContextError):
@@ -800,7 +846,9 @@ class TestSyncWrapperBehavior:
     ) -> None:
         """UsersClient sync methods fail in async context."""
         client = UsersClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
 
         with pytest.raises(SyncInAsyncContextError):
@@ -817,7 +865,9 @@ class TestSyncWrapperBehavior:
     ) -> None:
         """ProjectsClient sync methods fail in async context."""
         client = ProjectsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
 
         with pytest.raises(SyncInAsyncContextError):
@@ -846,7 +896,9 @@ class TestSyncWrapperBehavior:
     ) -> None:
         """SectionsClient sync methods fail in async context."""
         client = SectionsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
 
         with pytest.raises(SyncInAsyncContextError):
@@ -866,7 +918,9 @@ class TestSyncWrapperBehavior:
     ) -> None:
         """CustomFieldsClient sync methods fail in async context."""
         client = CustomFieldsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
 
         with pytest.raises(SyncInAsyncContextError):
@@ -898,7 +952,9 @@ class TestProjectMembershipOperations:
     ) -> None:
         """add_members_async joins member GIDs with comma."""
         client = ProjectsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.post.return_value = {"gid": "proj123", "name": "Project"}
 
@@ -917,7 +973,9 @@ class TestProjectMembershipOperations:
     ) -> None:
         """add_members_async works with single member."""
         client = ProjectsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.post.return_value = {"gid": "proj123", "name": "Project"}
 
@@ -934,7 +992,9 @@ class TestProjectMembershipOperations:
     ) -> None:
         """remove_members_async joins member GIDs with comma."""
         client = ProjectsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.post.return_value = {"gid": "proj123", "name": "Project"}
 
@@ -957,7 +1017,9 @@ class TestSectionTaskOperations:
     ) -> None:
         """add_task_async includes all positioning options when specified."""
         client = SectionsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.post.return_value = {}
 
@@ -986,7 +1048,9 @@ class TestSectionTaskOperations:
     ) -> None:
         """insert_section_async includes positioning options."""
         client = SectionsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.post.return_value = {}
 
@@ -1010,7 +1074,9 @@ class TestSectionTaskOperations:
     ) -> None:
         """create_async for sections includes positioning options."""
         client = SectionsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.post.return_value = {"gid": "newsec", "name": "New"}
 
@@ -1037,7 +1103,9 @@ class TestCustomFieldEnumOperations:
     ) -> None:
         """create_enum_option_async includes all parameters."""
         client = CustomFieldsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.post.return_value = {"gid": "opt123", "name": "New Option"}
 
@@ -1064,7 +1132,9 @@ class TestCustomFieldEnumOperations:
     ) -> None:
         """create_enum_option_async defaults enabled to True."""
         client = CustomFieldsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.post.return_value = {"gid": "opt123", "name": "Option"}
 
@@ -1082,7 +1152,9 @@ class TestCustomFieldEnumOperations:
     ) -> None:
         """update_enum_option_async uses correct endpoint."""
         client = CustomFieldsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.put.return_value = {"gid": "opt123", "name": "Updated"}
 
@@ -1105,7 +1177,9 @@ class TestCustomFieldProjectOperations:
     ) -> None:
         """add_to_project_async includes all parameters."""
         client = CustomFieldsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.post.return_value = {"gid": "setting123"}
 
@@ -1130,7 +1204,9 @@ class TestCustomFieldProjectOperations:
     ) -> None:
         """remove_from_project_async returns None."""
         client = CustomFieldsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.post.return_value = {}
 
@@ -1154,7 +1230,9 @@ class TestUsersClientMe:
     ) -> None:
         """me_async calls /users/me endpoint."""
         client = UsersClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.get.return_value = {"gid": "me123", "name": "Current User"}
 
@@ -1170,7 +1248,9 @@ class TestUsersClientMe:
     ) -> None:
         """me_async includes opt_fields in request."""
         client = UsersClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.get.return_value = {"gid": "me123", "name": "Current User"}
 
@@ -1190,9 +1270,7 @@ class TestAsanaClientProperties:
 
     def test_all_client_properties_accessible(self) -> None:
         """All Tier 1 client properties are accessible."""
-        with patch(
-            "autom8_asana.client.AsyncHTTPClient"
-        ) as mock_http_class:
+        with patch("autom8_asana.client.AsyncHTTPClient") as mock_http_class:
             mock_http_class.return_value = MagicMock()
             client = AsanaClient(token="test-token")
 
@@ -1206,9 +1284,7 @@ class TestAsanaClientProperties:
 
     def test_client_properties_return_correct_types(self) -> None:
         """Client properties return correct client types."""
-        with patch(
-            "autom8_asana.client.AsyncHTTPClient"
-        ) as mock_http_class:
+        with patch("autom8_asana.client.AsyncHTTPClient") as mock_http_class:
             mock_http_class.return_value = MagicMock()
             client = AsanaClient(token="test-token")
 
@@ -1227,9 +1303,7 @@ class TestAsanaClientLazyInitialization:
 
     def test_clients_not_created_on_init(self) -> None:
         """Resource clients are not created during AsanaClient init."""
-        with patch(
-            "autom8_asana.client.AsyncHTTPClient"
-        ) as mock_http_class:
+        with patch("autom8_asana.client.AsyncHTTPClient") as mock_http_class:
             mock_http_class.return_value = MagicMock()
             client = AsanaClient(token="test-token")
 
@@ -1243,9 +1317,7 @@ class TestAsanaClientLazyInitialization:
 
     def test_clients_created_on_first_access(self) -> None:
         """Resource clients are created on first property access."""
-        with patch(
-            "autom8_asana.client.AsyncHTTPClient"
-        ) as mock_http_class:
+        with patch("autom8_asana.client.AsyncHTTPClient") as mock_http_class:
             mock_http_class.return_value = MagicMock()
             client = AsanaClient(token="test-token")
 
@@ -1261,9 +1333,7 @@ class TestAsanaClientLazyInitialization:
 
     def test_same_client_returned_on_multiple_access(self) -> None:
         """Same client instance returned on multiple property accesses."""
-        with patch(
-            "autom8_asana.client.AsyncHTTPClient"
-        ) as mock_http_class:
+        with patch("autom8_asana.client.AsyncHTTPClient") as mock_http_class:
             mock_http_class.return_value = MagicMock()
             client = AsanaClient(token="test-token")
 
@@ -1280,9 +1350,7 @@ class TestAsanaClientHTTPSharing:
 
     def test_all_clients_share_http_client(self) -> None:
         """All resource clients share the same HTTP client instance."""
-        with patch(
-            "autom8_asana.client.AsyncHTTPClient"
-        ) as mock_http_class:
+        with patch("autom8_asana.client.AsyncHTTPClient") as mock_http_class:
             mock_http = MagicMock()
             mock_http_class.return_value = mock_http
             client = AsanaClient(token="test-token")
@@ -1308,9 +1376,7 @@ class TestAsanaClientThreadSafety:
 
     def test_concurrent_access_same_client(self) -> None:
         """Concurrent access from multiple threads returns same client."""
-        with patch(
-            "autom8_asana.client.AsyncHTTPClient"
-        ) as mock_http_class:
+        with patch("autom8_asana.client.AsyncHTTPClient") as mock_http_class:
             mock_http_class.return_value = MagicMock()
             client = AsanaClient(token="test-token")
 
@@ -1334,7 +1400,9 @@ class TestAsanaClientThreadSafety:
             for t in threads:
                 t.join(timeout=10)
                 if t.is_alive():
-                    raise AssertionError(f"Thread {t.name} did not complete within timeout")
+                    raise AssertionError(
+                        f"Thread {t.name} did not complete within timeout"
+                    )
 
             # No errors should have occurred
             assert len(errors) == 0
@@ -1380,6 +1448,7 @@ class TestEmptyCollections:
 
     async def test_page_iterator_empty_first_page(self) -> None:
         """PageIterator handles empty first page correctly."""
+
         async def fetch_page(offset: str | None) -> tuple[list[Any], str | None]:
             return [], None
 
@@ -1390,6 +1459,7 @@ class TestEmptyCollections:
 
     async def test_page_iterator_first_on_empty(self) -> None:
         """PageIterator.first() returns None for empty results."""
+
         async def fetch_page(offset: str | None) -> tuple[list[Any], str | None]:
             return [], None
 
@@ -1442,55 +1512,67 @@ class TestUnicodeHandling:
 
     def test_workspace_unicode_name(self) -> None:
         """Workspace handles Unicode in name."""
-        ws = Workspace.model_validate({
-            "gid": "123",
-            "name": "Projet Alpha - Dev",
-        })
+        ws = Workspace.model_validate(
+            {
+                "gid": "123",
+                "name": "Projet Alpha - Dev",
+            }
+        )
         assert ws.name == "Projet Alpha - Dev"
 
     def test_project_unicode_name_and_notes(self) -> None:
         """Project handles Unicode in name and notes."""
-        project = Project.model_validate({
-            "gid": "123",
-            "name": "Project Name",
-            "notes": "Notes with emoji",
-            "html_notes": "<p>HTML with emoji</p>",
-        })
+        project = Project.model_validate(
+            {
+                "gid": "123",
+                "name": "Project Name",
+                "notes": "Notes with emoji",
+                "html_notes": "<p>HTML with emoji</p>",
+            }
+        )
         assert "emoji" in project.notes
 
     def test_user_unicode_name(self) -> None:
         """User handles Unicode in name."""
-        user = User.model_validate({
-            "gid": "123",
-            "name": "Yamada Taro",  # Japanese name
-            "email": "taro@example.com",
-        })
+        user = User.model_validate(
+            {
+                "gid": "123",
+                "name": "Yamada Taro",  # Japanese name
+                "email": "taro@example.com",
+            }
+        )
         assert "Yamada" in user.name
 
     def test_section_unicode_name(self) -> None:
         """Section handles Unicode in name."""
-        section = Section.model_validate({
-            "gid": "123",
-            "name": "A Faire",  # French "To Do" with accent
-        })
+        section = Section.model_validate(
+            {
+                "gid": "123",
+                "name": "A Faire",  # French "To Do" with accent
+            }
+        )
         assert section.name == "A Faire"
 
     def test_custom_field_unicode_values(self) -> None:
         """CustomField handles Unicode in various fields."""
-        cf = CustomField.model_validate({
-            "gid": "123",
-            "name": "Priorite",  # French with accent
-            "description": "Description with special chars: < > &",
-            "text_value": "Chinese value",
-        })
+        cf = CustomField.model_validate(
+            {
+                "gid": "123",
+                "name": "Priorite",  # French with accent
+                "description": "Description with special chars: < > &",
+                "text_value": "Chinese value",
+            }
+        )
         assert "Priorite" in cf.name
 
     def test_namegid_unicode(self) -> None:
         """NameGid handles Unicode in name."""
-        ref = NameGid.model_validate({
-            "gid": "123",
-            "name": "Internationalization Test",
-        })
+        ref = NameGid.model_validate(
+            {
+                "gid": "123",
+                "name": "Internationalization Test",
+            }
+        )
         assert ref.name is not None
 
 
@@ -1527,18 +1609,22 @@ class TestBoundaryConditions:
 
     def test_custom_field_precision_zero(self) -> None:
         """CustomField handles precision of 0."""
-        cf = CustomField.model_validate({
-            "gid": "123",
-            "precision": 0,
-        })
+        cf = CustomField.model_validate(
+            {
+                "gid": "123",
+                "precision": 0,
+            }
+        )
         assert cf.precision == 0
 
     def test_custom_field_precision_max(self) -> None:
         """CustomField handles large precision value."""
-        cf = CustomField.model_validate({
-            "gid": "123",
-            "precision": 10,
-        })
+        cf = CustomField.model_validate(
+            {
+                "gid": "123",
+                "precision": 10,
+            }
+        )
         assert cf.precision == 10
 
     def test_project_many_members(self) -> None:
@@ -1565,7 +1651,9 @@ class TestOptFieldsParameter:
     ) -> None:
         """WorkspacesClient.get_async passes opt_fields correctly."""
         client = WorkspacesClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.get.return_value = {"gid": "ws123", "name": "Test"}
 
@@ -1582,7 +1670,9 @@ class TestOptFieldsParameter:
     ) -> None:
         """UsersClient.get_async passes opt_fields correctly."""
         client = UsersClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.get.return_value = {"gid": "user123", "name": "Test"}
 
@@ -1603,7 +1693,9 @@ class TestProjectsSectionConvenience:
     ) -> None:
         """ProjectsClient.get_sections_async returns PageIterator[Section]."""
         client = ProjectsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.get_paginated.return_value = (
             [{"gid": "s1", "name": "To Do"}, {"gid": "s2", "name": "Done"}],
@@ -1625,7 +1717,9 @@ class TestProjectsSectionConvenience:
     ) -> None:
         """ProjectsClient.get_sections_async calls correct API endpoint."""
         client = ProjectsClient(
-            http=mock_http, config=config, auth_provider=auth_provider  # type: ignore
+            http=mock_http,
+            config=config,
+            auth_provider=auth_provider,  # type: ignore
         )
         mock_http.get_paginated.return_value = ([{"gid": "s1", "name": "Test"}], None)
 

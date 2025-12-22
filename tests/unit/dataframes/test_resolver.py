@@ -164,7 +164,9 @@ class TestDefaultCustomFieldResolver:
         resolver = DefaultCustomFieldResolver()
         custom_fields = [
             MockCustomField(gid="123", name="MRR", resource_subtype="number"),
-            MockCustomField(gid="456", name="Weekly Ad Spend", resource_subtype="number"),
+            MockCustomField(
+                gid="456", name="Weekly Ad Spend", resource_subtype="number"
+            ),
             MockCustomField(gid="789", name="Products", resource_subtype="multi_enum"),
         ]
         resolver.build_index(custom_fields)  # type: ignore[arg-type]
@@ -178,7 +180,9 @@ class TestDefaultCustomFieldResolver:
         resolver = DefaultCustomFieldResolver()
         custom_fields = [
             MockCustomField(gid="123", name="MRR", resource_subtype="number"),
-            MockCustomField(gid="456", name="Weekly Ad Spend", resource_subtype="number"),
+            MockCustomField(
+                gid="456", name="Weekly Ad Spend", resource_subtype="number"
+            ),
         ]
         resolver.build_index(custom_fields)  # type: ignore[arg-type]
 

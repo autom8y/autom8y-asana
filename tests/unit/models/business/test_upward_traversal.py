@@ -17,13 +17,11 @@ import pytest
 from autom8_asana.exceptions import HydrationError
 from autom8_asana.models.business.business import Business
 from autom8_asana.models.business.contact import Contact, ContactHolder
-from autom8_asana.models.business.detection import EntityType
 from autom8_asana.models.business.hydration import (
-    _convert_to_typed_entity,
     _traverse_upward_async,
 )
 from autom8_asana.models.business.offer import Offer, OfferHolder
-from autom8_asana.models.business.process import Process, ProcessHolder
+from autom8_asana.models.business.process import ProcessHolder
 from autom8_asana.models.business.unit import Unit, UnitHolder
 from autom8_asana.models.task import NameGid, Task
 
@@ -49,7 +47,7 @@ class TestParentChainNavigation:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             if gid == "ch1":
                 return Task(
                     gid="ch1",
@@ -62,7 +60,7 @@ class TestParentChainNavigation:
 
         client.tasks.get_async = AsyncMock(side_effect=get_async_side_effect)
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             if gid == "b1":
                 mock.collect = AsyncMock(
@@ -97,7 +95,7 @@ class TestParentChainNavigation:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "oh1": Task(
                     gid="oh1",
@@ -122,7 +120,7 @@ class TestParentChainNavigation:
 
         client.tasks.get_async = AsyncMock(side_effect=get_async_side_effect)
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             subtask_map = {
                 "u1": [
@@ -163,7 +161,7 @@ class TestParentChainNavigation:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "ph1": Task(
                     gid="ph1",
@@ -186,7 +184,7 @@ class TestParentChainNavigation:
 
         client.tasks.get_async = AsyncMock(side_effect=get_async_side_effect)
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             subtask_map = {
                 "u1": [
@@ -223,7 +221,7 @@ class TestParentChainNavigation:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "uh1": Task(
                     gid="uh1",
@@ -236,7 +234,7 @@ class TestParentChainNavigation:
 
         client.tasks.get_async = AsyncMock(side_effect=get_async_side_effect)
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             if gid == "b1":
                 mock.collect = AsyncMock(
@@ -277,7 +275,7 @@ class TestCycleDetection:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             if gid == "t2":
                 return Task(
                     gid="t2",
@@ -288,7 +286,7 @@ class TestCycleDetection:
 
         client.tasks.get_async = AsyncMock(side_effect=get_async_side_effect)
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=[])
             return mock
@@ -312,7 +310,7 @@ class TestCycleDetection:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "t2": Task(
                     gid="t2",
@@ -329,7 +327,7 @@ class TestCycleDetection:
 
         client.tasks.get_async = AsyncMock(side_effect=get_async_side_effect)
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=[])
             return mock
@@ -352,7 +350,7 @@ class TestCycleDetection:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             # Should never be called - cycle detected on first parent check
             raise ValueError(f"Unexpected gid: {gid}")
 
@@ -385,7 +383,7 @@ class TestMaxDepthEnforcement:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             level = int(gid[1:])
             return Task(
                 gid=gid,
@@ -395,7 +393,7 @@ class TestMaxDepthEnforcement:
 
         client.tasks.get_async = AsyncMock(side_effect=get_async_side_effect)
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=[])
             return mock
@@ -418,7 +416,7 @@ class TestMaxDepthEnforcement:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             level = int(gid[1:])
             return Task(
                 gid=gid,
@@ -428,7 +426,7 @@ class TestMaxDepthEnforcement:
 
         client.tasks.get_async = AsyncMock(side_effect=get_async_side_effect)
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=[])
             return mock
@@ -452,7 +450,7 @@ class TestMaxDepthEnforcement:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "t1": Task(
                     gid="t1",
@@ -470,7 +468,7 @@ class TestMaxDepthEnforcement:
 
         client.tasks.get_async = AsyncMock(side_effect=get_async_side_effect)
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             if gid == "b1":
                 mock.collect = AsyncMock(
@@ -520,14 +518,14 @@ class TestRootWithoutBusiness:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             if gid == "root":
                 return Task(gid="root", name="Root Task", parent=None)
             raise ValueError(f"Unexpected gid: {gid}")
 
         client.tasks.get_async = AsyncMock(side_effect=get_async_side_effect)
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=[])  # No holder subtasks
             return mock
@@ -560,7 +558,7 @@ class TestTypeDetectionDuringTraversal:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "ch1": Task(
                     gid="ch1",
@@ -575,7 +573,7 @@ class TestTypeDetectionDuringTraversal:
 
         call_count = 0
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             nonlocal call_count
             call_count += 1
             mock = AsyncMock()
@@ -605,7 +603,7 @@ class TestTypeDetectionDuringTraversal:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "uh1": Task(
                     gid="uh1",
@@ -618,7 +616,7 @@ class TestTypeDetectionDuringTraversal:
 
         client.tasks.get_async = AsyncMock(side_effect=get_async_side_effect)
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             if gid == "b1":
                 # Business detected by having holder subtasks
@@ -659,7 +657,7 @@ class TestEntityToBusinessAsync:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "ch1": Task(
                     gid="ch1",
@@ -677,7 +675,7 @@ class TestEntityToBusinessAsync:
             "ch1": [Task(gid="c1", name="John Doe")],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -700,7 +698,7 @@ class TestEntityToBusinessAsync:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "oh1": Task(
                     gid="oh1",
@@ -731,7 +729,7 @@ class TestEntityToBusinessAsync:
             "ph1": [],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -753,7 +751,7 @@ class TestEntityToBusinessAsync:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "uh1": Task(
                     gid="uh1",
@@ -773,7 +771,7 @@ class TestEntityToBusinessAsync:
             "oh1": [],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -794,7 +792,7 @@ class TestEntityToBusinessAsync:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "ch1": Task(
                     gid="ch1",
@@ -807,7 +805,7 @@ class TestEntityToBusinessAsync:
 
         client.tasks.get_async = AsyncMock(side_effect=get_async_side_effect)
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             if gid == "b1":
                 mock.collect = AsyncMock(
@@ -835,7 +833,7 @@ class TestEntityToBusinessAsync:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "ch1": Task(
                     gid="ch1",
@@ -850,7 +848,7 @@ class TestEntityToBusinessAsync:
 
         call_count = 0
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             nonlocal call_count
             call_count += 1
             mock = AsyncMock()
@@ -887,7 +885,7 @@ class TestReferenceUpdates:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "ch1": Task(
                     gid="ch1",
@@ -905,7 +903,7 @@ class TestReferenceUpdates:
             "ch1": [Task(gid="c1", name="John Doe")],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -926,7 +924,7 @@ class TestReferenceUpdates:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "oh1": Task(
                     gid="oh1",
@@ -957,7 +955,7 @@ class TestReferenceUpdates:
             "ph1": [],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock
@@ -980,7 +978,7 @@ class TestReferenceUpdates:
         )
         client = MagicMock()
 
-        async def get_async_side_effect(gid: str) -> Task:
+        async def get_async_side_effect(gid: str, **kwargs) -> Task:
             tasks = {
                 "uh1": Task(
                     gid="uh1",
@@ -1000,7 +998,7 @@ class TestReferenceUpdates:
             "oh1": [],
         }
 
-        def subtasks_side_effect(gid: str) -> AsyncMock:
+        def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             mock.collect = AsyncMock(return_value=mock_responses.get(gid, []))
             return mock

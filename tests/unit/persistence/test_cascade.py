@@ -6,7 +6,7 @@ Per ADR-0054: Tests for CascadeOperation, CascadeResult, and CascadeExecutor.
 from __future__ import annotations
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock
 
 from autom8_asana.persistence.cascade import (
     CascadeOperation,

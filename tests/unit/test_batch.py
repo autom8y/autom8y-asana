@@ -406,27 +406,21 @@ class TestChunking:
 
     def test_chunk_requests_under_limit(self) -> None:
         """_chunk_requests returns single chunk for < 10 requests."""
-        requests = [
-            BatchRequest(f"/tasks/{i}", "GET") for i in range(5)
-        ]
+        requests = [BatchRequest(f"/tasks/{i}", "GET") for i in range(5)]
         chunks = _chunk_requests(requests)
         assert len(chunks) == 1
         assert len(chunks[0]) == 5
 
     def test_chunk_requests_exactly_limit(self) -> None:
         """_chunk_requests returns single chunk for exactly 10 requests."""
-        requests = [
-            BatchRequest(f"/tasks/{i}", "GET") for i in range(10)
-        ]
+        requests = [BatchRequest(f"/tasks/{i}", "GET") for i in range(10)]
         chunks = _chunk_requests(requests)
         assert len(chunks) == 1
         assert len(chunks[0]) == 10
 
     def test_chunk_requests_over_limit(self) -> None:
         """_chunk_requests splits into multiple chunks for > 10 requests."""
-        requests = [
-            BatchRequest(f"/tasks/{i}", "GET") for i in range(11)
-        ]
+        requests = [BatchRequest(f"/tasks/{i}", "GET") for i in range(11)]
         chunks = _chunk_requests(requests)
         assert len(chunks) == 2
         assert len(chunks[0]) == 10
@@ -434,9 +428,7 @@ class TestChunking:
 
     def test_chunk_requests_exact_multiple(self) -> None:
         """_chunk_requests handles exact multiples of limit."""
-        requests = [
-            BatchRequest(f"/tasks/{i}", "GET") for i in range(20)
-        ]
+        requests = [BatchRequest(f"/tasks/{i}", "GET") for i in range(20)]
         chunks = _chunk_requests(requests)
         assert len(chunks) == 2
         assert len(chunks[0]) == 10
@@ -444,9 +436,7 @@ class TestChunking:
 
     def test_chunk_requests_preserves_order(self) -> None:
         """_chunk_requests preserves request order across chunks."""
-        requests = [
-            BatchRequest(f"/tasks/{i}", "GET") for i in range(25)
-        ]
+        requests = [BatchRequest(f"/tasks/{i}", "GET") for i in range(25)]
         chunks = _chunk_requests(requests)
         assert len(chunks) == 3
 
@@ -494,9 +484,7 @@ class TestBatchClientExecuteAsync:
             {"status_code": 201, "body": {"data": {"gid": "new123"}}}
         ]
 
-        requests = [
-            BatchRequest("/tasks", "POST", data={"name": "Task 1"})
-        ]
+        requests = [BatchRequest("/tasks", "POST", data={"name": "Task 1"})]
         results = await batch_client.execute_async(requests)
 
         assert len(results) == 1
@@ -516,8 +504,7 @@ class TestBatchClientExecuteAsync:
         ]
 
         requests = [
-            BatchRequest("/tasks", "POST", data={"name": f"Task {i}"})
-            for i in range(3)
+            BatchRequest("/tasks", "POST", data={"name": f"Task {i}"}) for i in range(3)
         ]
         results = await batch_client.execute_async(requests)
 
@@ -532,8 +519,7 @@ class TestBatchClientExecuteAsync:
         """execute_async automatically chunks requests > 10."""
         # First chunk response (10 items)
         chunk1_response = [
-            {"status_code": 201, "body": {"data": {"gid": str(i)}}}
-            for i in range(10)
+            {"status_code": 201, "body": {"data": {"gid": str(i)}}} for i in range(10)
         ]
         # Second chunk response (5 items)
         chunk2_response = [
@@ -670,10 +656,12 @@ class TestBatchClientConvenienceMethods:
             {"status_code": 201, "body": {"data": {"gid": "2"}}},
         ]
 
-        results = await batch_client.create_tasks_async([
-            {"name": "Task 1", "projects": ["proj123"]},
-            {"name": "Task 2", "assignee": "user456"},
-        ])
+        results = await batch_client.create_tasks_async(
+            [
+                {"name": "Task 1", "projects": ["proj123"]},
+                {"name": "Task 2", "assignee": "user456"},
+            ]
+        )
 
         assert len(results) == 2
         assert all(r.success for r in results)
@@ -713,10 +701,12 @@ class TestBatchClientConvenienceMethods:
             {"status_code": 200, "body": {"data": {"gid": "2", "name": "Renamed"}}},
         ]
 
-        results = await batch_client.update_tasks_async([
-            ("task_gid_1", {"completed": True}),
-            ("task_gid_2", {"name": "Renamed"}),
-        ])
+        results = await batch_client.update_tasks_async(
+            [
+                ("task_gid_1", {"completed": True}),
+                ("task_gid_2", {"name": "Renamed"}),
+            ]
+        )
 
         assert len(results) == 2
         assert all(r.success for r in results)
@@ -759,7 +749,10 @@ class TestBatchClientSyncWrappers:
     """Tests for BatchClient sync wrappers."""
 
     def test_execute_sync_works_outside_async(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """execute() works outside async context."""
         client = BatchClient(
@@ -771,7 +764,9 @@ class TestBatchClientSyncWrappers:
             {"status_code": 201, "body": {"data": {"gid": "1"}}}
         ]
 
-        results = client.execute([BatchRequest("/tasks", "POST", data={"name": "Task"})])
+        results = client.execute(
+            [BatchRequest("/tasks", "POST", data={"name": "Task"})]
+        )
 
         assert len(results) == 1
         assert results[0].success is True
@@ -785,7 +780,10 @@ class TestBatchClientSyncWrappers:
         assert "execute_async" in str(exc_info.value)
 
     def test_execute_with_summary_sync_works(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """execute_with_summary() works outside async context."""
         client = BatchClient(
@@ -795,15 +793,18 @@ class TestBatchClientSyncWrappers:
         )
         mock_http.request.return_value = [{"status_code": 201, "body": {}}]
 
-        summary = client.execute_with_summary([
-            BatchRequest("/tasks", "POST", data={"name": "Task"})
-        ])
+        summary = client.execute_with_summary(
+            [BatchRequest("/tasks", "POST", data={"name": "Task"})]
+        )
 
         assert isinstance(summary, BatchSummary)
         assert summary.total == 1
 
     def test_create_tasks_sync_works(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """create_tasks() works outside async context."""
         client = BatchClient(
@@ -818,7 +819,10 @@ class TestBatchClientSyncWrappers:
         assert len(results) == 1
 
     def test_update_tasks_sync_works(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """update_tasks() works outside async context."""
         client = BatchClient(
@@ -833,7 +837,10 @@ class TestBatchClientSyncWrappers:
         assert len(results) == 1
 
     def test_delete_tasks_sync_works(
-        self, mock_http: MockHTTPClient, config: AsanaConfig, auth_provider: MockAuthProvider
+        self,
+        mock_http: MockHTTPClient,
+        config: AsanaConfig,
+        auth_provider: MockAuthProvider,
     ) -> None:
         """delete_tasks() works outside async context."""
         client = BatchClient(
@@ -860,9 +867,9 @@ class TestBatchClientLogging:
         """Batch operations log their execution."""
         mock_http.request.return_value = [{"status_code": 201, "body": {}}]
 
-        await batch_client.execute_async([
-            BatchRequest("/tasks", "POST", data={"name": "Task"})
-        ])
+        await batch_client.execute_async(
+            [BatchRequest("/tasks", "POST", data={"name": "Task"})]
+        )
 
         # Check info and debug messages were logged
         info_messages = [msg for level, msg in logger.messages if level == "info"]
@@ -887,9 +894,7 @@ class TestBatchClientEdgeCases:
             {"status_code": 200, "body": {}} for _ in range(10)
         ]
 
-        requests = [
-            BatchRequest(f"/tasks/{i}", "GET") for i in range(10)
-        ]
+        requests = [BatchRequest(f"/tasks/{i}", "GET") for i in range(10)]
         results = await batch_client.execute_async(requests)
 
         assert len(results) == 10
@@ -903,9 +908,7 @@ class TestBatchClientEdgeCases:
         chunk2 = [{"status_code": 200, "body": {}}]
         mock_http.request.side_effect = [chunk1, chunk2]
 
-        requests = [
-            BatchRequest(f"/tasks/{i}", "GET") for i in range(11)
-        ]
+        requests = [BatchRequest(f"/tasks/{i}", "GET") for i in range(11)]
         results = await batch_client.execute_async(requests)
 
         assert len(results) == 11
@@ -920,9 +923,7 @@ class TestBatchClientEdgeCases:
             "data": [{"status_code": 200, "body": {"data": {"gid": "1"}}}]
         }
 
-        results = await batch_client.execute_async([
-            BatchRequest("/tasks", "GET")
-        ])
+        results = await batch_client.execute_async([BatchRequest("/tasks", "GET")])
 
         assert len(results) == 1
         assert results[0].success is True

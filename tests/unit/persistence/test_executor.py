@@ -5,7 +5,6 @@ Per TDD-0010: Verify batch execution delegation and result correlation.
 
 from __future__ import annotations
 
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -321,10 +320,12 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_batch_client_receives_correct_requests(self) -> None:
         """Verify BatchClient receives correctly built requests."""
-        mock_client = create_mock_batch_client([
-            create_success_result(gid="new_1", request_index=0),
-            create_success_result(gid="222", request_index=1),
-        ])
+        mock_client = create_mock_batch_client(
+            [
+                create_success_result(gid="new_1", request_index=0),
+                create_success_result(gid="222", request_index=1),
+            ]
+        )
         executor = BatchExecutor(mock_client)
 
         task1 = Task(gid="temp_1", name="New Task")

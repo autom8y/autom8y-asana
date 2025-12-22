@@ -7,10 +7,8 @@ Per ADR-0012: Verify public API surface definition.
 
 from __future__ import annotations
 
-import importlib
 import sys
 import warnings
-from typing import Any
 
 import pytest
 
@@ -279,8 +277,9 @@ class TestCompatUnknownAttribute:
         with pytest.raises(AttributeError) as exc_info:
             _ = compat.NonExistentClass
 
-        assert "module 'autom8_asana._compat' has no attribute 'NonExistentClass'" in str(
-            exc_info.value
+        assert (
+            "module 'autom8_asana._compat' has no attribute 'NonExistentClass'"
+            in str(exc_info.value)
         )
 
 
@@ -322,13 +321,7 @@ class TestSdkStandalone:
         # The fact that we got here means autom8 is not required
         # Verify the core imports work
         from autom8_asana import (
-            AsanaClient,
             AsanaConfig,
-            AsanaError,
-            AuthProvider,
-            CacheProvider,
-            LogProvider,
-            Task,
         )
 
         # Verify we can create config (no network needed)
@@ -337,7 +330,6 @@ class TestSdkStandalone:
 
     def test_no_autom8_imports_in_sdk(self) -> None:
         """Verify SDK modules don't import from autom8 package."""
-        import autom8_asana
 
         # Check that no autom8 modules are imported
         autom8_modules = [name for name in sys.modules if name.startswith("autom8.")]

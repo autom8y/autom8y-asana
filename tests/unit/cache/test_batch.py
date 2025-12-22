@@ -88,11 +88,13 @@ class TestModificationCheckCache:
     def test_set_many(self) -> None:
         """Test batch set operation."""
         cache = ModificationCheckCache()
-        cache.set_many({
-            "123": "2025-01-01T00:00:00Z",
-            "456": "2025-01-02T00:00:00Z",
-            "789": "2025-01-03T00:00:00Z",
-        })
+        cache.set_many(
+            {
+                "123": "2025-01-01T00:00:00Z",
+                "456": "2025-01-02T00:00:00Z",
+                "789": "2025-01-03T00:00:00Z",
+            }
+        )
 
         assert cache.get("123") is not None
         assert cache.get("456") is not None
@@ -172,7 +174,9 @@ class TestModificationCheckCache:
 
     def test_run_id_uses_ecs_metadata(self) -> None:
         """Test run ID prefers ECS metadata when available."""
-        with patch.dict(os.environ, {"ECS_CONTAINER_METADATA_URI_V4": "ecs://task/123"}):
+        with patch.dict(
+            os.environ, {"ECS_CONTAINER_METADATA_URI_V4": "ecs://task/123"}
+        ):
             cache = ModificationCheckCache()
             assert cache.run_id == "ecs://task/123"
 
@@ -286,10 +290,12 @@ class TestFetchTaskModifications:
     @pytest.mark.asyncio
     async def test_fetches_all_on_empty_cache(self) -> None:
         """Test all GIDs are fetched when cache is empty."""
-        mock_api = AsyncMock(return_value={
-            "123": "2025-01-01T00:00:00Z",
-            "456": "2025-01-02T00:00:00Z",
-        })
+        mock_api = AsyncMock(
+            return_value={
+                "123": "2025-01-01T00:00:00Z",
+                "456": "2025-01-02T00:00:00Z",
+            }
+        )
 
         result = await fetch_task_modifications(["123", "456"], mock_api)
 
@@ -321,10 +327,12 @@ class TestFetchTaskModifications:
     async def test_no_api_call_when_all_cached(self) -> None:
         """Test no API call when all GIDs are cached."""
         cache = get_modification_cache()
-        cache.set_many({
-            "123": "2025-01-01T00:00:00Z",
-            "456": "2025-01-02T00:00:00Z",
-        })
+        cache.set_many(
+            {
+                "123": "2025-01-01T00:00:00Z",
+                "456": "2025-01-02T00:00:00Z",
+            }
+        )
 
         mock_api = AsyncMock(return_value={})
 
@@ -519,9 +527,7 @@ class TestLargeBatchHandling:
         """Test handling 100+ GIDs efficiently."""
         gids = [str(i) for i in range(150)]
 
-        mock_api = AsyncMock(
-            return_value={gid: f"v_{gid}" for gid in gids}
-        )
+        mock_api = AsyncMock(return_value={gid: f"v_{gid}" for gid in gids})
 
         result = await fetch_task_modifications(gids, mock_api)
 

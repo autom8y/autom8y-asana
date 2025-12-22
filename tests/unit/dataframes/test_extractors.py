@@ -12,11 +12,10 @@ from typing import Any
 
 import pytest
 
-from autom8_asana.dataframes.exceptions import ExtractionError
 from autom8_asana.dataframes.extractors.base import BaseExtractor
 from autom8_asana.dataframes.extractors.contact import ContactExtractor
 from autom8_asana.dataframes.extractors.unit import UnitExtractor
-from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
+from autom8_asana.dataframes.models.schema import ColumnDef
 from autom8_asana.dataframes.models.task_row import ContactRow, TaskRow, UnitRow
 from autom8_asana.dataframes.resolver import MockCustomFieldResolver
 from autom8_asana.dataframes.schemas.base import BASE_SCHEMA
@@ -72,31 +71,35 @@ def full_task() -> Task:
 @pytest.fixture
 def unit_resolver() -> MockCustomFieldResolver:
     """Create a mock resolver with Unit custom field values."""
-    return MockCustomFieldResolver({
-        "mrr": Decimal("5000.00"),
-        "weekly_ad_spend": Decimal("1500.50"),
-        "products": ["Product A", "Product B"],
-        "languages": ["English", "Spanish"],
-        "discount": Decimal("10.5"),
-        "vertical": "Healthcare",
-        "specialty": "Dental",
-    })
+    return MockCustomFieldResolver(
+        {
+            "mrr": Decimal("5000.00"),
+            "weekly_ad_spend": Decimal("1500.50"),
+            "products": ["Product A", "Product B"],
+            "languages": ["English", "Spanish"],
+            "discount": Decimal("10.5"),
+            "vertical": "Healthcare",
+            "specialty": "Dental",
+        }
+    )
 
 
 @pytest.fixture
 def contact_resolver() -> MockCustomFieldResolver:
     """Create a mock resolver with Contact custom field values."""
-    return MockCustomFieldResolver({
-        "full_name": "John Doe",
-        "nickname": "Johnny",
-        "contact_phone": "+1-555-0123",
-        "contact_email": "john.doe@example.com",
-        "position": "Manager",
-        "employee_id": "EMP001",
-        "contact_url": "https://linkedin.com/in/johndoe",
-        "time_zone": "America/New_York",
-        "city": "New York",
-    })
+    return MockCustomFieldResolver(
+        {
+            "full_name": "John Doe",
+            "nickname": "Johnny",
+            "contact_phone": "+1-555-0123",
+            "contact_email": "john.doe@example.com",
+            "position": "Manager",
+            "employee_id": "EMP001",
+            "contact_url": "https://linkedin.com/in/johndoe",
+            "time_zone": "America/New_York",
+            "city": "New York",
+        }
+    )
 
 
 # =============================================================================
@@ -398,10 +401,12 @@ class TestBaseExtractor:
         Testing with a resolver that doesn't have all custom fields.
         """
         # Create a resolver with some but not all fields
-        partial_resolver = MockCustomFieldResolver({
-            "mrr": Decimal("5000"),
-            # Missing: weekly_ad_spend, products, etc.
-        })
+        partial_resolver = MockCustomFieldResolver(
+            {
+                "mrr": Decimal("5000"),
+                # Missing: weekly_ad_spend, products, etc.
+            }
+        )
 
         extractor = UnitExtractor(UNIT_SCHEMA, partial_resolver)
         row = extractor.extract(full_task)

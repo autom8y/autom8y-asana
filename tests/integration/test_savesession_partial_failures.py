@@ -7,7 +7,6 @@ Per TDD-UXR/FR-UXR-004: Verify SaveSessionError shows all failures.
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
@@ -101,7 +100,6 @@ class TestSaveAsyncWithPartialFailures:
         This test verifies that when SaveSession commit fails,
         save_async() raises SaveSessionError (not just the first error).
         """
-        from autom8_asana.persistence.session import SaveSession
         from autom8_asana.persistence.models import SaveResult, SaveError, OperationType
 
         # Create a task with client reference

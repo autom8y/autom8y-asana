@@ -7,7 +7,6 @@ import time
 from typing import Any
 
 import httpx
-import pytest
 import respx
 
 from autom8_asana.config import (
@@ -223,7 +222,8 @@ class Test429ResponseTriggersRetry:
 
             # Check logger recorded retry
             retry_logs = [
-                msg for level, msg in logger.messages
+                msg
+                for level, msg in logger.messages
                 if level == "warning" and "Retry" in msg
             ]
             assert len(retry_logs) >= 1

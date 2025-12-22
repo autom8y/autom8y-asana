@@ -16,7 +16,6 @@ import gc
 import sys
 import time
 import warnings
-from typing import Any
 
 import pytest
 
@@ -173,11 +172,13 @@ class TestDependencyGraphOverhead:
         # Create a chain of dependencies: task_0 <- task_1 <- ... <- task_99
         tasks = [Task(gid="root", name="Root")]
         for i in range(1, 100):
-            tasks.append(Task(
-                gid=f"task_{i}",
-                name=f"Task {i}",
-                parent=NameGid(gid=f"task_{i-1}" if i > 1 else "root"),
-            ))
+            tasks.append(
+                Task(
+                    gid=f"task_{i}",
+                    name=f"Task {i}",
+                    parent=NameGid(gid=f"task_{i - 1}" if i > 1 else "root"),
+                )
+            )
 
         graph = DependencyGraph()
 
@@ -260,17 +261,21 @@ class TestDependencyGraphOverhead:
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         assert len(levels) == 50
-        assert elapsed_ms < HARD_GRAPH_SORT_100_ENTITIES_MS * 2  # Allow 2x for complex structure
+        assert (
+            elapsed_ms < HARD_GRAPH_SORT_100_ENTITIES_MS * 2
+        )  # Allow 2x for complex structure
 
     def test_topological_sort_timing(self) -> None:
         """topological_sort() performance."""
         tasks = [Task(gid="root", name="Root")]
         for i in range(1, 100):
-            tasks.append(Task(
-                gid=f"task_{i}",
-                name=f"Task {i}",
-                parent=NameGid(gid=f"task_{i-1}" if i > 1 else "root"),
-            ))
+            tasks.append(
+                Task(
+                    gid=f"task_{i}",
+                    name=f"Task {i}",
+                    parent=NameGid(gid=f"task_{i - 1}" if i > 1 else "root"),
+                )
+            )
 
         graph = DependencyGraph()
         graph.build(tasks)
@@ -303,7 +308,9 @@ class TestMemoryOverhead:
 
         # Create tracked tasks
         tracker = ChangeTracker()
-        tracked_tasks = [Task(gid=f"track_{i}", name=f"Tracked {i}") for i in range(100)]
+        tracked_tasks = [
+            Task(gid=f"track_{i}", name=f"Tracked {i}") for i in range(100)
+        ]
         for task in tracked_tasks:
             tracker.track(task)
         gc.collect()
@@ -433,20 +440,20 @@ class TestScalingBehavior:
         # Allow quadratic-ish growth but not exponential
         # 200 entities should take less than 20x what 10 takes
         max_expected_ms = (count / 10) * 50  # Linear with 50ms per 10
-        assert elapsed_ms < max_expected_ms, (
-            f"{count} entities took {elapsed_ms:.1f}ms"
-        )
+        assert elapsed_ms < max_expected_ms, f"{count} entities took {elapsed_ms:.1f}ms"
 
     @pytest.mark.parametrize("count", [10, 50, 100])
     def test_graph_sorting_scales_appropriately(self, count: int) -> None:
         """Graph sorting should scale O(V+E)."""
         tasks = [Task(gid="root", name="Root")]
         for i in range(1, count):
-            tasks.append(Task(
-                gid=f"task_{i}",
-                name=f"Task {i}",
-                parent=NameGid(gid=f"task_{i-1}" if i > 1 else "root"),
-            ))
+            tasks.append(
+                Task(
+                    gid=f"task_{i}",
+                    name=f"Task {i}",
+                    parent=NameGid(gid=f"task_{i - 1}" if i > 1 else "root"),
+                )
+            )
 
         graph = DependencyGraph()
 
@@ -457,6 +464,4 @@ class TestScalingBehavior:
 
         # Linear scaling expected
         max_expected_ms = count * 0.5  # 0.5ms per entity
-        assert elapsed_ms < max_expected_ms, (
-            f"{count} entities took {elapsed_ms:.1f}ms"
-        )
+        assert elapsed_ms < max_expected_ms, f"{count} entities took {elapsed_ms:.1f}ms"

@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -110,9 +110,11 @@ class TestLoadStoriesIncremental:
         last_fetched = "2025-01-01T12:00:00+00:00"
         cached_entry = CacheEntry(
             key="task123",
-            data={"stories": [
-                {"gid": "s1", "created_at": "2025-01-01T10:00:00Z"},
-            ]},
+            data={
+                "stories": [
+                    {"gid": "s1", "created_at": "2025-01-01T10:00:00Z"},
+                ]
+            },
             entry_type=EntryType.STORIES,
             version=datetime.now(timezone.utc),
             metadata={"last_fetched": last_fetched},
@@ -147,9 +149,11 @@ class TestLoadStoriesIncremental:
         # Pre-populate cache
         cached_entry = CacheEntry(
             key="task123",
-            data={"stories": [
-                {"gid": "s1", "created_at": "2025-01-01T10:00:00Z", "text": "Old"},
-            ]},
+            data={
+                "stories": [
+                    {"gid": "s1", "created_at": "2025-01-01T10:00:00Z", "text": "Old"},
+                ]
+            },
             entry_type=EntryType.STORIES,
             version=datetime.now(timezone.utc),
             metadata={"last_fetched": "2025-01-01T12:00:00+00:00"},
