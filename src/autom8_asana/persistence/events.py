@@ -2,6 +2,7 @@
 
 Per FR-EVENT-001 through FR-EVENT-005.
 Per ADR-0041: Synchronous event hooks with async support.
+Per TDD-AUTOMATION-LAYER/FR-002: Post-commit hooks for automation.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from autom8_asana.persistence.models import OperationType
 
 if TYPE_CHECKING:
     from autom8_asana.models.base import AsanaResource
+    from autom8_asana.persistence.models import SaveResult
 
 
 # Type aliases for hook signatures
@@ -29,6 +31,11 @@ PostSaveHook = (
 ErrorHook = (
     Callable[["AsanaResource", OperationType, Exception], None]
     | Callable[["AsanaResource", OperationType, Exception], Coroutine[Any, Any, None]]
+)
+
+# Per TDD-AUTOMATION-LAYER/FR-002: Post-commit hook receives full SaveResult
+PostCommitHook = (
+    Callable[["SaveResult"], None] | Callable[["SaveResult"], Coroutine[Any, Any, None]]
 )
 
 
@@ -65,6 +72,7 @@ class EventSystem:
         self._pre_save_hooks: list[PreSaveHook] = []
         self._post_save_hooks: list[PostSaveHook] = []
         self._error_hooks: list[ErrorHook] = []
+        self._post_commit_hooks: list[PostCommitHook] = []
 
     def register_pre_save(
         self,
@@ -207,6 +215,60 @@ class EventSystem:
                 # Error hooks should not fail the operation
                 pass
 
+    def register_post_commit(
+        self,
+        func: PostCommitHook,
+    ) -> Callable[..., Any]:
+        """Register post-commit hook.
+
+        Per TDD-AUTOMATION-LAYER/FR-002: Called after entire commit completes
+        with full SaveResult (including automation results).
+
+        Post-commit hooks are called after all phases of commit complete:
+        - CRUD operations
+        - Action operations
+        - Cascade operations
+        - Healing operations
+        - Automation operations
+
+        Post-commit hooks cannot fail the commit (it already succeeded).
+        All exceptions are swallowed and hooks continue to execute.
+
+        Args:
+            func: Hook function receiving (SaveResult). Can be sync or async.
+
+        Returns:
+            The decorated function (for decorator usage).
+
+        Example:
+            @session.on_post_commit
+            async def log_automation(result: SaveResult) -> None:
+                for auto_result in result.automation_results:
+                    logger.info("Rule %s: %s", auto_result.rule_name, auto_result.success)
+        """
+        self._post_commit_hooks.append(func)
+        return func
+
+    async def emit_post_commit(self, result: SaveResult) -> None:
+        """Emit post-commit event with full SaveResult.
+
+        Per TDD-AUTOMATION-LAYER/FR-002: Called after all commit phases complete.
+
+        Post-commit hooks cannot fail the commit (it already succeeded).
+        All exceptions are swallowed and hooks continue to execute.
+
+        Args:
+            result: The complete SaveResult from commit.
+        """
+        for hook in self._post_commit_hooks:
+            try:
+                hook_result = hook(result)
+                if asyncio.iscoroutine(hook_result):
+                    await hook_result
+            except Exception:
+                # Post-commit hooks should not fail the operation
+                pass
+
     def clear_hooks(self) -> None:
         """Clear all registered hooks.
 
@@ -215,3 +277,4 @@ class EventSystem:
         self._pre_save_hooks.clear()
         self._post_save_hooks.clear()
         self._error_hooks.clear()
+        self._post_commit_hooks.clear()

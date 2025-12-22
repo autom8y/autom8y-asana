@@ -62,9 +62,7 @@ class CyclicDependencyError(SaveOrchestrationError):
             cycle: List of entities involved in the cycle.
         """
         self.cycle = cycle
-        entities = " -> ".join(
-            f"{type(e).__name__}(gid={e.gid})" for e in cycle
-        )
+        entities = " -> ".join(f"{type(e).__name__}(gid={e.gid})" for e in cycle)
         super().__init__(f"Cyclic dependency detected: {entities}")
 
 
@@ -131,7 +129,9 @@ class PartialSaveError(SaveOrchestrationError):
 
         message = f"Partial save: {failed_count}/{total} operations failed"
         if failed_count > 0:
-            message += f" ({retryable_count} retryable, {non_retryable_count} non-retryable)"
+            message += (
+                f" ({retryable_count} retryable, {non_retryable_count} non-retryable)"
+            )
 
         super().__init__(message)
 

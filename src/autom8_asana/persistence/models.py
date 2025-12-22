@@ -7,6 +7,8 @@ Per TDD-0011: Action operation types for tag, project, dependency,
 and section management via non-batch API endpoints.
 
 Per TDD-TRIAGE-FIXES: Cascade result tracking in SaveResult.
+
+Per TDD-DETECTION/ADR-0095: Self-healing models for entity repair.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from enum import Enum
 from typing import Any, TYPE_CHECKING
 
 from autom8_asana.patterns import RetryableErrorMixin
+from autom8_asana.models.common import NameGid
 
 if TYPE_CHECKING:
     from autom8_asana.models.base import AsanaResource
@@ -134,6 +137,8 @@ class SaveResult:
     Per FR-ERROR-002: Provides succeeded, failed, and aggregate info.
     Per ADR-0055: Includes action operation results for complete reporting.
     Per TDD-TRIAGE-FIXES: Includes cascade operation results.
+    Per TDD-DETECTION/ADR-0095: Includes healing operation report.
+    Per TDD-AUTOMATION-LAYER/FR-007: Includes automation operation results.
 
     Attributes:
         succeeded: List of entities that were saved successfully (CRUD operations)
@@ -142,12 +147,17 @@ class SaveResult:
                        dependencies, sections, etc.). Populated after commit.
         cascade_results: List of CascadeResult for cascade operations. Populated after
                         cascade execution during commit.
+        healing_report: Report of self-healing operations. Populated when auto_heal=True.
+        automation_results: List of AutomationResult for automation rule executions.
+                           Populated after Phase 5 automation during commit.
     """
 
     succeeded: list[AsanaResource] = field(default_factory=list)
     failed: list[SaveError] = field(default_factory=list)
     action_results: list[ActionResult] = field(default_factory=list)
     cascade_results: list[CascadeResult] = field(default_factory=list)
+    healing_report: HealingReport | None = None
+    automation_results: list[AutomationResult] = field(default_factory=list)
 
     @property
     def success(self) -> bool:
@@ -214,6 +224,35 @@ class SaveResult:
             Number of cascade operations that failed.
         """
         return sum(1 for r in self.cascade_results if not r.success)
+
+    @property
+    def automation_succeeded(self) -> int:
+        """Count of successful automation rule executions (TDD-AUTOMATION-LAYER).
+
+        Returns:
+            Number of automation rules that executed successfully (not skipped).
+        """
+        return sum(
+            1 for r in self.automation_results if r.success and not r.was_skipped
+        )
+
+    @property
+    def automation_failed(self) -> int:
+        """Count of failed automation rule executions (TDD-AUTOMATION-LAYER).
+
+        Returns:
+            Number of automation rules that failed.
+        """
+        return sum(1 for r in self.automation_results if not r.success)
+
+    @property
+    def automation_skipped(self) -> int:
+        """Count of skipped automation rules (loop prevention) (TDD-AUTOMATION-LAYER).
+
+        Returns:
+            Number of automation rules skipped due to loop prevention.
+        """
+        return sum(1 for r in self.automation_results if r.was_skipped)
 
     @property
     def failed_count(self) -> int:
@@ -327,6 +366,84 @@ class SaveResult:
 
 
 # ---------------------------------------------------------------------------
+# Self-Healing Models (TDD-DETECTION/ADR-0095)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class HealingResult:
+    """Outcome of a healing operation.
+
+    Per ADR-0095/0118/TDD-SPRINT-5-CLEANUP: Unified result for all healing contexts.
+
+    Healing adds missing project memberships to entities that were
+    detected via fallback tiers (2-5) instead of deterministic Tier 1.
+
+    This is the canonical HealingResult type used by both:
+    - HealingManager (SaveSession integration)
+    - heal_entity_async/heal_entities_async (standalone API)
+
+    Attributes:
+        entity_gid: GID of the entity that was healed (or would be).
+        entity_type: Type name of the entity (e.g., "Contact", "Offer").
+        project_gid: GID of the project entity was added to.
+        success: True if healing succeeded (or would succeed in dry_run).
+        dry_run: True if this was a dry-run (no actual API call).
+        error: Error message if healing failed, None otherwise.
+    """
+
+    entity_gid: str
+    entity_type: str
+    project_gid: str
+    success: bool
+    dry_run: bool = False
+    error: str | None = None
+
+    def __bool__(self) -> bool:
+        """Return True if healing succeeded."""
+        return self.success
+
+    def __repr__(self) -> str:
+        """Return string representation for debugging."""
+        status = "success" if self.success else f"failed: {self.error}"
+        if self.dry_run:
+            status = f"dry_run: {status}"
+        return f"HealingResult({self.entity_type}, {self.entity_gid} -> {self.project_gid}, {status})"
+
+
+@dataclass
+class HealingReport:
+    """Aggregate report of all healing operations.
+
+    Per TDD-DETECTION/ADR-0095: Summary of healing outcomes for SaveResult.
+
+    Attributes:
+        attempted: Total number of healing operations attempted.
+        succeeded: Number of successful healing operations.
+        failed: Number of failed healing operations.
+        results: List of individual HealingResult objects.
+    """
+
+    attempted: int = 0
+    succeeded: int = 0
+    failed: int = 0
+    results: list[HealingResult] = field(default_factory=list)
+
+    @property
+    def all_succeeded(self) -> bool:
+        """True if all healing operations succeeded.
+
+        Returns True if at least one healing was attempted and all succeeded.
+        Returns False if no healing was attempted (attempted == 0).
+        """
+        return self.failed == 0 and self.attempted > 0
+
+    def __repr__(self) -> str:
+        """Return string representation for debugging."""
+        return f"HealingReport(attempted={self.attempted}, succeeded={self.succeeded}, failed={self.failed})"
+
+
+# ---------------------------------------------------------------------------
 # Action Types (TDD-0011)
 # ---------------------------------------------------------------------------
 
@@ -385,23 +502,25 @@ class ActionOperation:
     tasks and other resources (tags, projects, sections, dependencies).
 
     Per TDD-0012/ADR-0044: Extended with extra_params for positioning.
-    Per TDD-0012/ADR-0045: target_gid is optional for some operations.
+    Per TDD-0012/ADR-0045: target is optional for some operations.
+    Per ADR-0107: Uses NameGid for target to preserve name information.
 
     Attributes:
         task: The task being acted upon (source of the action).
         action: The type of action to perform.
-        target_gid: The GID of the target resource (tag, project, section,
-                   or dependency task). May be a temp GID for newly created
-                   resources that will be resolved before execution. Optional
-                   for follower operations where user GID is in extra_params.
+        target: The target resource reference (tag, project, section,
+                or dependency task). Uses NameGid to preserve both gid
+                and name. May contain a temp GID for newly created
+                resources that will be resolved before execution. Optional
+                for like operations and comments where no target is needed.
         extra_params: Additional parameters for the action. Used for positioning
                      (insert_before, insert_after) in add_to_project and
-                     move_to_section. Also used for follower operations.
+                     move_to_section. Also used for comment text storage.
     """
 
     task: AsanaResource
     action: ActionType
-    target_gid: str | None = None
+    target: NameGid | None = None
     extra_params: dict[str, Any] = field(default_factory=dict)
 
     def to_api_call(self) -> tuple[str, str, dict[str, Any]]:
@@ -415,22 +534,25 @@ class ActionOperation:
         """
         task_gid = self.task.gid
 
+        # Per ADR-0107: Extract GID from NameGid target
+        target_gid = self.target.gid if self.target else None
+
         match self.action:
             case ActionType.ADD_TAG:
                 return (
                     "POST",
                     f"/tasks/{task_gid}/addTag",
-                    {"data": {"tag": self.target_gid}},
+                    {"data": {"tag": target_gid}},
                 )
             case ActionType.REMOVE_TAG:
                 return (
                     "POST",
                     f"/tasks/{task_gid}/removeTag",
-                    {"data": {"tag": self.target_gid}},
+                    {"data": {"tag": target_gid}},
                 )
             case ActionType.ADD_TO_PROJECT:
                 # Per ADR-0044: Include positioning from extra_params
-                data: dict[str, Any] = {"project": self.target_gid}
+                data: dict[str, Any] = {"project": target_gid}
                 if "insert_before" in self.extra_params:
                     data["insert_before"] = self.extra_params["insert_before"]
                 if "insert_after" in self.extra_params:
@@ -444,19 +566,19 @@ class ActionOperation:
                 return (
                     "POST",
                     f"/tasks/{task_gid}/removeProject",
-                    {"data": {"project": self.target_gid}},
+                    {"data": {"project": target_gid}},
                 )
             case ActionType.ADD_DEPENDENCY:
                 return (
                     "POST",
                     f"/tasks/{task_gid}/addDependencies",
-                    {"data": {"dependencies": [self.target_gid]}},
+                    {"data": {"dependencies": [target_gid]}},
                 )
             case ActionType.REMOVE_DEPENDENCY:
                 return (
                     "POST",
                     f"/tasks/{task_gid}/removeDependencies",
-                    {"data": {"dependencies": [self.target_gid]}},
+                    {"data": {"dependencies": [target_gid]}},
                 )
             case ActionType.MOVE_TO_SECTION:
                 # Per ADR-0044: Include positioning from extra_params
@@ -467,7 +589,7 @@ class ActionOperation:
                     section_data["insert_after"] = self.extra_params["insert_after"]
                 return (
                     "POST",
-                    f"/sections/{self.target_gid}/addTask",
+                    f"/sections/{target_gid}/addTask",
                     {"data": section_data},
                 )
             case ActionType.ADD_FOLLOWER:
@@ -475,38 +597,38 @@ class ActionOperation:
                 return (
                     "POST",
                     f"/tasks/{task_gid}/addFollowers",
-                    {"data": {"followers": [self.target_gid]}},
+                    {"data": {"followers": [target_gid]}},
                 )
             case ActionType.REMOVE_FOLLOWER:
                 # Per TDD-0012: Remove follower from task
                 return (
                     "POST",
                     f"/tasks/{task_gid}/removeFollowers",
-                    {"data": {"followers": [self.target_gid]}},
+                    {"data": {"followers": [target_gid]}},
                 )
             case ActionType.ADD_DEPENDENT:
                 # Per TDD-0012: Add dependent task (inverse of add_dependency)
                 return (
                     "POST",
                     f"/tasks/{task_gid}/addDependents",
-                    {"data": {"dependents": [self.target_gid]}},
+                    {"data": {"dependents": [target_gid]}},
                 )
             case ActionType.REMOVE_DEPENDENT:
                 # Per TDD-0012: Remove dependent task
                 return (
                     "POST",
                     f"/tasks/{task_gid}/removeDependents",
-                    {"data": {"dependents": [self.target_gid]}},
+                    {"data": {"dependents": [target_gid]}},
                 )
             case ActionType.ADD_LIKE:
-                # Per TDD-0012/ADR-0045: No target_gid needed, uses authenticated user
+                # Per TDD-0012/ADR-0045: No target needed, uses authenticated user
                 return (
                     "POST",
                     f"/tasks/{task_gid}/addLike",
                     {"data": {}},
                 )
             case ActionType.REMOVE_LIKE:
-                # Per TDD-0012/ADR-0045: No target_gid needed, uses authenticated user
+                # Per TDD-0012/ADR-0045: No target needed, uses authenticated user
                 return (
                     "POST",
                     f"/tasks/{task_gid}/removeLike",
@@ -514,7 +636,9 @@ class ActionOperation:
                 )
             case ActionType.ADD_COMMENT:
                 # Per TDD-0012/ADR-0046: Text stored in extra_params
-                comment_data: dict[str, Any] = {"text": self.extra_params.get("text", "")}
+                comment_data: dict[str, Any] = {
+                    "text": self.extra_params.get("text", "")
+                }
                 if self.extra_params.get("html_text"):
                     comment_data["html_text"] = self.extra_params["html_text"]
                 return (
@@ -542,9 +666,10 @@ class ActionOperation:
         """Return string representation for debugging."""
         task_type = type(self.task).__name__
         task_gid = self.task.gid
+        target_repr = self.target.gid if self.target else None
         return (
             f"ActionOperation({self.action.value}, "
-            f"{task_type}(gid={task_gid}), target={self.target_gid})"
+            f"{task_type}(gid={task_gid}), target={target_repr})"
         )
 
 
@@ -585,3 +710,57 @@ class ActionResult(RetryableErrorMixin):
         if self.success:
             return None
         return self.error
+
+
+# ---------------------------------------------------------------------------
+# Automation Result Models (TDD-AUTOMATION-LAYER)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class AutomationResult:
+    """Result of automation rule execution.
+
+    Per TDD-AUTOMATION-LAYER/FR-007: Included in SaveResult after automation.
+    Per TDD-PIPELINE-AUTOMATION-ENHANCEMENT/FR-ERR-004: Enhancement tracking.
+
+    Attributes:
+        rule_id: Unique identifier of the rule that executed.
+        rule_name: Human-readable rule name.
+        triggered_by_gid: GID of entity that triggered the rule.
+        triggered_by_type: Type name of triggering entity.
+        actions_executed: List of action type names executed.
+        entities_created: GIDs of newly created entities.
+        entities_updated: GIDs of entities that were updated.
+        success: True if all actions succeeded.
+        error: Error message if failed (per Open Question 2).
+        execution_time_ms: Time taken to execute rule.
+        skipped_reason: Reason if rule was skipped (e.g., "circular_reference_prevented").
+        enhancement_results: Per-step success tracking for pipeline enhancements.
+            Keys include: "hierarchy_placement", "assignee_set", "comment_created".
+    """
+
+    rule_id: str
+    rule_name: str
+    triggered_by_gid: str
+    triggered_by_type: str
+    actions_executed: list[str] = field(default_factory=list)
+    entities_created: list[str] = field(default_factory=list)
+    entities_updated: list[str] = field(default_factory=list)
+    success: bool = True
+    error: str | None = None
+    execution_time_ms: float = 0.0
+    skipped_reason: str | None = None
+    enhancement_results: dict[str, bool] = field(default_factory=dict)
+
+    def __repr__(self) -> str:
+        """Return string representation."""
+        status = "success" if self.success else f"failed: {self.error}"
+        if self.skipped_reason:
+            status = f"skipped: {self.skipped_reason}"
+        return f"AutomationResult({self.rule_name}, {status})"
+
+    @property
+    def was_skipped(self) -> bool:
+        """True if rule was skipped (loop prevention, etc.)."""
+        return self.skipped_reason is not None

@@ -12,6 +12,7 @@ from autom8_asana.persistence.models import (
     ActionOperation,
     ActionResult,
 )
+from autom8_asana.models.common import NameGid
 
 if TYPE_CHECKING:
     from autom8_asana.transport.http import AsyncHTTPClient
@@ -125,6 +126,7 @@ class ActionExecutor:
     ) -> ActionOperation:
         """Resolve temp GIDs in action to real GIDs.
 
+        Per ADR-0107: ActionOperation.target is now NameGid | None.
         Creates a new ActionOperation with resolved GIDs if the target
         was a temp GID that has been resolved.
 
@@ -136,11 +138,22 @@ class ActionExecutor:
             ActionOperation with resolved GIDs. If no resolution needed,
             returns the original action (no new object created).
         """
-        target_gid = action.target_gid
+        # Per ADR-0107: target is now NameGid | None
+        target = action.target
+        resolved_target = target
 
-        # Resolve target_gid if it's a temp GID
-        if target_gid is not None and target_gid.startswith("temp_") and target_gid in gid_map:
-            target_gid = gid_map[target_gid]
+        # Resolve target.gid if it's a temp GID
+        if (
+            target is not None
+            and target.gid.startswith("temp_")
+            and target.gid in gid_map
+        ):
+            # Preserve name and resource_type during resolution
+            resolved_target = NameGid(
+                gid=gid_map[target.gid],
+                name=target.name,
+                resource_type=target.resource_type,
+            )
 
         # Resolve task GID if it's a temp GID
         task = action.task
@@ -155,11 +168,11 @@ class ActionExecutor:
                 resolved_task = self._resolve_task_gid(task, gid_map[temp_key])
 
         # Only create new ActionOperation if something changed
-        if target_gid != action.target_gid or resolved_task is not task:
+        if resolved_target is not target or resolved_task is not task:
             return ActionOperation(
                 task=resolved_task,
                 action=action.action,
-                target_gid=target_gid,
+                target=resolved_target,
                 extra_params=action.extra_params,
             )
 

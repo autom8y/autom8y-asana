@@ -135,10 +135,7 @@ class DependencyGraph:
 
         while remaining:
             # Find all nodes with in_degree 0 among remaining
-            level_gids = [
-                gid for gid in remaining
-                if in_degree.get(gid, 0) == 0
-            ]
+            level_gids = [gid for gid in remaining if in_degree.get(gid, 0) == 0]
 
             if not level_gids:
                 # Cycle detected

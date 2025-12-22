@@ -161,8 +161,7 @@ class CascadeExecutor:
         # Filter by target_types if specified
         if operation.target_types:
             descendants = [
-                d for d in descendants
-                if isinstance(d, operation.target_types)
+                d for d in descendants if isinstance(d, operation.target_types)
             ]
 
         # Filter by allow_override
@@ -229,9 +228,7 @@ class CascadeExecutor:
                         if field_def.applies_to(child):
                             descendants.append(child)
                         # Recurse into child's descendants
-                        descendants.extend(
-                            self._collect_descendants(child, field_def)
-                        )
+                        descendants.extend(self._collect_descendants(child, field_def))
 
         return descendants
 
@@ -245,9 +242,7 @@ class CascadeExecutor:
             List of child entities.
         """
         # Check for known child collection patterns
-        for attr_name in (
-            "_contacts", "_units", "_offers", "_processes", "_locations"
-        ):
+        for attr_name in ("_contacts", "_units", "_offers", "_processes", "_locations"):
             children = getattr(holder, attr_name, None)
             if children and isinstance(children, list):
                 result: list[Task] = children

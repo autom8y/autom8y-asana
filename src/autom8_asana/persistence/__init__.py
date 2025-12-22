@@ -92,6 +92,9 @@ from autom8_asana.persistence.models import (
     ActionType,
     ActionOperation,
     ActionResult,
+    # TDD-DETECTION/ADR-0095: Self-healing models
+    HealingResult,
+    HealingReport,
 )
 from autom8_asana.persistence.exceptions import (
     SaveOrchestrationError,
@@ -115,6 +118,7 @@ from autom8_asana.persistence.cascade import (
     CascadeExecutor,
     cascade_field,
 )
+from autom8_asana.persistence.healing import HealingManager
 
 __all__ = [
     # Main API
@@ -129,6 +133,10 @@ __all__ = [
     "ActionType",
     "ActionOperation",
     "ActionResult",
+    # Self-healing models (TDD-DETECTION/ADR-0095, TDD-TECH-DEBT-REMEDIATION)
+    "HealingResult",
+    "HealingReport",
+    "HealingManager",
     # Cascade models (Phase 3)
     "CascadeOperation",
     "CascadeResult",
