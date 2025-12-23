@@ -72,7 +72,10 @@ class SectionsClient(BaseClient):
         raw: bool = False,
         opt_fields: list[str] | None = None,
     ) -> Section | dict[str, Any]:
-        """Get a section by GID.
+        """Get a section by GID with cache support.
+
+        Per TDD-CACHE-UTILIZATION: Checks cache before HTTP request.
+        Per ADR-0119: 6-step client cache integration pattern.
 
         Args:
             section_gid: Section GID
@@ -81,9 +84,33 @@ class SectionsClient(BaseClient):
 
         Returns:
             Section model by default, or dict if raw=True
+
+        Raises:
+            GidValidationError: If section_gid is invalid.
         """
+        from autom8_asana.cache.entry import EntryType
+        from autom8_asana.persistence.validation import validate_gid
+
+        # Step 1: Validate GID
+        validate_gid(section_gid, "section_gid")
+
+        # Step 2: Check cache first
+        cached_entry = self._cache_get(section_gid, EntryType.SECTION)
+        if cached_entry is not None:
+            # Step 3: Cache hit - return cached data
+            data = cached_entry.data
+            if raw:
+                return data
+            return Section.model_validate(data)
+
+        # Step 4: Cache miss - fetch from API
         params = self._build_opt_fields(opt_fields)
         data = await self._http.get(f"/sections/{section_gid}", params=params)
+
+        # Step 5: Store in cache (30 min TTL, no modified_at available)
+        self._cache_set(section_gid, data, EntryType.SECTION, ttl=1800)
+
+        # Step 6: Return model or raw dict
         if raw:
             return data
         return Section.model_validate(data)
@@ -248,9 +275,12 @@ class SectionsClient(BaseClient):
         opt_fields: list[str] | None = None,
         limit: int = 100,
     ) -> PageIterator[Section]:
-        """List sections in a project with automatic pagination.
+        """List sections in a project with automatic pagination and cache population.
 
         Returns a PageIterator that lazily fetches pages as you iterate.
+
+        Per TDD-CACHE-UTILIZATION and ADR-0120: Populates cache entries for each
+        section during pagination using set_batch() for opportunistic warming.
 
         Args:
             project_gid: Project GID
@@ -264,10 +294,17 @@ class SectionsClient(BaseClient):
             async for section in client.sections.list_for_project_async("123"):
                 print(section.name)
         """
+        from datetime import datetime, timezone
+
+        from autom8_asana.cache.entry import CacheEntry, EntryType
+
         self._log_operation("list_for_project_async", project_gid)
 
+        # Capture cache reference for closure
+        cache = self._cache
+
         async def fetch_page(offset: str | None) -> tuple[list[Section], str | None]:
-            """Fetch a single page of Section objects."""
+            """Fetch a single page of Section objects with cache population."""
             params = self._build_opt_fields(opt_fields)
             params["limit"] = min(limit, 100)  # Asana max is 100
             if offset:
@@ -276,6 +313,29 @@ class SectionsClient(BaseClient):
             data, next_offset = await self._http.get_paginated(
                 f"/projects/{project_gid}/sections", params=params
             )
+
+            # Per ADR-0120: Batch populate cache during pagination
+            if cache is not None and data:
+                try:
+                    entries: dict[str, CacheEntry] = {}
+                    now = datetime.now(timezone.utc)
+                    for section_data in data:
+                        gid = section_data.get("gid")
+                        if gid:
+                            entry = CacheEntry(
+                                key=gid,
+                                data=section_data,
+                                entry_type=EntryType.SECTION,
+                                version=now,  # No modified_at for sections
+                                ttl=1800,  # 30 min TTL
+                            )
+                            entries[gid] = entry
+                    if entries:
+                        cache.set_batch(entries)
+                except Exception:
+                    # Per ADR-0127: Graceful degradation - log and continue
+                    pass
+
             sections = [Section.model_validate(s) for s in data]
             return sections, next_offset
 

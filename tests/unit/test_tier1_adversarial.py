@@ -423,11 +423,11 @@ class TestCRUDOperationsAllClients:
             config=config,
             auth_provider=auth_provider,  # type: ignore
         )
-        mock_http.get.return_value = {"gid": "user123", "name": "Test"}
+        mock_http.get.return_value = {"gid": "1234567890123", "name": "Test"}
 
-        await client.get_async("user123")
+        await client.get_async("1234567890123")
 
-        mock_http.get.assert_called_once_with("/users/user123", params={})
+        mock_http.get.assert_called_once_with("/users/1234567890123", params={})
 
     async def test_projects_crud_endpoints(
         self,
@@ -443,9 +443,9 @@ class TestCRUDOperationsAllClients:
         )
 
         # GET
-        mock_http.get.return_value = {"gid": "proj123", "name": "Test"}
-        await client.get_async("proj123")
-        mock_http.get.assert_called_with("/projects/proj123", params={})
+        mock_http.get.return_value = {"gid": "1234567890123", "name": "Test"}
+        await client.get_async("1234567890123")
+        mock_http.get.assert_called_with("/projects/1234567890123", params={})
 
         # POST (Create)
         mock_http.post.return_value = {"gid": "newproj", "name": "New"}
@@ -482,9 +482,9 @@ class TestCRUDOperationsAllClients:
         )
 
         # GET
-        mock_http.get.return_value = {"gid": "sec123", "name": "To Do"}
-        await client.get_async("sec123")
-        mock_http.get.assert_called_with("/sections/sec123", params={})
+        mock_http.get.return_value = {"gid": "1234567890123", "name": "To Do"}
+        await client.get_async("1234567890123")
+        mock_http.get.assert_called_with("/sections/1234567890123", params={})
 
         # POST (Create) - Note: sections are created under projects
         mock_http.post.return_value = {"gid": "newsec", "name": "New Section"}
@@ -521,9 +521,9 @@ class TestCRUDOperationsAllClients:
         )
 
         # GET
-        mock_http.get.return_value = {"gid": "cf123", "name": "Priority"}
-        await client.get_async("cf123")
-        mock_http.get.assert_called_with("/custom_fields/cf123", params={})
+        mock_http.get.return_value = {"gid": "1234567890123", "name": "Priority"}
+        await client.get_async("1234567890123")
+        mock_http.get.assert_called_with("/custom_fields/1234567890123", params={})
 
         # POST (Create)
         mock_http.post.return_value = {"gid": "newcf", "name": "New Field"}
@@ -589,15 +589,15 @@ class TestRawModeAllClients:
             config=config,
             auth_provider=auth_provider,  # type: ignore
         )
-        mock_http.get.return_value = {"gid": "user123", "extra": "data"}
+        mock_http.get.return_value = {"gid": "1234567890123", "extra": "data"}
 
-        result = await client.get_async("user123", raw=True)
+        result = await client.get_async("1234567890123", raw=True)
 
         assert isinstance(result, dict)
         assert result["extra"] == "data"
 
         # Also test me_async
-        mock_http.get.return_value = {"gid": "me123", "extra": "me_data"}
+        mock_http.get.return_value = {"gid": "1234567890124", "extra": "me_data"}
         result = await client.me_async(raw=True)
         assert isinstance(result, dict)
 
@@ -615,8 +615,8 @@ class TestRawModeAllClients:
         )
 
         # get_async raw
-        mock_http.get.return_value = {"gid": "proj123", "extra": "get"}
-        result = await client.get_async("proj123", raw=True)
+        mock_http.get.return_value = {"gid": "1234567890123", "extra": "get"}
+        result = await client.get_async("1234567890123", raw=True)
         assert isinstance(result, dict)
         assert result["extra"] == "get"
 
@@ -651,8 +651,8 @@ class TestRawModeAllClients:
             auth_provider=auth_provider,  # type: ignore
         )
 
-        mock_http.get.return_value = {"gid": "sec123", "extra": "data"}
-        result = await client.get_async("sec123", raw=True)
+        mock_http.get.return_value = {"gid": "1234567890123", "extra": "data"}
+        result = await client.get_async("1234567890123", raw=True)
         assert isinstance(result, dict)
 
         mock_http.post.return_value = {"gid": "newsec", "extra": "create"}
@@ -672,12 +672,12 @@ class TestRawModeAllClients:
             auth_provider=auth_provider,  # type: ignore
         )
 
-        mock_http.get.return_value = {"gid": "cf123", "extra": "data"}
-        result = await client.get_async("cf123", raw=True)
+        mock_http.get.return_value = {"gid": "1234567890123", "extra": "data"}
+        result = await client.get_async("1234567890123", raw=True)
         assert isinstance(result, dict)
 
-        mock_http.post.return_value = {"gid": "opt123", "extra": "enum"}
-        result = await client.create_enum_option_async("cf123", name="Opt", raw=True)
+        mock_http.post.return_value = {"gid": "1234567890124", "extra": "enum"}
+        result = await client.create_enum_option_async("1234567890123", name="Opt", raw=True)
         assert isinstance(result, dict)
 
 
@@ -1674,9 +1674,9 @@ class TestOptFieldsParameter:
             config=config,
             auth_provider=auth_provider,  # type: ignore
         )
-        mock_http.get.return_value = {"gid": "user123", "name": "Test"}
+        mock_http.get.return_value = {"gid": "1234567890123", "name": "Test"}
 
-        await client.get_async("user123", opt_fields=["name", "email", "workspaces"])
+        await client.get_async("1234567890123", opt_fields=["name", "email", "workspaces"])
 
         call_args = mock_http.get.call_args
         assert "opt_fields" in call_args[1]["params"]

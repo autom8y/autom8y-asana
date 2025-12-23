@@ -11,6 +11,7 @@ from typing import Any, Literal, overload
 from autom8_asana.clients.base import BaseClient
 from autom8_asana.models import PageIterator
 from autom8_asana.models.user import User
+from autom8_asana.observability import error_handler
 from autom8_asana.transport.sync import sync_wrapper
 
 
@@ -42,6 +43,7 @@ class UsersClient(BaseClient):
         """Overload: get, returning raw dict."""
         ...
 
+    @error_handler
     async def get_async(
         self,
         user_gid: str,
@@ -49,7 +51,10 @@ class UsersClient(BaseClient):
         raw: bool = False,
         opt_fields: list[str] | None = None,
     ) -> User | dict[str, Any]:
-        """Get a user by GID.
+        """Get a user by GID with cache support.
+
+        Per TDD-CACHE-UTILIZATION: Checks cache before HTTP request.
+        Per ADR-0119: 6-step client cache integration pattern.
 
         Args:
             user_gid: User GID
@@ -58,10 +63,33 @@ class UsersClient(BaseClient):
 
         Returns:
             User model by default, or dict if raw=True
+
+        Raises:
+            GidValidationError: If user_gid is invalid.
         """
-        self._log_operation("get_async", user_gid)
+        from autom8_asana.cache.entry import EntryType
+        from autom8_asana.persistence.validation import validate_gid
+
+        # Step 1: Validate GID
+        validate_gid(user_gid, "user_gid")
+
+        # Step 2: Check cache first
+        cached_entry = self._cache_get(user_gid, EntryType.USER)
+        if cached_entry is not None:
+            # Step 3: Cache hit - return cached data
+            data = cached_entry.data
+            if raw:
+                return data
+            return User.model_validate(data)
+
+        # Step 4: Cache miss - fetch from API
         params = self._build_opt_fields(opt_fields)
         data = await self._http.get(f"/users/{user_gid}", params=params)
+
+        # Step 5: Store in cache (1 hour TTL)
+        self._cache_set(user_gid, data, EntryType.USER, ttl=3600)
+
+        # Step 6: Return model or raw dict
         if raw:
             return data
         return User.model_validate(data)

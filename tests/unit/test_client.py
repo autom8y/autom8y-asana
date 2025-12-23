@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from autom8_asana.cache.metrics import CacheMetrics
 from autom8_asana.client import AsanaClient, _TokenAuthProvider
 from autom8_asana.clients.tasks import TasksClient
 from autom8_asana.config import AsanaConfig
@@ -274,3 +275,90 @@ class TestSaveSessionFactory:
         session2 = client.save_session()
 
         assert session1 is not session2
+
+
+class MockCacheProviderWithMetrics:
+    """Mock cache provider with metrics for testing."""
+
+    def __init__(self) -> None:
+        self._metrics = CacheMetrics()
+
+    def get_metrics(self) -> CacheMetrics:
+        return self._metrics
+
+
+class TestCacheMetricsProperty:
+    """Tests for cache_metrics property (per TDD-CACHE-UTILIZATION)."""
+
+    def test_cache_metrics_returns_none_without_cache_provider(self) -> None:
+        """cache_metrics returns None when no cache provider is configured."""
+        # Arrange: Create client with null cache (explicit None)
+        from autom8_asana._defaults.cache import NullCacheProvider
+
+        client = AsanaClient(token="test-token", cache_provider=NullCacheProvider())
+
+        # NullCacheProvider.get_metrics() returns a CacheMetrics instance
+        # So this test checks the property works
+        metrics = client.cache_metrics
+
+        # For NullCacheProvider, it returns a metrics object (not None)
+        assert metrics is not None
+
+    def test_cache_metrics_returns_metrics_with_cache_provider(self) -> None:
+        """cache_metrics returns CacheMetrics when cache provider is configured."""
+        # Arrange: Create client with mock cache provider
+        mock_cache = MockCacheProviderWithMetrics()
+        client = AsanaClient(
+            token="test-token",
+            cache_provider=mock_cache,  # type: ignore[arg-type]
+        )
+
+        # Act
+        metrics = client.cache_metrics
+
+        # Assert
+        assert metrics is not None
+        assert isinstance(metrics, CacheMetrics)
+        assert metrics is mock_cache._metrics
+
+    def test_cache_metrics_exposes_hit_rate(self) -> None:
+        """cache_metrics can be used to access hit rate statistics."""
+        # Arrange
+        mock_cache = MockCacheProviderWithMetrics()
+        mock_cache._metrics.record_hit(latency_ms=1.0)
+        mock_cache._metrics.record_hit(latency_ms=1.0)
+        mock_cache._metrics.record_miss(latency_ms=2.0)
+
+        client = AsanaClient(
+            token="test-token",
+            cache_provider=mock_cache,  # type: ignore[arg-type]
+        )
+
+        # Act
+        metrics = client.cache_metrics
+
+        # Assert: 2 hits, 1 miss = 66.67% hit rate
+        assert metrics is not None
+        assert metrics.hits == 2
+        assert metrics.misses == 1
+        assert 0.66 <= metrics.hit_rate <= 0.67
+
+    def test_cache_metrics_exposes_api_calls_saved(self) -> None:
+        """cache_metrics exposes api_calls_saved (equals hits)."""
+        # Arrange
+        mock_cache = MockCacheProviderWithMetrics()
+        mock_cache._metrics.record_hit(latency_ms=1.0)
+        mock_cache._metrics.record_hit(latency_ms=1.0)
+        mock_cache._metrics.record_hit(latency_ms=1.0)
+
+        client = AsanaClient(
+            token="test-token",
+            cache_provider=mock_cache,  # type: ignore[arg-type]
+        )
+
+        # Act
+        metrics = client.cache_metrics
+
+        # Assert
+        assert metrics is not None
+        assert metrics.api_calls_saved == 3

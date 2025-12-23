@@ -57,7 +57,10 @@ class CustomFieldsClient(BaseClient):
         raw: bool = False,
         opt_fields: list[str] | None = None,
     ) -> CustomField | dict[str, Any]:
-        """Get a custom field by GID.
+        """Get a custom field by GID with cache support.
+
+        Per TDD-CACHE-UTILIZATION: Checks cache before HTTP request.
+        Per ADR-0119: 6-step client cache integration pattern.
 
         Args:
             custom_field_gid: Custom field GID
@@ -66,9 +69,33 @@ class CustomFieldsClient(BaseClient):
 
         Returns:
             CustomField model by default, or dict if raw=True
+
+        Raises:
+            GidValidationError: If custom_field_gid is invalid.
         """
+        from autom8_asana.cache.entry import EntryType
+        from autom8_asana.persistence.validation import validate_gid
+
+        # Step 1: Validate GID
+        validate_gid(custom_field_gid, "custom_field_gid")
+
+        # Step 2: Check cache first
+        cached_entry = self._cache_get(custom_field_gid, EntryType.CUSTOM_FIELD)
+        if cached_entry is not None:
+            # Step 3: Cache hit - return cached data
+            data = cached_entry.data
+            if raw:
+                return data
+            return CustomField.model_validate(data)
+
+        # Step 4: Cache miss - fetch from API
         params = self._build_opt_fields(opt_fields)
         data = await self._http.get(f"/custom_fields/{custom_field_gid}", params=params)
+
+        # Step 5: Store in cache (30 min TTL)
+        self._cache_set(custom_field_gid, data, EntryType.CUSTOM_FIELD, ttl=1800)
+
+        # Step 6: Return model or raw dict
         if raw:
             return data
         return CustomField.model_validate(data)

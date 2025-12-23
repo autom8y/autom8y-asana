@@ -232,26 +232,26 @@ class TestUsersClientGetAsync:
     ) -> None:
         """get_async returns User model by default."""
         mock_http.get.return_value = {
-            "gid": "user123",
+            "gid": "1234567890123",
             "name": "Alice Smith",
             "email": "alice@example.com",
         }
 
-        result = await users_client.get_async("user123")
+        result = await users_client.get_async("1234567890123")
 
         assert isinstance(result, User)
-        assert result.gid == "user123"
+        assert result.gid == "1234567890123"
         assert result.name == "Alice Smith"
         assert result.email == "alice@example.com"
-        mock_http.get.assert_called_once_with("/users/user123", params={})
+        mock_http.get.assert_called_once_with("/users/1234567890123", params={})
 
     async def test_get_async_raw_returns_dict(
         self, users_client: UsersClient, mock_http: MockHTTPClient
     ) -> None:
         """get_async with raw=True returns dict."""
-        mock_http.get.return_value = {"gid": "user123", "name": "Alice"}
+        mock_http.get.return_value = {"gid": "1234567890123", "name": "Alice"}
 
-        result = await users_client.get_async("user123", raw=True)
+        result = await users_client.get_async("1234567890123", raw=True)
 
         assert isinstance(result, dict)
 
@@ -360,28 +360,28 @@ class TestProjectsClientGetAsync:
     ) -> None:
         """get_async returns Project model by default."""
         mock_http.get.return_value = {
-            "gid": "proj123",
+            "gid": "1234567890123",
             "name": "My Project",
             "archived": False,
             "public": True,
         }
 
-        result = await projects_client.get_async("proj123")
+        result = await projects_client.get_async("1234567890123")
 
         assert isinstance(result, Project)
-        assert result.gid == "proj123"
+        assert result.gid == "1234567890123"
         assert result.name == "My Project"
         assert result.archived is False
         assert result.public is True
-        mock_http.get.assert_called_once_with("/projects/proj123", params={})
+        mock_http.get.assert_called_once_with("/projects/1234567890123", params={})
 
     async def test_get_async_raw_returns_dict(
         self, projects_client: ProjectsClient, mock_http: MockHTTPClient
     ) -> None:
         """get_async with raw=True returns dict."""
-        mock_http.get.return_value = {"gid": "proj123", "name": "My Project"}
+        mock_http.get.return_value = {"gid": "1234567890123", "name": "My Project"}
 
-        result = await projects_client.get_async("proj123", raw=True)
+        result = await projects_client.get_async("1234567890123", raw=True)
 
         assert isinstance(result, dict)
 
@@ -539,12 +539,12 @@ class TestProjectsClientSyncWrappers:
             config=config,
             auth_provider=auth_provider,
         )
-        mock_http.get.return_value = {"gid": "proj123", "name": "Sync Project"}
+        mock_http.get.return_value = {"gid": "1234567890123", "name": "Sync Project"}
 
-        result = client.get("proj123")
+        result = client.get("1234567890123")
 
         assert isinstance(result, Project)
-        assert result.gid == "proj123"
+        assert result.gid == "1234567890123"
 
     def test_create_sync_returns_project_model(
         self,
@@ -612,19 +612,19 @@ class TestSectionsClientGetAsync:
     ) -> None:
         """get_async returns Section model by default."""
         mock_http.get.return_value = {
-            "gid": "sec123",
+            "gid": "1234567890123",
             "name": "To Do",
-            "project": {"gid": "proj123", "name": "Project"},
+            "project": {"gid": "9876543210987", "name": "Project"},
         }
 
-        result = await sections_client.get_async("sec123")
+        result = await sections_client.get_async("1234567890123")
 
         assert isinstance(result, Section)
-        assert result.gid == "sec123"
+        assert result.gid == "1234567890123"
         assert result.name == "To Do"
         assert result.project is not None
-        assert result.project.gid == "proj123"
-        mock_http.get.assert_called_once_with("/sections/sec123", params={})
+        assert result.project.gid == "9876543210987"
+        mock_http.get.assert_called_once_with("/sections/1234567890123", params={})
 
 
 class TestSectionsClientCreateAsync:
@@ -763,25 +763,25 @@ class TestCustomFieldsClientGetAsync:
     ) -> None:
         """get_async returns CustomField model by default."""
         mock_http.get.return_value = {
-            "gid": "cf123",
+            "gid": "1234567890123",
             "name": "Priority",
             "resource_subtype": "enum",
             "enum_options": [
-                {"gid": "opt1", "name": "High", "color": "red"},
-                {"gid": "opt2", "name": "Low", "color": "green"},
+                {"gid": "1234567890001", "name": "High", "color": "red"},
+                {"gid": "1234567890002", "name": "Low", "color": "green"},
             ],
         }
 
-        result = await custom_fields_client.get_async("cf123")
+        result = await custom_fields_client.get_async("1234567890123")
 
         assert isinstance(result, CustomField)
-        assert result.gid == "cf123"
+        assert result.gid == "1234567890123"
         assert result.name == "Priority"
         assert result.resource_subtype == "enum"
         assert result.enum_options is not None
         assert len(result.enum_options) == 2
         assert isinstance(result.enum_options[0], CustomFieldEnumOption)
-        mock_http.get.assert_called_once_with("/custom_fields/cf123", params={})
+        mock_http.get.assert_called_once_with("/custom_fields/1234567890123", params={})
 
 
 class TestCustomFieldsClientCreateAsync:
@@ -962,9 +962,9 @@ class TestCustomFieldsClientSyncWrappers:
             config=config,
             auth_provider=auth_provider,
         )
-        mock_http.get.return_value = {"gid": "cf123", "name": "Field"}
+        mock_http.get.return_value = {"gid": "1234567890123", "name": "Field"}
 
-        result = client.get("cf123")
+        result = client.get("1234567890123")
 
         assert isinstance(result, CustomField)
 

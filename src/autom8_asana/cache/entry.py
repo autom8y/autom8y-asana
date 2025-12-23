@@ -23,6 +23,12 @@ class EntryType(str, Enum):
     ATTACHMENTS = "attachments"
     DATAFRAME = "dataframe"
 
+    # Per TDD-CACHE-UTILIZATION: New entry types for client caching
+    PROJECT = "project"  # TTL: 900s (15 min), has modified_at
+    SECTION = "section"  # TTL: 1800s (30 min), no modified_at
+    USER = "user"  # TTL: 3600s (1 hour), no modified_at
+    CUSTOM_FIELD = "custom_field"  # TTL: 1800s (30 min), no modified_at
+
 
 @dataclass(frozen=True)
 class CacheEntry:

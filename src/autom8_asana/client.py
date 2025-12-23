@@ -27,11 +27,14 @@ from autom8_asana.clients.users import UsersClient
 from autom8_asana.clients.webhooks import WebhooksClient
 from autom8_asana.clients.workspaces import WorkspacesClient
 from autom8_asana.config import AsanaConfig
+from autom8_asana.cache.entry import EntryType
 from autom8_asana.exceptions import AuthenticationError, ConfigurationError
+from autom8_asana.protocols.cache import WarmResult
 from autom8_asana.transport.http import AsyncHTTPClient
 
 if TYPE_CHECKING:
     from autom8_asana.automation.engine import AutomationEngine
+    from autom8_asana.cache.metrics import CacheMetrics
     from autom8_asana.protocols.auth import AuthProvider
     from autom8_asana.protocols.cache import CacheProvider
     from autom8_asana.protocols.log import LogProvider
@@ -229,6 +232,24 @@ class AsanaClient:
             The configured ObservabilityHook implementation.
         """
         return self._observability_hook
+
+    @property
+    def cache_metrics(self) -> "CacheMetrics | None":
+        """Access cache metrics for observability.
+
+        Per TDD-CACHE-UTILIZATION: Exposes cache hit/miss statistics.
+
+        Returns:
+            CacheMetrics if caching is enabled, None otherwise.
+
+        Example:
+            >>> if client.cache_metrics:
+            ...     print(f"Hit rate: {client.cache_metrics.hit_rate_percent:.1f}%")
+            ...     print(f"API calls saved: {client.cache_metrics.api_calls_saved}")
+        """
+        if self._cache_provider is None:
+            return None
+        return self._cache_provider.get_metrics()
 
     @property
     def tasks(self) -> TasksClient:
@@ -641,6 +662,138 @@ class AsanaClient:
             batch_size=batch_size,
             max_concurrent=max_concurrent,
         )
+
+    # --- Cache Warming ---
+
+    async def warm_cache_async(
+        self,
+        gids: list[str],
+        entry_type: EntryType,
+    ) -> WarmResult:
+        """Pre-populate cache for specified GIDs.
+
+        Fetches resources from the API and stores them in cache for
+        subsequent fast access. Skips GIDs that are already cached.
+
+        Per TDD-CACHE-UTILIZATION Phase 3: Implements actual cache warming
+        by coordinating between the cache provider and appropriate sub-client.
+
+        Args:
+            gids: List of GIDs to warm (e.g., task GIDs, project GIDs).
+            entry_type: Type of entries to warm. Determines which API
+                endpoint and sub-client to use. Supported types:
+                - EntryType.TASK
+                - EntryType.PROJECT
+                - EntryType.SECTION
+                - EntryType.USER
+                - EntryType.CUSTOM_FIELD
+
+        Returns:
+            WarmResult with counts:
+                - warmed: Successfully fetched and cached
+                - failed: API errors during fetch
+                - skipped: Already cached (no fetch needed)
+
+        Example:
+            >>> # Warm cache for multiple tasks
+            >>> result = await client.warm_cache_async(
+            ...     gids=["123", "456", "789"],
+            ...     entry_type=EntryType.TASK,
+            ... )
+            >>> print(f"Warmed: {result.warmed}, Skipped: {result.skipped}")
+
+            >>> # Warm cache for projects
+            >>> result = await client.warm_cache_async(
+            ...     gids=["proj_123", "proj_456"],
+            ...     entry_type=EntryType.PROJECT,
+            ... )
+
+        Note:
+            - Each sub-client's get_async() method handles caching automatically.
+            - This method is idempotent: calling with already-cached GIDs
+              returns quickly with those GIDs counted as skipped.
+            - API errors for individual GIDs don't fail the entire operation;
+              they increment the failed count while processing continues.
+        """
+        warmed = 0
+        failed = 0
+        skipped = 0
+
+        for gid in gids:
+            # Check if already cached (skip if so)
+            if self._cache_provider is not None:
+                cached = self._cache_provider.get_versioned(gid, entry_type)
+                if cached is not None:
+                    skipped += 1
+                    continue
+
+            try:
+                # Fetch based on entry type (auto-caches via client methods)
+                match entry_type:
+                    case EntryType.TASK:
+                        await self.tasks.get_async(gid)
+                    case EntryType.PROJECT:
+                        await self.projects.get_async(gid)
+                    case EntryType.SECTION:
+                        await self.sections.get_async(gid)
+                    case EntryType.USER:
+                        await self.users.get_async(gid)
+                    case EntryType.CUSTOM_FIELD:
+                        await self.custom_fields.get_async(gid)
+                    case _:
+                        # Unsupported entry type - count as failed
+                        failed += 1
+                        continue
+                warmed += 1
+            except Exception:
+                # API error or other failure - continue with remaining GIDs
+                failed += 1
+
+        return WarmResult(warmed=warmed, failed=failed, skipped=skipped)
+
+    def warm_cache(
+        self,
+        gids: list[str],
+        entry_type: EntryType,
+    ) -> WarmResult:
+        """Synchronous wrapper for warm_cache_async().
+
+        Pre-populate cache for specified GIDs.
+
+        Args:
+            gids: List of GIDs to warm.
+            entry_type: Type of entries to warm.
+
+        Returns:
+            WarmResult with warmed/failed/skipped counts.
+
+        Raises:
+            SyncInAsyncContextError: If called from an async context.
+                Use warm_cache_async() instead.
+
+        See Also:
+            warm_cache_async: Async version with full documentation.
+        """
+        import asyncio
+
+        from autom8_asana.exceptions import SyncInAsyncContextError
+
+        # Check if we're in an async context
+        running_loop: asyncio.AbstractEventLoop | None = None
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No running event loop - this is the expected case for sync usage
+            pass
+
+        if running_loop is not None:
+            # There's a running loop - fail fast per ADR-0002
+            raise SyncInAsyncContextError(
+                method_name="warm_cache",
+                async_method_name="warm_cache_async",
+            )
+
+        return asyncio.run(self.warm_cache_async(gids, entry_type))
 
     async def close(self) -> None:
         """Close client and release resources.

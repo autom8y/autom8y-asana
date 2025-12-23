@@ -54,7 +54,10 @@ class ProjectsClient(BaseClient):
         raw: bool = False,
         opt_fields: list[str] | None = None,
     ) -> Project | dict[str, Any]:
-        """Get a project by GID.
+        """Get a project by GID with cache support.
+
+        Per TDD-CACHE-UTILIZATION: Checks cache before HTTP request.
+        Per ADR-0119: 6-step client cache integration pattern.
 
         Args:
             project_gid: Project GID
@@ -63,9 +66,33 @@ class ProjectsClient(BaseClient):
 
         Returns:
             Project model by default, or dict if raw=True
+
+        Raises:
+            GidValidationError: If project_gid is invalid.
         """
+        from autom8_asana.cache.entry import EntryType
+        from autom8_asana.persistence.validation import validate_gid
+
+        # Step 1: Validate GID
+        validate_gid(project_gid, "project_gid")
+
+        # Step 2: Check cache first
+        cached_entry = self._cache_get(project_gid, EntryType.PROJECT)
+        if cached_entry is not None:
+            # Step 3: Cache hit - return cached data
+            data = cached_entry.data
+            if raw:
+                return data
+            return Project.model_validate(data)
+
+        # Step 4: Cache miss - fetch from API
         params = self._build_opt_fields(opt_fields)
         data = await self._http.get(f"/projects/{project_gid}", params=params)
+
+        # Step 5: Store in cache (15 min TTL)
+        self._cache_set(project_gid, data, EntryType.PROJECT, ttl=900)
+
+        # Step 6: Return model or raw dict
         if raw:
             return data
         return Project.model_validate(data)
