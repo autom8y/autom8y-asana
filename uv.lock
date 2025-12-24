@@ -113,7 +113,6 @@ redis = [
 ]
 auth = [
     { name = "autom8y-auth" },
-    { name = "python-jose", extra = ["cryptography"] },
 ]
 
 [package.metadata]
@@ -137,7 +136,6 @@ requires-dist = [
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "pytest-timeout", marker = "extra == 'dev'", specifier = ">=2.2.0" },
-    { name = "python-jose", extras = ["cryptography"], marker = "extra == 'auth'", specifier = ">=3.3.0" },
     { name = "redis", marker = "extra == 'redis'", specifier = ">=5.0.0" },
     { name = "respx", marker = "extra == 'dev'", specifier = ">=0.20.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
