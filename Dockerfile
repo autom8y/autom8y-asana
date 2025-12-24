@@ -39,10 +39,11 @@ COPY pyproject.toml uv.lock ./
 # Copy source code
 COPY src ./src
 
-# Install dependencies with [api] extra
+# Install dependencies with [api] and [s2s] extras
 # --frozen ensures lockfile is used exactly
 # --no-dev excludes development dependencies
-RUN uv sync --frozen --no-dev --extra api
+# --extra s2s includes autom8y-auth SDK for S2S authentication
+RUN uv sync --frozen --no-dev --extra api --extra s2s
 
 # =============================================================================
 # Stage 2: Runtime

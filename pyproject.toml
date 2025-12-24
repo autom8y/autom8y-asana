@@ -29,9 +29,9 @@ api = [
 ]
 s2s = [
     # S2S auth requires autom8y-auth SDK (TDD-S2S-001)
-    # Install from CodeArtifact: pip install autom8y-auth --index-url $CODEARTIFACT_URL
-    # Or local dev: pip install -e ../autom8y_platform/sdks/python/autom8y-auth
-    "python-jose[cryptography]>=3.3.0",  # For JWT parsing in dev mode
+    # Installed from CodeArtifact via UV_EXTRA_INDEX_URL in Docker build
+    "autom8y-auth>=0.1.0",
+    "python-jose[cryptography]>=3.3.0",  # For JWT parsing fallback
 ]
 dev = [
     "pytest>=7.0.0",
