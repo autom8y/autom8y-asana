@@ -23,7 +23,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from autom8_asana.api.dependencies import AsanaClientDep, RequestId
+from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
 from autom8_asana.api.models import (
     CreateProjectRequest,
     MembersRequest,
@@ -49,7 +49,7 @@ MAX_LIMIT = 100
     response_model=SuccessResponse[list[dict[str, Any]]],
 )
 async def list_projects(
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
     workspace: Annotated[
         str,
@@ -107,7 +107,7 @@ async def list_projects(
 )
 async def get_project(
     gid: str,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
     opt_fields: Annotated[
         str | None,
@@ -144,7 +144,7 @@ async def get_project(
 )
 async def create_project(
     body: CreateProjectRequest,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Create a new project.
@@ -178,7 +178,7 @@ async def create_project(
 async def update_project(
     gid: str,
     body: UpdateProjectRequest,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Update an existing project.
@@ -219,7 +219,7 @@ async def update_project(
 )
 async def delete_project(
     gid: str,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
 ) -> None:
     """Delete a project.
 
@@ -244,7 +244,7 @@ async def delete_project(
 )
 async def list_sections(
     gid: str,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
     limit: Annotated[
         int,
@@ -300,7 +300,7 @@ async def list_sections(
 async def add_members(
     gid: str,
     body: MembersRequest,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Add members to a project.
@@ -328,7 +328,7 @@ async def add_members(
 async def remove_members(
     gid: str,
     body: MembersRequest,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Remove members from a project.

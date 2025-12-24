@@ -17,7 +17,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
 
-from autom8_asana.api.dependencies import AsanaClientDep, RequestId
+from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
 from autom8_asana.api.models import (
     PaginationMeta,
     SuccessResponse,
@@ -37,7 +37,7 @@ MAX_LIMIT = 100
     response_model=SuccessResponse[list[dict[str, Any]]],
 )
 async def list_workspaces(
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
     limit: Annotated[
         int,
@@ -91,7 +91,7 @@ async def list_workspaces(
 )
 async def get_workspace(
     gid: str,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Get a workspace by its GID.

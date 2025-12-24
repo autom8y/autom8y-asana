@@ -175,16 +175,21 @@ def authed_client(
     This uses FastAPI's dependency_overrides to inject the mock client,
     allowing tests to verify SDK interactions without live API calls.
 
+    The fixture overrides get_asana_client_from_context (dual-mode auth)
+    which is the current auth dependency used by API routes.
+
     Yields:
         Tuple of (TestClient, mock_asana_client) for assertions.
     """
-    from autom8_asana.api.dependencies import get_asana_client
+    from autom8_asana.api.dependencies import get_asana_client_from_context
 
-    async def mock_get_asana_client() -> AsyncGenerator[MagicMock, None]:
+    async def mock_get_asana_client_from_context() -> AsyncGenerator[MagicMock, None]:
         yield mock_asana_client
 
     # Use FastAPI's dependency override mechanism
-    app.dependency_overrides[get_asana_client] = mock_get_asana_client
+    app.dependency_overrides[get_asana_client_from_context] = (
+        mock_get_asana_client_from_context
+    )
 
     try:
         with TestClient(app) as test_client:

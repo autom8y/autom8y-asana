@@ -20,7 +20,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 
-from autom8_asana.api.dependencies import AsanaClientDep, RequestId
+from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
 from autom8_asana.api.models import (
     AddTaskToSectionRequest,
     CreateSectionRequest,
@@ -43,7 +43,7 @@ router = APIRouter(prefix="/api/v1/sections", tags=["sections"])
 )
 async def get_section(
     gid: str,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Get a section by its GID.
@@ -68,7 +68,7 @@ async def get_section(
 )
 async def create_section(
     body: CreateSectionRequest,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Create a new section in a project.
@@ -97,7 +97,7 @@ async def create_section(
 async def update_section(
     gid: str,
     body: UpdateSectionRequest,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Update a section (rename).
@@ -122,7 +122,7 @@ async def update_section(
 )
 async def delete_section(
     gid: str,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
 ) -> None:
     """Delete a section.
 
@@ -148,7 +148,7 @@ async def delete_section(
 async def add_task_to_section(
     gid: str,
     body: AddTaskToSectionRequest,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
 ) -> None:
     """Add a task to a section.
 
@@ -178,7 +178,7 @@ async def add_task_to_section(
 async def reorder_section(
     gid: str,
     body: ReorderSectionRequest,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
 ) -> None:
     """Reorder a section within a project.
 

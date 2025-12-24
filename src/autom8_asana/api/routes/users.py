@@ -18,7 +18,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
 
-from autom8_asana.api.dependencies import AsanaClientDep, RequestId
+from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
 from autom8_asana.api.models import (
     PaginationMeta,
     SuccessResponse,
@@ -38,7 +38,7 @@ MAX_LIMIT = 100
     response_model=SuccessResponse[dict[str, Any]],
 )
 async def get_current_user(
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Get the current authenticated user.
@@ -59,7 +59,7 @@ async def get_current_user(
 )
 async def get_user(
     gid: str,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Get a user by their GID.
@@ -80,7 +80,7 @@ async def get_user(
     response_model=SuccessResponse[list[dict[str, Any]]],
 )
 async def list_users(
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
     workspace: Annotated[
         str,

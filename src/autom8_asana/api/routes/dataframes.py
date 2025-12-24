@@ -27,7 +27,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Header, HTTPException, Query
 from fastapi.responses import JSONResponse, Response
 
-from autom8_asana.api.dependencies import AsanaClientDep, RequestId
+from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
 from autom8_asana.api.models import (
     PaginationMeta,
     ResponseMeta,
@@ -118,7 +118,7 @@ def _should_use_polars_format(accept: str | None) -> bool:
 )
 async def get_project_dataframe(
     gid: str,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
     schema: Annotated[
         SchemaType,
@@ -294,7 +294,7 @@ async def get_project_dataframe(
 )
 async def get_section_dataframe(
     gid: str,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
     schema: Annotated[
         SchemaType,

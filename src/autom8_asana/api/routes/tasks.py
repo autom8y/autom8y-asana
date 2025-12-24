@@ -31,7 +31,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from autom8_asana.api.dependencies import AsanaClientDep, RequestId
+from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
 from autom8_asana.api.models import (
     AddTagRequest,
     AddToProjectRequest,
@@ -61,7 +61,7 @@ MAX_LIMIT = 100
     response_model=SuccessResponse[list[dict[str, Any]]],
 )
 async def list_tasks(
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
     project: Annotated[
         str | None,
@@ -142,7 +142,7 @@ async def list_tasks(
 )
 async def get_task(
     gid: str,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
     opt_fields: Annotated[
         str | None,
@@ -181,7 +181,7 @@ async def get_task(
 )
 async def create_task(
     body: CreateTaskRequest,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Create a new task.
@@ -230,7 +230,7 @@ async def create_task(
 async def update_task(
     gid: str,
     body: UpdateTaskRequest,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Update an existing task.
@@ -274,7 +274,7 @@ async def update_task(
 )
 async def delete_task(
     gid: str,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
 ) -> None:
     """Delete a task.
 
@@ -299,7 +299,7 @@ async def delete_task(
 )
 async def list_subtasks(
     gid: str,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
     limit: Annotated[
         int,
@@ -351,7 +351,7 @@ async def list_subtasks(
 )
 async def list_dependents(
     gid: str,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
     limit: Annotated[
         int,
@@ -407,7 +407,7 @@ async def list_dependents(
 async def duplicate_task(
     gid: str,
     body: DuplicateTaskRequest,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Duplicate a task.
@@ -438,7 +438,7 @@ async def duplicate_task(
 async def add_tag(
     gid: str,
     body: AddTagRequest,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Add a tag to a task.
@@ -465,7 +465,7 @@ async def add_tag(
 async def remove_tag(
     gid: str,
     tag_gid: str,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Remove a tag from a task.
@@ -495,7 +495,7 @@ async def remove_tag(
 async def move_to_section(
     gid: str,
     body: MoveSectionRequest,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Move a task to a section within a project.
@@ -524,7 +524,7 @@ async def move_to_section(
 async def set_assignee(
     gid: str,
     body: SetAssigneeRequest,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Set or clear the task assignee.
@@ -555,7 +555,7 @@ async def set_assignee(
 async def add_to_project(
     gid: str,
     body: AddToProjectRequest,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Add a task to a project.
@@ -582,7 +582,7 @@ async def add_to_project(
 async def remove_from_project(
     gid: str,
     project_gid: str,
-    client: AsanaClientDep,
+    client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[dict[str, Any]]:
     """Remove a task from a project.
