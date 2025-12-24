@@ -8,7 +8,7 @@
 - **Validated**: 2025-12-18
 - **PRD Reference**: [PRD-WORKSPACE-PROJECT-REGISTRY](/docs/requirements/PRD-WORKSPACE-PROJECT-REGISTRY.md)
 - **TDD Reference**: [TDD-WORKSPACE-PROJECT-REGISTRY](/docs/design/TDD-WORKSPACE-PROJECT-REGISTRY.md)
-- **Prompt 0 Reference**: [PROMPT-0-WORKSPACE-PROJECT-REGISTRY](/docs/requirements/PROMPT-0-WORKSPACE-PROJECT-REGISTRY.md)
+- **Prompt 0 Reference**: [PROMPT-0-WORKSPACE-PROJECT-REGISTRY](/docs/initiatives/PROMPT-0-WORKSPACE-PROJECT-REGISTRY.md)
 
 ---
 
@@ -294,7 +294,7 @@ These failures exist in unrelated modules and predate this initiative. They shou
 |----------|--------|----------|
 | PRD | Complete | `/docs/requirements/PRD-WORKSPACE-PROJECT-REGISTRY.md` |
 | TDD | Complete | `/docs/design/TDD-WORKSPACE-PROJECT-REGISTRY.md` |
-| Prompt 0 | Complete | `/docs/requirements/PROMPT-0-WORKSPACE-PROJECT-REGISTRY.md` |
+| Prompt 0 | Complete | `/docs/initiatives/PROMPT-0-WORKSPACE-PROJECT-REGISTRY.md` |
 | Gap Analysis | Complete | `/docs/analysis/GAP-ANALYSIS-WORKSPACE-PROJECT-REGISTRY.md` |
 | ADR-0108 | Complete | `/docs/decisions/ADR-0108-workspace-project-registry.md` |
 | ADR-0109 | Complete | `/docs/decisions/ADR-0109-lazy-discovery-timing.md` |

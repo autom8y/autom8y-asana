@@ -176,15 +176,26 @@
 | [PROMPT-0-PROCESS-CLEANUP](initiatives/PROMPT-0-PROCESS-CLEANUP.md) | Process Pipeline Cleanup Initiative | Pending |
 | [PROMPT-0-PROCESS-PIPELINE](initiatives/PROMPT-0-PROCESS-PIPELINE.md) | Process Pipeline Implementation (Superseded) | Superseded |
 | [PROMPT-0-membership-detection](initiatives/PROMPT-0-membership-detection.md) | Membership Detection Initiative | Active |
-| [PROMPT-0-WORKSPACE-PROJECT-REGISTRY](requirements/PROMPT-0-WORKSPACE-PROJECT-REGISTRY.md) | Workspace Project Registry Initiative | Complete |
-| [PROMPT-0-PIPELINE-AUTOMATION-ENHANCEMENT](requirements/PROMPT-0-PIPELINE-AUTOMATION-ENHANCEMENT.md) | Pipeline Automation Enhancement Initiative | Active |
-| [PROMPT-MINUS-1-CACHE-PERFORMANCE-META](requirements/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md) | Cache Performance Meta-Initiative | Active |
-| [PROMPT-0-CACHE-PERF-FETCH-PATH](requirements/PROMPT-0-CACHE-PERF-FETCH-PATH.md) | P1: Fetch Path Investigation | Complete |
-| [PROMPT-0-CACHE-PERF-DETECTION](requirements/PROMPT-0-CACHE-PERF-DETECTION.md) | P2: Detection Flow Investigation | Active |
-| [PROMPT-0-CACHE-PERF-HYDRATION](requirements/PROMPT-0-CACHE-PERF-HYDRATION.md) | P3: Hydration Caching Investigation | Pending |
-| [PROMPT-0-CACHE-PERF-STORIES](requirements/PROMPT-0-CACHE-PERF-STORIES.md) | P4: Stories/Metrics Caching Investigation | Pending |
-| [PROMPT-0-CACHE-OPTIMIZATION-PHASE2](requirements/PROMPT-0-CACHE-OPTIMIZATION-PHASE2.md) | Cache Optimization Phase 2 - Root Cause Investigation | Complete |
-| [PROMPT-0-CACHE-OPTIMIZATION-PHASE3](requirements/PROMPT-0-CACHE-OPTIMIZATION-PHASE3.md) | Cache Optimization Phase 3 - GID Enumeration Caching | Complete |
+| [PROMPT-0-PIPELINE-AUTOMATION-ENHANCEMENT](initiatives/PROMPT-0-PIPELINE-AUTOMATION-ENHANCEMENT.md) | Pipeline Automation Enhancement Initiative | Active |
+| [PROMPT-MINUS-1-CACHE-PERFORMANCE-META](initiatives/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md) | Cache Performance Meta-Initiative | Active |
+| [PROMPT-0-CACHE-INTEGRATION](initiatives/PROMPT-0-CACHE-INTEGRATION.md) | Cache Integration Initiative | Active |
+| [PROMPT-0-CACHE-LIGHTWEIGHT-STALENESS](initiatives/PROMPT-0-CACHE-LIGHTWEIGHT-STALENESS.md) | Lightweight Staleness Detection Initiative | Active |
+| [PROMPT-0-CACHE-PERF-DETECTION](initiatives/PROMPT-0-CACHE-PERF-DETECTION.md) | P2: Detection Flow Investigation | Active |
+| [PROMPT-0-CACHE-PERF-HYDRATION](initiatives/PROMPT-0-CACHE-PERF-HYDRATION.md) | P3: Hydration Caching Investigation | Pending |
+| [PROMPT-0-CACHE-PERF-STORIES](initiatives/PROMPT-0-CACHE-PERF-STORIES.md) | P4: Stories/Metrics Caching Investigation | Pending |
+| [PROMPT-0-CACHE-UTILIZATION](initiatives/PROMPT-0-CACHE-UTILIZATION.md) | Cache Utilization Initiative | Active |
+| [PROMPT-0-DOCS-EPOCH-RESET](initiatives/PROMPT-0-DOCS-EPOCH-RESET.md) | Documentation Epoch Reset | Active |
+| [PROMPT-0-TECH-DEBT-REMEDIATION](initiatives/PROMPT-0-TECH-DEBT-REMEDIATION.md) | Tech Debt Remediation Initiative | Active |
+
+### Archived Initiatives (Completed)
+
+| File | Description | Completed |
+|------|-------------|-----------|
+| [PROMPT-0-WORKSPACE-PROJECT-REGISTRY](.archive/initiatives/2025-Q4/PROMPT-0-WORKSPACE-PROJECT-REGISTRY.md) | Workspace Project Registry Initiative | 2025-Q4 |
+| [PROMPT-0-CACHE-PERF-FETCH-PATH](.archive/initiatives/2025-Q4/PROMPT-0-CACHE-PERF-FETCH-PATH.md) | P1: Fetch Path Investigation | 2025-Q4 |
+| [PROMPT-0-CACHE-OPTIMIZATION-PHASE2](.archive/initiatives/2025-Q4/PROMPT-0-CACHE-OPTIMIZATION-PHASE2.md) | Cache Optimization Phase 2 | 2025-Q4 |
+| [PROMPT-0-CACHE-OPTIMIZATION-PHASE3](.archive/initiatives/2025-Q4/PROMPT-0-CACHE-OPTIMIZATION-PHASE3.md) | Cache Optimization Phase 3 | 2025-Q4 |
+| [PROMPT-0-WATERMARK-CACHE](.archive/initiatives/2025-Q4/PROMPT-0-WATERMARK-CACHE.md) | Watermark Cache Initiative | 2025-Q4 |
 
 ---
 
@@ -221,12 +232,40 @@
 
 ---
 
+## Sprint Planning Documents
+
+| File | Description | Status |
+|------|-------------|--------|
+| [PRD-SPRINT-1-PATTERN-COMPLETION](planning/sprints/PRD-SPRINT-1-PATTERN-COMPLETION.md) | Sprint 1 Pattern Completion Decomposition | Draft |
+| [PRD-SPRINT-3-DETECTION-DECOMPOSITION](planning/sprints/PRD-SPRINT-3-DETECTION-DECOMPOSITION.md) | Sprint 3 Detection Decomposition | Draft |
+| [PRD-SPRINT-4-SAVESESSION-DECOMPOSITION](planning/sprints/PRD-SPRINT-4-SAVESESSION-DECOMPOSITION.md) | Sprint 4 SaveSession Decomposition | Draft |
+| [PRD-SPRINT-5-CLEANUP](planning/sprints/PRD-SPRINT-5-CLEANUP.md) | Sprint 5 Cleanup | Draft |
+| [TDD-SPRINT-1-PATTERN-COMPLETION](planning/sprints/TDD-SPRINT-1-PATTERN-COMPLETION.md) | Sprint 1 Pattern Completion Design | Draft |
+| [TDD-SPRINT-3-DETECTION-DECOMPOSITION](planning/sprints/TDD-SPRINT-3-DETECTION-DECOMPOSITION.md) | Sprint 3 Detection Design | Draft |
+| [TDD-SPRINT-4-SAVESESSION-DECOMPOSITION](planning/sprints/TDD-SPRINT-4-SAVESESSION-DECOMPOSITION.md) | Sprint 4 SaveSession Design | Draft |
+| [TDD-SPRINT-5-CLEANUP](planning/sprints/TDD-SPRINT-5-CLEANUP.md) | Sprint 5 Cleanup Design | Draft |
+
+---
+
 ## Reference Data
 
 | File | Description |
 |------|-------------|
 | [REF-entity-type-table.md](reference/REF-entity-type-table.md) | Business model entity hierarchy reference |
 | [REF-custom-field-catalog.md](reference/REF-custom-field-catalog.md) | Custom field catalog (108 fields across 5 models) |
+| [REF-cache-staleness-detection.md](reference/REF-cache-staleness-detection.md) | Cache staleness detection approaches and algorithms |
+| [REF-cache-ttl-strategy.md](reference/REF-cache-ttl-strategy.md) | Cache TTL strategy and progressive extension |
+| [REF-cache-provider-protocol.md](reference/REF-cache-provider-protocol.md) | CacheProvider protocol specification |
+
+---
+
+## Runbooks (Operational Troubleshooting)
+
+| File | Description |
+|------|-------------|
+| [RUNBOOK-cache-troubleshooting.md](runbooks/RUNBOOK-cache-troubleshooting.md) | Cache misses, stale data, errors, performance |
+| [RUNBOOK-savesession-debugging.md](runbooks/RUNBOOK-savesession-debugging.md) | SaveSession dependency cycles, partial failures, healing |
+| [RUNBOOK-detection-troubleshooting.md](runbooks/RUNBOOK-detection-troubleshooting.md) | Detection failures, wrong types, tier fallback |
 
 ---
 
@@ -258,7 +297,8 @@ Historical artifacts are preserved in `.archive/`:
 
 | Archive | Contents |
 |---------|----------|
-| `.archive/initiatives/` | PROMPT-0, PROMPT-MINUS-1 files |
+| `.archive/initiatives/2025-Q4/` | Completed Q4 2025 initiatives (5 files) |
+| `.archive/initiatives/` | Other completed PROMPT-0, PROMPT-MINUS-1 files |
 | `.archive/discovery/` | DISCOVERY-* analysis documents |
 | `.archive/validation/` | Point-in-time validation reports |
 | `.archive/historical/` | Other completed work |

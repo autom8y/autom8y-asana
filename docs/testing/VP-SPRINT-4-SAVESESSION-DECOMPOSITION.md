@@ -8,8 +8,8 @@
 | **Status** | Complete |
 | **Validator** | QA Adversary (Claude) |
 | **Validated** | 2025-12-19 |
-| **PRD Reference** | [PRD-SPRINT-4-SAVESESSION-DECOMPOSITION](/docs/requirements/PRD-SPRINT-4-SAVESESSION-DECOMPOSITION.md) |
-| **TDD Reference** | [TDD-SPRINT-4-SAVESESSION-DECOMPOSITION](/docs/design/TDD-SPRINT-4-SAVESESSION-DECOMPOSITION.md) |
+| **PRD Reference** | [PRD-SPRINT-4-SAVESESSION-DECOMPOSITION](/docs/planning/sprints/PRD-SPRINT-4-SAVESESSION-DECOMPOSITION.md) |
+| **TDD Reference** | [TDD-SPRINT-4-SAVESESSION-DECOMPOSITION](/docs/planning/sprints/TDD-SPRINT-4-SAVESESSION-DECOMPOSITION.md) |
 
 ---
 

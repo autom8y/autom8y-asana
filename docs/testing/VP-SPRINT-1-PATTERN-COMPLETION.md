@@ -291,8 +291,8 @@ The implementation is production-ready. The 7 failing tests are pre-existing wor
 
 ## Appendix: File References
 
-- PRD: `/docs/requirements/PRD-SPRINT-1-PATTERN-COMPLETION.md`
-- TDD: `/docs/design/TDD-SPRINT-1-PATTERN-COMPLETION.md`
+- PRD: `/docs/planning/sprints/PRD-SPRINT-1-PATTERN-COMPLETION.md`
+- TDD: `/docs/planning/sprints/TDD-SPRINT-1-PATTERN-COMPLETION.md`
 - ADR: `/docs/decisions/ADR-0119-field-mixin-strategy.md`
 - Mixins: `/src/autom8_asana/models/business/mixins.py`
 - Detection: `/src/autom8_asana/models/business/detection.py`

@@ -9,7 +9,7 @@
 - **Stakeholders**: SDK consumers, autom8 platform team
 - **Related PRDs**: PRD-CACHE-PERF-FETCH-PATH (P1), PRD-DETECTION
 - **Discovery Document**: [DISCOVERY-CACHE-PERF-DETECTION.md](/docs/analysis/DISCOVERY-CACHE-PERF-DETECTION.md)
-- **Parent Initiative**: [PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md](/docs/requirements/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md)
+- **Parent Initiative**: [PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md](/docs/initiatives/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md)
 
 ---
 

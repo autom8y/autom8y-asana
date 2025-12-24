@@ -113,7 +113,7 @@ self._cache_set(task_gid, data, EntryType.TASK, ttl=ttl)
 | TDD | `/docs/design/TDD-CACHE-OPTIMIZATION-P2.md` | Technical design document |
 | ADR | `/docs/decisions/ADR-0130-cache-population-location.md` | Cache population location decision |
 | Validation | `/docs/validation/VP-CACHE-OPTIMIZATION-P2.md` | QA validation report |
-| Prompt 0 | `/docs/requirements/PROMPT-0-CACHE-OPTIMIZATION-PHASE2.md` | Initiative initialization |
+| Prompt 0 | `/docs/initiatives/PROMPT-0-CACHE-OPTIMIZATION-PHASE2.md` | Initiative initialization |
 
 ---
 
@@ -284,7 +284,7 @@ python scripts/demo_parallel_fetch.py --name "Business Offers"
 | Document | Location |
 |----------|----------|
 | P1 Learnings | `/docs/analysis/INTEGRATION-CACHE-PERF-P1-LEARNINGS.md` |
-| Meta Initiative | `/docs/requirements/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md` |
+| Meta Initiative | `/docs/initiatives/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md` |
 | P1 Fetch Path PRD | `/docs/requirements/PRD-CACHE-PERF-FETCH-PATH.md` |
 | DataFrame Task Cache ADR | `/docs/decisions/ADR-0119-dataframe-task-cache-integration.md` |
 

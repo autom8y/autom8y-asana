@@ -6,7 +6,7 @@
 - **Author**: Architect (Claude)
 - **Created**: 2025-12-19
 - **Last Updated**: 2025-12-19
-- **PRD Reference**: [PRD-SPRINT-3-DETECTION-DECOMPOSITION](/docs/requirements/PRD-SPRINT-3-DETECTION-DECOMPOSITION.md)
+- **PRD Reference**: [PRD-SPRINT-3-DETECTION-DECOMPOSITION](/docs/planning/sprints/PRD-SPRINT-3-DETECTION-DECOMPOSITION.md)
 - **Related TDDs**: TDD-DETECTION, TDD-WORKSPACE-PROJECT-REGISTRY
 - **Related ADRs**: [ADR-0120](/docs/decisions/ADR-0120-detection-package-structure.md), ADR-0094, ADR-0117
 

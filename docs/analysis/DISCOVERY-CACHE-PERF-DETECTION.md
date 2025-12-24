@@ -391,8 +391,8 @@ cache.invalidate(gid, [EntryType.TASK, EntryType.SUBTASKS, EntryType.DETECTION])
 
 ## References
 
-- [PROMPT-0-CACHE-PERF-DETECTION.md](/docs/requirements/PROMPT-0-CACHE-PERF-DETECTION.md)
-- [PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md](/docs/requirements/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md)
+- [PROMPT-0-CACHE-PERF-DETECTION.md](/docs/initiatives/PROMPT-0-CACHE-PERF-DETECTION.md)
+- [PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md](/docs/initiatives/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md)
 - [DISCOVERY-CACHE-PERF-FETCH-PATH.md](/docs/analysis/DISCOVERY-CACHE-PERF-FETCH-PATH.md)
 - [TDD-DETECTION.md](/docs/design/TDD-DETECTION.md)
 - [ADR-0125-savesession-invalidation.md](/docs/decisions/ADR-0125-savesession-invalidation.md)

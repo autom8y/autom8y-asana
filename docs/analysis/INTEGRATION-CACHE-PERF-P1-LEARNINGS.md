@@ -6,7 +6,7 @@
 - **Status**: Complete
 - **Author**: QA Adversary
 - **Created**: 2025-12-23
-- **Related Initiative**: [PROMPT-MINUS-1-CACHE-PERFORMANCE-META](/docs/requirements/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md)
+- **Related Initiative**: [PROMPT-MINUS-1-CACHE-PERFORMANCE-META](/docs/initiatives/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md)
 
 ---
 

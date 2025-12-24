@@ -215,7 +215,7 @@ This is a **negative decision** (what NOT to build). Compliance means:
 
 ## Appendix: Exploration Evidence
 
-This decision was informed by the Discovery Analysis (`/docs/analysis/watermark-cache-discovery.md`) and Prompt 0 (`/docs/requirements/PROMPT-0-WATERMARK-CACHE.md`), which documented:
+This decision was informed by the Discovery Analysis (`/docs/analysis/watermark-cache-discovery.md`) and Prompt 0 (`/docs/initiatives/PROMPT-0-WATERMARK-CACHE.md`), which documented:
 
 1. **Section API lacks `modified_at`**: Confirmed via API inspection
 2. **Write frequency analysis**: Operational logs showed ~10 writes/hour

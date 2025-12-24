@@ -664,7 +664,7 @@ Before starting, gather:
 
 **Prior Work Reference:**
 
-- [ ] `docs/requirements/PROMPT-0-WATERMARK-CACHE.md` - Prior initiative context
+- [ ] `docs/initiatives/PROMPT-0-WATERMARK-CACHE.md` - Prior initiative context
 - [ ] `docs/analysis/multi-level-cache-hierarchy-analysis.md` - Architecture decisions
 
 ---

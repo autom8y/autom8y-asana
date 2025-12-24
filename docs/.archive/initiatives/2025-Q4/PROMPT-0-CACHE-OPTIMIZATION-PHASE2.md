@@ -277,7 +277,7 @@ Review before Discovery:
 | Detection PRD | What P2 implemented | `/docs/requirements/PRD-CACHE-PERF-DETECTION.md` |
 | Hydration Analysis | opt_fields investigation | `/docs/analysis/hydration-cache-opt-fields-analysis.md` |
 | Stories Discovery | P4 wiring pattern | `/docs/analysis/stories-cache-wiring-discovery.md` |
-| Cache Meta-Initiative | Original problem statement | `/docs/requirements/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md` |
+| Cache Meta-Initiative | Original problem statement | `/docs/initiatives/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md` |
 
 ## Your First Task
 

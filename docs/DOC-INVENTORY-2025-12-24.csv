@@ -1,0 +1,116 @@
+Type,Filename,Size,File_Date,Git_Date,Git_Message,Status_INDEX,Status_File,Category,Pair,Notes
+PRD,PRD-0001-sdk-extraction.md,25K,2025-12-08,2025-12-09 12:01:40,initial commit,Approved,Unknown,Numbered,TDD-0001,Baseline doc
+PRD,PRD-0002-intelligent-caching.md,33K,2025-12-09,2025-12-09 12:01:40,initial commit,Implemented,Draft,Numbered,TDD-0008,STATUS MISMATCH - Code updated Dec 24
+PRD,PRD-0003-structured-dataframe-layer.md,47K,2025-12-09,2025-12-10 21:13:48,feat: Documentation Empowerment Sprint,In Review,Unknown,Numbered,TDD-0009,
+PRD,PRD-0003.1-dynamic-custom-field-resolution.md,19K,2025-12-09,2025-12-10 21:13:48,feat: Documentation Empowerment Sprint,Draft,Unknown,Numbered,TDD-0009.1,
+PRD,PRD-0004-test-hang-fix.md,8.9K,2025-12-09,2025-12-10 21:13:48,feat: Documentation Empowerment Sprint,Implemented,Unknown,Numbered,None,Missing TDD
+PRD,PRD-0005-save-orchestration.md,39K,2025-12-10,2025-12-10 21:13:48,feat: Documentation Empowerment Sprint,Implemented,Unknown,Numbered,TDD-0010,STALE - Healing system added Dec 15
+PRD,PRD-0006-action-endpoint-support.md,28K,2025-12-10,2025-12-10 21:13:48,feat: Documentation Empowerment Sprint,Draft,Unknown,Numbered,TDD-0011,
+PRD,PRD-0007-sdk-functional-parity.md,34K,2025-12-10,2025-12-10 21:13:48,feat: Documentation Empowerment Sprint,Implemented,Unknown,Numbered,TDD-0012,STATUS MISMATCH
+PRD,PRD-0008-parent-subtask-operations.md,17K,2025-12-10,2025-12-10 21:13:48,feat: Documentation Empowerment Sprint,Implemented,Unknown,Numbered,TDD-0013,STATUS MISMATCH
+PRD,PRD-0009-sdk-ga-readiness.md,16K,2025-12-10,2025-12-10 21:13:48,feat: Documentation Empowerment Sprint,Draft,Unknown,Numbered,TDD-0014,
+PRD,PRD-0010-business-model-layer.md,28K,2025-12-11,2025-12-17 11:25:46,docs: Complete documentation refactor,Draft,Unknown,Numbered,TDD-0027/0028,STALE - Code updated Dec 15
+PRD,PRD-0011-sdk-demonstration-suite.md,23K,2025-12-12,2025-12-17 11:25:46,docs: Complete documentation refactor,Draft,Unknown,Numbered,TDD-0029,
+PRD,PRD-0012-sdk-usability-improvements.md,44K,2025-12-12,2025-12-17 11:25:46,docs: Complete documentation refactor,Approved,Unknown,Numbered,TDD-0015,Largest PRD
+PRD,PRD-0013-hierarchy-hydration.md,29K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Implemented,Unknown,Numbered,TDD-0017,STATUS MISMATCH
+PRD,PRD-0014-cross-holder-resolution.md,30K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Implemented,Unknown,Numbered,TDD-0018,STATUS MISMATCH
+PRD,PRD-0015-foundation-hardening.md,22K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Draft,Unknown,Numbered,TDD-0019,
+PRD,PRD-0016-custom-field-tracking.md,19K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Draft,Unknown,Numbered,TDD-0020,
+PRD,PRD-0017-navigation-descriptors.md,29K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Draft,Unknown,Numbered,TDD-0021,
+PRD,PRD-0018-savesession-reliability.md,20K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Draft,Unknown,Numbered,TDD-0022,
+PRD,PRD-0019-custom-field-descriptors.md,36K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Draft,Unknown,Numbered,TDD-0023,
+PRD,PRD-0020-holder-factory.md,9.7K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Implemented,Unknown,Numbered,TDD-0024,STATUS MISMATCH - Implemented Dec 16
+PRD,PRD-0021-async-method-generator.md,5.0K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Active,Unknown,Numbered,TDD-0025,SUPERSEDED by @async_method decorator
+PRD,PRD-0022-crud-base-class.md,6.9K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Active,Unknown,Numbered,TDD-0026,REJECTED - TDD says NO-GO
+PRD,PRD-0023-qa-triage-fixes.md,25K,2025-12-12,2025-12-17 11:25:46,docs: Complete documentation refactor,Ready,Unknown,Numbered,TDD-0016,
+PRD,PRD-0024-custom-field-remediation.md,14K,2025-12-18,2025-12-22 12:49:22,docs: Add comprehensive documentation,Draft,Unknown,Numbered,TDD-CUSTOM-FIELD-REMEDIATION,
+PRD,PRD-AUTOMATION-LAYER.md,13K,2025-12-18,2025-12-22 12:49:22,docs: Add comprehensive documentation,Draft,Unknown,Named,TDD-AUTOMATION-LAYER,
+PRD,PRD-CACHE-INTEGRATION.md,31K,2025-12-22,2025-12-22 12:40:52,feat(cache): Activate dormant cache,Implemented,Unknown,Named,TDD-CACHE-INTEGRATION,STATUS MISMATCH
+PRD,PRD-CACHE-LIGHTWEIGHT-STALENESS.md,27K,2025-12-23,2025-12-24 01:50:25,feat(cache): Lightweight staleness,Draft,Unknown,Named,TDD-CACHE-LIGHTWEIGHT-STALENESS,Recent - well synchronized
+PRD,PRD-CACHE-OPTIMIZATION-P2.md,14K,2025-12-23,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Implemented,Unknown,Named,TDD-CACHE-OPTIMIZATION-P2,Validated - VP PASS
+PRD,PRD-CACHE-OPTIMIZATION-P3.md,20K,2025-12-23,2025-12-24 01:50:25,feat(cache): Lightweight staleness,Implemented,Unknown,Named,TDD-CACHE-OPTIMIZATION-P3,Validated - VP PASS
+PRD,PRD-CACHE-PERF-DETECTION.md,18K,2025-12-23,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Implemented,Unknown,Named,TDD-CACHE-PERF-DETECTION,
+PRD,PRD-CACHE-PERF-FETCH-PATH.md,16K,2025-12-23,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Implemented,Unknown,Named,TDD-CACHE-PERF-FETCH-PATH,Validated - VP PASS
+PRD,PRD-CACHE-PERF-HYDRATION.md,18K,2025-12-23,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Draft,Unknown,Named,TDD-CACHE-PERF-HYDRATION,
+PRD,PRD-CACHE-PERF-STORIES.md,25K,2025-12-23,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Implemented,Unknown,Named,TDD-CACHE-PERF-STORIES,
+PRD,PRD-DETECTION.md,34K,2025-12-18,2025-12-22 12:49:22,docs: Add comprehensive documentation,Draft,Unknown,Named,TDD-DETECTION,Implemented Dec 15
+PRD,PRD-DOCS-EPOCH-RESET.md,16K,2025-12-18,2025-12-22 12:49:22,docs: Add comprehensive documentation,Active,Unknown,Named,TDD-DOCS-EPOCH-RESET,
+PRD,PRD-FIELD-SEEDING-GAP.md,16K,2025-12-18,2025-12-22 12:49:22,docs: Add comprehensive documentation,Unknown,Analysis Complete,Named,TDD-FIELD-SEEDING-CONFIG,Analysis doc - not formal PRD
+PRD,PRD-PIPELINE-AUTOMATION-ENHANCEMENT.md,21K,2025-12-18,2025-12-22 12:49:22,docs: Add comprehensive documentation,Draft,Unknown,Named,TDD-PIPELINE-AUTOMATION-ENHANCEMENT,
+PRD,PRD-PROCESS-PIPELINE-AMENDMENT.md,12K,2025-12-19,2025-12-22 12:49:22,docs: Add comprehensive documentation,Draft,Unknown,Named,None,Amendment to PRD-PROCESS-PIPELINE
+PRD,PRD-PROCESS-PIPELINE.md,18K,2025-12-19,2025-12-22 12:49:22,docs: Add comprehensive documentation,Superseded,Partially Superseded,Named,TDD-PROCESS-PIPELINE,FR-REG-* superseded by ADR-0101
+PRD,PRD-SPRINT-1-PATTERN-COMPLETION.md,13K,2025-12-19,2025-12-22 12:49:22,docs: Add comprehensive documentation,Unknown,Draft,Named,TDD-SPRINT-1,Planning doc? Should archive or relocate
+PRD,PRD-SPRINT-3-DETECTION-DECOMPOSITION.md,15K,2025-12-19,2025-12-22 12:49:22,docs: Add comprehensive documentation,Unknown,Draft,Named,TDD-SPRINT-3,Planning doc? Should archive or relocate
+PRD,PRD-SPRINT-4-SAVESESSION-DECOMPOSITION.md,17K,2025-12-19,2025-12-22 12:49:22,docs: Add comprehensive documentation,Unknown,Draft,Named,TDD-SPRINT-4,Planning doc? Should archive or relocate
+PRD,PRD-SPRINT-5-CLEANUP.md,17K,2025-12-19,2025-12-22 12:49:22,docs: Add comprehensive documentation,Unknown,Draft,Named,TDD-SPRINT-5,Planning doc? Should archive or relocate
+PRD,PRD-TECH-DEBT-REMEDIATION.md,17K,2025-12-19,2025-12-22 12:49:22,docs: Add comprehensive documentation,Unknown,Unknown,Named,TDD-TECH-DEBT-REMEDIATION,Implemented Dec 15
+PRD,PRD-WATERMARK-CACHE.md,20K,2025-12-23,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Implemented,Unknown,Named,TDD-WATERMARK-CACHE,Validated - VALIDATION PASS
+PRD,PRD-WORKSPACE-PROJECT-REGISTRY.md,23K,2025-12-18,2025-12-22 12:49:22,docs: Add comprehensive documentation,Draft,Unknown,Named,TDD-WORKSPACE-PROJECT-REGISTRY,Implemented - VP APPROVED
+PROMPT,PROMPT-0-CACHE-INTEGRATION.md,21K,2025-12-22,2025-12-22 12:49:22,docs: Add comprehensive documentation,Unknown,Unknown,Initiative,PRD-CACHE-INTEGRATION,RELOCATE to /initiatives/
+PROMPT,PROMPT-0-CACHE-LIGHTWEIGHT-STALENESS.md,18K,2025-12-23,2025-12-24 01:50:25,feat(cache): Lightweight staleness,Unknown,Unknown,Initiative,PRD-CACHE-LIGHTWEIGHT-STALENESS,RELOCATE to /initiatives/
+PROMPT,PROMPT-0-CACHE-OPTIMIZATION-PHASE2.md,22K,2025-12-23,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Complete,Unknown,Initiative,PRD-CACHE-OPTIMIZATION-P2,ARCHIVE - phase complete
+PROMPT,PROMPT-0-CACHE-OPTIMIZATION-PHASE3.md,18K,2025-12-23,2025-12-24 01:50:25,feat(cache): Lightweight staleness,Complete,Unknown,Initiative,PRD-CACHE-OPTIMIZATION-P3,ARCHIVE - phase complete
+PROMPT,PROMPT-0-CACHE-PERF-DETECTION.md,16K,2025-12-23,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Active,Unknown,Initiative,PRD-CACHE-PERF-DETECTION,RELOCATE to /initiatives/
+PROMPT,PROMPT-0-CACHE-PERF-FETCH-PATH.md,16K,2025-12-23,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Complete,Unknown,Initiative,PRD-CACHE-PERF-FETCH-PATH,ARCHIVE - P1 complete
+PROMPT,PROMPT-0-CACHE-PERF-HYDRATION.md,17K,2025-12-23,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Pending,Unknown,Initiative,PRD-CACHE-PERF-HYDRATION,RELOCATE to /initiatives/
+PROMPT,PROMPT-0-CACHE-PERF-STORIES.md,17K,2025-12-23,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Pending,Unknown,Initiative,PRD-CACHE-PERF-STORIES,RELOCATE to /initiatives/
+PROMPT,PROMPT-0-CACHE-UTILIZATION.md,29K,2025-12-23,2025-12-23 13:11:36,feat(cache): Extend cache utilization,Unknown,Unknown,Initiative,PRD-CACHE-INTEGRATION,RELOCATE to /initiatives/
+PROMPT,PROMPT-0-DOCS-EPOCH-RESET.md,26K,2025-12-18,2025-12-22 12:49:22,docs: Add comprehensive documentation,Unknown,Unknown,Initiative,PRD-DOCS-EPOCH-RESET,RELOCATE to /initiatives/
+PROMPT,PROMPT-0-PIPELINE-AUTOMATION-ENHANCEMENT.md,30K,2025-12-18,2025-12-22 12:49:22,docs: Add comprehensive documentation,Active,Unknown,Initiative,PRD-PIPELINE-AUTOMATION-ENHANCEMENT,RELOCATE to /initiatives/
+PROMPT,PROMPT-0-TECH-DEBT-REMEDIATION.md,33K,2025-12-19,2025-12-22 12:49:22,docs: Add comprehensive documentation,Unknown,Unknown,Initiative,PRD-TECH-DEBT-REMEDIATION,RELOCATE to /initiatives/
+PROMPT,PROMPT-0-WATERMARK-CACHE.md,25K,2025-12-22,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Unknown,Unknown,Initiative,PRD-WATERMARK-CACHE,ARCHIVE - validated PASS
+PROMPT,PROMPT-0-WORKSPACE-PROJECT-REGISTRY.md,14K,2025-12-18,2025-12-22 12:49:22,docs: Add comprehensive documentation,Complete,Unknown,Initiative,PRD-WORKSPACE-PROJECT-REGISTRY,ARCHIVE - validated APPROVED
+PROMPT,PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md,13K,2025-12-23,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Active,Unknown,Meta-Initiative,Multiple,RELOCATE to /initiatives/
+TDD,TDD-0001-sdk-architecture.md,29K,2025-12-08,2025-12-09 12:01:40,initial commit,Draft,Unknown,Numbered,PRD-0001,Baseline doc
+TDD,TDD-0002-models-pagination.md,30K,2025-12-08,2025-12-09 12:01:40,initial commit,Draft,Unknown,Numbered,PRD-0001,Part of PRD-0001 extraction
+TDD,TDD-0003-tier1-clients.md,41K,2025-12-08,2025-12-09 12:01:40,initial commit,Draft,Unknown,Numbered,PRD-0001,Part of PRD-0001 extraction
+TDD,TDD-0004-tier2-clients.md,63K,2025-12-08,2025-12-09 12:01:40,initial commit,Draft,Unknown,Numbered,PRD-0001,Part of PRD-0001 extraction
+TDD,TDD-0005-batch-api.md,29K,2025-12-08,2025-12-09 12:01:40,initial commit,Draft,Unknown,Numbered,PRD-0001,Part of PRD-0001 extraction
+TDD,TDD-0006-backward-compatibility.md,30K,2025-12-08,2025-12-09 12:01:40,initial commit,Draft,Unknown,Numbered,PRD-0001,Part of PRD-0001 extraction
+TDD,TDD-0007-observability.md,19K,2025-12-08,2025-12-09 12:01:40,initial commit,Draft,Unknown,Numbered,PRD-0001,Part of PRD-0001 extraction
+TDD,TDD-0008-intelligent-caching.md,32K,2025-12-09,2025-12-09 15:32:22,initial commit,Draft,Unknown,Numbered,PRD-0002,STALE - cache system evolved significantly
+TDD,TDD-0009-structured-dataframe-layer.md,57K,2025-12-09,2025-12-10 21:13:48,feat: Documentation Empowerment Sprint,Draft,Unknown,Numbered,PRD-0003,
+TDD,TDD-0009.1-dynamic-custom-field-resolution.md,30K,2025-12-09,2025-12-10 21:13:48,feat: Documentation Empowerment Sprint,Draft,Unknown,Numbered,PRD-0003.1,
+TDD,TDD-0010-save-orchestration.md,82K,2025-12-10,2025-12-10 21:13:48,feat: Documentation Empowerment Sprint,Draft,Unknown,Numbered,PRD-0005,Largest TDD
+TDD,TDD-0011-action-endpoint-support.md,57K,2025-12-10,2025-12-10 21:13:48,feat: Documentation Empowerment Sprint,Draft,Unknown,Numbered,PRD-0006,
+TDD,TDD-0012-sdk-functional-parity.md,22K,2025-12-10,2025-12-10 21:13:48,feat: Documentation Empowerment Sprint,Implemented,Unknown,Numbered,PRD-0007,
+TDD,TDD-0013-parent-subtask-operations.md,8.9K,2025-12-10,2025-12-10 21:13:48,feat: Documentation Empowerment Sprint,Implemented,Unknown,Numbered,PRD-0008,
+TDD,TDD-0014-sdk-ga-readiness.md,22K,2025-12-10,2025-12-10 21:13:48,feat: Documentation Empowerment Sprint,Draft,Unknown,Numbered,PRD-0009,
+TDD,TDD-0015-sdk-usability.md,33K,2025-12-12,2025-12-17 11:25:46,docs: Complete documentation refactor,Ready,Unknown,Numbered,PRD-0012,
+TDD,TDD-0016-cascade-and-fixes.md,34K,2025-12-12,2025-12-17 11:25:46,docs: Complete documentation refactor,Draft,Unknown,Numbered,PRD-0023,
+TDD,TDD-0017-hierarchy-hydration.md,27K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Implemented,Unknown,Numbered,PRD-0013,
+TDD,TDD-0018-cross-holder-resolution.md,27K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Implemented,Unknown,Numbered,PRD-0014,
+TDD,TDD-0019-foundation-hardening.md,31K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Draft,Unknown,Numbered,PRD-0015,
+TDD,TDD-0020-custom-field-tracking.md,26K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Draft,Unknown,Numbered,PRD-0016,
+TDD,TDD-0021-navigation-descriptors.md,37K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Draft,Unknown,Numbered,PRD-0017,
+TDD,TDD-0022-savesession-reliability.md,31K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Draft,Unknown,Numbered,PRD-0018,
+TDD,TDD-0023-custom-field-descriptors.md,21K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Draft,Unknown,Numbered,PRD-0019,
+TDD,TDD-0024-holder-factory.md,21K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Implemented,Unknown,Numbered,PRD-0020,
+TDD,TDD-0025-async-method-decorator.md,18K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Active,Unknown,Numbered,PRD-0021,
+TDD,TDD-0026-crud-base-class-evaluation.md,21K,2025-12-16,2025-12-17 11:25:46,docs: Complete documentation refactor,Active,NO-GO,Numbered,PRD-0022,Explicit rejection decision
+TDD,TDD-0027-business-model-architecture.md,42K,2025-12-11,2025-12-17 11:25:46,docs: Complete documentation refactor,Draft,Unknown,Numbered,PRD-0010,
+TDD,TDD-0028-business-model-implementation.md,29K,2025-12-11,2025-12-17 11:25:46,docs: Complete documentation refactor,Draft,Unknown,Numbered,PRD-0010,
+TDD,TDD-0029-sdk-demo.md,32K,2025-12-12,2025-12-17 11:25:46,docs: Complete documentation refactor,Draft,Unknown,Numbered,PRD-0011,
+TDD,TDD-AUTOMATION-LAYER.md,64K,2025-12-18,2025-12-22 12:49:22,docs: Add comprehensive documentation,Draft,Unknown,Named,PRD-AUTOMATION-LAYER,Largest named TDD
+TDD,TDD-CACHE-INTEGRATION.md,51K,2025-12-22,2025-12-22 12:40:52,feat(cache): Activate dormant cache,Implemented,Unknown,Named,PRD-CACHE-INTEGRATION,
+TDD,TDD-CACHE-LIGHTWEIGHT-STALENESS.md,43K,2025-12-24,2025-12-24 01:50:25,feat(cache): Lightweight staleness,Draft,Unknown,Named,PRD-CACHE-LIGHTWEIGHT-STALENESS,Most recent TDD
+TDD,TDD-CACHE-OPTIMIZATION-P2.md,38K,2025-12-23,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Implemented,Unknown,Named,PRD-CACHE-OPTIMIZATION-P2,
+TDD,TDD-CACHE-OPTIMIZATION-P3.md,46K,2025-12-23,2025-12-24 01:50:25,feat(cache): Lightweight staleness,Implemented,Unknown,Named,PRD-CACHE-OPTIMIZATION-P3,
+TDD,TDD-CACHE-PERF-DETECTION.md,31K,2025-12-23,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Implemented,Unknown,Named,PRD-CACHE-PERF-DETECTION,
+TDD,TDD-CACHE-PERF-FETCH-PATH.md,21K,2025-12-23,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Implemented,Unknown,Named,PRD-CACHE-PERF-FETCH-PATH,
+TDD,TDD-CACHE-PERF-HYDRATION.md,20K,2025-12-23,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Draft,Unknown,Named,PRD-CACHE-PERF-HYDRATION,
+TDD,TDD-CACHE-PERF-STORIES.md,32K,2025-12-23,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Implemented,Unknown,Named,PRD-CACHE-PERF-STORIES,
+TDD,TDD-CACHE-UTILIZATION.md,18K,2025-12-23,2025-12-23 13:11:36,feat(cache): Extend cache utilization,Unknown,Unknown,Named,PRD-CACHE-INTEGRATION,
+TDD,TDD-CUSTOM-FIELD-REMEDIATION.md,21K,2025-12-18,2025-12-22 12:49:22,docs: Add comprehensive documentation,Draft,Unknown,Named,PRD-0024,Should be numbered TDD-0030
+TDD,TDD-DETECTION.md,40K,2025-12-18,2025-12-22 12:49:22,docs: Add comprehensive documentation,Draft,Unknown,Named,PRD-DETECTION,
+TDD,TDD-DOCS-EPOCH-RESET.md,20K,2025-12-18,2025-12-22 12:49:22,docs: Add comprehensive documentation,Active,Unknown,Named,PRD-DOCS-EPOCH-RESET,
+TDD,TDD-FIELD-SEEDING-CONFIG.md,15K,2025-12-18,2025-12-22 12:49:22,docs: Add comprehensive documentation,Unknown,Unknown,Named,PRD-FIELD-SEEDING-GAP,
+TDD,TDD-PIPELINE-AUTOMATION-ENHANCEMENT.md,31K,2025-12-18,2025-12-22 12:49:22,docs: Add comprehensive documentation,Draft,Unknown,Named,PRD-PIPELINE-AUTOMATION-ENHANCEMENT,
+TDD,TDD-PROCESS-PIPELINE.md,45K,2025-12-19,2025-12-22 12:49:22,docs: Add comprehensive documentation,Superseded,Unknown,Named,PRD-PROCESS-PIPELINE,Partially superseded
+TDD,TDD-SPRINT-1-PATTERN-COMPLETION.md,29K,2025-12-19,2025-12-22 12:49:22,docs: Add comprehensive documentation,Unknown,Unknown,Named,PRD-SPRINT-1,Planning doc? Should archive or relocate
+TDD,TDD-SPRINT-3-DETECTION-DECOMPOSITION.md,27K,2025-12-19,2025-12-22 12:49:22,docs: Add comprehensive documentation,Unknown,Unknown,Named,PRD-SPRINT-3,Planning doc? Should archive or relocate
+TDD,TDD-SPRINT-4-SAVESESSION-DECOMPOSITION.md,33K,2025-12-19,2025-12-22 12:49:22,docs: Add comprehensive documentation,Unknown,Unknown,Named,PRD-SPRINT-4,Planning doc? Should archive or relocate
+TDD,TDD-SPRINT-5-CLEANUP.md,25K,2025-12-19,2025-12-22 12:49:22,docs: Add comprehensive documentation,Unknown,Unknown,Named,PRD-SPRINT-5,Planning doc? Should archive or relocate
+TDD,TDD-TECH-DEBT-REMEDIATION.md,32K,2025-12-19,2025-12-22 12:49:22,docs: Add comprehensive documentation,Unknown,Unknown,Named,PRD-TECH-DEBT-REMEDIATION,
+TDD,TDD-WATERMARK-CACHE.md,33K,2025-12-23,2025-12-23 22:07:25,feat(cache): Phase 2 - 10x improvement,Implemented,Unknown,Named,PRD-WATERMARK-CACHE,
+TDD,TDD-WORKSPACE-PROJECT-REGISTRY.md,20K,2025-12-18,2025-12-22 12:49:22,docs: Add comprehensive documentation,Implemented,Unknown,Named,PRD-WORKSPACE-PROJECT-REGISTRY,

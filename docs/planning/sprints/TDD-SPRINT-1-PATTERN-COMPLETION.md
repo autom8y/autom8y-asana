@@ -6,7 +6,7 @@
 - **Author**: Architect (Claude)
 - **Created**: 2025-12-19
 - **Last Updated**: 2025-12-19
-- **PRD Reference**: [PRD-SPRINT-1-PATTERN-COMPLETION](../requirements/PRD-SPRINT-1-PATTERN-COMPLETION.md)
+- **PRD Reference**: [PRD-SPRINT-1-PATTERN-COMPLETION](../planning/sprints/PRD-SPRINT-1-PATTERN-COMPLETION.md)
 - **Related TDDs**: TDD-PATTERNS-C (HolderFactory), TDD-PATTERNS-A (Custom Field Descriptors)
 - **Related ADRs**: [ADR-0119-field-mixin-strategy](../decisions/ADR-0119-field-mixin-strategy.md)
 
@@ -16,7 +16,7 @@ This TDD defines the technical approach for Sprint 1 pattern completion: migrati
 
 ## Requirements Summary
 
-From [PRD-SPRINT-1](../requirements/PRD-SPRINT-1-PATTERN-COMPLETION.md):
+From [PRD-SPRINT-1](../planning/sprints/PRD-SPRINT-1-PATTERN-COMPLETION.md):
 
 | Phase | Requirements | Priority |
 |-------|--------------|----------|

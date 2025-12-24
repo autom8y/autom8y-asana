@@ -492,5 +492,5 @@ Before starting, gather:
 
 **Prior Work:**
 
-- [ ] `docs/requirements/PROMPT-0-CACHE-UTILIZATION.md` - Caching patterns
-- [ ] `docs/requirements/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md` - Meta context
+- [ ] `docs/initiatives/PROMPT-0-CACHE-UTILIZATION.md` - Caching patterns
+- [ ] `docs/initiatives/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md` - Meta context

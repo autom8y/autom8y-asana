@@ -475,5 +475,5 @@ Before starting, gather:
 
 **Prior Work:**
 
-- [ ] `docs/requirements/PROMPT-0-WATERMARK-CACHE.md` - Prior initiative
-- [ ] `docs/requirements/PROMPT-0-CACHE-UTILIZATION.md` - Client caching patterns
+- [ ] `docs/initiatives/PROMPT-0-WATERMARK-CACHE.md` - Prior initiative
+- [ ] `docs/initiatives/PROMPT-0-CACHE-UTILIZATION.md` - Client caching patterns

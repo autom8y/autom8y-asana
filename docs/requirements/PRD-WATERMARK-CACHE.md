@@ -10,7 +10,7 @@
 - **Stakeholders**: SDK consumers, Platform team
 - **Related PRDs**: None
 - **Discovery Document**: `/docs/analysis/watermark-cache-discovery.md`
-- **Prompt 0**: `/docs/requirements/PROMPT-0-WATERMARK-CACHE.md`
+- **Prompt 0**: `/docs/initiatives/PROMPT-0-WATERMARK-CACHE.md`
 
 ---
 

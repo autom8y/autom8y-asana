@@ -286,8 +286,8 @@ Note: Sub-initiatives are independent but Fetch Path should
 
 | Document | Location | Relevance |
 |----------|----------|-----------|
-| Watermark Cache Prompt 0 | `docs/requirements/PROMPT-0-WATERMARK-CACHE.md` | Prior architecture decisions |
-| Cache Utilization Prompt 0 | `docs/requirements/PROMPT-0-CACHE-UTILIZATION.md` | Client caching patterns |
+| Watermark Cache Prompt 0 | `docs/initiatives/PROMPT-0-WATERMARK-CACHE.md` | Prior architecture decisions |
+| Cache Utilization Prompt 0 | `docs/initiatives/PROMPT-0-CACHE-UTILIZATION.md` | Client caching patterns |
 | Multi-level cache analysis | `docs/analysis/multi-level-cache-hierarchy-analysis.md` | Why single-level is correct |
 
 ---

@@ -423,9 +423,9 @@ Sprint 4 and 5 lack obvious discovery documents matching naming convention.
 **Description**: Some PROMPT-0 files are in `docs/requirements/` while sprint-specific ones are in `docs/initiatives/`:
 
 ```
-docs/requirements/PROMPT-0-DOCS-EPOCH-RESET.md
-docs/requirements/PROMPT-0-PIPELINE-AUTOMATION-ENHANCEMENT.md
-docs/requirements/PROMPT-0-WORKSPACE-PROJECT-REGISTRY.md
+docs/initiatives/PROMPT-0-DOCS-EPOCH-RESET.md
+docs/initiatives/PROMPT-0-PIPELINE-AUTOMATION-ENHANCEMENT.md
+docs/initiatives/PROMPT-0-WORKSPACE-PROJECT-REGISTRY.md
 
 docs/initiatives/PROMPT-0-SPRINT-1-PATTERN-COMPLETION.md
 docs/initiatives/PROMPT-0-SPRINT-2-FIELD-UNIFICATION.md

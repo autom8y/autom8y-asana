@@ -9,7 +9,7 @@
 - **Stakeholders**: SDK consumers, autom8 platform team
 - **Related PRDs**: PRD-CACHE-PERF-DETECTION, PRD-CACHE-INTEGRATION, PRD-0013-hierarchy-hydration
 - **Discovery Document**: [hydration-cache-opt-fields-analysis.md](/docs/analysis/hydration-cache-opt-fields-analysis.md)
-- **Parent Initiative**: [PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md](/docs/requirements/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md)
+- **Parent Initiative**: [PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md](/docs/initiatives/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md)
 
 ---
 

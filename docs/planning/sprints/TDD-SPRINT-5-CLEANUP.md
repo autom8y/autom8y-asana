@@ -6,7 +6,7 @@
 - **Author**: Architect
 - **Created**: 2025-12-19
 - **Last Updated**: 2025-12-19
-- **PRD Reference**: [PRD-SPRINT-5-CLEANUP](/docs/requirements/PRD-SPRINT-5-CLEANUP.md)
+- **PRD Reference**: [PRD-SPRINT-5-CLEANUP](/docs/planning/sprints/PRD-SPRINT-5-CLEANUP.md)
 - **Related TDDs**: TDD-TECH-DEBT-REMEDIATION, TDD-DETECTION
 - **Related ADRs**: ADR-0076, ADR-0114, ADR-0075, ADR-0093
 

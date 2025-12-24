@@ -480,7 +480,7 @@ Before starting, gather:
 
 - [ ] ADR-0020 (referenced in stories.py comments)
 - [ ] ADR-0021 (struc computation story types)
-- [ ] `docs/requirements/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md` - Meta context
+- [ ] `docs/initiatives/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md` - Meta context
 
 ---
 

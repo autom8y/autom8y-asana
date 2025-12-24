@@ -229,7 +229,7 @@ The root cause is known. The Architect must design the caching strategy:
 
 | Document | Purpose | Location |
 |----------|---------|----------|
-| Phase 2 Prompt 0 | Prior phase context | `/docs/requirements/PROMPT-0-CACHE-OPTIMIZATION-PHASE2.md` |
+| Phase 2 Prompt 0 | Prior phase context | `/docs/initiatives/PROMPT-0-CACHE-OPTIMIZATION-PHASE2.md` |
 | Phase 2 PRD | Prior requirements | `/docs/requirements/PRD-CACHE-OPTIMIZATION-P2.md` |
 | Phase 2 TDD | Prior design | `/docs/design/TDD-CACHE-OPTIMIZATION-P2.md` |
 | Cache Entry Types | Existing EntryType enum | `src/autom8_asana/cache/entry.py` |
@@ -428,7 +428,7 @@ Before starting, gather:
 
 **Prior Phase Context:**
 
-- [x] `/docs/requirements/PROMPT-0-CACHE-OPTIMIZATION-PHASE2.md`
+- [x] `/docs/initiatives/PROMPT-0-CACHE-OPTIMIZATION-PHASE2.md`
 - [x] `/docs/requirements/PRD-CACHE-OPTIMIZATION-P2.md`
 - [x] `/docs/design/TDD-CACHE-OPTIMIZATION-P2.md` (reference)
 

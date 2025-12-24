@@ -10,7 +10,7 @@
 - **Stakeholders**: SDK Team, DataFrame Consumers
 - **Related PRDs**:
   - [PRD-CACHE-PERF-FETCH-PATH](/docs/requirements/PRD-CACHE-PERF-FETCH-PATH.md) - P1 foundation
-  - [PROMPT-MINUS-1-CACHE-PERFORMANCE-META](/docs/requirements/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md) - Initiative scope
+  - [PROMPT-MINUS-1-CACHE-PERFORMANCE-META](/docs/initiatives/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md) - Initiative scope
 
 ---
 
@@ -276,7 +276,7 @@ Achieve <1s warm fetch latency for DataFrame extraction by ensuring tasks fetche
 |----------|----------|---------|
 | Discovery | `/docs/analysis/DISCOVERY-CACHE-OPTIMIZATION-P2.md` | Root cause analysis |
 | P1 Learnings | `/docs/analysis/INTEGRATION-CACHE-PERF-P1-LEARNINGS.md` | Patterns to follow |
-| Prompt -1 | `/docs/requirements/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md` | Initiative scope |
+| Prompt -1 | `/docs/initiatives/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md` | Initiative scope |
 | P1 PRD | `/docs/requirements/PRD-CACHE-PERF-FETCH-PATH.md` | Foundation work |
 
 ## Appendix B: Key Files for Implementation

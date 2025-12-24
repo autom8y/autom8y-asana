@@ -3,7 +3,7 @@
 **Date:** 2025-12-23
 **Status:** Discovery Complete
 **Analyst:** Requirements Analyst
-**Related:** [PROMPT-MINUS-1-CACHE-PERFORMANCE-META](/docs/requirements/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md)
+**Related:** [PROMPT-MINUS-1-CACHE-PERFORMANCE-META](/docs/initiatives/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md)
 
 ---
 

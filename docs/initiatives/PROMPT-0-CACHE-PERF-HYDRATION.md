@@ -508,5 +508,5 @@ Before starting, gather:
 
 **Prior Work:**
 
-- [ ] `docs/requirements/PROMPT-0-CACHE-PERF-DETECTION.md` - Related initiative
-- [ ] `docs/requirements/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md` - Meta context
+- [ ] `docs/initiatives/PROMPT-0-CACHE-PERF-DETECTION.md` - Related initiative
+- [ ] `docs/initiatives/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md` - Meta context

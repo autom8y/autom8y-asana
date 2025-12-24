@@ -13,7 +13,7 @@
   - [PRD-CACHE-OPTIMIZATION-P2](/docs/requirements/PRD-CACHE-OPTIMIZATION-P2.md) - Phase 2 (Task cache population)
 - **Related Documents**:
   - [DISCOVERY-CACHE-LIGHTWEIGHT-STALENESS](/docs/analysis/DISCOVERY-CACHE-LIGHTWEIGHT-STALENESS.md) - Discovery findings
-  - [PROMPT-0-CACHE-LIGHTWEIGHT-STALENESS](/docs/requirements/PROMPT-0-CACHE-LIGHTWEIGHT-STALENESS.md) - Initiative specification
+  - [PROMPT-0-CACHE-LIGHTWEIGHT-STALENESS](/docs/initiatives/PROMPT-0-CACHE-LIGHTWEIGHT-STALENESS.md) - Initiative specification
   - [ADR-0019](/docs/decisions/ADR-0019-staleness-detection-algorithm.md) - Staleness detection algorithm
 
 ---
@@ -385,7 +385,7 @@ Achieve 90%+ API call reduction for stable entities by replacing full API fetche
 | Document | Location | Purpose |
 |----------|----------|---------|
 | Discovery | `/docs/analysis/DISCOVERY-CACHE-LIGHTWEIGHT-STALENESS.md` | Infrastructure analysis |
-| Prompt 0 | `/docs/requirements/PROMPT-0-CACHE-LIGHTWEIGHT-STALENESS.md` | Initiative specification |
+| Prompt 0 | `/docs/initiatives/PROMPT-0-CACHE-LIGHTWEIGHT-STALENESS.md` | Initiative specification |
 | ADR-0018 | `/docs/decisions/ADR-0018-batch-modification-checking.md` | Batch modification pattern (25s TTL) |
 | ADR-0019 | `/docs/decisions/ADR-0019-staleness-detection-algorithm.md` | Staleness detection algorithm |
 | ADR-0131 | `/docs/decisions/ADR-0131-gid-enumeration-cache-strategy.md` | Phase 3 GID caching (complete) |
