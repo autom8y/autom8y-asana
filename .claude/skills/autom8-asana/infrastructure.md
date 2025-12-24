@@ -162,6 +162,16 @@ Transport layer handles retry with exponential backoff on 429 (rate limit) respo
 
 ## Cache Layer
 
+### Cache Quick Reference
+
+| Question | Answer |
+|----------|--------|
+| What entry types exist? | 15 types (see [Entry Types](#entry-types)) |
+| Where are TTLs defined? | `config.py:DEFAULT_ENTITY_TTLS` (single source of truth) |
+| Where do I add new entry types? | `cache/entry.py:EntryType` enum |
+| How do I debug cache misses? | See [Debugging Cache Issues](#debugging-cache-issues) |
+| What's the warm fetch target? | <1s (achieved: 0.11s, 187x improvement) |
+
 ### CacheProtocol
 
 SDK defines the protocol; consumers implement:
@@ -182,6 +192,65 @@ class CacheProtocol(Protocol):
 | `RedisCache` | Multi-process, distributed |
 | `S3Cache` | Persistent, cross-session |
 
+### Entry Types
+
+15 distinct entry types defined in `cache/entry.py`:
+
+| EntryType | Purpose | TTL | Versioning |
+|-----------|---------|-----|------------|
+| `TASK` | Cached task data | Entity-type based (60-3600s) | `modified_at` |
+| `SUBTASKS` | Child task list | 300s | Parent's `modified_at` |
+| `DEPENDENCIES` | Task dependencies | 300s | Task's `modified_at` |
+| `DEPENDENTS` | Tasks depending on this | 300s | Task's `modified_at` |
+| `STORIES` | Task comments/updates | 300s | Anchor-based incremental |
+| `ATTACHMENTS` | Task attachments | 300s | Task's `modified_at` |
+| `DATAFRAME` | Cached DataFrame rows | 300s | Project-scoped |
+| `PROJECT` | Project metadata | 900s | `modified_at` |
+| `SECTION` | Section metadata | 1800s | TTL-only |
+| `USER` | User data | 3600s | TTL-only |
+| `CUSTOM_FIELD` | Custom field definitions | 1800s | TTL-only |
+| `DETECTION` | Entity type detection result | 300s | Task's `modified_at` |
+| `PROJECT_SECTIONS` | Section list for project | 60s | TTL-only |
+| `GID_ENUMERATION` | Task GIDs per project | 60s | TTL-only |
+
+### TTL Strategy
+
+**Single Source of Truth**: `src/autom8_asana/config.py`
+
+```python
+DEFAULT_TTL: int = 300  # 5 minutes - fallback for unknown types
+
+DEFAULT_ENTITY_TTLS: dict[str, int] = {
+    "business": 3600,  # 1 hour - rarely changes
+    "contact": 900,    # 15 minutes
+    "unit": 900,       # 15 minutes
+    "offer": 180,      # 3 minutes - frequently updated
+    "process": 60,     # 1 minute - pipeline state changes often
+    "address": 3600,   # 1 hour
+    "hours": 3600,     # 1 hour
+}
+```
+
+**Resolution Order**: `CacheConfig.entity_ttls` → `DEFAULT_ENTITY_TTLS` → `DEFAULT_TTL`
+
+**Anti-Pattern**: DO NOT define TTL values in coordinators or clients. Import from `config.py`.
+
+### Two-Layer Freshness
+
+Cache entries use two complementary freshness mechanisms:
+
+| Layer | Mechanism | Purpose |
+|-------|-----------|---------|
+| **TTL** | Time-based expiration | Bounds maximum staleness |
+| **Versioning** | `modified_at` comparison | Detects content changes |
+
+```python
+entry.is_expired()              # TTL check
+entry.is_current(task.modified_at)  # Version check
+```
+
+See [ADR-0019](/docs/decisions/ADR-0019-staleness-detection-algorithm.md).
+
 ### TaskCacheCoordinator
 
 For DataFrame builds, a specialized coordinator manages Task-level caching:
@@ -193,8 +262,6 @@ coordinator = TaskCacheCoordinator(cache_provider)
 
 # Batch lookup (returns hits + miss GIDs)
 result = await coordinator.lookup_tasks_async(task_gids)
-# result.cached_tasks: list[Task]  - cache hits
-# result.miss_gids: list[str]      - GIDs not in cache
 
 # Populate after fetch
 await coordinator.populate_tasks_async(fetched_tasks)
@@ -203,19 +270,63 @@ await coordinator.populate_tasks_async(fetched_tasks)
 all_tasks = coordinator.merge_results(result.cached_tasks, fetched_tasks)
 ```
 
-### Cache Population Strategy (ADR-0130)
+### GID Enumeration Caching
 
-Cache population occurs at **builder level** after API fetch:
+**Key Learning**: Caching GID enumeration enabled 187x speedup (9.67s → 0.11s).
+
+Without GID caching, even with 100% task cache hits, 35+ API calls occur for enumeration alone.
 
 ```
-1. Enumerate GIDs (lightweight API call)
-2. Batch cache lookup
-3. Fetch only cache misses (targeted API calls)
-4. Populate cache with fetched tasks
-5. Return merged results
+Warm Fetch Path (with GID caching):
+1. Check PROJECT_SECTIONS cache     → HIT (<1ms)
+2. Check GID_ENUMERATION cache      → HIT (<1ms)
+3. Check TASK cache (batch)         → HIT (~50ms)
+4. Build DataFrame from cache       → (~50ms)
+───────────────────────────────────────────────
+TOTAL: 0.11s | API CALLS: 0
 ```
 
-**Key Insight**: Population at builder level enables graceful degradation - cache failures never break the primary fetch path.
+See [ADR-0131](/docs/decisions/ADR-0131-gid-enumeration-cache-strategy.md).
+
+### Cache Population Strategy
+
+Cache population occurs at **builder level** after API fetch (per [ADR-0130](/docs/decisions/ADR-0130-cache-population-location.md)):
+
+```
+1. Check GID enumeration cache (PROJECT_SECTIONS, GID_ENUMERATION)
+2. If miss: enumerate GIDs via API, populate cache
+3. Batch cache lookup for tasks
+4. Fetch only cache misses (targeted API calls)
+5. Populate cache with fetched tasks
+6. Return merged results
+```
+
+**Key Insight**: Population at builder level enables graceful degradation.
+
+### Graceful Degradation
+
+**Requirement**: Cache failures MUST NOT break primary operations.
+
+```python
+try:
+    result = await cache_provider.get_batch(keys)
+except Exception as e:
+    logger.warning("cache_lookup_failed", error=str(e))
+    result = {}  # Treat all as misses, continue with API fetch
+```
+
+See [ADR-0127](/docs/decisions/ADR-0127-graceful-degradation.md).
+
+### Cache Invalidation
+
+On SaveSession commit, invalidate all entry types for modified GIDs:
+
+```python
+# session.py:_invalidate_cache_for_results()
+cache.invalidate(gid, [EntryType.TASK, EntryType.SUBTASKS, EntryType.DETECTION, ...])
+```
+
+See [ADR-0125](/docs/decisions/ADR-0125-savesession-invalidation.md).
 
 ### Path Selection
 
@@ -223,15 +334,39 @@ Cache population occurs at **builder level** after API fetch:
 |-------------|------|-----------|
 | Cold (0% hit) | `fetch_all()` | All sections |
 | Partial | `fetch_by_gids()` | Miss GIDs only |
-| Warm (100% hit) | Skip fetch | 0 (GID enum only) |
+| Warm (100% hit) | Skip fetch | 0 |
 
 ### Performance Targets
 
 | Metric | Target | Achieved |
 |--------|--------|----------|
-| Warm fetch latency | <1s | <1s |
-| Cache hit rate | >90% | 100% on warm |
-| API calls (warm) | 0 | 0 |
+| Warm fetch latency | <1s | **0.11s** |
+| Improvement factor | 10x | **187x** |
+| Cache hit rate | >90% | **100%** on warm |
+| API calls (warm) | 0 | **0** |
+
+### Debugging Cache Issues
+
+**Three-Agent Triage Pattern** (proven methodology):
+
+1. **Inspector**: Log cache state, entry counts, TTLs
+2. **Tracer**: Follow code path from consumer to cache provider
+3. **Validator**: Verify cache population is actually happening
+
+**Structured Logging Keys** (look for these):
+- `cache_hits`, `cache_misses`, `cache_hit_rate`
+- `gid_enumeration_cache_hit`, `task_cache_lookup_completed`
+- `entry_type`, `ttl`, `version`
+
+### Common Pitfalls
+
+| Pitfall | Symptom | Fix |
+|---------|---------|-----|
+| No GID enumeration cache | Warm fetch ~10s (should be <1s) | Add per [ADR-0131](/docs/decisions/ADR-0131-gid-enumeration-cache-strategy.md) |
+| TTL defined in multiple places | Inconsistent behavior | Import from `config.py` |
+| Missing entry type | Cache never hits | Add to `EntryType` enum |
+| Population at wrong level | Partial caching | Populate at builder level per [ADR-0130](/docs/decisions/ADR-0130-cache-population-location.md) |
+| No graceful degradation | Operation fails on cache error | Wrap in try/except, return empty |
 
 ---
 

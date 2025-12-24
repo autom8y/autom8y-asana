@@ -107,6 +107,40 @@ Interface for cache backends. Methods: `get()`, `set()`, `delete()`, `clear()`. 
 
 ---
 
+## Cache Terms
+
+### EntryType
+Enum defining cache entry categories. 15 types: TASK, SUBTASKS, DEPENDENCIES, DEPENDENTS, STORIES, ATTACHMENTS, DATAFRAME, PROJECT, SECTION, USER, CUSTOM_FIELD, DETECTION, PROJECT_SECTIONS, GID_ENUMERATION. Location: `cache/entry.py`.
+
+### CacheEntry
+Dataclass representing cached data. Fields: `key`, `data`, `entry_type`, `version`, `cached_at`, `ttl`. Methods: `is_expired()`, `is_current(version)`.
+
+### TTL (Time-To-Live)
+Seconds until cache entry expires. Entity-specific values in `config.py:DEFAULT_ENTITY_TTLS`. Range: 60s (process) to 3600s (business).
+
+### TaskCacheCoordinator
+Encapsulates task-level cache operations for DataFrame builds. Methods: `lookup_tasks_async()`, `populate_tasks_async()`, `merge_results()`. Location: `dataframes/builders/task_cache.py`.
+
+### GID Enumeration
+Lightweight fetch of task GIDs only (not full task data). Cached separately via `GID_ENUMERATION` entry type to enable fast warm fetches. Key learning: caching this enabled 187x speedup.
+
+### Two-Phase Cache Strategy
+Pattern for cache-aware fetching: enumerate GIDs (lightweight) → batch cache lookup → fetch only misses → batch cache populate → merge results.
+
+### Graceful Degradation
+Cache failure handling pattern. Cache failures log WARNING and return empty result; primary operation continues. Never blocks or fails due to cache unavailability.
+
+### Cache Invalidation
+Removing stale entries after mutations. SaveSession invalidates all relevant entry types for modified GIDs on commit.
+
+### Warm Fetch
+Second fetch of same data (cache populated). Performance target: <1s. Achieved: 0.11s (187x improvement).
+
+### Cold Fetch
+First fetch when cache is empty. Performance same as uncached (~11-20s for large projects).
+
+---
+
 ## Automation Terms
 
 ### AutomationEngine

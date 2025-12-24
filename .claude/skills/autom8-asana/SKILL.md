@@ -13,6 +13,9 @@
 - Detecting entity types from Asana tasks
 - Working with cascading or inherited fields
 - Adding cache backends or transport layer modifications
+- **Debugging cache performance issues or cache misses**
+- **Understanding cache TTLs, entry types, or invalidation**
+- **Implementing GID enumeration caching or TaskCacheCoordinator**
 - Writing Pydantic v2 models for Asana resources
 - **Implementing automation rules or the AutomationEngine**
 - **Building pipeline conversion logic (stage advancement triggers)**
@@ -20,7 +23,7 @@
 - **Configuring FieldSeeder for cascade or carry-through propagation**
 - **Adding post-commit hooks to SaveSession**
 
-**Keywords**: SaveSession, Business, Contact, Unit, Offer, holder, detect_entity_type, cascade_field, ActionOperation, batch operation, async client, custom field, **AutomationRule**, **AutomationEngine**, **PipelineConversionRule**, **TemplateDiscovery**, **FieldSeeder**, **post-commit hook**, **pipeline conversion**, **ProcessType**, **ProcessSection**
+**Keywords**: SaveSession, Business, Contact, Unit, Offer, holder, detect_entity_type, cascade_field, ActionOperation, batch operation, async client, custom field, **AutomationRule**, **AutomationEngine**, **PipelineConversionRule**, **TemplateDiscovery**, **FieldSeeder**, **post-commit hook**, **pipeline conversion**, **ProcessType**, **ProcessSection**, **CacheProvider**, **EntryType**, **TTL**, **graceful degradation**, **cache invalidation**, **TaskCacheCoordinator**, **GID enumeration**, **cache hit rate**, **warm fetch**, **cold fetch**
 
 **File patterns**: `src/autom8_asana/**/*.py`, `src/autom8_asana/automation/**/*.py`, `tests/**/*.py`
 
@@ -34,6 +37,8 @@
 | Work with Business/Contact/Unit/Offer | [entities.md](entities.md) |
 | Detect entity types from tasks | [entities.md#detection](entities.md#detection) |
 | Understand transport, cache, clients | [infrastructure.md](infrastructure.md) |
+| **Understand cache TTLs and entry types** | [infrastructure.md#cache-layer](infrastructure.md#cache-layer) |
+| **Debug cache performance issues** | [infrastructure.md#debugging-cache-issues](infrastructure.md#debugging-cache-issues) |
 | **Implement automation rules or pipelines** | [automation.md](automation.md) |
 | Look up terminology | [glossary.md](glossary.md) |
 
