@@ -7,6 +7,7 @@ requires-python = ">=3.10"
 dependencies = [
     "httpx>=0.25.0",
     "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
     "asana>=5.0.3",
     "polars>=0.20.0",
     "arrow>=1.3.0",
@@ -17,15 +18,20 @@ redis = [
     "redis>=5.0.0",
     "hiredis>=2.0.0",  # C parser for performance (optional)
 ]
+aws = [
+    "boto3>=1.34.0",  # AWS SDK for Secrets Manager (ADR-VAULT-001)
+]
 api = [
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",
     "slowapi>=0.1.9",
-    "pydantic-settings>=2.0.0",
     "structlog>=24.1.0",
 ]
-vault = [
-    "autom8y-auth>=0.4.0",  # Credential vault integration (SDK provider)
+s2s = [
+    # S2S auth requires autom8y-auth SDK (TDD-S2S-001)
+    # Install from CodeArtifact: pip install autom8y-auth --index-url $CODEARTIFACT_URL
+    # Or local dev: pip install -e ../autom8y_platform/sdks/python/autom8y-auth
+    "python-jose[cryptography]>=3.3.0",  # For JWT parsing in dev mode
 ]
 dev = [
     "pytest>=7.0.0",
@@ -38,6 +44,7 @@ dev = [
     "fakeredis>=2.20.0",  # Redis mocking for tests
     "moto>=5.0.0",  # AWS/S3 mocking for tests
     "boto3>=1.34.0",  # AWS SDK (required for moto)
+    "boto3-stubs[secretsmanager]>=1.34.0",  # Type stubs for boto3
 ]
 
 [build-system]
@@ -66,10 +73,3 @@ warn_unused_ignores = true
 line-length = 88
 target-version = "py310"
 
-[[tool.uv.index]]
-name = "autom8y"
-url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/"
-explicit = true
-
-[tool.uv.sources]
-autom8y-auth = { index = "autom8y" }

@@ -9,9 +9,21 @@ Environment Variables:
     ASANA_API_LOG_LEVEL: Logging level (default: INFO)
     ASANA_API_DEBUG: Enable debug mode (default: false)
 
+S2S Authentication Variables (per TDD-S2S-001):
+    AUTH_JWKS_URL: JWKS endpoint (default: https://auth.api.autom8y.io/.well-known/jwks.json)
+    AUTH_ISSUER: Expected JWT issuer (default: auth.api.autom8y.io)
+    AUTH_DEV_MODE: Bypass JWT validation in development (default: false)
+    AUTH_JWKS_CACHE_TTL: JWKS cache TTL in seconds (default: 300)
+    ASANA_PAT: Bot PAT for S2S requests (required for S2S mode, from Secrets Manager)
+
 Per TDD-ASANA-SATELLITE (FR-SVC-004, NFR-SCALE-001):
 - CORS middleware with configurable origins
 - Service-level rate limiting via SlowAPI
+
+Per TDD-S2S-001:
+- Dual-mode authentication (JWT + PAT)
+- JWT validation via autom8y-auth SDK
+- Bot PAT activation from environment
 """
 
 from functools import lru_cache

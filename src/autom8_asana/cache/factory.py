@@ -7,8 +7,9 @@ Per ADR-0123: Detection chain priority for provider selection.
 from __future__ import annotations
 
 import logging
-import os
 from typing import TYPE_CHECKING
+
+from autom8_asana.settings import get_settings
 
 if TYPE_CHECKING:
     from autom8_asana.config import CacheConfig
@@ -92,26 +93,28 @@ class CacheProviderFactory:
             return NullCacheProvider()
 
         if provider_name == "memory":
+            settings = get_settings()
             logger.debug(
-                "Using InMemoryCacheProvider (explicit, default_ttl=%d)",
+                "Using InMemoryCacheProvider (explicit, default_ttl=%d, max_size=%d)",
                 config.ttl.default_ttl,
+                settings.cache.memory_max_size,
             )
             return InMemoryCacheProvider(
                 default_ttl=config.ttl.default_ttl,
-                max_size=10000,
+                max_size=settings.cache.memory_max_size,
             )
 
         if provider_name == "redis":
-            redis_host = os.environ.get("REDIS_HOST")
-            if not redis_host:
+            settings = get_settings()
+            if not settings.redis_available:
                 raise ConfigurationError(
                     "ASANA_CACHE_PROVIDER=redis requires REDIS_HOST environment variable"
                 )
             return CacheProviderFactory._create_redis_provider(config)
 
         if provider_name == "tiered":
-            redis_host = os.environ.get("REDIS_HOST")
-            if not redis_host:
+            settings = get_settings()
+            if not settings.redis_available:
                 raise ConfigurationError(
                     "ASANA_CACHE_PROVIDER=tiered requires REDIS_HOST environment variable"
                 )
@@ -137,11 +140,12 @@ class CacheProviderFactory:
         """
         from autom8_asana._defaults.cache import InMemoryCacheProvider
 
-        environment = os.environ.get("ASANA_ENVIRONMENT", "development").lower()
-        redis_host = os.environ.get("REDIS_HOST")
+        settings = get_settings()
+        redis_available = settings.redis_available
+        max_size = settings.cache.memory_max_size
 
-        if environment in ("production", "staging"):
-            if redis_host:
+        if settings.is_production:
+            if redis_available:
                 logger.info(
                     "Production environment with Redis configured, using RedisCacheProvider"
                 )
@@ -155,17 +159,18 @@ class CacheProviderFactory:
                 )
                 return InMemoryCacheProvider(
                     default_ttl=config.ttl.default_ttl,
-                    max_size=10000,
+                    max_size=max_size,
                 )
         else:
             # Development/test: use in-memory
             logger.debug(
-                "Development environment, using InMemoryCacheProvider (default_ttl=%d)",
+                "Development environment, using InMemoryCacheProvider (default_ttl=%d, max_size=%d)",
                 config.ttl.default_ttl,
+                max_size,
             )
             return InMemoryCacheProvider(
                 default_ttl=config.ttl.default_ttl,
-                max_size=10000,
+                max_size=max_size,
             )
 
     @staticmethod

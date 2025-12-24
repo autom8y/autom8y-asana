@@ -41,7 +41,7 @@ asyncio.run(main())
 - **Typed Models**: Full Pydantic v2 models for all Asana resources with IDE autocomplete
 - **Batch Operations**: Automatic chunking and parallel execution for bulk create/update
 - **SaveSession**: Unit of Work pattern for deferred, dependency-aware saves
-- **Intelligent Caching**: Redis-backed caching with TTL and staleness detection
+- **Intelligent Caching**: Redis-backed caching with TTL, staleness detection, and <1s warm fetch latency
 - **Async-First**: Native async/await with sync wrappers for non-async codebases
 
 ## Documentation
@@ -66,12 +66,32 @@ asyncio.run(main())
 ## Environment Setup
 
 ```bash
-# Required
+# Required - Authentication
 export ASANA_PAT="your_personal_access_token"
 
-# Optional for caching
+# Optional - Workspace (auto-detected if only one workspace)
+export ASANA_WORKSPACE_GID="your_workspace_gid"
+
+# Optional - Caching
 export REDIS_URL="redis://localhost:6379/0"
 ```
+
+### ECS/Platform Deployments
+
+For ECS deployments where secrets are injected with platform naming conventions
+(e.g., from AWS Secrets Manager), the SDK supports environment variable indirection:
+
+```bash
+# Indirection keys point to the actual env vars containing credentials
+export ASANA_TOKEN_KEY="BOT_PAT"           # SDK reads token from BOT_PAT env var
+export ASANA_WORKSPACE_KEY="WORKSPACE_GID" # SDK reads workspace from WORKSPACE_GID env var
+
+# Actual credentials (injected by ECS from Secrets Manager)
+export BOT_PAT="your_pat_here"
+export WORKSPACE_GID="your_workspace_gid"
+```
+
+This eliminates the need for env var bridging in ECS task definitions.
 
 ## License
 

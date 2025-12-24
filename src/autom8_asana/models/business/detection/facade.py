@@ -1,6 +1,7 @@
 """Detection facade - main orchestration functions.
 
 Per TDD-SPRINT-3-DETECTION-DECOMPOSITION: Central orchestration for tiered detection.
+Per PRD-CACHE-PERF-DETECTION: Caches Tier 4 detection results for performance.
 
 This module provides the main detection entry points that coordinate the tier chain:
 - detect_entity_type(): Sync detection (Tiers 1-3, no API)
@@ -16,7 +17,10 @@ from __future__ import annotations
 
 import logging
 import warnings
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
+
+from autom8_asana.cache.entry import CacheEntry, EntryType
 
 from autom8_asana.models.business.detection.config import (
     HOLDER_NAME_MAP,
@@ -57,6 +61,111 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+
+# Per PRD-CACHE-PERF-DETECTION FR-VERSION-003: TTL matches task cache (300s)
+DETECTION_CACHE_TTL = 300
+
+
+# --- Detection Cache Helpers ---
+# Per TDD-CACHE-PERF-DETECTION: Inline cache logic around Tier 4
+
+
+def _get_cached_detection(
+    task_gid: str,
+    cache: object,
+) -> DetectionResult | None:
+    """Retrieve cached detection result for task GID.
+
+    Per FR-CACHE-001: Check cache before Tier 4 execution.
+    Per FR-DEGRADE-001: Returns None on any cache error.
+
+    Args:
+        task_gid: The task GID to look up.
+        cache: Cache provider instance (duck-typed for get method).
+
+    Returns:
+        DetectionResult if cache hit and valid, None otherwise.
+    """
+    try:
+        entry = cache.get(task_gid, EntryType.DETECTION)  # type: ignore[attr-defined]
+        if entry is None:
+            return None
+
+        # Check TTL expiration
+        if entry.is_expired():
+            return None
+
+        # Deserialize DetectionResult from cached dict
+        data = entry.data
+        return DetectionResult(
+            entity_type=EntityType(data["entity_type"]),
+            confidence=data["confidence"],
+            tier_used=data["tier_used"],
+            needs_healing=data["needs_healing"],
+            expected_project_gid=data["expected_project_gid"],
+        )
+    except Exception:
+        # Per FR-DEGRADE-001: Cache lookup failures don't prevent detection
+        return None
+
+
+def _cache_detection_result(
+    task: Task,
+    result: DetectionResult,
+    cache: object,
+) -> None:
+    """Cache a detection result for future lookups.
+
+    Per FR-CACHE-002: Store result after Tier 4 success.
+    Per FR-CACHE-005: Only cache non-None Tier 4 results.
+    Per FR-CACHE-006: Do not cache UNKNOWN (Tier 5).
+    Per FR-DEGRADE-002: Cache storage failures don't prevent detection.
+
+    Args:
+        task: The task that was detected.
+        result: The DetectionResult to cache.
+        cache: Cache provider instance (duck-typed for set method).
+    """
+    # FR-CACHE-006: Don't cache UNKNOWN results
+    if result.entity_type == EntityType.UNKNOWN:
+        return
+
+    # Serialize DetectionResult to dict
+    # Per FR-ENTRY-003: All 5 fields preserved with EntityType as string
+    data = {
+        "entity_type": result.entity_type.value,
+        "confidence": result.confidence,
+        "tier_used": result.tier_used,
+        "needs_healing": result.needs_healing,
+        "expected_project_gid": result.expected_project_gid,
+    }
+
+    # Per FR-VERSION-001: Use task.modified_at as version when available
+    # Per FR-VERSION-002: Fall back to current time if modified_at is None
+    if task.modified_at:
+        # Parse ISO 8601 string to datetime
+        modified_str = task.modified_at
+        if modified_str.endswith("Z"):
+            modified_str = modified_str[:-1] + "+00:00"
+        version = datetime.fromisoformat(modified_str)
+        if version.tzinfo is None:
+            version = version.replace(tzinfo=timezone.utc)
+    else:
+        version = datetime.now(timezone.utc)
+
+    entry = CacheEntry(
+        key=task.gid,
+        data=data,
+        entry_type=EntryType.DETECTION,
+        version=version,
+        ttl=DETECTION_CACHE_TTL,
+    )
+
+    try:
+        cache.set(task.gid, entry)  # type: ignore[attr-defined]
+    except Exception:
+        # Per FR-DEGRADE-002: Cache storage failures don't prevent detection
+        pass
 
 
 # --- Legacy Wrapper Functions ---
@@ -265,12 +374,20 @@ async def detect_entity_type_async(
     Per TDD-DETECTION/FR-DET-008: Async function with optional Tier 4.
     Per TDD-WORKSPACE-PROJECT-REGISTRY: Async Tier 1 with lazy discovery FIRST.
     Per ADR-0109: Discovery triggered on first unregistered GID.
+    Per PRD-CACHE-PERF-DETECTION: Cache integration around Tier 4.
 
     Detection order:
     1. Async Tier 1: Project membership with lazy workspace discovery
     2-3. Sync tiers: Name patterns, parent inference (no API)
+    4. [CACHE CHECK] - only when allow_structure_inspection=True
     4. Structure inspection (requires API call, disabled by default)
     5. UNKNOWN fallback
+
+    Cache Behavior (per PRD-CACHE-PERF-DETECTION):
+    - Cache check occurs ONLY before Tier 4, not at function entry
+    - Successful Tier 4 results are cached with task.modified_at version
+    - UNKNOWN results are NOT cached (should retry on next call)
+    - Cache failures degrade gracefully (detection proceeds normally)
 
     Args:
         task: Task to detect type for.
@@ -285,7 +402,7 @@ async def detect_entity_type_async(
         >>> # Fast path: async Tier 1 with discovery, then sync tiers
         >>> result = await detect_entity_type_async(task, client)
 
-        >>> # Full detection with structure inspection
+        >>> # Full detection with structure inspection (uses cache)
         >>> result = await detect_entity_type_async(
         ...     task, client, allow_structure_inspection=True
         ... )
@@ -305,10 +422,77 @@ async def detect_entity_type_async(
     if result:
         return result
 
-    # Tier 4 (if enabled)
+    # Tier 4: Structure inspection (with cache integration)
     if allow_structure_inspection:
+        # Per FR-CACHE-001: Check cache BEFORE Tier 4 API call
+        # Per FR-CACHE-003: Cache check occurs AFTER Tiers 1-3
+        # Per FR-DEGRADE-004: Handle None cache gracefully
+        cache = getattr(client, "_cache_provider", None)
+
+        if cache is not None:
+            try:
+                cached_result = _get_cached_detection(task.gid, cache)
+                if cached_result is not None:
+                    # Per FR-OBSERVE-001: Log cache hit
+                    logger.info(
+                        "detection_cache_hit",
+                        extra={
+                            "event": "detection_cache_hit",
+                            "task_gid": task.gid,
+                            "entity_type": cached_result.entity_type.value,
+                            "tier_used": cached_result.tier_used,
+                        },
+                    )
+                    return cached_result
+                else:
+                    # Per FR-OBSERVE-002: Log cache miss
+                    logger.debug(
+                        "detection_cache_miss",
+                        extra={
+                            "event": "detection_cache_miss",
+                            "task_gid": task.gid,
+                        },
+                    )
+            except Exception as exc:
+                # Per FR-DEGRADE-003: Log warning on cache failure
+                logger.warning(
+                    "detection_cache_check_failed",
+                    extra={
+                        "event": "detection_cache_check_failed",
+                        "task_gid": task.gid,
+                        "error": str(exc),
+                        "error_type": type(exc).__name__,
+                    },
+                )
+
+        # Execute Tier 4 API call
         tier4_result = await detect_by_structure_inspection(task, client)
-        if tier4_result:
+
+        if tier4_result is not None:
+            # Per FR-CACHE-002: Cache successful Tier 4 result
+            if cache is not None:
+                try:
+                    _cache_detection_result(task, tier4_result, cache)
+                    # Per FR-OBSERVE-003: Log cache store
+                    logger.info(
+                        "detection_cache_store",
+                        extra={
+                            "event": "detection_cache_store",
+                            "task_gid": task.gid,
+                            "entity_type": tier4_result.entity_type.value,
+                        },
+                    )
+                except Exception as exc:
+                    # Per FR-DEGRADE-003: Log warning on cache failure
+                    logger.warning(
+                        "detection_cache_store_failed",
+                        extra={
+                            "event": "detection_cache_store_failed",
+                            "task_gid": task.gid,
+                            "error": str(exc),
+                            "error_type": type(exc).__name__,
+                        },
+                    )
             return tier4_result
 
     # Tier 5: Unknown (already returned by detect_entity_type)

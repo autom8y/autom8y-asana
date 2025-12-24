@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 from autom8_asana.automation.config import AutomationConfig
 from autom8_asana.exceptions import ConfigurationError
+from autom8_asana.settings import get_settings
 
 if TYPE_CHECKING:
     from autom8_asana.cache.freshness import Freshness
@@ -30,6 +31,7 @@ __all__ = [
     "ConnectionPoolConfig",
     "CircuitBreakerConfig",
     "CacheConfig",
+    "DataFrameConfig",
     "AutomationConfig",
     "AsanaConfig",
     "validate_project_env_vars",
@@ -214,6 +216,42 @@ class CircuitBreakerConfig:
             )
 
 
+@dataclass(frozen=True)
+class DataFrameConfig:
+    """Configuration for DataFrame operations.
+
+    Per TDD-WATERMARK-CACHE/FR-CONFIG-001: Parallel fetch enabled by default.
+    Per TDD-WATERMARK-CACHE/FR-CONFIG-005: Configurable max_concurrent_sections.
+
+    Attributes:
+        parallel_fetch_enabled: Enable parallel section fetch (default True).
+            Per FR-CONFIG-001: Zero-configuration goal.
+        max_concurrent_sections: Maximum concurrent section fetches (default 8).
+            Must be between 1 and 20. Higher values may hit rate limits.
+            Per FR-CONFIG-005: Configurable parallelism.
+        cache_enabled: Enable automatic DataFrame caching (default True).
+            Per FR-CONFIG-003: Cache integration enabled by default.
+
+    Example:
+        >>> config = DataFrameConfig(max_concurrent_sections=4)
+        >>> client = AsanaClient(config=AsanaConfig(dataframe=config))
+
+    Raises:
+        ConfigurationError: If max_concurrent_sections is not in valid range.
+    """
+
+    parallel_fetch_enabled: bool = True
+    max_concurrent_sections: int = 8
+    cache_enabled: bool = True
+
+    def __post_init__(self) -> None:
+        """Validate configuration values."""
+        if not 1 <= self.max_concurrent_sections <= 20:
+            raise ConfigurationError(
+                f"max_concurrent_sections must be 1-20, got {self.max_concurrent_sections}"
+            )
+
+
 @dataclass
 class CacheConfig:
     """Cache configuration with environment variable overrides.
@@ -367,7 +405,7 @@ class CacheConfig:
         """Create configuration from environment variables.
 
         Per FR-ENV-001 through FR-ENV-005: Reads ASANA_CACHE_* environment
-        variables and creates a CacheConfig instance.
+        variables via Pydantic Settings and creates a CacheConfig instance.
 
         Programmatic config always takes precedence when passed to AsanaClient.
 
@@ -387,33 +425,39 @@ class CacheConfig:
             False
         """
         from autom8_asana.cache.settings import TTLSettings
+        from autom8_asana.settings import CacheSettings as PydanticCacheSettings
 
-        # FR-ENV-001: Master enable/disable
-        enabled_str = os.environ.get("ASANA_CACHE_ENABLED", "true").lower()
-        enabled = enabled_str not in ("false", "0", "no")
-
-        # FR-ENV-002: Explicit provider selection
-        provider = os.environ.get("ASANA_CACHE_PROVIDER") or None
-        if provider:
-            provider = provider.lower()
-
-        # FR-ENV-003: Default TTL
-        default_ttl_str = os.environ.get("ASANA_CACHE_TTL_DEFAULT", "300")
-        try:
-            default_ttl = int(default_ttl_str)
-        except ValueError:
-            logger.warning(
-                "Invalid ASANA_CACHE_TTL_DEFAULT '%s', using default 300",
-                default_ttl_str,
-            )
-            default_ttl = 300
+        # Create fresh settings instance to read current env vars
+        # (not the singleton, which may be stale in tests)
+        cache_settings = PydanticCacheSettings()
 
         config = cls(
-            enabled=enabled,
-            provider=provider,
+            enabled=cache_settings.enabled,
+            provider=cache_settings.provider,
         )
-        config._ttl = TTLSettings(default_ttl=default_ttl)
+        config._ttl = TTLSettings(default_ttl=cache_settings.ttl_default)
         return config
+
+
+def _default_token_key() -> str:
+    """Resolve default token key from environment or use ASANA_PAT.
+
+    Per ADR-VAULT-001: Support ASANA_TOKEN_KEY environment variable for
+    ECS deployments where secrets are injected with platform naming convention.
+
+    Note: ASANA_TOKEN_KEY indirection is deprecated. Prefer setting ASANA_PAT
+    directly with the actual token value.
+
+    Returns:
+        Token key to use with AuthProvider.get_secret().
+        Priority: ASANA_TOKEN_KEY env var (deprecated) > "ASANA_PAT" default
+    """
+    # Use Pydantic Settings for ASANA_TOKEN_KEY (deprecation warning emitted there)
+    settings = get_settings()
+    if settings.asana.token_key:
+        # Deprecation warning is emitted by the field_validator in AsanaSettings
+        return settings.asana.token_key
+    return "ASANA_PAT"
 
 
 @dataclass
@@ -422,18 +466,29 @@ class AsanaConfig:
 
     Per TDD-AUTOMATION-LAYER: Includes automation configuration.
     Per TDD-CACHE-INTEGRATION: Includes cache configuration.
+    Per TDD-WATERMARK-CACHE: Includes DataFrame configuration.
+
+    Attributes:
+        token_key: Environment variable name containing the Asana PAT.
+            Defaults to reading ASANA_TOKEN_KEY env var, falling back to "ASANA_PAT".
+            In ECS deployments with autom8y naming convention, set
+            ASANA_TOKEN_KEY=BOT_PAT to read from the injected secret.
 
     Example:
         config = AsanaConfig(
             rate_limit=RateLimitConfig(max_requests=1000),
             retry=RetryConfig(max_retries=5),
             cache=CacheConfig(enabled=True, provider="memory"),
+            dataframe=DataFrameConfig(max_concurrent_sections=4),
             automation=AutomationConfig(
                 enabled=True,
                 pipeline_templates={"sales": "123", "onboarding": "456"},
             ),
         )
         client = AsanaClient(config=config)
+
+        # ECS deployment: Set ASANA_TOKEN_KEY=BOT_PAT in environment
+        # SDK will automatically read from BOT_PAT env var
     """
 
     base_url: str = "https://app.asana.com/api/1.0"
@@ -444,10 +499,12 @@ class AsanaConfig:
     connection_pool: ConnectionPoolConfig = field(default_factory=ConnectionPoolConfig)
     circuit_breaker: CircuitBreakerConfig = field(default_factory=CircuitBreakerConfig)
     cache: CacheConfig = field(default_factory=CacheConfig)
+    dataframe: DataFrameConfig = field(default_factory=DataFrameConfig)
     automation: AutomationConfig = field(default_factory=AutomationConfig)
 
     # Auth key names (used with AuthProvider.get_secret)
-    token_key: str = "ASANA_PAT"
+    # Per ADR-VAULT-001: Reads from ASANA_TOKEN_KEY env var for platform compatibility
+    token_key: str = field(default_factory=_default_token_key)
 
 
 # --- Startup Validation ---
@@ -509,5 +566,7 @@ def validate_project_env_vars(strict: bool = False) -> list[str]:
 
 
 # Auto-validate at import if ASANA_STRICT_CONFIG is set
-if os.environ.get("ASANA_STRICT_CONFIG", "").lower() == "true":
+# Uses Pydantic Settings for consistent configuration
+_settings = get_settings()
+if _settings.asana.strict_config:
     validate_project_env_vars(strict=True)

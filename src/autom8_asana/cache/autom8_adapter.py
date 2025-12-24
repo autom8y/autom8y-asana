@@ -34,7 +34,6 @@ Usage in autom8:
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Awaitable, Callable
@@ -43,6 +42,7 @@ from autom8_asana.cache.batch import fetch_task_modifications
 from autom8_asana.cache.entry import CacheEntry, EntryType
 from autom8_asana.cache.settings import CacheSettings
 from autom8_asana.cache.staleness import check_batch_staleness, partition_by_staleness
+from autom8_asana.settings import get_settings
 
 if TYPE_CHECKING:
     from autom8_asana.cache.backends.redis import RedisCacheProvider
@@ -90,7 +90,8 @@ def create_autom8_cache_provider(
 ) -> RedisCacheProvider:
     """Create a RedisCacheProvider configured for autom8.
 
-    Reads configuration from environment variables if not provided:
+    Reads configuration from environment variables via Pydantic Settings
+    if not provided explicitly:
     - REDIS_HOST (required)
     - REDIS_PORT (default: 6379)
     - REDIS_PASSWORD (optional)
@@ -125,27 +126,21 @@ def create_autom8_cache_provider(
     # Import here to make redis an optional dependency
     from autom8_asana.cache.backends.redis import RedisCacheProvider, RedisConfig
 
-    # Resolve configuration from parameters or environment
-    host = redis_host or os.environ.get("REDIS_HOST")
+    # Get unified settings
+    sdk_settings = get_settings()
+    redis_settings = sdk_settings.redis
+
+    # Resolve configuration: explicit params > settings from env
+    host = redis_host or redis_settings.host
     if not host:
         raise MissingConfigurationError(
             "REDIS_HOST environment variable or redis_host parameter required. "
             "For AWS ElastiCache, use the primary endpoint hostname."
         )
 
-    port = (
-        redis_port
-        if redis_port is not None
-        else int(os.environ.get("REDIS_PORT", "6379"))
-    )
-    password = redis_password or os.environ.get("REDIS_PASSWORD")
-
-    # Default to SSL for production (ElastiCache uses TLS)
-    if redis_ssl is not None:
-        ssl = redis_ssl
-    else:
-        ssl_env = os.environ.get("REDIS_SSL", "true").lower()
-        ssl = ssl_env in ("true", "1", "yes")
+    port = redis_port if redis_port is not None else redis_settings.port
+    password = redis_password if redis_password is not None else redis_settings.password
+    ssl = redis_ssl if redis_ssl is not None else redis_settings.ssl
 
     config = RedisConfig(
         host=host,
@@ -153,9 +148,9 @@ def create_autom8_cache_provider(
         password=password,
         ssl=ssl,
         db=redis_db,
-        # Production-ready defaults
-        socket_timeout=2.0,
-        socket_connect_timeout=5.0,
+        # Use Pydantic Settings for timeout configuration
+        socket_timeout=redis_settings.socket_timeout,
+        socket_connect_timeout=redis_settings.connect_timeout,
         max_connections=20,
         retry_on_timeout=True,
     )

@@ -8,6 +8,45 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 from autom8_asana._defaults.auth import EnvAuthProvider
+from autom8_asana.settings import get_settings
+
+
+def _get_workspace_gid_from_env() -> str | None:
+    """Get workspace GID from environment.
+
+    Supports ASANA_WORKSPACE_KEY indirection for backward compatibility
+    (with deprecation warning via Pydantic Settings), then falls back to
+    ASANA_WORKSPACE_GID via Pydantic Settings.
+
+    Resolution order:
+    1. ASANA_WORKSPACE_KEY indirection (deprecated, takes precedence for compat)
+    2. ASANA_WORKSPACE_GID direct setting
+
+    Returns:
+        Workspace GID if found, None otherwise.
+
+    Example:
+        # Direct usage (recommended):
+        # export ASANA_WORKSPACE_GID=1234567890123456
+        gid = _get_workspace_gid_from_env()  # Returns "1234567890123456"
+    """
+    # Use Pydantic Settings for all configuration
+    # Deprecation warning for workspace_key is emitted by field_validator in AsanaSettings
+    settings = get_settings()
+
+    # Legacy: Check for ASANA_WORKSPACE_KEY indirection first (for backward compat)
+    # The indirection pattern takes precedence when set
+    if settings.asana.workspace_key:
+        # Deprecation warning already emitted by AsanaSettings validator
+        return os.environ.get(settings.asana.workspace_key)
+
+    # Use direct ASANA_WORKSPACE_GID
+    if settings.asana.workspace_gid:
+        return settings.asana.workspace_gid
+
+    return None
+
+
 from autom8_asana._defaults.log import DefaultLogProvider
 from autom8_asana.cache.factory import create_cache_provider
 from autom8_asana._defaults.observability import NullObservabilityHook
@@ -147,10 +186,11 @@ class AsanaClient:
             logger=self._log_provider,
         )
 
-        # Resolve workspace_gid: parameter > env var > auto-detect
+        # Resolve workspace_gid: parameter > env var (with indirection) > auto-detect
         if workspace_gid is None:
-            # Check environment variable
-            env_workspace = os.environ.get("ASANA_WORKSPACE_GID")
+            # Check environment variable with indirection support
+            # Per ASANA_WORKSPACE_KEY pattern (parallels ASANA_TOKEN_KEY)
+            env_workspace = _get_workspace_gid_from_env()
             if env_workspace and env_workspace.strip():
                 workspace_gid = env_workspace.strip()
             elif token is not None:

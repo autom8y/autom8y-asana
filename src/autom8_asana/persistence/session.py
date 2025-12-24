@@ -1447,7 +1447,7 @@ class SaveSession:
             not in successful_identities
         ]
 
-    # --- Cache Invalidation (TDD-CACHE-INTEGRATION, ADR-0125) ---
+    # --- Cache Invalidation (TDD-CACHE-INTEGRATION, ADR-0125, TDD-WATERMARK-CACHE Phase 3) ---
 
     async def _invalidate_cache_for_results(
         self,
@@ -1457,11 +1457,12 @@ class SaveSession:
         """Invalidate cache entries for successfully mutated entities.
 
         Per FR-INVALIDATE-001: Invalidates after successful mutations.
-        Per FR-INVALIDATE-002: UPDATE operations invalidate.
+        Per FR-INVALIDATE-002: UPDATE operations invalidate, including DATAFRAME.
         Per FR-INVALIDATE-003: DELETE operations invalidate.
         Per FR-INVALIDATE-004: CREATE operations warm cache.
         Per FR-INVALIDATE-005: Batch invalidation efficiency (O(n)).
         Per FR-INVALIDATE-006: Action operations invalidate.
+        Per TDD-WATERMARK-CACHE/FR-INVALIDATE-001-006: DataFrame cache invalidation.
 
         Args:
             crud_result: Result of CRUD operations.
@@ -1473,6 +1474,7 @@ class SaveSession:
             return
 
         from autom8_asana.cache.entry import EntryType
+        from autom8_asana.cache.dataframes import invalidate_task_dataframes
 
         # Collect all GIDs to invalidate (FR-INVALIDATE-005: batch efficiency)
         gids_to_invalidate: set[str] = set()
@@ -1488,15 +1490,60 @@ class SaveSession:
                 if hasattr(action_result.action.task, "gid"):
                     gids_to_invalidate.add(action_result.action.task.gid)
 
-        # Invalidate all collected GIDs
+        # Invalidate TASK, SUBTASKS, and DETECTION for all collected GIDs
+        # Per FR-INVALIDATE-001: Detection cache invalidated alongside TASK and SUBTASKS
         for gid in gids_to_invalidate:
             try:
-                cache.invalidate(gid, [EntryType.TASK, EntryType.SUBTASKS])
+                cache.invalidate(gid, [EntryType.TASK, EntryType.SUBTASKS, EntryType.DETECTION])
             except Exception as exc:
                 # NFR-DEGRADE-001: Log and continue - invalidation failure is not fatal
                 if self._log:
                     self._log.warning(
                         "cache_invalidation_failed",
+                        gid=gid,
+                        error=str(exc),
+                    )
+
+        # TDD-WATERMARK-CACHE Phase 3: DataFrame cache invalidation
+        # Per FR-INVALIDATE-001 through FR-INVALIDATE-006
+        # Build a map of gid -> entity for lookup from both tracker and action results
+        df_gid_to_entity: dict[str, Any] = {}
+
+        # Add entities from tracker
+        for gid in gids_to_invalidate:
+            tracked_entity = self._tracker.find_by_gid(gid)
+            if tracked_entity:
+                df_gid_to_entity[gid] = tracked_entity
+
+        # Add entities from action results (may not be tracked)
+        for action_result in action_results:
+            if action_result.success and action_result.action.task:
+                action_task = action_result.action.task
+                if hasattr(action_task, "gid") and action_task.gid:
+                    if action_task.gid not in df_gid_to_entity:
+                        df_gid_to_entity[action_task.gid] = action_task
+
+        for gid in gids_to_invalidate:
+            try:
+                # Get entity to access memberships (FR-INVALIDATE-003)
+                df_entity = df_gid_to_entity.get(gid)
+                if df_entity and hasattr(df_entity, "memberships") and df_entity.memberships:
+                    # FR-INVALIDATE-003: Invalidate all project contexts via memberships
+                    project_gids = [
+                        m.get("project", {}).get("gid")
+                        for m in df_entity.memberships
+                        if isinstance(m, dict)
+                        and m.get("project", {}).get("gid")
+                    ]
+                    if project_gids:
+                        invalidate_task_dataframes(gid, project_gids, cache)
+                # FR-INVALIDATE-004: Fallback to known project context if available
+                # Note: _current_project_gid may not be set; silently skip if unavailable
+            except Exception as exc:
+                # FR-INVALIDATE-005: Don't fail commit on invalidation error
+                if self._log:
+                    self._log.warning(
+                        "dataframe_cache_invalidation_failed",
                         gid=gid,
                         error=str(exc),
                     )

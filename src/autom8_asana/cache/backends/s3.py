@@ -85,13 +85,14 @@ class S3CacheProvider:
         settings: CacheSettings | None = None,
         *,
         bucket: str | None = None,
-        prefix: str = "asana-cache",
-        region: str = "us-east-1",
+        prefix: str | None = None,
+        region: str | None = None,
         endpoint_url: str | None = None,
     ) -> None:
         """Initialize S3 cache provider.
 
         Can be initialized with an S3Config or individual parameters.
+        Uses Pydantic Settings for environment variable configuration.
 
         Args:
             config: S3 configuration object (preferred).
@@ -102,19 +103,29 @@ class S3CacheProvider:
             endpoint_url: Custom endpoint URL (if config not provided).
         """
         if config is None:
-            if bucket is None:
-                import os
+            # Use Pydantic Settings for S3 configuration
+            from autom8_asana.settings import get_settings
 
-                bucket = os.environ.get("ASANA_CACHE_S3_BUCKET", "")
-                if not bucket:
-                    logger.warning(
-                        "No S3 bucket configured. Set ASANA_CACHE_S3_BUCKET or pass bucket parameter."
-                    )
+            s3_settings = get_settings().s3
+
+            # Explicit parameters override settings from env
+            resolved_bucket = bucket if bucket is not None else s3_settings.bucket
+            resolved_prefix = prefix if prefix is not None else s3_settings.prefix
+            resolved_region = region if region is not None else s3_settings.region
+            resolved_endpoint = (
+                endpoint_url if endpoint_url is not None else s3_settings.endpoint_url
+            )
+
+            if not resolved_bucket:
+                logger.warning(
+                    "No S3 bucket configured. Set ASANA_CACHE_S3_BUCKET or pass bucket parameter."
+                )
+
             config = S3Config(
-                bucket=bucket or "",
-                prefix=prefix,
-                region=region,
-                endpoint_url=endpoint_url,
+                bucket=resolved_bucket or "",
+                prefix=resolved_prefix,
+                region=resolved_region,
+                endpoint_url=resolved_endpoint,
             )
 
         self._config = config

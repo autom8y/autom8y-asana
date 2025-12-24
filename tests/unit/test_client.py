@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from autom8_asana.cache.metrics import CacheMetrics
-from autom8_asana.client import AsanaClient, _TokenAuthProvider
+from autom8_asana.client import AsanaClient, _TokenAuthProvider, _get_workspace_gid_from_env
 from autom8_asana.clients.tasks import TasksClient
 from autom8_asana.config import AsanaConfig
 from autom8_asana.exceptions import AuthenticationError, ConfigurationError
@@ -362,3 +362,105 @@ class TestCacheMetricsProperty:
         # Assert
         assert metrics is not None
         assert metrics.api_calls_saved == 3
+
+
+class TestWorkspaceGidIndirection:
+    """Tests for ASANA_WORKSPACE_KEY indirection pattern.
+
+    This parallels the ASANA_TOKEN_KEY pattern for ECS deployments where
+    secrets are injected with platform naming conventions.
+    """
+
+    def test_get_workspace_gid_default_key(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Default reads from ASANA_WORKSPACE_GID without indirection."""
+        # Clean environment
+        monkeypatch.delenv("ASANA_WORKSPACE_KEY", raising=False)
+        monkeypatch.setenv("ASANA_WORKSPACE_GID", "1234567890123456")
+
+        result = _get_workspace_gid_from_env()
+
+        assert result == "1234567890123456"
+
+    def test_get_workspace_gid_with_indirection(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ASANA_WORKSPACE_KEY points to different env var."""
+        # Set up indirection: ASANA_WORKSPACE_KEY points to WORKSPACE_GID
+        monkeypatch.setenv("ASANA_WORKSPACE_KEY", "WORKSPACE_GID")
+        monkeypatch.setenv("WORKSPACE_GID", "9876543210987654")
+        # Also set the default to ensure indirection takes precedence
+        monkeypatch.setenv("ASANA_WORKSPACE_GID", "should-not-use-this")
+
+        result = _get_workspace_gid_from_env()
+
+        assert result == "9876543210987654"
+
+    def test_get_workspace_gid_indirection_to_missing_var(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Indirection to non-existent var returns None."""
+        monkeypatch.setenv("ASANA_WORKSPACE_KEY", "NONEXISTENT_VAR")
+        monkeypatch.delenv("NONEXISTENT_VAR", raising=False)
+
+        result = _get_workspace_gid_from_env()
+
+        assert result is None
+
+    def test_get_workspace_gid_no_env_vars_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No env vars set returns None."""
+        monkeypatch.delenv("ASANA_WORKSPACE_KEY", raising=False)
+        monkeypatch.delenv("ASANA_WORKSPACE_GID", raising=False)
+
+        result = _get_workspace_gid_from_env()
+
+        assert result is None
+
+    def test_client_uses_workspace_indirection(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AsanaClient uses ASANA_WORKSPACE_KEY indirection."""
+        monkeypatch.setenv("ASANA_WORKSPACE_KEY", "MY_WORKSPACE")
+        monkeypatch.setenv("MY_WORKSPACE", "workspace-from-indirection")
+
+        client = AsanaClient(token="test-token")
+
+        assert client.default_workspace_gid == "workspace-from-indirection"
+
+    def test_explicit_workspace_overrides_indirection(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Explicit workspace_gid parameter overrides env var indirection."""
+        monkeypatch.setenv("ASANA_WORKSPACE_KEY", "MY_WORKSPACE")
+        monkeypatch.setenv("MY_WORKSPACE", "from-env-indirection")
+
+        client = AsanaClient(token="test-token", workspace_gid="explicit-workspace")
+
+        assert client.default_workspace_gid == "explicit-workspace"
+
+    def test_ecs_deployment_pattern(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test realistic ECS deployment pattern with platform naming.
+
+        In ECS deployments:
+        - Secrets Manager secret 'workspace-gid' is injected as WORKSPACE_GID
+        - ASANA_WORKSPACE_KEY is set to "WORKSPACE_GID" in task definition
+        - SDK reads workspace GID from WORKSPACE_GID via indirection
+        """
+        # Simulate ECS environment
+        monkeypatch.setenv("ASANA_WORKSPACE_KEY", "WORKSPACE_GID")
+        monkeypatch.setenv("WORKSPACE_GID", "1234567890123456")  # From Secrets Manager
+        monkeypatch.setenv("ASANA_TOKEN_KEY", "BOT_PAT")
+        monkeypatch.setenv("BOT_PAT", "test-pat-from-secrets")  # From Secrets Manager
+
+        client = AsanaClient()
+
+        # Workspace should come from indirection
+        assert client.default_workspace_gid == "1234567890123456"
+        # Token should also use indirection (existing pattern)
+        token = client._auth_provider.get_secret("BOT_PAT")
+        assert token == "test-pat-from-secrets"

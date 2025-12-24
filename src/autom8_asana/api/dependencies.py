@@ -1,9 +1,14 @@
 """FastAPI dependency injection for the API layer.
 
 This module provides dependency factories for:
-- PAT extraction from Authorization header
+- Dual-mode authentication (JWT + PAT)
 - Per-request AsanaClient instantiation
 - Request ID access
+
+Per TDD-S2S-001 Section 5.4:
+- AuthContext provides unified auth result for both modes
+- get_auth_context() is the primary auth dependency
+- get_asana_pat() provides backward compatibility
 
 Per ADR-ASANA-002: PAT Pass-Through Authentication
 - Extract PAT from Authorization: Bearer header
@@ -16,6 +21,9 @@ Per ADR-ASANA-007: SDK Client Lifecycle
 - No connection pooling across requests
 """
 
+from __future__ import annotations
+
+import logging
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
@@ -23,11 +31,233 @@ from fastapi import Depends, Header, HTTPException, Request
 
 from autom8_asana import AsanaClient
 
+from ..auth.bot_pat import BotPATError, get_bot_pat
+from ..auth.dual_mode import AuthMode, detect_token_type
+
+logger = logging.getLogger("autom8_asana.api")
+
+
+class AuthContext:
+    """Authentication context for the current request.
+
+    Provides the PAT to use for Asana API calls, regardless of
+    how the request was authenticated.
+
+    Attributes:
+        mode: How the request was authenticated (jwt or pat)
+        asana_pat: The PAT to use for Asana API calls
+        caller_service: Service name from JWT (None for PAT mode)
+    """
+
+    __slots__ = ("mode", "asana_pat", "caller_service")
+
+    def __init__(
+        self,
+        mode: AuthMode,
+        asana_pat: str,
+        caller_service: str | None = None,
+    ) -> None:
+        """Initialize auth context.
+
+        Args:
+            mode: Authentication mode (JWT or PAT)
+            asana_pat: PAT to use for Asana API calls
+            caller_service: Service name (JWT mode only)
+        """
+        self.mode = mode
+        self.asana_pat = asana_pat
+        self.caller_service = caller_service
+
+
+async def _extract_bearer_token(
+    authorization: Annotated[str | None, Header()] = None,
+) -> str:
+    """Extract and validate Bearer token from Authorization header.
+
+    Args:
+        authorization: Authorization header value.
+
+    Returns:
+        Extracted token string.
+
+    Raises:
+        HTTPException: 401 if header missing, wrong scheme, or invalid format.
+    """
+    if authorization is None:
+        raise HTTPException(
+            status_code=401,
+            detail={"error": "MISSING_AUTH", "message": "Authorization header required"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail={"error": "INVALID_SCHEME", "message": "Bearer scheme required"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token = authorization[7:]  # Remove "Bearer " prefix
+
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail={"error": "MISSING_TOKEN", "message": "Token is required"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if len(token) < 10:
+        raise HTTPException(
+            status_code=401,
+            detail={"error": "INVALID_TOKEN", "message": "Invalid token format"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return token
+
+
+async def get_auth_context(
+    request: Request,
+    token: Annotated[str, Depends(_extract_bearer_token)],
+) -> AuthContext:
+    """Get authentication context for the current request.
+
+    This is the primary auth dependency for route handlers.
+    It detects the token type, validates JWTs, and provides
+    the appropriate PAT for Asana API calls.
+
+    For JWT auth (S2S):
+        1. Validate JWT with autom8y-auth SDK
+        2. Return bot PAT for Asana calls
+
+    For PAT auth (user):
+        1. Pass through user's PAT unchanged
+
+    Args:
+        request: FastAPI request (for logging context)
+        token: Bearer token from Authorization header
+
+    Returns:
+        AuthContext with mode, asana_pat, and optional caller info
+
+    Raises:
+        HTTPException: 401 for invalid JWT, 503 for bot PAT misconfiguration
+    """
+    request_id = getattr(request.state, "request_id", "unknown")
+    auth_mode = detect_token_type(token)
+
+    if auth_mode == AuthMode.PAT:
+        # PAT pass-through: user's token goes directly to Asana
+        logger.info(
+            "auth_mode_pat",
+            extra={
+                "request_id": request_id,
+                "auth_mode": "pat",
+            },
+        )
+        return AuthContext(mode=auth_mode, asana_pat=token)
+
+    # JWT mode: validate token, then use bot PAT
+    try:
+        # Lazy import to avoid loading SDK when not needed
+        from ..auth.jwt_validator import validate_service_token
+
+        claims = await validate_service_token(token)
+    except ImportError as e:
+        logger.error(
+            "autom8y_auth_not_installed",
+            extra={
+                "request_id": request_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "S2S_NOT_CONFIGURED",
+                "message": "Service-to-service authentication is not available",
+            },
+        )
+    except Exception as e:
+        # Import the error base class for type checking
+        try:
+            from autom8y_auth import AuthError
+
+            if isinstance(e, AuthError):
+                logger.warning(
+                    "s2s_jwt_validation_failed",
+                    extra={
+                        "request_id": request_id,
+                        "error_code": e.code,
+                        "error_message": str(e),
+                    },
+                )
+                raise HTTPException(
+                    status_code=401,
+                    detail={
+                        "error": e.code,
+                        "message": "JWT validation failed",
+                    },
+                )
+        except ImportError:
+            pass
+
+        # Re-raise unexpected errors
+        logger.exception(
+            "s2s_jwt_validation_unexpected_error",
+            extra={"request_id": request_id},
+        )
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "INTERNAL_ERROR",
+                "message": "Authentication error",
+            },
+        )
+
+    try:
+        bot_pat = get_bot_pat()
+    except BotPATError as e:
+        logger.error(
+            "bot_pat_unavailable",
+            extra={
+                "request_id": request_id,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "S2S_NOT_CONFIGURED",
+                "message": "Service-to-service authentication is not available",
+            },
+        )
+
+    logger.info(
+        "auth_mode_jwt",
+        extra={
+            "request_id": request_id,
+            "auth_mode": "jwt",
+            "caller_service": claims.service_name,
+            "scope": claims.scope,
+        },
+    )
+
+    return AuthContext(
+        mode=auth_mode,
+        asana_pat=bot_pat,
+        caller_service=claims.service_name,
+    )
+
 
 async def get_asana_pat(
     authorization: Annotated[str | None, Header()] = None,
 ) -> str:
     """Extract and validate PAT from Authorization header.
+
+    DEPRECATED: Use get_auth_context() for dual-mode support.
+    This function is maintained for backward compatibility with
+    existing route handlers that expect only PAT authentication.
 
     Per ADR-ASANA-002:
     - Requires Bearer scheme
@@ -81,6 +311,9 @@ async def get_asana_client(
 ) -> AsyncGenerator[AsanaClient, None]:
     """Create per-request AsanaClient with provided PAT.
 
+    DEPRECATED for new routes: Use get_asana_client_from_context() instead
+    for dual-mode support.
+
     Per ADR-ASANA-007:
     - Each request gets a fresh client instance
     - Complete user isolation (no shared state)
@@ -98,6 +331,36 @@ async def get_asana_client(
         yield client
     finally:
         # Explicit cleanup if SDK supports async close
+        if hasattr(client, "aclose"):
+            await client.aclose()
+
+
+async def get_asana_client_from_context(
+    auth_context: Annotated[AuthContext, Depends(get_auth_context)],
+) -> AsyncGenerator[AsanaClient, None]:
+    """Create per-request AsanaClient from auth context.
+
+    Supports both JWT (S2S) and PAT (user) authentication modes.
+    The client is configured with the appropriate PAT based on auth mode:
+    - JWT mode: Uses bot PAT
+    - PAT mode: Uses user's PAT
+
+    Per ADR-ASANA-007:
+    - Each request gets a fresh client instance
+    - Complete user isolation (no shared state)
+    - Clean error boundaries
+    - Garbage collection handles cleanup
+
+    Args:
+        auth_context: Authentication context with PAT for Asana calls.
+
+    Yields:
+        AsanaClient instance configured with the appropriate PAT.
+    """
+    client = AsanaClient(token=auth_context.asana_pat)
+    try:
+        yield client
+    finally:
         if hasattr(client, "aclose"):
             await client.aclose()
 
@@ -120,16 +383,24 @@ def get_request_id(request: Request) -> str:
 # Type aliases for cleaner route signatures
 AsanaPAT = Annotated[str, Depends(get_asana_pat)]
 AsanaClientDep = Annotated[AsanaClient, Depends(get_asana_client)]
+AsanaClientDualMode = Annotated[AsanaClient, Depends(get_asana_client_from_context)]
+AuthContextDep = Annotated[AuthContext, Depends(get_auth_context)]
 RequestId = Annotated[str, Depends(get_request_id)]
 
 
 __all__ = [
-    # Dependencies
+    # Auth context (new dual-mode)
+    "AuthContext",
+    "get_auth_context",
+    "get_asana_client_from_context",
+    # Legacy dependencies (backward compatibility)
     "get_asana_client",
     "get_asana_pat",
     "get_request_id",
     # Type aliases
     "AsanaClientDep",
+    "AsanaClientDualMode",
     "AsanaPAT",
+    "AuthContextDep",
     "RequestId",
 ]

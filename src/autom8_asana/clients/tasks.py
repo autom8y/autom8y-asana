@@ -7,10 +7,14 @@ Per TDD-0002: list_async() returns PageIterator[Task] for automatic pagination.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any, Literal, overload
 
 from autom8_asana.clients.base import BaseClient
+
+logger = logging.getLogger(__name__)
 from autom8_asana.models import PageIterator, Task
+from autom8_asana.models.business.fields import STANDARD_TASK_OPT_FIELDS
 from autom8_asana.observability import error_handler
 from autom8_asana.persistence.session import SaveSession
 from autom8_asana.transport.sync import sync_wrapper
@@ -117,13 +121,24 @@ class TasksClient(BaseClient):
         # FR-CLIENT-001: Check cache first
         cached_entry = self._cache_get(task_gid, EntryType.TASK)
         if cached_entry is not None:
-            # Cache hit
+            # Per NFR-OBS-001: Log cache hit at DEBUG level
+            logger.debug(
+                "Cache hit for task",
+                extra={"task_gid": task_gid},
+            )
             data = cached_entry.data
             if raw:
                 return data
             task = Task.model_validate(data)
             task._client = self._client
             return task
+
+        # Per NFR-OBS-001: Log cache miss at DEBUG level
+        opt_fields_count = len(opt_fields) if opt_fields else 0
+        logger.debug(
+            "Cache miss for task",
+            extra={"task_gid": task_gid, "opt_fields_count": opt_fields_count},
+        )
 
         # Cache miss: fetch from API
         params = self._build_opt_fields(opt_fields)
@@ -639,25 +654,12 @@ class TasksClient(BaseClient):
         return PageIterator(fetch_page, page_size=min(limit, 100))
 
     # Default fields needed for entity type detection and field cascading
-    # Per ADR-0101: Include project.name for ProcessType detection via project name matching
+    # Per PRD-CACHE-PERF-HYDRATION FR-CACHE-001, FR-CACHE-002:
+    # Use STANDARD_TASK_OPT_FIELDS to ensure parent.gid and people_value are present.
+    # This enables upward traversal and Owner cascading from cached tasks.
+    # Per ADR-0101: Include project.name for ProcessType detection via project name matching.
     # Per TDD-HYDRATION: Include custom_fields for field cascading (Vertical, Products, etc.)
-    _DETECTION_FIELDS: list[str] = [
-        # Detection fields
-        "memberships.project.gid",
-        "memberships.project.name",
-        "name",
-        # Custom fields for cascading
-        "custom_fields",
-        "custom_fields.name",
-        "custom_fields.enum_value",
-        "custom_fields.enum_value.name",
-        "custom_fields.multi_enum_values",
-        "custom_fields.multi_enum_values.name",
-        "custom_fields.display_value",
-        "custom_fields.number_value",
-        "custom_fields.text_value",
-        "custom_fields.resource_subtype",
-    ]
+    _DETECTION_FIELDS: list[str] = list(STANDARD_TASK_OPT_FIELDS)
 
     def subtasks_async(
         self,

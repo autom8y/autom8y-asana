@@ -213,3 +213,42 @@ class InheritedFieldDef:
                     return value
 
         return self.default
+
+
+# =============================================================================
+# Task opt_fields Constants (per PRD-CACHE-PERF-HYDRATION)
+# =============================================================================
+
+# Standard field set that satisfies all detection, traversal, and cascading use cases.
+# Per FR-FIELDS-001: Single source of truth for opt_fields across the SDK.
+# Per FR-FIELDS-003: Includes parent.gid for upward traversal.
+# Per FR-FIELDS-004: Includes custom_fields.people_value for Owner cascading.
+STANDARD_TASK_OPT_FIELDS: tuple[str, ...] = (
+    # Core identification
+    "name",
+    "parent.gid",
+    # Detection (Tier 1)
+    "memberships.project.gid",
+    "memberships.project.name",
+    # Custom fields (cascading)
+    "custom_fields",
+    "custom_fields.name",
+    "custom_fields.enum_value",
+    "custom_fields.enum_value.name",
+    "custom_fields.multi_enum_values",
+    "custom_fields.multi_enum_values.name",
+    "custom_fields.display_value",
+    "custom_fields.number_value",
+    "custom_fields.text_value",
+    "custom_fields.resource_subtype",
+    "custom_fields.people_value",
+)
+
+# Minimal field set for detection-only operations (subset of standard).
+# Per FR-DETECT-003: Smaller set for performance when custom_fields not needed.
+DETECTION_OPT_FIELDS: tuple[str, ...] = (
+    "name",
+    "parent.gid",
+    "memberships.project.gid",
+    "memberships.project.name",
+)

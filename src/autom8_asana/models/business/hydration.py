@@ -33,6 +33,10 @@ from autom8_asana.models.business.detection import (
     EntityType,
     detect_entity_type_async,
 )
+from autom8_asana.models.business.fields import (
+    DETECTION_OPT_FIELDS,
+    STANDARD_TASK_OPT_FIELDS,
+)
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
@@ -58,36 +62,15 @@ logger = logging.getLogger(__name__)
 # Constants
 # =============================================================================
 
-# Fields needed for entity type detection during initial fetch and traversal
-# These are minimal fields for quick detection without full custom_fields
-_DETECTION_OPT_FIELDS: list[str] = [
-    "memberships.project.gid",
-    "memberships.project.name",
-    "name",
-    "parent.gid",
-]
+# Deprecated: Use DETECTION_OPT_FIELDS from autom8_asana.models.business.fields
+# Kept for backward compatibility - derives from canonical source.
+_DETECTION_OPT_FIELDS: list[str] = list(DETECTION_OPT_FIELDS)
 
-# Full fields needed for Business entities (includes custom_fields for cascading)
+# Deprecated: Use STANDARD_TASK_OPT_FIELDS from autom8_asana.models.business.fields
+# Kept for backward compatibility - derives from canonical source.
 # Per fix for Office Phone cascade bug: Business must have custom_fields populated
-# to support field cascading from Business to descendants during seeding
-_BUSINESS_FULL_OPT_FIELDS: list[str] = [
-    "memberships.project.gid",
-    "memberships.project.name",
-    "name",
-    "parent.gid",
-    # Custom fields for cascading (Office Phone, Company ID, etc.)
-    "custom_fields",
-    "custom_fields.name",
-    "custom_fields.enum_value",
-    "custom_fields.enum_value.name",
-    "custom_fields.multi_enum_values",
-    "custom_fields.multi_enum_values.name",
-    "custom_fields.display_value",
-    "custom_fields.number_value",
-    "custom_fields.text_value",
-    "custom_fields.resource_subtype",
-    "custom_fields.people_value",
-]
+# to support field cascading from Business to descendants during seeding.
+_BUSINESS_FULL_OPT_FIELDS: list[str] = list(STANDARD_TASK_OPT_FIELDS)
 
 
 # =============================================================================
@@ -657,6 +640,7 @@ async def _traverse_upward_async(
     current: Task = entity
     depth = 0
 
+    # Per NFR-OBS-001: Log traversal start at DEBUG level
     logger.debug(
         "Starting upward traversal",
         extra={"start_gid": entity.gid, "start_name": entity.name},
@@ -687,9 +671,14 @@ async def _traverse_upward_async(
 
         # Fetch parent task with detection fields
         # Per ADR-0094: Include memberships.project.name for ProcessType detection
+        # Per NFR-OBS-001: Log parent fetch with gid, depth, field count at DEBUG level
         logger.debug(
             "Fetching parent task",
-            extra={"parent_gid": parent_gid, "depth": depth},
+            extra={
+                "parent_gid": parent_gid,
+                "depth": depth,
+                "opt_fields_count": len(_DETECTION_OPT_FIELDS),
+            },
         )
         parent_task = await client.tasks.get_async(
             parent_gid,
@@ -725,6 +714,7 @@ async def _traverse_upward_async(
             )
             business = Business.model_validate(business_task.model_dump())
 
+            # Per NFR-OBS-002: Log traversal completion with path length, business info at INFO level
             logger.info(
                 "Upward traversal complete",
                 extra={
@@ -732,6 +722,7 @@ async def _traverse_upward_async(
                     "business_name": business.name,
                     "path_length": len(path),
                     "total_depth": depth + 1,
+                    "path_gids": [e.gid for e in path],
                 },
             )
 

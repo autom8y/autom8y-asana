@@ -3,6 +3,7 @@
 Per ADR-0005: Uses Pydantic v2 with extra="ignore" for forward compatibility.
 Per TDD-0002/ADR-0006: Uses NameGid for typed resource references.
 Per TDD-0009 Phase 5: Adds to_dataframe() public API methods.
+Per TDD-WATERMARK-CACHE Phase 3: Adds to_dataframe_parallel_async() with parallel fetch.
 """
 
 from __future__ import annotations
@@ -17,7 +18,9 @@ from autom8_asana.models.base import AsanaResource
 from autom8_asana.models.common import NameGid
 
 if TYPE_CHECKING:
+    from autom8_asana.client import AsanaClient
     from autom8_asana.dataframes.cache_integration import DataFrameCacheIntegration
+    from autom8_asana.dataframes.models.schema import DataFrameSchema
     from autom8_asana.dataframes.resolver.protocol import CustomFieldResolver
 
 
@@ -197,3 +200,83 @@ class Project(AsanaResource):
             cache_integration=cache_integration if use_cache else None,
         )
         return await builder.build_async(lazy=lazy, use_cache=use_cache)
+
+    async def to_dataframe_parallel_async(
+        self,
+        client: AsanaClient,
+        task_type: str = "Task",
+        schema: DataFrameSchema | None = None,
+        sections: list[str] | None = None,
+        resolver: CustomFieldResolver | None = None,
+        cache_integration: DataFrameCacheIntegration | None = None,
+        **kwargs: Any,
+    ) -> pl.DataFrame:
+        """Extract project tasks to DataFrame with parallel section fetch.
+
+        Per TDD-WATERMARK-CACHE Phase 3: Zero-configuration entry point for
+        DataFrame extraction with automatic performance optimization.
+
+        This method uses parallel section fetch to significantly reduce latency
+        for large projects (e.g., from 52s to <10s for 3,500-task projects).
+        Cache integration is automatic when a CacheProvider is configured.
+
+        Args:
+            client: AsanaClient for API calls and cache access.
+            task_type: Task type filter (default "Task").
+            schema: DataFrameSchema for extraction. If None, auto-detects
+                from task_type using SchemaRegistry.
+            sections: Optional section name filter.
+            resolver: Optional custom field resolver.
+            cache_integration: Optional explicit cache integration. If None,
+                uses client's configured cache provider.
+            **kwargs: Passed to build_with_parallel_fetch_async():
+                - use_parallel_fetch: bool (default True)
+                - use_cache: bool (default True)
+                - max_concurrent_sections: int (default 8)
+                - lazy: bool | None (default None for auto-select)
+
+        Returns:
+            Polars DataFrame with extracted task data.
+
+        Raises:
+            SchemaNotFoundError: If task_type has no registered schema.
+            ExtractionError: If extraction fails for any task.
+
+        Example:
+            >>> # Zero-configuration usage
+            >>> df = await project.to_dataframe_parallel_async(client)
+
+            >>> # With explicit task type
+            >>> df = await project.to_dataframe_parallel_async(
+            ...     client, task_type="Unit"
+            ... )
+
+            >>> # With options
+            >>> df = await project.to_dataframe_parallel_async(
+            ...     client,
+            ...     task_type="Unit",
+            ...     sections=["Active", "In Progress"],
+            ...     use_cache=False,
+            ... )
+        """
+        from autom8_asana.dataframes.builders.project import ProjectDataFrameBuilder
+        from autom8_asana.dataframes.models.registry import SchemaRegistry
+
+        # Auto-detect schema if not provided
+        if schema is None:
+            schema = SchemaRegistry.get_instance().get_schema(task_type)
+
+        # Use client's cache integration if not explicitly provided
+        if cache_integration is None:
+            cache_integration = getattr(client, "_dataframe_cache_integration", None)
+
+        builder = ProjectDataFrameBuilder(
+            project=self,
+            task_type=task_type,
+            schema=schema,
+            sections=sections,
+            resolver=resolver,
+            cache_integration=cache_integration,
+        )
+
+        return await builder.build_with_parallel_fetch_async(client, **kwargs)

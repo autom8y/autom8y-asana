@@ -375,7 +375,11 @@ class TestInvalidationEntryTypes:
 
     @pytest.mark.asyncio
     async def test_invalidates_task_and_subtasks_types(self) -> None:
-        """Invalidation includes both TASK and SUBTASKS entry types."""
+        """Invalidation includes TASK, SUBTASKS, and DETECTION entry types.
+
+        Per FR-INVALIDATE-001 (TDD-CACHE-PERF-DETECTION): EntryType.DETECTION
+        is invalidated alongside TASK and SUBTASKS on task mutation.
+        """
         # Arrange
         mock_client = create_mock_client_with_cache()
 
@@ -390,9 +394,10 @@ class TestInvalidationEntryTypes:
             task.name = "Updated"
             await session.commit_async()
 
-        # Assert: Both TASK and SUBTASKS types invalidated
+        # Assert: TASK, SUBTASKS, and DETECTION types invalidated
         cache = mock_client._cache_provider
         assert len(cache.invalidate_calls) == 1
         _, entry_types = cache.invalidate_calls[0]
         assert EntryType.TASK in entry_types
         assert EntryType.SUBTASKS in entry_types
+        assert EntryType.DETECTION in entry_types

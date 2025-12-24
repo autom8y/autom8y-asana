@@ -29,6 +29,9 @@ class EntryType(str, Enum):
     USER = "user"  # TTL: 3600s (1 hour), no modified_at
     CUSTOM_FIELD = "custom_field"  # TTL: 1800s (30 min), no modified_at
 
+    # Per PRD-CACHE-PERF-DETECTION: Detection result caching
+    DETECTION = "detection"  # TTL: 300s (5 min), uses task.modified_at
+
 
 @dataclass(frozen=True)
 class CacheEntry:

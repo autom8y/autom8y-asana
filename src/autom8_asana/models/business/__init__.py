@@ -96,7 +96,13 @@ from autom8_asana.models.business.hydration import (
     # Private functions still available via module, not exported in __all__
     # _convert_to_typed_entity, _is_recoverable, _traverse_upward_async
 )
-from autom8_asana.models.business.fields import CascadingFieldDef, InheritedFieldDef
+from autom8_asana.models.business.fields import (
+    CascadingFieldDef,
+    InheritedFieldDef,
+    # Task opt_fields constants (per PRD-CACHE-PERF-HYDRATION)
+    STANDARD_TASK_OPT_FIELDS,
+    DETECTION_OPT_FIELDS,
+)
 from autom8_asana.models.business.mixins import (
     FinancialFieldsMixin,
     SharedCascadingFieldsMixin,
@@ -160,6 +166,9 @@ __all__ = [
     # Field definitions
     "CascadingFieldDef",
     "InheritedFieldDef",
+    # Task opt_fields constants (per PRD-CACHE-PERF-HYDRATION)
+    "STANDARD_TASK_OPT_FIELDS",
+    "DETECTION_OPT_FIELDS",
     # Field mixins (TDD-SPRINT-1)
     "SharedCascadingFieldsMixin",
     "FinancialFieldsMixin",

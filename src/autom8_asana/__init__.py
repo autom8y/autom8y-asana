@@ -48,6 +48,12 @@ from autom8_asana.protocols import (
     ObservabilityHook,  # TDD-HARDENING-A/FR-OBS-009
 )
 
+# Default providers (for AWS deployments per ADR-VAULT-001)
+from autom8_asana._defaults import (
+    EnvAuthProvider,
+    SecretsManagerAuthProvider,
+)
+
 # Observability (per TDD-0007, ADR-0013)
 from autom8_asana.observability import (
     CorrelationContext,
@@ -123,6 +129,7 @@ from autom8_asana.dataframes import (
 
 __version__ = "0.1.0"
 
+
 __all__ = [
     # Main client
     "AsanaClient",
@@ -152,6 +159,9 @@ __all__ = [
     "ItemLoader",
     "LogProvider",
     "ObservabilityHook",  # TDD-HARDENING-A/FR-OBS-009
+    # Auth providers (ADR-VAULT-001)
+    "EnvAuthProvider",
+    "SecretsManagerAuthProvider",
     # Observability
     "CorrelationContext",
     "error_handler",

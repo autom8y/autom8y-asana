@@ -1,7 +1,7 @@
 # Documentation Index
 
 > Central registry of all project documentation.
-> **Last Updated**: 2025-12-18
+> **Last Updated**: 2025-12-23
 
 ---
 
@@ -53,6 +53,13 @@
 | [PRD-DETECTION](requirements/PRD-DETECTION.md) | Membership-Based Entity Type Detection | Draft |
 | [PRD-WORKSPACE-PROJECT-REGISTRY](requirements/PRD-WORKSPACE-PROJECT-REGISTRY.md) | Workspace Project Registry for Dynamic Discovery | Draft |
 | [PRD-PIPELINE-AUTOMATION-ENHANCEMENT](requirements/PRD-PIPELINE-AUTOMATION-ENHANCEMENT.md) | Pipeline Automation Enhancement - Legacy Parity | Draft |
+| [PRD-CACHE-INTEGRATION](requirements/PRD-CACHE-INTEGRATION.md) | SDK Cache Integration Layer | Implemented |
+| [PRD-CACHE-PERF-FETCH-PATH](requirements/PRD-CACHE-PERF-FETCH-PATH.md) | DataFrame Fetch Path Cache Integration | Implemented |
+| [PRD-CACHE-PERF-DETECTION](requirements/PRD-CACHE-PERF-DETECTION.md) | Detection Result Caching | Implemented |
+| [PRD-CACHE-PERF-STORIES](requirements/PRD-CACHE-PERF-STORIES.md) | Stories Client Incremental Cache | Implemented |
+| [PRD-CACHE-OPTIMIZATION-P2](requirements/PRD-CACHE-OPTIMIZATION-P2.md) | Cache Optimization Phase 2 - 10x Gap Fix | Implemented |
+| [PRD-CACHE-PERF-HYDRATION](requirements/PRD-CACHE-PERF-HYDRATION.md) | Hydration Cache Optimization | Draft |
+| [PRD-WATERMARK-CACHE](requirements/PRD-WATERMARK-CACHE.md) | Watermark Cache (Parallel Fetch) | Implemented |
 
 ---
 
@@ -97,19 +104,26 @@
 | [TDD-WORKSPACE-PROJECT-REGISTRY](design/TDD-WORKSPACE-PROJECT-REGISTRY.md) | Workspace Project Registry | PRD-WORKSPACE-PROJECT-REGISTRY | Implemented |
 | [TDD-PIPELINE-AUTOMATION-ENHANCEMENT](design/TDD-PIPELINE-AUTOMATION-ENHANCEMENT.md) | Pipeline Automation Enhancement | PRD-PIPELINE-AUTOMATION-ENHANCEMENT | Draft |
 | [TDD-0030](design/TDD-CUSTOM-FIELD-REMEDIATION.md) | Custom Field Reality Remediation | PRD-0024 | Draft |
+| [TDD-CACHE-INTEGRATION](design/TDD-CACHE-INTEGRATION.md) | SDK Cache Integration Layer | PRD-CACHE-INTEGRATION | Implemented |
+| [TDD-CACHE-PERF-FETCH-PATH](design/TDD-CACHE-PERF-FETCH-PATH.md) | DataFrame Fetch Path Cache | PRD-CACHE-PERF-FETCH-PATH | Implemented |
+| [TDD-CACHE-PERF-DETECTION](design/TDD-CACHE-PERF-DETECTION.md) | Detection Result Caching | PRD-CACHE-PERF-DETECTION | Implemented |
+| [TDD-CACHE-PERF-STORIES](design/TDD-CACHE-PERF-STORIES.md) | Stories Client Cache | PRD-CACHE-PERF-STORIES | Implemented |
+| [TDD-CACHE-OPTIMIZATION-P2](design/TDD-CACHE-OPTIMIZATION-P2.md) | Cache Optimization Phase 2 | PRD-CACHE-OPTIMIZATION-P2 | Implemented |
+| [TDD-CACHE-PERF-HYDRATION](design/TDD-CACHE-PERF-HYDRATION.md) | Hydration Cache Optimization | PRD-CACHE-PERF-HYDRATION | Draft |
+| [TDD-WATERMARK-CACHE](design/TDD-WATERMARK-CACHE.md) | Watermark Cache (Parallel Fetch) | PRD-WATERMARK-CACHE | Implemented |
 
 ---
 
 ## ADRs (Decisions)
 
-114 Architecture Decision Records: [ADR-0001](decisions/ADR-0001-protocol-extensibility.md) through [ADR-0114](decisions/ADR-0114-hours-backward-compat.md)
+131 Architecture Decision Records: [ADR-0001](decisions/ADR-0001-protocol-extensibility.md) through [ADR-0130](decisions/ADR-0130-cache-population-location.md)
 
 ### Key ADRs by Topic
 
 | Topic | ADRs |
 |-------|------|
 | **SDK Architecture** | [0001](decisions/ADR-0001-protocol-extensibility.md), [0002](decisions/ADR-0002-sync-wrapper-strategy.md), [0003](decisions/ADR-0003-asana-sdk-integration.md), [0004](decisions/ADR-0004-item-class-boundary.md), [0005](decisions/ADR-0005-pydantic-model-config.md) |
-| **Caching** | [0016](decisions/ADR-0016-cache-protocol-extension.md), [0017](decisions/ADR-0017-redis-backend-architecture.md), [0019](decisions/ADR-0019-staleness-detection-algorithm.md), [0026](decisions/ADR-0026-two-tier-cache-architecture.md) |
+| **Caching** | [0016](decisions/ADR-0016-cache-protocol-extension.md), [0017](decisions/ADR-0017-redis-backend-architecture.md), [0019](decisions/ADR-0019-staleness-detection-algorithm.md), [0026](decisions/ADR-0026-two-tier-cache-architecture.md), [0115](decisions/ADR-0115-parallel-section-fetch-strategy.md), [0116](decisions/ADR-0116-batch-cache-population-pattern.md), [0117](decisions/ADR-0117-post-commit-invalidation-hook.md), [0118](decisions/ADR-0118-rejection-multi-level-cache.md), [0119](decisions/ADR-0119-dataframe-task-cache-integration.md), [0123](decisions/ADR-0123-cache-provider-selection.md), [0124](decisions/ADR-0124-client-cache-pattern.md), [0125](decisions/ADR-0125-savesession-invalidation.md), [0126](decisions/ADR-0126-entity-ttl-resolution.md), [0127](decisions/ADR-0127-graceful-degradation.md), [0128](decisions/ADR-0128-hydration-opt-fields-normalization.md), [0129](decisions/ADR-0129-stories-client-cache-wiring.md), [0130](decisions/ADR-0130-cache-population-location.md) |
 | **Save Orchestration** | [0035](decisions/ADR-0035-unit-of-work-pattern.md), [0036](decisions/ADR-0036-change-tracking-strategy.md), [0037](decisions/ADR-0037-dependency-graph-algorithm.md), [0040](decisions/ADR-0040-partial-failure-handling.md) |
 | **Business Model** | [0050](decisions/ADR-0050-holder-lazy-loading-strategy.md), [0051](decisions/ADR-0051-custom-field-type-safety.md), [0052](decisions/ADR-0052-bidirectional-reference-caching.md), [0054](decisions/ADR-0054-cascading-custom-fields.md) |
 | **Hydration/Resolution** | [0068](decisions/ADR-0068-type-detection-strategy.md), [0069](decisions/ADR-0069-hydration-api-design.md), [0071](decisions/ADR-0071-resolution-ambiguity-handling.md), [0073](decisions/ADR-0073-batch-resolution-api-design.md) |
@@ -143,6 +157,9 @@
 | [VALIDATION-PROCESS-PIPELINE](testing/VALIDATION-PROCESS-PIPELINE.md) | Process Pipeline | PRD-PROCESS-PIPELINE | Invalidated |
 | [VP-WORKSPACE-PROJECT-REGISTRY](testing/VP-WORKSPACE-PROJECT-REGISTRY.md) | Workspace Project Registry | PRD-WORKSPACE-PROJECT-REGISTRY | APPROVED |
 | [VP-PIPELINE-AUTOMATION-ENHANCEMENT](testing/VP-PIPELINE-AUTOMATION-ENHANCEMENT.md) | Pipeline Automation Enhancement | PRD-PIPELINE-AUTOMATION-ENHANCEMENT | APPROVED |
+| [VALIDATION-WATERMARK-CACHE](validation/VALIDATION-WATERMARK-CACHE.md) | Watermark Cache (Parallel Fetch) | PRD-WATERMARK-CACHE | PASS |
+| [VP-CACHE-PERF-FETCH-PATH](validation/VP-CACHE-PERF-FETCH-PATH.md) | DataFrame Fetch Path Cache | PRD-CACHE-PERF-FETCH-PATH | PASS |
+| [VP-CACHE-OPTIMIZATION-P2](validation/VP-CACHE-OPTIMIZATION-P2.md) | Cache Optimization Phase 2 | PRD-CACHE-OPTIMIZATION-P2 | PASS |
 
 ---
 
@@ -156,6 +173,20 @@
 | [PROMPT-0-membership-detection](initiatives/PROMPT-0-membership-detection.md) | Membership Detection Initiative | Active |
 | [PROMPT-0-WORKSPACE-PROJECT-REGISTRY](requirements/PROMPT-0-WORKSPACE-PROJECT-REGISTRY.md) | Workspace Project Registry Initiative | Complete |
 | [PROMPT-0-PIPELINE-AUTOMATION-ENHANCEMENT](requirements/PROMPT-0-PIPELINE-AUTOMATION-ENHANCEMENT.md) | Pipeline Automation Enhancement Initiative | Active |
+| [PROMPT-MINUS-1-CACHE-PERFORMANCE-META](requirements/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md) | Cache Performance Meta-Initiative | Active |
+| [PROMPT-0-CACHE-PERF-FETCH-PATH](requirements/PROMPT-0-CACHE-PERF-FETCH-PATH.md) | P1: Fetch Path Investigation | Complete |
+| [PROMPT-0-CACHE-PERF-DETECTION](requirements/PROMPT-0-CACHE-PERF-DETECTION.md) | P2: Detection Flow Investigation | Active |
+| [PROMPT-0-CACHE-PERF-HYDRATION](requirements/PROMPT-0-CACHE-PERF-HYDRATION.md) | P3: Hydration Caching Investigation | Pending |
+| [PROMPT-0-CACHE-PERF-STORIES](requirements/PROMPT-0-CACHE-PERF-STORIES.md) | P4: Stories/Metrics Caching Investigation | Pending |
+| [PROMPT-0-CACHE-OPTIMIZATION-PHASE2](requirements/PROMPT-0-CACHE-OPTIMIZATION-PHASE2.md) | Cache Optimization Phase 2 - Root Cause Investigation | Complete |
+
+---
+
+## Initiative Reports
+
+| File | Description | Status |
+|------|-------------|--------|
+| [REPORT-CACHE-OPTIMIZATION-P2](reports/REPORT-CACHE-OPTIMIZATION-P2.md) | Cache Optimization Phase 2 Final Report | Complete |
 
 ---
 
@@ -171,6 +202,16 @@
 | [DISCOVERY-AUTOMATION-LAYER.md](analysis/DISCOVERY-AUTOMATION-LAYER.md) | Automation Layer discovery - extension points, fields | Complete |
 | [GAP-ANALYSIS-WORKSPACE-PROJECT-REGISTRY.md](analysis/GAP-ANALYSIS-WORKSPACE-PROJECT-REGISTRY.md) | Workspace Project Registry gap analysis | Complete |
 | [DISCOVERY-PIPELINE-AUTOMATION-ENHANCEMENT.md](analysis/DISCOVERY-PIPELINE-AUTOMATION-ENHANCEMENT.md) | Pipeline Automation Enhancement discovery - Session 1 | Complete |
+| [DISCOVERY-CACHE-PERF-FETCH-PATH.md](analysis/DISCOVERY-CACHE-PERF-FETCH-PATH.md) | Cache Performance - Fetch Path Investigation | Complete |
+| [DISCOVERY-CACHE-PERF-DETECTION.md](analysis/DISCOVERY-CACHE-PERF-DETECTION.md) | Cache Performance - Detection Caching Discovery | Complete |
+| [INTEGRATION-CACHE-PERF-P1-LEARNINGS.md](analysis/INTEGRATION-CACHE-PERF-P1-LEARNINGS.md) | P1 Learnings for P2-P4 Sub-Initiatives | Complete |
+| [DISCOVERY-CACHE-OPTIMIZATION-P2.md](analysis/DISCOVERY-CACHE-OPTIMIZATION-P2.md) | Cache Optimization P2 - Root Cause Analysis | Complete |
+| [hydration-cache-opt-fields-analysis.md](analysis/hydration-cache-opt-fields-analysis.md) | Hydration Cache opt_fields Analysis | Complete |
+| [multi-level-cache-hierarchy-analysis.md](analysis/multi-level-cache-hierarchy-analysis.md) | Multi-Level Cache Hierarchy Analysis | Complete |
+| [stories-cache-wiring-discovery.md](analysis/stories-cache-wiring-discovery.md) | Stories Cache Wiring Discovery | Complete |
+| [watermark-cache-discovery.md](analysis/watermark-cache-discovery.md) | Watermark Cache Discovery | Complete |
+| [GAP-ANALYSIS-CACHE-UTILIZATION.md](analysis/GAP-ANALYSIS-CACHE-UTILIZATION.md) | Cache Utilization Gap Analysis | Complete |
+| [GAP-ANALYSIS-CACHE-OPTIMIZATION-P2.md](analysis/GAP-ANALYSIS-CACHE-OPTIMIZATION-P2.md) | Cache Optimization P2 Gap Analysis | Complete |
 
 ---
 
@@ -225,5 +266,7 @@ Historical artifacts are preserved in `.archive/`:
 |------|-------------|----------------|
 | PRD | PRD-0024 | PRD-0025 |
 | TDD | TDD-0030 | TDD-0031 |
-| ADR | ADR-0114 | ADR-0115 |
+| ADR | ADR-0130 | ADR-0131 |
 | TP | TP-0009 | TP-0010 |
+
+**Note**: ADR-0119 and ADR-0120 have numbering conflicts (multiple files). Future ADRs should start at ADR-0131.

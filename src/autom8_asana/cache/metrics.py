@@ -63,6 +63,8 @@ class CacheMetrics:
         self._evictions = 0
         self._errors = 0
         self._promotions = 0
+        self._incremental_fetches = 0
+        self._full_fetches = 0
         self._total_latency_ms = 0.0
         self._operation_count = 0
         self._overflow_skips: dict[str, int] = {}
@@ -104,6 +106,26 @@ class CacheMetrics:
         """Total cache promotions (cold tier to hot tier)."""
         with self._lock:
             return self._promotions
+
+    @property
+    def incremental_fetches(self) -> int:
+        """Total incremental fetch operations (cache hit, partial fetch).
+
+        Incremental fetches occur when cached data exists and only new/updated
+        items are fetched from the API (e.g., stories since last_fetched).
+        """
+        with self._lock:
+            return self._incremental_fetches
+
+    @property
+    def full_fetches(self) -> int:
+        """Total full fetch operations (cache miss, complete fetch).
+
+        Full fetches occur when no cached data exists and all items
+        must be fetched from the API.
+        """
+        with self._lock:
+            return self._full_fetches
 
     @property
     def hit_rate(self) -> float:
@@ -376,6 +398,90 @@ class CacheMetrics:
             )
         )
 
+    def record_incremental_fetch(
+        self,
+        latency_ms: float,
+        key: str = "",
+        entry_type: str | None = None,
+        item_count: int | None = None,
+        new_item_count: int | None = None,
+        correlation_id: str | None = None,
+    ) -> None:
+        """Record an incremental fetch operation (cache hit, partial API fetch).
+
+        Incremental fetches occur when cached data exists and only new/updated
+        items are fetched from the API using a timestamp (e.g., stories 'since').
+
+        Args:
+            latency_ms: Operation latency in milliseconds.
+            key: Cache key involved (e.g., task_gid for stories).
+            entry_type: Entry type if applicable (e.g., "stories").
+            item_count: Total items after merge (cached + new).
+            new_item_count: Number of new items fetched incrementally.
+            correlation_id: Optional correlation ID for tracing.
+        """
+        with self._lock:
+            self._incremental_fetches += 1
+            self._total_latency_ms += latency_ms
+            self._operation_count += 1
+
+        metadata: dict[str, Any] = {}
+        if item_count is not None:
+            metadata["item_count"] = item_count
+        if new_item_count is not None:
+            metadata["new_item_count"] = new_item_count
+
+        self._emit_event(
+            CacheEvent(
+                event_type="incremental_fetch",
+                key=key,
+                entry_type=entry_type,
+                latency_ms=latency_ms,
+                correlation_id=correlation_id,
+                metadata=metadata,
+            )
+        )
+
+    def record_full_fetch(
+        self,
+        latency_ms: float,
+        key: str = "",
+        entry_type: str | None = None,
+        item_count: int | None = None,
+        correlation_id: str | None = None,
+    ) -> None:
+        """Record a full fetch operation (cache miss, complete API fetch).
+
+        Full fetches occur when no cached data exists and all items
+        must be fetched from the API.
+
+        Args:
+            latency_ms: Operation latency in milliseconds.
+            key: Cache key involved (e.g., task_gid for stories).
+            entry_type: Entry type if applicable (e.g., "stories").
+            item_count: Total items fetched.
+            correlation_id: Optional correlation ID for tracing.
+        """
+        with self._lock:
+            self._full_fetches += 1
+            self._total_latency_ms += latency_ms
+            self._operation_count += 1
+
+        metadata: dict[str, Any] = {}
+        if item_count is not None:
+            metadata["item_count"] = item_count
+
+        self._emit_event(
+            CacheEvent(
+                event_type="full_fetch",
+                key=key,
+                entry_type=entry_type,
+                latency_ms=latency_ms,
+                correlation_id=correlation_id,
+                metadata=metadata,
+            )
+        )
+
     def on_event(self, callback: Callable[[CacheEvent], None]) -> None:
         """Register callback for cache events.
 
@@ -405,6 +511,8 @@ class CacheMetrics:
             self._evictions = 0
             self._errors = 0
             self._promotions = 0
+            self._incremental_fetches = 0
+            self._full_fetches = 0
             self._total_latency_ms = 0.0
             self._operation_count = 0
             self._overflow_skips.clear()
@@ -416,6 +524,7 @@ class CacheMetrics:
             Dict containing all current metric values.
         """
         with self._lock:
+            total_fetches = self._incremental_fetches + self._full_fetches
             return {
                 "hits": self._hits,
                 "misses": self._misses,
@@ -423,6 +532,11 @@ class CacheMetrics:
                 "evictions": self._evictions,
                 "errors": self._errors,
                 "promotions": self._promotions,
+                "incremental_fetches": self._incremental_fetches,
+                "full_fetches": self._full_fetches,
+                "incremental_fetch_rate": self._incremental_fetches / total_fetches
+                if total_fetches > 0
+                else 0.0,
                 "hit_rate": self._hits / (self._hits + self._misses)
                 if (self._hits + self._misses) > 0
                 else 0.0,

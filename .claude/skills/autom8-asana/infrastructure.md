@@ -180,6 +180,58 @@ class CacheProtocol(Protocol):
 |---------|----------|
 | `InMemoryCache` | Default, single-process |
 | `RedisCache` | Multi-process, distributed |
+| `S3Cache` | Persistent, cross-session |
+
+### TaskCacheCoordinator
+
+For DataFrame builds, a specialized coordinator manages Task-level caching:
+
+```python
+from autom8_asana.dataframes.builders.task_cache import TaskCacheCoordinator
+
+coordinator = TaskCacheCoordinator(cache_provider)
+
+# Batch lookup (returns hits + miss GIDs)
+result = await coordinator.lookup_tasks_async(task_gids)
+# result.cached_tasks: list[Task]  - cache hits
+# result.miss_gids: list[str]      - GIDs not in cache
+
+# Populate after fetch
+await coordinator.populate_tasks_async(fetched_tasks)
+
+# Merge cached + fetched
+all_tasks = coordinator.merge_results(result.cached_tasks, fetched_tasks)
+```
+
+### Cache Population Strategy (ADR-0130)
+
+Cache population occurs at **builder level** after API fetch:
+
+```
+1. Enumerate GIDs (lightweight API call)
+2. Batch cache lookup
+3. Fetch only cache misses (targeted API calls)
+4. Populate cache with fetched tasks
+5. Return merged results
+```
+
+**Key Insight**: Population at builder level enables graceful degradation - cache failures never break the primary fetch path.
+
+### Path Selection
+
+| Cache State | Path | API Calls |
+|-------------|------|-----------|
+| Cold (0% hit) | `fetch_all()` | All sections |
+| Partial | `fetch_by_gids()` | Miss GIDs only |
+| Warm (100% hit) | Skip fetch | 0 (GID enum only) |
+
+### Performance Targets
+
+| Metric | Target | Achieved |
+|--------|--------|----------|
+| Warm fetch latency | <1s | <1s |
+| Cache hit rate | >90% | 100% on warm |
+| API calls (warm) | 0 | 0 |
 
 ---
 
