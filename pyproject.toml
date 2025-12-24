@@ -27,11 +27,10 @@ api = [
     "slowapi>=0.1.9",
     "structlog>=24.1.0",
 ]
-s2s = [
-    # S2S auth requires autom8y-auth SDK (TDD-S2S-001)
-    # Installed from CodeArtifact via UV_EXTRA_INDEX_URL in Docker build
+# auth: Platform authentication (JWT validation for S2S, OAuth client, etc.)
+auth = [
     "autom8y-auth>=0.1.0",
-    "python-jose[cryptography]>=3.3.0",  # For JWT parsing fallback
+    "python-jose[cryptography]>=3.3.0",
 ]
 dev = [
     "pytest>=7.0.0",
