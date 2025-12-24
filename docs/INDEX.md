@@ -1,7 +1,7 @@
 # Documentation Index
 
 > Central registry of all project documentation.
-> **Last Updated**: 2025-12-23
+> **Last Updated**: 2025-12-24
 
 ---
 
@@ -58,8 +58,10 @@
 | [PRD-CACHE-PERF-DETECTION](requirements/PRD-CACHE-PERF-DETECTION.md) | Detection Result Caching | Implemented |
 | [PRD-CACHE-PERF-STORIES](requirements/PRD-CACHE-PERF-STORIES.md) | Stories Client Incremental Cache | Implemented |
 | [PRD-CACHE-OPTIMIZATION-P2](requirements/PRD-CACHE-OPTIMIZATION-P2.md) | Cache Optimization Phase 2 - 10x Gap Fix | Implemented |
+| [PRD-CACHE-OPTIMIZATION-P3](requirements/PRD-CACHE-OPTIMIZATION-P3.md) | Cache Optimization Phase 3 - GID Enumeration Caching | Implemented |
 | [PRD-CACHE-PERF-HYDRATION](requirements/PRD-CACHE-PERF-HYDRATION.md) | Hydration Cache Optimization | Draft |
 | [PRD-WATERMARK-CACHE](requirements/PRD-WATERMARK-CACHE.md) | Watermark Cache (Parallel Fetch) | Implemented |
+| [PRD-CACHE-LIGHTWEIGHT-STALENESS](requirements/PRD-CACHE-LIGHTWEIGHT-STALENESS.md) | Lightweight Staleness Detection with Progressive TTL | Draft |
 
 ---
 
@@ -109,21 +111,23 @@
 | [TDD-CACHE-PERF-DETECTION](design/TDD-CACHE-PERF-DETECTION.md) | Detection Result Caching | PRD-CACHE-PERF-DETECTION | Implemented |
 | [TDD-CACHE-PERF-STORIES](design/TDD-CACHE-PERF-STORIES.md) | Stories Client Cache | PRD-CACHE-PERF-STORIES | Implemented |
 | [TDD-CACHE-OPTIMIZATION-P2](design/TDD-CACHE-OPTIMIZATION-P2.md) | Cache Optimization Phase 2 | PRD-CACHE-OPTIMIZATION-P2 | Implemented |
+| [TDD-CACHE-OPTIMIZATION-P3](design/TDD-CACHE-OPTIMIZATION-P3.md) | Cache Optimization Phase 3 - GID Enumeration | PRD-CACHE-OPTIMIZATION-P3 | Implemented |
 | [TDD-CACHE-PERF-HYDRATION](design/TDD-CACHE-PERF-HYDRATION.md) | Hydration Cache Optimization | PRD-CACHE-PERF-HYDRATION | Draft |
 | [TDD-WATERMARK-CACHE](design/TDD-WATERMARK-CACHE.md) | Watermark Cache (Parallel Fetch) | PRD-WATERMARK-CACHE | Implemented |
+| [TDD-CACHE-LIGHTWEIGHT-STALENESS](design/TDD-CACHE-LIGHTWEIGHT-STALENESS.md) | Lightweight Staleness Detection | PRD-CACHE-LIGHTWEIGHT-STALENESS | Draft |
 
 ---
 
 ## ADRs (Decisions)
 
-131 Architecture Decision Records: [ADR-0001](decisions/ADR-0001-protocol-extensibility.md) through [ADR-0130](decisions/ADR-0130-cache-population-location.md)
+135 Architecture Decision Records: [ADR-0001](decisions/ADR-0001-protocol-extensibility.md) through [ADR-0134](decisions/ADR-0134-staleness-check-integration-pattern.md)
 
 ### Key ADRs by Topic
 
 | Topic | ADRs |
 |-------|------|
 | **SDK Architecture** | [0001](decisions/ADR-0001-protocol-extensibility.md), [0002](decisions/ADR-0002-sync-wrapper-strategy.md), [0003](decisions/ADR-0003-asana-sdk-integration.md), [0004](decisions/ADR-0004-item-class-boundary.md), [0005](decisions/ADR-0005-pydantic-model-config.md) |
-| **Caching** | [0016](decisions/ADR-0016-cache-protocol-extension.md), [0017](decisions/ADR-0017-redis-backend-architecture.md), [0019](decisions/ADR-0019-staleness-detection-algorithm.md), [0026](decisions/ADR-0026-two-tier-cache-architecture.md), [0115](decisions/ADR-0115-parallel-section-fetch-strategy.md), [0116](decisions/ADR-0116-batch-cache-population-pattern.md), [0117](decisions/ADR-0117-post-commit-invalidation-hook.md), [0118](decisions/ADR-0118-rejection-multi-level-cache.md), [0119](decisions/ADR-0119-dataframe-task-cache-integration.md), [0123](decisions/ADR-0123-cache-provider-selection.md), [0124](decisions/ADR-0124-client-cache-pattern.md), [0125](decisions/ADR-0125-savesession-invalidation.md), [0126](decisions/ADR-0126-entity-ttl-resolution.md), [0127](decisions/ADR-0127-graceful-degradation.md), [0128](decisions/ADR-0128-hydration-opt-fields-normalization.md), [0129](decisions/ADR-0129-stories-client-cache-wiring.md), [0130](decisions/ADR-0130-cache-population-location.md) |
+| **Caching** | [0016](decisions/ADR-0016-cache-protocol-extension.md), [0017](decisions/ADR-0017-redis-backend-architecture.md), [0019](decisions/ADR-0019-staleness-detection-algorithm.md), [0026](decisions/ADR-0026-two-tier-cache-architecture.md), [0115](decisions/ADR-0115-parallel-section-fetch-strategy.md), [0116](decisions/ADR-0116-batch-cache-population-pattern.md), [0117](decisions/ADR-0117-post-commit-invalidation-hook.md), [0118](decisions/ADR-0118-rejection-multi-level-cache.md), [0119](decisions/ADR-0119-dataframe-task-cache-integration.md), [0123](decisions/ADR-0123-cache-provider-selection.md), [0124](decisions/ADR-0124-client-cache-pattern.md), [0125](decisions/ADR-0125-savesession-invalidation.md), [0126](decisions/ADR-0126-entity-ttl-resolution.md), [0127](decisions/ADR-0127-graceful-degradation.md), [0128](decisions/ADR-0128-hydration-opt-fields-normalization.md), [0129](decisions/ADR-0129-stories-client-cache-wiring.md), [0130](decisions/ADR-0130-cache-population-location.md), [0131](decisions/ADR-0131-gid-enumeration-cache-strategy.md), [0132](decisions/ADR-0132-batch-request-coalescing-strategy.md), [0133](decisions/ADR-0133-progressive-ttl-extension-algorithm.md), [0134](decisions/ADR-0134-staleness-check-integration-pattern.md) |
 | **Save Orchestration** | [0035](decisions/ADR-0035-unit-of-work-pattern.md), [0036](decisions/ADR-0036-change-tracking-strategy.md), [0037](decisions/ADR-0037-dependency-graph-algorithm.md), [0040](decisions/ADR-0040-partial-failure-handling.md) |
 | **Business Model** | [0050](decisions/ADR-0050-holder-lazy-loading-strategy.md), [0051](decisions/ADR-0051-custom-field-type-safety.md), [0052](decisions/ADR-0052-bidirectional-reference-caching.md), [0054](decisions/ADR-0054-cascading-custom-fields.md) |
 | **Hydration/Resolution** | [0068](decisions/ADR-0068-type-detection-strategy.md), [0069](decisions/ADR-0069-hydration-api-design.md), [0071](decisions/ADR-0071-resolution-ambiguity-handling.md), [0073](decisions/ADR-0073-batch-resolution-api-design.md) |
@@ -160,6 +164,7 @@
 | [VALIDATION-WATERMARK-CACHE](validation/VALIDATION-WATERMARK-CACHE.md) | Watermark Cache (Parallel Fetch) | PRD-WATERMARK-CACHE | PASS |
 | [VP-CACHE-PERF-FETCH-PATH](validation/VP-CACHE-PERF-FETCH-PATH.md) | DataFrame Fetch Path Cache | PRD-CACHE-PERF-FETCH-PATH | PASS |
 | [VP-CACHE-OPTIMIZATION-P2](validation/VP-CACHE-OPTIMIZATION-P2.md) | Cache Optimization Phase 2 | PRD-CACHE-OPTIMIZATION-P2 | PASS |
+| [VP-CACHE-OPTIMIZATION-P3](validation/VP-CACHE-OPTIMIZATION-P3.md) | Cache Optimization Phase 3 - GID Enumeration | PRD-CACHE-OPTIMIZATION-P3 | PASS |
 
 ---
 
@@ -179,6 +184,7 @@
 | [PROMPT-0-CACHE-PERF-HYDRATION](requirements/PROMPT-0-CACHE-PERF-HYDRATION.md) | P3: Hydration Caching Investigation | Pending |
 | [PROMPT-0-CACHE-PERF-STORIES](requirements/PROMPT-0-CACHE-PERF-STORIES.md) | P4: Stories/Metrics Caching Investigation | Pending |
 | [PROMPT-0-CACHE-OPTIMIZATION-PHASE2](requirements/PROMPT-0-CACHE-OPTIMIZATION-PHASE2.md) | Cache Optimization Phase 2 - Root Cause Investigation | Complete |
+| [PROMPT-0-CACHE-OPTIMIZATION-PHASE3](requirements/PROMPT-0-CACHE-OPTIMIZATION-PHASE3.md) | Cache Optimization Phase 3 - GID Enumeration Caching | Complete |
 
 ---
 
@@ -266,7 +272,7 @@ Historical artifacts are preserved in `.archive/`:
 |------|-------------|----------------|
 | PRD | PRD-0024 | PRD-0025 |
 | TDD | TDD-0030 | TDD-0031 |
-| ADR | ADR-0130 | ADR-0131 |
+| ADR | ADR-0134 | ADR-0135 |
 | TP | TP-0009 | TP-0010 |
 
-**Note**: ADR-0119 and ADR-0120 have numbering conflicts (multiple files). Future ADRs should start at ADR-0131.
+**Note**: ADR-0119 and ADR-0120 have numbering conflicts (multiple files). Future ADRs should start at ADR-0135.

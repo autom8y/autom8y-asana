@@ -99,17 +99,8 @@ class TaskCacheCoordinator:
         >>> result = coordinator.merge_results(gids, cached, fetched)
     """
 
-    # Default TTLs per entity type (same as TasksClient._resolve_entity_ttl)
-    _ENTITY_TTLS: dict[str, int] = {
-        "business": 3600,  # 1 hour
-        "contact": 900,    # 15 min
-        "unit": 900,       # 15 min
-        "offer": 180,      # 3 min
-        "process": 60,     # 1 min
-        "address": 3600,   # 1 hour
-        "hours": 3600,     # 1 hour
-    }
-    _DEFAULT_TTL: int = 300  # 5 min for generic tasks
+    # TTLs imported from canonical source in config.py
+    # DO NOT define TTL values here - use the canonical constants
 
     def __init__(
         self,
@@ -386,7 +377,7 @@ class TaskCacheCoordinator:
     def _resolve_entity_ttl(self, data: dict[str, Any]) -> int:
         """Resolve TTL based on entity type detection.
 
-        Mirrors TasksClient._resolve_entity_ttl() pattern for consistency.
+        Uses canonical DEFAULT_ENTITY_TTLS from config.py for consistency.
 
         Args:
             data: Task data dict.
@@ -394,10 +385,12 @@ class TaskCacheCoordinator:
         Returns:
             TTL in seconds.
         """
+        from autom8_asana.config import DEFAULT_ENTITY_TTLS
+
         entity_type = self._detect_entity_type(data)
 
-        if entity_type and entity_type.lower() in self._ENTITY_TTLS:
-            return self._ENTITY_TTLS[entity_type.lower()]
+        if entity_type and entity_type.lower() in DEFAULT_ENTITY_TTLS:
+            return DEFAULT_ENTITY_TTLS[entity_type.lower()]
 
         return self._default_ttl
 

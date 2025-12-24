@@ -45,6 +45,7 @@ class TasksClient(BaseClient):
         cache_provider: Any | None = None,
         log_provider: Any | None = None,
         client: AsanaClient | None = None,
+        staleness_coordinator: Any | None = None,
     ) -> None:
         """Initialize TasksClient.
 
@@ -55,6 +56,9 @@ class TasksClient(BaseClient):
             cache_provider: Optional cache provider
             log_provider: Optional log provider
             client: Full AsanaClient instance (for SaveSession support)
+            staleness_coordinator: Optional staleness check coordinator for
+                lightweight staleness detection. Per ADR-0134: When provided,
+                enables staleness-aware cache lookups for get_async().
         """
         super().__init__(
             http=http,
@@ -62,6 +66,7 @@ class TasksClient(BaseClient):
             auth_provider=auth_provider,
             cache_provider=cache_provider,
             log_provider=log_provider,
+            staleness_coordinator=staleness_coordinator,
         )
         self._client = client
 
@@ -101,6 +106,7 @@ class TasksClient(BaseClient):
         Per FR-CLIENT-002: Uses task GID as cache key with EntryType.TASK.
         Per FR-CLIENT-004: Respects TTL expiration.
         Per FR-CLIENT-007: raw=True returns cached dict directly.
+        Per ADR-0134: Uses staleness-aware cache lookup when coordinator available.
 
         Args:
             task_gid: Task GID
@@ -118,8 +124,15 @@ class TasksClient(BaseClient):
 
         validate_gid(task_gid, "task_gid")
 
-        # FR-CLIENT-001: Check cache first
-        cached_entry = self._cache_get(task_gid, EntryType.TASK)
+        # Per ADR-0134: Use staleness-aware cache if coordinator available
+        if self._staleness_coordinator is not None:
+            cached_entry = await self._cache_get_with_staleness_async(
+                task_gid, EntryType.TASK
+            )
+        else:
+            # FR-CLIENT-001: Check cache first (standard path)
+            cached_entry = self._cache_get(task_gid, EntryType.TASK)
+
         if cached_entry is not None:
             # Per NFR-OBS-001: Log cache hit at DEBUG level
             logger.debug(
@@ -186,22 +199,15 @@ class TasksClient(BaseClient):
                     return cache_config.ttl.default_ttl
                 return 300
 
-        # Priority 2: Fallback to hardcoded defaults (when CacheConfig unavailable)
-        entity_ttls = {
-            "business": 3600,
-            "contact": 900,
-            "unit": 900,
-            "offer": 180,
-            "process": 60,
-            "address": 3600,
-            "hours": 3600,
-        }
+        # Priority 2: Fallback to canonical defaults (when CacheConfig unavailable)
+        # Import here to avoid circular import at module load
+        from autom8_asana.config import DEFAULT_ENTITY_TTLS, DEFAULT_TTL
 
-        if entity_type and entity_type.lower() in entity_ttls:
-            return entity_ttls[entity_type.lower()]
+        if entity_type and entity_type.lower() in DEFAULT_ENTITY_TTLS:
+            return DEFAULT_ENTITY_TTLS[entity_type.lower()]
 
         # FR-TTL-005: Default TTL for generic tasks
-        return 300
+        return DEFAULT_TTL
 
     def _detect_entity_type(self, data: dict[str, Any]) -> str | None:
         """Detect entity type from task data.

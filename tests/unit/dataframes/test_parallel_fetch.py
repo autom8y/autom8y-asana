@@ -982,3 +982,412 @@ class TestFetchByGids:
 
         assert len(result.tasks) == 0
         assert result.sections_fetched == 0
+
+
+# =============================================================================
+# TestGidEnumerationCache (PRD-CACHE-OPT-P3)
+# =============================================================================
+
+
+class TestGidEnumerationCache:
+    """Tests for GID enumeration caching in ParallelSectionFetcher.
+
+    Per PRD-CACHE-OPT-P3 / ADR-0131: Tests for section list caching and
+    GID enumeration caching with graceful degradation.
+    """
+
+    # -------------------------------------------------------------------------
+    # Section List Cache Tests
+    # -------------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_section_list_cache_hit(
+        self,
+        mock_sections: list[Section],
+        mock_tasks_by_section: dict[str, list[Task]],
+    ) -> None:
+        """Test section list is returned from cache on hit (FR-SECTION-001/002)."""
+        from datetime import datetime, timezone
+        from unittest.mock import MagicMock
+
+        from autom8_asana.cache.entry import CacheEntry, EntryType
+
+        sections_client = create_mock_sections_client(mock_sections)
+        tasks_client = create_mock_tasks_client(mock_tasks_by_section)
+
+        # Create mock cache provider with cached sections
+        mock_cache = MagicMock()
+        cached_entry = CacheEntry(
+            key="project:proj123:sections",
+            data={
+                "sections": [
+                    {"gid": "section_1", "name": "Section 1"},
+                    {"gid": "section_2", "name": "Section 2"},
+                ]
+            },
+            entry_type=EntryType.PROJECT_SECTIONS,
+            version=datetime.now(timezone.utc),
+            cached_at=datetime.now(timezone.utc),
+            ttl=1800,
+        )
+        mock_cache.get_versioned = MagicMock(return_value=cached_entry)
+
+        fetcher = ParallelSectionFetcher(
+            sections_client=sections_client,
+            tasks_client=tasks_client,
+            project_gid="proj123",
+            cache_provider=mock_cache,
+        )
+
+        # Call _list_sections directly
+        sections = await fetcher._list_sections()
+
+        # Verify cache was checked
+        mock_cache.get_versioned.assert_called_once_with(
+            "project:proj123:sections", EntryType.PROJECT_SECTIONS
+        )
+
+        # Verify API was NOT called (cache hit)
+        sections_client.list_for_project_async.assert_not_called()
+
+        # Verify sections from cache
+        assert len(sections) == 2
+        assert sections[0].gid == "section_1"
+        assert sections[1].gid == "section_2"
+
+    @pytest.mark.asyncio
+    async def test_section_list_cache_miss_populates(
+        self,
+        mock_sections: list[Section],
+        mock_tasks_by_section: dict[str, list[Task]],
+    ) -> None:
+        """Test section list cache is populated on miss (FR-SECTION-003)."""
+        from unittest.mock import MagicMock
+
+        from autom8_asana.cache.entry import EntryType
+
+        sections_client = create_mock_sections_client(mock_sections)
+        tasks_client = create_mock_tasks_client(mock_tasks_by_section)
+
+        # Create mock cache provider (cache miss)
+        mock_cache = MagicMock()
+        mock_cache.get_versioned = MagicMock(return_value=None)
+        mock_cache.set_versioned = MagicMock()
+
+        fetcher = ParallelSectionFetcher(
+            sections_client=sections_client,
+            tasks_client=tasks_client,
+            project_gid="proj123",
+            cache_provider=mock_cache,
+        )
+
+        # Call _list_sections
+        sections = await fetcher._list_sections()
+
+        # Verify API was called (cache miss)
+        sections_client.list_for_project_async.assert_called_once_with("proj123")
+
+        # Verify cache was populated
+        mock_cache.set_versioned.assert_called_once()
+        call_args = mock_cache.set_versioned.call_args
+        assert call_args[0][0] == "project:proj123:sections"
+        entry = call_args[0][1]
+        assert entry.entry_type == EntryType.PROJECT_SECTIONS
+        assert entry.ttl == 1800  # 30 minutes
+        assert len(entry.data["sections"]) == 3
+
+    @pytest.mark.asyncio
+    async def test_section_list_cache_key_format(self) -> None:
+        """Test section list cache key format (FR-SECTION-004)."""
+        from unittest.mock import MagicMock
+
+        sections_client = MagicMock()
+        tasks_client = MagicMock()
+
+        fetcher = ParallelSectionFetcher(
+            sections_client=sections_client,
+            tasks_client=tasks_client,
+            project_gid="1234567890",
+        )
+
+        key = fetcher._make_cache_key("sections")
+        assert key == "project:1234567890:sections"
+
+    # -------------------------------------------------------------------------
+    # GID Enumeration Cache Tests
+    # -------------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_gid_enumeration_cache_hit(
+        self,
+        mock_sections: list[Section],
+        mock_tasks_by_section: dict[str, list[Task]],
+    ) -> None:
+        """Test GID enumeration is returned from cache on hit (FR-GID-001/002)."""
+        from datetime import datetime, timezone
+        from unittest.mock import MagicMock
+
+        from autom8_asana.cache.entry import CacheEntry, EntryType
+
+        sections_client = create_mock_sections_client(mock_sections)
+        tasks_client = create_mock_tasks_client(mock_tasks_by_section)
+
+        # Create mock cache provider with cached GID enumeration
+        mock_cache = MagicMock()
+        cached_entry = CacheEntry(
+            key="project:proj123:gid_enumeration",
+            data={
+                "section_gids": {
+                    "section_1": ["task_1", "task_2"],
+                    "section_2": ["task_3"],
+                    "section_3": [],
+                }
+            },
+            entry_type=EntryType.GID_ENUMERATION,
+            version=datetime.now(timezone.utc),
+            cached_at=datetime.now(timezone.utc),
+            ttl=300,
+        )
+        mock_cache.get_versioned = MagicMock(return_value=cached_entry)
+
+        fetcher = ParallelSectionFetcher(
+            sections_client=sections_client,
+            tasks_client=tasks_client,
+            project_gid="proj123",
+            cache_provider=mock_cache,
+        )
+
+        # Call fetch_section_task_gids_async
+        result = await fetcher.fetch_section_task_gids_async()
+
+        # Verify cache was checked for GID enumeration
+        mock_cache.get_versioned.assert_called_once_with(
+            "project:proj123:gid_enumeration", EntryType.GID_ENUMERATION
+        )
+
+        # Verify API was NOT called (cache hit)
+        sections_client.list_for_project_async.assert_not_called()
+        tasks_client.list_async.assert_not_called()
+
+        # Verify result from cache
+        assert len(result) == 3
+        assert result["section_1"] == ["task_1", "task_2"]
+        assert result["section_2"] == ["task_3"]
+        assert result["section_3"] == []
+
+    @pytest.mark.asyncio
+    async def test_gid_enumeration_cache_miss_populates(
+        self,
+        mock_sections: list[Section],
+        mock_tasks_by_section: dict[str, list[Task]],
+    ) -> None:
+        """Test GID enumeration cache is populated on miss (FR-GID-003)."""
+        from datetime import datetime, timezone
+        from unittest.mock import MagicMock
+
+        from autom8_asana.cache.entry import CacheEntry, EntryType
+
+        sections_client = create_mock_sections_client(mock_sections)
+        tasks_client = create_mock_tasks_client(mock_tasks_by_section)
+
+        # Create mock cache provider - GID cache miss, section cache hit
+        mock_cache = MagicMock()
+        section_cache_entry = CacheEntry(
+            key="project:proj123:sections",
+            data={
+                "sections": [
+                    {"gid": "section_1", "name": "Section 1"},
+                    {"gid": "section_2", "name": "Section 2"},
+                    {"gid": "section_3", "name": "Section 3"},
+                ]
+            },
+            entry_type=EntryType.PROJECT_SECTIONS,
+            version=datetime.now(timezone.utc),
+            cached_at=datetime.now(timezone.utc),
+            ttl=1800,
+        )
+
+        def get_versioned_side_effect(key: str, entry_type: EntryType):
+            if entry_type == EntryType.GID_ENUMERATION:
+                return None  # Cache miss for GID enumeration
+            elif entry_type == EntryType.PROJECT_SECTIONS:
+                return section_cache_entry  # Cache hit for sections
+            return None
+
+        mock_cache.get_versioned = MagicMock(side_effect=get_versioned_side_effect)
+        mock_cache.set_versioned = MagicMock()
+
+        fetcher = ParallelSectionFetcher(
+            sections_client=sections_client,
+            tasks_client=tasks_client,
+            project_gid="proj123",
+            cache_provider=mock_cache,
+        )
+
+        # Call fetch_section_task_gids_async
+        result = await fetcher.fetch_section_task_gids_async()
+
+        # Verify GID enumeration cache was populated
+        # Find the call that set GID enumeration
+        gid_set_calls = [
+            call for call in mock_cache.set_versioned.call_args_list
+            if "gid_enumeration" in str(call)
+        ]
+        assert len(gid_set_calls) == 1
+
+        entry = gid_set_calls[0][0][1]
+        assert entry.entry_type == EntryType.GID_ENUMERATION
+        assert entry.ttl == 300  # 5 minutes
+        assert "section_gids" in entry.data
+
+    @pytest.mark.asyncio
+    async def test_gid_enumeration_cache_key_format(self) -> None:
+        """Test GID enumeration cache key format (FR-GID-004)."""
+        from unittest.mock import MagicMock
+
+        sections_client = MagicMock()
+        tasks_client = MagicMock()
+
+        fetcher = ParallelSectionFetcher(
+            sections_client=sections_client,
+            tasks_client=tasks_client,
+            project_gid="1234567890",
+        )
+
+        key = fetcher._make_cache_key("gid_enumeration")
+        assert key == "project:1234567890:gid_enumeration"
+
+    # -------------------------------------------------------------------------
+    # Graceful Degradation Tests
+    # -------------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_cache_failure_graceful_degradation(
+        self,
+        mock_sections: list[Section],
+        mock_tasks_by_section: dict[str, list[Task]],
+    ) -> None:
+        """Test cache failures don't prevent operation (FR-DEGRADE-001/002)."""
+        from unittest.mock import MagicMock
+
+        sections_client = create_mock_sections_client(mock_sections)
+        tasks_client = create_mock_tasks_client(mock_tasks_by_section)
+
+        # Create mock cache provider that throws on all operations
+        mock_cache = MagicMock()
+        mock_cache.get_versioned = MagicMock(side_effect=Exception("Cache unavailable"))
+        mock_cache.set_versioned = MagicMock(side_effect=Exception("Cache write failed"))
+
+        fetcher = ParallelSectionFetcher(
+            sections_client=sections_client,
+            tasks_client=tasks_client,
+            project_gid="proj123",
+            cache_provider=mock_cache,
+        )
+
+        # Should NOT raise - operation should complete via API
+        result = await fetcher.fetch_section_task_gids_async()
+
+        # Verify result is valid (from API, not cache)
+        assert len(result) == 3
+        assert "section_1" in result
+        assert "section_2" in result
+        assert "section_3" in result
+
+    @pytest.mark.asyncio
+    async def test_cache_provider_none_bypasses_cache(
+        self,
+        mock_sections: list[Section],
+        mock_tasks_by_section: dict[str, list[Task]],
+    ) -> None:
+        """Test cache_provider=None bypasses caching entirely (FR-DEGRADE-003)."""
+        sections_client = create_mock_sections_client(mock_sections)
+        tasks_client = create_mock_tasks_client(mock_tasks_by_section)
+
+        fetcher = ParallelSectionFetcher(
+            sections_client=sections_client,
+            tasks_client=tasks_client,
+            project_gid="proj123",
+            cache_provider=None,  # No cache provider
+        )
+
+        # Should work without cache
+        result = await fetcher.fetch_section_task_gids_async()
+
+        # Verify API was called
+        sections_client.list_for_project_async.assert_called_once_with("proj123")
+
+        # Verify result is valid
+        assert len(result) == 3
+
+    @pytest.mark.asyncio
+    async def test_cache_errors_logged_as_warnings(
+        self,
+        mock_sections: list[Section],
+        mock_tasks_by_section: dict[str, list[Task]],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Test cache errors are logged as warnings (FR-DEGRADE-004)."""
+        import logging
+        from unittest.mock import MagicMock
+
+        sections_client = create_mock_sections_client(mock_sections)
+        tasks_client = create_mock_tasks_client(mock_tasks_by_section)
+
+        # Create mock cache provider that throws
+        mock_cache = MagicMock()
+        mock_cache.get_versioned = MagicMock(side_effect=Exception("Test error"))
+        mock_cache.set_versioned = MagicMock(side_effect=Exception("Write error"))
+
+        fetcher = ParallelSectionFetcher(
+            sections_client=sections_client,
+            tasks_client=tasks_client,
+            project_gid="proj123",
+            cache_provider=mock_cache,
+        )
+
+        with caplog.at_level(logging.WARNING):
+            await fetcher.fetch_section_task_gids_async()
+
+        # Verify warning was logged
+        warning_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warning_messages) >= 1
+        assert any("cache" in msg.lower() for msg in warning_messages)
+
+    # -------------------------------------------------------------------------
+    # TTL Constant Tests
+    # -------------------------------------------------------------------------
+
+    def test_ttl_constants_defined(self) -> None:
+        """Test TTL constants are defined per PRD specification."""
+        assert ParallelSectionFetcher._SECTIONS_TTL == 1800  # 30 minutes
+        assert ParallelSectionFetcher._GID_ENUM_TTL == 300   # 5 minutes
+
+    # -------------------------------------------------------------------------
+    # Backward Compatibility Tests
+    # -------------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_backward_compatible_without_cache_provider(
+        self,
+        mock_sections: list[Section],
+        mock_tasks_by_section: dict[str, list[Task]],
+    ) -> None:
+        """Test existing code works without cache_provider (backward compat)."""
+        sections_client = create_mock_sections_client(mock_sections)
+        tasks_client = create_mock_tasks_client(mock_tasks_by_section)
+
+        # Create fetcher WITHOUT cache_provider (existing usage pattern)
+        fetcher = ParallelSectionFetcher(
+            sections_client=sections_client,
+            tasks_client=tasks_client,
+            project_gid="proj123",
+            max_concurrent=8,
+        )
+
+        # All operations should work
+        result = await fetcher.fetch_all()
+        assert len(result.tasks) == 3
+
+        gid_result = await fetcher.fetch_section_task_gids_async()
+        assert len(gid_result) == 3

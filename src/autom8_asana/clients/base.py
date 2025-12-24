@@ -1,6 +1,7 @@
 """Base client class for all resource clients.
 
 Per TDD-CACHE-INTEGRATION Section 4.4: Includes cache helper methods.
+Per ADR-0134: Includes staleness coordinator integration.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from autom8_asana.cache.entry import CacheEntry, EntryType
+    from autom8_asana.cache.staleness_coordinator import StalenessCheckCoordinator
     from autom8_asana.config import AsanaConfig
     from autom8_asana.protocols.auth import AuthProvider
     from autom8_asana.protocols.cache import CacheProvider
@@ -38,6 +40,7 @@ class BaseClient:
         auth_provider: AuthProvider,
         cache_provider: CacheProvider | None = None,
         log_provider: LogProvider | None = None,
+        staleness_coordinator: "StalenessCheckCoordinator | None" = None,
     ) -> None:
         """Initialize base client.
 
@@ -47,12 +50,17 @@ class BaseClient:
             auth_provider: Authentication provider
             cache_provider: Optional cache provider
             log_provider: Optional log provider
+            staleness_coordinator: Optional staleness check coordinator for
+                lightweight staleness detection. Per ADR-0134: When provided,
+                enables staleness-aware cache lookups that can extend TTLs
+                for unchanged entries.
         """
         self._http = http
         self._config = config
         self._auth = auth_provider
         self._cache = cache_provider
         self._log = log_provider
+        self._staleness_coordinator = staleness_coordinator
 
     def _build_opt_fields(self, opt_fields: list[str] | None) -> dict[str, Any]:
         """Build opt_fields query parameter.
@@ -231,3 +239,100 @@ class BaseClient:
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
+
+    # --- Staleness-Aware Cache Helper (per ADR-0134) ---
+
+    async def _cache_get_with_staleness_async(
+        self,
+        key: str,
+        entry_type: "EntryType",
+    ) -> "CacheEntry | None":
+        """Check cache with staleness checking for expired entries.
+
+        Per ADR-0134: Enhanced cache lookup that performs lightweight
+        staleness checks on expired entries before returning cache miss.
+
+        Flow:
+        1. Check cache for entry
+        2. If not found -> return None (cache miss)
+        3. If not expired -> return entry (cache hit)
+        4. If expired AND staleness check supported:
+           a. Queue for batch modified_at check
+           b. If unchanged -> extend TTL, return entry
+           c. If changed -> return None (caller fetches)
+        5. If expired AND staleness check not supported -> return None
+
+        Args:
+            key: Cache key (typically task GID).
+            entry_type: Type of cache entry.
+
+        Returns:
+            CacheEntry if hit or unchanged, None if miss or changed.
+        """
+        from autom8_asana.cache.entry import EntryType as ET
+
+        if self._cache is None:
+            return None
+
+        try:
+            entry = self._cache.get_versioned(key, entry_type)
+
+            if entry is None:
+                logger.debug(
+                    "cache_miss",
+                    extra={"entry_type": entry_type.value, "key": key},
+                )
+                return None
+
+            if not entry.is_expired():
+                logger.debug(
+                    "cache_hit",
+                    extra={"entry_type": entry_type.value, "key": key},
+                )
+                return entry
+
+            # Entry expired - attempt staleness check if coordinator available
+            if self._staleness_coordinator is not None:
+                # Only check types with modified_at (per ADR-0134)
+                if entry_type in (ET.TASK, ET.PROJECT):
+                    try:
+                        result = await self._staleness_coordinator.check_and_get_async(
+                            entry
+                        )
+                        if result is not None:
+                            logger.debug(
+                                "staleness_check_unchanged",
+                                extra={
+                                    "entry_type": entry_type.value,
+                                    "key": key,
+                                    "new_ttl": result.ttl,
+                                },
+                            )
+                            return result
+                        logger.debug(
+                            "staleness_check_changed",
+                            extra={"entry_type": entry_type.value, "key": key},
+                        )
+                    except Exception as exc:
+                        # Per ADR-0127: Graceful degradation
+                        logger.warning(
+                            "staleness_check_failed",
+                            extra={
+                                "entry_type": entry_type.value,
+                                "key": key,
+                                "error": str(exc),
+                            },
+                        )
+
+            return None
+
+        except Exception as exc:
+            logger.warning(
+                "cache_get_failed",
+                extra={
+                    "entry_type": entry_type.value,
+                    "key": key,
+                    "error": str(exc),
+                },
+            )
+            return None

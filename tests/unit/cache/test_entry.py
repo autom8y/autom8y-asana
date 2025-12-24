@@ -20,6 +20,18 @@ class TestEntryType:
         assert EntryType.ATTACHMENTS.value == "attachments"
         assert EntryType.DATAFRAME.value == "dataframe"
 
+    def test_entry_type_project_sections_exists(self) -> None:
+        """Verify PROJECT_SECTIONS entry type exists (FR-CACHE-001)."""
+        assert EntryType.PROJECT_SECTIONS.value == "project_sections"
+        assert isinstance(EntryType.PROJECT_SECTIONS, str)
+        assert EntryType("project_sections") == EntryType.PROJECT_SECTIONS
+
+    def test_entry_type_gid_enumeration_exists(self) -> None:
+        """Verify GID_ENUMERATION entry type exists (FR-CACHE-002)."""
+        assert EntryType.GID_ENUMERATION.value == "gid_enumeration"
+        assert isinstance(EntryType.GID_ENUMERATION, str)
+        assert EntryType("gid_enumeration") == EntryType.GID_ENUMERATION
+
     def test_entry_type_is_string_enum(self) -> None:
         """Verify EntryType is a string enum."""
         assert isinstance(EntryType.TASK, str)

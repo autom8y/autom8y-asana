@@ -24,13 +24,19 @@ class EntryType(str, Enum):
     DATAFRAME = "dataframe"
 
     # Per TDD-CACHE-UTILIZATION: New entry types for client caching
-    PROJECT = "project"  # TTL: 900s (15 min), has modified_at
-    SECTION = "section"  # TTL: 1800s (30 min), no modified_at
-    USER = "user"  # TTL: 3600s (1 hour), no modified_at
-    CUSTOM_FIELD = "custom_field"  # TTL: 1800s (30 min), no modified_at
+    # Note: TTLs are NOT enforced here - they are resolved at cache time
+    # via CacheConfig.get_entity_ttl() or DEFAULT_ENTITY_TTLS in config.py.
+    PROJECT = "project"      # has modified_at
+    SECTION = "section"      # no modified_at
+    USER = "user"            # no modified_at
+    CUSTOM_FIELD = "custom_field"  # no modified_at
 
     # Per PRD-CACHE-PERF-DETECTION: Detection result caching
-    DETECTION = "detection"  # TTL: 300s (5 min), uses task.modified_at
+    DETECTION = "detection"  # uses task.modified_at
+
+    # Per PRD-CACHE-OPT-P3 / ADR-0131: GID enumeration caching
+    PROJECT_SECTIONS = "project_sections"  # TTL: 1800s (30 min)
+    GID_ENUMERATION = "gid_enumeration"    # TTL: 300s (5 min)
 
 
 @dataclass(frozen=True)

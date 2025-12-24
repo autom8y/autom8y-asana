@@ -320,6 +320,7 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
                     project_gid=project_gid,
                     max_concurrent=max_concurrent,
                     opt_fields=_BASE_OPT_FIELDS,
+                    cache_provider=task_cache_provider,  # Per ADR-0131: GID enumeration caching
                 )
 
                 # TDD-CACHE-PERF-FETCH-PATH: Two-phase cache strategy

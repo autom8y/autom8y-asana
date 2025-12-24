@@ -4,15 +4,20 @@ Per TDD-WATERMARK-CACHE Phase 1: Provides parallel task fetching across
 project sections to reduce cold-start latency from 52-59s to <10s.
 
 Per ADR-0115: Uses section-parallel fetch with semaphore control.
+
+Per PRD-CACHE-OPT-P3 / ADR-0131: GID enumeration caching for 10x speedup.
 """
 
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, ClassVar
 
+from autom8_asana.cache.entry import CacheEntry, EntryType
 from autom8_asana.dataframes.exceptions import DataFrameError
 
 if TYPE_CHECKING:
@@ -20,6 +25,9 @@ if TYPE_CHECKING:
     from autom8_asana.clients.tasks import TasksClient
     from autom8_asana.models.section import Section
     from autom8_asana.models.task import Task
+    from autom8_asana.protocols.cache import CacheProvider
+
+logger = logging.getLogger(__name__)
 
 
 class ParallelFetchError(DataFrameError):
@@ -104,7 +112,12 @@ class ParallelSectionFetcher:
     project_gid: str
     max_concurrent: int = 8
     opt_fields: list[str] | None = None
+    cache_provider: CacheProvider | None = None  # Per ADR-0131: GID enumeration caching
     _api_call_count: int = field(default=0, init=False, repr=False)
+
+    # TTL constants per PRD-CACHE-OPT-P3
+    _SECTIONS_TTL: ClassVar[int] = 1800  # 30 minutes
+    _GID_ENUM_TTL: ClassVar[int] = 300   # 5 minutes
 
     async def fetch_all(self) -> FetchResult:
         """Fetch all tasks via parallel section fetch.
@@ -187,15 +200,149 @@ class ParallelSectionFetcher:
         )
 
     async def _list_sections(self) -> list[Section]:
-        """List all sections in the project.
+        """List all sections in the project with caching.
+
+        Per FR-SECTION-001/002/003: Checks cache before API call,
+        populates cache on miss.
 
         Returns:
             List of Section objects.
         """
+        # FR-SECTION-001: Check cache first
+        cached_sections = self._get_cached_sections()
+        if cached_sections is not None:
+            return cached_sections
+
+        # Cache miss - fetch from API
         sections: list[Section] = await self.sections_client.list_for_project_async(
             self.project_gid
         ).collect()
+
+        # FR-SECTION-003: Populate cache on miss
+        self._cache_sections(sections)
+
         return sections
+
+    def _make_cache_key(self, suffix: str) -> str:
+        """Generate cache key for this project.
+
+        Args:
+            suffix: Key suffix ("sections" or "gid_enumeration")
+
+        Returns:
+            Formatted cache key, e.g., "project:1234567890:sections"
+        """
+        return f"project:{self.project_gid}:{suffix}"
+
+    def _get_cached_sections(self) -> list[Section] | None:
+        """Attempt to retrieve sections from cache.
+
+        Per FR-DEGRADE-001: Graceful degradation on cache failure.
+        Per FR-DEGRADE-003: When cache_provider=None, bypass caching entirely.
+
+        Returns:
+            Cached sections if hit and not expired, None on miss or error.
+        """
+        if self.cache_provider is None:
+            return None
+
+        try:
+            key = self._make_cache_key("sections")
+            entry = self.cache_provider.get_versioned(key, EntryType.PROJECT_SECTIONS)
+
+            if entry is None:
+                logger.debug(
+                    "section_list_cache_miss",
+                    extra={"project_gid": self.project_gid, "reason": "not_found"},
+                )
+                return None
+
+            if entry.is_expired():
+                logger.debug(
+                    "section_list_cache_miss",
+                    extra={"project_gid": self.project_gid, "reason": "expired"},
+                )
+                return None
+
+            # Convert cached data back to Section objects
+            from autom8_asana.models.section import Section
+
+            sections = [
+                Section(gid=s["gid"], name=s["name"])
+                for s in entry.data.get("sections", [])
+            ]
+
+            logger.debug(
+                "section_list_cache_hit",
+                extra={
+                    "project_gid": self.project_gid,
+                    "section_count": len(sections),
+                    "api_calls_saved": 1,
+                },
+            )
+            return sections
+
+        except Exception as e:
+            # FR-DEGRADE-001: Graceful degradation
+            logger.warning(
+                "section_list_cache_lookup_failed",
+                extra={
+                    "project_gid": self.project_gid,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
+            )
+            return None
+
+    def _cache_sections(self, sections: list[Section]) -> None:
+        """Populate cache with section list.
+
+        Per FR-DEGRADE-002: Cache failure does not prevent operation.
+        Per FR-DEGRADE-003: When cache_provider=None, bypass caching entirely.
+
+        Args:
+            sections: List of Section objects to cache.
+        """
+        if self.cache_provider is None:
+            return
+
+        try:
+            key = self._make_cache_key("sections")
+            entry = CacheEntry(
+                key=key,
+                data={
+                    "sections": [
+                        {"gid": s.gid, "name": s.name}
+                        for s in sections
+                    ]
+                },
+                entry_type=EntryType.PROJECT_SECTIONS,
+                version=datetime.now(timezone.utc),
+                cached_at=datetime.now(timezone.utc),
+                ttl=self._SECTIONS_TTL,
+                project_gid=self.project_gid,
+                metadata={"section_count": len(sections)},
+            )
+            self.cache_provider.set_versioned(key, entry)
+
+            logger.debug(
+                "section_list_cache_populated",
+                extra={
+                    "project_gid": self.project_gid,
+                    "section_count": len(sections),
+                },
+            )
+
+        except Exception as e:
+            # FR-DEGRADE-002: Cache failure does not prevent operation
+            logger.warning(
+                "section_list_cache_population_failed",
+                extra={
+                    "project_gid": self.project_gid,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
+            )
 
     async def fetch_section_task_gids_async(self) -> dict[str, list[str]]:
         """Enumerate task GIDs per section without full task data.
@@ -203,6 +350,9 @@ class ParallelSectionFetcher:
         Per TDD-CACHE-PERF-FETCH-PATH Phase 2: Lightweight enumeration
         for cache key lookup before full fetch. Uses minimal opt_fields
         (just 'gid') for efficiency.
+
+        Per PRD-CACHE-OPT-P3 / FR-GID-001/002/003: Checks cache before API calls,
+        populates cache on miss.
 
         Returns:
             Dict mapping section_gid -> list of task_gids in that section.
@@ -213,7 +363,12 @@ class ParallelSectionFetcher:
         """
         self._api_call_count = 0
 
-        # Enumerate sections
+        # FR-GID-001: Check GID enumeration cache first
+        cached_result = self._get_cached_gid_enumeration()
+        if cached_result is not None:
+            return cached_result
+
+        # Cache miss - enumerate sections
         sections = await self._list_sections()
         self._api_call_count += 1
 
@@ -254,7 +409,120 @@ class ParallelSectionFetcher:
             assert isinstance(gid_list, list)
             section_gids[section.gid] = gid_list
 
+        # FR-GID-003: Populate cache on miss
+        self._cache_gid_enumeration(section_gids)
+
         return section_gids
+
+    def _get_cached_gid_enumeration(self) -> dict[str, list[str]] | None:
+        """Attempt to retrieve GID enumeration from cache.
+
+        Per FR-DEGRADE-001: Graceful degradation on cache failure.
+        Per FR-DEGRADE-003: When cache_provider=None, bypass caching entirely.
+
+        Returns:
+            Cached mapping if hit and not expired, None on miss or error.
+        """
+        if self.cache_provider is None:
+            return None
+
+        try:
+            key = self._make_cache_key("gid_enumeration")
+            entry = self.cache_provider.get_versioned(key, EntryType.GID_ENUMERATION)
+
+            if entry is None:
+                logger.debug(
+                    "gid_enumeration_cache_miss",
+                    extra={"project_gid": self.project_gid, "reason": "not_found"},
+                )
+                return None
+
+            if entry.is_expired():
+                logger.debug(
+                    "gid_enumeration_cache_miss",
+                    extra={"project_gid": self.project_gid, "reason": "expired"},
+                )
+                return None
+
+            section_gids: dict[str, list[str]] = entry.data.get("section_gids", {})
+            total_gids = sum(len(gids) for gids in section_gids.values())
+
+            logger.info(
+                "gid_enumeration_cache_hit",
+                extra={
+                    "project_gid": self.project_gid,
+                    "section_count": len(section_gids),
+                    "gid_count": total_gids,
+                    "api_calls_saved": len(section_gids) + 1,
+                },
+            )
+            return section_gids
+
+        except Exception as e:
+            # FR-DEGRADE-001: Graceful degradation
+            logger.warning(
+                "gid_enumeration_cache_lookup_failed",
+                extra={
+                    "project_gid": self.project_gid,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
+            )
+            return None
+
+    def _cache_gid_enumeration(
+        self,
+        section_gids: dict[str, list[str]],
+    ) -> None:
+        """Populate cache with GID enumeration.
+
+        Per FR-DEGRADE-002: Cache failure does not prevent operation.
+        Per FR-DEGRADE-003: When cache_provider=None, bypass caching entirely.
+
+        Args:
+            section_gids: Dict mapping section_gid -> task_gids.
+        """
+        if self.cache_provider is None:
+            return
+
+        try:
+            key = self._make_cache_key("gid_enumeration")
+            total_gids = sum(len(gids) for gids in section_gids.values())
+
+            entry = CacheEntry(
+                key=key,
+                data={"section_gids": section_gids},
+                entry_type=EntryType.GID_ENUMERATION,
+                version=datetime.now(timezone.utc),
+                cached_at=datetime.now(timezone.utc),
+                ttl=self._GID_ENUM_TTL,
+                project_gid=self.project_gid,
+                metadata={
+                    "section_count": len(section_gids),
+                    "total_gid_count": total_gids,
+                },
+            )
+            self.cache_provider.set_versioned(key, entry)
+
+            logger.debug(
+                "gid_enumeration_cache_populated",
+                extra={
+                    "project_gid": self.project_gid,
+                    "section_count": len(section_gids),
+                    "gid_count": total_gids,
+                },
+            )
+
+        except Exception as e:
+            # FR-DEGRADE-002: Cache failure does not prevent operation
+            logger.warning(
+                "gid_enumeration_cache_population_failed",
+                extra={
+                    "project_gid": self.project_gid,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
+            )
 
     async def _fetch_section_gids(
         self,

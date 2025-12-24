@@ -128,6 +128,12 @@ from autom8_asana.cache.autom8_adapter import (
 # Two-tier caching (ADR-0026)
 from autom8_asana.cache.tiered import TieredCacheProvider, TieredConfig
 
+# Lightweight staleness detection (TDD-CACHE-LIGHTWEIGHT-STALENESS)
+from autom8_asana.cache.coalescer import RequestCoalescer
+from autom8_asana.cache.lightweight_checker import LightweightChecker
+from autom8_asana.cache.staleness_coordinator import StalenessCheckCoordinator
+from autom8_asana.cache.staleness_settings import StalenessCheckSettings
+
 __all__ = [
     # Entry types
     "CacheEntry",
@@ -189,4 +195,9 @@ __all__ = [
     # Two-tier caching (ADR-0026)
     "TieredCacheProvider",
     "TieredConfig",
+    # Lightweight staleness detection (TDD-CACHE-LIGHTWEIGHT-STALENESS)
+    "StalenessCheckSettings",
+    "LightweightChecker",
+    "RequestCoalescer",
+    "StalenessCheckCoordinator",
 ]

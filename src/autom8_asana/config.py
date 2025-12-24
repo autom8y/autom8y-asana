@@ -35,9 +35,31 @@ __all__ = [
     "AutomationConfig",
     "AsanaConfig",
     "validate_project_env_vars",
+    "DEFAULT_ENTITY_TTLS",
+    "DEFAULT_TTL",
 ]
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Entity TTL Configuration (Single Source of Truth)
+# =============================================================================
+# Per ADR-0126: Entity-type-specific TTL configuration.
+# These values are used by CacheConfig, TasksClient, and TaskCacheCoordinator.
+# DO NOT duplicate these values elsewhere - import from this module.
+
+DEFAULT_TTL: int = 300  # 5 minutes - fallback for unknown entity types
+
+DEFAULT_ENTITY_TTLS: dict[str, int] = {
+    "business": 3600,  # 1 hour - rarely changes
+    "contact": 900,    # 15 minutes
+    "unit": 900,       # 15 minutes
+    "offer": 180,      # 3 minutes - frequently updated
+    "process": 60,     # 1 minute - pipeline state changes often
+    "address": 3600,   # 1 hour - rarely changes
+    "hours": 3600,     # 1 hour - rarely changes
+}
 
 
 @dataclass(frozen=True)
@@ -301,15 +323,7 @@ class CacheConfig:
     provider: str | None = None  # None = auto-detect
     dataframe_caching: bool = True
     entity_ttls: dict[str, int] = field(
-        default_factory=lambda: {
-            "business": 3600,  # 1 hour - rarely changes
-            "contact": 900,  # 15 minutes
-            "unit": 900,  # 15 minutes
-            "offer": 180,  # 3 minutes - frequently updated
-            "process": 60,  # 1 minute - pipeline state changes often
-            "address": 3600,  # 1 hour - rarely changes
-            "hours": 3600,  # 1 hour - rarely changes
-        }
+        default_factory=lambda: DEFAULT_ENTITY_TTLS.copy()
     )
 
     # These use factory functions to avoid circular imports at module load
@@ -397,8 +411,8 @@ class CacheConfig:
         if self._ttl is not None:
             return self._ttl.default_ttl
 
-        # Hardcoded fallback (should not normally reach here)
-        return 300
+        # Fall back to module-level DEFAULT_TTL
+        return DEFAULT_TTL
 
     @classmethod
     def from_env(cls) -> "CacheConfig":
