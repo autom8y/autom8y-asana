@@ -1,4 +1,4 @@
-# ADR-0117: Detection Tier 2 Pattern Matching Enhancement
+# ADR-0138: Detection Tier 2 Pattern Matching Enhancement
 
 ## Metadata
 

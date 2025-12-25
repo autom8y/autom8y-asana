@@ -7,7 +7,7 @@
 - **Validated**: 2025-12-19
 - **PRD Reference**: PRD-SPRINT-1-PATTERN-COMPLETION
 - **TDD Reference**: TDD-SPRINT-1-PATTERN-COMPLETION
-- **ADR Reference**: ADR-0119-field-mixin-strategy
+- **ADR Reference**: ADR-0141-field-mixin-strategy
 
 ## Executive Summary
 
@@ -293,7 +293,7 @@ The implementation is production-ready. The 7 failing tests are pre-existing wor
 
 - PRD: `/docs/planning/sprints/PRD-SPRINT-1-PATTERN-COMPLETION.md`
 - TDD: `/docs/planning/sprints/TDD-SPRINT-1-PATTERN-COMPLETION.md`
-- ADR: `/docs/decisions/ADR-0119-field-mixin-strategy.md`
+- ADR: `/docs/decisions/ADR-0141-field-mixin-strategy.md`
 - Mixins: `/src/autom8_asana/models/business/mixins.py`
 - Detection: `/src/autom8_asana/models/business/detection.py`
 - Holder Factory: `/src/autom8_asana/models/business/holder_factory.py`

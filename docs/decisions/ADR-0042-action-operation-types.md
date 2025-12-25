@@ -1,7 +1,7 @@
 # ADR-0042: Separate ActionType Enum for Action Endpoint Operations
 
 ## Metadata
-- **Status**: Proposed
+- **Status**: Accepted
 - **Author**: Architect
 - **Date**: 2025-12-10
 - **Deciders**: Architect, Principal Engineer

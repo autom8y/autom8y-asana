@@ -1,3 +1,9 @@
+---
+status: superseded
+superseded_by: /docs/reference/REF-cache-patterns.md
+superseded_date: 2025-12-24
+---
+
 # TDD: Detection Result Caching
 
 ## Metadata
@@ -9,7 +15,7 @@
 - **Last Updated**: 2025-12-23
 - **PRD Reference**: [PRD-CACHE-PERF-DETECTION](/docs/requirements/PRD-CACHE-PERF-DETECTION.md)
 - **Related TDDs**: TDD-DETECTION, TDD-CACHE-INTEGRATION, TDD-WATERMARK-CACHE
-- **Related ADRs**: [ADR-0120](/docs/decisions/ADR-0120-detection-result-caching.md), ADR-0094, ADR-0125
+- **Related ADRs**: [ADR-0143](/docs/decisions/ADR-0143-detection-result-caching.md), ADR-0094, ADR-0125
 
 ---
 

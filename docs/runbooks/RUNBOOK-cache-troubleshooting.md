@@ -134,7 +134,7 @@
       await self.cache.delete(f"task:{gid}")  # Invalidate
       return result
   ```
-- See [ADR-0117](../decisions/ADR-0117-post-commit-invalidation-hook.md) for pattern
+- See [ADR-0137](../decisions/ADR-0137-post-commit-invalidation-hook.md) for pattern
 
 **If clock skew**:
 - Verify server and client times aligned

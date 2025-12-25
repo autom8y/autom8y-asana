@@ -1,4 +1,4 @@
-# ADR-0120: Detection Result Caching Strategy
+# ADR-0143: Detection Result Caching Strategy
 
 ## Metadata
 - **Status**: Proposed

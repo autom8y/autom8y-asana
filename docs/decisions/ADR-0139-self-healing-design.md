@@ -1,4 +1,4 @@
-# ADR-0118: Self-Healing Opt-In Design
+# ADR-0139: Self-Healing Opt-In Design
 
 ## Metadata
 

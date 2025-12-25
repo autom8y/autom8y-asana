@@ -1,9 +1,11 @@
 # ADR-0014: Environment Variable Configuration for Example Scripts
 
-**Status:** Accepted
-**Date:** 2025-12-09
-**Deciders:** Principal Engineer
-**Tags:** examples, dx, configuration
+## Metadata
+- **Status**: Accepted
+- **Author**: Principal Engineer
+- **Date**: 2025-12-09
+- **Deciders**: Principal Engineer
+- **Related**: ADR-0001 (Protocol-Based Extensibility pattern), SDK authentication (ASANA_PAT pattern)
 
 ## Context
 

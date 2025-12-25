@@ -286,7 +286,7 @@ python scripts/demo_parallel_fetch.py --name "Business Offers"
 | P1 Learnings | `/docs/analysis/INTEGRATION-CACHE-PERF-P1-LEARNINGS.md` |
 | Meta Initiative | `/docs/initiatives/PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md` |
 | P1 Fetch Path PRD | `/docs/requirements/PRD-CACHE-PERF-FETCH-PATH.md` |
-| DataFrame Task Cache ADR | `/docs/decisions/ADR-0119-dataframe-task-cache-integration.md` |
+| DataFrame Task Cache ADR | `/docs/decisions/ADR-0140-dataframe-task-cache-integration.md` |
 
 ---
 

@@ -8,7 +8,7 @@
 - **Last Updated**: 2025-12-19
 - **PRD Reference**: [PRD-SPRINT-3-DETECTION-DECOMPOSITION](/docs/planning/sprints/PRD-SPRINT-3-DETECTION-DECOMPOSITION.md)
 - **Related TDDs**: TDD-DETECTION, TDD-WORKSPACE-PROJECT-REGISTRY
-- **Related ADRs**: [ADR-0120](/docs/decisions/ADR-0120-detection-package-structure.md), ADR-0094, ADR-0117
+- **Related ADRs**: [ADR-0142](/docs/decisions/ADR-0142-detection-package-structure.md), ADR-0094, ADR-0138
 
 ## Overview
 
@@ -601,11 +601,11 @@ Layer 4 (__init__.py):
 
 | Decision | Choice | Rationale | ADR |
 |----------|--------|-----------|-----|
-| Package vs single file | Package with 7 modules | SRP, maintainability, merge conflicts | [ADR-0120](/docs/decisions/ADR-0120-detection-package-structure.md) |
-| Module granularity | One file per tier + types + config + facade | Natural boundaries from existing code | ADR-0120 |
-| Re-export strategy | Full re-export in `__init__.py` | Backward compatibility for all imports | ADR-0120 |
-| Private function handling | Re-export for test compatibility | 2300+ lines of tests would break otherwise | ADR-0120 |
-| Extraction order | types -> config -> tiers -> facade | Dependency order prevents circular imports | ADR-0120 |
+| Package vs single file | Package with 7 modules | SRP, maintainability, merge conflicts | [ADR-0142](/docs/decisions/ADR-0142-detection-package-structure.md) |
+| Module granularity | One file per tier + types + config + facade | Natural boundaries from existing code | ADR-0142 |
+| Re-export strategy | Full re-export in `__init__.py` | Backward compatibility for all imports | ADR-0142 |
+| Private function handling | Re-export for test compatibility | 2300+ lines of tests would break otherwise | ADR-0142 |
+| Extraction order | types -> config -> tiers -> facade | Dependency order prevents circular imports | ADR-0142 |
 
 ## Complexity Assessment
 

@@ -1,3 +1,9 @@
+---
+status: superseded
+superseded_by: /docs/reference/REF-cache-invalidation.md
+superseded_date: 2025-12-24
+---
+
 # TDD: Cache Optimization Phase 2 - Fetch Path Cache Integration
 
 ## Metadata
@@ -10,7 +16,7 @@
 - **Related TDDs**:
   - [TDD-CACHE-PERF-FETCH-PATH](/docs/design/TDD-CACHE-PERF-FETCH-PATH.md) - P1 foundation
 - **Related ADRs**:
-  - [ADR-0119](/docs/decisions/ADR-0119-dataframe-task-cache-integration.md) - Task cache integration strategy
+  - [ADR-0140](/docs/decisions/ADR-0140-dataframe-task-cache-integration.md) - Task cache integration strategy
   - [ADR-0130](/docs/decisions/ADR-0130-cache-population-location.md) - Cache population location (NEW)
 
 ---

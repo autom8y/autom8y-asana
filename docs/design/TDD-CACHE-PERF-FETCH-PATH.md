@@ -1,3 +1,9 @@
+---
+status: superseded
+superseded_by: /docs/reference/REF-cache-patterns.md
+superseded_date: 2025-12-24
+---
+
 # TDD: DataFrame Fetch Path Cache Integration
 
 ## Metadata
@@ -8,7 +14,7 @@
 - **Last Updated**: 2025-12-23
 - **PRD Reference**: [PRD-CACHE-PERF-FETCH-PATH](/docs/requirements/PRD-CACHE-PERF-FETCH-PATH.md)
 - **Related TDDs**: TDD-WATERMARK-CACHE, TDD-CACHE-INTEGRATION
-- **Related ADRs**: [ADR-0119](/docs/decisions/ADR-0119-dataframe-task-cache-integration.md)
+- **Related ADRs**: [ADR-0140](/docs/decisions/ADR-0140-dataframe-task-cache-integration.md)
 
 ## Overview
 

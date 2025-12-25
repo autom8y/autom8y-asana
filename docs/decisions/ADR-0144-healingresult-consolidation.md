@@ -1,4 +1,4 @@
-# ADR-0120: HealingResult Type Consolidation
+# ADR-0144: HealingResult Type Consolidation
 
 ## Metadata
 - **Status**: Proposed

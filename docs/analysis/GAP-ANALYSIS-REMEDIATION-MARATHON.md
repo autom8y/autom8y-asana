@@ -52,7 +52,7 @@ The marathon achieved its primary technical objectives (code exists, tests pass)
 
 **Description**: Two different ADRs share the number 0117:
 - `ADR-0117-accessor-descriptor-unification.md` (Status: Accepted)
-- `ADR-0117-tier2-pattern-enhancement.md` (Status: Proposed)
+- `ADR-0138-tier2-pattern-enhancement.md` (Status: Proposed) [RENUMBERED]
 
 These address completely different architectural concerns:
 - First: CustomFieldAccessor/Descriptor unification strategy (Sprint 2)
@@ -65,8 +65,8 @@ These address completely different architectural concerns:
 - Governance audit trail compromised
 
 **Remediation**:
-1. Renumber `ADR-0117-tier2-pattern-enhancement.md` to `ADR-0123`
-2. Update all references to the renumbered ADR
+1. Renumber `ADR-0117-tier2-pattern-enhancement.md` to `ADR-0138` [COMPLETE]
+2. Update all references to the renumbered ADR [IN PROGRESS]
 3. Verify no other documents reference ADR-0117 expecting the tier2 content
 
 **Effort**: 2 hours
@@ -81,8 +81,8 @@ These address completely different architectural concerns:
 **Sprint**: Cross-cutting (Sprints 3 and 5)
 
 **Description**: Two different ADRs share the number 0120:
-- `ADR-0120-detection-package-structure.md` (Status: Proposed)
-- `ADR-0120-healingresult-consolidation.md` (Status: Proposed)
+- `ADR-0142-detection-package-structure.md` (Status: Proposed) [RENUMBERED]
+- `ADR-0144-healingresult-consolidation.md` (Status: Proposed) [RENUMBERED]
 
 These address completely different concerns:
 - First: Converting detection.py to package (Sprint 3)
@@ -94,9 +94,10 @@ These address completely different concerns:
 - Reference ambiguity in dependent documents
 
 **Remediation**:
-1. Renumber `ADR-0120-healingresult-consolidation.md` to `ADR-0124`
-2. Update status of `ADR-0120-detection-package-structure.md` to "Accepted" (implementation complete)
-3. Update all cross-references
+1. Renumber `ADR-0120-healingresult-consolidation.md` to `ADR-0144` [COMPLETE]
+2. Renumber `ADR-0120-detection-package-structure.md` to `ADR-0142` [COMPLETE]
+3. Update status of `ADR-0142-detection-package-structure.md` to "Accepted" (implementation complete)
+4. Update all cross-references [IN PROGRESS]
 
 **Effort**: 2 hours
 **Owner**: @architect
@@ -113,7 +114,7 @@ These address completely different concerns:
 
 | ADR | Status | Implementation |
 |-----|--------|----------------|
-| ADR-0120-detection-package-structure | Proposed | COMPLETE - 8 files in detection/ |
+| ADR-0142-detection-package-structure [RENUMBERED] | Proposed | COMPLETE - 8 files in detection/ |
 | ADR-0121-savesession-decomposition-strategy | Proposed | COMPLETE - actions.py, healing.py exist |
 | ADR-0122-action-method-factory-pattern | Proposed | COMPLETE - ActionBuilder in use |
 
@@ -124,7 +125,7 @@ These address completely different concerns:
 - Auditors cannot determine what was actually decided vs proposed
 
 **Remediation**:
-1. Update ADR-0120 status to "Accepted"
+1. Update ADR-0142 status to "Accepted" [RENUMBERED from ADR-0120]
 2. Update ADR-0121 status to "Accepted"
 3. Update ADR-0122 status to "Accepted"
 4. Add implementation date to each ADR metadata
@@ -577,10 +578,10 @@ GAP-010 (entity tests) ---------/      (all test gaps independent)
 
 ### Phase 1: Critical (Must Fix Now) - 1-2 Days
 
-| Gap | Description | Owner | Effort |
-|-----|-------------|-------|--------|
-| GAP-001 | Renumber ADR-0117-tier2 to ADR-0123 | @architect | 2h |
-| GAP-002 | Renumber ADR-0120-healing to ADR-0124 | @architect | 2h |
+| Gap | Description | Owner | Effort | Status |
+|-----|-------------|-------|--------|--------|
+| GAP-001 | Renumber ADR-0117-tier2 to ADR-0138 | @architect | 2h | COMPLETE |
+| GAP-002 | Renumber ADR-0120 duplicates to ADR-0142, ADR-0144 | @architect | 2h | COMPLETE |
 | GAP-003 | Update ADR statuses to match reality | @architect | 1h |
 | GAP-005 | Create test_actions.py | @qa-adversary | 1d |
 | GAP-006 | Create test_mixins.py | @qa-adversary | 4h |

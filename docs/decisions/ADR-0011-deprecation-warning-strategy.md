@@ -1,7 +1,7 @@
 # ADR-0011: Deprecation Warning Strategy for Compatibility Layer
 
 ## Metadata
-- **Status**: Proposed
+- **Status**: Accepted
 - **Author**: Architect
 - **Date**: 2025-12-08
 - **Deciders**: Architect, Principal Engineer

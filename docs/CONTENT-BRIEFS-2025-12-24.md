@@ -922,7 +922,7 @@ Example: `task:collection:project:9876543210987654`
 
 **If invalidation missing**:
 - Add post-commit invalidation hook
-- See [ADR-0117](../decisions/ADR-0117-post-commit-invalidation-hook.md)
+- See [ADR-0137](../decisions/ADR-0137-post-commit-invalidation-hook.md)
 
 ### Prevention
 - Enable staleness detection for critical data

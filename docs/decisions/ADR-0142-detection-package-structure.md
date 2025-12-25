@@ -1,4 +1,4 @@
-# ADR-0120: Detection Package Structure
+# ADR-0142: Detection Package Structure
 
 ## Metadata
 - **Status**: Proposed

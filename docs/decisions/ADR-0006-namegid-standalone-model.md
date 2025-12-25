@@ -1,7 +1,7 @@
 # ADR-0006: NameGid as Standalone Frozen Model
 
 ## Metadata
-- **Status**: Proposed
+- **Status**: Accepted
 - **Author**: Architect
 - **Date**: 2025-12-08
 - **Deciders**: Architect, Principal Engineer

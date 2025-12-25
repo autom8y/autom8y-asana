@@ -1,7 +1,7 @@
 # ADR-0012: Public API Surface Definition
 
 ## Metadata
-- **Status**: Proposed
+- **Status**: Accepted
 - **Author**: Architect
 - **Date**: 2025-12-08
 - **Deciders**: Architect, Principal Engineer

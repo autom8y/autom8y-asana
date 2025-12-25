@@ -127,7 +127,7 @@
 | Topic | ADRs |
 |-------|------|
 | **SDK Architecture** | [0001](decisions/ADR-0001-protocol-extensibility.md), [0002](decisions/ADR-0002-sync-wrapper-strategy.md), [0003](decisions/ADR-0003-asana-sdk-integration.md), [0004](decisions/ADR-0004-item-class-boundary.md), [0005](decisions/ADR-0005-pydantic-model-config.md) |
-| **Caching** | [0016](decisions/ADR-0016-cache-protocol-extension.md), [0017](decisions/ADR-0017-redis-backend-architecture.md), [0019](decisions/ADR-0019-staleness-detection-algorithm.md), [0026](decisions/ADR-0026-two-tier-cache-architecture.md), [0115](decisions/ADR-0115-parallel-section-fetch-strategy.md), [0116](decisions/ADR-0116-batch-cache-population-pattern.md), [0117](decisions/ADR-0117-post-commit-invalidation-hook.md), [0118](decisions/ADR-0118-rejection-multi-level-cache.md), [0119](decisions/ADR-0119-dataframe-task-cache-integration.md), [0123](decisions/ADR-0123-cache-provider-selection.md), [0124](decisions/ADR-0124-client-cache-pattern.md), [0125](decisions/ADR-0125-savesession-invalidation.md), [0126](decisions/ADR-0126-entity-ttl-resolution.md), [0127](decisions/ADR-0127-graceful-degradation.md), [0128](decisions/ADR-0128-hydration-opt-fields-normalization.md), [0129](decisions/ADR-0129-stories-client-cache-wiring.md), [0130](decisions/ADR-0130-cache-population-location.md), [0131](decisions/ADR-0131-gid-enumeration-cache-strategy.md), [0132](decisions/ADR-0132-batch-request-coalescing-strategy.md), [0133](decisions/ADR-0133-progressive-ttl-extension-algorithm.md), [0134](decisions/ADR-0134-staleness-check-integration-pattern.md) |
+| **Caching** | [0016](decisions/ADR-0016-cache-protocol-extension.md), [0017](decisions/ADR-0017-redis-backend-architecture.md), [0019](decisions/ADR-0019-staleness-detection-algorithm.md), [0026](decisions/ADR-0026-two-tier-cache-architecture.md), [0115](decisions/ADR-0115-parallel-section-fetch-strategy.md), [0116](decisions/ADR-0116-batch-cache-population-pattern.md), [0117](decisions/ADR-0117-accessor-descriptor-unification.md), [0118](decisions/ADR-0118-rejection-multi-level-cache.md), [0119](decisions/ADR-0119-client-cache-integration-pattern.md), [0123](decisions/ADR-0123-cache-provider-selection.md), [0124](decisions/ADR-0124-client-cache-pattern.md), [0125](decisions/ADR-0125-savesession-invalidation.md), [0126](decisions/ADR-0126-entity-ttl-resolution.md), [0127](decisions/ADR-0127-graceful-degradation.md), [0128](decisions/ADR-0128-hydration-opt-fields-normalization.md), [0129](decisions/ADR-0129-stories-client-cache-wiring.md), [0130](decisions/ADR-0130-cache-population-location.md), [0131](decisions/ADR-0131-gid-enumeration-cache-strategy.md), [0132](decisions/ADR-0132-batch-request-coalescing-strategy.md), [0133](decisions/ADR-0133-progressive-ttl-extension-algorithm.md), [0134](decisions/ADR-0134-staleness-check-integration-pattern.md), [0137](decisions/ADR-0137-post-commit-invalidation-hook.md), [0140](decisions/ADR-0140-dataframe-task-cache-integration.md), [0143](decisions/ADR-0143-detection-result-caching.md) |
 | **Save Orchestration** | [0035](decisions/ADR-0035-unit-of-work-pattern.md), [0036](decisions/ADR-0036-change-tracking-strategy.md), [0037](decisions/ADR-0037-dependency-graph-algorithm.md), [0040](decisions/ADR-0040-partial-failure-handling.md) |
 | **Business Model** | [0050](decisions/ADR-0050-holder-lazy-loading-strategy.md), [0051](decisions/ADR-0051-custom-field-type-safety.md), [0052](decisions/ADR-0052-bidirectional-reference-caching.md), [0054](decisions/ADR-0054-cascading-custom-fields.md) |
 | **Hydration/Resolution** | [0068](decisions/ADR-0068-type-detection-strategy.md), [0069](decisions/ADR-0069-hydration-api-design.md), [0071](decisions/ADR-0071-resolution-ambiguity-handling.md), [0073](decisions/ADR-0073-batch-resolution-api-design.md) |
@@ -136,6 +136,10 @@
 | **Process Pipeline** | [0096](decisions/ADR-0096-processtype-expansion.md), [0097](decisions/ADR-0097-processsection-state-machine.md), [0098](decisions/ADR-0098-dual-membership-model.md) (Superseded by 0101), [0099](decisions/ADR-0099-businessseeder-factory.md), [0100](decisions/ADR-0100-state-transition-composition.md) (Superseded by 0101), [0101](decisions/ADR-0101-process-pipeline-correction.md) |
 | **Automation Layer** | [0102](decisions/ADR-0102-post-commit-hook-architecture.md), [0103](decisions/ADR-0103-automation-rule-protocol.md), [0104](decisions/ADR-0104-loop-prevention-strategy.md), [0105](decisions/ADR-0105-field-seeding-architecture.md), [0106](decisions/ADR-0106-template-discovery-pattern.md) |
 | **Pipeline Enhancement** | [0110](decisions/ADR-0110-task-duplication-strategy.md), [0111](decisions/ADR-0111-subtask-wait-strategy.md), [0112](decisions/ADR-0112-custom-field-gid-resolution.md), [0113](decisions/ADR-0113-rep-field-cascade-pattern.md) |
+| **Detection** | [0135](decisions/ADR-0135-processholder-detection.md), [0138](decisions/ADR-0138-tier2-pattern-enhancement.md), [0142](decisions/ADR-0142-detection-package-structure.md) |
+| **Process Architecture** | [0136](decisions/ADR-0136-process-field-architecture.md) |
+| **Self-Healing** | [0139](decisions/ADR-0139-self-healing-design.md), [0144](decisions/ADR-0144-healingresult-consolidation.md) |
+| **Field Patterns** | [0141](decisions/ADR-0141-field-mixin-strategy.md) |
 
 ---
 
@@ -207,6 +211,15 @@
 
 ---
 
+## Audits and Reports
+
+| File | Description | Status |
+|------|-------------|--------|
+| [AUDIT-doc-synthesis.md](audits/AUDIT-doc-synthesis.md) | Documentation synthesis audit - SOLID compliance and consolidation opportunities | Complete |
+| [MIGRATION-REPORT.md](audits/MIGRATION-REPORT.md) | Documentation migration final report (8 phases) | Complete |
+
+---
+
 ## Analysis Documents
 
 | File | Description | Status |
@@ -249,17 +262,50 @@
 
 ## Reference Data
 
+See [reference/README.md](reference/README.md) for complete reference documentation guide.
+
+### Cache Architecture (6 docs)
+
 | File | Description |
 |------|-------------|
-| [REF-entity-type-table.md](reference/REF-entity-type-table.md) | Business model entity hierarchy reference |
-| [REF-custom-field-catalog.md](reference/REF-custom-field-catalog.md) | Custom field catalog (108 fields across 5 models) |
-| [REF-cache-staleness-detection.md](reference/REF-cache-staleness-detection.md) | Cache staleness detection approaches and algorithms |
-| [REF-cache-ttl-strategy.md](reference/REF-cache-ttl-strategy.md) | Cache TTL strategy and progressive extension |
-| [REF-cache-provider-protocol.md](reference/REF-cache-provider-protocol.md) | CacheProvider protocol specification |
+| [REF-cache-architecture.md](reference/REF-cache-architecture.md) | Core architecture, provider protocol, backend selection |
+| [REF-cache-staleness-detection.md](reference/REF-cache-staleness-detection.md) | Detection algorithms, modified-since, batch coalescing |
+| [REF-cache-ttl-strategy.md](reference/REF-cache-ttl-strategy.md) | Progressive TTL, watermark approach, max TTL calculation |
+| [REF-cache-provider-protocol.md](reference/REF-cache-provider-protocol.md) | CacheProvider interface specification |
+| [REF-cache-invalidation.md](reference/REF-cache-invalidation.md) | Invalidation strategies and hooks |
+| [REF-cache-patterns.md](reference/REF-cache-patterns.md) | Common cache usage patterns and best practices |
+
+### Entity Model (5 docs)
+
+| File | Description |
+|------|-------------|
+| [REF-entity-lifecycle.md](reference/REF-entity-lifecycle.md) | Define → Detect → Populate → Navigate → Persist |
+| [REF-detection-tiers.md](reference/REF-detection-tiers.md) | 5-tier detection system specification |
+| [REF-savesession-lifecycle.md](reference/REF-savesession-lifecycle.md) | Track → Modify → Commit → Validate |
+| [REF-asana-hierarchy.md](reference/REF-asana-hierarchy.md) | Workspace → Project → Section → Task → Subtask |
+| [REF-entity-type-table.md](reference/REF-entity-type-table.md) | Business model entity hierarchy |
+
+### Workflow (3 docs)
+
+| File | Description |
+|------|-------------|
+| [REF-workflow-phases.md](reference/REF-workflow-phases.md) | Requirements → Design → Implementation → Testing |
+| [REF-command-decision-tree.md](reference/REF-command-decision-tree.md) | When to use /task vs /sprint vs /hotfix |
+| [REF-batch-operations.md](reference/REF-batch-operations.md) | Chunking, parallelization, error handling |
+
+### Metadata (3 docs)
+
+| File | Description |
+|------|-------------|
+| [GLOSSARY.md](reference/GLOSSARY.md) | Unified terminology reference (200+ terms) |
+| [REF-skills-index.md](reference/REF-skills-index.md) | Skills architecture and activation triggers |
+| [REF-custom-field-catalog.md](reference/REF-custom-field-catalog.md) | 108 custom fields across 5 models |
 
 ---
 
 ## Runbooks (Operational Troubleshooting)
+
+See [runbooks/README.md](runbooks/README.md) for runbook usage guide.
 
 | File | Description |
 |------|-------------|
@@ -312,7 +358,7 @@ Historical artifacts are preserved in `.archive/`:
 |------|-------------|----------------|
 | PRD | PRD-0024 | PRD-0025 |
 | TDD | TDD-0030 | TDD-0031 |
-| ADR | ADR-0134 | ADR-0135 |
+| ADR | ADR-0144 | ADR-0145 |
 | TP | TP-0009 | TP-0010 |
 
-**Note**: ADR-0119 and ADR-0120 have numbering conflicts (multiple files). Future ADRs should start at ADR-0135.
+**Note**: ADR duplicates resolved 2024-12-24. ADR-0115 through ADR-0120 duplicates renumbered to ADR-0135 through ADR-0144. Next available ADR number is ADR-0145.

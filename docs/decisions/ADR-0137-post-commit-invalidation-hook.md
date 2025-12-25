@@ -1,4 +1,4 @@
-# ADR-0117: Post-Commit Invalidation Hook for DataFrame Cache
+# ADR-0137: Post-Commit Invalidation Hook for DataFrame Cache
 
 ## Metadata
 

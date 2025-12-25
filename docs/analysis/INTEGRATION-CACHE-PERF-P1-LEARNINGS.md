@@ -426,7 +426,7 @@ Each P2-P4 sub-initiative should produce:
 | Discovery | `/docs/analysis/DISCOVERY-CACHE-PERF-FETCH-PATH.md` |
 | PRD | `/docs/requirements/PRD-CACHE-PERF-FETCH-PATH.md` |
 | TDD | `/docs/design/TDD-CACHE-PERF-FETCH-PATH.md` |
-| ADR | `/docs/decisions/ADR-0119-dataframe-task-cache-integration.md` |
+| ADR | `/docs/decisions/ADR-0140-dataframe-task-cache-integration.md` |
 | Validation | `/docs/validation/VP-CACHE-PERF-FETCH-PATH.md` |
 | Implementation | `/src/autom8_asana/dataframes/builders/task_cache.py` |
 | Tests | `/tests/unit/dataframes/test_task_cache.py` |

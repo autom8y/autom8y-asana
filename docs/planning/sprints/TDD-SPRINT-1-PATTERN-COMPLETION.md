@@ -8,7 +8,7 @@
 - **Last Updated**: 2025-12-19
 - **PRD Reference**: [PRD-SPRINT-1-PATTERN-COMPLETION](../planning/sprints/PRD-SPRINT-1-PATTERN-COMPLETION.md)
 - **Related TDDs**: TDD-PATTERNS-C (HolderFactory), TDD-PATTERNS-A (Custom Field Descriptors)
-- **Related ADRs**: [ADR-0119-field-mixin-strategy](../decisions/ADR-0119-field-mixin-strategy.md)
+- **Related ADRs**: [ADR-0141-field-mixin-strategy](../decisions/ADR-0141-field-mixin-strategy.md)
 
 ## Overview
 
