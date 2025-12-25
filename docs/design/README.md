@@ -99,10 +99,19 @@ When marking a TDD as **Rejected**, add notice with decision reference:
 > See the ADR for rationale. This document is retained for historical reference.
 ```
 
-TDDs are rarely archived - they serve as historical design record even after implementation. See [CONVENTIONS.md](../CONVENTIONS.md) for complete archival guidance.
+## Consolidated Family Summaries
+
+For related features that evolved through multiple design iterations, we create consolidated "Family" summaries that synthesize the technical evolution:
+
+- **[TDD-SDK-FAMILY.md](TDD-SDK-FAMILY.md)** - SDK design evolution (Foundation → Expansion → Hardening → Validation)
+  - Archived: TDD-0001, TDD-0012, TDD-0014, TDD-0029
+
+These summaries preserve architectural decisions and patterns while reducing file count. Original documents are archived in `docs/.archive/2025-12-tdds/`.
 
 ## See Also
 
 - [PRD README](../requirements/README.md) - How TDDs relate to PRDs
 - [INDEX.md](../INDEX.md) - Full TDD registry
 - [CONTRIBUTION-GUIDE.md](../CONTRIBUTION-GUIDE.md) - Documentation standards
+
+TDDs are rarely archived - they serve as historical design record even after implementation. See [CONVENTIONS.md](../CONVENTIONS.md) for complete archival guidance.

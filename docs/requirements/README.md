@@ -92,6 +92,15 @@ See [CONVENTIONS.md](../CONVENTIONS.md) for complete supersession and rejection 
 5. Add entry to [INDEX.md](../INDEX.md)
 6. Create corresponding TDD in `/docs/design/`
 
+## Consolidated Family Summaries
+
+For related features that evolved through multiple iterations, we create consolidated "Family" summaries that synthesize the requirements evolution:
+
+- **[PRD-SDK-FAMILY.md](PRD-SDK-FAMILY.md)** - SDK requirements evolution (Foundation → Expansion → Hardening → Validation)
+  - Archived: PRD-0001, PRD-0007, PRD-0009, PRD-0011
+
+These summaries preserve the evolution narrative while reducing file count. Original documents are archived in `docs/.archive/2025-12-prds/`.
+
 ## See Also
 
 - [TDD README](../design/README.md) - How PRDs relate to TDDs
