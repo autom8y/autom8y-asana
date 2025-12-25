@@ -1,0 +1,34 @@
+id: "minimal-example-001"
+name: "Minimal Runbook"
+version: 1
+forkedFrom: null
+content:
+- id: "heading-1"
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 1
+    isToggleable: false
+  content:
+    - type: text
+      text: "Hello World"
+      styles: {}
+- id: "para-1"
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+    - type: text
+      text: "This is a minimal valid runbook."
+      styles: {}
+- id: "trailing-para"
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content: []

@@ -1,0 +1,66 @@
+# _helpers.just
+# Shared utility recipes
+# All recipes are private (hidden from `just --list`)
+
+# === Logging ===
+
+[private]
+_log msg:
+    @echo "==> {{msg}}"
+
+[private]
+_log_success msg:
+    @echo "==> {{msg}}"
+
+[private]
+_log_warn msg:
+    @echo "==> WARN: {{msg}}"
+
+[private]
+_log_error msg:
+    @echo "==> ERROR: {{msg}}" >&2
+
+# === Requirements ===
+
+# Require a command to be available
+[private]
+_require cmd:
+    @command -v {{cmd}} > /dev/null 2>&1 || \
+        (echo "Required command not found: {{cmd}}" >&2 && exit 1)
+
+# Require an environment variable to be set
+[private]
+_require_env var:
+    @[ -n "${{{var}}:-}" ] || \
+        (echo "Required environment variable not set: {{var}}" >&2 && exit 1)
+
+# Require a file to exist
+[private]
+_require_file path:
+    @[ -f "{{path}}" ] || \
+        (echo "Required file not found: {{path}}" >&2 && exit 1)
+
+# === Confirmation ===
+
+# Prompt for confirmation (auto-confirms in CI)
+[private]
+_confirm msg:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ "${CI:-false}" = "true" ]; then
+        echo "CI detected, auto-confirming: {{msg}}"
+        exit 0
+    fi
+    read -p "{{msg}} [y/N] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Aborted"
+        exit 1
+    fi
+
+# === Help ===
+
+# List all available recipes
+[private]
+help:
+    @just --list

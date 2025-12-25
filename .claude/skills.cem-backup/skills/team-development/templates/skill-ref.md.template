@@ -1,0 +1,148 @@
+# Reference Skill Template
+# Copy to: .claude/skills/{team-name}-ref/skill.md
+# Replace all {placeholders} with actual values
+
+# =============================================================================
+# INSTRUCTIONS
+# =============================================================================
+# 1. Create directory: .claude/skills/{team-name}-ref/
+# 2. Copy this file to: .claude/skills/{team-name}-ref/skill.md
+# 3. Replace all {placeholders}
+# 4. Skill will be discoverable via @{team-name}-ref
+# =============================================================================
+
+---
+name: {team-name}-ref
+description: |
+  Reference documentation for {Team Display Name}.
+  Use when: learning about {team-name} agents, understanding the {domain} workflow,
+  invoking {team-name} agents. Triggers: {team-name}, {domain} team, {agent-1},
+  {agent-2}, {agent-3}, {agent-4}.
+---
+
+# {Team Display Name}
+
+> {One-line tagline describing the team's purpose}
+
+## Quick Reference
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| Agents | `~/Code/roster/teams/{team-name}/agents/` | Agent prompts |
+| Workflow | `~/Code/roster/teams/{team-name}/workflow.yaml` | Phase configuration |
+| Switch | `/{team-name}` | Activate this team |
+
+## Team Roster
+
+| Agent | Model | Role | Produces |
+|-------|-------|------|----------|
+| **{agent-1}** | {haiku\|sonnet\|opus} | {Role description} | {artifact-type} |
+| **{agent-2}** | {haiku\|sonnet\|opus} | {Role description} | {artifact-type} |
+| **{agent-3}** | {haiku\|sonnet\|opus} | {Role description} | {artifact-type} |
+| **{agent-4}** | {haiku\|sonnet\|opus} | {Role description} | {artifact-type} |
+
+## Workflow
+
+```
+{phase-1} → {phase-2} → {phase-3} → {phase-4}
+    │           │           │           │
+    ▼           ▼           ▼           ▼
+{artifact-1} {artifact-2} {artifact-3} {artifact-4}
+```
+
+### Phase Details
+
+| Phase | Agent | Input | Output |
+|-------|-------|-------|--------|
+| {phase-1} | {agent-1} | {User request or context} | {artifact-1} |
+| {phase-2} | {agent-2} | {artifact-1} | {artifact-2} |
+| {phase-3} | {agent-3} | {artifact-2} | {artifact-3} |
+| {phase-4} | {agent-4} | {artifact-3} | {artifact-4} |
+
+## Complexity Levels
+
+| Level | Scope | Phases |
+|-------|-------|--------|
+| **{SIMPLE}** | {scope description} | {phase-3}, {phase-4} |
+| **{STANDARD}** | {scope description} | All phases |
+| **{COMPLEX}** | {scope description} | All phases |
+
+## Command Mapping
+
+| Command | Maps To | Use When |
+|---------|---------|----------|
+| `/{team-name}` | Team switch | Activating this team |
+| `/architect` | {design-agent} | Design-only work |
+| `/build` | {implementation-agent} | Implementation-only |
+| `/qa` | {validation-agent} | Validation-only |
+| `/hotfix` | {fast-path-agent} | Urgent fixes |
+| `/code-review` | {review-agent} | Code review |
+
+## When to Use This Team
+
+**Use {team-name} when:**
+- {Use case 1}
+- {Use case 2}
+- {Use case 3}
+
+**Don't use {team-name} when:**
+- {Anti-use case 1} → Use {other-team} instead
+- {Anti-use case 2} → Use {other-team} instead
+
+## Agent Summaries
+
+### {Agent 1 Name}
+
+**Purpose**: {One-line description}
+
+**Key Responsibilities**:
+- {Responsibility 1}
+- {Responsibility 2}
+- {Responsibility 3}
+
+**Produces**: {artifact-type}
+
+---
+
+### {Agent 2 Name}
+
+**Purpose**: {One-line description}
+
+**Key Responsibilities**:
+- {Responsibility 1}
+- {Responsibility 2}
+- {Responsibility 3}
+
+**Produces**: {artifact-type}
+
+---
+
+### {Agent 3 Name}
+
+**Purpose**: {One-line description}
+
+**Key Responsibilities**:
+- {Responsibility 1}
+- {Responsibility 2}
+- {Responsibility 3}
+
+**Produces**: {artifact-type}
+
+---
+
+### {Agent 4 Name}
+
+**Purpose**: {One-line description}
+
+**Key Responsibilities**:
+- {Responsibility 1}
+- {Responsibility 2}
+- {Responsibility 3}
+
+**Produces**: {artifact-type}
+
+## Cross-References
+
+- **Related Skills**: @10x-workflow, @documentation, @standards
+- **Team Packs**: {related-team-1}, {related-team-2}
+- **Commands**: See COMMAND_REGISTRY.md

@@ -1,0 +1,58 @@
+name: the-forge
+workflow_type: sequential
+description: Agent team creation and maintenance meta-workflow
+
+entry_point:
+  agent: agent-designer
+  artifact:
+    type: team-spec
+    path_template: .claude/forge-workspace/{team-slug}/TEAM-SPEC.md
+
+phases:
+  - name: design
+    agent: agent-designer
+    produces: team-spec
+    next: prompting
+
+  - name: prompting
+    agent: prompt-architect
+    produces: agent-prompts
+    next: orchestration
+
+  - name: orchestration
+    agent: workflow-engineer
+    produces: workflow-config
+    next: infrastructure
+
+  - name: infrastructure
+    agent: platform-engineer
+    produces: team-files
+    next: validation
+
+  - name: validation
+    agent: eval-specialist
+    produces: eval-report
+    next: integration
+
+  - name: integration
+    agent: agent-curator
+    produces: roster-entry
+    next: null
+
+complexity_levels:
+  - name: PATCH
+    scope: "Single agent modification or simple fix"
+    phases: [design, prompting, validation]
+
+  - name: TEAM
+    scope: "New team with 3-5 agents"
+    phases: [design, prompting, orchestration, infrastructure, validation, integration]
+
+  - name: ECOSYSTEM
+    scope: "Multi-team initiative, cross-team workflows"
+    phases: [design, prompting, orchestration, infrastructure, validation, integration]
+
+# Agent roles for command mapping:
+# /new-team      -> agent-designer (full workflow)
+# /validate-team -> eval-specialist (validation only)
+# /eval-agent    -> eval-specialist (single agent test)
