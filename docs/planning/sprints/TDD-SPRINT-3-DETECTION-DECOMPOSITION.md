@@ -2,10 +2,11 @@
 
 ## Metadata
 - **TDD ID**: TDD-SPRINT-3-DETECTION-DECOMPOSITION
-- **Status**: Draft
+- **Status**: Completed
 - **Author**: Architect (Claude)
 - **Created**: 2025-12-19
-- **Last Updated**: 2025-12-19
+- **Last Updated**: 2025-12-25
+- **Completed**: 2025-12-22
 - **PRD Reference**: [PRD-SPRINT-3-DETECTION-DECOMPOSITION](/docs/planning/sprints/PRD-SPRINT-3-DETECTION-DECOMPOSITION.md)
 - **Related TDDs**: TDD-DETECTION, TDD-WORKSPACE-PROJECT-REGISTRY
 - **Related ADRs**: [ADR-0142](/docs/decisions/ADR-0142-detection-package-structure.md), ADR-0094, ADR-0138
