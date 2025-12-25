@@ -116,6 +116,8 @@
 | [TDD-WATERMARK-CACHE](design/TDD-WATERMARK-CACHE.md) | Watermark Cache (Parallel Fetch) | PRD-WATERMARK-CACHE | Implemented |
 | [TDD-CACHE-LIGHTWEIGHT-STALENESS](design/TDD-CACHE-LIGHTWEIGHT-STALENESS.md) | Lightweight Staleness Detection | PRD-CACHE-LIGHTWEIGHT-STALENESS | Implemented |
 
+**Note on TDD-0030**: This TDD uses filename `TDD-CUSTOM-FIELD-REMEDIATION.md` (named format) while being allocated sequential number 0030. This follows the hybrid convention where documents can have both a sequential ID for INDEX ordering and a descriptive filename for discoverability. See [CONVENTIONS.md](CONVENTIONS.md#when-to-use-numbered-vs-named-format) for naming guidance.
+
 ---
 
 ## ADRs (Decisions)

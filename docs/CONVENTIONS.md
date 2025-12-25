@@ -309,6 +309,81 @@ docs/.archive/
 3. Update any internal links to point to archive location
 4. Add archive note to document header
 
+### PROMPT-0 Initiative Archival Policy
+
+PROMPT-0 (and PROMPT-MINUS-1) initiative documents follow a specific archival workflow tied to validation completion.
+
+**When to Archive PROMPT-0 Files:**
+
+1. **Status becomes "Validated"**: Initiative passed QA validation with PASS or APPROVED status
+2. **All deliverables complete**: Related PRDs/TDDs marked "Implemented"
+3. **Validation report exists**: VP-* document confirms successful validation
+4. **No active follow-up work**: All action items from validation are complete or tracked in DEBT-BACKLOG.md
+
+**Archive Location by Quarter:**
+
+```
+docs/.archive/initiatives/YYYY-QN/
+├── PROMPT-0-CACHE-PERF-FETCH-PATH.md      (completed Q4 2025)
+├── PROMPT-0-WATERMARK-CACHE.md             (completed Q4 2025)
+├── PROMPT-0-WORKSPACE-PROJECT-REGISTRY.md  (completed Q4 2025)
+└── ...
+```
+
+**Archive Workflow:**
+
+1. **Verify completion criteria:**
+   - Initiative status: "Validated" or "Complete"
+   - Validation report: PASS or APPROVED
+   - No blocking issues or pending work
+
+2. **Determine archive quarter:**
+   - Use validation completion date to determine YYYY-QN
+   - Example: Validated 2025-12-24 → `2025-Q4`
+
+3. **Move file with git:**
+   ```bash
+   git mv docs/initiatives/PROMPT-0-FEATURE.md docs/.archive/initiatives/2025-Q4/
+   ```
+
+4. **Update INDEX.md:**
+   - Move entry from "Initiatives" section to "Archived Initiatives" section
+   - Update path to `.archive/initiatives/2025-Q4/PROMPT-0-FEATURE.md`
+   - Add completion quarter in "Completed" column
+
+5. **Update cross-references:**
+   - Search for references to `initiatives/PROMPT-0-FEATURE.md`
+   - Update to `.archive/initiatives/2025-Q4/PROMPT-0-FEATURE.md`
+   - Note: PRDs/TDDs often reference their originating PROMPT-0
+
+6. **Add archive notice (optional):**
+   ```markdown
+   > **ARCHIVED**: This initiative completed validation on YYYY-MM-DD.
+   > See [VP-FEATURE](../validation/VP-FEATURE.md) for validation results.
+   ```
+
+**Active vs Archived Initiatives:**
+
+| Status | Location | Example |
+|--------|----------|---------|
+| Draft, Active | `docs/initiatives/` | PROMPT-0-CACHE-INTEGRATION.md |
+| Validated, Complete | `docs/.archive/initiatives/YYYY-QN/` | PROMPT-0-WATERMARK-CACHE.md |
+
+**Reference Updates:**
+
+When archiving a PROMPT-0, update these references:
+- INDEX.md: Move to "Archived Initiatives" section
+- Related PRDs: Update `related_initiative` frontmatter field (if present)
+- Related TDDs: Update initiative references in content
+- PROMPT-MINUS-1 meta-initiatives: Update sub-initiative status
+
+**Deferred Work Handling:**
+
+If validation identifies deferred work or future enhancements:
+1. Document in [DEBT-BACKLOG.md](debt/DEBT-BACKLOG.md)
+2. Reference from validation report
+3. Archive PROMPT-0 anyway (initiative is complete even if follow-up work exists)
+
 ---
 
 ## Quick Reference
