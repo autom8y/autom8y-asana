@@ -162,7 +162,6 @@
 
 | ID | Title | PRD | Status |
 |----|-------|-----|--------|
-| [VALIDATION-PROCESS-PIPELINE](testing/VALIDATION-PROCESS-PIPELINE.md) | Process Pipeline | PRD-PROCESS-PIPELINE | Invalidated |
 | [VP-WORKSPACE-PROJECT-REGISTRY](testing/VP-WORKSPACE-PROJECT-REGISTRY.md) | Workspace Project Registry | PRD-WORKSPACE-PROJECT-REGISTRY | APPROVED |
 | [VP-PIPELINE-AUTOMATION-ENHANCEMENT](testing/VP-PIPELINE-AUTOMATION-ENHANCEMENT.md) | Pipeline Automation Enhancement | PRD-PIPELINE-AUTOMATION-ENHANCEMENT | APPROVED |
 | [VALIDATION-WATERMARK-CACHE](validation/VALIDATION-WATERMARK-CACHE.md) | Watermark Cache (Parallel Fetch) | PRD-WATERMARK-CACHE | PASS |
@@ -346,7 +345,7 @@ Historical artifacts are preserved in `.archive/`:
 | `.archive/initiatives/2025-Q4/` | Completed Q4 2025 initiatives (5 files) |
 | `.archive/initiatives/` | Other completed PROMPT-0, PROMPT-MINUS-1 files |
 | `.archive/discovery/` | DISCOVERY-* analysis documents |
-| `.archive/validation/` | Point-in-time validation reports |
+| `.archive/validation/` | Point-in-time validation reports, invalidated reports (VALIDATION-PROCESS-PIPELINE) |
 | `.archive/historical/` | Other completed work |
 | `.archive/architecture/` | Superseded architecture docs |
 

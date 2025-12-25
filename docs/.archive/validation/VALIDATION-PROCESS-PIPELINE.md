@@ -1,5 +1,7 @@
 # Validation Report: Process Pipeline
 
+> **ARCHIVED (2025-12-25)**: This validation report has been archived as part of Sprint 2 documentation cleanup (DEBT-045). The report is invalidated due to architectural changes.
+
 > **PARTIAL SUPERSESSION NOTICE (2025-12-19)**
 >
 > The `ProcessProjectRegistry` tests and requirements (FR-REG-*) documented in this report are **superseded** by [ADR-0101](../decisions/ADR-0101-process-pipeline-correction.md). The ProcessProjectRegistry was never implemented as designed - `process_registry.py` does not exist. Pipeline project detection now uses `WorkspaceProjectRegistry` for dynamic discovery.
