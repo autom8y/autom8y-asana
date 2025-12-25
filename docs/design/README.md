@@ -30,18 +30,18 @@ Example: `TDD-CACHE-INTEGRATION.md`
 
 ## Status Lifecycle
 
-Every TDD has a `status:` field in frontmatter:
+Every TDD has a `status:` field in frontmatter. See [/docs/CONVENTIONS.md](../CONVENTIONS.md) for complete lifecycle specification.
 
+Common status values:
 1. **Draft** - Initial design, not yet reviewed
 2. **In Review** - Under technical review
 3. **Approved** - Approved for implementation
 4. **Active** - Currently being implemented
 5. **Implemented** - Code in production, feature live
-6. **Superseded** - Replaced by different approach (includes link to replacement)
-7. **Rejected** - Decided not to implement (includes decision rationale)
-8. **NO-GO** - Design explicitly rejected after evaluation
+6. **Superseded** - Replaced by different approach (must link to replacement)
+7. **Rejected** - Decided not to implement (must link to ADR)
 
-**Critical Rule**: STATUS in INDEX.md MUST match status in document frontmatter.
+**Critical Rule**: Status in frontmatter is the canonical source of truth. INDEX.md must match frontmatter.
 
 ## PRD-TDD Pairing
 
@@ -82,6 +82,24 @@ Both are valid. Choose based on the scope of the feature.
 4. Fill out frontmatter (status, created, updated)
 5. Write sections: Architecture Overview, Components, Interfaces, Data Structures, Error Handling, Testing Strategy
 6. Add entry to [INDEX.md](../INDEX.md) with PRD reference
+
+## Archival Policy
+
+When marking a TDD as **Superseded**, add prominent notice:
+
+```markdown
+> **SUPERSESSION NOTICE**: This document has been superseded by [TDD-XXXX](TDD-XXXX-new.md).
+> The design below is no longer active. Refer to the replacement document for current architecture.
+```
+
+When marking a TDD as **Rejected**, add notice with decision reference:
+
+```markdown
+> **REJECTION NOTICE**: This design was rejected per [ADR-XXXX](../decisions/ADR-XXXX.md).
+> See the ADR for rationale. This document is retained for historical reference.
+```
+
+TDDs are rarely archived - they serve as historical design record even after implementation. See [CONVENTIONS.md](../CONVENTIONS.md) for complete archival guidance.
 
 ## See Also
 
