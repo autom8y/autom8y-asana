@@ -353,11 +353,70 @@ Historical artifacts are preserved in `.archive/`:
 
 ## Document Number Allocation
 
-| Type | Current Max | Next Available |
-|------|-------------|----------------|
-| PRD | PRD-0024 | PRD-0025 |
-| TDD | TDD-0030 | TDD-0031 |
-| ADR | ADR-0144 | ADR-0145 |
-| TP | TP-0009 | TP-0010 |
+### Current Highest Numbers
+
+| Type | Current Max | Next Available | Location |
+|------|-------------|----------------|----------|
+| PRD | PRD-0024 | PRD-0025 | `docs/requirements/` |
+| TDD | TDD-0030 | TDD-0031 | `docs/design/` |
+| ADR | ADR-0144 | ADR-0145 | `docs/decisions/` |
+| TP | TP-0009 | TP-0010 | `docs/testing/` |
 
 **Note**: ADR duplicates resolved 2024-12-24. ADR-0115 through ADR-0120 duplicates renumbered to ADR-0135 through ADR-0144. Next available ADR number is ADR-0145.
+
+### When to Use Sequential Numbers vs Descriptive Names
+
+See [CONVENTIONS.md](CONVENTIONS.md#when-to-use-numbered-vs-named-format) for detailed naming guidance.
+
+**Quick decision tree:**
+
+```
+Is this part of a multi-document initiative?
+├─ YES → Use descriptive naming (e.g., PRD-CACHE-INTEGRATION)
+│         Group related docs with common prefix (PRD-CACHE-*)
+│
+└─ NO → Use next sequential number (e.g., PRD-0025)
+          Allocate from table above
+```
+
+**Sequential numbering rules:**
+
+1. **Check this table** for current highest number
+2. **Use next available** number (current max + 1)
+3. **Never skip** numbers (no gaps allowed)
+4. **Never reuse** numbers (even for deleted documents)
+5. **Zero-pad** to 4 digits (0025, not 25)
+6. **Update INDEX.md** immediately after creating new numbered document
+
+**Descriptive naming rules:**
+
+1. **Use ALL-CAPS** with hyphens (e.g., CACHE-INTEGRATION)
+2. **Group by prefix** for initiatives (e.g., all cache docs start with `CACHE-`)
+3. **Match format** between paired PRD/TDD (both numbered or both named)
+4. **No sequential tracking** needed (not added to allocation table above)
+
+**Examples of each approach:**
+
+| Approach | Example Documents | When to Use |
+|----------|-------------------|-------------|
+| **Sequential** | PRD-0013-hierarchy-hydration.md<br>TDD-0017-hierarchy-hydration.md | Standalone feature, independent of broader initiative |
+| **Descriptive** | PRD-CACHE-INTEGRATION.md<br>TDD-CACHE-INTEGRATION.md<br>PRD-CACHE-PERF-FETCH-PATH.md<br>TDD-CACHE-PERF-FETCH-PATH.md | Multiple docs for cache initiative, grouped for discoverability |
+
+### How to Allocate a New Number
+
+**For numbered documents:**
+
+1. Find document type row in table above (PRD, TDD, ADR, or TP)
+2. Use "Next Available" number from table
+3. Create document: `PRD-XXXX-feature-name.md`
+4. Update this table: increment "Current Max" and "Next Available"
+5. Add entry to appropriate section below (PRDs, TDDs, ADRs, or Test Plans)
+
+**For named documents:**
+
+1. Choose descriptive name matching initiative (e.g., `CACHE-INTEGRATION`)
+2. Create document: `PRD-DESCRIPTIVE-NAME.md`
+3. No need to update allocation table (named docs don't use sequential numbers)
+4. Add entry to appropriate section below
+
+**ADR special case**: ADRs always use sequential numbering. Never use descriptive names for ADRs.
