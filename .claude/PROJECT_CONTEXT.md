@@ -85,20 +85,9 @@ All interfaces are async; sync wrappers available via `sync_wrapper` decorator.
 
 ## For Full Details
 
-### SDK Infrastructure (autom8-asana-domain skill)
-- `skills/autom8-asana-domain/context.md` - Full extraction context
-- `skills/autom8-asana-domain/asana-domain.md` - Asana resource hierarchy
-- `skills/autom8-asana-domain/glossary.md` - SDK terminology
-- `skills/autom8-asana-domain/code-conventions.md` - Code patterns
-- `skills/autom8-asana-domain/repository-map.md` - Where code lives
-- `skills/autom8-asana-domain/tech-stack.md` - Dependencies
-
-### Business Entities (autom8-asana-business skill)
-- `skills/autom8-asana-business/entity-lifecycle.md` - Define, detect, populate, navigate, persist
-- `skills/autom8-asana-business/entity-reference.md` - All 7 entity types
-- `skills/autom8-asana-business/detection.md` - 5-tier entity type detection
-- `skills/autom8-asana-business/savesession.md` - SaveSession with business hierarchies
-- `skills/autom8-asana-business/glossary.md` - Business terminology
+### Reference Documentation
+- `/docs/reference/GLOSSARY.md` - Unified terminology (SDK + workflow + business)
+- `/docs/reference/REF-*.md` - Deep-dive reference documents (see README.md)
 
 ---
 

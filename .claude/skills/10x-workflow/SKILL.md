@@ -100,6 +100,10 @@ See [quality-gates.md](quality-gates.md) for complete criteria and workflow inte
 - [documentation](../documentation/SKILL.md) - PRD/TDD/ADR/Test Plan templates and formats
 - [initiative-scoping](../initiative-scoping/SKILL.md) - Prompt -1 and Prompt 0 creation
 - [prompting](../prompting/SKILL.md) - Copy-paste prompt patterns for agent invocation
+- [consult-ref](../consult-ref/skill.md) - Ecosystem navigation and guidance
+- [team-development](../team-development/SKILL.md) - Creating new team packs
+
+> **Note**: When modifying workflows or agents, update the Consultant knowledge base at `.claude/knowledge/consultant/` to keep `/consult` guidance accurate. See [consultant-sync.md](../team-development/patterns/consultant-sync.md).
 
 **Agent configurations**: See `.claude/agents/` for full agent prompts:
 - [orchestrator.md](../../agents/orchestrator.md)

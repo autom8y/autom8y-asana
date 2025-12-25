@@ -1,149 +1,87 @@
 # CLAUDE.md
 
-> Entry point for Claude Code. Defines the agent hierarchy and skill-based context loading.
+> Entry point for Claude Code. Skills-based progressive disclosure architecture.
 
----
+## Quick Start
 
-## You Are the Main Thread
+This project uses a 4-agent development workflow:
 
-You receive user requests and route them to the appropriate agent. For substantive work, invoke `@orchestrator`, who coordinates specialist agents.
+| Agent                    | Role                                          | Produces                  |
+| ------------------------ | --------------------------------------------- | ------------------------- |
+| **Requirements Analyst** | Clarifies intent, defines success             | PRD                       |
+| **Architect**            | Designs solutions, makes structural decisions | TDD, ADRs                 |
+| **Principal Engineer**   | Implements with craft and discipline          | Code, impl ADRs           |
+| **QA/Adversary**         | Validates, finds problems before production   | Test Plan, defect reports |
 
-### Decision Tree
-
-```
-User Request
-    |
-    v
-Is this a simple question/lookup?
-    |
-  YES --> Answer directly (check skills/docs first)
-    |
-   NO --> Invoke @orchestrator with full context
-```
-
-### Examples
-
-**Simple question**: "What's SaveSession?" --> Check `autom8-asana` skill, answer directly
-**Task**: "Add rate limiting" --> Invoke `@orchestrator`
-**Ambiguous**: "Fix the bug" --> Ask for clarification first
-
----
+**New here?** Use the `prompting` skill for copy-paste patterns, or `initiative-scoping` to start a new project.
 
 ## Skills Architecture
 
-Skills load context on-demand. Use the appropriate skill for domain knowledge.
+Skills provide domain knowledge on-demand. They activate based on your task:
 
-| Skill | When to Activate |
-|-------|------------------|
-| **autom8-asana** | SDK patterns, SaveSession, Business entities, detection, batch operations |
-| **standards** | General Python/testing patterns (note: generic, not SDK-specific) |
-| **documentation** | PRD/TDD/ADR templates, documentation workflows |
-| **prompting** | Agent invocation patterns, workflow shortcuts |
-| **10x-workflow** | Full lifecycle, quality gates, agent glossary |
-| **initiative-scoping** | Prompt -1, Prompt 0 patterns |
+| Skill                | When to Activate                                           |
+| -------------------- | ---------------------------------------------------------- |
+| **10x-workflow**     | Agent coordination, handoffs, pipeline flow                |
+| **atuin-desktop**    | Creating/editing .atrb runbooks, validating runbook YAML   |
+| **documentation**    | PRD/TDD/ADR/Test Plan templates and formats                |
+| **initiative-scoping** | Starting new projects, Prompt -1/0 templates             |
+| **justfile**         | Task automation, just recipes, project commands            |
+| **prompting**        | Copy-paste prompt patterns, agent invocation examples      |
+| **standards**        | Code conventions, tech stack, repository structure, commands |
 
-### Activation Triggers
+## Agent Configurations
 
-**autom8-asana** activates on:
-- Keywords: SaveSession, Business, Contact, Unit, Offer, holder, detect_entity_type, cascade_field, ActionOperation, batch operation, async client
-- File patterns: `src/autom8_asana/**/*.py`, `tests/**/*.py`
-- Tasks: SDK implementation, Asana API integration, entity operations, hierarchy navigation
+Full agent prompts live in `.claude/agents/`:
 
----
+- `orchestrator.md` - Coordinates multi-phase workflows
+- `requirements-analyst.md` - Produces PRDs
+- `architect.md` - Produces TDDs and ADRs
+- `principal-engineer.md` - Implements code
+- `qa-adversary.md` - Validates and tests
 
-## Agent Hierarchy
+## Hooks (Automatic Context)
 
-```
-You (Main Thread)
-    |
-    v (invoke @orchestrator)
-@orchestrator
-    |
-    v (coordinates)
-@requirements-analyst  --> PRD
-@architect             --> TDD, ADRs
-@principal-engineer    --> Code
-@qa-adversary          --> Test Plan
-```
+Hooks auto-inject context on session start and automate common operations:
 
-### Invoking the Orchestrator
+| Hook | Event | What It Does |
+|------|-------|--------------|
+| session-context | SessionStart | Loads project, team, session, git info |
+| auto-park | Stop | Saves session state when Claude exits |
+| artifact-tracker | PostToolUse | Tracks PRD/TDD/ADR creation |
+| team-validator | PreToolUse | Validates team switch commands |
 
-```
-@orchestrator
+**No manual context needed** - hooks inject it automatically.
 
-**User Request**: [What the user asked for]
+See `.claude/hooks/` for scripts, `.claude/settings.local.json` for config.
 
-**Context**:
-- [Relevant files or systems]
-- [Constraints or requirements mentioned]
+## Dynamic Context Syntax
 
-Please analyze this task, create a phased plan, and coordinate execution.
+Commands can include dynamic context using the `!` prefix syntax:
+
+```markdown
+**Active team**: !`cat .claude/ACTIVE_TEAM`
+**Git branch**: !`git branch --show-current`
 ```
 
----
+When Claude reads a command file:
+1. Lines starting with `!` followed by backtick-wrapped commands are executed
+2. The output replaces the command inline
+3. This provides live context without hook complexity
+
+**Best practices:**
+- Use for simple, fast queries (avoid slow operations)
+- Always include fallbacks: `!`cat file 2>/dev/null || echo "default"`
+- Prefer hooks for complex context that all commands need
 
 ## Getting Help
 
-| Question | Where to Look |
-|----------|---------------|
-| What is SaveSession? | `autom8-asana` skill |
-| How do Asana batch ops work? | `autom8-asana/persistence.md` |
-| Where does SDK code go? | `autom8-asana/infrastructure.md` |
-| What's the tech stack? | `autom8-asana/infrastructure.md` |
-| How does Business/Contact/Unit work? | `autom8-asana/entities.md` |
-| How do I detect entity types? | `autom8-asana/entities.md#detection` |
-| PRD/TDD templates? | `documentation` skill |
-| Agent workflow patterns? | `prompting` skill |
-| Project overview? | `PROJECT_CONTEXT.md` |
-| Domain glossary? | `autom8-asana/glossary.md` |
-| What is Asana-as-database? | `autom8-asana` skill |
-
----
-
-## Documentation Reference
-
-### Root Files (Always Loaded)
-- [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md) - Project overview and extraction context
-- [`GLOSSARY.md`](./GLOSSARY.md) - Core terminology (SDK terms in skill)
-
-### Skills (Loaded On-Demand)
-- [`skills/autom8-asana/`](./skills/autom8-asana/) - SDK infrastructure and business entities
-- [`skills/standards/`](./skills/standards/) - General coding standards
-- [`skills/documentation/`](./skills/documentation/) - Document templates
-- [`skills/prompting/`](./skills/prompting/) - Workflow patterns
-
-### Agent Definitions
-- [`agents/orchestrator.md`](./agents/orchestrator.md)
-- [`agents/requirements-analyst.md`](./agents/requirements-analyst.md)
-- [`agents/architect.md`](./agents/architect.md)
-- [`agents/principal-engineer.md`](./agents/principal-engineer.md)
-- [`agents/qa-adversary.md`](./agents/qa-adversary.md)
-
-### Living Documentation
-- [`/docs/INDEX.md`](/docs/INDEX.md) - Registry of PRDs, TDDs, ADRs, Test Plans
-
----
-
-## Quick Commands
-
-```bash
-# Development
-pip install -e ".[dev]"   # Install dev dependencies
-pytest                    # Run tests
-pytest --cov              # Run with coverage
-mypy src/autom8_asana     # Type check
-ruff check src/           # Lint
-ruff format src/          # Format
-```
-
----
-
-## The Prime Directive
-
-```
-User --> Main Thread --> @orchestrator --> @specialists --> Deliverables
-```
-
-**You are a router, not a worker.** Understand user intent, invoke the right agent.
-
-Trust the system. Invoke `@orchestrator`. Let specialists do their jobs.
+| Question                        | Go To                        |
+| ------------------------------- | ---------------------------- |
+| How do I invoke an agent?       | `prompting` skill            |
+| What template do I use?         | `documentation` skill        |
+| Where does this code go?        | `standards` skill            |
+| Which agent handles this?       | `10x-workflow` skill         |
+| How do I start a new project?   | `initiative-scoping` skill   |
+| How do I create a runbook?      | `atuin-desktop` skill        |
+| How do I automate tasks?        | `justfile` skill             |
+| What hooks are configured?      | `.claude/hooks/` directory   |

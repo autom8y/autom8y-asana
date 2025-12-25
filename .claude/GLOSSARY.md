@@ -1,26 +1,37 @@
 # Glossary
 
-> Pointer to domain-specific glossaries. Avoid duplication.
+> **⚠️ This file has been superseded by the unified glossary**
 
 ---
 
-## Where to Find Terms
+## Primary Reference
 
-| Domain | Glossary Location |
-|--------|-------------------|
-| SDK infrastructure | `skills/autom8-asana-domain/glossary.md` |
-| Business entities | `skills/autom8-asana-business/glossary.md` |
+**All terminology is now consolidated in**: [`/docs/reference/GLOSSARY.md`](/docs/reference/GLOSSARY.md)
+
+The unified glossary includes:
+- Core Asana concepts (GID, Task, Project, Custom Fields)
+- SDK architecture (SaveSession, Protocols, Clients)
+- Business entities (Business, Contact, Unit, Offer, Holders)
+- Persistence & state management
+- Detection system (5-tier detection, self-healing)
+- Cache architecture (EntryType, TTL, staleness detection)
+- Automation system (Rules, Pipeline conversion)
+- Workflow phases (Prompt -1, Prompt 0, Sessions)
+- Agent roles (Orchestrator, Analyst, Architect, Engineer, QA)
+- Documentation artifacts (PRD, TDD, ADR, Test Plan)
+- Quality concepts and anti-patterns
+- Communication patterns and decision frameworks
 
 ---
 
-## Document Acronyms
+## Quick Reference (Document Acronyms)
 
 | Acronym | Expansion |
 |---------|-----------|
-| PRD | Product Requirements Document |
-| TDD | Technical Design Document |
 | ADR | Architecture Decision Record |
 | NFR | Non-Functional Requirement |
+| PRD | Product Requirements Document |
+| TDD | Technical Design Document |
 
 ---
 

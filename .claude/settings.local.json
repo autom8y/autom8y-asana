@@ -1,113 +1,159 @@
 {
   "permissions": {
     "allow": [
-      "Bash(timeout 10 python -m pytest:*)",
-      "Bash(for f in test_entry test_settings test_versioning test_memory_backend test_metrics test_redis_backend test_staleness test_batch)",
-      "Bash(do echo \"=== $f ===\" timeout 8 python -m pytest tests/unit/cache/$f.py -v --tb=no -q)",
-      "Bash(timeout 8 python -m pytest:*)",
-      "Bash(timeout 15 python -m pytest:*)",
-      "Bash(timeout 20 python -m pytest:*)",
-      "Bash(timeout 25 python -m pytest:*)",
-      "Bash(timeout 30 python -m pytest:*)",
-      "Bash(timeout 60 python -m pytest:*)",
-      "Bash(python -m pytest:*)",
-      "Bash(pip install polars)",
-      "Bash(python:*)",
       "Bash(find:*)",
-      "Bash(python3:*)",
-      "Bash(grep:*)",
-      "Bash(pip install:*)",
-      "Bash(pytest:*)",
-      "Bash(timeout 90 python -m pytest:*)",
-      "Bash(timeout 120 python -m pytest:*)",
-      "Bash(timeout 300 python -m pytest:*)",
-      "Bash(cat:*)",
-      "Bash(git stash:*)",
-      "Bash(timeout 15 python:*)",
-      "Bash(timeout 30 python:*)",
-      "Bash(timeout 180 python -m pytest:*)",
-      "Bash(mypy:*)",
-      "Bash(/usr/bin/find:*)",
-      "Bash(ls:*)",
-      "Bash(xargs:*)",
-      "WebFetch(domain:developers.asana.com)",
-      "Bash(src/autom8_asana/models/custom_field_accessor.py )",
-      "Bash(src/autom8_asana/models/task.py )",
-      "Bash(src/autom8_asana/client.py )",
-      "Bash(src/autom8_asana/persistence/session.py )",
-      "Bash(src/autom8_asana/persistence/__init__.py )",
-      "Bash(src/autom8_asana/models/__init__.py )",
-      "Bash(wc:*)",
-      "WebSearch",
-      "Bash(gh auth status:*)",
-      "Bash(gh repo create:*)",
-      "Bash(gh repo view:*)",
+      "Bash(python3 -m py_compile:*)",
       "Bash(mkdir:*)",
-      "Skill(prompting)",
       "Skill(initiative-scoping)",
-      "Bash(ruff check:*)",
+      "Skill(prompting)",
+      "Skill(10x-workflow)",
+      "Skill(documentation)",
+      "Skill(atuin-desktop)",
+      "Skill(consult-ref)",
+      "Bash(time zsh:*)",
+      "Bash(wc:*)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(zsh:*)",
+      "Bash(for i in 1 2 3 4 5)",
+      "Bash(do /usr/bin/time zsh -i -c exit)",
+      "Bash(done)",
+      "Bash(command -v mise:*)",
+      "Bash(mise --version:*)",
+      "Bash(command -v nvm:*)",
+      "Bash(nvm --version:*)",
+      "Bash(command -v:*)",
+      "Bash(pyenv --version:*)",
+      "Bash(rbenv:*)",
+      "Bash(direnv:*)",
+      "Bash(zoxide --version:*)",
+      "Bash(atuin:*)",
+      "Bash(fzf:*)",
+      "Bash(command -v eza:*)",
+      "Bash(eza:*)",
+      "Bash(command:*)",
+      "Bash(bat:*)",
+      "Bash(delta:*)",
+      "Bash(cut:*)",
+      "Bash(brew install:*)",
+      "Bash(starship --version:*)",
+      "Bash(/bin/zsh -c 'source ~/.zshrc')",
+      "Bash(for i in {1..5})",
+      "Bash(do /bin/zsh -i -c exit)",
+      "Bash(do )",
+      "Bash(/usr/bin/time:*)",
+      "Bash(grep:*)",
+      "Bash(source ~/.zshrc)",
       "Bash(env)",
-      "Bash(ASANA_PAT='YOUR_ASANA_PAT_HERE' python scripts/demo_sdk_operations.py:*)",
-      "Bash(ASANA_PAT='YOUR_ASANA_PAT_HERE' echo \"\")",
-      "Bash(export ASANA_PAT='YOUR_ASANA_PAT_HERE')",
-      "Bash(yes:*)",
-      "Bash(timeout 180 python:*)",
-      "Bash(/usr/bin/grep:*)",
-      "WebFetch(domain:asana.github.io)",
-      "WebFetch(domain:apidog.com)",
-      "WebFetch(domain:share.apidog.com)",
+      "Bash(echo:*)",
+      "Bash(mise settings:*)",
+      "Bash(mise doctor:*)",
+      "Bash(mise list:*)",
+      "Bash(brew list:*)",
+      "Bash(source /Users/tomtenuta/.zshrc)",
+      "Bash(file:*)",
+      "Bash(mise use:*)",
+      "Bash(jq:*)",
+      "Bash(yq:*)",
       "Bash(du:*)",
       "Bash(test:*)",
-      "Bash(git mv:*)",
-      "Bash(ASANA_PAT='YOUR_ASANA_PAT_HERE' python:*)",
-      "Bash(ASANA_PAT='YOUR_ASANA_PAT_HERE' timeout 120 python:*)",
-      "Skill(autom8-asana)",
-      "Bash(curl:*)",
-      "Bash(\"https://app.asana.com/api/1.0/projects/1205571477139891/custom_field_settings\")",
-      "Bash(\"https://app.asana.com/api/1.0/projects/1200944186565610/custom_field_settings\")",
-      "Bash(\"https://app.asana.com/api/1.0/projects/1201319387632570/custom_field_settings\")",
-      "Bash(\"https://app.asana.com/api/1.0/projects/1201476141989746/custom_field_settings\")",
-      "Bash(\"https://app.asana.com/api/1.0/projects/1201346565918814/custom_field_settings\")",
-      "Bash(\"https://app.asana.com/api/1.0/projects/1201265144487549/custom_field_settings\")",
-      "Bash(\"https://app.asana.com/api/1.0/projects/1204433992667196/custom_field_settings\")",
-      "Bash(\"https://app.asana.com/api/1.0/projects/1201500116978260/custom_field_settings\")",
-      "Bash(\"https://app.asana.com/api/1.0/projects/1200775689604552/custom_field_settings\")",
-      "Bash(\"https://app.asana.com/api/1.0/projects/1200653012566782/custom_field_settings\")",
-      "Bash(\"https://app.asana.com/api/1.0/projects/1200836133305610/custom_field_settings\")",
-      "Bash(\"https://app.asana.com/api/1.0/projects/1201614578074026/custom_field_settings\")",
-      "Bash(\"https://app.asana.com/api/1.0/projects/1203421687860105/custom_field_settings\")",
-      "Bash(\"https://app.asana.com/api/1.0/projects/1204390909572031/custom_field_settings\")",
-      "Bash(echo:*)",
-      "Bash(source:*)",
-      "Bash(\"https://app.asana.com/api/1.0/projects/1143843662099250/custom_field_settings\")",
-      "Bash(\"https://app.asana.com/api/1.0/projects/1210679066066870/custom_field_settings\")",
-      "Skill(10x-workflow)",
-      "Bash(direnv allow:*)",
-      "Bash(\"https://app.asana.com/api/1.0/tasks/1212499129724452?opt_fields=name,custom_fields,custom_fields.name,custom_fields.display_value,custom_fields.type\")",
-      "Bash(ASANA_PAT=\"1/1200795353760666:803190d43f49ed333f9e3d31fa3f77ef\" python:*)",
-      "Bash(ASANA_PAT=\"1/1200795353760666:803190d43f49ed333f9e3d31fa3f77ef\" ASANA_WORKSPACE_GID=\"1143357799778608\" python:*)",
-      "Bash(\"https://app.asana.com/api/1.0/tasks/1212524953936890?opt_fields=name,custom_fields,custom_fields.name,custom_fields.display_value\")",
-      "Bash(\"https://app.asana.com/api/1.0/tasks/1212524971899899?opt_fields=name,custom_fields,custom_fields.name,custom_fields.display_value\")",
-      "Bash(\"https://app.asana.com/api/1.0/tasks/1212525009202281?opt_fields=name,custom_fields,custom_fields.name,custom_fields.display_value\")",
-      "Bash(\"https://app.asana.com/api/1.0/tasks/1212525020148612?opt_fields=name,custom_fields,custom_fields.name,custom_fields.display_value\")",
-      "Bash(\"https://app.asana.com/api/1.0/tasks/1212525051567192?opt_fields=name,custom_fields,custom_fields.name,custom_fields.display_value\")",
-      "Bash(\"https://app.asana.com/api/1.0/tasks/1212525150575696?opt_fields=name,custom_fields,custom_fields.name,custom_fields.display_value,custom_fields.enum_value,custom_fields.multi_enum_values\")",
-      "Bash(\"https://app.asana.com/api/1.0/tasks/1212525192103619?opt_fields=name,custom_fields,custom_fields.name,custom_fields.display_value,custom_fields.type\")",
-      "Bash(\"https://app.asana.com/api/1.0/tasks/1212499947588469?opt_fields=name,custom_fields,custom_fields.name,custom_fields.display_value\")",
-      "Skill(minus-1)",
-      "Bash(/opt/homebrew/bin/uv run pytest:*)",
-      "Bash(/opt/homebrew/bin/python3 -m pytest:*)",
-      "Bash(for f in /Users/tomtenuta/Code/autom8_asana/docs/requirements/PRD-SPRINT-*.md /Users/tomtenuta/Code/autom8_asana/docs/design/TDD-SPRINT-*.md /Users/tomtenuta/Code/autom8_asana/docs/testing/VP-SPRINT-*.md /Users/tomtenuta/Code/autom8_asana/docs/analysis/DISCOVERY-SPRINT-*.md)",
-      "Bash(done)",
-      "Bash(sort:*)",
-      "Bash(PYTHONPATH=src python:*)",
-      "Bash(direnv export:*)"
+      "Bash(tr:*)",
+      "Bash(xargs:*)",
+      "Bash(basename:*)",
+      "Bash(head:*)",
+      "Bash(sed:*)",
+      "Bash(gh:*)",
+      "Bash(git:*)",
+      "Bash(ls ~/Code/roster/teams/:*)",
+      "Bash(ls .claude/agents/:*)",
+      "Bash(~/Code/roster/swap-team.sh:*)",
+      "Bash(openssl:*)",
+      "Bash(mv:*)",
+      "Bash(rm:*)",
+      "Bash(date:*)",
+      "Bash(awk:*)",
+      "Bash(mkdir:*)",
+      "Bash(.claude/hooks/lib/session-manager.sh:*)",
+      "Bash(.claude/hooks/lib/worktree-manager.sh:*)"
+    ],
+    "additionalDirectories": [
+      "~/Code/roster"
     ]
   },
-  "enabledMcpjsonServers": [],
-  "disabledMcpjsonServers": [
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
     "go-semantic",
     "typescript-semantic",
     "mermaid-mcp"
-  ]
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-context.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/auto-park.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/artifact-tracker.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-audit.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/team-validator.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/workflow-validator.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/start-preflight.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
 }

@@ -1,108 +1,160 @@
 ---
 name: initiative-scoping
-description: "Prompt -1 and Prompt 0 templates for initiative kickoff. Use when: starting new projects, scoping major initiatives, writing kickoff documents, defining project boundaries. Triggers: prompt 0, prompt -1, initiative scoping, project kickoff, new project, major initiative, scoping document, initialization prompt."
+description: "Session -1 and Session 0 protocols for initiative kickoff. Use when: starting new projects, scoping major initiatives, initializing the Orchestrator. Triggers: session -1, session 0, prompt -1, prompt 0, initiative scoping, project kickoff, new project, major initiative, initialization."
 status: complete
 ---
 
-# Initiative Scoping (Prompt -1/0)
+# Initiative Scoping (Session -1/0)
 
-> Templates for the two critical initialization prompts that start new initiatives.
+> Protocols for the two initialization sessions that prepare the Orchestrator for execution.
+
+## The Hierarchy
+
+```
+ORCHESTRATOR (subagent)     <-- Decision-maker, "north star" advisor
+       |
+       | advises/contextualizes
+       v
+MAIN AGENT (Claude)         <-- Simple invoker, ONLY job is prompting
+       |
+       | invokes with explicit skill instructions
+       v
+SPECIALIST SUBAGENTS        <-- Do the actual work
+```
+
+**Key principle**: The main agent is subordinate to subagents. Subagents make decisions; the main agent only prompts.
+
+---
+
+## Session Overview
+
+| Session | Purpose | Main Agent Action | Orchestrator Action |
+|---------|---------|-------------------|---------------------|
+| **Session -1** | Assess readiness | Invoke Orchestrator with initiative | Assess Go/No-Go |
+| **Session 0** | Plan execution | Invoke Orchestrator with context | Create delegation map |
+| **Session 1+** | Execute work | Invoke specialists per delegation map | Coordinate, verify gates |
+
+**Sessions -1 and 0 are pre-work** - just Orchestrator ingestion and context seeding. Real work begins in Session 1.
+
+---
 
 ## Quick Decision Framework
 
-| Scenario | Use Prompt -1? | Use Prompt 0? | Rationale |
-|----------|----------------|---------------|-----------|
+| Scenario | Session -1? | Session 0? | Rationale |
+|----------|-------------|------------|-----------|
 | New feature (complex) | Yes | Yes | Full scoping validates readiness |
-| New feature (simple) | No | Yes | Skip scoping, init orchestrator |
+| New feature (simple) | No | Yes | Skip assessment, init orchestrator |
 | Major refactoring | Yes | Yes | Risk assessment critical |
 | Bug fix (isolated) | No | No | Direct implementation |
 | Bug fix (cross-cutting) | Yes | Yes | Dependencies need validation |
-| Sprint planning | Yes | Maybe | Scope first, orchestrate if complex |
 | Exploration/spike | No | No | Direct implementation |
 
-## Initiative Flow
+---
+
+## Session Protocols
+
+### Session -1: Initiative Assessment
+
+**Main agent receives**: Initiative description from user
+
+**Main agent does**: Invokes Orchestrator to assess readiness
+
+**Orchestrator returns**:
+- North Star (objective + success criteria)
+- Go/No-Go recommendation
+- Workflow sizing (which agents, what order)
+- Blocking questions
+- Risks/assumptions
+
+**See**: [session-minus-1-protocol.md](session-minus-1-protocol.md)
+
+### Session 0: Orchestrator Initialization
+
+**Main agent receives**: Initiative context + Session -1 output (if available)
+
+**Main agent does**: Invokes Orchestrator to create execution plan
+
+**Orchestrator returns**:
+- North Star (what "done" means)
+- 10x Plan (phased approach with checkpoints)
+- Delegation Map (agents + skills + artifacts)
+- Blocking questions
+- Risks/assumptions
+
+**See**: [session-0-protocol.md](session-0-protocol.md)
+
+---
+
+## Skill Delegation Map
+
+When invoking specialists in Session 1+, the main agent must specify which skills to use:
+
+| Agent | Invoke With | Primary Skill | What They Produce |
+|-------|-------------|---------------|-------------------|
+| Requirements Analyst | `@requirements-analyst` | `documentation` | PRD |
+| Architect | `@architect` | `documentation` | TDD, ADRs |
+| Principal Engineer | `@principal-engineer` | `standards` | Code, tests |
+| QA/Adversary | `@qa-adversary` | `documentation` | Test Plan, validation |
+
+**Example invocation** (main agent to specialist):
+```
+Act as Requirements Analyst. Use the `documentation` skill for PRD template and quality gates.
+Create PRD for: {feature description}
+```
+
+---
+
+## Flow Diagram
 
 ```
-Problem/Idea
-    |
-    v
-+-------------+
-| Prompt -1   |  Scope & validate
-| (Scoping)   |  Go/No-Go decision
-+-------------+
-    |
-    v
-+-------------+
-| Prompt 0    |  Initialize orchestrator
-| (Init)      |  Set up 4-agent workflow
-+-------------+
-    |
-    v
-Sessions 1-N (Execution)
+User provides initiative
+         |
+         v
++------------------+
+| Session -1       |  Main Agent invokes Orchestrator
+| (Assessment)     |  Orchestrator: "Should we do this?"
++------------------+  Output: Go/No-Go + conditions
+         |
+         v
++------------------+
+| Session 0        |  Main Agent invokes Orchestrator
+| (Initialization) |  Orchestrator: "How will we do this?"
++------------------+  Output: Delegation Map + plan
+         |
+         v
++------------------+
+| Session 1+       |  Main Agent invokes specialists
+| (Execution)      |  per delegation map with skill instructions
++------------------+
 ```
 
-## Prompt -1 Overview
+---
 
-**Purpose**: Validate initiative readiness before committing to the full 4-agent workflow.
+## What the Main Agent Does NOT Do
 
-**Key Sections**:
-- Problem Validation (is it real? who's affected?)
-- Scope Boundaries (in/out of scope)
-- Complexity Assessment (right-size the workflow)
-- Dependencies & Blockers
-- Risk Assessment
-- Go/No-Go Decision
+- Make decisions about workflow (Orchestrator decides)
+- Fill out templates (specialists do)
+- Choose which agents to invoke (Orchestrator's delegation map)
+- Repeat workflow definitions (reference `10x-workflow` skill)
+- Do implementation work (specialists do)
 
-**Output**: GO / CONDITIONAL GO / NO-GO recommendation
+The main agent's **only skill is `prompting`** - it invokes subagents with clear context.
 
-See: [prompt-minus-1.md](prompt-minus-1.md)
-
-## Prompt 0 Overview
-
-**Purpose**: Initialize the Orchestrator with full context to coordinate the 4-agent workflow.
-
-**Key Sections**:
-- Context & Documentation to read
-- Mission statement & success criteria
-- Current state & target architecture
-- Session-phased approach (7 sessions)
-- Discovery phase requirements
-- Open questions
-
-**Output**: Orchestrator confirmation and Session 1 readiness
-
-See: [prompt-0.md](prompt-0.md)
-
-## Common Workflows
-
-**Full Initiative** (new feature, migration):
-1. Create Prompt -1 to validate scope
-2. Get GO decision
-3. Create Prompt 0 with Prompt -1 context
-4. Orchestrator runs Sessions 1-7
-
-**Quick Start** (validated scope, simple feature):
-1. Skip Prompt -1
-2. Create Prompt 0 directly
-3. Orchestrator runs Sessions 1-7
-
-**Abbreviated** (bug fix, small task):
-1. Skip both prompts
-2. Use `prompting` skill for direct agent invocation
+---
 
 ## Related Skills
 
-- [10x-workflow](../10x-workflow/SKILL.md) - Pipeline flow after initialization
-- [documentation](../documentation/SKILL.md) - PRD/TDD templates for Sessions 2-3
+- [10x-workflow](../10x-workflow/SKILL.md) - Defines the workflow (do not repeat)
+- [documentation](../documentation/SKILL.md) - Templates for specialists
 - [prompting](../prompting/SKILL.md) - Agent invocation patterns
+- [standards](../standards/SKILL.md) - Code conventions for Principal Engineer
 
-## Agent Configuration
+---
 
-The Orchestrator is initialized by Prompt 0 and coordinates:
+## Legacy Templates
 
-| Agent | Session | Deliverable |
-|-------|---------|-------------|
-| Requirements Analyst | 1-2 | Discovery doc, PRD |
-| Architect | 3 | TDD, ADRs |
-| Principal Engineer | 4-6 | Implementation |
-| QA/Adversary | 7 | Validation report |
+For heavyweight Prompt -1/0 documents (user-authored initiative context):
+- [prompt-minus-1.md](prompt-minus-1.md) - Detailed scoping template
+- [prompt-0.md](prompt-0.md) - Detailed initialization template
+
+These are **optional input formats** the user may provide. The protocols above define what the main agent does with that input.
