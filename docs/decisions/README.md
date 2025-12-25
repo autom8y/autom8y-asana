@@ -95,8 +95,10 @@ When marking an ADR as **Superseded**:
 
 ADRs are organized by:
 - **Sequential number** - Browse chronologically
-- **Topic** - Search by filename or content
+- **Topic** - Use [ADR Index by Topic](ADR-INDEX-BY-TOPIC.md) for topical navigation
 - **Related documents** - Follow references from PRDs/TDDs
+
+**Recommended**: Start with the [ADR Index by Topic](ADR-INDEX-BY-TOPIC.md) to find decisions by concern area (cache, patterns, data model, etc.).
 
 To find ADRs related to a feature:
 ```bash
