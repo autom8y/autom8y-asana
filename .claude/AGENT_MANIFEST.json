@@ -1,0 +1,12 @@
+{
+  "manifest_version": "1.0",
+  "active_team": "doc-team-pack",
+  "last_swap": "2025-12-25T07:06:49Z",
+  "agents": {
+    "doc-auditor.md": {"source": "team", "origin": "doc-team-pack", "installed_at": "2025-12-25T07:06:49Z"},
+    "doc-reviewer.md": {"source": "team", "origin": "doc-team-pack", "installed_at": "2025-12-25T07:06:49Z"},
+    "information-architect.md": {"source": "team", "origin": "doc-team-pack", "installed_at": "2025-12-25T07:06:49Z"},
+    "orchestrator.md": {"source": "team", "origin": "doc-team-pack", "installed_at": "2025-12-25T07:06:49Z"},
+    "tech-writer.md": {"source": "team", "origin": "doc-team-pack", "installed_at": "2025-12-25T07:06:49Z"}
+  }
+}

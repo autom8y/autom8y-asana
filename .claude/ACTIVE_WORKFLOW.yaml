@@ -1,0 +1,49 @@
+name: doc-team-pack
+workflow_type: sequential
+description: Documentation lifecycle (Audit → Structure → Write → Review)
+
+entry_point:
+  agent: doc-auditor
+  artifact:
+    type: audit-report
+    path_template: docs/audits/AUDIT-{slug}.md
+
+phases:
+  - name: audit
+    agent: doc-auditor
+    produces: audit-report
+    next: architecture
+
+  - name: architecture
+    agent: information-architect
+    produces: doc-structure
+    next: writing
+    condition: "complexity >= SECTION"
+
+  - name: writing
+    agent: tech-writer
+    produces: documentation
+    next: review
+
+  - name: review
+    agent: doc-reviewer
+    produces: review-signoff
+    next: null
+
+complexity_levels:
+  - name: PAGE
+    scope: "Single document"
+    phases: [writing, review]
+  - name: SECTION
+    scope: "Multiple related documents"
+    phases: [architecture, writing, review]
+  - name: SITE
+    scope: "Full documentation site"
+    phases: [audit, architecture, writing, review]
+
+# Agent roles for command mapping:
+# /architect  → information-architect
+# /build      → tech-writer
+# /qa         → doc-reviewer
+# /hotfix     → tech-writer (fast path)
+# /code-review → doc-reviewer (review mode)
