@@ -1,49 +1,39 @@
-name: doc-team-pack
+name: debt-triage-pack
 workflow_type: sequential
-description: Documentation lifecycle (Audit → Structure → Write → Review)
+description: Debt management lifecycle (Collect → Assess → Plan)
 
 entry_point:
-  agent: doc-auditor
+  agent: debt-collector
   artifact:
-    type: audit-report
-    path_template: docs/audits/AUDIT-{slug}.md
+    type: debt-ledger
+    path_template: docs/debt/LEDGER-{slug}.md
 
 phases:
-  - name: audit
-    agent: doc-auditor
-    produces: audit-report
-    next: architecture
+  - name: collection
+    agent: debt-collector
+    produces: debt-ledger
+    next: assessment
 
-  - name: architecture
-    agent: information-architect
-    produces: doc-structure
-    next: writing
-    condition: "complexity >= SECTION"
+  - name: assessment
+    agent: risk-assessor
+    produces: risk-report
+    next: planning
 
-  - name: writing
-    agent: tech-writer
-    produces: documentation
-    next: review
-
-  - name: review
-    agent: doc-reviewer
-    produces: review-signoff
+  - name: planning
+    agent: sprint-planner
+    produces: sprint-plan
     next: null
 
 complexity_levels:
-  - name: PAGE
-    scope: "Single document"
-    phases: [writing, review]
-  - name: SECTION
-    scope: "Multiple related documents"
-    phases: [architecture, writing, review]
-  - name: SITE
-    scope: "Full documentation site"
-    phases: [audit, architecture, writing, review]
+  - name: QUICK
+    scope: "Known debt items"
+    phases: [assessment, planning]
+  - name: AUDIT
+    scope: "Full debt discovery"
+    phases: [collection, assessment, planning]
 
 # Agent roles for command mapping:
-# /architect  → information-architect
-# /build      → tech-writer
-# /qa         → doc-reviewer
-# /hotfix     → tech-writer (fast path)
-# /code-review → doc-reviewer (review mode)
+# /architect  → risk-assessor (assessment/design role)
+# /build      → sprint-planner (planning is the "build" output)
+# /qa         → risk-assessor (validation role)
+# Note: This team has 3 agents, not 4. Some commands may not apply.
