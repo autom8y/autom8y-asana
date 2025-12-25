@@ -1,3 +1,9 @@
+---
+status: superseded
+superseded_by: /docs/reference/REF-cache-invalidation.md
+superseded_date: 2025-12-24
+---
+
 # PRD: Cache Optimization Phase 3 - GID Enumeration Caching
 
 ## Metadata

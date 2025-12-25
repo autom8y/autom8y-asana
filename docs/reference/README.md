@@ -54,13 +54,42 @@ See [REF-cache-ttl-strategy](../reference/REF-cache-ttl-strategy.md) for TTL cal
 
 ## Current Reference Docs
 
+### Cache Architecture (6 docs)
+
 | Document | Type | Description |
 |----------|------|-------------|
-| [REF-entity-type-table.md](REF-entity-type-table.md) | Data Catalog | Business model entity hierarchy |
-| [REF-custom-field-catalog.md](REF-custom-field-catalog.md) | Data Catalog | 108 custom fields across 5 models |
-| [REF-cache-staleness-detection.md](REF-cache-staleness-detection.md) | Algorithm | Staleness detection algorithms |
-| [REF-cache-ttl-strategy.md](REF-cache-ttl-strategy.md) | Algorithm | TTL calculation and progressive extension |
+| [REF-cache-architecture.md](REF-cache-architecture.md) | Architecture | Core architecture, provider protocol, backend selection |
+| [REF-cache-staleness-detection.md](REF-cache-staleness-detection.md) | Algorithm | Detection algorithms, modified-since, batch coalescing |
+| [REF-cache-ttl-strategy.md](REF-cache-ttl-strategy.md) | Algorithm | Progressive TTL, watermark approach, max TTL calculation |
 | [REF-cache-provider-protocol.md](REF-cache-provider-protocol.md) | Protocol | CacheProvider interface specification |
+| [REF-cache-invalidation.md](REF-cache-invalidation.md) | Algorithm | Invalidation strategies and hooks |
+| [REF-cache-patterns.md](REF-cache-patterns.md) | Patterns | Common cache usage patterns and best practices |
+
+### Entity Model (5 docs)
+
+| Document | Type | Description |
+|----------|------|-------------|
+| [REF-entity-lifecycle.md](REF-entity-lifecycle.md) | Pattern | Define → Detect → Populate → Navigate → Persist |
+| [REF-detection-tiers.md](REF-detection-tiers.md) | Algorithm | 5-tier detection system specification |
+| [REF-savesession-lifecycle.md](REF-savesession-lifecycle.md) | Pattern | Track → Modify → Commit → Validate |
+| [REF-asana-hierarchy.md](REF-asana-hierarchy.md) | Data Model | Workspace → Project → Section → Task → Subtask |
+| [REF-entity-type-table.md](REF-entity-type-table.md) | Data Catalog | Business model entity hierarchy |
+
+### Workflow (3 docs)
+
+| Document | Type | Description |
+|----------|------|-------------|
+| [REF-workflow-phases.md](REF-workflow-phases.md) | Pattern | Requirements → Design → Implementation → Testing |
+| [REF-command-decision-tree.md](REF-command-decision-tree.md) | Decision Tree | When to use /task vs /sprint vs /hotfix |
+| [REF-batch-operations.md](REF-batch-operations.md) | Pattern | Chunking, parallelization, error handling |
+
+### Metadata (3 docs)
+
+| Document | Type | Description |
+|----------|------|-------------|
+| [GLOSSARY.md](GLOSSARY.md) | Terminology | Unified terminology reference (200+ terms) |
+| [REF-skills-index.md](REF-skills-index.md) | Index | Skills architecture and activation triggers |
+| [REF-custom-field-catalog.md](REF-custom-field-catalog.md) | Data Catalog | 108 custom fields across 5 models |
 
 ## Creating a New Reference Doc
 

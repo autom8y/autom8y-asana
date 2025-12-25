@@ -1,8 +1,14 @@
+---
+status: superseded
+superseded_by: /docs/reference/REF-cache-architecture.md
+superseded_date: 2025-12-24
+---
+
 # PRD: Intelligent Caching Layer
 
 ## Metadata
 - **PRD ID**: PRD-0002
-- **Status**: Draft
+- **Status**: Superseded
 - **Author**: Claude/Requirements Analyst
 - **Created**: 2025-12-09
 - **Last Updated**: 2025-12-09

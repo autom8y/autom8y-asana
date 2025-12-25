@@ -1,3 +1,9 @@
+---
+status: superseded
+superseded_by: /docs/reference/REF-cache-invalidation.md
+superseded_date: 2025-12-24
+---
+
 # TDD: Lightweight Staleness Detection with Progressive TTL Extension
 
 ## Metadata

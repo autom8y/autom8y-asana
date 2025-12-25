@@ -1,3 +1,9 @@
+---
+status: superseded
+superseded_by: /docs/reference/REF-cache-patterns.md
+superseded_date: 2025-12-24
+---
+
 # TDD: Hydration Field Normalization
 
 ## Metadata

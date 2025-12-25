@@ -1,3 +1,9 @@
+---
+status: superseded
+superseded_by: /docs/reference/REF-cache-architecture.md
+superseded_date: 2025-12-24
+---
+
 # TDD-CACHE-INTEGRATION: Activate Dormant Cache Infrastructure
 
 **Document ID**: TDD-CACHE-INTEGRATION

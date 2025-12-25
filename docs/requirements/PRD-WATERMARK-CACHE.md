@@ -1,3 +1,9 @@
+---
+status: superseded
+superseded_by: /docs/reference/REF-cache-architecture.md
+superseded_date: 2025-12-24
+---
+
 # PRD: Watermark Cache - Parallel Section Fetch
 
 ## Metadata
