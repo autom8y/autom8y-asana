@@ -33,16 +33,25 @@ Example: `PROMPT-MINUS-1-CACHE-PERFORMANCE-META.md`
 
 **If you need feature requirements**, look in [`/docs/requirements/`](../requirements/). Each initiative has a corresponding PRD.
 
+## Relationship to PRDs and TDDs
+
+Each PROMPT-0 initiative typically references one or more PRD/TDD pairs:
+- **PROMPT-0** provides orchestrator context and agent coordination
+- **PRD** defines what to build and why (product requirements)
+- **TDD** defines how to build it (technical design)
+
+The orchestrator uses PROMPT-0 files to coordinate multi-agent work, while PRDs and TDDs provide the actual specifications.
+
 ## Initiative Lifecycle
 
 ```
-Created → Active → Complete → Archived
+Created → Active → Validation → Archived
 ```
 
 1. **Created**: Initiative kicked off, PROMPT file created
 2. **Active**: Work in progress, referenced by agents
-3. **Complete**: Initiative finished, validated
-4. **Archived**: Moved to `.archive/initiatives/YYYY-QN/`
+3. **Validation**: Work complete, undergoing validation (VP report)
+4. **Archived**: Validated PASS/APPROVED, moved to `.archive/initiatives/YYYY-QN/`
 
 ## Archival Policy
 
@@ -59,6 +68,14 @@ Update [INDEX.md](../INDEX.md) to reflect archive location or remove from active
 - PROMPT-0-CACHE-PERF-FETCH-PATH (VP PASS)
 - PROMPT-0-WATERMARK-CACHE (VALIDATION PASS)
 - PROMPT-0-WORKSPACE-PROJECT-REGISTRY (VP APPROVED)
+
+## Creating a New Initiative
+
+To create a new PROMPT-0 or PROMPT-MINUS-1 file, see:
+- [.claude/skills/initiative-scoping/session-0-protocol.md](../../.claude/skills/initiative-scoping/session-0-protocol.md) - Session 0 template
+- [.claude/skills/initiative-scoping/session-minus-1-protocol.md](../../.claude/skills/initiative-scoping/session-minus-1-protocol.md) - Meta-initiative template
+
+These provide structured templates for initiative kickoff.
 
 ## Finding Archived Initiatives
 

@@ -4,6 +4,19 @@
 
 Runbooks are **step-by-step troubleshooting guides** for diagnosing and resolving production issues. They are written for on-call engineers responding to incidents.
 
+## When to Create a Runbook
+
+Create a runbook when a feature has:
+- **Complex failure modes** - Multiple symptoms or root causes
+- **Ops escalation history** - Repeated incidents requiring investigation
+- **Non-obvious debugging steps** - Diagnosis requires specialized knowledge or tools
+- **Production impact** - Failures affect user experience or system availability
+
+**When NOT to create a runbook:**
+- Simple errors with obvious fixes (document in code comments instead)
+- Rare edge cases that haven't recurred
+- Issues better addressed by fixing the underlying system
+
 ## When to Use a Runbook
 
 Use a runbook when:
@@ -25,6 +38,16 @@ All runbooks follow this format:
 4. **Resolution** - How to fix it
 5. **Prevention** - How to prevent recurrence
 
+## Severity Classification
+
+Runbooks should indicate severity level for incident triage:
+
+- **P0 (Outage)** - Complete system failure, no workaround available
+- **P1 (Degraded)** - Partial functionality loss, performance degradation affecting users
+- **P2 (Advisory)** - Non-critical issues, edge cases, operational warnings
+
+Include severity in the Problem Statement to help responders prioritize.
+
 ## Current Runbooks
 
 | Runbook | System | Use When |
@@ -39,7 +62,18 @@ All runbooks follow this format:
 2. Document symptoms and investigation steps
 3. Write resolution procedures
 4. Test runbook during next incident
-5. Add entry to this README and incident response playbook
+5. Add entry to this README
+
+**Naming Convention**: `RUNBOOK-feature-name.md` (e.g., RUNBOOK-cache-troubleshooting.md)
+
+## Known Gaps
+
+Additional runbooks needed for:
+- **Batch operations** - Chunking failures, parallelization issues, timeout handling
+- **Business model navigation** - Hierarchy traversal errors, missing parent/child relationships
+- **Automation troubleshooting** - Automation execution failures, rule conflicts
+
+These represent areas with operational complexity that would benefit from documented troubleshooting procedures.
 
 ## See Also
 
