@@ -19,9 +19,8 @@ Post-implementation validation reports that confirm:
 **When to create**: After feature implementation is complete, before merging to main or deploying.
 
 Examples:
-- `VP-CACHE-INTEGRATION.md`
-- `VP-WORKSPACE-PROJECT-REGISTRY.md`
-- `VP-SPRINT-1-PATTERN-COMPLETION.md`
+- `VP-SPRINT-SUMMARY.md` (consolidates Sprint 1, 3, 4, 5 validations)
+- `VP-FEATURE-SUMMARY.md` (consolidates Cache Integration, SaveSession, Pipeline Automation, etc.)
 
 ### Test Plans (TPs)
 Format: `TP-NNNN-feature-name.md` or `TP-FEATURE-NAME.md`
@@ -130,25 +129,48 @@ All Validation Plans should include:
    - `REJECTED` - Failed validation, needs rework
 9. Commit with message: `docs(validation): Add VP-FEATURE-NAME validation report`
 
+## Consolidated Validation Summaries
+
+To improve maintainability and reduce file count, related validation reports have been consolidated:
+
+### Current Consolidated Reports
+
+| Summary File | Consolidates | Location |
+|--------------|--------------|----------|
+| **VP-SPRINT-SUMMARY.md** | Sprint 1, 3, 4, 5 validations | `docs/testing/` |
+| **VP-FEATURE-SUMMARY.md** | Cache Integration, SaveSession, Pipeline Automation, Tech Debt, Workspace Registry | `docs/testing/` |
+| **VALIDATION-CACHE-PERFORMANCE.md** | Detection cache, DataFrame fetch, Hydration fields | `docs/validation/` |
+| **VALIDATION-CACHE-OPTIMIZATION.md** | P2, P3, Lightweight Staleness | `docs/validation/` |
+| **VALIDATION-CACHE-STORIES.md** | Stories cache implementation & integration | `docs/validation/` |
+
+### Archived Original Reports
+
+Original detailed validation reports are preserved in:
+- `docs/.archive/2025-12-validation/testing/` - Sprint and feature VPs
+- `docs/.archive/2025-12-validation/validation/` - Cache-specific VPs
+
+**Rationale**: Consolidated summaries provide high-level overview while individual reports remain available for deep dive analysis.
+
 ## Archival Policy
 
 Archive validation documents when:
 1. **Feature superseded** - Original feature replaced by new implementation
 2. **Validation invalidated** - Feature changed significantly, validation no longer accurate
 3. **Historical record only** - Feature stable for 6+ months, no active validation needed
+4. **Consolidated** - Multiple reports merged into summary document (originals preserved in archive)
 
 ### Archive Process
 
 ```bash
-# Move to archive with quarter designation
-git mv docs/testing/VP-OLD-FEATURE.md docs/.archive/validation/2025-Q4/
+# Move to archive with date designation
+git mv docs/testing/VP-OLD-FEATURE.md docs/.archive/2025-12-validation/testing/
 ```
 
 Update document with archive notice:
 
 ```markdown
 > **ARCHIVE NOTICE**: This validation report has been archived.
-> Reason: [Feature superseded | Feature removed | Validation invalidated]
+> Reason: [Feature superseded | Feature removed | Validation invalidated | Consolidated into summary]
 > See [replacement document] for current validation.
 ```
 
