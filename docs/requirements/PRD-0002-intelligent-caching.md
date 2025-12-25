@@ -6,6 +6,15 @@ superseded_date: 2025-12-24
 
 # PRD: Intelligent Caching Layer
 
+> **SUPERSESSION NOTICE**: This PRD has been superseded by the PRD-CACHE-* series of granular requirements (Dec 22-24). The original requirements were decomposed into:
+> - [PRD-CACHE-INTEGRATION](PRD-CACHE-INTEGRATION.md) - SDK cache activation
+> - [PRD-CACHE-LIGHTWEIGHT-STALENESS](PRD-CACHE-LIGHTWEIGHT-STALENESS.md) - Staleness detection
+> - [PRD-CACHE-OPTIMIZATION-P2](PRD-CACHE-OPTIMIZATION-P2.md) - Performance optimization phase 2
+> - [PRD-CACHE-OPTIMIZATION-P3](PRD-CACHE-OPTIMIZATION-P3.md) - GID enumeration caching
+> - [PRD-WATERMARK-CACHE](PRD-WATERMARK-CACHE.md) - Parallel fetch optimization
+>
+> See [REF-cache-architecture.md](../reference/REF-cache-architecture.md) for current architecture overview.
+
 ## Metadata
 - **PRD ID**: PRD-0002
 - **Status**: Superseded

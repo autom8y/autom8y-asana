@@ -1,13 +1,16 @@
 # PRD-DESIGN-PATTERNS-D: Async/Sync Method Generator
 
+> **SUPERSESSION NOTICE**: This PRD has been superseded by the @async_method decorator pattern implementation (commit ee3ef8b, Dec 16). The decorator successfully eliminates async/sync duplication while preserving type safety and IDE support. See [MIGRATION-ASYNC-METHOD.md](../migration/MIGRATION-ASYNC-METHOD.md) for implementation details and usage patterns.
+
 | Field | Value |
 |-------|-------|
 | **ID** | PRD-DESIGN-PATTERNS-D |
 | **Title** | Async/Sync Method Generator |
-| **Status** | Active |
+| **Status** | Superseded |
 | **Owner** | @orchestrator |
 | **Priority** | P1 (High Value) |
 | **Created** | 2025-12-16 |
+| **Superseded By** | @async_method decorator (ADR-0092) |
 
 ---
 

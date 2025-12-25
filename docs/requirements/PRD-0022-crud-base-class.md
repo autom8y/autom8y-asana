@@ -1,12 +1,15 @@
 # PRD-DESIGN-PATTERNS-E: CRUD Client Base Class
 
+> **REJECTION NOTICE**: This PRD was rejected per [TDD-0026 NO-GO decision](../design/TDD-0026-crud-base-class-evaluation.md) (commit 8fb895c). Analysis showed that metaclass complexity outweighed benefits after @async_method already reduced duplication by 65%. The architecture uses entity-specific client implementations with the @async_method decorator pattern instead. Document retained for historical reference.
+
 | Field | Value |
 |-------|-------|
 | **ID** | PRD-DESIGN-PATTERNS-E |
 | **Title** | CRUD Client Base Class |
-| **Status** | Active |
+| **Status** | Rejected |
 | **Created** | 2025-12-16 |
 | **Meta-Initiative** | Design Patterns Sprint |
+| **Rejected By** | TDD-0026 NO-GO decision |
 
 ---
 

@@ -6,9 +6,16 @@ superseded_date: 2025-12-24
 
 # TDD: Intelligent Caching Layer
 
+> **SUPERSESSION NOTICE**: This TDD describes the original cache vision (Dec 9). The architecture evolved significantly through implementation. See current architecture:
+> - [TDD-CACHE-INTEGRATION](TDD-CACHE-INTEGRATION.md) - Cache activation design
+> - [TDD-CACHE-LIGHTWEIGHT-STALENESS](TDD-CACHE-LIGHTWEIGHT-STALENESS.md) - Staleness detection with progressive TTL
+> - [TDD-CACHE-OPTIMIZATION-P2](TDD-CACHE-OPTIMIZATION-P2.md) - Performance optimization phase 2
+> - [TDD-CACHE-OPTIMIZATION-P3](TDD-CACHE-OPTIMIZATION-P3.md) - GID enumeration caching
+> - [REF-cache-architecture.md](../reference/REF-cache-architecture.md) - Architecture overview
+
 ## Metadata
 - **TDD ID**: TDD-0008
-- **Status**: Draft
+- **Status**: Superseded
 - **Author**: Architect
 - **Created**: 2025-12-09
 - **Last Updated**: 2025-12-09

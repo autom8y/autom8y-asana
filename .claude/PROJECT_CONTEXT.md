@@ -20,7 +20,7 @@
 
 ### Core Architecture
 
-This SDK implements the **Asana-as-database** paradigm—treating Asana as a structured data store rather than just a project management tool. See [paradigm.md](skills/autom8-asana-domain/paradigm.md) for the foundational architecture.
+This SDK implements the **Asana-as-database** paradigm—treating Asana as a structured data store rather than just a project management tool. See [docs/architecture/DOC-ARCHITECTURE.md](/Users/tomtenuta/Code/autom8_asana/docs/architecture/DOC-ARCHITECTURE.md) for the foundational architecture.
 
 ---
 
@@ -60,7 +60,7 @@ This SDK implements the **Asana-as-database** paradigm—treating Asana as a str
 | Data | Polars |
 | Tests | pytest-asyncio |
 
-See `autom8-asana-domain/tech-stack.md` for full details.
+See [docs/architecture/DOC-ARCHITECTURE.md](/Users/tomtenuta/Code/autom8_asana/docs/architecture/DOC-ARCHITECTURE.md) for full details.
 
 ---
 

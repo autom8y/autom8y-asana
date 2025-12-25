@@ -22,7 +22,7 @@
 | ID | Title | Status |
 |----|-------|--------|
 | [PRD-0001](requirements/PRD-0001-sdk-extraction.md) | SDK Extraction from Monolith | Approved |
-| [PRD-0002](requirements/PRD-0002-intelligent-caching.md) | Intelligent Caching Layer | Implemented |
+| [PRD-0002](requirements/PRD-0002-intelligent-caching.md) | Intelligent Caching Layer | Superseded |
 | [PRD-0003](requirements/PRD-0003-structured-dataframe-layer.md) | Structured Dataframe Layer | In Review |
 | [PRD-0003.1](requirements/PRD-0003.1-dynamic-custom-field-resolution.md) | Dynamic Custom Field Resolution | Draft |
 | [PRD-0004](requirements/PRD-0004-test-hang-fix.md) | Test Suite Hang Prevention | Implemented |
@@ -42,16 +42,16 @@
 | [PRD-0018](requirements/PRD-0018-savesession-reliability.md) | SaveSession Reliability | Draft |
 | [PRD-0019](requirements/PRD-0019-custom-field-descriptors.md) | Custom Field Descriptors | Draft |
 | [PRD-0020](requirements/PRD-0020-holder-factory.md) | Holder Factory | Implemented |
-| [PRD-0021](requirements/PRD-0021-async-method-generator.md) | Async Method Generator | Active |
-| [PRD-0022](requirements/PRD-0022-crud-base-class.md) | CRUD Base Class | Active |
+| [PRD-0021](requirements/PRD-0021-async-method-generator.md) | Async Method Generator | Superseded |
+| [PRD-0022](requirements/PRD-0022-crud-base-class.md) | CRUD Base Class | Rejected |
 | [PRD-0023](requirements/PRD-0023-qa-triage-fixes.md) | QA Triage Fixes | Ready |
 | [PRD-0024](requirements/PRD-0024-custom-field-remediation.md) | Custom Field Reality Remediation | Draft |
 | [PRD-DOCS-EPOCH-RESET](requirements/PRD-DOCS-EPOCH-RESET.md) | Documentation Epoch Reset | Active |
 | [PRD-PROCESS-PIPELINE](requirements/PRD-PROCESS-PIPELINE.md) | Process Pipeline (types, states, seeding) | Superseded |
 | [PRD-PROCESS-PIPELINE-AMENDMENT](requirements/PRD-PROCESS-PIPELINE-AMENDMENT.md) | Process Pipeline Architectural Correction | Draft |
 | [PRD-AUTOMATION-LAYER](requirements/PRD-AUTOMATION-LAYER.md) | Automation Layer for Pipeline Conversion | Draft |
-| [PRD-DETECTION](requirements/PRD-DETECTION.md) | Membership-Based Entity Type Detection | Draft |
-| [PRD-WORKSPACE-PROJECT-REGISTRY](requirements/PRD-WORKSPACE-PROJECT-REGISTRY.md) | Workspace Project Registry for Dynamic Discovery | Draft |
+| [PRD-DETECTION](requirements/PRD-DETECTION.md) | Membership-Based Entity Type Detection | Implemented |
+| [PRD-WORKSPACE-PROJECT-REGISTRY](requirements/PRD-WORKSPACE-PROJECT-REGISTRY.md) | Workspace Project Registry for Dynamic Discovery | Implemented |
 | [PRD-PIPELINE-AUTOMATION-ENHANCEMENT](requirements/PRD-PIPELINE-AUTOMATION-ENHANCEMENT.md) | Pipeline Automation Enhancement - Legacy Parity | Draft |
 | [PRD-CACHE-INTEGRATION](requirements/PRD-CACHE-INTEGRATION.md) | SDK Cache Integration Layer | Implemented |
 | [PRD-CACHE-PERF-FETCH-PATH](requirements/PRD-CACHE-PERF-FETCH-PATH.md) | DataFrame Fetch Path Cache Integration | Implemented |
@@ -61,7 +61,7 @@
 | [PRD-CACHE-OPTIMIZATION-P3](requirements/PRD-CACHE-OPTIMIZATION-P3.md) | Cache Optimization Phase 3 - GID Enumeration Caching | Implemented |
 | [PRD-CACHE-PERF-HYDRATION](requirements/PRD-CACHE-PERF-HYDRATION.md) | Hydration Cache Optimization | Draft |
 | [PRD-WATERMARK-CACHE](requirements/PRD-WATERMARK-CACHE.md) | Watermark Cache (Parallel Fetch) | Implemented |
-| [PRD-CACHE-LIGHTWEIGHT-STALENESS](requirements/PRD-CACHE-LIGHTWEIGHT-STALENESS.md) | Lightweight Staleness Detection with Progressive TTL | Draft |
+| [PRD-CACHE-LIGHTWEIGHT-STALENESS](requirements/PRD-CACHE-LIGHTWEIGHT-STALENESS.md) | Lightweight Staleness Detection with Progressive TTL | Implemented |
 
 ---
 
@@ -76,7 +76,7 @@
 | [TDD-0005](design/TDD-0005-batch-api.md) | Batch API | PRD-0001 | Draft |
 | [TDD-0006](design/TDD-0006-backward-compatibility.md) | Backward Compatibility | PRD-0001 | Draft |
 | [TDD-0007](design/TDD-0007-observability.md) | Observability | PRD-0001 | Draft |
-| [TDD-0008](design/TDD-0008-intelligent-caching.md) | Intelligent Caching | PRD-0002 | Draft |
+| [TDD-0008](design/TDD-0008-intelligent-caching.md) | Intelligent Caching | PRD-0002 | Superseded |
 | [TDD-0009](design/TDD-0009-structured-dataframe-layer.md) | Dataframe Layer | PRD-0003 | Draft |
 | [TDD-0009.1](design/TDD-0009.1-dynamic-custom-field-resolution.md) | Custom Field Resolution | PRD-0003.1 | Draft |
 | [TDD-0010](design/TDD-0010-save-orchestration.md) | Save Orchestration | PRD-0005 | Draft |
@@ -94,15 +94,15 @@
 | [TDD-0022](design/TDD-0022-savesession-reliability.md) | SaveSession Reliability | PRD-0018 | Draft |
 | [TDD-0023](design/TDD-0023-custom-field-descriptors.md) | Custom Field Descriptors | PRD-0019 | Draft |
 | [TDD-0024](design/TDD-0024-holder-factory.md) | Holder Factory | PRD-0020 | Implemented |
-| [TDD-0025](design/TDD-0025-async-method-decorator.md) | Async Method Decorator | PRD-0021 | Active |
-| [TDD-0026](design/TDD-0026-crud-base-class-evaluation.md) | CRUD Base Class (NO-GO) | PRD-0022 | Active |
+| [TDD-0025](design/TDD-0025-async-method-decorator.md) | Async Method Decorator | PRD-0021 | Superseded |
+| [TDD-0026](design/TDD-0026-crud-base-class-evaluation.md) | CRUD Base Class (NO-GO) | PRD-0022 | Rejected |
 | [TDD-0027](design/TDD-0027-business-model-architecture.md) | Business Model Architecture | PRD-0010 | Draft |
 | [TDD-0028](design/TDD-0028-business-model-implementation.md) | Business Model Implementation | PRD-0010 | Draft |
 | [TDD-0029](design/TDD-0029-sdk-demo.md) | SDK Demo | PRD-0011 | Draft |
 | [TDD-DOCS-EPOCH-RESET](design/TDD-DOCS-EPOCH-RESET.md) | Documentation Epoch Reset | PRD-DOCS-EPOCH-RESET | Active |
 | [TDD-PROCESS-PIPELINE](design/TDD-PROCESS-PIPELINE.md) | Process Pipeline | PRD-PROCESS-PIPELINE | Superseded |
 | [TDD-AUTOMATION-LAYER](design/TDD-AUTOMATION-LAYER.md) | Automation Layer | PRD-AUTOMATION-LAYER | Draft |
-| [TDD-DETECTION](design/TDD-DETECTION.md) | Entity Detection System | PRD-DETECTION | Draft |
+| [TDD-DETECTION](design/TDD-DETECTION.md) | Entity Detection System | PRD-DETECTION | Implemented |
 | [TDD-WORKSPACE-PROJECT-REGISTRY](design/TDD-WORKSPACE-PROJECT-REGISTRY.md) | Workspace Project Registry | PRD-WORKSPACE-PROJECT-REGISTRY | Implemented |
 | [TDD-PIPELINE-AUTOMATION-ENHANCEMENT](design/TDD-PIPELINE-AUTOMATION-ENHANCEMENT.md) | Pipeline Automation Enhancement | PRD-PIPELINE-AUTOMATION-ENHANCEMENT | Draft |
 | [TDD-0030](design/TDD-CUSTOM-FIELD-REMEDIATION.md) | Custom Field Reality Remediation | PRD-0024 | Draft |
@@ -114,7 +114,7 @@
 | [TDD-CACHE-OPTIMIZATION-P3](design/TDD-CACHE-OPTIMIZATION-P3.md) | Cache Optimization Phase 3 - GID Enumeration | PRD-CACHE-OPTIMIZATION-P3 | Implemented |
 | [TDD-CACHE-PERF-HYDRATION](design/TDD-CACHE-PERF-HYDRATION.md) | Hydration Cache Optimization | PRD-CACHE-PERF-HYDRATION | Draft |
 | [TDD-WATERMARK-CACHE](design/TDD-WATERMARK-CACHE.md) | Watermark Cache (Parallel Fetch) | PRD-WATERMARK-CACHE | Implemented |
-| [TDD-CACHE-LIGHTWEIGHT-STALENESS](design/TDD-CACHE-LIGHTWEIGHT-STALENESS.md) | Lightweight Staleness Detection | PRD-CACHE-LIGHTWEIGHT-STALENESS | Draft |
+| [TDD-CACHE-LIGHTWEIGHT-STALENESS](design/TDD-CACHE-LIGHTWEIGHT-STALENESS.md) | Lightweight Staleness Detection | PRD-CACHE-LIGHTWEIGHT-STALENESS | Implemented |
 
 ---
 
