@@ -2,17 +2,20 @@
 
 ## Metadata
 - **PRD ID**: PRD-0005
-- **Status**: Draft
-- **Version**: 1.0
+- **Status**: Implemented
+- **Version**: 1.1
 - **Author**: Requirements Analyst
 - **Created**: 2025-12-10
-- **Last Updated**: 2025-12-10
+- **Last Updated**: 2025-12-24
 - **Stakeholders**: autom8 team, SDK consumers, API integrators
 - **Related PRDs**:
   - [PRD-0001](PRD-0001-sdk-extraction.md) (SDK Extraction - prerequisite)
 - **Related ADRs**:
   - [ADR-0002](../decisions/ADR-0002-sync-wrapper-strategy.md) (Sync/Async Wrapper Strategy)
   - [ADR-0010](../decisions/ADR-0010-batch-chunking-strategy.md) (Sequential Chunk Execution for Batch Operations)
+  - [ADR-0095](../decisions/ADR-0095-self-healing-integration.md) (Self-Healing Integration with SaveSession)
+  - [ADR-0139](../decisions/ADR-0139-self-healing-design.md) (Self-Healing Opt-In Design)
+  - [ADR-0144](../decisions/ADR-0144-healingresult-consolidation.md) (HealingResult Type Consolidation)
 
 ## Problem Statement
 
@@ -235,6 +238,26 @@ async with SaveSession(client) as session:
 | FR-DRY-004 | Preview shall validate all operations (e.g., cycle detection) | Should | Errors that would occur at commit time raised during preview |
 | FR-DRY-005 | Preview shall not modify session state | Must | Session remains usable after preview; can still commit or preview again |
 
+#### Self-Healing Requirements (FR-HEALING-*)
+
+| ID | Requirement | Priority | Acceptance Criteria |
+|----|-------------|----------|---------------------|
+| FR-HEALING-001 | SaveSession shall support opt-in self-healing via `auto_heal` parameter | Must | `SaveSession(client, auto_heal=True)` enables healing during commit |
+| FR-HEALING-002 | SaveSession shall heal entities after normal save operations complete | Must | Healing executes only after all tracked entity saves succeed/fail |
+| FR-HEALING-003 | SaveSession shall heal only entities with `needs_healing=True` detection flag | Must | Entities without healing flag are skipped |
+| FR-HEALING-004 | SaveSession shall add healed entities to expected projects via `add_to_project` API | Must | Healing calls `client.tasks.add_to_project_async(entity_gid, project_gid)` |
+| FR-HEALING-005 | SaveSession shall provide `heal_dry_run` parameter for preview mode | Must | `SaveSession(auto_heal=True, heal_dry_run=True)` returns healing plan without execution |
+| FR-HEALING-006 | SaveSession shall report healing outcomes in `SaveResult.healed_entities` and `SaveResult.healing_failures` | Must | SaveResult includes lists of successfully healed and failed healing attempts |
+| FR-HEALING-007 | SDK shall provide standalone `heal_entity_async()` function for on-demand healing | Must | Function heals single entity with detection result outside SaveSession |
+| FR-HEALING-008 | SDK shall provide `heal_entities_async()` for batch healing with concurrency control | Should | Function heals multiple entities with configurable max_concurrent limit |
+| FR-HEALING-009 | Standalone healing functions shall validate detection result before healing | Must | Raise ValueError if entity lacks detection result or doesn't need healing |
+| FR-HEALING-010 | All healing operations shall return `HealingResult` with outcome details | Must | Result contains entity_gid, project_gid, success, dry_run, error |
+| FR-HEALING-011 | HealingResult shall use unified type from `persistence.models` | Must | Single HealingResult dataclass supports all healing contexts (per ADR-0144) |
+| FR-HEALING-012 | Detection functions shall NOT trigger healing automatically | Must | `detect_entity_type()` and `detect_entity_type_async()` remain side-effect-free (per ADR-0139) |
+| FR-HEALING-013 | Healing operations shall be logged with structured logging | Should | Log entity_gid, project_gid, outcome at INFO level |
+| FR-HEALING-014 | Healing failures shall not abort SaveSession commit | Must | Failed healing recorded in SaveResult; successful saves preserved |
+| FR-HEALING-015 | Batch healing shall respect concurrency limits via semaphore | Must | Default max_concurrent=5; configurable per call |
+
 ---
 
 ### Non-Functional Requirements
@@ -372,6 +395,21 @@ As a developer, I want dependent entities marked as failed when their dependency
 
 **Acceptance**: Dependent failures clearly attributed to dependency failure.
 
+### US-007: Self-Heal Entities During Save
+
+As a developer, I want entities to be automatically healed during save so that project membership issues are corrected without manual intervention.
+
+**Scenario**:
+1. Developer detects 20 tasks needing healing (missing from expected projects)
+2. Developer creates SaveSession with `auto_heal=True`
+3. Developer tracks all 20 tasks
+4. Developer calls `commit()`
+5. SDK saves task changes (if any)
+6. SDK automatically adds tasks to their expected projects
+7. SaveResult shows healed entities and any healing failures
+
+**Acceptance**: Tasks automatically added to expected projects during commit; healing outcomes reported separately from save operations.
+
 ---
 
 ## Design Decisions
@@ -490,6 +528,7 @@ Snapshot comparison is the simplest approach that requires no changes to existin
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2025-12-10 | Requirements Analyst | Initial draft with 8 FR categories (46 requirements), 4 NFR categories (21 requirements), 6 user stories, 4 design decisions |
+| 1.1 | 2025-12-24 | Tech Writer | Added FR-HEALING-* requirements (15 requirements), US-007 (self-healing user story), updated status to Implemented, added ADR-0095/0139/0144 references |
 
 ---
 
