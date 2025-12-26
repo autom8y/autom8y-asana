@@ -1,117 +1,80 @@
-# Technical Design Documents (TDDs)
+# Technical Design Documents
 
-## What Are TDDs?
+> Consolidated TDDs for the Autom8 Asana SDK.
 
-Technical Design Documents (TDDs) define **how** we implement features. They specify architecture, components, interfaces, data structures, and testing strategies.
+This directory contains 12 consolidated Technical Design Documents that define the complete SDK architecture. Each TDD synthesizes multiple related original documents into a single authoritative source.
 
-## When to Create a TDD
+## Quick Navigation
 
-Create a TDD for:
-- Every feature with a corresponding PRD
-- Significant architectural changes
-- Complex technical implementations
-- Features requiring design review
+| TDD | Title | Scope |
+|-----|-------|-------|
+| [TDD-01](TDD-01-foundation-architecture.md) | Foundation & SDK Architecture | SDK extraction, backward compatibility, protocol design |
+| [TDD-02](TDD-02-data-layer.md) | Data Layer Architecture | Pydantic models, Polars dataframes, schema design |
+| [TDD-03](TDD-03-resource-clients.md) | Resource Client Architecture | Tier 1 and Tier 2 clients for all Asana resource types |
+| [TDD-04](TDD-04-batch-save-operations.md) | Batch & Save Operations | Batch API chunking, SaveSession unit of work pattern |
+| [TDD-05](TDD-05-observability.md) | Observability & Telemetry | Logging, metrics, correlation IDs, event hooks |
+| [TDD-06](TDD-06-custom-fields.md) | Custom Fields Architecture | Resolution, tracking, descriptors, remediation |
+| [TDD-07](TDD-07-navigation-hydration.md) | Navigation & Hydration | Entity relationships, lazy loading, navigation descriptors |
+| [TDD-08](TDD-08-business-domain.md) | Business Domain Architecture | Process pipelines, automation, entity detection, self-healing |
+| [TDD-09](TDD-09-registry-seeding.md) | Registry & Field Seeding | Workspace project registry, field seeding configuration |
+| [TDD-10](TDD-10-operations-usability.md) | Operations & SDK Usability | Action endpoints, subtask operations, async method patterns |
+| [TDD-11](TDD-11-resolution-hardening.md) | Resolution & Foundation Hardening | Cross-holder resolution, cascade fixes, SDK hardening |
+| [TDD-12](TDD-12-debt-migration.md) | Technical Debt & Migration | Debt remediation, documentation reset, legacy cleanup |
 
-Every TDD should have a corresponding PRD. The PRD answers "what and why," the TDD answers "how."
+## About the Consolidation
 
-## Naming Conventions
+In December 2025, the TDD collection was consolidated from 38 original documents into 12 cohesive TDDs. This consolidation:
 
-### Numbered TDDs (Legacy)
-Format: `TDD-NNNN-descriptive-name.md`
-Example: `TDD-0001-sdk-architecture.md`
+- **Reduces duplication**: Related designs now live in a single document
+- **Improves navigation**: Engineers can find relevant architecture in one place
+- **Preserves history**: All original documents remain accessible in the archive
+- **Maintains traceability**: Each consolidated TDD lists its source documents in the Metadata section
 
-Used for early sequential allocation. Preserved for git history.
+### Consolidation Mapping
 
-### Named TDDs (Preferred)
-Format: `TDD-FEATURE-NAME.md`
-Example: `TDD-CACHE-INTEGRATION.md`
+Each TDD-NN document consolidates multiple original TDDs. For example:
 
-**Use named TDDs for all new documents.** Match the corresponding PRD name for clarity.
+- **TDD-01** consolidates TDD-SDK-FAMILY and TDD-0006 (backward compatibility)
+- **TDD-04** consolidates TDD-0005, TDD-0010, and TDD-0022 (batch and save operations)
+- **TDD-08** consolidates TDD-PROCESS-PIPELINE, TDD-AUTOMATION-LAYER, TDD-DETECTION, and several business model TDDs
 
-## Status Lifecycle
+Check each document's Metadata section for the complete list of consolidated sources.
 
-Every TDD has a `status:` field in frontmatter. See [/docs/CONVENTIONS.md](../CONVENTIONS.md) for complete lifecycle specification.
+## Archive
 
-Common status values:
-1. **Draft** - Initial design, not yet reviewed
-2. **In Review** - Under technical review
-3. **Approved** - Approved for implementation
-4. **Active** - Currently being implemented
-5. **Implemented** - Code in production, feature live
-6. **Superseded** - Replaced by different approach (must link to replacement)
-7. **Rejected** - Decided not to implement (must link to ADR)
+Original TDDs are preserved in [`docs/.archive/2025-12-tdds/`](../.archive/2025-12-tdds/) for historical reference. The archive contains:
 
-**Critical Rule**: Status in frontmatter is the canonical source of truth. INDEX.md must match frontmatter.
+- 38 original TDD documents
+- Complete git history preserved
+- Useful for understanding design evolution and decision context
 
-## PRD-TDD Pairing
+## Document Structure
 
-[INDEX.md](../INDEX.md) is the source of truth for PRD-TDD pairings. Every TDD entry includes a "PRD" column linking to its corresponding PRD.
+Each consolidated TDD follows a consistent structure:
 
-**Example pairing**:
-- PRD: [PRD-CACHE-INTEGRATION](../requirements/PRD-CACHE-INTEGRATION.md)
-- TDD: [TDD-CACHE-INTEGRATION](TDD-CACHE-INTEGRATION.md)
+1. **Title and Overview** - What the document covers
+2. **Metadata** - Status, date, consolidated sources, related ADRs
+3. **Design Goals** - Objectives and principles
+4. **Architecture** - System structure and component relationships
+5. **Implementation Details** - Specific patterns and approaches
+6. **Testing Strategy** - Verification approach
+7. **Related Documents** - Links to ADRs, PRDs, and other TDDs
 
-## When TDD Precedes PRD
+## Creating New TDDs
 
-In rare cases, exploratory technical designs may be written before formal requirements:
-- Spike investigations
-- Technical feasibility studies
-- Prototype evaluations
+For new features or architectural changes:
 
-These TDDs may have `status: Draft` or `status: NO-GO` if the approach is rejected.
+1. Check if the work fits an existing consolidated TDD
+2. If extending existing architecture: update the relevant TDD-NN document
+3. If entirely new domain: create `TDD-NN-descriptive-name.md` using next available number
+4. Always link related ADRs and PRDs in the Metadata section
 
-## Architecture vs. Implementation TDDs
+## Status Values
 
-**Architecture TDDs** define high-level system design:
-- Component boundaries
-- Integration patterns
-- Technology selection
-
-**Implementation TDDs** define detailed technical approach:
-- Class structures
-- API signatures
-- Error handling
-
-Both are valid. Choose based on the scope of the feature.
-
-## Creating a New TDD
-
-1. Verify corresponding PRD exists (or create it)
-2. Copy template from existing TDD (e.g., TDD-CACHE-INTEGRATION.md)
-3. Use named format: `TDD-FEATURE-NAME.md` (match PRD name)
-4. Fill out frontmatter (status, created, updated)
-5. Write sections: Architecture Overview, Components, Interfaces, Data Structures, Error Handling, Testing Strategy
-6. Add entry to [INDEX.md](../INDEX.md) with PRD reference
-
-## Archival Policy
-
-When marking a TDD as **Superseded**, add prominent notice:
-
-```markdown
-> **SUPERSESSION NOTICE**: This document has been superseded by [TDD-XXXX](TDD-XXXX-new.md).
-> The design below is no longer active. Refer to the replacement document for current architecture.
-```
-
-When marking a TDD as **Rejected**, add notice with decision reference:
-
-```markdown
-> **REJECTION NOTICE**: This design was rejected per [ADR-XXXX](../decisions/ADR-XXXX.md).
-> See the ADR for rationale. This document is retained for historical reference.
-```
-
-## Consolidated Family Summaries
-
-For related features that evolved through multiple design iterations, we create consolidated "Family" summaries that synthesize the technical evolution:
-
-- **[TDD-SDK-FAMILY.md](TDD-SDK-FAMILY.md)** - SDK design evolution (Foundation → Expansion → Hardening → Validation)
-  - Archived: TDD-0001, TDD-0012, TDD-0014, TDD-0029
-
-These summaries preserve architectural decisions and patterns while reducing file count. Original documents are archived in `docs/.archive/2025-12-tdds/`.
+All consolidated TDDs use the **Accepted** status, indicating the designs are approved and active. For status lifecycle details, see [CONVENTIONS.md](../CONVENTIONS.md).
 
 ## See Also
 
-- [PRD README](../requirements/README.md) - How TDDs relate to PRDs
-- [INDEX.md](../INDEX.md) - Full TDD registry
-- [CONTRIBUTION-GUIDE.md](../CONTRIBUTION-GUIDE.md) - Documentation standards
-
-TDDs are rarely archived - they serve as historical design record even after implementation. See [CONVENTIONS.md](../CONVENTIONS.md) for complete archival guidance.
+- [ADR Index](../decisions/INDEX.md) - Architecture Decision Records
+- [PRD Directory](../requirements/) - Product Requirements Documents
+- [Documentation Conventions](../CONVENTIONS.md) - Status lifecycle and formatting standards

@@ -1,108 +1,86 @@
-# Product Requirements Documents (PRDs)
+# Product Requirements Documents
 
-## What Are PRDs?
+> Consolidated PRDs for the Autom8 Asana SDK.
 
-Product Requirements Documents (PRDs) define **what** we're building and **why** it's valuable. They capture the business need, user stories, success criteria, and feature specifications before implementation begins.
+## Quick Navigation
 
-## When to Create a PRD
+| PRD | Title | Description | Related TDD |
+|-----|-------|-------------|-------------|
+| [PRD-01](PRD-01-foundation-architecture.md) | Foundation & SDK Architecture | SDK extraction, architecture hardening, and operational stability | [TDD-01](../design/TDD-01-foundation-architecture.md) |
+| [PRD-02](PRD-02-data-layer.md) | Data Layer Architecture | Polars dataframes, schema design, and custom field resolution | [TDD-02](../design/TDD-02-data-layer.md) |
+| [PRD-03](PRD-03-batch-save-operations.md) | Batch & Save Operations | Batch API and SaveSession orchestration with Unit of Work pattern | [TDD-04](../design/TDD-04-batch-save-operations.md) |
+| [PRD-04](PRD-04-custom-fields.md) | Custom Fields Architecture | Custom field tracking, descriptors, and type remediation | [TDD-06](../design/TDD-06-custom-fields.md) |
+| [PRD-05](PRD-05-navigation-hydration.md) | Navigation & Hydration | Entity relationships, hierarchy hydration, and holder factories | [TDD-07](../design/TDD-07-navigation-hydration.md) |
+| [PRD-06](PRD-06-business-domain.md) | Business Domain Architecture | Business models, process pipelines, and automation layer | [TDD-08](../design/TDD-08-business-domain.md) |
+| [PRD-07](PRD-07-detection-resolution.md) | Detection & Resolution | Entity detection, cross-holder resolution, and workspace registry | [TDD-09](../design/TDD-09-registry-seeding.md), [TDD-11](../design/TDD-11-resolution-hardening.md) |
+| [PRD-08](PRD-08-field-seeding.md) | Field Seeding Configuration | Field seeding configuration and gap analysis | [TDD-09](../design/TDD-09-registry-seeding.md) |
+| [PRD-09](PRD-09-sdk-usability.md) | SDK Usability | Developer experience and API usability improvements | [TDD-10](../design/TDD-10-operations-usability.md) |
+| [PRD-10](PRD-10-quality-triage.md) | Quality & Triage | QA findings and critical bug remediation | N/A |
+| [PRD-11](PRD-11-debt-migration.md) | Technical Debt & Migration | Debt remediation and documentation reset | [TDD-12](../design/TDD-12-debt-migration.md) |
 
-Create a PRD for:
-- New features or capabilities
-- Significant enhancements to existing features
-- Cross-cutting infrastructure changes
-- Features requiring stakeholder approval
+---
 
-Do NOT create a PRD for:
-- Bug fixes (unless architectural)
-- Refactoring (use ADR instead)
-- Documentation updates
-- Dependency upgrades
+## Document Structure
 
-## Naming Conventions
+Each consolidated PRD follows a consistent structure:
 
-### Numbered PRDs (Legacy)
-Format: `PRD-NNNN-descriptive-name.md`
-Example: `PRD-0001-sdk-extraction.md`
+1. **Metadata** - Status, date, consolidation sources, related TDDs
+2. **Executive Summary** - Key capabilities and outcomes
+3. **Problem Statement** - Current state issues and pain points
+4. **Requirements** - Functional and non-functional specifications
+5. **Success Criteria** - Measurable outcomes for validation
 
-Used for early sequential allocation. Preserved for git history.
+---
 
-### Named PRDs (Preferred)
-Format: `PRD-FEATURE-NAME.md`
-Example: `PRD-CACHE-INTEGRATION.md`
+## PRD-TDD Alignment
 
-**Use named PRDs for all new documents.** They are:
-- More searchable
-- Self-documenting
-- Easier to reference
+PRDs define **what** and **why**; TDDs define **how**. The consolidation effort aligned PRD and TDD numbering where possible:
 
-## Status Lifecycle
+| Domain | PRD | TDD |
+|--------|-----|-----|
+| Foundation | PRD-01 | TDD-01 |
+| Data Layer | PRD-02 | TDD-02 |
+| Batch/Save | PRD-03 | TDD-04 |
+| Custom Fields | PRD-04 | TDD-06 |
+| Navigation | PRD-05 | TDD-07 |
+| Business Domain | PRD-06 | TDD-08 |
+| Detection | PRD-07 | TDD-09, TDD-11 |
+| Field Seeding | PRD-08 | TDD-09 |
+| Usability | PRD-09 | TDD-10 |
+| Quality | PRD-10 | N/A |
+| Debt/Migration | PRD-11 | TDD-12 |
 
-Every PRD has a `status:` field in frontmatter. See [/docs/CONVENTIONS.md](../CONVENTIONS.md) for complete lifecycle specification.
+Note: TDD-03 (Resource Clients) and TDD-05 (Observability) exist as standalone technical designs without dedicated PRDs.
 
-Common status values:
-1. **Draft** - Initial authoring, requirements gathering in progress
-2. **Active** - Approved for implementation, work may be in progress
-3. **Implemented** - Code complete, feature shipped
-4. **Superseded** - Replaced by newer design (must link to replacement)
-5. **Rejected** - Decided not to implement (must link to ADR)
-6. **Archived** - Historical record, implementation complete and stable
+---
 
-**Critical Rule**: Status in frontmatter is the canonical source of truth. INDEX.md must match frontmatter.
+## Archive
 
-## PRD-TDD Pairing
+Original PRDs are preserved for historical reference:
 
-Every PRD should have a corresponding TDD (Technical Design Document):
-- PRD defines WHAT and WHY
-- TDD defines HOW
+**Location**: [`docs/.archive/2025-12-prds/`](../.archive/2025-12-prds/)
 
-Pairings are tracked in [INDEX.md](../INDEX.md) "PRD" column.
+The archive contains 25+ original PRDs that were consolidated into the 11 documents above. Each consolidated PRD lists its source documents in the Metadata section under "Consolidated From".
 
-## What Happened to PROMPT-* Files?
+**Archive manifest**: [`docs/.archive/2025-12-prds/CONSOLIDATION-MANIFEST.yaml`](../.archive/2025-12-prds/CONSOLIDATION-MANIFEST.yaml)
 
-PROMPT-0-* and PROMPT-MINUS-1-* files are **orchestrator work coordination files**, not requirements. They have been moved to [`/docs/initiatives/`](../initiatives/).
+---
 
-If you're looking for an initiative kickoff prompt, check `/docs/initiatives/`.
+## Creating New PRDs
 
-## Archival Policy
+For new feature requirements:
 
-When marking a PRD as **Superseded**, add prominent notice:
+1. Determine if the requirement fits an existing consolidated PRD
+2. If extending existing functionality, update the relevant PRD
+3. If net-new capability, create `PRD-NN-descriptive-name.md`
+4. Use numbered format (PRD-12, PRD-13, etc.) for consistency with consolidation
+5. Create corresponding TDD in `/docs/design/`
+6. Update this README and [INDEX.md](../INDEX.md)
 
-```markdown
-> **SUPERSESSION NOTICE**: This document has been superseded by [PRD-XXXX](PRD-XXXX-new.md).
-> The requirements below are no longer active. Refer to the replacement document for current design.
-```
-
-When marking a PRD as **Rejected**, add notice with decision reference:
-
-```markdown
-> **REJECTION NOTICE**: This feature was rejected per [ADR-XXXX](../decisions/ADR-XXXX.md).
-> See the ADR for rationale. This document is retained for historical reference.
-```
-
-See [CONVENTIONS.md](../CONVENTIONS.md) for complete supersession and rejection guidance.
-
-## Creating a New PRD
-
-1. Copy template from existing PRD (e.g., PRD-CACHE-INTEGRATION.md)
-2. Use named format: `PRD-FEATURE-NAME.md`
-3. Fill out frontmatter with required fields:
-   - `id`, `title`, `status`, `created`, `updated`
-   - Optional: `paired_tdd`, `supersedes`, `superseded_by`, `related_adr`
-4. Write sections: Problem, Solution, Requirements, Success Criteria
-5. Add entry to [INDEX.md](../INDEX.md)
-6. Create corresponding TDD in `/docs/design/`
-
-## Consolidated Family Summaries
-
-For related features that evolved through multiple iterations, we create consolidated "Family" summaries that synthesize the requirements evolution:
-
-- **[PRD-SDK-FAMILY.md](PRD-SDK-FAMILY.md)** - SDK requirements evolution (Foundation → Expansion → Hardening → Validation)
-  - Archived: PRD-0001, PRD-0007, PRD-0009, PRD-0011
-
-These summaries preserve the evolution narrative while reducing file count. Original documents are archived in `docs/.archive/2025-12-prds/`.
+---
 
 ## See Also
 
-- [TDD README](../design/README.md) - How PRDs relate to TDDs
-- [INDEX.md](../INDEX.md) - Full PRD registry
-- [CONTRIBUTION-GUIDE.md](../CONTRIBUTION-GUIDE.md) - Documentation standards
+- [TDD README](../design/README.md) - Technical design documents
+- [ADR INDEX](../decisions/INDEX.md) - Architectural decisions
+- [INDEX.md](../INDEX.md) - Full documentation registry
