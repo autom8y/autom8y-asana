@@ -186,7 +186,7 @@ Pipeline automation logic must be orchestrated externally, forcing consumers to:
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
 | FR-SEED-001 | BusinessSeeder.seed_async() creates Business entity if not found | Must | Implemented |
-| FR-SEED-002 | BusinessSeeder finds existing Business by company_id or name | Must | Implemented |
+| FR-SEED-002 | BusinessSeeder uses three-tier matching: exact company_id, composite Fellegi-Sunter matching, or create new | Must | Implemented |
 | FR-SEED-003 | BusinessSeeder creates Unit under Business if not exists | Must | Implemented |
 | FR-SEED-004 | BusinessSeeder creates ProcessHolder under Unit if not exists | Must | Implemented |
 | FR-SEED-005 | BusinessSeeder creates Process in ProcessHolder | Must | Implemented |
@@ -195,6 +195,23 @@ Pipeline automation logic must be orchestrated externally, forcing consumers to:
 | FR-SEED-008 | BusinessSeeder is async-first with optional sync wrapper | Must | Implemented |
 | FR-SEED-009 | BusinessSeeder accepts optional Contact data to seed | Should | Implemented |
 | FR-SEED-010 | BusinessSeeder is idempotent for same input | Must | Implemented |
+
+### FR-M: Composite Matching Requirements
+
+| ID | Requirement | Priority | Status |
+|----|-------------|----------|--------|
+| FR-M-001 | MatchingEngine uses Fellegi-Sunter log-odds model for probabilistic matching | Must | Implemented |
+| FR-M-002 | Composite field comparison across email, phone, name, domain, address | Must | Implemented |
+| FR-M-003 | Normalizers transform input fields to canonical form before comparison | Must | Implemented |
+| FR-M-004 | Blocking rules reduce candidate set for O(n) performance | Must | Implemented |
+| FR-M-005 | Configuration via SEEDER_* environment variables | Must | Implemented |
+| FR-M-006 | Term frequency adjustment for common value discrimination | Should | Implemented |
+| FR-M-007 | Fuzzy matching with configurable Jaro-Winkler thresholds | Must | Implemented |
+| FR-M-008 | Match result includes field-level comparison detail | Must | Implemented |
+| FR-M-009 | Graceful degradation on search failures | Must | Implemented |
+| FR-M-010 | Three-tier matching: exact company_id, composite matching, create new | Must | Implemented |
+| FR-M-011 | Audit logging for match decisions | Should | Implemented |
+| FR-M-012 | 12-factor configuration via pydantic-settings | Must | Implemented |
 
 ### FR-AUTO: Automation Engine Requirements
 
@@ -359,6 +376,23 @@ print(result.process.gid)
 
 **Outcome**: Onboarding Process exists with complete checklist, correct hierarchy, populated fields, assigned owner, and audit trail.
 
+### UC-008: Composite Matching User Stories
+
+The following user stories describe the personas and use cases for the composite matching capability:
+
+| Persona | Story | Acceptance Criteria |
+|---------|-------|---------------------|
+| **Pipeline Operator** (Webhook Handler) | As a pipeline operator, I need to detect duplicate businesses regardless of data source, so that webhook payloads from Calendly, forms, and APIs all resolve to the same Business entity. | Given a webhook payload with business data, when BusinessSeeder processes the request, then it matches against existing businesses using composite field comparison. |
+| **Data Steward** (Quality Assurance) | As a data steward, I require multiple corroborating fields to prevent false matches, so that "Smith LLC" in Chicago is not incorrectly merged with "Smith LLC" in New York. | Given two businesses with the same name but different addresses, when the matching engine evaluates them, then the match score falls below the threshold and they remain separate. |
+| **Sales Representative** | As a sales representative, I want all interactions consolidated under one business record, so that I see the complete history when preparing for a call. | Given a new lead with email and phone matching an existing business, when the seeder runs, then the lead is associated with the existing business rather than creating a duplicate. |
+| **Operations Manager** | As an operations manager, I need to reduce time spent manually merging duplicate records, so that my team focuses on revenue-generating activities. | Given the matching engine is enabled, when duplicates would have been created, then the system prevents them automatically with no manual intervention required. |
+| **DevOps Engineer** | As a DevOps engineer, I must configure all matching thresholds via environment variables, so that I can tune behavior without code changes. | Given SEEDER_* environment variables are set, when the matching engine initializes, then it uses those values for thresholds, weights, and blocking rules. |
+| **Finance Analyst** | As a finance analyst, I need accurate business counts without duplicate inflation, so that MRR and pipeline reports reflect reality. | Given the matching engine prevents duplicates, when I run a business count report, then the count accurately represents unique businesses. |
+| **Customer Success Manager** | As a customer success manager, I want to see all contacts at a company in one place, so that I know who to reach out to for renewals. | Given contacts are correctly associated with matched businesses, when I view a business record, then all related contacts appear regardless of data source. |
+| **API Integration Developer** | As an API integration developer, I need a simple boolean response (matched/created), so that I can log outcomes without parsing complex structures. | Given a seeder API call, when it completes, then the response includes a clear matched vs created indicator and the business GID. |
+| **Security Auditor** | As a security auditor, I require match decisions logged without PII exposure, so that I can trace matching logic during compliance reviews. | Given matching occurs, when I review audit logs, then I see field comparison weights and scores but not raw PII values. |
+| **Marketing Campaign Manager** | As a marketing campaign manager, I need process creation to be idempotent based on UTM fields, so that the same ad click does not create duplicate processes. | Given a process creation request with UTM parameters, when the request is repeated, then no duplicate process is created. |
+
 ---
 
 ## Success Metrics
@@ -478,6 +512,13 @@ src/autom8_asana/
 |   |   +-- registry.py          # Entity type registration
 |   |   +-- hydration.py         # Efficient entity conversion
 |   |   +-- holder_factory.py    # HolderFactory pattern
+|   |   +-- seeder/              # BusinessSeeder and matching
+|   |   |   +-- __init__.py      # Public exports
+|   |   |   +-- seeder.py        # BusinessSeeder orchestration
+|   |   |   +-- matching.py      # MatchingEngine, Fellegi-Sunter implementation
+|   |   |   +-- normalizers.py   # Field normalization (email, phone, name, domain)
+|   |   |   +-- config.py        # SeederConfig with pydantic-settings
+|   |   |   +-- types.py         # MatchResult, FieldComparison, BusinessData
 |   +-- task.py                  # Base Task model
 +-- persistence/
 |   +-- session.py               # SaveSession with prefetch/recursive/cascade
@@ -492,3 +533,4 @@ src/autom8_asana/
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2025-12-25 | Tech Writer | Consolidated from 5 source PRDs |
+| 1.1 | 2025-12-28 | Tech Writer | Added FR-M composite matching requirements, updated FR-SEED-002 for three-tier matching, added UC-008 user stories for 10 personas, added seeder module to Appendix D |

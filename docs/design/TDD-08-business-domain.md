@@ -7,7 +7,7 @@
 - **Status**: Accepted
 - **Date**: 2025-12-25
 - **Consolidated From**: TDD-PROCESS-PIPELINE, TDD-AUTOMATION-LAYER, TDD-DETECTION, TDD-PIPELINE-AUTOMATION-ENHANCEMENT, TDD-0027-business-model-architecture, TDD-0028-business-model-implementation
-- **Related ADRs**: ADR-0015, ADR-0016, ADR-0017, ADR-0020, ADR-0021, ADR-0022, ADR-0023
+- **Related ADRs**: ADR-0015, ADR-0016, ADR-0017, ADR-0020, ADR-0021, ADR-0022, ADR-0023, ADR-0058
 
 ---
 
@@ -410,10 +410,21 @@ session.cascade_field(business, "Office Phone")
 
 ## 6. BusinessSeeder Factory
 
-Find-or-create pattern for complete hierarchy creation:
+Find-or-create pattern for complete hierarchy creation with composite matching:
 
 ```python
 class BusinessSeeder:
+    def __init__(
+        self,
+        client: AsanaClient,
+        *,
+        matching_config: MatchingConfig | None = None,
+    ) -> None:
+        """Initialize with optional matching configuration override."""
+        self._client = client
+        self._matching_config = matching_config or MatchingConfig.from_env()
+        self._matching_engine = MatchingEngine(self._matching_config)
+
     async def seed_async(
         self,
         business: BusinessData,
@@ -422,13 +433,63 @@ class BusinessSeeder:
         unit_name: str | None = None,
     ) -> SeederResult:
         """
-        1. Find existing Business by company_id/name
+        1. Find existing Business via tiered matching:
+           a. Tier 1: Exact company_id match
+           b. Tier 2: Composite Fellegi-Sunter matching
         2. Find or create Unit under Business
         3. Find or create ProcessHolder under Unit
         4. Create Process in ProcessHolder
         5. Add Process to pipeline project
         6. Optional: Create Contact
         """
+```
+
+### BusinessData (Extended for v2)
+
+```python
+class BusinessData(BaseModel):
+    """Input data for Business entity creation.
+
+    Core fields (v1):
+    """
+    name: str
+    company_id: str | None = None
+    business_address_line_1: str | None = None
+    business_city: str | None = None
+    business_state: str | None = None
+    business_zip: str | None = None
+    vertical: str | None = None
+
+    # New fields for v2 composite matching (optional, backward compatible)
+    email: str | None = None    # Business email
+    phone: str | None = None    # Business phone
+    domain: str | None = None   # Website domain
+```
+
+### Matching Integration Flow
+
+```
+seed_async(business, process, contact)
+           |
+           v
+    _find_business_async(business)
+           |
+    +------+------+
+    |             |
+    v             v (no company_id match)
+  Tier 1:      Tier 2:
+  company_id   _find_by_composite_match()
+  exact             |
+  match       +-----+-----+
+    |         |           |
+    v         v           v
+  Return    Get        Apply
+  existing  candidates  MatchingEngine
+  Business  via Search  .find_best_match()
+              |           |
+              v           v
+            Blocking    Return best
+            filter      match or None
 ```
 
 ### SeederResult
@@ -490,6 +551,312 @@ async def write_fields_async(
 ) -> WriteResult:
     """Persist seeded field values via single API call."""
 ```
+
+---
+
+## 8. Composite Matching Architecture
+
+### Overview
+
+The BusinessSeeder v2 introduces Fellegi-Sunter probabilistic matching for robust business deduplication. Instead of relying solely on exact company_id matches, the system now evaluates multiple corroborating fields using a log-odds scoring algorithm.
+
+```
++----------------------------------------------------------------------+
+|                      MATCHING PIPELINE                               |
++----------------------------------------------------------------------+
+|  Input: "Acme Corp, info@acme.com, 555-123-4567"                    |
+|                              |                                       |
+|                              v                                       |
+|  +----------------------------------------------------------+       |
+|  | TIER 1: Exact company_id match                           |       |
+|  | - O(1) lookup via SearchService                          |       |
+|  | - If match found -> Return existing Business             |       |
+|  +----------------------------------------------------------+       |
+|                              | (no match)                            |
+|                              v                                       |
+|  +----------------------------------------------------------+       |
+|  | TIER 2: Composite Fellegi-Sunter matching                |       |
+|  |                                                          |       |
+|  |  1. Get candidates via SearchService                     |       |
+|  |  2. Apply blocking rules (O(n) candidate filtering)      |       |
+|  |  3. Normalize fields via Normalizer chain                |       |
+|  |  4. Compare fields via Comparator patterns               |       |
+|  |  5. Accumulate log-odds scores                           |       |
+|  |  6. Convert to probability                               |       |
+|  |  7. If probability >= 0.80 -> Return existing Business   |       |
+|  +----------------------------------------------------------+       |
+|                              | (no match)                            |
+|                              v                                       |
+|  +----------------------------------------------------------+       |
+|  | TIER 3: Create new Business                              |       |
+|  | - Proceed with find-or-create pattern                    |       |
+|  +----------------------------------------------------------+       |
++----------------------------------------------------------------------+
+```
+
+### MatchingEngine Class Design
+
+The `MatchingEngine` orchestrates field comparison using the Fellegi-Sunter statistical model:
+
+```python
+class MatchingEngine:
+    """Fellegi-Sunter probabilistic matching engine.
+
+    Per FR-M-001: Probabilistic matching using log-odds accumulation.
+    Per FR-M-002: Composite field comparison with configurable weights.
+    """
+
+    def __init__(self, config: MatchingConfig | None = None) -> None:
+        """Initialize with optional configuration override."""
+
+    def compute_match(
+        self,
+        query: BusinessData,
+        candidate: Candidate,
+    ) -> MatchResult:
+        """Compute match score between query and candidate."""
+
+    def find_best_match(
+        self,
+        query: BusinessData,
+        candidates: list[Candidate],
+    ) -> MatchResult | None:
+        """Find best matching candidate above threshold."""
+```
+
+**Component Interactions**:
+
+```
++------------------+     +-------------------+     +------------------+
+|   BusinessData   | --> |   MatchingEngine  | --> |   MatchResult    |
+|   (query input)  |     |                   |     |   (decision)     |
++------------------+     +-------------------+     +------------------+
+                               |
+         +---------------------+---------------------+
+         |                     |                     |
+         v                     v                     v
++------------------+  +------------------+  +------------------+
+|   Normalizers    |  |   Comparators    |  |  BlockingRules   |
+| - Phone (E.164)  |  | - Exact          |  | - Domain         |
+| - Email          |  | - Fuzzy (JW)     |  | - PhonePrefix    |
+| - BusinessName   |  | - TF-adjusted    |  | - NameToken      |
+| - Domain         |  +------------------+  +------------------+
+| - Address        |
++------------------+
+```
+
+### Normalizer Chain
+
+Normalizers transform raw field values into canonical forms before comparison:
+
+| Normalizer | Input Example | Output | Transformation |
+|------------|---------------|--------|----------------|
+| `PhoneNormalizer` | `(555) 123-4567` | `+15551234567` | E.164 format, digits only |
+| `EmailNormalizer` | `John.Doe@GMAIL.COM` | `john.doe@gmail.com` | Lowercase, trim |
+| `BusinessNameNormalizer` | `ACME Corp, Inc.` | `acme corp` | Strip suffixes, normalize case |
+| `DomainNormalizer` | `www.Example.COM/` | `example.com` | Strip www, protocol, path |
+| `AddressNormalizer` | `New York` / `NY` | `ny` | State to 2-letter abbreviation |
+
+**Legal Suffix Stripping**:
+
+The `BusinessNameNormalizer` removes legal suffixes that cause false negatives:
+- inc, llc, ltd, corp, corporation, company, co
+- llp, lp, pllc, incorporated, limited, pc, pa, pllp
+
+### Comparator Patterns
+
+Three comparison strategies handle different field types:
+
+**ExactComparator**:
+```python
+# Returns (1.0, 1.0) for exact match, (0.0, 0.0) for non-match
+# Used for: email, phone, domain
+```
+
+**FuzzyComparator**:
+```python
+# Uses Jaro-Winkler similarity with graduated weight levels
+# Thresholds (configurable via SEEDER_FUZZY_* env vars):
+#   >= 0.95: Full weight (1.0 multiplier)
+#   >= 0.90: 75% weight (0.75 multiplier)
+#   >= 0.80: 50% weight (0.50 multiplier)
+#   <  0.80: Non-match (0.0 multiplier)
+# Used for: name
+```
+
+**TermFrequencyAdjuster**:
+```python
+# Reduces weight for common values
+# Common domains (gmail.com, yahoo.com): 5% frequency -> reduced weight
+# Common cities (new york, los angeles): 2% frequency -> reduced weight
+# Formula: adjusted_weight = base_weight * (1.0 - min(frequency * 10, 0.8))
+```
+
+### Blocking Strategy for O(n) Candidate Reduction
+
+Without blocking, comparing a query against N existing records requires N comparisons. The matching engine uses blocking rules to reduce the candidate set before expensive comparison:
+
+```
++-------------------------------------------------------------------+
+|                    BLOCKING RULES (OR logic)                      |
++-------------------------------------------------------------------+
+|                                                                   |
+|  DomainBlockingRule         PhonePrefixBlockingRule              |
+|  +-------------------+      +------------------------+           |
+|  | Exact domain      |      | First 6 digits of      |           |
+|  | match required    |  OR  | normalized phone       |           |
+|  | (~90% reduction)  |      | must match             |           |
+|  +-------------------+      +------------------------+           |
+|                                       |                          |
+|                             +---------+---------+                |
+|                             |                   |                |
+|                       NameTokenBlockingRule     |                |
+|                       +-------------------+     |                |
+|                       | Shared significant|     |                |
+|                       | tokens (>3 chars, |  OR |                |
+|                       | not stop words)   |     |                |
+|                       +-------------------+     |                |
+|                                                                   |
+|  CompositeBlockingRule: Pass if ANY rule matches                 |
++-------------------------------------------------------------------+
+```
+
+**Performance characteristics**:
+- Domain blocking: ~90% reduction for businesses with domain data
+- Phone prefix blocking: ~95% reduction for businesses with phone data
+- Name token blocking: Variable reduction based on name uniqueness
+- Composite rule: OR logic preserves candidates that match on any dimension
+
+### Log-Odds Scoring Algorithm
+
+The Fellegi-Sunter model uses log-odds accumulation for principled score combination:
+
+```
+                        Field Comparison Results
+                                 |
+         +--------+--------+--------+--------+
+         |        |        |        |        |
+      Email    Phone    Name    Domain   Address
+      match    match    fuzzy   match    match
+         |        |        |        |        |
+         v        v        v        v        v
+       +8.0     +7.0    +6.0*   +5.0**   +4.0
+                        0.85           (TF adj)
+                                 |
+         +-----------------------+
+         |
+         v
+    Sum log-odds = 8.0 + 7.0 + (6.0 * 0.75) + 1.0 + 4.0 = 24.5
+                                 |
+                                 v
+    Convert: probability = exp(24.5) / (1 + exp(24.5)) = 0.9999
+                                 |
+                                 v
+    Decision: probability (0.9999) >= threshold (0.80) -> MATCH
+```
+
+**Weight table (defaults)**:
+
+| Field | Match Weight | Non-Match Weight | Rationale |
+|-------|--------------|------------------|-----------|
+| Email | +8.0 | -4.0 | Highly unique identifier |
+| Phone | +7.0 | -4.0 | Unique but formatting varies |
+| Name | +6.0 | -3.0 | Common names reduce uniqueness |
+| Domain | +5.0 | -2.0 | Multiple businesses share domains |
+| Address | +4.0 | -2.0 | Often incomplete or abbreviated |
+
+**Null handling**: Fields with null values on either side contribute zero weight (neutral). This prevents penalizing records with missing data.
+
+**Minimum evidence threshold**: Requires at least 2 non-null field comparisons (configurable via `SEEDER_MIN_FIELDS`) to prevent matching on insufficient evidence.
+
+### Configuration Integration
+
+All matching parameters are configurable via environment variables:
+
+```python
+class MatchingConfig(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="SEEDER_")
+
+    match_threshold: float = 0.80    # Probability threshold for match
+    min_fields: int = 2              # Minimum non-null comparisons
+
+    email_weight: float = 8.0        # Log-odds weights
+    phone_weight: float = 7.0
+    name_weight: float = 6.0
+    domain_weight: float = 5.0
+    address_weight: float = 4.0
+
+    fuzzy_exact_threshold: float = 0.95    # Jaro-Winkler thresholds
+    fuzzy_high_threshold: float = 0.90
+    fuzzy_medium_threshold: float = 0.80
+
+    tf_enabled: bool = True          # Term frequency adjustment
+```
+
+See [REF-seeder-matching-config](../reference/REF-seeder-matching-config.md) for complete configuration reference.
+
+### Key Capabilities
+
+| Capability | Description |
+|------------|-------------|
+| Multi-field comparison | Email, phone, name, domain, address weighted by reliability |
+| Fuzzy name matching | Jaro-Winkler handles typos, abbreviations, legal suffix variations |
+| Configurable thresholds | All weights via `SEEDER_*` environment variables |
+| Minimum evidence | Requires 2+ matching fields to prevent false positives |
+| Term frequency adjustment | Common values (gmail.com) contribute less weight |
+| O(n) performance | Blocking rules prevent quadratic comparison explosion |
+| Graceful degradation | Falls back to exact matching if composite fails |
+| Backward compatible | Existing API unchanged, new fields optional |
+
+### MatchResult Audit Trail
+
+Every match decision includes a complete audit trail:
+
+```python
+@dataclass
+class MatchResult:
+    is_match: bool              # Boolean decision
+    score: float                # Normalized probability 0.0-1.0
+    raw_score: float            # Sum of log-odds before conversion
+    threshold: float            # Applied threshold
+    fields_compared: int        # Non-null field count
+    comparisons: list[FieldComparison]  # Per-field details
+    match_type: str             # "exact" | "composite" | "no_match"
+    candidate_gid: str | None   # Matched entity GID
+
+@dataclass
+class FieldComparison:
+    field_name: str             # email, phone, name, etc.
+    left_value: str | None      # Query value (normalized)
+    right_value: str | None     # Candidate value (normalized)
+    comparison_type: str        # "exact" | "fuzzy" | "composite"
+    similarity: float | None    # 0.0-1.0 for fuzzy, None for exact
+    weight_applied: float       # Actual weight after TF adjustment
+    contributed: bool           # True if field affected score
+```
+
+### Error Handling and Graceful Degradation
+
+The matching system fails gracefully to preserve seeder reliability:
+
+```python
+try:
+    match_result = await self._find_by_composite_match(data)
+    if match_result:
+        return match_result
+except Exception as e:
+    # Graceful degradation - log and continue to create new
+    logger.warning(
+        "Composite matching failed, will create new business",
+        extra={"query_name": data.name, "error": str(e)},
+    )
+```
+
+Failure modes:
+- **SearchService unavailable**: Falls back to creating new business
+- **Candidate retrieval fails**: Logs warning, proceeds with creation
+- **Comparator exception**: Catches and returns no-match result
+- **Configuration invalid**: Raises at startup (fail-fast via Pydantic validation)
 
 ---
 
@@ -575,6 +942,7 @@ logger.info("cascade: field=%s source=%s target_count=%d", field, source_gid, co
 | ADR-0021 | Detection Pattern Matching |
 | ADR-0022 | Self-Healing Resolution |
 | ADR-0023 | Detection Package Structure |
+| ADR-0058 | Composite Matching for Business Deduplication |
 
 ### Related TDDs
 
@@ -613,6 +981,14 @@ src/autom8_asana/
 |   |   +-- registry.py            # ProjectTypeRegistry
 |   |   +-- detection.py           # detect_entity_type(), DetectionResult
 |   |   +-- seeder.py              # BusinessSeeder, SeederResult
+|   |   +-- matching/              # Composite matching module (v2)
+|   |   |   +-- __init__.py        # Public exports: MatchingEngine, MatchingConfig
+|   |   |   +-- engine.py          # MatchingEngine, log_odds_to_probability()
+|   |   |   +-- config.py          # MatchingConfig (Pydantic settings)
+|   |   |   +-- models.py          # MatchResult, FieldComparison, Candidate
+|   |   |   +-- normalizers.py     # Phone, Email, BusinessName, Domain, Address normalizers
+|   |   |   +-- comparators.py     # ExactComparator, FuzzyComparator, TermFrequencyAdjuster
+|   |   |   +-- blocking.py        # BlockingRule protocol, Domain/Phone/NameToken rules
 |
 +-- automation/
 |   +-- __init__.py                # Public exports
@@ -637,3 +1013,4 @@ src/autom8_asana/
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2025-12-25 | Tech Writer | Consolidated from 6 source TDDs |
+| 1.1 | 2025-12-28 | Tech Writer | Added Section 8: Composite Matching Architecture; updated Section 6 with MatchingEngine integration; added matching/* to package structure; added ADR-0058 to related ADRs |
