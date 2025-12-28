@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
     from autom8_asana.models.business.business import Business
     from autom8_asana.models.business.contact import Contact
+    from autom8_asana.models.business.matching import Candidate, MatchingConfig
     from autom8_asana.models.business.process import Process
     from autom8_asana.models.business.unit import Unit
     from autom8_asana.search.models import SearchHit
@@ -47,6 +48,8 @@ class BusinessData(BaseModel):
     """Input data for Business entity creation.
 
     Per FR-SEED-001, FR-SEED-002.
+    Enhanced with additional matching fields for v2.
+    All new fields are optional for backward compatibility.
     """
 
     name: str
@@ -56,6 +59,11 @@ class BusinessData(BaseModel):
     business_state: str | None = None
     business_zip: str | None = None
     vertical: str | None = None
+
+    # New fields for v2 composite matching (optional)
+    email: str | None = None  # Business email
+    phone: str | None = None  # Business phone
+    domain: str | None = None  # Website domain
 
 
 class ContactData(BaseModel):
@@ -106,6 +114,7 @@ class BusinessSeeder:
 
     Per ADR-0099: Find-or-create pattern with SaveSession integration.
     Per FR-SEED-001 through FR-SEED-011.
+    Enhanced with composite matching for v2.
 
     Example:
         seeder = BusinessSeeder(client)
@@ -114,20 +123,41 @@ class BusinessSeeder:
             process=ProcessData(
                 name="Demo Call - Acme",
                 process_type=ProcessType.SALES,
-                initial_state=ProcessSection.SCHEDULED,
             ),
             contact=ContactData(full_name="John Doe", contact_email="john@acme.com"),
         )
         # result.business, result.unit, result.process, result.contact
+
+        # With composite matching fields
+        result = await seeder.seed_async(
+            business=BusinessData(
+                name="Acme Corp",
+                email="info@acme.com",
+                phone="555-123-4567",
+                domain="acme.com",
+            ),
+            process=ProcessData(name="Demo", process_type=ProcessType.SALES),
+        )
     """
 
-    def __init__(self, client: "AsanaClient") -> None:
+    def __init__(
+        self,
+        client: "AsanaClient",
+        *,
+        matching_config: "MatchingConfig | None" = None,
+    ) -> None:
         """Initialize seeder with Asana client.
 
         Args:
-            client: AsanaClient instance for API operations
+            client: AsanaClient instance for API operations.
+            matching_config: Optional matching configuration.
+                If None, loads from environment via MatchingConfig.from_env().
         """
+        from autom8_asana.models.business.matching import MatchingConfig, MatchingEngine
+
         self._client = client
+        self._matching_config = matching_config or MatchingConfig.from_env()
+        self._matching_engine = MatchingEngine(self._matching_config)
 
     async def seed_async(
         self,
@@ -316,14 +346,15 @@ class BusinessSeeder:
         return _seed_sync()
 
     async def _find_business_async(self, data: BusinessData) -> "Business | None":
-        """Find existing Business by company_id or name.
+        """Find existing Business by company_id, name, or composite matching.
 
-        Per TDD-entity-creation: Two-tier matching strategy.
+        Per TDD-entity-creation: Multi-tier matching strategy.
+        Per TDD-BusinessSeeder-v2: Enhanced with composite matching.
         Per ADR-ENTITY-001: Uses SearchService for efficient lookup.
 
         Search order:
         1. Exact match on company_id (if provided) - Tier 1
-        2. Exact match on name - Tier 2
+        2. Composite matching using MatchingEngine - Tier 2
 
         Args:
             data: Business data to match against.
@@ -351,18 +382,20 @@ class BusinessSeeder:
                 )
                 return await self._load_business(hit.gid)
 
-        # Tier 2: name exact match
-        hit = await self._search_by_name(data.name)
-        if hit:
-            logger.info(
-                "Business match found by name",
+        # Tier 2: Composite matching via MatchingEngine
+        try:
+            match_result = await self._find_by_composite_match(data)
+            if match_result:
+                return match_result
+        except Exception as e:
+            # Graceful degradation - log and continue to create new
+            logger.warning(
+                "Composite matching failed, will create new business",
                 extra={
-                    "match_type": "exact_name",
                     "query_name": data.name,
-                    "matched_gid": hit.gid,
+                    "error": str(e),
                 },
             )
-            return await self._load_business(hit.gid)
 
         # No match found
         logger.debug(
@@ -374,6 +407,100 @@ class BusinessSeeder:
             },
         )
         return None
+
+    async def _find_by_composite_match(
+        self, data: BusinessData
+    ) -> "Business | None":
+        """Find business using composite matching.
+
+        Per TDD-BusinessSeeder-v2: Uses MatchingEngine for probabilistic matching.
+
+        Args:
+            data: Business data to match against.
+
+        Returns:
+            Matched Business or None if no match above threshold.
+        """
+        from autom8_asana.models.business.matching import (
+            Candidate,
+            CompositeBlockingRule,
+        )
+
+        # Get candidates from search
+        candidates = await self._get_match_candidates(data)
+        if not candidates:
+            return None
+
+        # Apply blocking rules to filter candidates
+        blocking_rule = CompositeBlockingRule()
+        filtered_candidates = blocking_rule.filter_candidates(data, candidates)
+
+        if not filtered_candidates:
+            logger.debug(
+                "No candidates passed blocking rules",
+                extra={"query_name": data.name, "total_candidates": len(candidates)},
+            )
+            return None
+
+        # Find best match using MatchingEngine
+        match_result = self._matching_engine.find_best_match(data, filtered_candidates)
+
+        if match_result and match_result.is_match:
+            logger.info(
+                "Business match found by composite matching",
+                extra=match_result.to_log_dict(),
+            )
+            return await self._load_business(match_result.candidate_gid)
+
+        return None
+
+    async def _get_match_candidates(self, data: BusinessData) -> list["Candidate"]:
+        """Get candidate businesses for matching.
+
+        Retrieves potential matches from SearchService and converts to Candidates.
+
+        Args:
+            data: Business data to match against.
+
+        Returns:
+            List of Candidate objects for comparison.
+        """
+        from autom8_asana.models.business.business import Business
+        from autom8_asana.models.business.matching import Candidate
+
+        candidates: list[Candidate] = []
+
+        try:
+            # Search for businesses with similar name tokens
+            # Use name search as the primary candidate source
+            result = await self._client.search.find_async(
+                Business.PRIMARY_PROJECT_GID,
+                {"name": data.name},  # Fuzzy matching handled by engine
+                entity_type="Business",
+                limit=50,  # Reasonable limit for candidates
+            )
+
+            for hit in result.hits:
+                candidate = Candidate(
+                    gid=hit.gid,
+                    name=hit.name,
+                    email=hit.matched_fields.get("email"),
+                    phone=hit.matched_fields.get("phone"),
+                    domain=hit.matched_fields.get("domain"),
+                    city=hit.matched_fields.get("business_city"),
+                    state=hit.matched_fields.get("business_state"),
+                    zip_code=hit.matched_fields.get("business_zip"),
+                    company_id=hit.matched_fields.get("company_id"),
+                )
+                candidates.append(candidate)
+
+        except Exception as e:
+            logger.warning(
+                "Failed to get match candidates",
+                extra={"query_name": data.name, "error": str(e)},
+            )
+
+        return candidates
 
     async def _search_by_company_id(self, company_id: str) -> "SearchHit | None":
         """Search for Business by company_id.

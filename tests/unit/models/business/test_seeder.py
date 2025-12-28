@@ -523,76 +523,115 @@ class TestBusinessDeduplication:
             # Verify _load_business was called with the company_id match GID
             mock_load.assert_called_once_with("COMPANY_ID_MATCH")
 
-    def test_find_business_falls_back_to_name_when_no_company_id_match(self) -> None:
-        """_find_business_async falls back to name search when company_id not matched."""
+    def test_find_business_falls_back_to_composite_match_when_no_company_id_match(
+        self,
+    ) -> None:
+        """_find_business_async falls back to composite matching when company_id not matched.
+
+        Per TDD-BusinessSeeder-v2: Tier 2 is now composite matching.
+        """
         import asyncio
         from unittest.mock import AsyncMock, MagicMock, patch
 
-        from autom8_asana.search.models import SearchHit
+        from autom8_asana.search.models import SearchHit, SearchResult
 
-        # First call (company_id) returns None, second call (name) returns hit
-        name_hit = SearchHit(
-            gid="NAME_MATCH",
+        # company_id search returns None
+        # find_async returns candidates for composite matching
+        candidate_hit = SearchHit(
+            gid="COMPOSITE_MATCH",
             entity_type="Business",
-            name="Joe's Pizza",
-            matched_fields={"name": "Joe's Pizza"},
+            name="Joe's Pizza Palace",
+            matched_fields={
+                "name": "Joe's Pizza Palace",
+                "email": "info@joespizza.com",
+            },
+        )
+        search_result = SearchResult(
+            hits=[candidate_hit],
+            total_count=1,
+            query_time_ms=1.0,
+            from_cache=False,
         )
 
         client = MagicMock()
-        client.search.find_one_async = AsyncMock(
-            side_effect=[None, name_hit]  # First call None, second call hit
-        )
+        # company_id search returns None
+        client.search.find_one_async = AsyncMock(return_value=None)
+        # find_async returns candidates
+        client.search.find_async = AsyncMock(return_value=search_result)
 
         seeder = BusinessSeeder(client)
 
         mock_business = MagicMock()
-        mock_business.gid = "NAME_MATCH"
+        mock_business.gid = "COMPOSITE_MATCH"
 
         with patch.object(seeder, "_load_business", new_callable=AsyncMock) as mock_load:
             mock_load.return_value = mock_business
 
-            data = BusinessData(name="Joe's Pizza", company_id="NOTFOUND-001")
+            # Provide enough fields for composite matching to find a match
+            data = BusinessData(
+                name="Joe's Pizza",
+                company_id="NOTFOUND-001",
+                email="info@joespizza.com",  # Matching email
+            )
             result = asyncio.run(seeder._find_business_async(data))
 
             assert result is not None
-            assert result.gid == "NAME_MATCH"
-            mock_load.assert_called_once_with("NAME_MATCH")
+            assert result.gid == "COMPOSITE_MATCH"
+            mock_load.assert_called_once_with("COMPOSITE_MATCH")
 
-    def test_find_business_skips_company_id_search_when_not_provided(self) -> None:
-        """_find_business_async skips company_id search if not provided."""
+    def test_find_business_uses_composite_match_when_no_company_id(self) -> None:
+        """_find_business_async uses composite matching when no company_id provided.
+
+        Per TDD-BusinessSeeder-v2: Uses composite matching with corroborating fields.
+        """
         import asyncio
         from unittest.mock import AsyncMock, MagicMock, patch
 
-        from autom8_asana.search.models import SearchHit
+        from autom8_asana.search.models import SearchHit, SearchResult
 
-        name_hit = SearchHit(
-            gid="NAME_ONLY_MATCH",
+        candidate_hit = SearchHit(
+            gid="COMPOSITE_ONLY_MATCH",
             entity_type="Business",
-            name="Name Only Business",
-            matched_fields={"name": "Name Only Business"},
+            name="Acme Corporation",
+            matched_fields={
+                "name": "Acme Corporation",
+                "email": "info@acme.com",
+                "phone": "+15551234567",
+            },
+        )
+        search_result = SearchResult(
+            hits=[candidate_hit],
+            total_count=1,
+            query_time_ms=1.0,
+            from_cache=False,
         )
 
         client = MagicMock()
-        # Should only be called once (for name search, not company_id)
-        client.search.find_one_async = AsyncMock(return_value=name_hit)
+        # find_async returns candidates for composite matching
+        client.search.find_async = AsyncMock(return_value=search_result)
 
         seeder = BusinessSeeder(client)
 
         mock_business = MagicMock()
-        mock_business.gid = "NAME_ONLY_MATCH"
+        mock_business.gid = "COMPOSITE_ONLY_MATCH"
 
         with patch.object(seeder, "_load_business", new_callable=AsyncMock) as mock_load:
             mock_load.return_value = mock_business
 
-            # No company_id provided
-            data = BusinessData(name="Name Only Business")
+            # No company_id provided, but email and phone for composite matching
+            data = BusinessData(
+                name="Acme Corp",
+                email="info@acme.com",
+                phone="+15551234567",
+            )
             result = asyncio.run(seeder._find_business_async(data))
 
             assert result is not None
-            assert result.gid == "NAME_ONLY_MATCH"
+            assert result.gid == "COMPOSITE_ONLY_MATCH"
 
-            # find_one_async should only be called once (name search only)
-            assert client.search.find_one_async.call_count == 1
+            # find_one_async should not be called (no company_id)
+            # find_async is called for candidate retrieval
+            client.search.find_async.assert_called_once()
 
     def test_find_business_returns_none_when_both_searches_fail(self) -> None:
         """_find_business_async returns None when both tiers find no match."""
