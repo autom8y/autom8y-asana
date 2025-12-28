@@ -222,7 +222,7 @@ model: claude-haiku-4-5
 **Fix**: The quick-switch command should update SESSION_CONTEXT:
 ```bash
 # In command, after swap:
-if [ -f .claude/SESSION_CONTEXT.yaml ]; then
+if [ -n "$(get_session_dir 2>/dev/null)" ]; then
   # Update active_team field
 fi
 ```

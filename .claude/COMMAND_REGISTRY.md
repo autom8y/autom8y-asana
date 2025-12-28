@@ -14,7 +14,7 @@ This registry maps all slash commands to their implementation files. Commands ar
 
 ---
 
-## Registered Commands (32 Total)
+## Registered Commands (36 Total)
 
 ### Session Lifecycle (7 commands)
 
@@ -28,7 +28,7 @@ This registry maps all slash commands to their implementation files. Commands ar
 | `/sessions` | [commands/sessions.md](commands/sessions.md) | Active | List and manage active sessions |
 | `/worktree` | [commands/worktree.md](commands/worktree.md) | Active | Manage isolated worktrees for parallel sessions |
 
-### Team Management (10 commands)
+### Team Management (11 commands)
 
 | Command | File | Status | Description |
 |---------|------|--------|-------------|
@@ -42,8 +42,9 @@ This registry maps all slash commands to their implementation files. Commands ar
 | `/intelligence` | [commands/intelligence.md](commands/intelligence.md) | Active | Quick switch to intelligence-pack |
 | `/rnd` | [commands/rnd.md](commands/rnd.md) | Active | Quick switch to rnd-pack |
 | `/strategy` | [commands/strategy.md](commands/strategy.md) | Active | Quick switch to strategy-pack |
+| `/ecosystem` | [commands/ecosystem.md](commands/ecosystem.md) | Active | Quick switch to ecosystem-pack |
 
-### Development Workflows (4 commands)
+### Development Workflows (5 commands)
 
 | Command | File | Status | Description |
 |---------|------|--------|-------------|
@@ -51,8 +52,9 @@ This registry maps all slash commands to their implementation files. Commands ar
 | `/task` | [commands/task.md](commands/task.md) | Active | Single task full lifecycle |
 | `/hotfix` | [commands/hotfix.md](commands/hotfix.md) | Active | Rapid fix for urgent issues |
 | `/spike` | [commands/spike.md](commands/spike.md) | Active | Time-boxed research |
+| `/consolidate` | [commands/consolidate.md](commands/consolidate.md) | Active | Consolidate documentation into numbered artifacts |
 
-### Operations (5 commands)
+### Operations (6 commands)
 
 | Command | File | Status | Description |
 |---------|------|--------|-------------|
@@ -60,14 +62,16 @@ This registry maps all slash commands to their implementation files. Commands ar
 | `/build` | [commands/build.md](commands/build.md) | Active | Implementation-only |
 | `/qa` | [commands/qa.md](commands/qa.md) | Active | Validation-only |
 | `/pr` | [commands/pr.md](commands/pr.md) | Active | Create pull request |
+| `/commit` | [~/.claude/commands/commit.md](~/.claude/commands/commit.md) | Active | AI-assisted git commits with message generation |
 | `/code-review` | [commands/code-review.md](commands/code-review.md) | Active | Structured code review |
 
-### Meta/Navigation (2 commands)
+### Meta/Navigation (3 commands)
 
 | Command | File | Status | Description |
 |---------|------|--------|-------------|
 | `/consult` | [commands/consult.md](commands/consult.md) | Active | Ecosystem guidance and command-flows |
 | `/sync` | [commands/sync.md](commands/sync.md) | Active | Sync project with skeleton_claude ecosystem |
+| `/cem-debug` | [commands/cem-debug.md](commands/cem-debug.md) | Active | Diagnose CEM sync issues and conflicts |
 
 ### Meta/Factory (4 commands)
 
@@ -178,6 +182,7 @@ Commands receive context automatically via hooks instead of redundant `!` shell 
 | session-context | SessionStart | `hooks/session-context.sh` | Inject project, team, session, git context |
 | auto-park | Stop | `hooks/auto-park.sh` | Auto-save session state on exit |
 | artifact-tracker | PostToolUse (Write) | `hooks/artifact-tracker.sh` | Track PRD/TDD/ADR creation |
+| commit-tracker | PostToolUse (Bash) | `hooks/commit-tracker.sh` | Track git commits to session |
 | team-validator | PreToolUse (Bash) | `hooks/team-validator.sh` | Validate team switch operations |
 
 ### Hook Configuration
@@ -188,7 +193,10 @@ Hooks are configured in `.claude/settings.local.json`:
   "hooks": {
     "SessionStart": [{ "matcher": "startup|resume", "hooks": [{ "type": "command", "command": ".claude/hooks/session-context.sh" }] }],
     "Stop": [{ "hooks": [{ "type": "command", "command": ".claude/hooks/auto-park.sh" }] }],
-    "PostToolUse": [{ "matcher": "Write", "hooks": [{ "type": "command", "command": ".claude/hooks/artifact-tracker.sh" }] }],
+    "PostToolUse": [
+      { "matcher": "Write", "hooks": [{ "type": "command", "command": ".claude/hooks/artifact-tracker.sh" }] },
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": ".claude/hooks/commit-tracker.sh" }] }
+    ],
     "PreToolUse": [{ "matcher": "Bash", "hooks": [{ "type": "command", "command": ".claude/hooks/team-validator.sh" }] }]
   }
 }
@@ -353,3 +361,43 @@ Commands no longer need redundant `!` commands - context is auto-injected.
 - `/wrap` offers worktree cleanup when in worktree
 - `/sessions --all` shows sessions across all worktrees
 - `cem status` detects and displays worktree info
+
+### 2025-12-26: /commit Command
+
+**Added**:
+- `/commit` command for AI-assisted git commits with conventional commit format
+- User-level command at `~/.claude/commands/commit.md`
+- Skill documentation at `.claude/skills/commit-ref/skill.md`
+- Session tracking via `commit-tracker.sh` hook
+
+**Architecture**:
+- **CRITICAL**: User-only attribution (no AI markers in git history)
+- Smart staging flow for unstaged changes
+- Conventional commit format (type(scope): subject)
+- Session integration: commits logged to `$SESSION_DIR/commits.log`
+
+**Files Created**:
+- `.claude/user-commands/commit.md` - Command template (CEM syncs to ~/.claude/commands/)
+- `.claude/skills/commit-ref/skill.md` - Full reference documentation (730 lines)
+- `.claude/hooks/commit-tracker.sh` - PostToolUse hook for session tracking
+
+**Installation for Satellites**:
+CEM sync automatically installs the command:
+```bash
+# From skeleton_claude, sync to satellite
+cem sync
+
+# Or manually install command
+cp .claude/user-commands/commit.md ~/.claude/commands/commit.md
+```
+
+**Hook Registration**:
+The commit-tracker hook is registered in `.claude/settings.local.json`:
+```json
+{
+  "PostToolUse": [{
+    "matcher": "Bash",
+    "hooks": [{ "type": "command", "command": ".claude/hooks/commit-tracker.sh", "timeout": 5 }]
+  }]
+}
+```

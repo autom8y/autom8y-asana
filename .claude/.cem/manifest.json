@@ -1,29 +1,24 @@
 {
   "schema_version": 1,
   "skeleton_path": "/Users/tomtenuta/Code/skeleton_claude",
-  "skeleton_commit": "183414faad0a5f963cf21b41c24875cb4ee75fe2",
+  "skeleton_commit": "1657628fa99fd5fcef2b0b235612fcb45dc5213d",
   "skeleton_ref": "main",
-  "last_sync": "2025-12-25T06:47:33Z",
+  "last_sync": "2025-12-28T01:57:33Z",
   "managed_files": [
     {
       "path": ".claude/commands",
       "strategy": "copy-replace",
-      "checksum": "c3c95e94a428ad021486a9d45f285afd5d7968da2ad71e27a8af961e7e229fdf"
+      "checksum": "70781624c4933076514a917ad91f10ac90de3884c4dbcb229a1161e080d1612c"
     },
     {
       "path": ".claude/skills",
       "strategy": "copy-replace",
-      "checksum": "5fbd48f3ffb84a6ee679a7c5317c73a596afc653ce05a94ed013aae12b2e1aa1"
+      "checksum": "2f4626d67f9d628a18b42a7605d12e3b8c6a67916dc2130036864bfc1285ce8d"
     },
     {
       "path": ".claude/hooks",
       "strategy": "copy-replace",
-      "checksum": "3ef8b7cd3b7041c8941e899bc8600bedd41da8bcbf122804f28bcf1a4367708c"
-    },
-    {
-      "path": ".claude/global-agents",
-      "strategy": "copy-replace",
-      "checksum": "9cca7bc747d5368a4ace32a6c250fda59854ec6a0d29fc7a8870bc823880f8e5"
+      "checksum": "7d9ef175e4319f36b8ad03cd2bac41a139f241ef89840617664e895c18cb083b"
     },
     {
       "path": ".claude/knowledge",
@@ -33,22 +28,17 @@
     {
       "path": ".claude/COMMAND_REGISTRY.md",
       "strategy": "copy-replace",
-      "checksum": "fc5a8189013d23d746d227748568e51fdd5efcb75966ecb97f323a80198ba905"
-    },
-    {
-      "path": ".claude/forge-workflow.yaml",
-      "strategy": "copy-replace",
-      "checksum": "02fdb7d0129050cf883327027561cb626ab434588392834ad2ee53864afb79fc"
+      "checksum": "cb4b6c0712dd0c8b15f609ec1f4d3bb7d90fd3c6716e3a6ec770ccecc5bc5d88"
     },
     {
       "path": ".claude/settings.local.json",
       "strategy": "merge-settings",
-      "checksum": "71f517d97d16bee05744242c1652b6d11f4ba2ef94d498305d056b1b14d48125"
+      "checksum": "8d4e940f959a08246049b9a2395a0907bb407f7b9297eb7314e5f435f97f2aea"
     },
     {
       "path": ".claude/CLAUDE.md",
       "strategy": "merge-docs",
-      "checksum": "06ba81338c3450726aed120cd1b674935c654be16fa29de00adaed9b0e7ece63"
+      "checksum": "3244b7b739a42e1c4d101d7d4aff3857585c9c34d29e1324fa44cf06505c2700"
     }
   ],
   "local_files": [],

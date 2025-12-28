@@ -4,6 +4,11 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+
+# Source logging library
+source "$SCRIPT_DIR/lib/logging.sh" 2>/dev/null && log_init "start-preflight" && log_start || true
+
 # Check if this is a session lifecycle command
 USER_PROMPT="${CLAUDE_USER_PROMPT:-}"
 
@@ -224,4 +229,5 @@ EOF
     fi
 fi
 
+log_end 0 2>/dev/null || true
 exit 0

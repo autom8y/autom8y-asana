@@ -1,0 +1,537 @@
+"""Daily polling scheduler for automation rules.
+
+Per TDD-PIPELINE-AUTOMATION-EXPANSION: Provides scheduling infrastructure for
+polling-based automation with timezone-aware daily execution.
+
+Key responsibilities:
+- Load configuration via ConfigurationLoader
+- Schedule daily execution at configured time
+- Prevent concurrent execution via file locking
+- Support both development (APScheduler) and production (cron) modes
+
+Production Cron Example:
+    # Run daily at 2:00 AM in configured timezone
+    # crontab entry (system cron):
+    0 2 * * * cd /app && python -m autom8_asana.automation.polling.scheduler /etc/rules.yaml
+
+    # The scheduler interprets the config file's timezone for logging,
+    # but cron itself should be set to match the desired timezone.
+    # For timezone-aware cron, use systemd timers or ensure cron runs in the correct TZ.
+
+Development Example:
+    from autom8_asana.automation.polling import PollingScheduler
+
+    scheduler = PollingScheduler.from_config_file("/etc/autom8_asana/rules.yaml")
+    scheduler.run()  # Blocks, runs job daily at configured time
+
+Single Execution Example:
+    scheduler = PollingScheduler.from_config_file("/etc/autom8_asana/rules.yaml")
+    scheduler.run_once()  # Execute once and exit (for cron)
+
+Note: APScheduler is required for development mode (scheduler.run()).
+    Add 'apscheduler>=3.10.0' to your dependencies if using development mode.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import fcntl
+import logging
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import IO, TYPE_CHECKING, Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from autom8_asana.automation.polling.action_executor import ActionExecutor
+from autom8_asana.automation.polling.config_loader import ConfigurationLoader
+from autom8_asana.automation.polling.config_schema import AutomationRulesConfig
+from autom8_asana.automation.polling.structured_logger import StructuredLogger
+from autom8_asana.automation.polling.trigger_evaluator import TriggerEvaluator
+from autom8_asana.exceptions import ConfigurationError
+
+if TYPE_CHECKING:
+    from apscheduler.schedulers.blocking import BlockingScheduler
+
+__all__ = ["PollingScheduler"]
+
+# Fallback stdlib logger for non-evaluation logging (initialization, locks)
+logger = logging.getLogger(__name__)
+
+# Default lock file location
+DEFAULT_LOCK_PATH = "/tmp/autom8_asana_polling.lock"
+
+
+class PollingScheduler:
+    """Daily polling scheduler for automation rules.
+
+    Provides scheduling infrastructure for polling-based automation with
+    timezone-aware daily execution. Supports both development mode (using
+    APScheduler for blocking execution) and production mode (single execution
+    for cron-based scheduling).
+
+    Example (development):
+        scheduler = PollingScheduler.from_config_file("rules.yaml")
+        scheduler.run()  # Blocks, runs job daily
+
+    Example (production cron):
+        # crontab: 0 2 * * * python -m autom8_asana.automation.polling.scheduler /etc/rules.yaml
+        scheduler = PollingScheduler.from_config_file(sys.argv[1])
+        scheduler.run_once()
+
+    Attributes:
+        config: The loaded AutomationRulesConfig.
+        lock_path: Path to the lock file for preventing concurrent execution.
+        timezone: The ZoneInfo object for the configured timezone.
+    """
+
+    def __init__(
+        self,
+        config: AutomationRulesConfig,
+        *,
+        lock_path: str = DEFAULT_LOCK_PATH,
+        client: Any = None,
+    ) -> None:
+        """Initialize the polling scheduler.
+
+        Args:
+            config: Validated AutomationRulesConfig containing scheduler settings
+                and automation rules.
+            lock_path: Path to the lock file for preventing concurrent execution.
+                Defaults to /tmp/autom8_asana_polling.lock.
+            client: Optional Asana client for action execution. If not provided,
+                matched tasks will be logged but actions will not be executed
+                (dry-run mode).
+
+        Raises:
+            ConfigurationError: If the configured timezone is invalid.
+        """
+        self.config = config
+        self.lock_path = lock_path
+        self._client = client
+        self._evaluator = TriggerEvaluator()
+        self._action_executor = ActionExecutor(client) if client else None
+
+        # Validate and parse timezone
+        try:
+            self.timezone = ZoneInfo(config.scheduler.timezone)
+        except ZoneInfoNotFoundError as e:
+            raise ConfigurationError(
+                f"Invalid timezone '{config.scheduler.timezone}'. "
+                f"Use IANA timezone names (e.g., 'UTC', 'America/New_York')."
+            ) from e
+
+        # Parse time into hour and minute
+        time_parts = config.scheduler.time.split(":")
+        self._hour = int(time_parts[0])
+        self._minute = int(time_parts[1])
+
+        logger.info(
+            "PollingScheduler initialized: %d rules, scheduled at %s %s",
+            len(config.rules),
+            config.scheduler.time,
+            config.scheduler.timezone,
+        )
+
+    @classmethod
+    def from_config_file(
+        cls,
+        file_path: str,
+        *,
+        lock_path: str = DEFAULT_LOCK_PATH,
+        client: Any = None,
+    ) -> "PollingScheduler":
+        """Create a PollingScheduler from a YAML configuration file.
+
+        Loads and validates the configuration file, then creates a scheduler
+        instance. This is the preferred factory method for creating schedulers.
+
+        Args:
+            file_path: Path to the YAML configuration file.
+            lock_path: Path to the lock file for preventing concurrent execution.
+                Defaults to /tmp/autom8_asana_polling.lock.
+            client: Optional Asana client for action execution. If not provided,
+                matched tasks will be logged but actions will not be executed
+                (dry-run mode).
+
+        Returns:
+            Configured PollingScheduler instance.
+
+        Raises:
+            ConfigurationError: If the file is missing, invalid YAML,
+                or fails schema validation.
+
+        Example:
+            scheduler = PollingScheduler.from_config_file("/etc/autom8_asana/rules.yaml")
+        """
+        config = ConfigurationLoader.load_from_file(file_path, AutomationRulesConfig)
+        return cls(config, lock_path=lock_path, client=client)
+
+    def run(self) -> None:
+        """Start blocking scheduler for development (APScheduler).
+
+        Creates an APScheduler BlockingScheduler that runs the evaluation job
+        daily at the configured time in the configured timezone. This method
+        blocks indefinitely until interrupted.
+
+        The job is configured with:
+        - CronTrigger for daily execution at the configured hour/minute
+        - Timezone-aware scheduling using the configured timezone
+        - Coalesce=True to skip missed runs on restart
+        - Max instances=1 to prevent overlapping execution
+
+        Raises:
+            ImportError: If APScheduler is not installed. Install with:
+                pip install apscheduler>=3.10.0
+
+        Example:
+            scheduler = PollingScheduler.from_config_file("rules.yaml")
+            scheduler.run()  # Blocks until Ctrl+C
+        """
+        try:
+            from apscheduler.schedulers.blocking import (
+                BlockingScheduler as APBlockingScheduler,
+            )
+            from apscheduler.triggers.cron import CronTrigger
+        except ImportError as e:
+            raise ImportError(
+                "APScheduler is required for development mode. "
+                "Install with: pip install apscheduler>=3.10.0"
+            ) from e
+
+        # Create the blocking scheduler
+        scheduler: BlockingScheduler = APBlockingScheduler()
+
+        # Create cron trigger for daily execution
+        trigger = CronTrigger(
+            hour=self._hour,
+            minute=self._minute,
+            timezone=self.timezone,
+        )
+
+        # Add job with coalesce to skip missed runs
+        scheduler.add_job(
+            self._evaluate_rules,
+            trigger=trigger,
+            id="polling_evaluation",
+            name=f"Daily rule evaluation at {self.config.scheduler.time}",
+            coalesce=True,
+            max_instances=1,
+        )
+
+        logger.info(
+            "Starting blocking scheduler. Next run at %s %s. Press Ctrl+C to stop.",
+            self.config.scheduler.time,
+            self.config.scheduler.timezone,
+        )
+
+        try:
+            scheduler.start()
+        except (KeyboardInterrupt, SystemExit):
+            logger.info("Scheduler stopped by user.")
+            scheduler.shutdown()
+
+    def run_once(self) -> None:
+        """Execute one evaluation cycle (for cron).
+
+        Acquires a file lock to prevent concurrent execution, then evaluates
+        all enabled rules. This method is designed for production use with
+        system cron or similar external schedulers.
+
+        If the lock cannot be acquired (another instance is running), the
+        method logs a warning and returns without executing. This provides
+        safe behavior when cron jobs overlap due to long-running evaluations.
+
+        The lock is held for the duration of rule evaluation and automatically
+        released on completion or error.
+
+        Example:
+            # In a cron script:
+            scheduler = PollingScheduler.from_config_file(sys.argv[1])
+            scheduler.run_once()
+        """
+        utc_now = datetime.now(timezone.utc)
+        local_now = utc_now.astimezone(self.timezone)
+
+        logger.info(
+            "Starting single evaluation run at %s (UTC: %s)",
+            local_now.isoformat(),
+            utc_now.isoformat(),
+        )
+
+        # Try to acquire lock
+        lock_file = None
+        try:
+            lock_file = self._acquire_lock()
+            if lock_file is None:
+                logger.warning(
+                    "Could not acquire lock at %s. Another instance may be running. Skipping.",
+                    self.lock_path,
+                )
+                return
+
+            # Execute evaluation
+            self._evaluate_rules()
+
+        finally:
+            if lock_file is not None:
+                self._release_lock(lock_file)
+
+        utc_end = datetime.now(timezone.utc)
+        duration = (utc_end - utc_now).total_seconds()
+        logger.info(
+            "Evaluation completed in %.2f seconds (UTC: %s)",
+            duration,
+            utc_end.isoformat(),
+        )
+
+    def _evaluate_rules(self, tasks_by_project: dict[str, list[Any]] | None = None) -> None:
+        """Internal: evaluate all enabled rules and execute actions on matches.
+
+        Iterates through all rules in the configuration, evaluating each
+        enabled rule against its project's tasks. Uses structured logging
+        for JSON-formatted output suitable for log aggregation.
+
+        For matched tasks, if an ActionExecutor is configured (client was provided),
+        actions are executed asynchronously. If no client is provided (dry-run mode),
+        matched tasks are logged but actions are not executed.
+
+        This method is called by both run() and run_once().
+
+        Args:
+            tasks_by_project: Optional dict mapping project_gid to list of tasks.
+                If not provided, rules are evaluated but no tasks will match
+                (placeholder for future task fetching integration).
+        """
+        utc_now = datetime.now(timezone.utc)
+
+        # Get structured logger with bound context for this evaluation cycle
+        structured_log = StructuredLogger.get_logger(
+            scheduler_timezone=self.config.scheduler.timezone,
+            scheduled_time=self.config.scheduler.time,
+        )
+
+        structured_log.info(
+            "evaluation_cycle_started",
+            timestamp_utc=utc_now.isoformat(),
+            dry_run=self._action_executor is None,
+        )
+
+        enabled_rules = [r for r in self.config.rules if r.enabled]
+        structured_log.info(
+            "rules_loaded",
+            enabled_count=len(enabled_rules),
+            total_count=len(self.config.rules),
+        )
+
+        # Use empty dict if no tasks provided
+        if tasks_by_project is None:
+            tasks_by_project = {}
+
+        for rule in enabled_rules:
+            rule_start = time.perf_counter()
+
+            structured_log.debug(
+                "rule_evaluation_started",
+                rule_id=rule.rule_id,
+                rule_name=rule.name,
+                project_gid=rule.project_gid,
+                condition_count=len(rule.conditions),
+                action_type=rule.action.type,
+            )
+
+            # Get tasks for this rule's project
+            tasks = tasks_by_project.get(rule.project_gid, [])
+
+            # Evaluate conditions using TriggerEvaluator
+            matched_tasks = self._evaluator.evaluate_conditions(rule, tasks)
+            matches = len(matched_tasks)
+
+            # Execute actions on matched tasks if executor is available
+            if matched_tasks and self._action_executor:
+                # Run async action execution in sync context
+                asyncio.run(self._execute_actions_async(matched_tasks, rule, structured_log))
+            elif matched_tasks:
+                # Dry-run mode: log matches without executing actions
+                for task in matched_tasks:
+                    task_gid = getattr(task, "gid", str(task))
+                    structured_log.info(
+                        "action_skipped_dry_run",
+                        rule_id=rule.rule_id,
+                        task_gid=task_gid,
+                        action_type=rule.action.type,
+                    )
+
+            rule_end = time.perf_counter()
+            duration_ms = (rule_end - rule_start) * 1000
+
+            # Use structured logging for rule evaluation result
+            StructuredLogger.log_rule_evaluation(
+                rule_id=rule.rule_id,
+                rule_name=rule.name,
+                project_gid=rule.project_gid,
+                matches=matches,
+                duration_ms=duration_ms,
+            )
+
+        utc_end = datetime.now(timezone.utc)
+        cycle_duration_ms = (utc_end - utc_now).total_seconds() * 1000
+
+        structured_log.info(
+            "evaluation_cycle_complete",
+            rules_evaluated=len(enabled_rules),
+            total_duration_ms=cycle_duration_ms,
+            timestamp_utc=utc_end.isoformat(),
+        )
+
+    async def _execute_actions_async(
+        self,
+        matched_tasks: list[Any],
+        rule: Any,
+        structured_log: Any,
+    ) -> None:
+        """Execute actions on matched tasks asynchronously.
+
+        Iterates through matched tasks and executes the rule's action on each.
+        Errors in one action do not prevent other actions from executing.
+
+        Args:
+            matched_tasks: List of task objects that matched the rule conditions.
+            rule: The automation rule containing the action to execute.
+            structured_log: Logger instance for structured logging.
+        """
+        # This method is only called when _action_executor is not None
+        assert self._action_executor is not None
+
+        for task in matched_tasks:
+            task_gid = getattr(task, "gid", str(task))
+            try:
+                result = await self._action_executor.execute_async(
+                    task_gid=task_gid,
+                    action=rule.action,
+                )
+                # Log the action result
+                StructuredLogger.log_action_result(result, rule_id=rule.rule_id)
+            except Exception as exc:
+                # Log error but continue processing other tasks
+                structured_log.error(
+                    "action_execution_error",
+                    rule_id=rule.rule_id,
+                    task_gid=task_gid,
+                    error=str(exc),
+                )
+
+    def _acquire_lock(self) -> IO[str] | None:
+        """Acquire file lock for concurrent execution prevention.
+
+        Uses fcntl.flock() with LOCK_EX | LOCK_NB for non-blocking exclusive
+        lock. If the lock file doesn't exist, it is created.
+
+        Returns:
+            Open file handle if lock acquired, None if lock is held by another process.
+
+        Note:
+            The caller must call _release_lock() with the returned file handle
+            when done, or use a try/finally block.
+        """
+        lock_path = Path(self.lock_path)
+
+        # Ensure parent directory exists
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            # Open or create lock file
+            lock_file = open(lock_path, "w")
+
+            # Try to acquire non-blocking exclusive lock
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+            # Write PID for debugging
+            lock_file.write(f"{datetime.now(timezone.utc).isoformat()}\npid={sys.executable}\n")
+            lock_file.flush()
+
+            logger.debug("Acquired lock at %s", self.lock_path)
+            return lock_file
+
+        except OSError:
+            # Lock is held by another process (EWOULDBLOCK/EAGAIN)
+            logger.debug("Lock at %s is held by another process", self.lock_path)
+            if lock_file:
+                lock_file.close()
+            return None
+
+    def _release_lock(self, lock_file: IO[str]) -> None:
+        """Release file lock.
+
+        Releases the fcntl lock and closes the file handle.
+
+        Args:
+            lock_file: Open file handle from _acquire_lock().
+        """
+        try:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            lock_file.close()
+            logger.debug("Released lock at %s", self.lock_path)
+        except OSError as e:
+            logger.warning("Error releasing lock at %s: %s", self.lock_path, e)
+
+
+# Entry point for cron execution
+if __name__ == "__main__":
+    import argparse
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+
+    parser = argparse.ArgumentParser(
+        description="Run polling scheduler for automation rules.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Run once (for cron):
+  python -m autom8_asana.automation.polling.polling_scheduler /etc/rules.yaml
+
+  # Run in development mode (blocking):
+  python -m autom8_asana.automation.polling.polling_scheduler /etc/rules.yaml --dev
+
+Cron entry example:
+  0 2 * * * python -m autom8_asana.automation.polling.polling_scheduler /etc/rules.yaml
+        """,
+    )
+    parser.add_argument(
+        "config_file",
+        help="Path to YAML configuration file",
+    )
+    parser.add_argument(
+        "--dev",
+        action="store_true",
+        help="Run in development mode with APScheduler (blocking)",
+    )
+    parser.add_argument(
+        "--lock-path",
+        default=DEFAULT_LOCK_PATH,
+        help=f"Path to lock file (default: {DEFAULT_LOCK_PATH})",
+    )
+
+    args = parser.parse_args()
+
+    try:
+        scheduler = PollingScheduler.from_config_file(
+            args.config_file,
+            lock_path=args.lock_path,
+        )
+
+        if args.dev:
+            scheduler.run()
+        else:
+            scheduler.run_once()
+
+    except ConfigurationError as e:
+        logger.error("Configuration error: %s", e)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        logger.info("Interrupted by user.")
+        sys.exit(0)

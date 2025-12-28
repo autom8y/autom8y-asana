@@ -2,19 +2,67 @@
 
 > Entry point for Claude Code. Skills-based progressive disclosure architecture.
 
+
+## Execution Mode
+
+**CHECK FIRST**: Is there an active workflow?
+
+| Workflow State | Detection | Behavior |
+|----------------|-----------|----------|
+| **Active** (`workflow.active: true`) | Session Context shows workflow | MUST delegate via Task tool |
+| **Inactive** | No workflow in context | May execute directly |
+
+**When in an active workflow (/task, /sprint, /consolidate):**
+1. The main thread is the COACH - coordinates, does not play
+2. CONSULT the orchestrator for direction (do not ask it to execute)
+3. PARSE the directive and invoke specialists via Task tool
+4. NEVER use Edit/Write directly - that is specialist work
+
+**Correct Pattern**:
+```
+Main Thread -> [Task tool] -> Orchestrator (returns directive)
+Main Thread -> [Task tool] -> Specialist (per directive)
+```
+
+**Incorrect Pattern**:
+```
+Main Thread -> [Edit/Write] -> Direct implementation
+Main Thread -> "Execute the sprint" -> Orchestrator (cannot execute)
+```
+
+See: `.claude/skills/orchestration/main-thread-guide.md` for the consultation loop template.
+
 ## Quick Start
 
-This project uses a 4-agent development workflow:
+This project uses a 5-agent workflow (10x-dev-pack):
 
-| Agent                    | Role                                          | Produces                  |
-| ------------------------ | --------------------------------------------- | ------------------------- |
-| **Requirements Analyst** | Clarifies intent, defines success             | PRD                       |
-| **Architect**            | Designs solutions, makes structural decisions | TDD, ADRs                 |
-| **Principal Engineer**   | Implements with craft and discipline          | Code, impl ADRs           |
-| **QA/Adversary**         | Validates, finds problems before production   | Test Plan, defect reports |
+| Agent | Role | Produces |
+| ----- | ---- | -------- |
+| **architect** | Designs solutions, makes decisions | TDD, ADRs |
+| **orchestrator** | Coordinates multi-phase workflows | Work breakdown |
+| **principal-engineer** | Implements with craft | Code |
+| **qa-adversary** | Validates, finds problems | Test reports |
+| **requirements-analyst** | Clarifies intent, defines success | PRD |
 
 **New here?** Use the `prompting` skill for copy-paste patterns, or `initiative-scoping` to start a new project.
 
+<!-- SYNC: skeleton-owned -->
+## Agent Routing
+
+Before implementing work, check:
+1. **Is there an active workflow?** (see Execution Mode above)
+   - If YES: You MUST delegate. Do not implement directly.
+2. Is there an active team? (see Team Context below)
+3. Does this task match a phase in the workflow?
+4. If yes -> invoke that phase's agent via Task tool
+
+**During active workflow**: Always delegate via Task tool. No exceptions.
+**Outside workflow** (ad-hoc request, no /task or /sprint active):
+  - **Single-phase work** (bug fix, docs update): May execute directly.
+  - **Multi-phase work**: Route to `/task` or team agent.
+**Unsure?** Route to `/consult` for guidance.
+
+<!-- SYNC: skeleton-owned -->
 ## Skills Architecture
 
 Skills provide domain knowledge on-demand. They activate based on your task:
@@ -28,16 +76,17 @@ Skills provide domain knowledge on-demand. They activate based on your task:
 | **justfile**         | Task automation, just recipes, project commands            |
 | **prompting**        | Copy-paste prompt patterns, agent invocation examples      |
 | **standards**        | Code conventions, tech stack, repository structure, commands |
+| **claude-md-architecture** | CLAUDE.md content placement, ownership model, boundary test |
 
 ## Agent Configurations
 
 Full agent prompts live in `.claude/agents/`:
 
-- `orchestrator.md` - Coordinates multi-phase workflows
-- `requirements-analyst.md` - Produces PRDs
-- `architect.md` - Produces TDDs and ADRs
-- `principal-engineer.md` - Implements code
-- `qa-adversary.md` - Validates and tests
+- `architect.md` - The system design authority who evaluates tradeoff
+- `orchestrator.md` - The coordination hub for complex feature developme
+- `principal-engineer.md` - The master builder who transforms designs into pro
+- `qa-adversary.md` - The adversarial tester who breaks things on purpos
+- `requirements-analyst.md` - The specification specialist who transforms ambigu
 
 ## Hooks (Automatic Context)
 
@@ -54,6 +103,7 @@ Hooks auto-inject context on session start and automate common operations:
 
 See `.claude/hooks/` for scripts, `.claude/settings.local.json` for config.
 
+<!-- SYNC: skeleton-owned -->
 ## Dynamic Context Syntax
 
 Commands can include dynamic context using the `!` prefix syntax:
@@ -73,6 +123,7 @@ When Claude reads a command file:
 - Always include fallbacks: `!`cat file 2>/dev/null || echo "default"`
 - Prefer hooks for complex context that all commands need
 
+<!-- SYNC: skeleton-owned -->
 ## Getting Help
 
 | Question                        | Go To                        |

@@ -44,7 +44,7 @@ Prompt user for sprint details if not provided:
 
 ### 2. Create Sprint Context
 
-Generate `.claude/SPRINT_CONTEXT` file:
+Generate `$SESSION_DIR/SPRINT_CONTEXT.md` file (session-scoped):
 
 ```yaml
 ---
@@ -327,7 +327,7 @@ Recommend: Resolve blocker and run `/task "Stripe webhook integration"` separate
 
 | File | Purpose |
 |------|---------|
-| `.claude/SPRINT_CONTEXT` | Sprint state and progress |
+| `$SESSION_DIR/SPRINT_CONTEXT.md` | Sprint state and progress (session-scoped) |
 | `/docs/sprints/SPRINT-{name}.md` | Sprint archive (at completion) |
 | Per-task artifacts | PRDs, TDDs, code, test plans |
 

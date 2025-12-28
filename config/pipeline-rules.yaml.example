@@ -1,0 +1,133 @@
+# Pipeline Automation Rules Configuration
+#
+# This file defines time-based automation rules that are evaluated daily.
+# Copy this file to pipeline-rules.yaml and customize for your environment.
+#
+# Schema ownership:
+#   - Developers own the schema (code validation)
+#   - Operations owns the values (this file)
+#
+# Environment Variable Substitution:
+#   Use ${VAR_NAME} syntax for sensitive values that should come from
+#   environment variables. Example: ${ASANA_API_TOKEN}
+#
+# For full schema documentation, see:
+#   src/autom8_asana/automation/polling/config_schema.py
+
+# Scheduler configuration - when to run daily evaluation
+scheduler:
+  # Time of day in 24-hour format (HH:MM)
+  time: "02:00"
+
+  # IANA timezone name
+  # Examples: "UTC", "America/New_York", "Europe/London", "Asia/Tokyo"
+  timezone: "America/New_York"
+
+# Automation rules to evaluate
+rules:
+  # Rule 1: Escalate stale triage items
+  # This rule finds tasks that have been in Triage for too long and tags them
+  - rule_id: "escalate-stale-triage"
+    name: "Escalate stale triage tasks"
+
+    # Project GID to evaluate (find in Asana URL or API)
+    project_gid: "1234567890123"
+
+    # Conditions are combined with AND logic
+    # All conditions must match for the action to execute
+    conditions:
+      # Stale trigger: task hasn't been modified in N days
+      - stale:
+          field: "Section"  # Monitor the Section field
+          days: 3           # Stale if not modified in 3+ days
+
+        # Optional: Only trigger on specific custom fields
+        # field_whitelist:
+        #   - "1205678901234567"  # Custom field GID
+
+    # Action to execute when conditions match
+    action:
+      type: "add_tag"
+      params:
+        tag: "needs-attention"
+
+    # Enable/disable this rule
+    enabled: true
+
+  # Rule 2: Deadline proximity warning
+  # Tag tasks that are approaching their due date
+  - rule_id: "deadline-warning"
+    name: "Flag approaching deadlines"
+    project_gid: "1234567890123"
+
+    conditions:
+      - deadline:
+          days: 7  # Due within next 7 days
+
+    action:
+      type: "add_tag"
+      params:
+        tag: "deadline-soon"
+
+    enabled: true
+
+  # Rule 3: Archive old completed tasks
+  # Move tasks that have been open too long to an archive section
+  - rule_id: "archive-old-tasks"
+    name: "Archive very old open tasks"
+    project_gid: "9876543210987"
+
+    conditions:
+      - age:
+          days: 90  # Created 90+ days ago and still open
+
+    action:
+      type: "change_section"
+      params:
+        section: "Archive"
+
+    enabled: true
+
+  # Rule 4: Combined conditions (AND logic)
+  # Escalate tasks that are both stale AND have an upcoming deadline
+  - rule_id: "urgent-stale-tasks"
+    name: "Urgent attention for stale tasks with deadlines"
+    project_gid: "1234567890123"
+
+    conditions:
+      # Condition 1: Task is stale
+      - stale:
+          field: "Section"
+          days: 5
+
+      # Condition 2: Task has upcoming deadline
+      - deadline:
+          days: 14
+
+    action:
+      type: "add_comment"
+      params:
+        text: "This task is stale and has an upcoming deadline. Please review."
+
+    enabled: false  # Disabled by default - enable when ready
+
+  # Rule 5: Example with environment variable substitution
+  # Use ${VAR_NAME} for values that should come from environment
+  - rule_id: "custom-notification"
+    name: "Custom notification rule"
+    project_gid: "1234567890123"
+
+    conditions:
+      - age:
+          days: 30
+
+    action:
+      type: "webhook"
+      params:
+        # Environment variable substitution
+        # url: "${WEBHOOK_NOTIFICATION_URL}"
+        # api_key: "${WEBHOOK_API_KEY}"
+        url: "https://example.com/webhook"
+        message: "Task has been open for 30+ days"
+
+    enabled: false

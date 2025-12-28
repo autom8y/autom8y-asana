@@ -1,11 +1,24 @@
 ---
 name: documentation
-description: "PRD, TDD, ADR, and Test Plan templates with artifact protocols. Use when: writing requirements documents, creating technical designs, recording architecture decisions, planning tests, understanding artifact formats. Triggers: PRD, TDD, ADR, test plan, documentation template, artifact format, requirements document, technical design, architecture decision record."
+description: "Documentation standards and template routing. Points to category-specific skills for actual templates."
 ---
 
 # Documentation Standards & Templates
 
-> **Status**: Complete (Session 2)
+Quick routing hub for documentation templates and standards. Category-specific skills contain the actual templates.
+
+## Quick Reference
+
+| Need | Skill | Templates |
+|------|-------|-----------|
+| Development artifacts | `doc-artifacts` | PRD, TDD, ADR, Test Plan |
+| Doc team workflows | `doc-reviews` | Audit, Info Arch, Content Brief, Review |
+| Ecosystem/hygiene | `doc-ecosystem` | Gap Analysis, Migration, Compatibility, Smells |
+| SRE/Debt/Analytics | `doc-sre` | Observability, Postmortem, Chaos, Debt, Tracking |
+| Strategy workflows | `doc-strategy` | Strategic Roadmap, Competitive Intel, Market Analysis, Financial Model |
+| Security workflows | `doc-security` | Threat Model, Compliance Requirements, Pentest Report, Security Signoff |
+| R&D workflows | `doc-rnd` | Tech Assessment, Integration Map, Prototype Doc, Moonshot Plan |
+| Intelligence workflows | `doc-intelligence` | Research Findings, Experiment Design, Insights Report |
 
 ## Core Principles
 
@@ -26,43 +39,65 @@ Documentation is never "done." Review and refactor during development. Update wh
 
 ---
 
-## Artifact Types & When to Use
+## Artifact Types Overview
 
-### PRD - Product Requirements Document
+### Development Artifacts (`doc-artifacts`)
+Core development workflow documentation:
+- **PRD** - Product Requirements Document (WHAT and WHY)
+- **TDD** - Technical Design Document (HOW)
+- **ADR** - Architecture Decision Record (WHY this way)
+- **Test Plan** - Validation strategy (HOW we verify)
 
-**Owner**: Requirements Analyst | **Location**: `/docs/requirements/PRD-{feature-slug}.md`
+### Documentation Team Templates (`doc-reviews`)
+Documentation quality and governance:
+- **Documentation Audit Report** - Health assessment of existing docs
+- **Information Architecture Specification** - Documentation structure design
+- **Content Brief** - Instructions for new documentation
+- **Documentation Review Report** - Quality validation reports
 
-Defines WHAT we're building and WHY, from a product/user perspective. Create when starting a new feature, formalizing user requirements, or establishing scope and success criteria.
+### Ecosystem & Hygiene Templates (`doc-ecosystem`)
+Project health and maintenance:
+- **Gap Analysis** - Identifying missing or broken functionality
+- **Migration Plan** - Documentation reorganization plans
+- **Compatibility Report** - Cross-version testing results
+- **Smell Report** - Code quality and cleanup opportunities
 
-**Template**: [templates/prd.md](templates/prd.md)
+### SRE, Debt & Analytics Templates (`doc-sre`)
+Operations, reliability, and metrics:
+- **Observability Report** - Monitoring and instrumentation status
+- **Postmortem** - Incident analysis and lessons
+- **Chaos Experiment** - Resilience testing plans
+- **Debt Ledger** - Technical debt inventory
+- **Risk Matrix** - Debt prioritization
+- **Sprint Debt Packages** - Remediation planning
+- **Tracking Plan** - Analytics instrumentation specs
 
-### TDD - Technical Design Document
+### Strategy Team Templates (`doc-strategy`)
+Strategic planning and business analysis:
+- **Strategic Roadmap** - Prioritized initiatives with OKRs
+- **Competitive Intel** - Competitor analysis and positioning
+- **Market Analysis** - TAM/SAM/SOM and segment profiles
+- **Financial Model** - Unit economics and scenario analysis
 
-**Owner**: Architect | **Location**: `/docs/design/TDD-{feature-slug}.md`
+### Security Team Templates (`doc-security`)
+Security assessment and compliance:
+- **Threat Model** - STRIDE/DREAD attack surface analysis
+- **Compliance Requirements** - Regulatory control mapping
+- **Pentest Report** - Vulnerability findings and remediation
+- **Security Signoff** - Code review security approval
 
-Defines HOW we're building it - system design, components, interfaces, data flow. Create when an approved PRD needs technical design or complex implementations require upfront planning.
+### R&D Team Templates (`doc-rnd`)
+Innovation and technology exploration:
+- **Tech Assessment** - Technology evaluation and recommendations
+- **Integration Map** - System integration analysis
+- **Prototype Documentation** - POC learnings and production path
+- **Moonshot Plan** - Long-term architecture scenarios
 
-**Template**: [templates/tdd.md](templates/tdd.md)
-
-### ADR - Architecture Decision Record
-
-**Owner**: Architect (primary), Engineer (implementation-level) | **Location**: `/docs/decisions/ADR-{NNNN}-{slug}.md`
-
-Captures WHY a specific architectural decision was made. Create when choosing between approaches, adopting new patterns/technologies, deviating from established patterns, or making trade-offs with long-term implications.
-
-**Template**: [templates/adr.md](templates/adr.md)
-
-### Test Plan
-
-**Owner**: QA/Adversary | **Location**: `/docs/testing/TP-{feature-slug}.md`
-
-Defines HOW we validate the implementation meets requirements. Create when a feature is ready for QA validation after code complete handoff.
-
-**Template**: [templates/test-plan.md](templates/test-plan.md)
-
-### Prompt 0 - Initiative Kickoff
-
-For multi-session initiatives, complex systems requiring discovery, or large migrations with significant unknowns. See the **initiative-scoping** skill for Prompt -1 and Prompt 0 templates.
+### Intelligence Team Templates (`doc-intelligence`)
+Product analytics and research:
+- **Research Findings** - Qualitative research synthesis
+- **Experiment Design** - A/B test specifications
+- **Insights Report** - Data-driven recommendations
 
 ---
 
@@ -76,12 +111,19 @@ For multi-session initiatives, complex systems requiring discovery, or large mig
 
 **Test Plan**: Requirements traced, edge/error cases covered, performance tested, exit criteria clear
 
-See each template file for complete quality gate checklists.
+See category-specific skills for complete quality gate checklists.
 
 ---
 
 ## Related Resources
 
+- `doc-artifacts` - 10x workflow templates (PRD, TDD, ADR, Test Plan)
+- `doc-reviews` - Documentation team templates
+- `doc-ecosystem` - Ecosystem and hygiene templates
+- `doc-sre` - SRE, debt, and analytics templates
+- `doc-strategy` - Strategy team templates
+- `doc-security` - Security team templates
+- `doc-rnd` - R&D team templates
+- `doc-intelligence` - Intelligence team templates
 - [Workflow & Lifecycle](workflow.md) - Pipeline flow, document lifecycle, indexing
-- [Templates](templates/) - All artifact templates
 - [Document Index](/docs/INDEX.md) - Registry of all project documentation

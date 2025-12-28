@@ -68,7 +68,7 @@ Show script output to user, which includes:
 
 ### 4. Update SESSION_CONTEXT (if active)
 
-If a session is active (`.claude/SESSION_CONTEXT` exists):
+If a session is active (`.claude/sessions/{session_id}/SESSION_CONTEXT.md` exists):
 
 - Update `active_team` field to new team name
 - Append to handoff notes:
@@ -112,7 +112,7 @@ If a session is active (`.claude/SESSION_CONTEXT` exists):
 | `.claude/ACTIVE_TEAM` | Overwritten | Contains single line with active team name |
 | `.claude/agents/` | Replaced | All agent files swapped atomically |
 | `.claude/agents.backup/` | Created | Backup of previous agents (safety net) |
-| `.claude/SESSION_CONTEXT` | Updated | If session active, team field updated |
+| `.claude/sessions/{session_id}/SESSION_CONTEXT.md` | Updated | If session active, team field updated |
 
 ### Exit Codes
 
@@ -197,6 +197,48 @@ Session context updated:
 Output:
 ```
 [Roster] Already using doc-team-pack (no changes needed)
+```
+
+**Idempotency**: The script automatically detects when already on the target team and exits early. Use `--refresh` to pull latest agent definitions from roster.
+
+---
+
+## Refresh Mode
+
+Use `--refresh` when you need to pull the latest agent definitions from the roster, even if already on that team.
+
+### When to Use
+
+- After updating agents in the roster repository
+- When agents seem stale or behaving unexpectedly
+- After running `git pull` in the roster repo
+- To reset local agent modifications to upstream state
+
+### Examples
+
+```bash
+# Refresh current team (most common)
+/team --refresh
+
+# Refresh specific team
+/team 10x-dev-pack --refresh
+
+# Preview what would change before refreshing
+/team --refresh --dry-run
+```
+
+### Dry-Run Output
+
+```
+[Roster] Dry-run: Would refresh ecosystem-pack
+
+Agent changes:
+  ~ orchestrator.md (modified in roster)
+  = ecosystem-analyst.md (unchanged)
+  = integration-engineer.md (unchanged)
+  + new-agent.md (new)
+
+No changes made (--dry-run mode)
 ```
 
 ---

@@ -247,7 +247,7 @@ Use this team for:
 |------|--------|-------------|
 | `.claude/ACTIVE_TEAM` | Set to `doc-team-pack` | Active team state |
 | `.claude/agents/` | Populated | 4 agent files loaded |
-| `.claude/SESSION_CONTEXT` | `active_team` updated | If session active |
+| `.claude/sessions/{session_id}/SESSION_CONTEXT.md` | `active_team` updated | If session active |
 
 ---
 

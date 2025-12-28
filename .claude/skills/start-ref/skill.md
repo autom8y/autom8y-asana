@@ -39,7 +39,7 @@ When `/start` is invoked, the following sequence occurs:
 
 ### 1. Pre-flight Validation
 
-- **Check for existing session**: Verify no `.claude/SESSION_CONTEXT` file exists
+- **Check for existing session**: Verify no active session for current project (uses `get_session_id()` from session-utils.sh)
   - If exists → Error: "Session already active. Use `/resume` or `/wrap` first"
 - **Validate team pack** (if specified): Check team exists in roster
   - If invalid → Error: "Team '{name}' not found. Use `/roster` to list available teams"
@@ -65,7 +65,7 @@ Prompt user for any missing parameters:
 
 ### 4. Create SESSION_CONTEXT
 
-Generate `.claude/SESSION_CONTEXT` file with metadata:
+Generate `.claude/sessions/{session_id}/SESSION_CONTEXT.md` file with metadata:
 
 ```yaml
 ---
@@ -136,7 +136,7 @@ When complete, save:
 
 ### 7. Update SESSION_CONTEXT
 
-After artifacts are produced, update `.claude/SESSION_CONTEXT`:
+After artifacts are produced, update `.claude/sessions/{session_id}/SESSION_CONTEXT.md`:
 
 ```yaml
 artifacts:
@@ -179,7 +179,7 @@ Use `/park` to pause, `/handoff` to switch agents, or continue working.
 
 ### Files Created
 
-- `.claude/SESSION_CONTEXT` - Session metadata and state
+- `.claude/sessions/{session_id}/SESSION_CONTEXT.md` - Session metadata and state
 - `/docs/requirements/PRD-{slug}.md` - Product requirements document
 - `/docs/design/TDD-{slug}.md` - Technical design (if complexity > SCRIPT)
 - `/docs/decisions/ADR-{NNNN}-{slug}.md` - Architecture decisions (if applicable)
@@ -270,7 +270,7 @@ Use /park to save state between work periods.
 
 ## Prerequisites
 
-- No existing active session (no `.claude/SESSION_CONTEXT` file)
+- No existing active session for current project (uses file-based session persistence via `.claude/sessions/.current-session`)
 - Target team pack exists (if specified)
 - Roster system available at `~/Code/roster/`
 
@@ -278,7 +278,7 @@ Use /park to save state between work periods.
 
 ## Success Criteria
 
-- `.claude/SESSION_CONTEXT` file created with valid YAML
+- `.claude/sessions/{session_id}/SESSION_CONTEXT.md` file created with valid YAML
 - Requirements Analyst produces PRD meeting quality gates
 - Architect produces TDD and ADRs (if complexity > SCRIPT)
 - All artifacts saved to correct locations
@@ -290,7 +290,7 @@ Use /park to save state between work periods.
 
 | Error | Condition | Resolution |
 |-------|-----------|------------|
-| Session already active | `.claude/SESSION_CONTEXT` exists | Use `/wrap` to complete current session or `/resume` to continue it |
+| Session already active | Active session for current project | Use `/wrap` to complete current session or `/resume` to continue it |
 | Invalid team name | Team not found in roster | Use `/roster` to list available teams |
 | Roster system unavailable | `~/Code/roster/` not found | Set ROSTER_HOME environment variable or check installation |
 | PRD creation failed | Analyst unable to produce PRD | Review error, provide more context, retry |

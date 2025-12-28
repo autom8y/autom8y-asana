@@ -39,7 +39,7 @@ When `/resume` is invoked, the following sequence occurs:
 
 ### 1. Pre-flight Validation
 
-- **Check for parked session**: Verify `.claude/SESSION_CONTEXT` file exists
+- **Check for parked session**: Verify session exists (uses `get_session_dir()` from session-utils.sh)
   - If missing → Error: "No parked session found. Use `/start` to begin a new session"
 - **Check park status**: Verify `parked_at` field is set
   - If not set → Error: "Session is already active (not parked). Continue working or use `/status`"
@@ -421,7 +421,7 @@ Duration parked: 4 days
 
 ## Prerequisites
 
-- Parked session exists (`.claude/SESSION_CONTEXT` with `parked_at` field)
+- Parked session exists (`.claude/sessions/{session_id}/SESSION_CONTEXT.md` with `parked_at` field)
 - Target agent exists in active team (or team can be switched)
 
 ---
@@ -440,7 +440,7 @@ Duration parked: 4 days
 
 | Error | Condition | Resolution |
 |-------|-----------|------------|
-| No parked session | `.claude/SESSION_CONTEXT` missing | Use `/start` to begin new session |
+| No parked session | No session for current project | Use `/start` to begin new session |
 | Session not parked | `parked_at` field not set | Session is already active, continue working |
 | Invalid agent | Agent not in current team | Specify valid agent or switch teams |
 | Team unavailable | Session team not in roster | Install team pack or choose different team |

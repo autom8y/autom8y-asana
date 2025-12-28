@@ -40,7 +40,7 @@ When `/wrap` is invoked, the following sequence occurs:
 
 ### 1. Pre-flight Validation
 
-- **Check for active session**: Verify `.claude/SESSION_CONTEXT` file exists
+- **Check for active session**: Verify session exists (uses `get_session_dir()` from session-utils.sh)
   - If missing → Error: "No active session to wrap. Already completed or never started"
 - **Check not parked**: Verify `parked_at` field not set
   - If parked → Warning: "Session is parked. Resume before wrapping? [y/n]"
@@ -322,11 +322,11 @@ Potential follow-up initiatives:
 ### 5. Archive or Delete SESSION_CONTEXT
 
 If `--archive` (default):
-- Move `.claude/SESSION_CONTEXT` to `.claude/.archive/SESSION_CONTEXT-{session_id}.md`
+- Move session directory to `.claude/.archive/sessions/{session_id}/`
 - Preserve full session history for auditing
 
 If not `--archive`:
-- Delete `.claude/SESSION_CONTEXT` file
+- Delete session directory `.claude/sessions/{session_id}/`
 - Session state removed (summary still available)
 
 Create archive directory if needed:
@@ -400,7 +400,7 @@ To view all sessions: cat /docs/sessions/INDEX.md
 
 - `/docs/sessions/SUMMARY-{session_id}.md` - Session summary report
 - `/docs/sessions/INDEX.md` - Session index (if first wrap)
-- `.claude/.archive/SESSION_CONTEXT-{session_id}.md` - Archived session (if --archive)
+- `.claude/.archive/sessions/{session_id}/` - Archived session directory (if --archive)
 
 ### Files Modified
 
@@ -408,7 +408,7 @@ To view all sessions: cat /docs/sessions/INDEX.md
 
 ### Files Deleted
 
-- `.claude/SESSION_CONTEXT` - Removed (if --archive) or moved to archive
+- `.claude/sessions/{session_id}/` - Session directory removed or moved to archive
 
 ---
 
@@ -581,7 +581,7 @@ To start new session: /start
 
 ## Prerequisites
 
-- Active session exists (`.claude/SESSION_CONTEXT`)
+- Active session exists (`.claude/sessions/{session_id}/SESSION_CONTEXT.md`)
 - Quality gates passing (unless `--skip-checks`)
 - All artifacts present and complete
 
@@ -601,7 +601,7 @@ To start new session: /start
 
 | Error | Condition | Resolution |
 |-------|-----------|------------|
-| No active session | `.claude/SESSION_CONTEXT` missing | Session already completed or never started |
+| No active session | No session for current project | Session already completed or never started |
 | Quality gates failing | Artifacts incomplete or invalid | Fix issues, re-run wrap, or use --skip-checks |
 | Session parked | `parked_at` field set | Use `/resume` first, then `/wrap` |
 | Git dirty | Uncommitted changes | Commit changes or use --skip-checks |

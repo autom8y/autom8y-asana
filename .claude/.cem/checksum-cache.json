@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "entries": {
+    "/Users/tomtenuta/Code/skeleton_claude/.claude/COMMAND_REGISTRY.md": {
+      "checksum": "cb4b6c0712dd0c8b15f609ec1f4d3bb7d90fd3c6716e3a6ec770ccecc5bc5d88",
+      "mtime": 1766772226,
+      "size": 15571
+    },
+    ".claude/COMMAND_REGISTRY.md": {
+      "checksum": "fc5a8189013d23d746d227748568e51fdd5efcb75966ecb97f323a80198ba905",
+      "mtime": 1766887040,
+      "size": 13556
+    },
+    "/Users/tomtenuta/Code/skeleton_claude/.claude/settings.local.json": {
+      "checksum": "8d4e940f959a08246049b9a2395a0907bb407f7b9297eb7314e5f435f97f2aea",
+      "mtime": 1766804883,
+      "size": 4352
+    },
+    "/Users/tomtenuta/Code/skeleton_claude/.claude/CLAUDE.md": {
+      "checksum": "3244b7b739a42e1c4d101d7d4aff3857585c9c34d29e1324fa44cf06505c2700",
+      "mtime": 1766719882,
+      "size": 6204
+    }
+  },
+  "updated_at": "2025-12-28T01:57:30Z"
+}

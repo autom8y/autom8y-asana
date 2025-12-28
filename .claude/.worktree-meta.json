@@ -1,0 +1,9 @@
+{
+    "worktree_id": "wt-20251227-205720-2f71ae17",
+    "created_at": "2025-12-28T01:57:20Z",
+    "name": "pipeline-automation",
+    "from_ref": "HEAD",
+    "team": "rnd-pack",
+    "complexity": "MODULE",
+    "parent_project": "/Users/tomtenuta/Code/autom8_asana"
+}

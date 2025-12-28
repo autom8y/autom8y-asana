@@ -116,12 +116,14 @@
 |----------------|-------------|
 | **Assesses** | Evaluates complexity and required agents |
 | **Plans** | Creates/adapts session structure |
-| **Delegates** | Invokes specialists with full context |
+| **Provides Directives** | Returns specialist prompts for main thread to execute |
 | **Verifies** | Enforces quality gates |
 | **Adapts** | Adjusts plan based on discoveries |
 | **Routes** | Directs work to appropriate specialist |
 
 **Critical**: The Orchestrator does NOT implement. It coordinates.
+
+**Also Critical**: The Orchestrator cannot invoke specialists. It provides DIRECTIVES that the main thread executes via Task tool. See `.claude/skills/orchestration/main-thread-guide.md`.
 
 ### Requirements Analyst (Specialist)
 

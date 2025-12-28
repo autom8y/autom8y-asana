@@ -6,6 +6,9 @@ set -euo pipefail
 
 # Get script directory and project root
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Source logging library
+source "$SCRIPT_DIR/lib/logging.sh" 2>/dev/null && log_init "session-audit" && log_start || true
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-.}"
 cd "$PROJECT_DIR" 2>/dev/null || exit 0
 
@@ -59,5 +62,6 @@ fi
 # Log to audit trail
 echo "$TIMESTAMP | $SESSION_ID | $OPERATION | $DETAILS | $STATUS" >> "$AUDIT_LOG"
 
-# Exit 0 to not block the operation
+# Log completion and exit 0 to not block the operation
+log_end 0 2>/dev/null || true
 exit 0

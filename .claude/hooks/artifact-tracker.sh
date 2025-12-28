@@ -3,6 +3,13 @@
 # Detects PRD/TDD/ADR/TP files and logs to session-specific artifacts.log
 # Also tracks agent handoffs and task outcomes when detected
 
+set -euo pipefail
+
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+
+# Source logging library
+source "$SCRIPT_DIR/lib/logging.sh" 2>/dev/null && log_init "artifact-tracker" && log_start || true
+
 # Read JSON input from stdin
 INPUT=$(cat)
 
@@ -127,4 +134,5 @@ if [[ "$TOOL_NAME" == "Write" && "$FILE_PATH" =~ SESSION_CONTEXT\.md && -n "$TOO
   fi
 fi
 
+log_end 0 2>/dev/null || true
 exit 0

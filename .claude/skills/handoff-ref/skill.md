@@ -47,7 +47,7 @@ When `/handoff` is invoked, the following sequence occurs:
 
 ### 1. Pre-flight Validation
 
-- **Check for active session**: Verify `.claude/SESSION_CONTEXT` file exists
+- **Check for active session**: Verify session exists (uses `get_session_dir()` from session-utils.sh)
   - If missing → Error: "No active session to hand off. Use `/start` to begin"
 - **Check not parked**: Verify `parked_at` field not set
   - If parked → Error: "Session is parked. Use `/resume` before handing off"
@@ -387,7 +387,7 @@ Available agents:
 
 ## Prerequisites
 
-- Active session exists (`.claude/SESSION_CONTEXT` with no `parked_at`)
+- Active session exists (`.claude/sessions/{session_id}/SESSION_CONTEXT.md` with no `parked_at`)
 - Target agent exists in current active team
 - Current team loaded via roster system
 
@@ -407,7 +407,7 @@ Available agents:
 
 | Error | Condition | Resolution |
 |-------|-----------|------------|
-| No active session | `.claude/SESSION_CONTEXT` missing | Use `/start` to begin a session |
+| No active session | No session for current project | Use `/start` to begin a session |
 | Session parked | `parked_at` field set | Use `/resume` first, then `/handoff` |
 | Invalid agent | Agent not in roster | Use valid agent name or `/roster` to list available |
 | Agent not in team | Agent file missing | Check active team with `/status`, switch team if needed |

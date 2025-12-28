@@ -246,7 +246,7 @@ Use this team for:
 |------|--------|-------------|
 | `.claude/ACTIVE_TEAM` | Set to `10x-dev-pack` | Active team state |
 | `.claude/agents/` | Populated | 5 agent files loaded |
-| `.claude/SESSION_CONTEXT` | `active_team` updated | If session active |
+| `.claude/sessions/{session_id}/SESSION_CONTEXT.md` | `active_team` updated | If session active |
 
 ---
 
@@ -314,6 +314,6 @@ Use `/10x` when you want to see available agents after switching.
 ### Session Integration
 
 This command is session-aware but doesn't require an active session:
-- Works in virgin projects (no .claude/SESSION_CONTEXT)
+- Works in virgin projects (no active session)
 - Updates session context if one exists
 - Safe to use before `/start` or after `/wrap`

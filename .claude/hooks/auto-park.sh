@@ -2,6 +2,14 @@
 # Stop hook - auto-save session state when Claude stops
 # Adds auto_parked_at timestamp if session exists and not already parked
 
+set -euo pipefail
+
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-.}"
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+
+# Source logging library
+source "$SCRIPT_DIR/lib/logging.sh" 2>/dev/null && log_init "auto-park" && log_start || true
+
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-.}"
 cd "$PROJECT_DIR" 2>/dev/null || true
 
@@ -27,25 +35,20 @@ fi
 # Add auto-park timestamp to frontmatter
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-# Create backup before modification
-cp "$SESSION_FILE" "${SESSION_FILE}.backup" 2>/dev/null || true
-
-# Find the second --- (end of frontmatter) and insert before it
-# Use mktemp for atomic write with sync to ensure durability
-TMPFILE=$(mktemp "${SESSION_FILE}.XXXXXX")
-awk -v ts="$TIMESTAMP" '
+# Generate updated content with auto-park fields inserted before closing ---
+UPDATED_CONTENT=$(awk -v ts="$TIMESTAMP" '
   /^---$/ && ++count == 2 {
     print "auto_parked_at: " ts
     print "auto_parked_reason: \"Session stopped (auto-park)\""
   }
   { print }
-' "$SESSION_FILE" > "$TMPFILE" && sync "$TMPFILE" 2>/dev/null && mv "$TMPFILE" "$SESSION_FILE" || {
-  rm -f "$TMPFILE"
-  # Restore from backup on failure
-  mv "${SESSION_FILE}.backup" "$SESSION_FILE" 2>/dev/null || true
+' "$SESSION_FILE")
+
+# Write atomically using session-utils function (prevents STATE-004 corruption)
+if ! atomic_write "$SESSION_FILE" "$UPDATED_CONTENT"; then
+  echo '{"error": "Failed to auto-park session: atomic write failed"}' >&2
   exit 1
-}
-rm -f "${SESSION_FILE}.backup"
+fi
 
 # Output message for Claude
 if is_worktree 2>/dev/null; then
@@ -55,4 +58,5 @@ else
   echo '{"systemMessage": "Session auto-saved. Use /continue to resume."}'
 fi
 
+log_end 0 2>/dev/null || true
 exit 0

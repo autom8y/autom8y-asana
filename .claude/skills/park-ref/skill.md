@@ -9,7 +9,7 @@ description: "Pause current work session and preserve state. Captures current pr
 
 ## Purpose
 
-Pause the current work session and preserve all state for later resumption. Captures current progress, decisions made, open questions, and blockers. Writes complete state to `.claude/SESSION_CONTEXT` with park metadata, enabling seamless continuation via `/resume`.
+Pause the current work session and preserve all state for later resumption. Captures current progress, decisions made, open questions, and blockers. Writes complete state to `.claude/sessions/{session_id}/SESSION_CONTEXT.md` with park metadata, enabling seamless continuation via `/resume`.
 
 Use `/park` when:
 - Taking a break between work periods
@@ -39,7 +39,7 @@ When `/park` is invoked, the following sequence occurs:
 
 ### 1. Pre-flight Validation
 
-- **Check for active session**: Verify `.claude/SESSION_CONTEXT` file exists
+- **Check for active session**: Verify session exists (uses `get_session_dir()` from session-utils.sh)
   - If missing → Error: "No active session to park. Use `/start` to begin a session"
 - **Check if already parked**: Verify `parked_at` field not already set
   - If set → Error: "Session already parked at {timestamp}. Use `/resume` to continue"
@@ -125,7 +125,7 @@ Append parking summary to SESSION_CONTEXT body:
 
 ### 5. Save SESSION_CONTEXT
 
-Write updated SESSION_CONTEXT to `.claude/SESSION_CONTEXT` file.
+Write updated SESSION_CONTEXT to `.claude/sessions/{session_id}/SESSION_CONTEXT.md` file.
 
 ### 6. Confirmation
 
@@ -244,7 +244,7 @@ To resume: /resume
 
 ## Prerequisites
 
-- Active session exists (`.claude/SESSION_CONTEXT` file present)
+- Active session exists (`.claude/sessions/{session_id}/SESSION_CONTEXT.md` file present)
 - Session not already parked (`parked_at` field not set)
 
 ---
@@ -262,7 +262,7 @@ To resume: /resume
 
 | Error | Condition | Resolution |
 |-------|-----------|------------|
-| No active session | `.claude/SESSION_CONTEXT` missing | Use `/start` to begin a new session |
+| No active session | No session for current project | Use `/start` to begin a new session |
 | Already parked | `parked_at` field already set | Use `/resume` to continue, or check session status |
 | File write error | Permission denied on SESSION_CONTEXT | Check file permissions, ensure not read-only |
 

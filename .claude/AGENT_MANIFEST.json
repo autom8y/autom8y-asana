@@ -1,11 +1,12 @@
 {
   "manifest_version": "1.0",
-  "active_team": "debt-triage-pack",
-  "last_swap": "2025-12-25T08:00:17Z",
+  "active_team": "10x-dev-pack",
+  "last_swap": "2025-12-28T02:30:17Z",
   "agents": {
-    "debt-collector.md": {"source": "team", "origin": "debt-triage-pack", "installed_at": "2025-12-25T08:00:17Z"},
-    "risk-assessor.md": {"source": "team", "origin": "debt-triage-pack", "installed_at": "2025-12-25T08:00:17Z"},
-    "sprint-planner.md": {"source": "team", "origin": "debt-triage-pack", "installed_at": "2025-12-25T08:00:17Z"},
-    "tech-writer.md": {"source": "team", "origin": "debt-triage-pack", "installed_at": "2025-12-25T08:00:17Z"}
+    "architect.md": {"source": "team", "origin": "10x-dev-pack", "installed_at": "2025-12-28T02:30:17Z"},
+    "orchestrator.md": {"source": "team", "origin": "10x-dev-pack", "installed_at": "2025-12-28T02:30:17Z"},
+    "principal-engineer.md": {"source": "team", "origin": "10x-dev-pack", "installed_at": "2025-12-28T02:30:17Z"},
+    "qa-adversary.md": {"source": "team", "origin": "10x-dev-pack", "installed_at": "2025-12-28T02:30:17Z"},
+    "requirements-analyst.md": {"source": "team", "origin": "10x-dev-pack", "installed_at": "2025-12-28T02:30:17Z"}
   }
 }

@@ -4,6 +4,13 @@
 # - Validates team switch operations
 # - Blocks invalid team names, warns on session/team mismatch
 
+set -euo pipefail
+
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+
+# Source logging library
+source "$SCRIPT_DIR/lib/logging.sh" 2>/dev/null && log_init "team-validator" && log_start || true
+
 # Read JSON input from stdin
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
@@ -71,14 +78,16 @@ if [[ "$COMMAND" =~ ^(git|gh|ls|cat|head|tail)[[:space:]].*\| ]]; then
   auto_approve "Safe piped command for context"
 fi
 
-# Only validate swap-team.sh commands (rest of original logic)
-if [[ "$COMMAND" != *"swap-team.sh"* ]]; then
+# Only validate actual swap-team.sh invocations (not mentions in commit messages, etc.)
+# Must be at start of command or after a path separator, not embedded in quoted strings
+if [[ ! "$COMMAND" =~ (^|[[:space:]/])swap-team\.sh[[:space:]] ]]; then
   exit 0
 fi
 
 # Extract target team from command
 # Handles: swap-team.sh teamname, ~/Code/roster/swap-team.sh teamname
-TARGET_TEAM=$(echo "$COMMAND" | grep -oE 'swap-team\.sh[[:space:]]+([^[:space:]|&;]+)' | awk '{print $2}')
+# The regex ensures we're matching an actual invocation, not text in a string
+TARGET_TEAM=$(echo "$COMMAND" | grep -oE '(^|[[:space:]/])swap-team\.sh[[:space:]]+([a-z0-9-]+-pack)' | grep -oE '[a-z0-9-]+-pack')
 
 # Skip validation for --list or no argument
 if [ -z "$TARGET_TEAM" ] || [ "$TARGET_TEAM" = "--list" ]; then
@@ -95,7 +104,7 @@ if [ ! -d "$ROSTER_DIR/$TARGET_TEAM" ]; then
 fi
 
 # Validate team has agents
-AGENT_COUNT=$(ls "$ROSTER_DIR/$TARGET_TEAM/agents/"*.md 2>/dev/null | wc -l | tr -d ' ')
+AGENT_COUNT=$(find "$ROSTER_DIR/$TARGET_TEAM/agents/" -maxdepth 1 -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
 if [ "$AGENT_COUNT" = "0" ]; then
   echo "Team pack '$TARGET_TEAM' has no agent files" >&2
   exit 2  # Block the command
@@ -131,4 +140,5 @@ EOF
   fi
 fi
 
+log_end 0 2>/dev/null || true
 exit 0

@@ -1,39 +1,52 @@
-name: debt-triage-pack
+name: 10x-dev-pack
 workflow_type: sequential
-description: Debt management lifecycle (Collect → Assess → Plan)
+description: Full development lifecycle (PRD → TDD → Code → QA)
 
 entry_point:
-  agent: debt-collector
+  agent: requirements-analyst
   artifact:
-    type: debt-ledger
-    path_template: docs/debt/LEDGER-{slug}.md
+    type: prd
+    path_template: docs/requirements/PRD-{slug}.md
 
 phases:
-  - name: collection
-    agent: debt-collector
-    produces: debt-ledger
-    next: assessment
+  - name: requirements
+    agent: requirements-analyst
+    produces: prd
+    next: design
 
-  - name: assessment
-    agent: risk-assessor
-    produces: risk-report
-    next: planning
+  - name: design
+    agent: architect
+    produces: tdd
+    next: implementation
+    condition: "complexity >= MODULE"
 
-  - name: planning
-    agent: sprint-planner
-    produces: sprint-plan
+  - name: implementation
+    agent: principal-engineer
+    produces: code
+    next: validation
+
+  - name: validation
+    agent: qa-adversary
+    produces: test-plan
     next: null
 
 complexity_levels:
-  - name: QUICK
-    scope: "Known debt items"
-    phases: [assessment, planning]
-  - name: AUDIT
-    scope: "Full debt discovery"
-    phases: [collection, assessment, planning]
+  - name: SCRIPT
+    scope: "Single file, <200 LOC"
+    phases: [requirements, implementation, validation]
+  - name: MODULE
+    scope: "Multiple files, <2000 LOC"
+    phases: [requirements, design, implementation, validation]
+  - name: SERVICE
+    scope: "APIs, persistence"
+    phases: [requirements, design, implementation, validation]
+  - name: PLATFORM
+    scope: "Multi-service"
+    phases: [requirements, design, implementation, validation]
 
 # Agent roles for command mapping:
-# /architect  → risk-assessor (assessment/design role)
-# /build      → sprint-planner (planning is the "build" output)
-# /qa         → risk-assessor (validation role)
-# Note: This team has 3 agents, not 4. Some commands may not apply.
+# /architect  → architect
+# /build      → principal-engineer
+# /qa         → qa-adversary
+# /hotfix     → principal-engineer (fast path)
+# /code-review → qa-adversary (review mode)

@@ -10,6 +10,10 @@ cd "$PROJECT_DIR" 2>/dev/null || exit 0
 
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 
+# Source logging library
+source "$SCRIPT_DIR/lib/logging.sh" 2>/dev/null && log_init "session-context" && log_start || true
+START_TIME=$(get_time_ms 2>/dev/null || echo 0)
+
 # Source session utilities
 source "$SCRIPT_DIR/lib/session-utils.sh" 2>/dev/null || {
     # Fallback if session-utils not available
@@ -20,6 +24,13 @@ source "$SCRIPT_DIR/lib/session-utils.sh" 2>/dev/null || {
     echo "*Run \`cem init\` to set up the Claude ecosystem.*"
     exit 0
 }
+
+# Cleanup stale/orphaned TTY mappings (STATE-002)
+# Run early before session detection, silently to avoid polluting hook output
+CLEANUP_COUNT=$(cleanup_stale_mappings 2>/dev/null) || true
+if [[ -n "$CLEANUP_COUNT" && "$CLEANUP_COUNT" -gt 0 ]]; then
+    log_debug "Cleaned up $CLEANUP_COUNT stale TTY mappings" 2>/dev/null || true
+fi
 
 # Get full session status via session-manager
 if [[ -x "$SCRIPT_DIR/lib/session-manager.sh" ]]; then
@@ -64,6 +75,8 @@ WORKFLOW_ENTRY=$(parse_json "workflow_entry" "null")
 GIT_BRANCH=$(parse_json "git_branch" "unknown")
 GIT_CHANGES=$(parse_json "git_changes" "0")
 SUGGESTED_ID=$(parse_json "suggested_session_id" "")
+WORKFLOW_ACTIVE=$(parse_json_bool "workflow_active" "false")
+WORKFLOW_MODE=$(parse_json "workflow_mode" "none")
 
 # Git display
 if [[ "$GIT_CHANGES" == "0" ]]; then
@@ -131,6 +144,8 @@ cat <<EOF
 | **Complexity** | ${COMPLEXITY} |
 | **Current Phase** | ${CURRENT_PHASE} |
 | **Parked** | $PARKED |
+| **Workflow Active** | $WORKFLOW_ACTIVE |
+| **Workflow Mode** | $WORKFLOW_MODE |
 
 ### Artifacts
 - **PRDs**: $PRDS
@@ -180,5 +195,32 @@ if [[ "$IS_WORKTREE" == "true" ]]; then
 EOF
 fi
 
+# Workflow mode context
+if [[ "$WORKFLOW_ACTIVE" == "true" ]]; then
+    cat <<EOF
+
+**COACH MODE ACTIVE**
+You are the Coach. Delegate all implementation via Task tool.
+Do NOT use Edit/Write directly on code files.
+See: .claude/skills/orchestration/main-thread-guide.md
+EOF
+fi
+
+# Team routing context (if team is active)
+if [[ -f ".claude/ACTIVE_TEAM" ]]; then
+    TEAM_CONTEXT=$("$HOME/Code/roster/generate-team-context.sh" 2>/dev/null || echo "")
+    if [[ -n "$TEAM_CONTEXT" ]]; then
+        echo ""
+        echo "$TEAM_CONTEXT"
+    fi
+fi
+
 echo ""
+
+# Log completion
+if [[ "$START_TIME" != "0" ]]; then
+    DURATION=$(calc_duration_ms "$START_TIME" 2>/dev/null || echo "")
+    log_end 0 "$DURATION" 2>/dev/null || true
+fi
+
 exit 0

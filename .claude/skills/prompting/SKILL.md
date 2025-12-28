@@ -17,6 +17,21 @@ description: "Copy-paste prompt patterns for agent invocation and workflow execu
 | **QA/Adversary** | `Act as QA/Adversary. Validate PRD-{NNNN}` | Testing, validation |
 | **Orchestrator** | `Act as Orchestrator. Coordinate: {initiative}` | Multi-phase initiatives |
 
+### Orchestrator Consultation Pattern
+
+The orchestrator is NOT invoked to execute. It is CONSULTED for direction.
+
+See: [main-thread-guide.md](../orchestration/main-thread-guide.md) for the complete consultation loop pattern.
+
+**Quick Pattern**:
+```
+1. Build CONSULTATION_REQUEST (YAML)
+2. Task tool -> orchestrator with request
+3. Parse CONSULTATION_RESPONSE
+4. Task tool -> specialist with prompt from response
+5. Build checkpoint request, return to step 2
+```
+
 **New sessions**: Skills activate automatically based on your task.
 
 ## Workflow Shortcuts

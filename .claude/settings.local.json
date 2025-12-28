@@ -93,7 +93,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/session-context.sh",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-context.sh",
             "timeout": 10
           }
         ]
@@ -104,7 +104,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/auto-park.sh",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/auto-park.sh",
             "timeout": 5
           }
         ]
@@ -116,12 +116,22 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/artifact-tracker.sh",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/artifact-tracker.sh",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": ".claude/hooks/session-audit.sh",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-audit.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/commit-tracker.sh",
             "timeout": 5
           }
         ]
@@ -133,13 +143,23 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/team-validator.sh",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/team-validator.sh",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": ".claude/hooks/workflow-validator.sh",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/workflow-validator.sh",
             "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/delegation-check.sh",
+            "timeout": 3
           }
         ]
       }
@@ -149,7 +169,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/start-preflight.sh",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/start-preflight.sh",
             "timeout": 5
           }
         ]

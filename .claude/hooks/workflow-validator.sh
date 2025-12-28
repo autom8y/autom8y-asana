@@ -4,6 +4,13 @@
 # - Validates workflow.yaml against JSON schema
 # - Blocks invalid workflows with clear error messages
 
+set -euo pipefail
+
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+
+# Source logging library
+source "$SCRIPT_DIR/lib/logging.sh" 2>/dev/null && log_init "workflow-validator" && log_start || true
+
 # Read JSON input from stdin
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
@@ -200,17 +207,23 @@ yq_result=$?
 
 if [ $yq_result -eq 0 ]; then
   # Valid workflow - allow command
+  log_end 0 2>/dev/null || true
   exit 0
 elif [ $yq_result -eq 2 ]; then
   # Validation failed with yq
+  log_error "Workflow validation failed" 2>/dev/null || true
+  log_end 2 2>/dev/null || true
   exit 2
 else
   # yq not available or failed, try grep-based validation
   if validate_with_grep "$WORKFLOW_FILE"; then
     # Valid workflow - allow command
+    log_end 0 2>/dev/null || true
     exit 0
   else
     # Validation failed
+    log_error "Workflow validation failed (grep)" 2>/dev/null || true
+    log_end 2 2>/dev/null || true
     exit 2
   fi
 fi
