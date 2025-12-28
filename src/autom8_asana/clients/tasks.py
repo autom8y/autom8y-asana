@@ -3,6 +3,7 @@
 Phase 3.2: Updated to return Pydantic Task models.
 Use raw=True for backward-compatible dict returns.
 Per TDD-0002: list_async() returns PageIterator[Task] for automatic pagination.
+Per ADR-0059: P1 operations and TTL resolution extracted for SRP compliance.
 """
 
 from __future__ import annotations
@@ -16,11 +17,12 @@ logger = logging.getLogger(__name__)
 from autom8_asana.models import PageIterator, Task
 from autom8_asana.models.business.fields import STANDARD_TASK_OPT_FIELDS
 from autom8_asana.observability import error_handler
-from autom8_asana.persistence.session import SaveSession
 from autom8_asana.transport.sync import sync_wrapper
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
+    from autom8_asana.clients.task_operations import TaskOperations
+    from autom8_asana.clients.task_ttl import TaskTTLResolver
 
 
 class TasksClient(BaseClient):
@@ -35,6 +37,9 @@ class TasksClient(BaseClient):
         - set_assignee_async() / set_assignee()
         - add_to_project_async() / add_to_project()
         - remove_from_project_async() / remove_from_project()
+
+    Per ADR-0059: P1 operations are delegated to TaskOperations.
+    Per ADR-0059: TTL resolution is delegated to TaskTTLResolver.
     """
 
     def __init__(
@@ -44,7 +49,7 @@ class TasksClient(BaseClient):
         auth_provider: Any,
         cache_provider: Any | None = None,
         log_provider: Any | None = None,
-        client: AsanaClient | None = None,
+        client: "AsanaClient | None" = None,
         staleness_coordinator: Any | None = None,
     ) -> None:
         """Initialize TasksClient.
@@ -69,6 +74,37 @@ class TasksClient(BaseClient):
             staleness_coordinator=staleness_coordinator,
         )
         self._client = client
+        # Lazy initialization to avoid circular imports (per ADR-0059)
+        self._operations: "TaskOperations | None" = None
+        self._ttl_resolver: "TaskTTLResolver | None" = None
+
+    # --- Lazy Properties for Extracted Components (per ADR-0059) ---
+
+    @property
+    def operations(self) -> "TaskOperations":
+        """Access task operations helper (lazy-loaded).
+
+        Returns:
+            TaskOperations instance for P1 convenience methods.
+        """
+        if self._operations is None:
+            from autom8_asana.clients.task_operations import TaskOperations
+
+            self._operations = TaskOperations(self)
+        return self._operations
+
+    @property
+    def ttl_resolver(self) -> "TaskTTLResolver":
+        """Access TTL resolver (lazy-loaded).
+
+        Returns:
+            TaskTTLResolver instance for cache TTL resolution.
+        """
+        if self._ttl_resolver is None:
+            from autom8_asana.clients.task_ttl import TaskTTLResolver
+
+            self._ttl_resolver = TaskTTLResolver(self._config)
+        return self._ttl_resolver
 
     @overload
     async def get_async(
@@ -157,7 +193,7 @@ class TasksClient(BaseClient):
         params = self._build_opt_fields(opt_fields)
         data = await self._http.get(f"/tasks/{task_gid}", params=params)
 
-        # Store in cache with entity-type TTL
+        # Store in cache with entity-type TTL (delegates to TaskTTLResolver)
         ttl = self._resolve_entity_ttl(data)
         self._cache_set(task_gid, data, EntryType.TASK, ttl=ttl)
 
@@ -170,14 +206,7 @@ class TasksClient(BaseClient):
     def _resolve_entity_ttl(self, data: dict[str, Any]) -> int:
         """Resolve TTL based on entity type detection.
 
-        Per FR-TTL-001 through FR-TTL-007: Different TTLs for
-        Business (3600s), Contact/Unit (900s), Offer (180s),
-        Process (60s), and generic tasks (300s).
-
-        Priority:
-        1. CacheConfig.get_entity_ttl() if CacheConfig is available
-        2. Detection-based defaults (hardcoded fallback)
-        3. 300s default for unknown entity types
+        Delegates to TaskTTLResolver per ADR-0059.
 
         Args:
             data: Task data dict from API.
@@ -185,57 +214,7 @@ class TasksClient(BaseClient):
         Returns:
             TTL in seconds.
         """
-        # Try to detect entity type from data
-        entity_type = self._detect_entity_type(data)
-
-        # Priority 1: Use CacheConfig.get_entity_ttl() if available (FR-TTL-006)
-        if hasattr(self._config, "cache") and self._config.cache is not None:
-            cache_config = self._config.cache
-            if hasattr(cache_config, "get_entity_ttl"):
-                if entity_type:
-                    return cache_config.get_entity_ttl(entity_type)
-                # No entity type detected - use default TTL
-                if hasattr(cache_config, "ttl") and cache_config._ttl is not None:
-                    return cache_config.ttl.default_ttl
-                return 300
-
-        # Priority 2: Fallback to canonical defaults (when CacheConfig unavailable)
-        # Import here to avoid circular import at module load
-        from autom8_asana.config import DEFAULT_ENTITY_TTLS, DEFAULT_TTL
-
-        if entity_type and entity_type.lower() in DEFAULT_ENTITY_TTLS:
-            return DEFAULT_ENTITY_TTLS[entity_type.lower()]
-
-        # FR-TTL-005: Default TTL for generic tasks
-        return DEFAULT_TTL
-
-    def _detect_entity_type(self, data: dict[str, Any]) -> str | None:
-        """Detect entity type from task data.
-
-        Uses existing detection infrastructure if available.
-
-        Args:
-            data: Task data dict.
-
-        Returns:
-            Entity type name or None if not detectable.
-        """
-        try:
-            from autom8_asana.models.business.detection import detect_entity_type
-            from autom8_asana.models import Task as TaskModel
-
-            # Create a temporary Task model to use detection
-            temp_task = TaskModel.model_validate(data)
-            result = detect_entity_type(temp_task)
-            if result and result.entity_type:
-                return result.entity_type.value
-            return None
-        except ImportError:
-            # Detection module not available
-            return None
-        except Exception:
-            # Detection failed, use default
-            return None
+        return self.ttl_resolver.resolve(data)
 
     @overload
     def get(
@@ -792,59 +771,16 @@ class TasksClient(BaseClient):
 
         return PageIterator(fetch_page, page_size=min(limit, 100))
 
-    # --- P1 Direct Methods: Convenience Wrappers ---
-    # Per TDD-SDKUX §2C: Direct methods that wrap SaveSession internally
+    # --- P1 Direct Methods: Delegated to TaskOperations (per ADR-0059) ---
+    # Per TDD-SDKUX Section 2C: Direct methods that wrap SaveSession internally
     # and return updated Task objects without requiring explicit session management.
 
-    @error_handler
     async def add_tag_async(
         self, task_gid: str, tag_gid: str, *, refresh: bool = False
     ) -> Task:
         """Add tag to task without explicit SaveSession.
 
-        Args:
-            task_gid: Target task GID
-            tag_gid: Tag GID to add
-            refresh: If True, fetch fresh task state after commit. If False (default),
-                     return the task fetched before commit. Note: the returned task
-                     may not reflect the newly added tag relationship until refreshed.
-
-        Returns:
-            Task object (refreshed if refresh=True, otherwise pre-commit state)
-
-        Raises:
-            APIError: If task or tag not found
-            SaveSessionError: If the action operation fails
-            ValidationError: If task_gid or tag_gid is invalid.
-
-        Example:
-            >>> # Default: single GET (faster, but task.tags may be stale)
-            >>> task = await client.tasks.add_tag_async(task_gid, tag_gid)
-            >>>
-            >>> # With refresh: two GETs (slower, but task.tags is current)
-            >>> task = await client.tasks.add_tag_async(task_gid, tag_gid, refresh=True)
-        """
-        from autom8_asana.persistence.exceptions import SaveSessionError
-        from autom8_asana.persistence.validation import validate_gid
-
-        validate_gid(task_gid, "task_gid")
-        validate_gid(tag_gid, "tag_gid")
-
-        async with SaveSession(self._client) as session:  # type: ignore[arg-type]
-            task = await self.get_async(task_gid)
-            session.add_tag(task, tag_gid)
-            result = await session.commit_async()
-
-            if not result.success:
-                raise SaveSessionError(result)
-
-        # Per TDD-TRIAGE-FIXES: Only refresh if explicitly requested
-        if refresh:
-            return await self.get_async(task_gid)
-        return task
-
-    def add_tag(self, task_gid: str, tag_gid: str, *, refresh: bool = False) -> Task:
-        """Add tag to task without explicit SaveSession (sync).
+        Delegates to TaskOperations.add_tag_async per ADR-0059.
 
         Args:
             task_gid: Target task GID
@@ -853,86 +789,36 @@ class TasksClient(BaseClient):
 
         Returns:
             Task object (refreshed if refresh=True, otherwise pre-commit state)
-
-        Raises:
-            APIError: If task or tag not found
-            SaveSessionError: If the action operation fails
         """
-        return self._add_tag_sync(task_gid, tag_gid, refresh=refresh)
+        return await self.operations.add_tag_async(task_gid, tag_gid, refresh=refresh)
 
-    @sync_wrapper("add_tag_async")
-    async def _add_tag_sync(
-        self, task_gid: str, tag_gid: str, *, refresh: bool = False
-    ) -> Task:
-        """Internal sync wrapper for add_tag_async."""
-        return await self.add_tag_async(task_gid, tag_gid, refresh=refresh)
+    def add_tag(self, task_gid: str, tag_gid: str, *, refresh: bool = False) -> Task:
+        """Add tag to task without explicit SaveSession (sync).
 
-    @error_handler
+        Delegates to TaskOperations.add_tag per ADR-0059.
+        """
+        return self.operations.add_tag(task_gid, tag_gid, refresh=refresh)
+
     async def remove_tag_async(
         self, task_gid: str, tag_gid: str, *, refresh: bool = False
     ) -> Task:
         """Remove tag from task without explicit SaveSession.
 
-        Args:
-            task_gid: Target task GID
-            tag_gid: Tag GID to remove
-            refresh: If True, fetch fresh task state after commit. If False (default),
-                     return the task fetched before commit.
-
-        Returns:
-            Task object (refreshed if refresh=True, otherwise pre-commit state)
-
-        Raises:
-            APIError: If task or tag not found
-            SaveSessionError: If the action operation fails
-            ValidationError: If task_gid or tag_gid is invalid.
-
-        Example:
-            >>> task = await client.tasks.remove_tag_async(task_gid, tag_gid)
+        Delegates to TaskOperations.remove_tag_async per ADR-0059.
         """
-        from autom8_asana.persistence.exceptions import SaveSessionError
-        from autom8_asana.persistence.validation import validate_gid
+        return await self.operations.remove_tag_async(
+            task_gid, tag_gid, refresh=refresh
+        )
 
-        validate_gid(task_gid, "task_gid")
-        validate_gid(tag_gid, "tag_gid")
-
-        async with SaveSession(self._client) as session:  # type: ignore[arg-type]
-            task = await self.get_async(task_gid)
-            session.remove_tag(task, tag_gid)
-            result = await session.commit_async()
-
-            if not result.success:
-                raise SaveSessionError(result)
-
-        if refresh:
-            return await self.get_async(task_gid)
-        return task
-
-    def remove_tag(self, task_gid: str, tag_gid: str, *, refresh: bool = False) -> Task:
-        """Remove tag from task without explicit SaveSession (sync).
-
-        Args:
-            task_gid: Target task GID
-            tag_gid: Tag GID to remove
-            refresh: If True, fetch fresh task state after commit. Default False.
-
-        Returns:
-            Task object (refreshed if refresh=True, otherwise pre-commit state)
-
-        Raises:
-            APIError: If task or tag not found
-            SaveSessionError: If the action operation fails
-        """
-        return self._remove_tag_sync(task_gid, tag_gid, refresh=refresh)
-
-    @sync_wrapper("remove_tag_async")
-    async def _remove_tag_sync(
+    def remove_tag(
         self, task_gid: str, tag_gid: str, *, refresh: bool = False
     ) -> Task:
-        """Internal sync wrapper for remove_tag_async."""
-        return await self.remove_tag_async(task_gid, tag_gid, refresh=refresh)
+        """Remove tag from task without explicit SaveSession (sync).
 
-    @error_handler
+        Delegates to TaskOperations.remove_tag per ADR-0059.
+        """
+        return self.operations.remove_tag(task_gid, tag_gid, refresh=refresh)
+
     async def move_to_section_async(
         self,
         task_gid: str,
@@ -943,44 +829,11 @@ class TasksClient(BaseClient):
     ) -> Task:
         """Move task to section within project without explicit SaveSession.
 
-        Args:
-            task_gid: Target task GID
-            section_gid: Section GID to move task to
-            project_gid: Project GID (for validation/context)
-            refresh: If True, fetch fresh task state after commit. If False (default),
-                     return the task fetched before commit.
-
-        Returns:
-            Task object (refreshed if refresh=True, otherwise pre-commit state)
-
-        Raises:
-            APIError: If task, section, or project not found
-            SaveSessionError: If the action operation fails
-            ValidationError: If task_gid, section_gid, or project_gid is invalid.
-
-        Example:
-            >>> task = await client.tasks.move_to_section_async(
-            ...     task_gid, section_gid, project_gid
-            ... )
+        Delegates to TaskOperations.move_to_section_async per ADR-0059.
         """
-        from autom8_asana.persistence.exceptions import SaveSessionError
-        from autom8_asana.persistence.validation import validate_gid
-
-        validate_gid(task_gid, "task_gid")
-        validate_gid(section_gid, "section_gid")
-        validate_gid(project_gid, "project_gid")
-
-        async with SaveSession(self._client) as session:  # type: ignore[arg-type]
-            task = await self.get_async(task_gid)
-            session.move_to_section(task, section_gid)
-            result = await session.commit_async()
-
-            if not result.success:
-                raise SaveSessionError(result)
-
-        if refresh:
-            return await self.get_async(task_gid)
-        return task
+        return await self.operations.move_to_section_async(
+            task_gid, section_gid, project_gid, refresh=refresh
+        )
 
     def move_to_section(
         self,
@@ -992,89 +845,26 @@ class TasksClient(BaseClient):
     ) -> Task:
         """Move task to section within project without explicit SaveSession (sync).
 
-        Args:
-            task_gid: Target task GID
-            section_gid: Section GID to move task to
-            project_gid: Project GID (for validation/context)
-            refresh: If True, fetch fresh task state after commit. Default False.
-
-        Returns:
-            Task object (refreshed if refresh=True, otherwise pre-commit state)
-
-        Raises:
-            APIError: If task, section, or project not found
-            SaveSessionError: If the action operation fails
+        Delegates to TaskOperations.move_to_section per ADR-0059.
         """
-        return self._move_to_section_sync(
+        return self.operations.move_to_section(
             task_gid, section_gid, project_gid, refresh=refresh
         )
 
-    @sync_wrapper("move_to_section_async")
-    async def _move_to_section_sync(
-        self,
-        task_gid: str,
-        section_gid: str,
-        project_gid: str,
-        *,
-        refresh: bool = False,
-    ) -> Task:
-        """Internal sync wrapper for move_to_section_async."""
-        return await self.move_to_section_async(
-            task_gid, section_gid, project_gid, refresh=refresh
-        )
-
-    @error_handler
     async def set_assignee_async(self, task_gid: str, assignee_gid: str) -> Task:
         """Set task assignee without explicit SaveSession.
 
-        Args:
-            task_gid: Target task GID
-            assignee_gid: Assignee user GID
-
-        Returns:
-            Updated Task from API
-
-        Raises:
-            APIError: If task or assignee not found
-            ValidationError: If task_gid or assignee_gid is invalid.
-
-        Example:
-            >>> task = await client.tasks.set_assignee_async(task_gid, assignee_gid)
+        Delegates to TaskOperations.set_assignee_async per ADR-0059.
         """
-        from autom8_asana.persistence.validation import validate_gid
-
-        validate_gid(task_gid, "task_gid")
-        validate_gid(assignee_gid, "assignee_gid")
-
-        # Assignee is updated via the update endpoint, not SaveSession
-        result = await self._http.put(
-            f"/tasks/{task_gid}",
-            json={"data": {"assignee": assignee_gid}},
-        )
-        task = Task.model_validate(result)
-        return task
+        return await self.operations.set_assignee_async(task_gid, assignee_gid)
 
     def set_assignee(self, task_gid: str, assignee_gid: str) -> Task:
         """Set task assignee without explicit SaveSession (sync).
 
-        Args:
-            task_gid: Target task GID
-            assignee_gid: Assignee user GID
-
-        Returns:
-            Updated Task from API
-
-        Raises:
-            APIError: If task or assignee not found
+        Delegates to TaskOperations.set_assignee per ADR-0059.
         """
-        return self._set_assignee_sync(task_gid, assignee_gid)
+        return self.operations.set_assignee(task_gid, assignee_gid)
 
-    @sync_wrapper("set_assignee_async")
-    async def _set_assignee_sync(self, task_gid: str, assignee_gid: str) -> Task:
-        """Internal sync wrapper for set_assignee_async."""
-        return await self.set_assignee_async(task_gid, assignee_gid)
-
-    @error_handler
     async def add_to_project_async(
         self,
         task_gid: str,
@@ -1085,45 +875,11 @@ class TasksClient(BaseClient):
     ) -> Task:
         """Add task to project without explicit SaveSession.
 
-        Args:
-            task_gid: Target task GID
-            project_gid: Project GID to add task to
-            section_gid: Optional section GID within project
-            refresh: If True, fetch fresh task state after commit. If False (default),
-                     return the task fetched before commit.
-
-        Returns:
-            Task object (refreshed if refresh=True, otherwise pre-commit state)
-
-        Raises:
-            APIError: If task or project not found
-            SaveSessionError: If the action operation fails
-            ValidationError: If task_gid or project_gid is invalid.
-
-        Example:
-            >>> task = await client.tasks.add_to_project_async(task_gid, project_gid)
-            >>> # With section
-            >>> task = await client.tasks.add_to_project_async(
-            ...     task_gid, project_gid, section_gid=section_gid
-            ... )
+        Delegates to TaskOperations.add_to_project_async per ADR-0059.
         """
-        from autom8_asana.persistence.exceptions import SaveSessionError
-        from autom8_asana.persistence.validation import validate_gid
-
-        validate_gid(task_gid, "task_gid")
-        validate_gid(project_gid, "project_gid")
-
-        async with SaveSession(self._client) as session:  # type: ignore[arg-type]
-            task = await self.get_async(task_gid)
-            session.add_to_project(task, project_gid)
-            result = await session.commit_async()
-
-            if not result.success:
-                raise SaveSessionError(result)
-
-        if refresh:
-            return await self.get_async(task_gid)
-        return task
+        return await self.operations.add_to_project_async(
+            task_gid, project_gid, section_gid, refresh=refresh
+        )
 
     def add_to_project(
         self,
@@ -1135,103 +891,31 @@ class TasksClient(BaseClient):
     ) -> Task:
         """Add task to project without explicit SaveSession (sync).
 
-        Args:
-            task_gid: Target task GID
-            project_gid: Project GID to add task to
-            section_gid: Optional section GID within project
-            refresh: If True, fetch fresh task state after commit. Default False.
-
-        Returns:
-            Task object (refreshed if refresh=True, otherwise pre-commit state)
-
-        Raises:
-            APIError: If task or project not found
-            SaveSessionError: If the action operation fails
+        Delegates to TaskOperations.add_to_project per ADR-0059.
         """
-        return self._add_to_project_sync(
+        return self.operations.add_to_project(
             task_gid, project_gid, section_gid, refresh=refresh
         )
 
-    @sync_wrapper("add_to_project_async")
-    async def _add_to_project_sync(
-        self,
-        task_gid: str,
-        project_gid: str,
-        section_gid: str | None = None,
-        *,
-        refresh: bool = False,
-    ) -> Task:
-        """Internal sync wrapper for add_to_project_async."""
-        return await self.add_to_project_async(
-            task_gid, project_gid, section_gid, refresh=refresh
-        )
-
-    @error_handler
     async def remove_from_project_async(
         self, task_gid: str, project_gid: str, *, refresh: bool = False
     ) -> Task:
         """Remove task from project without explicit SaveSession.
 
-        Args:
-            task_gid: Target task GID
-            project_gid: Project GID to remove task from
-            refresh: If True, fetch fresh task state after commit. If False (default),
-                     return the task fetched before commit.
-
-        Returns:
-            Task object (refreshed if refresh=True, otherwise pre-commit state)
-
-        Raises:
-            APIError: If task or project not found
-            SaveSessionError: If the action operation fails
-            ValidationError: If task_gid or project_gid is invalid.
-
-        Example:
-            >>> task = await client.tasks.remove_from_project_async(task_gid, project_gid)
+        Delegates to TaskOperations.remove_from_project_async per ADR-0059.
         """
-        from autom8_asana.persistence.exceptions import SaveSessionError
-        from autom8_asana.persistence.validation import validate_gid
-
-        validate_gid(task_gid, "task_gid")
-        validate_gid(project_gid, "project_gid")
-
-        async with SaveSession(self._client) as session:  # type: ignore[arg-type]
-            task = await self.get_async(task_gid)
-            session.remove_from_project(task, project_gid)
-            result = await session.commit_async()
-
-            if not result.success:
-                raise SaveSessionError(result)
-
-        if refresh:
-            return await self.get_async(task_gid)
-        return task
+        return await self.operations.remove_from_project_async(
+            task_gid, project_gid, refresh=refresh
+        )
 
     def remove_from_project(
         self, task_gid: str, project_gid: str, *, refresh: bool = False
     ) -> Task:
         """Remove task from project without explicit SaveSession (sync).
 
-        Args:
-            task_gid: Target task GID
-            project_gid: Project GID to remove task from
-            refresh: If True, fetch fresh task state after commit. Default False.
-
-        Returns:
-            Task object (refreshed if refresh=True, otherwise pre-commit state)
-
-        Raises:
-            APIError: If task or project not found
-            SaveSessionError: If the action operation fails
+        Delegates to TaskOperations.remove_from_project per ADR-0059.
         """
-        return self._remove_from_project_sync(task_gid, project_gid, refresh=refresh)
-
-    @sync_wrapper("remove_from_project_async")
-    async def _remove_from_project_sync(
-        self, task_gid: str, project_gid: str, *, refresh: bool = False
-    ) -> Task:
-        """Internal sync wrapper for remove_from_project_async."""
-        return await self.remove_from_project_async(
+        return self.operations.remove_from_project(
             task_gid, project_gid, refresh=refresh
         )
 

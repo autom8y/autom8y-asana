@@ -19,6 +19,7 @@ from autom8_asana.persistence.pipeline import SavePipeline
 from autom8_asana.persistence.events import EventSystem
 from autom8_asana.persistence.action_executor import ActionExecutor
 from autom8_asana.persistence.actions import ActionBuilder
+from autom8_asana.persistence.cache_invalidator import CacheInvalidator
 from autom8_asana.persistence.models import (
     EntityState,
     OperationType,
@@ -208,6 +209,12 @@ class SaveSession:
         self._lock = threading.RLock()
         self._state = SessionState.OPEN
         self._log = getattr(client, "_log", None)
+
+        # ADR-0059: Cache invalidation coordinator (extracted for SRP)
+        cache_provider = getattr(client, "_cache_provider", None)
+        self._cache_invalidator: CacheInvalidator | None = (
+            CacheInvalidator(cache_provider, self._log) if cache_provider else None
+        )
 
     # --- Context Manager Protocol ---
 
@@ -772,7 +779,12 @@ class SaveSession:
 
         # Phase 1.5: Cache invalidation for modified entities
         # Per FR-INVALIDATE-001 through FR-INVALIDATE-006
-        await self._invalidate_cache_for_results(crud_result, action_results)
+        # ADR-0059: Delegated to CacheInvalidator for SRP
+        if self._cache_invalidator:
+            gid_to_entity = self._build_gid_lookup(crud_result, action_results)
+            await self._cache_invalidator.invalidate_for_commit(
+                crud_result, action_results, gid_to_entity
+            )
 
         # TDD-DEBT-003: Re-acquire lock for state updates
         with self._state_lock():
@@ -1538,112 +1550,52 @@ class SaveSession:
             not in successful_identities
         ]
 
-    # --- Cache Invalidation (TDD-CACHE-INTEGRATION, ADR-0125, TDD-WATERMARK-CACHE Phase 3) ---
+    # --- Cache Invalidation Support (ADR-0059) ---
 
-    async def _invalidate_cache_for_results(
+    def _build_gid_lookup(
         self,
         crud_result: SaveResult,
         action_results: list[ActionResult],
-    ) -> None:
-        """Invalidate cache entries for successfully mutated entities.
+    ) -> dict[str, Any]:
+        """Build GID to entity lookup map for cache invalidation.
 
-        Per FR-INVALIDATE-001: Invalidates after successful mutations.
-        Per FR-INVALIDATE-002: UPDATE operations invalidate, including DATAFRAME.
-        Per FR-INVALIDATE-003: DELETE operations invalidate.
-        Per FR-INVALIDATE-004: CREATE operations warm cache.
-        Per FR-INVALIDATE-005: Batch invalidation efficiency (O(n)).
-        Per FR-INVALIDATE-006: Action operations invalidate.
-        Per TDD-WATERMARK-CACHE/FR-INVALIDATE-001-006: DataFrame cache invalidation.
+        Per ADR-0059: Support method for CacheInvalidator delegation.
+
+        Collects entities from:
+        1. CRUD succeeded entities
+        2. Tracker (for membership access)
+        3. Action results (entities may not be tracked)
 
         Args:
             crud_result: Result of CRUD operations.
             action_results: Results of action operations.
+
+        Returns:
+            Dict mapping GID -> entity for membership lookup.
         """
-        # Check if cache is available
-        cache = getattr(self._client, "_cache_provider", None)
-        if cache is None:
-            return
+        gid_to_entity: dict[str, Any] = {}
 
-        from autom8_asana.cache.entry import EntryType
-        from autom8_asana.cache.dataframes import invalidate_task_dataframes
-
-        # Collect all GIDs to invalidate (FR-INVALIDATE-005: batch efficiency)
-        gids_to_invalidate: set[str] = set()
-
-        # FR-INVALIDATE-002, FR-INVALIDATE-003: CRUD succeeded entities
+        # Add succeeded entities from CRUD result
         for entity in crud_result.succeeded:
             if hasattr(entity, "gid") and entity.gid:
-                gids_to_invalidate.add(entity.gid)
+                gid_to_entity[entity.gid] = entity
 
-        # FR-INVALIDATE-006: Action operations
-        for action_result in action_results:
-            if action_result.success and action_result.action.task:
-                if hasattr(action_result.action.task, "gid"):
-                    gids_to_invalidate.add(action_result.action.task.gid)
-
-        # Invalidate TASK, SUBTASKS, and DETECTION for all collected GIDs
-        # Per FR-INVALIDATE-001: Detection cache invalidated alongside TASK and SUBTASKS
-        for gid in gids_to_invalidate:
-            try:
-                cache.invalidate(gid, [EntryType.TASK, EntryType.SUBTASKS, EntryType.DETECTION])
-            except Exception as exc:
-                # NFR-DEGRADE-001: Log and continue - invalidation failure is not fatal
-                if self._log:
-                    self._log.warning(
-                        "cache_invalidation_failed",
-                        gid=gid,
-                        error=str(exc),
-                    )
-
-        # TDD-WATERMARK-CACHE Phase 3: DataFrame cache invalidation
-        # Per FR-INVALIDATE-001 through FR-INVALIDATE-006
-        # Build a map of gid -> entity for lookup from both tracker and action results
-        df_gid_to_entity: dict[str, Any] = {}
-
-        # Add entities from tracker
-        for gid in gids_to_invalidate:
-            tracked_entity = self._tracker.find_by_gid(gid)
-            if tracked_entity:
-                df_gid_to_entity[gid] = tracked_entity
+        # Add entities from tracker (may have richer membership data)
+        for entity in crud_result.succeeded:
+            if hasattr(entity, "gid") and entity.gid:
+                tracked = self._tracker.find_by_gid(entity.gid)
+                if tracked:
+                    gid_to_entity[entity.gid] = tracked
 
         # Add entities from action results (may not be tracked)
         for action_result in action_results:
             if action_result.success and action_result.action.task:
                 action_task = action_result.action.task
                 if hasattr(action_task, "gid") and action_task.gid:
-                    if action_task.gid not in df_gid_to_entity:
-                        df_gid_to_entity[action_task.gid] = action_task
+                    if action_task.gid not in gid_to_entity:
+                        gid_to_entity[action_task.gid] = action_task
 
-        for gid in gids_to_invalidate:
-            try:
-                # Get entity to access memberships (FR-INVALIDATE-003)
-                df_entity = df_gid_to_entity.get(gid)
-                if df_entity and hasattr(df_entity, "memberships") and df_entity.memberships:
-                    # FR-INVALIDATE-003: Invalidate all project contexts via memberships
-                    project_gids = [
-                        m.get("project", {}).get("gid")
-                        for m in df_entity.memberships
-                        if isinstance(m, dict)
-                        and m.get("project", {}).get("gid")
-                    ]
-                    if project_gids:
-                        invalidate_task_dataframes(gid, project_gids, cache)
-                # FR-INVALIDATE-004: Fallback to known project context if available
-                # Note: _current_project_gid may not be set; silently skip if unavailable
-            except Exception as exc:
-                # FR-INVALIDATE-005: Don't fail commit on invalidation error
-                if self._log:
-                    self._log.warning(
-                        "dataframe_cache_invalidation_failed",
-                        gid=gid,
-                        error=str(exc),
-                    )
-
-        if self._log and gids_to_invalidate:
-            self._log.debug(
-                "cache_invalidation_complete",
-                invalidated_count=len(gids_to_invalidate),
-            )
+        return gid_to_entity
 
     # --- Self-Healing (TDD-DETECTION/ADR-0095, TDD-TECH-DEBT-REMEDIATION) ---
     # Healing logic is now in HealingManager. These methods are preserved for

@@ -1,17 +1,22 @@
 """Goals client - returns typed Goal models by default.
 
 Per TDD-0004: GoalsClient provides goal CRUD, subgoals, and supporting work for Tier 2.
+Per ADR-0059: Subgoal, supporting work, and follower operations delegated to extracted classes.
 Use raw=True for backward-compatible dict returns.
 """
 
 from __future__ import annotations
 
-from typing import Any, Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 from autom8_asana.clients.base import BaseClient
 from autom8_asana.models import PageIterator
 from autom8_asana.models.goal import Goal
 from autom8_asana.transport.sync import sync_wrapper
+
+if TYPE_CHECKING:
+    from autom8_asana.clients.goal_followers import GoalFollowers
+    from autom8_asana.clients.goal_relationships import GoalRelationships
 
 
 class GoalsClient(BaseClient):
@@ -19,7 +24,43 @@ class GoalsClient(BaseClient):
 
     Goals support hierarchical organization (subgoals).
     Returns typed Goal models by default. Use raw=True for dict returns.
+
+    Per ADR-0059: Relationship and follower operations are delegated to
+    extracted classes accessible via the `relationships` and `followers`
+    properties. Backward-compatible delegation methods are provided.
     """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Initialize GoalsClient with lazy-loaded sub-clients."""
+        super().__init__(*args, **kwargs)
+        self._relationships: GoalRelationships | None = None
+        self._followers: GoalFollowers | None = None
+
+    # --- Sub-client Properties (Lazy Initialization) ---
+
+    @property
+    def relationships(self) -> GoalRelationships:
+        """Access goal relationships operations (subgoals, supporting work).
+
+        Returns:
+            GoalRelationships instance for managing goal hierarchies.
+        """
+        if self._relationships is None:
+            from autom8_asana.clients.goal_relationships import GoalRelationships
+            self._relationships = GoalRelationships(self)
+        return self._relationships
+
+    @property
+    def followers(self) -> GoalFollowers:
+        """Access goal followers operations.
+
+        Returns:
+            GoalFollowers instance for managing goal followers.
+        """
+        if self._followers is None:
+            from autom8_asana.clients.goal_followers import GoalFollowers
+            self._followers = GoalFollowers(self)
+        return self._followers
 
     # --- Core CRUD Operations ---
 
@@ -515,610 +556,79 @@ class GoalsClient(BaseClient):
 
         return PageIterator(fetch_page, page_size=min(limit, 100))
 
-    # --- Subgoals ---
+    # --- Delegation Methods (Backward Compatibility) ---
+    # Note: For type-safe overloaded versions, use .relationships and .followers properties
 
     def list_subgoals_async(
-        self,
-        goal_gid: str,
-        *,
-        opt_fields: list[str] | None = None,
-        limit: int = 100,
+        self, goal_gid: str, **kwargs: Any
     ) -> PageIterator[Goal]:
-        """List subgoals of a goal.
-
-        Args:
-            goal_gid: Parent goal GID
-            opt_fields: Fields to include
-            limit: Items per page
-
-        Returns:
-            PageIterator[Goal]
-        """
-        self._log_operation("list_subgoals_async", goal_gid)
-
-        async def fetch_page(offset: str | None) -> tuple[list[Goal], str | None]:
-            """Fetch a single page of Goal objects."""
-            params = self._build_opt_fields(opt_fields)
-            params["limit"] = min(limit, 100)
-            if offset:
-                params["offset"] = offset
-
-            data, next_offset = await self._http.get_paginated(
-                f"/goals/{goal_gid}/subgoals", params=params
-            )
-            goals = [Goal.model_validate(g) for g in data]
-            return goals, next_offset
-
-        return PageIterator(fetch_page, page_size=min(limit, 100))
-
-    @overload
-    async def add_subgoal_async(
-        self,
-        goal_gid: str,
-        *,
-        subgoal: str,
-        raw: Literal[False] = ...,
-        insert_before: str | None = ...,
-        insert_after: str | None = ...,
-    ) -> Goal:
-        """Overload: add subgoal, returning Goal model."""
-        ...
-
-    @overload
-    async def add_subgoal_async(
-        self,
-        goal_gid: str,
-        *,
-        subgoal: str,
-        raw: Literal[True],
-        insert_before: str | None = ...,
-        insert_after: str | None = ...,
-    ) -> dict[str, Any]:
-        """Overload: add subgoal, returning raw dict."""
-        ...
+        """List subgoals. Delegates to relationships."""
+        return self.relationships.list_subgoals_async(goal_gid, **kwargs)
 
     async def add_subgoal_async(
-        self,
-        goal_gid: str,
-        *,
-        subgoal: str,
-        raw: bool = False,
-        insert_before: str | None = None,
-        insert_after: str | None = None,
+        self, goal_gid: str, **kwargs: Any
     ) -> Goal | dict[str, Any]:
-        """Add a subgoal to a goal.
+        """Add a subgoal. Delegates to relationships."""
+        return await self.relationships.add_subgoal_async(goal_gid, **kwargs)
 
-        Args:
-            goal_gid: Parent goal GID
-            subgoal: Subgoal GID to add
-            raw: If True, return raw dict
-            insert_before: Subgoal GID to insert before
-            insert_after: Subgoal GID to insert after
+    def add_subgoal(self, goal_gid: str, **kwargs: Any) -> Goal | dict[str, Any]:
+        """Add a subgoal (sync). Delegates to relationships."""
+        return self.relationships.add_subgoal(goal_gid, **kwargs)
 
-        Returns:
-            Updated parent goal
-        """
-        self._log_operation("add_subgoal_async", goal_gid)
+    async def remove_subgoal_async(self, goal_gid: str, *, subgoal: str) -> None:
+        """Remove a subgoal. Delegates to relationships."""
+        await self.relationships.remove_subgoal_async(goal_gid, subgoal=subgoal)
 
-        data: dict[str, Any] = {"subgoal": subgoal}
-        if insert_before is not None:
-            data["insert_before"] = insert_before
-        if insert_after is not None:
-            data["insert_after"] = insert_after
-
-        result = await self._http.post(
-            f"/goals/{goal_gid}/addSubgoal", json={"data": data}
-        )
-        if raw:
-            return result
-        return Goal.model_validate(result)
-
-    @overload
-    def add_subgoal(
-        self,
-        goal_gid: str,
-        *,
-        subgoal: str,
-        raw: Literal[False] = ...,
-        insert_before: str | None = ...,
-        insert_after: str | None = ...,
-    ) -> Goal:
-        """Overload: add subgoal (sync), returning Goal model."""
-        ...
-
-    @overload
-    def add_subgoal(
-        self,
-        goal_gid: str,
-        *,
-        subgoal: str,
-        raw: Literal[True],
-        insert_before: str | None = ...,
-        insert_after: str | None = ...,
-    ) -> dict[str, Any]:
-        """Overload: add subgoal (sync), returning raw dict."""
-        ...
-
-    def add_subgoal(
-        self,
-        goal_gid: str,
-        *,
-        subgoal: str,
-        raw: bool = False,
-        insert_before: str | None = None,
-        insert_after: str | None = None,
-    ) -> Goal | dict[str, Any]:
-        """Add a subgoal (sync).
-
-        Args:
-            goal_gid: Parent goal GID
-            subgoal: Subgoal GID to add
-            raw: If True, return raw dict
-            insert_before: Subgoal GID to insert before
-            insert_after: Subgoal GID to insert after
-
-        Returns:
-            Updated parent goal
-        """
-        return self._add_subgoal_sync(
-            goal_gid,
-            subgoal=subgoal,
-            raw=raw,
-            insert_before=insert_before,
-            insert_after=insert_after,
-        )
-
-    @sync_wrapper("add_subgoal_async")
-    async def _add_subgoal_sync(
-        self,
-        goal_gid: str,
-        *,
-        subgoal: str,
-        raw: bool = False,
-        insert_before: str | None = None,
-        insert_after: str | None = None,
-    ) -> Goal | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.add_subgoal_async(
-                goal_gid,
-                subgoal=subgoal,
-                raw=True,
-                insert_before=insert_before,
-                insert_after=insert_after,
-            )
-        return await self.add_subgoal_async(
-            goal_gid,
-            subgoal=subgoal,
-            raw=False,
-            insert_before=insert_before,
-            insert_after=insert_after,
-        )
-
-    async def remove_subgoal_async(
-        self,
-        goal_gid: str,
-        *,
-        subgoal: str,
-    ) -> None:
-        """Remove a subgoal from a goal.
-
-        Args:
-            goal_gid: Parent goal GID
-            subgoal: Subgoal GID to remove
-        """
-        self._log_operation("remove_subgoal_async", goal_gid)
-        await self._http.post(
-            f"/goals/{goal_gid}/removeSubgoal",
-            json={"data": {"subgoal": subgoal}},
-        )
-
-    @sync_wrapper("remove_subgoal_async")
-    async def _remove_subgoal_sync(
-        self,
-        goal_gid: str,
-        *,
-        subgoal: str,
-    ) -> None:
-        """Internal sync wrapper implementation."""
-        await self.remove_subgoal_async(goal_gid, subgoal=subgoal)
-
-    def remove_subgoal(
-        self,
-        goal_gid: str,
-        *,
-        subgoal: str,
-    ) -> None:
-        """Remove a subgoal (sync).
-
-        Args:
-            goal_gid: Parent goal GID
-            subgoal: Subgoal GID to remove
-        """
-        self._remove_subgoal_sync(goal_gid, subgoal=subgoal)
-
-    # --- Supporting Resources ---
-
-    @overload
-    async def add_supporting_work_async(
-        self,
-        goal_gid: str,
-        *,
-        supporting_resource: str,
-        raw: Literal[False] = ...,
-        contribution_weight: float | None = ...,
-    ) -> Goal:
-        """Overload: add supporting work, returning Goal model."""
-        ...
-
-    @overload
-    async def add_supporting_work_async(
-        self,
-        goal_gid: str,
-        *,
-        supporting_resource: str,
-        raw: Literal[True],
-        contribution_weight: float | None = ...,
-    ) -> dict[str, Any]:
-        """Overload: add supporting work, returning raw dict."""
-        ...
+    def remove_subgoal(self, goal_gid: str, *, subgoal: str) -> None:
+        """Remove a subgoal (sync). Delegates to relationships."""
+        self.relationships.remove_subgoal(goal_gid, subgoal=subgoal)
 
     async def add_supporting_work_async(
-        self,
-        goal_gid: str,
-        *,
-        supporting_resource: str,
-        raw: bool = False,
-        contribution_weight: float | None = None,
+        self, goal_gid: str, **kwargs: Any
     ) -> Goal | dict[str, Any]:
-        """Add supporting work (project/portfolio) to a goal.
-
-        Args:
-            goal_gid: Goal GID
-            supporting_resource: Project or portfolio GID
-            raw: If True, return raw dict
-            contribution_weight: Optional weight (0.0 to 1.0)
-
-        Returns:
-            Updated goal
-        """
-        self._log_operation("add_supporting_work_async", goal_gid)
-
-        data: dict[str, Any] = {"supporting_resource": supporting_resource}
-        if contribution_weight is not None:
-            data["contribution_weight"] = contribution_weight
-
-        result = await self._http.post(
-            f"/goals/{goal_gid}/addSupportingRelationship", json={"data": data}
-        )
-        if raw:
-            return result
-        return Goal.model_validate(result)
-
-    @overload
-    def add_supporting_work(
-        self,
-        goal_gid: str,
-        *,
-        supporting_resource: str,
-        raw: Literal[False] = ...,
-        contribution_weight: float | None = ...,
-    ) -> Goal:
-        """Overload: add supporting work (sync), returning Goal model."""
-        ...
-
-    @overload
-    def add_supporting_work(
-        self,
-        goal_gid: str,
-        *,
-        supporting_resource: str,
-        raw: Literal[True],
-        contribution_weight: float | None = ...,
-    ) -> dict[str, Any]:
-        """Overload: add supporting work (sync), returning raw dict."""
-        ...
+        """Add supporting work. Delegates to relationships."""
+        return await self.relationships.add_supporting_work_async(goal_gid, **kwargs)
 
     def add_supporting_work(
-        self,
-        goal_gid: str,
-        *,
-        supporting_resource: str,
-        raw: bool = False,
-        contribution_weight: float | None = None,
+        self, goal_gid: str, **kwargs: Any
     ) -> Goal | dict[str, Any]:
-        """Add supporting work (sync).
-
-        Args:
-            goal_gid: Goal GID
-            supporting_resource: Project or portfolio GID
-            raw: If True, return raw dict
-            contribution_weight: Optional weight (0.0 to 1.0)
-
-        Returns:
-            Updated goal
-        """
-        return self._add_supporting_work_sync(
-            goal_gid,
-            supporting_resource=supporting_resource,
-            raw=raw,
-            contribution_weight=contribution_weight,
-        )
-
-    @sync_wrapper("add_supporting_work_async")
-    async def _add_supporting_work_sync(
-        self,
-        goal_gid: str,
-        *,
-        supporting_resource: str,
-        raw: bool = False,
-        contribution_weight: float | None = None,
-    ) -> Goal | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.add_supporting_work_async(
-                goal_gid,
-                supporting_resource=supporting_resource,
-                raw=True,
-                contribution_weight=contribution_weight,
-            )
-        return await self.add_supporting_work_async(
-            goal_gid,
-            supporting_resource=supporting_resource,
-            raw=False,
-            contribution_weight=contribution_weight,
-        )
+        """Add supporting work (sync). Delegates to relationships."""
+        return self.relationships.add_supporting_work(goal_gid, **kwargs)
 
     async def remove_supporting_work_async(
-        self,
-        goal_gid: str,
-        *,
-        supporting_resource: str,
+        self, goal_gid: str, *, supporting_resource: str
     ) -> None:
-        """Remove supporting work from a goal.
-
-        Args:
-            goal_gid: Goal GID
-            supporting_resource: Project or portfolio GID to remove
-        """
-        self._log_operation("remove_supporting_work_async", goal_gid)
-        await self._http.post(
-            f"/goals/{goal_gid}/removeSupportingRelationship",
-            json={"data": {"supporting_resource": supporting_resource}},
-        )
-
-    @sync_wrapper("remove_supporting_work_async")
-    async def _remove_supporting_work_sync(
-        self,
-        goal_gid: str,
-        *,
-        supporting_resource: str,
-    ) -> None:
-        """Internal sync wrapper implementation."""
-        await self.remove_supporting_work_async(
+        """Remove supporting work. Delegates to relationships."""
+        await self.relationships.remove_supporting_work_async(
             goal_gid, supporting_resource=supporting_resource
         )
 
     def remove_supporting_work(
-        self,
-        goal_gid: str,
-        *,
-        supporting_resource: str,
+        self, goal_gid: str, *, supporting_resource: str
     ) -> None:
-        """Remove supporting work (sync).
-
-        Args:
-            goal_gid: Goal GID
-            supporting_resource: Project or portfolio GID to remove
-        """
-        self._remove_supporting_work_sync(
+        """Remove supporting work (sync). Delegates to relationships."""
+        self.relationships.remove_supporting_work(
             goal_gid, supporting_resource=supporting_resource
         )
 
-    # --- Followers ---
-
-    @overload
     async def add_followers_async(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: Literal[False] = ...,
-    ) -> Goal:
-        """Overload: add followers, returning Goal model."""
-        ...
-
-    @overload
-    async def add_followers_async(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: Literal[True],
-    ) -> dict[str, Any]:
-        """Overload: add followers, returning raw dict."""
-        ...
-
-    async def add_followers_async(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: bool = False,
+        self, goal_gid: str, **kwargs: Any
     ) -> Goal | dict[str, Any]:
-        """Add followers to a goal.
+        """Add followers. Delegates to followers."""
+        return await self.followers.add_followers_async(goal_gid, **kwargs)
 
-        Args:
-            goal_gid: Goal GID
-            followers: List of user GIDs
-
-        Returns:
-            Updated goal
-        """
-        self._log_operation("add_followers_async", goal_gid)
-        result = await self._http.post(
-            f"/goals/{goal_gid}/addFollowers",
-            json={"data": {"followers": ",".join(followers)}},
-        )
-        if raw:
-            return result
-        return Goal.model_validate(result)
-
-    @overload
-    def add_followers(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: Literal[False] = ...,
-    ) -> Goal:
-        """Overload: add followers (sync), returning Goal model."""
-        ...
-
-    @overload
-    def add_followers(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: Literal[True],
-    ) -> dict[str, Any]:
-        """Overload: add followers (sync), returning raw dict."""
-        ...
-
-    def add_followers(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: bool = False,
-    ) -> Goal | dict[str, Any]:
-        """Add followers (sync).
-
-        Args:
-            goal_gid: Goal GID
-            followers: List of user GIDs
-
-        Returns:
-            Updated goal
-        """
-        return self._add_followers_sync(goal_gid, followers=followers, raw=raw)
-
-    @sync_wrapper("add_followers_async")
-    async def _add_followers_sync(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: bool = False,
-    ) -> Goal | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.add_followers_async(
-                goal_gid, followers=followers, raw=True
-            )
-        return await self.add_followers_async(goal_gid, followers=followers, raw=False)
-
-    @overload
-    async def remove_followers_async(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: Literal[False] = ...,
-    ) -> Goal:
-        """Overload: remove followers, returning Goal model."""
-        ...
-
-    @overload
-    async def remove_followers_async(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: Literal[True],
-    ) -> dict[str, Any]:
-        """Overload: remove followers, returning raw dict."""
-        ...
+    def add_followers(self, goal_gid: str, **kwargs: Any) -> Goal | dict[str, Any]:
+        """Add followers (sync). Delegates to followers."""
+        return self.followers.add_followers(goal_gid, **kwargs)
 
     async def remove_followers_async(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: bool = False,
+        self, goal_gid: str, **kwargs: Any
     ) -> Goal | dict[str, Any]:
-        """Remove followers from a goal.
-
-        Args:
-            goal_gid: Goal GID
-            followers: List of user GIDs
-
-        Returns:
-            Updated goal
-        """
-        self._log_operation("remove_followers_async", goal_gid)
-        result = await self._http.post(
-            f"/goals/{goal_gid}/removeFollowers",
-            json={"data": {"followers": ",".join(followers)}},
-        )
-        if raw:
-            return result
-        return Goal.model_validate(result)
-
-    @overload
-    def remove_followers(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: Literal[False] = ...,
-    ) -> Goal:
-        """Overload: remove followers (sync), returning Goal model."""
-        ...
-
-    @overload
-    def remove_followers(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: Literal[True],
-    ) -> dict[str, Any]:
-        """Overload: remove followers (sync), returning raw dict."""
-        ...
+        """Remove followers. Delegates to followers."""
+        return await self.followers.remove_followers_async(goal_gid, **kwargs)
 
     def remove_followers(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: bool = False,
+        self, goal_gid: str, **kwargs: Any
     ) -> Goal | dict[str, Any]:
-        """Remove followers (sync).
-
-        Args:
-            goal_gid: Goal GID
-            followers: List of user GIDs
-
-        Returns:
-            Updated goal
-        """
-        return self._remove_followers_sync(goal_gid, followers=followers, raw=raw)
-
-    @sync_wrapper("remove_followers_async")
-    async def _remove_followers_sync(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: bool = False,
-    ) -> Goal | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.remove_followers_async(
-                goal_gid, followers=followers, raw=True
-            )
-        return await self.remove_followers_async(
-            goal_gid, followers=followers, raw=False
-        )
+        """Remove followers (sync). Delegates to followers."""
+        return self.followers.remove_followers(goal_gid, **kwargs)
