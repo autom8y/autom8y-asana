@@ -4,11 +4,14 @@ Per FR-UOW-001 through FR-UOW-008.
 Per ADR-0035: Unit of Work Pattern for Save Orchestration.
 Per TDD-0011: Action endpoint support for tag, project, dependency, and section.
 Per TDD-TRIAGE-FIXES: Cascade execution integration.
+Per TDD-DEBT-003: Thread-safe state transitions via RLock.
 """
 
 from __future__ import annotations
 
-from typing import Any, Callable, TypeVar, TYPE_CHECKING, Coroutine
+import threading
+from contextlib import contextmanager
+from typing import Any, Callable, Generator, TypeVar, TYPE_CHECKING, Coroutine
 
 from autom8_asana.persistence.tracker import ChangeTracker
 from autom8_asana.persistence.graph import DependencyGraph
@@ -63,6 +66,7 @@ class SaveSession:
 
     Per FR-UOW-001: Async context manager for bulk saves.
     Per FR-UOW-004: Sync wrapper per ADR-0002.
+    Per TDD-DEBT-003: Thread-safe state transitions via RLock.
 
     SaveSession provides a Django-ORM-style deferred save pattern where
     multiple model changes are collected and executed in optimized batches
@@ -75,6 +79,15 @@ class SaveSession:
     - Automatic placeholder GID resolution for new entities
     - Partial failure handling with commit-and-report semantics
     - Event hooks for pre-save, post-save, and error handling
+
+    Thread Safety:
+        SaveSession is thread-safe. Multiple threads may call track(),
+        commit_async(), and other methods concurrently on the same
+        instance. However, for optimal performance, prefer one session
+        per thread/task.
+
+        Entities tracked during an active commit will be included in
+        the next commit, not the current one (per ADR-DEBT-003-002).
 
     Usage (async):
         async with SaveSession(client) as session:
@@ -191,6 +204,8 @@ class SaveSession:
             else:
                 self._automation_enabled = False
 
+        # TDD-DEBT-003: Reentrant lock for thread-safe state operations
+        self._lock = threading.RLock()
         self._state = SessionState.OPEN
         self._log = getattr(client, "_log", None)
 
@@ -210,8 +225,11 @@ class SaveSession:
 
         Closes the session. No further operations are allowed.
         Does not auto-commit; uncommitted changes are discarded.
+
+        Per TDD-DEBT-003: State transition is atomic.
         """
-        self._state = SessionState.CLOSED
+        with self._state_lock():
+            self._state = SessionState.CLOSED
 
     def __enter__(self) -> SaveSession:
         """Enter sync context (FR-UOW-004)."""
@@ -227,8 +245,11 @@ class SaveSession:
 
         Closes the session. No further operations are allowed.
         Does not auto-commit; uncommitted changes are discarded.
+
+        Per TDD-DEBT-003: State transition is atomic.
         """
-        self._state = SessionState.CLOSED
+        with self._state_lock():
+            self._state = SessionState.CLOSED
 
     # --- Inspection Properties (TDD-SPRINT-4/FR-INSP-001 through FR-INSP-005) ---
 
@@ -237,11 +258,13 @@ class SaveSession:
         """Current session state for inspection.
 
         Per FR-INSP-001: Public access to session state.
+        Per TDD-DEBT-003: Read under lock for memory visibility.
 
         Returns:
             One of SessionState.OPEN, COMMITTED, or CLOSED.
         """
-        return self._state
+        with self._state_lock():
+            return self._state
 
     @property
     def pending_actions(self) -> list[ActionOperation]:
@@ -363,43 +386,44 @@ class SaveSession:
             # Track with explicit healing override
             session.track(entity, heal=True)  # Force healing even if auto_heal=False
         """
-        self._ensure_open()
-        tracked = self._tracker.track(entity)
+        # TDD-DEBT-003: Full operation under lock
+        with self._require_open():
+            tracked = self._tracker.track(entity)
 
-        if self._log:
-            self._log.debug(
-                "session_track",
-                entity_type=type(entity).__name__,
-                entity_gid=entity.gid,
-                prefetch_holders=prefetch_holders,
-                recursive=recursive,
-                heal=heal,
-            )
-
-        # TDD-DETECTION/ADR-0095, TDD-TECH-DEBT-REMEDIATION: Healing via HealingManager
-        if heal is not None and entity.gid:
-            self._healing_manager.set_entity_heal_flag(entity.gid, heal)
-
-        # Queue healing if needed (via HealingManager)
-        if self._healing_manager.should_heal(entity, heal):
-            self._healing_manager.enqueue(entity)
             if self._log:
-                detection = getattr(entity, "_detection_result", None)
                 self._log.debug(
-                    "session_queue_healing",
+                    "session_track",
                     entity_type=type(entity).__name__,
                     entity_gid=entity.gid,
-                    expected_project_gid=detection.expected_project_gid
-                    if detection
-                    else None,
-                    tier_used=detection.tier_used if detection else None,
+                    prefetch_holders=prefetch_holders,
+                    recursive=recursive,
+                    heal=heal,
                 )
 
-        # Recursive tracking of descendants
-        if recursive:
-            self._track_recursive(entity)
+            # TDD-DETECTION/ADR-0095, TDD-TECH-DEBT-REMEDIATION: Healing via HealingManager
+            if heal is not None and entity.gid:
+                self._healing_manager.set_entity_heal_flag(entity.gid, heal)
 
-        return tracked  # type: ignore[return-value]  # ChangeTracker.track returns AsanaResource
+            # Queue healing if needed (via HealingManager)
+            if self._healing_manager.should_heal(entity, heal):
+                self._healing_manager.enqueue(entity)
+                if self._log:
+                    detection = getattr(entity, "_detection_result", None)
+                    self._log.debug(
+                        "session_queue_healing",
+                        entity_type=type(entity).__name__,
+                        entity_gid=entity.gid,
+                        expected_project_gid=detection.expected_project_gid
+                        if detection
+                        else None,
+                        tier_used=detection.tier_used if detection else None,
+                    )
+
+            # Recursive tracking of descendants
+            if recursive:
+                self._track_recursive(entity)
+
+            return tracked  # type: ignore[return-value]  # ChangeTracker.track returns AsanaResource
 
     def _track_recursive(self, entity: AsanaResource) -> None:
         """Recursively track all children in entity's holders.
@@ -442,15 +466,16 @@ class SaveSession:
         Raises:
             SessionClosedError: If session is closed.
         """
-        self._ensure_open()
-        self._tracker.untrack(entity)
+        # TDD-DEBT-003: Full operation under lock
+        with self._require_open():
+            self._tracker.untrack(entity)
 
-        if self._log:
-            self._log.debug(
-                "session_untrack",
-                entity_type=type(entity).__name__,
-                entity_gid=entity.gid,
-            )
+            if self._log:
+                self._log.debug(
+                    "session_untrack",
+                    entity_type=type(entity).__name__,
+                    entity_gid=entity.gid,
+                )
 
     def delete(self, entity: AsanaResource) -> None:
         """Mark entity for deletion.
@@ -471,21 +496,21 @@ class SaveSession:
             session.delete(task)  # Will send DELETE request at commit
             result = await session.commit_async()
         """
-        self._ensure_open()
+        # TDD-DEBT-003: Full operation under lock
+        with self._require_open():
+            if not entity.gid or entity.gid.startswith("temp_"):
+                raise ValueError(
+                    f"Cannot delete entity without GID: {type(entity).__name__}"
+                )
 
-        if not entity.gid or entity.gid.startswith("temp_"):
-            raise ValueError(
-                f"Cannot delete entity without GID: {type(entity).__name__}"
-            )
+            self._tracker.mark_deleted(entity)
 
-        self._tracker.mark_deleted(entity)
-
-        if self._log:
-            self._log.debug(
-                "session_delete",
-                entity_type=type(entity).__name__,
-                entity_gid=entity.gid,
-            )
+            if self._log:
+                self._log.debug(
+                    "session_delete",
+                    entity_type=type(entity).__name__,
+                    entity_gid=entity.gid,
+                )
 
     # --- Change Inspection ---
 
@@ -662,6 +687,7 @@ class SaveSession:
         Per TDD-0011: Execute action operations after CRUD operations.
         Per TDD-TRIAGE-FIXES: Execute cascade operations after actions.
         Per TDD-DETECTION/ADR-0095: Execute healing operations after cascades.
+        Per TDD-DEBT-003: Thread-safe state transitions via RLock.
 
         Commits all tracked entities with pending changes. Entities are
         saved in dependency order. Then action operations (add_tag, etc.)
@@ -673,6 +699,12 @@ class SaveSession:
         have their GIDs updated (for new entities). Pending actions are
         cleared regardless of success. Failed cascades remain for retry.
         Healing failures are logged but do not fail the commit.
+
+        Thread Safety:
+            Lock is held during state check and state capture, released
+            during I/O, and re-acquired for state updates. Entities tracked
+            during commit will be included in the next commit, not the
+            current one (per ADR-DEBT-003-002).
 
         Returns:
             SaveResult with succeeded/failed lists. Action failures are
@@ -693,13 +725,18 @@ class SaveSession:
             else:
                 print("All operations failed")
         """
-        self._ensure_open()
+        # TDD-DEBT-003: Acquire lock for state check and state capture
+        with self._state_lock():
+            if self._state == SessionState.CLOSED:
+                raise SessionClosedError()
 
-        dirty_entities = self._tracker.get_dirty_entities()
-        pending_actions = list(self._pending_actions)
-        pending_cascades = list(self._cascade_operations)
-        pending_healing = bool(self._healing_manager.queue)
+            # Capture state while holding lock
+            dirty_entities = self._tracker.get_dirty_entities()
+            pending_actions = list(self._pending_actions)
+            pending_cascades = list(self._cascade_operations)
+            pending_healing = bool(self._healing_manager.queue)
 
+        # Check for empty commit (no lock needed - local variables)
         if (
             not dirty_entities
             and not pending_actions
@@ -723,6 +760,9 @@ class SaveSession:
                 healing_count=len(self._healing_manager.queue),
             )
 
+        # TDD-DEBT-003: Lock released during I/O - allows track() during execution
+        # Entities tracked during commit are queued for next commit (per ADR-DEBT-003-002)
+
         # Phase 1: Execute CRUD operations and actions together
         crud_result, action_results = await self._pipeline.execute_with_actions(
             entities=dirty_entities,
@@ -734,8 +774,10 @@ class SaveSession:
         # Per FR-INVALIDATE-001 through FR-INVALIDATE-006
         await self._invalidate_cache_for_results(crud_result, action_results)
 
-        # Per TDD-TRIAGE-FIXES/ADR-0066: Selective clearing - only remove successful actions
-        self._clear_successful_actions(action_results)
+        # TDD-DEBT-003: Re-acquire lock for state updates
+        with self._state_lock():
+            # Per TDD-TRIAGE-FIXES/ADR-0066: Selective clearing - only remove successful actions
+            self._clear_successful_actions(action_results)
 
         # Phase 2: Execute cascade operations
         from autom8_asana.persistence.cascade import CascadeResult
@@ -745,10 +787,12 @@ class SaveSession:
             cascade_result = await self._cascade_executor.execute(pending_cascades)
             cascade_results = [cascade_result]
 
-            # Clear only successful cascades, keep failed for retry
-            if cascade_result.success:
-                self._cascade_operations.clear()
-            # Failed cascades remain in _cascade_operations for retry
+            # TDD-DEBT-003: Lock for state update
+            with self._state_lock():
+                # Clear only successful cascades, keep failed for retry
+                if cascade_result.success:
+                    self._cascade_operations.clear()
+                # Failed cascades remain in _cascade_operations for retry
 
         # Phase 3: Execute healing operations (TDD-DETECTION/ADR-0095, TDD-TECH-DEBT-REMEDIATION)
         healing_report: HealingReport | None = None
@@ -774,16 +818,18 @@ class SaveSession:
                             error=result.error,
                         )
 
-        # Reset state for successful entities (FR-CHANGE-009)
-        # DEF-001 FIX: Order matters - clear accessor BEFORE capturing snapshot
-        for entity in crud_result.succeeded:
-            # Per ADR-0074: Reset custom field tracking (Systems 2 & 3) FIRST
-            # This clears stale modifications before snapshot capture
-            self._reset_custom_field_tracking(entity)
-            # Then capture clean snapshot (mark_clean calls model_dump())
-            self._tracker.mark_clean(entity)
+        # TDD-DEBT-003: Re-acquire lock for final state updates
+        with self._state_lock():
+            # Reset state for successful entities (FR-CHANGE-009)
+            # DEF-001 FIX: Order matters - clear accessor BEFORE capturing snapshot
+            for entity in crud_result.succeeded:
+                # Per ADR-0074: Reset custom field tracking (Systems 2 & 3) FIRST
+                # This clears stale modifications before snapshot capture
+                self._reset_custom_field_tracking(entity)
+                # Then capture clean snapshot (mark_clean calls model_dump())
+                self._tracker.mark_clean(entity)
 
-        self._state = SessionState.COMMITTED
+            self._state = SessionState.COMMITTED
 
         # Count failures for logging
         action_failures = sum(1 for r in action_results if not r.success)
@@ -1395,8 +1441,53 @@ class SaveSession:
 
     # --- Internal ---
 
+    @contextmanager
+    def _state_lock(self) -> Generator[None, None, None]:
+        """Context manager for thread-safe state operations.
+
+        Per TDD-DEBT-003: Protects all state reads and writes.
+
+        Usage:
+            with self._state_lock():
+                # State operations here are atomic
+
+        Yields:
+            None
+        """
+        self._lock.acquire()
+        try:
+            yield
+        finally:
+            self._lock.release()
+
+    @contextmanager
+    def _require_open(self) -> Generator[None, None, None]:
+        """Context manager ensuring session stays open during operation.
+
+        Per TDD-DEBT-003: Acquires lock, verifies session is open, yields,
+        then releases lock. The entire block is atomic with respect to
+        state changes.
+
+        Usage:
+            with self._require_open():
+                # Operations here are protected and session is guaranteed open
+
+        Yields:
+            None
+
+        Raises:
+            SessionClosedError: If session is closed at entry.
+        """
+        with self._state_lock():
+            if self._state == SessionState.CLOSED:
+                raise SessionClosedError()
+            yield
+
     def _ensure_open(self) -> None:
         """Ensure session is still open for operations.
+
+        Note: This method is NOT thread-safe by itself. Use _require_open()
+        context manager for thread-safe check-and-operate patterns.
 
         Raises:
             SessionClosedError: If session has been closed.
