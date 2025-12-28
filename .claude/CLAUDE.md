@@ -34,15 +34,15 @@ See: `.claude/skills/orchestration/main-thread-guide.md` for the consultation lo
 
 ## Quick Start
 
-This project uses a 5-agent workflow (10x-dev-pack):
+This project uses a 5-agent workflow (doc-team-pack):
 
 | Agent | Role | Produces |
 | ----- | ---- | -------- |
-| **architect** | Designs solutions, makes decisions | TDD, ADRs |
+| **doc-auditor** | Inventories all existing documentation a | Artifacts |
+| **doc-reviewer** | QA for documentation. Verifies technical | Artifacts |
+| **information-architect** | Designs the organizational structure, ta | Artifacts |
 | **orchestrator** | Coordinates multi-phase workflows | Work breakdown |
-| **principal-engineer** | Implements with craft | Code |
-| **qa-adversary** | Validates, finds problems | Test reports |
-| **requirements-analyst** | Clarifies intent, defines success | PRD |
+| **tech-writer** | Writes clear, consistent, scannable docu | Artifacts |
 
 **New here?** Use the `prompting` skill for copy-paste patterns, or `initiative-scoping` to start a new project.
 
@@ -82,11 +82,11 @@ Skills provide domain knowledge on-demand. They activate based on your task:
 
 Full agent prompts live in `.claude/agents/`:
 
-- `architect.md` - The system design authority who evaluates tradeoff
-- `orchestrator.md` - The coordination hub for complex feature developme
-- `principal-engineer.md` - The master builder who transforms designs into pro
-- `qa-adversary.md` - The adversarial tester who breaks things on purpos
-- `requirements-analyst.md` - The specification specialist who transforms ambigu
+- `doc-auditor.md` - Inventories all existing documentation across a co
+- `doc-reviewer.md` - QA for documentation. Verifies technical accuracy 
+- `information-architect.md` - Designs the organizational structure, taxonomy, an
+- `orchestrator.md` - The coordination hub for documentation initiatives
+- `tech-writer.md` - Writes clear, consistent, scannable documentation 
 
 ## Hooks (Automatic Context)
 

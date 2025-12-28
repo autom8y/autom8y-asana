@@ -1,52 +1,49 @@
-name: 10x-dev-pack
+name: doc-team-pack
 workflow_type: sequential
-description: Full development lifecycle (PRD → TDD → Code → QA)
+description: Documentation lifecycle (Audit → Structure → Write → Review)
 
 entry_point:
-  agent: requirements-analyst
+  agent: doc-auditor
   artifact:
-    type: prd
-    path_template: docs/requirements/PRD-{slug}.md
+    type: audit-report
+    path_template: docs/audits/AUDIT-{slug}.md
 
 phases:
-  - name: requirements
-    agent: requirements-analyst
-    produces: prd
-    next: design
+  - name: audit
+    agent: doc-auditor
+    produces: audit-report
+    next: architecture
 
-  - name: design
-    agent: architect
-    produces: tdd
-    next: implementation
-    condition: "complexity >= MODULE"
+  - name: architecture
+    agent: information-architect
+    produces: doc-structure
+    next: writing
+    condition: "complexity >= SECTION"
 
-  - name: implementation
-    agent: principal-engineer
-    produces: code
-    next: validation
+  - name: writing
+    agent: tech-writer
+    produces: documentation
+    next: review
 
-  - name: validation
-    agent: qa-adversary
-    produces: test-plan
+  - name: review
+    agent: doc-reviewer
+    produces: review-signoff
     next: null
 
 complexity_levels:
-  - name: SCRIPT
-    scope: "Single file, <200 LOC"
-    phases: [requirements, implementation, validation]
-  - name: MODULE
-    scope: "Multiple files, <2000 LOC"
-    phases: [requirements, design, implementation, validation]
-  - name: SERVICE
-    scope: "APIs, persistence"
-    phases: [requirements, design, implementation, validation]
-  - name: PLATFORM
-    scope: "Multi-service"
-    phases: [requirements, design, implementation, validation]
+  - name: PAGE
+    scope: "Single document"
+    phases: [writing, review]
+  - name: SECTION
+    scope: "Multiple related documents"
+    phases: [architecture, writing, review]
+  - name: SITE
+    scope: "Full documentation site"
+    phases: [audit, architecture, writing, review]
 
 # Agent roles for command mapping:
-# /architect  → architect
-# /build      → principal-engineer
-# /qa         → qa-adversary
-# /hotfix     → principal-engineer (fast path)
-# /code-review → qa-adversary (review mode)
+# /architect  → information-architect
+# /build      → tech-writer
+# /qa         → doc-reviewer
+# /hotfix     → tech-writer (fast path)
+# /code-review → doc-reviewer (review mode)
