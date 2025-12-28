@@ -18,11 +18,12 @@ import logging
 import re
 import time
 from datetime import date, timedelta
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from autom8_asana.automation.base import TriggerCondition
 from autom8_asana.automation.seeding import FieldSeeder
 from autom8_asana.automation.templates import TemplateDiscovery
+from autom8_asana.automation.validation import ValidationResult
 from autom8_asana.automation.waiter import SubtaskWaiter
 from autom8_asana.models.business.process import Process, ProcessSection, ProcessType
 from autom8_asana.persistence.models import AutomationResult
@@ -72,17 +73,29 @@ class PipelineConversionRule:
         source_type: ProcessType = ProcessType.SALES,
         target_type: ProcessType = ProcessType.ONBOARDING,
         trigger_section: ProcessSection = ProcessSection.CONVERTED,
+        required_source_fields: list[str] | None = None,
+        validate_mode: Literal["warn", "block"] = "warn",
     ) -> None:
         """Initialize PipelineConversionRule.
+
+        Per TDD-PIPELINE-AUTOMATION-ENHANCEMENT/ADR-0018: Optional validation.
 
         Args:
             source_type: Process type that triggers conversion (default: SALES).
             target_type: Process type to create (default: ONBOARDING).
             trigger_section: Section that triggers conversion (default: CONVERTED).
+            required_source_fields: Optional list of field names that must be
+                present and non-empty on the source process before transition.
+                Validation is performed via _validate_pre_transition().
+            validate_mode: Validation behavior on failure:
+                - "warn" (default): Log warnings but proceed with transition.
+                - "block": Return failure result, do not execute transition.
         """
         self._source_type = source_type
         self._target_type = target_type
         self._trigger_section = trigger_section
+        self._required_source_fields = required_source_fields or []
+        self._validate_mode = validate_mode
 
         # Build trigger condition
         self._trigger = TriggerCondition(
@@ -210,6 +223,27 @@ class PipelineConversionRule:
             # Cast to Process for type checker - we've verified the type above
             # This also works with MockProcess in tests since we check class name
             source_process = cast(Process, entity)
+
+            # Pre-transition validation (ADR-0018)
+            pre_validation: ValidationResult | None = None
+            if self._required_source_fields:
+                pre_validation = self._validate_pre_transition(source_process)
+                actions_executed.append("pre_validation")
+
+                if not pre_validation.valid and self._validate_mode == "block":
+                    # Validation failed and mode is "block" - stop transition
+                    return AutomationResult(
+                        rule_id=self.id,
+                        rule_name=self.name,
+                        triggered_by_gid=entity.gid,
+                        triggered_by_type="Process",
+                        actions_executed=actions_executed,
+                        success=False,
+                        error=f"Pre-transition validation failed: {pre_validation.errors}",
+                        execution_time_ms=self._elapsed_ms(start_time),
+                        pre_validation=pre_validation,
+                    )
+                # If mode is "warn", continue with transition even if validation failed
 
             # Step 1: Get target stage configuration from config
             stage = context.config.get_pipeline_stage(self._target_type.value)
@@ -407,6 +441,16 @@ class PipelineConversionRule:
                 actions_executed.append("create_comment")
             enhancement_results["comment_created"] = comment_created
 
+            # Post-transition validation (ADR-0018)
+            post_validation: ValidationResult | None = None
+            if self._required_source_fields:
+                post_validation = self._validate_post_transition(
+                    source_process=source_process,
+                    target_task=new_task,
+                    seeded_fields=seeded_fields,
+                )
+                actions_executed.append("post_validation")
+
             # Success result
             return AutomationResult(
                 rule_id=self.id,
@@ -419,6 +463,8 @@ class PipelineConversionRule:
                 success=True,
                 execution_time_ms=self._elapsed_ms(start_time),
                 enhancement_results=enhancement_results,
+                pre_validation=pre_validation,
+                post_validation=post_validation,
             )
 
         except Exception as e:
@@ -937,3 +983,99 @@ Source: {source_link}
 Business: {business_name}"""
 
         return comment
+
+    def _validate_pre_transition(
+        self,
+        source_process: Process,
+    ) -> ValidationResult:
+        """Validate source process before transition.
+
+        Per TDD-PIPELINE-AUTOMATION-ENHANCEMENT/ADR-0018: Pre-transition validation
+        checks that required fields are present and non-empty on the source process.
+
+        Args:
+            source_process: The process being transitioned.
+
+        Returns:
+            ValidationResult indicating validation outcome.
+            - valid=True if all required fields are present and non-empty.
+            - valid=False with errors listing missing/empty fields.
+        """
+        if not self._required_source_fields:
+            # No required fields configured, validation passes
+            return ValidationResult.success()
+
+        errors: list[str] = []
+        warnings: list[str] = []
+
+        for field_name in self._required_source_fields:
+            # Try to get field value from process
+            # Use getattr to access descriptor-based fields
+            field_value = getattr(source_process, field_name, None)
+
+            # Check if field is missing or empty
+            if field_value is None:
+                errors.append(f"Missing required field: {field_name}")
+            elif isinstance(field_value, str) and not field_value.strip():
+                errors.append(f"Empty required field: {field_name}")
+            elif isinstance(field_value, (list, dict)) and len(field_value) == 0:
+                errors.append(f"Empty required field: {field_name}")
+
+        if errors:
+            logger.warning(
+                "Pre-transition validation failed for %s: %s",
+                source_process.gid,
+                errors,
+            )
+            return ValidationResult.failure(errors)
+
+        return ValidationResult(valid=True, warnings=warnings)
+
+    def _validate_post_transition(
+        self,
+        source_process: Process,
+        target_task: Any,
+        seeded_fields: dict[str, Any] | None,
+    ) -> ValidationResult:
+        """Validate transition after target task creation.
+
+        Per TDD-PIPELINE-AUTOMATION-ENHANCEMENT/ADR-0018: Post-transition validation
+        verifies that expected fields were successfully carried through to the target.
+
+        This method checks that seeded fields match expected values. It is advisory
+        only (warnings, not blocking errors) since the transition has already occurred.
+
+        Args:
+            source_process: The source process that was transitioned.
+            target_task: The newly created target task.
+            seeded_fields: Dictionary of field names to values that were seeded.
+
+        Returns:
+            ValidationResult with warnings for any discrepancies.
+            Always returns valid=True since post-validation is advisory only.
+        """
+        warnings: list[str] = []
+
+        # Check if seeding was attempted but no fields were seeded
+        if self._required_source_fields and not seeded_fields:
+            warnings.append(
+                "No fields were seeded to target despite required fields configured"
+            )
+
+        # Check that required fields were included in seeded fields
+        if seeded_fields:
+            for field_name in self._required_source_fields:
+                if field_name not in seeded_fields:
+                    warnings.append(
+                        f"Required field '{field_name}' was not carried through to target"
+                    )
+
+        if warnings:
+            logger.info(
+                "Post-transition validation warnings for %s -> %s: %s",
+                source_process.gid,
+                target_task.gid if hasattr(target_task, "gid") else "unknown",
+                warnings,
+            )
+
+        return ValidationResult(valid=True, warnings=warnings)

@@ -1247,3 +1247,465 @@ class TestDueDateHandling:
         # No due date set for legacy config
         assert "set_due_date" not in result.actions_executed
         context.client.tasks.update_async.assert_not_called()
+
+
+class TestValidationParameters:
+    """Tests for validation parameter initialization."""
+
+    def test_default_no_required_fields(self) -> None:
+        """Test default has no required fields."""
+        rule = PipelineConversionRule()
+        assert rule._required_source_fields == []
+
+    def test_default_validate_mode_is_warn(self) -> None:
+        """Test default validate_mode is 'warn'."""
+        rule = PipelineConversionRule()
+        assert rule._validate_mode == "warn"
+
+    def test_custom_required_fields(self) -> None:
+        """Test custom required_source_fields are stored."""
+        rule = PipelineConversionRule(
+            required_source_fields=["deal_value", "close_date"],
+        )
+        assert rule._required_source_fields == ["deal_value", "close_date"]
+
+    def test_validate_mode_block(self) -> None:
+        """Test validate_mode='block' is stored."""
+        rule = PipelineConversionRule(validate_mode="block")
+        assert rule._validate_mode == "block"
+
+    def test_none_required_fields_becomes_empty_list(self) -> None:
+        """Test None required_source_fields becomes empty list."""
+        rule = PipelineConversionRule(required_source_fields=None)
+        assert rule._required_source_fields == []
+
+
+class TestPreTransitionValidation:
+    """Tests for _validate_pre_transition method."""
+
+    def test_no_required_fields_returns_success(self) -> None:
+        """Test validation succeeds when no required fields configured."""
+        rule = PipelineConversionRule()
+        process = MockProcess(gid="process_123")
+
+        result = rule._validate_pre_transition(process)
+
+        assert result.valid is True
+        assert result.errors == []
+
+    def test_present_required_field_returns_success(self) -> None:
+        """Test validation succeeds when required field is present."""
+        rule = PipelineConversionRule(required_source_fields=["name"])
+        process = MockProcess(gid="process_123", name="Test Process")
+
+        result = rule._validate_pre_transition(process)
+
+        assert result.valid is True
+        assert result.errors == []
+
+    def test_missing_required_field_returns_failure(self) -> None:
+        """Test validation fails when required field is missing."""
+        rule = PipelineConversionRule(required_source_fields=["nonexistent_field"])
+        process = MockProcess(gid="process_123", name="Test Process")
+
+        result = rule._validate_pre_transition(process)
+
+        assert result.valid is False
+        assert "Missing required field: nonexistent_field" in result.errors
+
+    def test_empty_string_required_field_returns_failure(self) -> None:
+        """Test validation fails when required field is empty string."""
+        rule = PipelineConversionRule(required_source_fields=["name"])
+        process = MockProcess(gid="process_123", name="   ")
+
+        result = rule._validate_pre_transition(process)
+
+        assert result.valid is False
+        assert "Empty required field: name" in result.errors
+
+    def test_none_required_field_returns_failure(self) -> None:
+        """Test validation fails when required field is None."""
+        rule = PipelineConversionRule(required_source_fields=["name"])
+        process = MockProcess(gid="process_123", name=None)
+
+        result = rule._validate_pre_transition(process)
+
+        assert result.valid is False
+        assert "Missing required field: name" in result.errors
+
+    def test_multiple_missing_fields(self) -> None:
+        """Test validation reports all missing fields."""
+        rule = PipelineConversionRule(
+            required_source_fields=["field1", "field2", "field3"]
+        )
+        process = MockProcess(gid="process_123")
+
+        result = rule._validate_pre_transition(process)
+
+        assert result.valid is False
+        assert len(result.errors) == 3
+        assert "Missing required field: field1" in result.errors
+        assert "Missing required field: field2" in result.errors
+        assert "Missing required field: field3" in result.errors
+
+
+class TestPostTransitionValidation:
+    """Tests for _validate_post_transition method."""
+
+    def test_no_required_fields_returns_success(self) -> None:
+        """Test post-validation succeeds when no required fields configured."""
+        rule = PipelineConversionRule()
+        process = MockProcess(gid="process_123")
+        target = MockTask(gid="new_task_123")
+
+        result = rule._validate_post_transition(process, target, None)
+
+        assert result.valid is True
+        assert result.warnings == []
+
+    def test_seeded_fields_match_returns_success(self) -> None:
+        """Test post-validation succeeds when seeded fields include required."""
+        rule = PipelineConversionRule(required_source_fields=["deal_value"])
+        process = MockProcess(gid="process_123")
+        target = MockTask(gid="new_task_123")
+        seeded_fields = {"deal_value": 5000}
+
+        result = rule._validate_post_transition(process, target, seeded_fields)
+
+        assert result.valid is True
+        assert result.warnings == []
+
+    def test_no_seeded_fields_with_required_warns(self) -> None:
+        """Test post-validation warns when no fields seeded but required configured."""
+        rule = PipelineConversionRule(required_source_fields=["deal_value"])
+        process = MockProcess(gid="process_123")
+        target = MockTask(gid="new_task_123")
+
+        result = rule._validate_post_transition(process, target, None)
+
+        assert result.valid is True  # Post-validation is advisory
+        assert "No fields were seeded" in result.warnings[0]
+
+    def test_missing_seeded_field_warns(self) -> None:
+        """Test post-validation warns when required field not in seeded."""
+        rule = PipelineConversionRule(required_source_fields=["deal_value"])
+        process = MockProcess(gid="process_123")
+        target = MockTask(gid="new_task_123")
+        seeded_fields = {"other_field": "value"}
+
+        result = rule._validate_post_transition(process, target, seeded_fields)
+
+        assert result.valid is True  # Post-validation is advisory
+        assert "deal_value" in result.warnings[0]
+
+
+class TestPreValidationInExecuteAsync:
+    """Tests for pre-validation integration in execute_async."""
+
+    @pytest.mark.asyncio
+    async def test_pre_validation_executed_when_configured(self) -> None:
+        """Test pre_validation is performed when required_source_fields set."""
+        rule = PipelineConversionRule(
+            required_source_fields=["name"],
+        )
+
+        template_section = MockSection("section_123", "Template")
+        template_task = MockTask("template_123", "Template", "Notes")
+
+        context = create_mock_context(
+            pipeline_templates={"onboarding": "onboarding_project_123"},
+            template_section=template_section,
+            template_task=template_task,
+        )
+
+        process = MockProcess(
+            gid="process_123",
+            name="Test Process",  # Required field present
+            process_type=ProcessType.SALES,
+        )
+
+        result = await rule.execute_async(process, context)
+
+        assert result.success is True
+        assert "pre_validation" in result.actions_executed
+        assert result.pre_validation is not None
+        assert result.pre_validation.valid is True
+
+    @pytest.mark.asyncio
+    async def test_pre_validation_warn_mode_continues_on_failure(self) -> None:
+        """Test transition continues when validate_mode='warn' and validation fails."""
+        rule = PipelineConversionRule(
+            required_source_fields=["nonexistent_field"],
+            validate_mode="warn",  # Default
+        )
+
+        template_section = MockSection("section_123", "Template")
+        template_task = MockTask("template_123", "Template", "Notes")
+
+        context = create_mock_context(
+            pipeline_templates={"onboarding": "onboarding_project_123"},
+            template_section=template_section,
+            template_task=template_task,
+        )
+
+        process = MockProcess(
+            gid="process_123",
+            name="Test Process",
+            process_type=ProcessType.SALES,
+        )
+
+        result = await rule.execute_async(process, context)
+
+        # Transition should still succeed despite validation failure
+        assert result.success is True
+        assert "pre_validation" in result.actions_executed
+        assert result.pre_validation is not None
+        assert result.pre_validation.valid is False  # Validation failed
+        assert "duplicate_task" in result.actions_executed  # But transition continued
+
+    @pytest.mark.asyncio
+    async def test_pre_validation_block_mode_stops_on_failure(self) -> None:
+        """Test transition stops when validate_mode='block' and validation fails."""
+        rule = PipelineConversionRule(
+            required_source_fields=["nonexistent_field"],
+            validate_mode="block",
+        )
+
+        template_section = MockSection("section_123", "Template")
+        template_task = MockTask("template_123", "Template", "Notes")
+
+        context = create_mock_context(
+            pipeline_templates={"onboarding": "onboarding_project_123"},
+            template_section=template_section,
+            template_task=template_task,
+        )
+
+        process = MockProcess(
+            gid="process_123",
+            name="Test Process",
+            process_type=ProcessType.SALES,
+        )
+
+        result = await rule.execute_async(process, context)
+
+        # Transition should fail
+        assert result.success is False
+        assert "Pre-transition validation failed" in result.error
+        assert "pre_validation" in result.actions_executed
+        assert result.pre_validation is not None
+        assert result.pre_validation.valid is False
+        # Transition should NOT have continued
+        assert "duplicate_task" not in result.actions_executed
+
+    @pytest.mark.asyncio
+    async def test_pre_validation_block_mode_continues_on_success(self) -> None:
+        """Test transition continues when validate_mode='block' and validation passes."""
+        rule = PipelineConversionRule(
+            required_source_fields=["name"],  # Will be present
+            validate_mode="block",
+        )
+
+        template_section = MockSection("section_123", "Template")
+        template_task = MockTask("template_123", "Template", "Notes")
+
+        context = create_mock_context(
+            pipeline_templates={"onboarding": "onboarding_project_123"},
+            template_section=template_section,
+            template_task=template_task,
+        )
+
+        process = MockProcess(
+            gid="process_123",
+            name="Test Process",  # Required field present
+            process_type=ProcessType.SALES,
+        )
+
+        result = await rule.execute_async(process, context)
+
+        # Transition should succeed
+        assert result.success is True
+        assert "pre_validation" in result.actions_executed
+        assert result.pre_validation is not None
+        assert result.pre_validation.valid is True
+        assert "duplicate_task" in result.actions_executed
+
+    @pytest.mark.asyncio
+    async def test_no_validation_when_no_required_fields(self) -> None:
+        """Test pre_validation not in actions when no required fields."""
+        rule = PipelineConversionRule()  # No required_source_fields
+
+        template_section = MockSection("section_123", "Template")
+        template_task = MockTask("template_123", "Template", "Notes")
+
+        context = create_mock_context(
+            pipeline_templates={"onboarding": "onboarding_project_123"},
+            template_section=template_section,
+            template_task=template_task,
+        )
+
+        process = MockProcess(
+            gid="process_123",
+            name="Test Process",
+            process_type=ProcessType.SALES,
+        )
+
+        result = await rule.execute_async(process, context)
+
+        assert result.success is True
+        assert "pre_validation" not in result.actions_executed
+        assert result.pre_validation is None
+
+
+class TestPostValidationInExecuteAsync:
+    """Tests for post-validation integration in execute_async."""
+
+    @pytest.mark.asyncio
+    async def test_post_validation_executed_when_configured(self) -> None:
+        """Test post_validation is performed when required_source_fields set."""
+        rule = PipelineConversionRule(
+            required_source_fields=["name"],
+        )
+
+        template_section = MockSection("section_123", "Template")
+        template_task = MockTask("template_123", "Template", "Notes")
+
+        context = create_mock_context(
+            pipeline_templates={"onboarding": "onboarding_project_123"},
+            template_section=template_section,
+            template_task=template_task,
+        )
+
+        process = MockProcess(
+            gid="process_123",
+            name="Test Process",
+            process_type=ProcessType.SALES,
+        )
+
+        result = await rule.execute_async(process, context)
+
+        assert result.success is True
+        assert "post_validation" in result.actions_executed
+        assert result.post_validation is not None
+        assert result.post_validation.valid is True  # Post-validation always valid
+
+    @pytest.mark.asyncio
+    async def test_no_post_validation_when_no_required_fields(self) -> None:
+        """Test post_validation not in actions when no required fields."""
+        rule = PipelineConversionRule()  # No required_source_fields
+
+        template_section = MockSection("section_123", "Template")
+        template_task = MockTask("template_123", "Template", "Notes")
+
+        context = create_mock_context(
+            pipeline_templates={"onboarding": "onboarding_project_123"},
+            template_section=template_section,
+            template_task=template_task,
+        )
+
+        process = MockProcess(
+            gid="process_123",
+            name="Test Process",
+            process_type=ProcessType.SALES,
+        )
+
+        result = await rule.execute_async(process, context)
+
+        assert result.success is True
+        assert "post_validation" not in result.actions_executed
+        assert result.post_validation is None
+
+
+class TestOnboardingToImplementationTransition:
+    """Tests for Onboarding -> Implementation pipeline transition.
+
+    Per TDD-PIPELINE-AUTOMATION-ENHANCEMENT: Second transition path.
+    """
+
+    def test_onboarding_to_implementation_rule_id(self) -> None:
+        """Test rule id for Onboarding -> Implementation."""
+        rule = PipelineConversionRule(
+            source_type=ProcessType.ONBOARDING,
+            target_type=ProcessType.IMPLEMENTATION,
+        )
+
+        assert rule.id == "pipeline_onboarding_to_implementation"
+
+    def test_onboarding_to_implementation_rule_name(self) -> None:
+        """Test rule name for Onboarding -> Implementation."""
+        rule = PipelineConversionRule(
+            source_type=ProcessType.ONBOARDING,
+            target_type=ProcessType.IMPLEMENTATION,
+        )
+
+        assert rule.name == "Pipeline: Onboarding to Implementation"
+
+    def test_onboarding_to_implementation_trigger(self) -> None:
+        """Test trigger condition for Onboarding -> Implementation."""
+        rule = PipelineConversionRule(
+            source_type=ProcessType.ONBOARDING,
+            target_type=ProcessType.IMPLEMENTATION,
+            trigger_section=ProcessSection.CONVERTED,
+        )
+
+        trigger = rule.trigger
+        assert trigger.entity_type == "Process"
+        assert trigger.event == "section_changed"
+        assert trigger.filters["process_type"] == "onboarding"
+        assert trigger.filters["section"] == "converted"
+
+    def test_onboarding_to_implementation_with_validation(self) -> None:
+        """Test rule with validation for Onboarding -> Implementation."""
+        rule = PipelineConversionRule(
+            source_type=ProcessType.ONBOARDING,
+            target_type=ProcessType.IMPLEMENTATION,
+            trigger_section=ProcessSection.CONVERTED,
+            required_source_fields=["go_live_date", "onboarding_specialist"],
+            validate_mode="warn",
+        )
+
+        assert rule._source_type == ProcessType.ONBOARDING
+        assert rule._target_type == ProcessType.IMPLEMENTATION
+        assert rule._required_source_fields == ["go_live_date", "onboarding_specialist"]
+        assert rule._validate_mode == "warn"
+
+    @pytest.mark.asyncio
+    async def test_onboarding_to_implementation_execution(self) -> None:
+        """Test execution of Onboarding -> Implementation transition."""
+        rule = PipelineConversionRule(
+            source_type=ProcessType.ONBOARDING,
+            target_type=ProcessType.IMPLEMENTATION,
+        )
+
+        template_section = MockSection("section_123", "Template")
+        template_task = MockTask("template_123", "Implementation Template", "Notes")
+        created_task = MockTask("new_task_123", "New Implementation")
+
+        context = create_mock_context(
+            pipeline_stages={
+                "implementation": PipelineStage(
+                    project_gid="impl_project_123",
+                    template_section="Template",
+                    target_section="Opportunity",
+                )
+            },
+            template_section=template_section,
+            template_task=template_task,
+            created_task=created_task,
+        )
+
+        # Note: MockProcess process_type is set but should_trigger won't match
+        # because type(entity).__name__ is "MockProcess" not "Process"
+        # This test verifies execute_async works for the flow
+        process = MockProcess(
+            gid="onboarding_123",
+            name="Onboarding - Test",
+            process_type=ProcessType.ONBOARDING,
+        )
+
+        result = await rule.execute_async(process, context)
+
+        assert result.success is True
+        assert result.rule_id == "pipeline_onboarding_to_implementation"
+        assert "lookup_target_project" in result.actions_executed
+        assert "discover_template" in result.actions_executed
+        assert "duplicate_task" in result.actions_executed

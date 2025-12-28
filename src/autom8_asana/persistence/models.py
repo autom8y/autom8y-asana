@@ -723,6 +723,7 @@ class AutomationResult:
 
     Per TDD-AUTOMATION-LAYER/FR-007: Included in SaveResult after automation.
     Per TDD-PIPELINE-AUTOMATION-ENHANCEMENT/FR-ERR-004: Enhancement tracking.
+    Per TDD-PIPELINE-AUTOMATION-ENHANCEMENT/ADR-0018: Validation tracking.
 
     Attributes:
         rule_id: Unique identifier of the rule that executed.
@@ -738,6 +739,10 @@ class AutomationResult:
         skipped_reason: Reason if rule was skipped (e.g., "circular_reference_prevented").
         enhancement_results: Per-step success tracking for pipeline enhancements.
             Keys include: "hierarchy_placement", "assignee_set", "comment_created".
+        pre_validation: Result of pre-transition validation, if performed.
+            None if validation was not configured or not performed.
+        post_validation: Result of post-transition validation, if performed.
+            None if validation was not configured or not performed.
     """
 
     rule_id: str
@@ -752,6 +757,8 @@ class AutomationResult:
     execution_time_ms: float = 0.0
     skipped_reason: str | None = None
     enhancement_results: dict[str, bool] = field(default_factory=dict)
+    pre_validation: Any | None = None  # ValidationResult, using Any to avoid circular import
+    post_validation: Any | None = None  # ValidationResult, using Any to avoid circular import
 
     def __repr__(self) -> str:
         """Return string representation."""
