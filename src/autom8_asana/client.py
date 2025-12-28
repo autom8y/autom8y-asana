@@ -78,6 +78,7 @@ if TYPE_CHECKING:
     from autom8_asana.protocols.cache import CacheProvider
     from autom8_asana.protocols.log import LogProvider
     from autom8_asana.protocols.observability import ObservabilityHook
+    from autom8_asana.search import SearchService
 
 
 class AsanaClient:
@@ -237,6 +238,10 @@ class AsanaClient:
         # Specialized clients
         self._batch: BatchClient | None = None
         self._batch_lock = threading.Lock()
+
+        # Search service (TDD-search-interface)
+        self._search: SearchService | None = None
+        self._search_lock = threading.Lock()
 
         # Automation engine (TDD-AUTOMATION-LAYER)
         from autom8_asana.automation.engine import AutomationEngine
@@ -599,6 +604,52 @@ class AsanaClient:
                     log_provider=self._log_provider,
                 )
         return self._batch
+
+    @property
+    def search(self) -> "SearchService":
+        """Search interface for cached project frames.
+
+        Per TDD-search-interface: Provides field-based GID lookup from
+        cached Polars DataFrames.
+
+        Thread-safe lazy initialization using double-checked locking.
+
+        Returns:
+            SearchService for field-based search operations.
+
+        Example:
+            >>> result = client.search.find("project_gid", {"Vertical": "Medical"})
+            >>> print(result.hits)
+
+            >>> # Async usage
+            >>> result = await client.search.find_async(
+            ...     "project_gid",
+            ...     {"Office Phone": "555-1234", "Vertical": "Medical"}
+            ... )
+            >>> for hit in result.hits:
+            ...     print(hit.gid)
+        """
+        if self._search is not None:
+            return self._search
+
+        with self._search_lock:
+            if self._search is None:
+                from autom8_asana.search import SearchService
+                from autom8_asana.dataframes import DataFrameCacheIntegration
+
+                # Create DataFrame cache integration if cache is available
+                df_integration: DataFrameCacheIntegration | None = None
+                if self._cache_provider is not None:
+                    df_integration = DataFrameCacheIntegration(
+                        cache=self._cache_provider,
+                        logger=self._log_provider,
+                    )
+
+                self._search = SearchService(
+                    cache=self._cache_provider,
+                    dataframe_integration=df_integration,
+                )
+        return self._search
 
     # --- Auto-detection ---
 
