@@ -1,6 +1,6 @@
 # PRD: Process Pipeline
 
-> **PARTIAL SUPERSESSION NOTICE (2025-12-19)**
+> **PARTIAL SUPERSESSION NOTICE (Updated 2025-12-28)**
 >
 > The `ProcessProjectRegistry` requirements (FR-REG-*) in this PRD have been **superseded** by [ADR-0101](../decisions/ADR-0101-process-pipeline-correction.md) and [PRD-TECH-DEBT-REMEDIATION](PRD-TECH-DEBT-REMEDIATION.md). The ProcessProjectRegistry was never implemented - pipeline project detection now uses `ProjectTypeRegistry` with dynamic discovery via `WorkspaceProjectRegistry`.
 >
@@ -13,7 +13,7 @@
 - **Status**: Partially Superseded
 - **Author**: Requirements Analyst
 - **Created**: 2025-12-17
-- **Last Updated**: 2025-12-19
+- **Last Updated**: 2025-12-28
 - **Stakeholders**: autom8 platform team
 - **Related PRDs**: [PRD-0010 Business Model Layer](PRD-0010-business-model-layer.md), [PRD-0013 Hierarchy Hydration](PRD-0013-hierarchy-hydration.md), **[PRD-TECH-DEBT-REMEDIATION](PRD-TECH-DEBT-REMEDIATION.md) (supersedes FR-REG-*)**
 - **Discovery**: [DISCOVERY-PROCESS-PIPELINE](../analysis/DISCOVERY-PROCESS-PIPELINE.md)
@@ -109,15 +109,15 @@ Without this functionality, consumers must implement pipeline logic outside the 
 | FR-SECTION-003 | ProcessSection.from_name() returns OTHER for unrecognized section names | Must | `ProcessSection.from_name("Unknown Section")` returns `ProcessSection.OTHER` |
 | FR-SECTION-004 | ProcessSection.from_name() handles None input gracefully | Must | `ProcessSection.from_name(None)` returns `None` |
 
-#### FR-REG: ProcessProjectRegistry
+#### FR-REG: ProcessProjectRegistry (SUPERSEDED - see ADR-0101)
 
 | ID | Requirement | Priority | Acceptance Criteria |
 |----|-------------|----------|---------------------|
-| FR-REG-001 | ProcessProjectRegistry is a singleton accessed via get_process_project_registry() | Must | Multiple calls return same instance |
-| FR-REG-002 | Registry maps ProcessType to project GID | Must | `registry.get_project_gid(ProcessType.SALES)` returns GID string or None |
-| FR-REG-003 | Registry supports environment variable override pattern: ASANA_PROCESS_PROJECT_{TYPE} | Must | Setting `ASANA_PROCESS_PROJECT_SALES=123` overrides registered GID |
-| FR-REG-004 | Registry provides reverse lookup: project GID to ProcessType | Must | `registry.get_process_type("123456")` returns `ProcessType.SALES` or None |
-| FR-REG-005 | Registry initialization is lazy (no env var reads until first access) | Should | Environment variables can be set after import |
+| FR-REG-001 | (SUPERSEDED - see ADR-0101) ProcessProjectRegistry is a singleton accessed via get_process_project_registry() | Must | Multiple calls return same instance |
+| FR-REG-002 | (SUPERSEDED - see ADR-0101) Registry maps ProcessType to project GID | Must | `registry.get_project_gid(ProcessType.SALES)` returns GID string or None |
+| FR-REG-003 | (SUPERSEDED - see ADR-0101) Registry supports environment variable override pattern: ASANA_PROCESS_PROJECT_{TYPE} | Must | Setting `ASANA_PROCESS_PROJECT_SALES=123` overrides registered GID |
+| FR-REG-004 | (SUPERSEDED - see ADR-0101) Registry provides reverse lookup: project GID to ProcessType | Must | `registry.get_process_type("123456")` returns `ProcessType.SALES` or None |
+| FR-REG-005 | (SUPERSEDED - see ADR-0101) Registry initialization is lazy (no env var reads until first access) | Should | Environment variables can be set after import |
 
 #### FR-STATE: Pipeline State Access
 
@@ -172,7 +172,7 @@ Without this functionality, consumers must implement pipeline logic outside the 
 
 | ID | Requirement | Priority | Acceptance Criteria |
 |----|-------------|----------|---------------------|
-| FR-DETECT-001 | ProcessProjectRegistry integrates with detection Tier 1 | Must | Detection checks ProcessProjectRegistry.get_process_type(project_gid) |
+| FR-DETECT-001 | (SUPERSEDED - see ADR-0101) ProcessProjectRegistry integrates with detection Tier 1 | Must | Detection checks ProcessProjectRegistry.get_process_type(project_gid) |
 | FR-DETECT-002 | Detection returns EntityType.PROCESS for tasks in registered pipeline projects | Must | Tier 1 detection works for pipeline project membership |
 | FR-DETECT-003 | Detection fallback chain works for unregistered projects | Must | Tier 2+ detection still functions for processes not in registry |
 
