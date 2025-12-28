@@ -49,7 +49,7 @@ rules:
     action:
       type: "add_tag"
       params:
-        tag: "needs-attention"
+        tag_gid: "1234567890123456"  # GID of tag to add (find via Asana API)
 
     # Enable/disable this rule
     enabled: true
@@ -67,7 +67,7 @@ rules:
     action:
       type: "add_tag"
       params:
-        tag: "deadline-soon"
+        tag_gid: "9876543210987654"  # GID of deadline warning tag
 
     enabled: true
 
@@ -84,7 +84,7 @@ rules:
     action:
       type: "change_section"
       params:
-        section: "Archive"
+        section_gid: "5678901234567890"  # GID of target section
 
     enabled: true
 
