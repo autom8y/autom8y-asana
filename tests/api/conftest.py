@@ -41,10 +41,11 @@ def mock_http_client() -> MagicMock:
     """Create a mock HTTP client for paginated responses.
 
     Returns:
-        MagicMock with get_paginated method configured.
+        MagicMock with get_paginated and get methods configured.
     """
     http_mock = MagicMock()
     http_mock.get_paginated = AsyncMock(return_value=([], None))
+    http_mock.get = AsyncMock(return_value={})
     return http_mock
 
 
@@ -92,6 +93,33 @@ def mock_workspaces_client() -> MagicMock:
 
 
 @pytest.fixture
+def mock_sections_client() -> MagicMock:
+    """Create a mock SectionsClient.
+
+    Returns:
+        MagicMock with common sections methods configured.
+    """
+    sections_mock = MagicMock()
+
+    # Default return values
+    default_section = {
+        "gid": "4444444444",
+        "name": "Test Section",
+        "project": {"gid": "3333333333", "name": "Test Project"},
+    }
+
+    # Configure async methods
+    sections_mock.get_async = AsyncMock(return_value=default_section)
+    sections_mock.create_async = AsyncMock(return_value=default_section)
+    sections_mock.update_async = AsyncMock(return_value=default_section)
+    sections_mock.delete_async = AsyncMock(return_value=None)
+    sections_mock.add_task_async = AsyncMock(return_value=None)
+    sections_mock.insert_section_async = AsyncMock(return_value=None)
+
+    return sections_mock
+
+
+@pytest.fixture
 def mock_tasks_client() -> MagicMock:
     """Create a mock TasksClient.
 
@@ -130,11 +158,43 @@ def mock_tasks_client() -> MagicMock:
 
 
 @pytest.fixture
+def mock_projects_client() -> MagicMock:
+    """Create a mock ProjectsClient.
+
+    Returns:
+        MagicMock with common projects methods configured.
+    """
+    projects_mock = MagicMock()
+
+    # Default return values
+    default_project = {
+        "gid": TEST_PROJECT_GID,
+        "name": "Test Project",
+        "notes": "Project notes",
+        "workspace": {"gid": TEST_WORKSPACE_GID, "name": "Test Workspace"},
+        "archived": False,
+        "owner": {"gid": TEST_USER_GID, "name": "Test User"},
+    }
+
+    # Configure async methods
+    projects_mock.get_async = AsyncMock(return_value=default_project)
+    projects_mock.create_async = AsyncMock(return_value=default_project)
+    projects_mock.update_async = AsyncMock(return_value=default_project)
+    projects_mock.delete_async = AsyncMock(return_value=None)
+    projects_mock.add_members_async = AsyncMock(return_value=default_project)
+    projects_mock.remove_members_async = AsyncMock(return_value=default_project)
+
+    return projects_mock
+
+
+@pytest.fixture
 def mock_asana_client(
     mock_http_client: MagicMock,
     mock_users_client: MagicMock,
     mock_workspaces_client: MagicMock,
+    mock_sections_client: MagicMock,
     mock_tasks_client: MagicMock,
+    mock_projects_client: MagicMock,
 ) -> MagicMock:
     """Create a fully mocked AsanaClient.
 
@@ -147,7 +207,9 @@ def mock_asana_client(
     client_mock._http = mock_http_client
     client_mock.users = mock_users_client
     client_mock.workspaces = mock_workspaces_client
+    client_mock.sections = mock_sections_client
     client_mock.tasks = mock_tasks_client
+    client_mock.projects = mock_projects_client
 
     # Support async context manager (if used)
     client_mock.__aenter__ = AsyncMock(return_value=client_mock)
@@ -206,3 +268,4 @@ TEST_PROJECT_GID = "3333333333"
 TEST_SECTION_GID = "4444444444"
 TEST_TASK_GID = "2222222222"
 TEST_TAG_GID = "5555555555"
+TEST_TEAM_GID = "6666666666"

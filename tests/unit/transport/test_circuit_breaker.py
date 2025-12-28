@@ -421,6 +421,52 @@ class TestCircuitBreakerConcurrency:
         assert allowed_count == 3
         assert rejected_count == 7
 
+    @pytest.mark.asyncio
+    async def test_half_open_counter_never_exceeds_max_calls(self) -> None:
+        """Counter must NEVER exceed half_open_max_calls under concurrent load.
+
+        This test verifies the fix for DEBT-008: the half-open counter
+        must strictly respect the limit even with heavy concurrent access.
+        """
+        config = CircuitBreakerConfig(
+            enabled=True,
+            failure_threshold=1,
+            recovery_timeout=10.0,
+            half_open_max_calls=5,
+        )
+        cb = CircuitBreaker(config)
+
+        # Trigger OPEN state
+        with patch("time.monotonic", return_value=1000.0):
+            await cb.record_failure(Exception("error"))
+
+        # Track the maximum counter value observed during concurrent access
+        max_observed_counter: list[int] = [0]
+
+        async def try_check_and_observe() -> None:
+            try:
+                with patch("time.monotonic", return_value=1015.0):
+                    await cb.check()
+                # After successful check, record the counter value
+                max_observed_counter[0] = max(max_observed_counter[0], cb._half_open_calls)
+            except CircuitBreakerOpenError:
+                pass
+
+        # Fire off many more concurrent requests than max_calls allows
+        # to stress-test the counter enforcement
+        await asyncio.gather(*[try_check_and_observe() for _ in range(100)])
+
+        # CRITICAL: Counter must never exceed the configured max
+        assert cb._half_open_calls <= config.half_open_max_calls, (
+            f"Counter {cb._half_open_calls} exceeded max {config.half_open_max_calls}"
+        )
+        assert max_observed_counter[0] <= config.half_open_max_calls, (
+            f"Observed counter {max_observed_counter[0]} exceeded max {config.half_open_max_calls}"
+        )
+
+        # Verify exactly max_calls were allowed through
+        assert cb._half_open_calls == config.half_open_max_calls
+
 
 class TestCircuitBreakerEdgeCases:
     """Test edge cases and boundary conditions."""

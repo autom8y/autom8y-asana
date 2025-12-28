@@ -122,9 +122,15 @@ class CircuitBreaker:
                     raise CircuitBreakerOpenError(time_remaining)
 
             if self._state == CircuitState.HALF_OPEN:
+                # Atomic check-and-increment: reject if at or above limit
                 if self._half_open_calls >= self._config.half_open_max_calls:
                     raise CircuitBreakerOpenError(0.0)
+                # Increment only after successful check, ensuring counter never exceeds limit
                 self._half_open_calls += 1
+                # Invariant: counter must never exceed max_calls
+                assert self._half_open_calls <= self._config.half_open_max_calls, (
+                    f"Half-open counter {self._half_open_calls} exceeded max {self._config.half_open_max_calls}"
+                )
 
     async def record_success(self) -> None:
         """Record successful request."""
