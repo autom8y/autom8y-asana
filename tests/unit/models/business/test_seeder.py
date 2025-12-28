@@ -271,12 +271,15 @@ class TestBusinessSeeder:
 
         assert seeder._client is client
 
-    def test_find_business_async_stub_returns_none(self) -> None:
-        """_find_business_async MVP stub returns None."""
+    def test_find_business_async_no_match_returns_none(self) -> None:
+        """_find_business_async returns None when no match found."""
         import asyncio
-        from unittest.mock import MagicMock
+        from unittest.mock import AsyncMock, MagicMock
 
         client = MagicMock()
+        # Mock search service to return no matches
+        client.search.find_one_async = AsyncMock(return_value=None)
+
         seeder = BusinessSeeder(client)
 
         data = BusinessData(name="Acme Corp", company_id="ACME-001")
@@ -284,5 +287,350 @@ class TestBusinessSeeder:
         # Run the async method
         result = asyncio.run(seeder._find_business_async(data))
 
-        # MVP stub always returns None
+        # Should return None when no match found
         assert result is None
+
+
+# --- Test: Business Deduplication ---
+
+
+class TestBusinessDeduplication:
+    """Tests for BusinessSeeder deduplication logic.
+
+    Per TDD-entity-creation: Two-tier matching strategy.
+    """
+
+    def test_search_by_company_id_returns_hit(self) -> None:
+        """_search_by_company_id returns SearchHit when match found."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+
+        from autom8_asana.search.models import SearchHit
+
+        # Create mock SearchHit
+        mock_hit = SearchHit(
+            gid="123456789",
+            entity_type="Business",
+            name="Test Business",
+            matched_fields={"Company ID": "ACME-001"},
+        )
+
+        client = MagicMock()
+        client.search.find_one_async = AsyncMock(return_value=mock_hit)
+
+        seeder = BusinessSeeder(client)
+
+        # Run the async method
+        result = asyncio.run(seeder._search_by_company_id("ACME-001"))
+
+        assert result is not None
+        assert result.gid == "123456789"
+        assert result.entity_type == "Business"
+
+        # Verify search was called with correct parameters
+        client.search.find_one_async.assert_called_once()
+        call_args = client.search.find_one_async.call_args
+        assert call_args[0][1] == {"Company ID": "ACME-001"}
+        assert call_args[1]["entity_type"] == "Business"
+
+    def test_search_by_company_id_returns_none_when_not_found(self) -> None:
+        """_search_by_company_id returns None when no match."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+
+        client = MagicMock()
+        client.search.find_one_async = AsyncMock(return_value=None)
+
+        seeder = BusinessSeeder(client)
+
+        result = asyncio.run(seeder._search_by_company_id("NONEXISTENT"))
+
+        assert result is None
+
+    def test_search_by_company_id_handles_multiple_matches(self) -> None:
+        """_search_by_company_id handles ValueError for multiple matches."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+
+        from autom8_asana.search.models import SearchHit, SearchResult
+
+        # First call raises ValueError (multiple matches)
+        # Second call (find_async) returns first match
+        mock_hit = SearchHit(
+            gid="123456789",
+            entity_type="Business",
+            name="First Match",
+            matched_fields={"Company ID": "DUP-001"},
+        )
+        mock_result = SearchResult(
+            hits=[mock_hit],
+            total_count=1,
+            query_time_ms=1.0,
+            from_cache=True,
+        )
+
+        client = MagicMock()
+        client.search.find_one_async = AsyncMock(
+            side_effect=ValueError("Multiple matches found")
+        )
+        client.search.find_async = AsyncMock(return_value=mock_result)
+
+        seeder = BusinessSeeder(client)
+
+        result = asyncio.run(seeder._search_by_company_id("DUP-001"))
+
+        assert result is not None
+        assert result.gid == "123456789"
+
+    def test_search_by_company_id_graceful_degradation(self) -> None:
+        """_search_by_company_id returns None on unexpected errors."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+
+        client = MagicMock()
+        client.search.find_one_async = AsyncMock(
+            side_effect=RuntimeError("Unexpected error")
+        )
+
+        seeder = BusinessSeeder(client)
+
+        # Should not raise, returns None
+        result = asyncio.run(seeder._search_by_company_id("ERROR-001"))
+
+        assert result is None
+
+    def test_search_by_name_returns_hit(self) -> None:
+        """_search_by_name returns SearchHit when match found."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+
+        from autom8_asana.search.models import SearchHit
+
+        mock_hit = SearchHit(
+            gid="987654321",
+            entity_type="Business",
+            name="Joe's Pizza",
+            matched_fields={"name": "Joe's Pizza"},
+        )
+
+        client = MagicMock()
+        client.search.find_one_async = AsyncMock(return_value=mock_hit)
+
+        seeder = BusinessSeeder(client)
+
+        result = asyncio.run(seeder._search_by_name("Joe's Pizza"))
+
+        assert result is not None
+        assert result.gid == "987654321"
+        assert result.name == "Joe's Pizza"
+
+    def test_search_by_name_returns_none_when_not_found(self) -> None:
+        """_search_by_name returns None when no match."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+
+        client = MagicMock()
+        client.search.find_one_async = AsyncMock(return_value=None)
+
+        seeder = BusinessSeeder(client)
+
+        result = asyncio.run(seeder._search_by_name("Nonexistent Business"))
+
+        assert result is None
+
+    def test_search_by_name_handles_multiple_matches(self) -> None:
+        """_search_by_name handles ValueError for multiple matches."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+
+        from autom8_asana.search.models import SearchHit, SearchResult
+
+        mock_hit = SearchHit(
+            gid="111222333",
+            entity_type="Business",
+            name="Common Name Corp",
+            matched_fields={"name": "Common Name Corp"},
+        )
+        mock_result = SearchResult(
+            hits=[mock_hit],
+            total_count=1,
+            query_time_ms=1.0,
+            from_cache=True,
+        )
+
+        client = MagicMock()
+        client.search.find_one_async = AsyncMock(
+            side_effect=ValueError("Multiple matches found")
+        )
+        client.search.find_async = AsyncMock(return_value=mock_result)
+
+        seeder = BusinessSeeder(client)
+
+        result = asyncio.run(seeder._search_by_name("Common Name Corp"))
+
+        assert result is not None
+        assert result.gid == "111222333"
+
+    def test_search_by_name_graceful_degradation(self) -> None:
+        """_search_by_name returns None on unexpected errors."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+
+        client = MagicMock()
+        client.search.find_one_async = AsyncMock(
+            side_effect=RuntimeError("Unexpected error")
+        )
+
+        seeder = BusinessSeeder(client)
+
+        result = asyncio.run(seeder._search_by_name("Error Business"))
+
+        assert result is None
+
+    def test_find_business_prioritizes_company_id_over_name(self) -> None:
+        """_find_business_async checks company_id first, then name."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from autom8_asana.search.models import SearchHit
+
+        # Mock a match by company_id
+        company_id_hit = SearchHit(
+            gid="COMPANY_ID_MATCH",
+            entity_type="Business",
+            name="Business Found By Company ID",
+            matched_fields={"Company ID": "ACME-001"},
+        )
+
+        client = MagicMock()
+        client.search.find_one_async = AsyncMock(return_value=company_id_hit)
+
+        seeder = BusinessSeeder(client)
+
+        # Mock _load_business to return a mock Business
+        mock_business = MagicMock()
+        mock_business.gid = "COMPANY_ID_MATCH"
+
+        with patch.object(seeder, "_load_business", new_callable=AsyncMock) as mock_load:
+            mock_load.return_value = mock_business
+
+            data = BusinessData(name="Some Name", company_id="ACME-001")
+            result = asyncio.run(seeder._find_business_async(data))
+
+            assert result is not None
+            assert result.gid == "COMPANY_ID_MATCH"
+
+            # Verify _load_business was called with the company_id match GID
+            mock_load.assert_called_once_with("COMPANY_ID_MATCH")
+
+    def test_find_business_falls_back_to_name_when_no_company_id_match(self) -> None:
+        """_find_business_async falls back to name search when company_id not matched."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from autom8_asana.search.models import SearchHit
+
+        # First call (company_id) returns None, second call (name) returns hit
+        name_hit = SearchHit(
+            gid="NAME_MATCH",
+            entity_type="Business",
+            name="Joe's Pizza",
+            matched_fields={"name": "Joe's Pizza"},
+        )
+
+        client = MagicMock()
+        client.search.find_one_async = AsyncMock(
+            side_effect=[None, name_hit]  # First call None, second call hit
+        )
+
+        seeder = BusinessSeeder(client)
+
+        mock_business = MagicMock()
+        mock_business.gid = "NAME_MATCH"
+
+        with patch.object(seeder, "_load_business", new_callable=AsyncMock) as mock_load:
+            mock_load.return_value = mock_business
+
+            data = BusinessData(name="Joe's Pizza", company_id="NOTFOUND-001")
+            result = asyncio.run(seeder._find_business_async(data))
+
+            assert result is not None
+            assert result.gid == "NAME_MATCH"
+            mock_load.assert_called_once_with("NAME_MATCH")
+
+    def test_find_business_skips_company_id_search_when_not_provided(self) -> None:
+        """_find_business_async skips company_id search if not provided."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from autom8_asana.search.models import SearchHit
+
+        name_hit = SearchHit(
+            gid="NAME_ONLY_MATCH",
+            entity_type="Business",
+            name="Name Only Business",
+            matched_fields={"name": "Name Only Business"},
+        )
+
+        client = MagicMock()
+        # Should only be called once (for name search, not company_id)
+        client.search.find_one_async = AsyncMock(return_value=name_hit)
+
+        seeder = BusinessSeeder(client)
+
+        mock_business = MagicMock()
+        mock_business.gid = "NAME_ONLY_MATCH"
+
+        with patch.object(seeder, "_load_business", new_callable=AsyncMock) as mock_load:
+            mock_load.return_value = mock_business
+
+            # No company_id provided
+            data = BusinessData(name="Name Only Business")
+            result = asyncio.run(seeder._find_business_async(data))
+
+            assert result is not None
+            assert result.gid == "NAME_ONLY_MATCH"
+
+            # find_one_async should only be called once (name search only)
+            assert client.search.find_one_async.call_count == 1
+
+    def test_find_business_returns_none_when_both_searches_fail(self) -> None:
+        """_find_business_async returns None when both tiers find no match."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+
+        client = MagicMock()
+        client.search.find_one_async = AsyncMock(return_value=None)
+
+        seeder = BusinessSeeder(client)
+
+        data = BusinessData(name="Nonexistent Business", company_id="NOTFOUND-999")
+        result = asyncio.run(seeder._find_business_async(data))
+
+        assert result is None
+
+    def test_load_business_calls_from_gid_async(self) -> None:
+        """_load_business calls Business.from_gid_async with hydrate=False."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        client = MagicMock()
+        seeder = BusinessSeeder(client)
+
+        mock_business = MagicMock()
+        mock_business.gid = "123456789"
+
+        # Patch the Business class where it's imported in the seeder module
+        with patch(
+            "autom8_asana.models.business.business.Business.from_gid_async",
+            new_callable=AsyncMock,
+        ) as mock_from_gid:
+            mock_from_gid.return_value = mock_business
+
+            result = asyncio.run(seeder._load_business("123456789"))
+
+            # Verify from_gid_async was called with hydrate=False
+            mock_from_gid.assert_called_once_with(
+                client, "123456789", hydrate=False
+            )
+            assert result.gid == "123456789"

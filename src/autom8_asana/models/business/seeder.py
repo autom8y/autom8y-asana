@@ -2,6 +2,7 @@
 
 Per ADR-0099: Find-or-create pattern for complete hierarchy creation.
 Per TDD-PROCESS-PIPELINE Phase 3.
+Per TDD-entity-creation: Business deduplication via SearchService.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
     from autom8_asana.models.business.contact import Contact
     from autom8_asana.models.business.process import Process
     from autom8_asana.models.business.unit import Unit
+    from autom8_asana.search.models import SearchHit
 
 __all__ = [
     "BusinessSeeder",
@@ -316,13 +318,161 @@ class BusinessSeeder:
     async def _find_business_async(self, data: BusinessData) -> "Business | None":
         """Find existing Business by company_id or name.
 
-        NOTE: MVP stub - always returns None (creates new).
-        Enhancement path: Implement actual Asana search API call.
+        Per TDD-entity-creation: Two-tier matching strategy.
+        Per ADR-ENTITY-001: Uses SearchService for efficient lookup.
 
-        Per FR-SEED-002.
+        Search order:
+        1. Exact match on company_id (if provided) - Tier 1
+        2. Exact match on name - Tier 2
+
+        Args:
+            data: Business data to match against.
+
+        Returns:
+            Matched Business or None if no match found.
+
+        Example:
+            business = await self._find_business_async(
+                BusinessData(name="Joe's Pizza", company_id="ACME-001")
+            )
         """
-        # TODO: Phase 2 enhancement - implement actual search
-        # 1. Search by company_id custom field if provided
-        # 2. Fall back to name search
-        # 3. Return matched Business or None
+        # Tier 1: company_id exact match (primary key lookup)
+        if data.company_id:
+            hit = await self._search_by_company_id(data.company_id)
+            if hit:
+                logger.info(
+                    "Business match found by company_id",
+                    extra={
+                        "match_type": "exact_company_id",
+                        "query_name": data.name,
+                        "query_company_id": data.company_id,
+                        "matched_gid": hit.gid,
+                    },
+                )
+                return await self._load_business(hit.gid)
+
+        # Tier 2: name exact match
+        hit = await self._search_by_name(data.name)
+        if hit:
+            logger.info(
+                "Business match found by name",
+                extra={
+                    "match_type": "exact_name",
+                    "query_name": data.name,
+                    "matched_gid": hit.gid,
+                },
+            )
+            return await self._load_business(hit.gid)
+
+        # No match found
+        logger.debug(
+            "No Business match found",
+            extra={
+                "match_type": "none",
+                "query_name": data.name,
+                "query_company_id": data.company_id,
+            },
+        )
         return None
+
+    async def _search_by_company_id(self, company_id: str) -> "SearchHit | None":
+        """Search for Business by company_id.
+
+        Per TDD-entity-creation: Tier 1 exact match on company_id field.
+
+        Args:
+            company_id: Company ID to search for.
+
+        Returns:
+            SearchHit if found, None otherwise.
+        """
+        from autom8_asana.models.business.business import Business
+
+        try:
+            # Use SearchService to find by Company ID custom field
+            # Note: Business.PRIMARY_PROJECT_GID is the Business project
+            hit = await self._client.search.find_one_async(
+                Business.PRIMARY_PROJECT_GID,
+                {"Company ID": company_id},
+                entity_type="Business",
+            )
+            return hit
+        except ValueError:
+            # Multiple matches found - log warning and return first
+            logger.warning(
+                "Multiple businesses found with same company_id",
+                extra={"company_id": company_id},
+            )
+            result = await self._client.search.find_async(
+                Business.PRIMARY_PROJECT_GID,
+                {"Company ID": company_id},
+                entity_type="Business",
+                limit=1,
+            )
+            return result.hits[0] if result.hits else None
+        except Exception as e:
+            # Graceful degradation - log and return None
+            logger.warning(
+                "Search by company_id failed",
+                extra={"company_id": company_id, "error": str(e)},
+            )
+            return None
+
+    async def _search_by_name(self, name: str) -> "SearchHit | None":
+        """Search for Business by exact name match.
+
+        Per TDD-entity-creation: Tier 2 exact match on name field.
+
+        Args:
+            name: Business name to search for.
+
+        Returns:
+            SearchHit if found, None otherwise.
+        """
+        from autom8_asana.models.business.business import Business
+
+        try:
+            # Use SearchService to find by name field
+            hit = await self._client.search.find_one_async(
+                Business.PRIMARY_PROJECT_GID,
+                {"name": name},
+                entity_type="Business",
+            )
+            return hit
+        except ValueError:
+            # Multiple matches found - log warning and return first
+            logger.warning(
+                "Multiple businesses found with same name",
+                extra={"business_name": name},
+            )
+            result = await self._client.search.find_async(
+                Business.PRIMARY_PROJECT_GID,
+                {"name": name},
+                entity_type="Business",
+                limit=1,
+            )
+            return result.hits[0] if result.hits else None
+        except Exception as e:
+            # Graceful degradation - log and return None
+            logger.warning(
+                "Search by name failed",
+                extra={"business_name": name, "error": str(e)},
+            )
+            return None
+
+    async def _load_business(self, gid: str) -> "Business":
+        """Load Business entity by GID.
+
+        Per TDD-entity-creation: Loads full Business for matched GID.
+
+        Args:
+            gid: Business task GID.
+
+        Returns:
+            Fully loaded Business entity.
+        """
+        from autom8_asana.models.business.business import Business
+
+        # Load without hydration for seeding purposes
+        # (we just need the entity, not the full hierarchy)
+        return await Business.from_gid_async(self._client, gid, hydrate=False)
