@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Search Interface v2.0**: Field-based entity lookup with Polars-backed performance
+  - `SearchService.find_async()` and `find()` for flexible multi-field queries
+  - `SearchService.find_one_async()` for single-entity lookups (raises on multiple matches)
+  - Convenience methods: `find_offers_async()`, `find_units_async()`, `find_businesses_async()`
+  - Automatic field name normalization (snake_case kwargs to Title Case column names)
+  - Polars filter expressions for sub-millisecond query performance on cached DataFrames
+  - `SearchCriteria` model with `eq`, `contains`, and `in` operators
+  - `FieldCondition` for building explicit query conditions
+  - AND/OR combinator support for complex compound queries
+  - Entity type filtering via `entity_type` parameter
+  - Result limiting via `limit` parameter
+  - `SearchResult` with hits, total_count, query_time_ms, and cache status
+  - `SearchHit` with GID, entity_type, name, and matched_fields
+  - Async-first API design with sync wrappers for all methods
+  - Automatic DataFrame caching with 5-minute TTL (300 seconds)
+  - Graceful degradation: returns empty results on errors instead of raising
+  - See [Search Query Builder Guide](docs/guides/search-query-builder.md)
+
 - **Cache Optimization Phase 2: Task-Level Cache Integration** (TDD-CACHE-PERF-FETCH-PATH)
   - Implemented two-phase cache strategy for DataFrame fetch path:
     1. Lightweight GID enumeration via `fetch_section_task_gids_async()`
