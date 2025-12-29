@@ -228,31 +228,7 @@ async def task_with_due_date(
 # Mock Task Fixtures for TriggerEvaluator Tests
 # ============================================================================
 
-
-class MockTask:
-    """Mock task object that mimics Asana task attributes.
-
-    Used for TriggerEvaluator tests where we need precise control
-    over date fields without hitting the API.
-    """
-
-    def __init__(
-        self,
-        gid: str,
-        name: str,
-        modified_at: str | None = None,
-        created_at: str | None = None,
-        due_on: str | None = None,
-        due_at: str | None = None,
-        completed: bool = False,
-    ) -> None:
-        self.gid = gid
-        self.name = name
-        self.modified_at = modified_at
-        self.created_at = created_at
-        self.due_on = due_on
-        self.due_at = due_at
-        self.completed = completed
+from tests._shared.mocks import MockTask
 
 
 @pytest.fixture
