@@ -239,6 +239,7 @@ class TestRateLimitLogging:
         rate_limit_warnings = [msg for msg in warning_logs if "Rate limit" in msg]
         assert len(rate_limit_warnings) == 0
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_logs_warning_for_long_wait(self) -> None:
         """Logs at WARNING level for waits > 1 second."""

@@ -7,6 +7,7 @@ import time
 from typing import Any
 
 import httpx
+import pytest
 import respx
 
 from autom8_asana.config import (
@@ -51,6 +52,7 @@ class MockLogger:
 class TestConcurrentRequestsRespectRateLimit:
     """Test that concurrent requests are properly rate-limited."""
 
+    @pytest.mark.slow
     async def test_100_concurrent_requests_respect_rate_limit(self) -> None:
         """Launch 100 concurrent requests and verify they're properly rate-limited without errors.
 
@@ -103,6 +105,7 @@ class TestConcurrentRequestsRespectRateLimit:
 class TestRateLimiterAndSemaphoreInteraction:
     """Test that rate limiter and concurrency semaphores work together."""
 
+    @pytest.mark.slow
     @respx.mock
     async def test_rate_limit_and_semaphore_no_deadlock(self) -> None:
         """Test that rate limiter and concurrency semaphores work together without deadlocks.
@@ -419,6 +422,7 @@ class TestBurstThenSteadyState:
 class TestRateLimiterWithHTTPClient:
     """Test rate limiter behavior through the full HTTP client stack."""
 
+    @pytest.mark.slow
     @respx.mock
     async def test_rate_limited_requests_complete_successfully(self) -> None:
         """Test that many requests through HTTP client complete with rate limiting."""
