@@ -38,6 +38,9 @@ class EntryType(str, Enum):
     PROJECT_SECTIONS = "project_sections"  # TTL: 1800s (30 min)
     GID_ENUMERATION = "gid_enumeration"    # TTL: 300s (5 min)
 
+    # Per ADR-INS-004: autom8_data insights caching
+    INSIGHTS = "insights"  # TTL: 300s (default, configurable via AUTOM8_DATA_CACHE_TTL)
+
 
 @dataclass(frozen=True)
 class CacheEntry:

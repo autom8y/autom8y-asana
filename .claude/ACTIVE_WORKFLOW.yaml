@@ -1,49 +1,74 @@
-name: doc-team-pack
+name: 10x-dev-pack
 workflow_type: sequential
-description: Documentation lifecycle (Audit → Structure → Write → Review)
+description: Full development lifecycle (PRD → TDD → Code → QA)
 
 entry_point:
-  agent: doc-auditor
+  agent: requirements-analyst
   artifact:
-    type: audit-report
-    path_template: docs/audits/AUDIT-{slug}.md
+    type: prd
+    path_template: docs/requirements/PRD-{slug}.md
 
 phases:
-  - name: audit
-    agent: doc-auditor
-    produces: audit-report
-    next: architecture
+  - name: requirements
+    agent: requirements-analyst
+    produces: prd
+    next: design
 
-  - name: architecture
-    agent: information-architect
-    produces: doc-structure
-    next: writing
-    condition: "complexity >= SECTION"
+  - name: design
+    agent: architect
+    produces: tdd
+    next: implementation
+    condition: "complexity >= MODULE"
 
-  - name: writing
-    agent: tech-writer
-    produces: documentation
-    next: review
+  - name: implementation
+    agent: principal-engineer
+    produces: code
+    next: validation
 
-  - name: review
-    agent: doc-reviewer
-    produces: review-signoff
+  - name: validation
+    agent: qa-adversary
+    produces: test-plan
     next: null
 
 complexity_levels:
-  - name: PAGE
-    scope: "Single document"
-    phases: [writing, review]
-  - name: SECTION
-    scope: "Multiple related documents"
-    phases: [architecture, writing, review]
-  - name: SITE
-    scope: "Full documentation site"
-    phases: [audit, architecture, writing, review]
+  - name: SCRIPT
+    scope: "Single file, <200 LOC"
+    phases: [requirements, implementation, validation]
+  - name: MODULE
+    scope: "Multiple files, <2000 LOC"
+    phases: [requirements, design, implementation, validation]
+  - name: SERVICE
+    scope: "APIs, persistence"
+    phases: [requirements, design, implementation, validation]
+  - name: PLATFORM
+    scope: "Multi-service"
+    phases: [requirements, design, implementation, validation]
 
 # Agent roles for command mapping:
-# /architect  → information-architect
-# /build      → tech-writer
-# /qa         → doc-reviewer
-# /hotfix     → tech-writer (fast path)
-# /code-review → doc-reviewer (review mode)
+# /architect  → architect
+# /build      → principal-engineer
+# /qa         → qa-adversary
+# /hotfix     → principal-engineer (fast path)
+# /code-review → qa-adversary (review mode)
+
+back_routes:
+  - source_phase: validation
+    trigger: "fail(acceptance_criteria)"
+    target_phase: requirements
+    target_agent: requirements-analyst
+    requires_user_confirmation: true
+    condition: "Failure is requirement gap, not implementation bug"
+
+  - source_phase: validation
+    trigger: "fail(implementation)"
+    target_phase: implementation
+    target_agent: principal-engineer
+    requires_user_confirmation: false
+    condition: "Failure is implementation bug"
+
+  - source_phase: implementation
+    trigger: "design_conflict"
+    target_phase: design
+    target_agent: architect
+    requires_user_confirmation: false
+    condition: "Implementation reveals design flaw"

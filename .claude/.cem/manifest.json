@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "skeleton_path": "/Users/tomtenuta/Code/skeleton_claude",
-  "skeleton_commit": "1657628fa99fd5fcef2b0b235612fcb45dc5213d",
+  "skeleton_commit": "a3d67b9fa792b45fa23a55b679fba29224818d74",
   "skeleton_ref": "main",
-  "last_sync": "2025-12-28T01:57:33Z",
+  "last_sync": "2025-12-30T16:45:17Z",
   "managed_files": [
     {
       "path": ".claude/commands",
@@ -18,7 +18,7 @@
     {
       "path": ".claude/hooks",
       "strategy": "copy-replace",
-      "checksum": "7d9ef175e4319f36b8ad03cd2bac41a139f241ef89840617664e895c18cb083b"
+      "checksum": "38cf0d64818a96fa2c1597e33a504b549f52b71282144903dfcc220c539f3df7"
     },
     {
       "path": ".claude/knowledge",

@@ -30,7 +30,8 @@ if [[ "$COMMAND" == *"swap-team"* ]]; then
     exit 0
   fi
 
-  ROSTER_DIR="$HOME/Code/roster/teams"
+  # Note: ROSTER_HOME is defined in config.sh (sourced via logging.sh)
+  ROSTER_DIR="$ROSTER_HOME/teams"
   WORKFLOW_FILE="$ROSTER_DIR/$TARGET_TEAM/workflow.yaml"
 elif [[ "$COMMAND" == *"ACTIVE_WORKFLOW"* ]]; then
   # Validate current active workflow (if it exists)

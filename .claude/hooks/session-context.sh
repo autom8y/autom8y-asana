@@ -195,20 +195,12 @@ if [[ "$IS_WORKTREE" == "true" ]]; then
 EOF
 fi
 
-# Workflow mode context
-if [[ "$WORKFLOW_ACTIVE" == "true" ]]; then
-    cat <<EOF
-
-**COACH MODE ACTIVE**
-You are the Coach. Delegate all implementation via Task tool.
-Do NOT use Edit/Write directly on code files.
-See: .claude/skills/orchestration/main-thread-guide.md
-EOF
-fi
+# Note: Coach Mode reminder moved to coach-mode.sh hook (RF-008)
 
 # Team routing context (if team is active)
+# Note: ROSTER_HOME is defined in config.sh (sourced via session-utils.sh)
 if [[ -f ".claude/ACTIVE_TEAM" ]]; then
-    TEAM_CONTEXT=$("$HOME/Code/roster/generate-team-context.sh" 2>/dev/null || echo "")
+    TEAM_CONTEXT=$("$ROSTER_HOME/generate-team-context.sh" 2>/dev/null || echo "")
     if [[ -n "$TEAM_CONTEXT" ]]; then
         echo ""
         echo "$TEAM_CONTEXT"

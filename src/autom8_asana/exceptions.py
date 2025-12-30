@@ -23,6 +23,11 @@ __all__ = [
     "NameNotFoundError",
     "HydrationError",
     "ResolutionError",
+    # Insights API Exceptions (FR-008)
+    "InsightsError",
+    "InsightsValidationError",
+    "InsightsNotFoundError",
+    "InsightsServiceError",
 ]
 
 
@@ -344,3 +349,109 @@ class ResolutionError(AsanaError):
         self.entity_gid = entity_gid
         self.strategies_tried = strategies_tried or []
         self.__cause__ = cause
+
+
+# --- Insights API Exceptions (FR-008) ---
+
+
+class InsightsError(AsanaError):
+    """Base exception for insights API errors.
+
+    Per FR-008.1: Base class for all insights-related exceptions.
+    Inherits from AsanaError for consistency with SDK exception hierarchy.
+
+    Attributes:
+        request_id: Request correlation ID for tracing through autom8_data.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        request_id: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize InsightsError.
+
+        Args:
+            message: Human-readable error description.
+            request_id: Request correlation ID for tracing.
+            **kwargs: Additional arguments passed to AsanaError.
+        """
+        super().__init__(message, **kwargs)
+        self.request_id = request_id
+
+
+class InsightsValidationError(InsightsError):
+    """Invalid input for insights request.
+
+    Per FR-008.2: 400-level client errors for validation failures.
+    Raised when request parameters fail validation (e.g., invalid factory,
+    malformed phone number, invalid period format).
+
+    Attributes:
+        field: Name of the field that failed validation (if applicable).
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        field: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize InsightsValidationError.
+
+        Args:
+            message: Human-readable error description.
+            field: Name of the field that failed validation.
+            **kwargs: Additional arguments passed to InsightsError.
+        """
+        super().__init__(message, **kwargs)
+        self.field = field
+
+
+class InsightsNotFoundError(InsightsError):
+    """No insights data found for the requested parameters.
+
+    Per FR-008.3: 404-level not found errors.
+    Raised when no data exists for the specified PhoneVerticalPair
+    and factory combination.
+    """
+
+    pass
+
+
+class InsightsServiceError(InsightsError):
+    """Upstream service failure from autom8_data.
+
+    Per FR-008.4: 500-level server errors and connection failures.
+    Raised when autom8_data is unavailable, times out, or returns
+    a server error.
+
+    Attributes:
+        reason: Failure reason (timeout, circuit_breaker, http_error, etc.)
+        status_code: HTTP status code from upstream (if available).
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        reason: str | None = None,
+        status_code: int | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize InsightsServiceError.
+
+        Args:
+            message: Human-readable error description.
+            reason: Failure reason category.
+            status_code: HTTP status code from upstream service.
+            **kwargs: Additional arguments passed to InsightsError.
+        """
+        # Pass status_code to parent if not already in kwargs
+        if status_code is not None and "status_code" not in kwargs:
+            kwargs["status_code"] = status_code
+        super().__init__(message, **kwargs)
+        self.reason = reason

@@ -30,9 +30,12 @@ from autom8_asana.models.business.mixins import (
 )
 from autom8_asana.models.business.holder_factory import HolderFactory
 from autom8_asana.models.task import Task
+from autom8_asana.exceptions import InsightsValidationError
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
+    from autom8_asana.clients.data import DataServiceClient
+    from autom8_asana.clients.data.models import InsightsResponse
     from autom8_asana.models.business.hours import Hours
     from autom8_asana.models.business.location import Location, LocationHolder
     from autom8_asana.models.business.unit import Unit, UnitHolder
@@ -718,3 +721,68 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
         else:
             # Fallback for stub holders without _populate_children
             setattr(holder, children_attr, subtasks)
+
+    # --- Insights API Integration (Story 3.1) ---
+
+    async def get_insights_async(
+        self,
+        client: DataServiceClient,
+        factory: str = "account",
+        period: str | None = None,
+        **kwargs: Any,
+    ) -> InsightsResponse:
+        """Fetch analytics insights for this business.
+
+        Convenience method that wraps DataServiceClient.get_insights_async,
+        automatically using this business's office_phone and vertical.
+
+        Args:
+            client: DataServiceClient instance for API calls.
+            factory: InsightsFactory name (default: "account").
+                Valid: account, ads, adsets, campaigns, etc.
+            period: Time period preset (e.g., "lifetime", "t30", "l7").
+                If None, uses client default ("lifetime").
+            **kwargs: Additional arguments passed to client.get_insights_async
+                (metrics, dimensions, groups, break_down, refresh, filters, etc.).
+
+        Returns:
+            InsightsResponse with data, metadata, and DataFrame conversion methods.
+
+        Raises:
+            InsightsValidationError: If office_phone or vertical is missing or empty.
+            InsightsNotFoundError: No data for the PhoneVerticalPair.
+            InsightsServiceError: Upstream service failure.
+
+        Example:
+            >>> async with DataServiceClient() as data_client:
+            ...     business = await Business.from_gid_async(asana_client, gid)
+            ...     insights = await business.get_insights_async(
+            ...         data_client,
+            ...         factory="account",
+            ...         period="t30",
+            ...     )
+            ...     print(f"Total spend: {insights.data}")
+        """
+        # Validate required fields
+        if not self.office_phone:
+            raise InsightsValidationError(
+                "Business office_phone is required to fetch insights",
+                field="office_phone",
+            )
+        if not self.vertical:
+            raise InsightsValidationError(
+                "Business vertical is required to fetch insights",
+                field="vertical",
+            )
+
+        # Build request kwargs
+        request_kwargs: dict[str, Any] = {
+            "factory": factory,
+            "office_phone": self.office_phone,
+            "vertical": self.vertical,
+            **kwargs,
+        }
+        if period is not None:
+            request_kwargs["period"] = period
+
+        return await client.get_insights_async(**request_kwargs)

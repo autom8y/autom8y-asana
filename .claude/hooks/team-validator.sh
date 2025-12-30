@@ -95,7 +95,8 @@ if [ -z "$TARGET_TEAM" ] || [ "$TARGET_TEAM" = "--list" ]; then
 fi
 
 # Validate team pack exists
-ROSTER_DIR="$HOME/Code/roster/teams"
+# Note: ROSTER_HOME is defined in config.sh (sourced via logging.sh)
+ROSTER_DIR="$ROSTER_HOME/teams"
 if [ ! -d "$ROSTER_DIR/$TARGET_TEAM" ]; then
   echo "Team pack '$TARGET_TEAM' not found in $ROSTER_DIR" >&2
   echo "Available teams:" >&2

@@ -1,0 +1,543 @@
+openapi: 3.1.0
+info:
+  title: DataServiceClient API Contract
+  description: |
+    Client-side contract for autom8_asana consuming the autom8_data Insights API.
+
+    This specification defines:
+    1. The HTTP calls that DataServiceClient makes to autom8_data
+    2. Request/response schemas for validation
+    3. Error response formats
+
+    **Note**: This is a CLIENT contract describing what autom8_asana expects.
+    The authoritative server spec lives in autom8_data.
+  version: 1.0.0
+  contact:
+    name: Platform Team
+  license:
+    name: Internal
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://data.staging.autom8.io
+    description: Staging environment
+  - url: https://data.autom8.io
+    description: Production environment
+
+tags:
+  - name: Insights
+    description: Analytics insights operations
+
+paths:
+  /api/v1/factory/{factory_name}:
+    post:
+      operationId: getInsights
+      summary: Fetch analytics insights
+      description: |
+        Retrieve analytics insights for a business identified by phone/vertical pair.
+
+        **Factories Available**: account, ads, adsets, campaigns, spend, leads,
+        appts, assets, targeting, payments, business_offers, ad_questions, ad_tests, base
+      tags:
+        - Insights
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: factory_name
+          in: path
+          required: true
+          description: InsightsFactory name
+          schema:
+            type: string
+            enum:
+              - account
+              - ads
+              - adsets
+              - campaigns
+              - spend
+              - leads
+              - appts
+              - assets
+              - targeting
+              - payments
+              - business_offers
+              - ad_questions
+              - ad_tests
+              - base
+        - name: X-Request-Id
+          in: header
+          required: false
+          description: Client-generated request correlation ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InsightsRequest'
+            examples:
+              basic:
+                summary: Basic lifetime insights
+                value:
+                  office_phone: "+17705753103"
+                  vertical: "chiropractic"
+                  insights_period: "lifetime"
+              trailing30:
+                summary: Last 30 days
+                value:
+                  office_phone: "+17705753103"
+                  vertical: "dental"
+                  insights_period: "t30"
+                  refresh: true
+              dateRange:
+                summary: Custom date range
+                value:
+                  office_phone: "+17705753103"
+                  vertical: "chiropractic"
+                  start_date: "2024-01-01"
+                  end_date: "2024-12-31"
+              withMetrics:
+                summary: Specific metrics only
+                value:
+                  office_phone: "+17705753103"
+                  vertical: "dental"
+                  insights_period: "t30"
+                  metrics: ["spend", "leads", "cpl"]
+      responses:
+        '200':
+          description: Insights data retrieved successfully
+          headers:
+            X-Request-Id:
+              description: Request correlation ID (echoed from request or server-generated)
+              schema:
+                type: string
+                format: uuid
+            X-Cache-Hit:
+              description: Whether response came from cache
+              schema:
+                type: boolean
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InsightsResponse'
+              examples:
+                accountInsights:
+                  summary: Account insights response
+                  value:
+                    data:
+                      - spend: 1500.00
+                        leads: 45
+                        cpl: 33.33
+                        roas: 2.5
+                        scheds: 12
+                    metadata:
+                      factory: "account"
+                      frame_type: "ACCOUNT_INSIGHTS"
+                      insights_period: "t30"
+                      row_count: 1
+                      column_count: 5
+                      columns:
+                        - name: "spend"
+                          dtype: "float64"
+                          nullable: false
+                        - name: "leads"
+                          dtype: "int64"
+                          nullable: false
+                        - name: "cpl"
+                          dtype: "float64"
+                          nullable: true
+                        - name: "roas"
+                          dtype: "float64"
+                          nullable: true
+                        - name: "scheds"
+                          dtype: "int64"
+                          nullable: false
+                      cache_hit: true
+                      duration_ms: 45.2
+                    request_id: "550e8400-e29b-41d4-a716-446655440000"
+                    warnings: []
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidPhone:
+                  summary: Invalid phone format
+                  value:
+                    error: "Invalid E.164 format: 555-123-4567"
+                    code: "VALIDATION_ERROR"
+                    field: "office_phone"
+                    request_id: "550e8400-e29b-41d4-a716-446655440000"
+                invalidPeriod:
+                  summary: Invalid period
+                  value:
+                    error: "Invalid period format: weekly"
+                    code: "VALIDATION_ERROR"
+                    field: "insights_period"
+                    request_id: "550e8400-e29b-41d4-a716-446655440000"
+        '401':
+          description: Authentication required or token expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Invalid or expired token"
+                code: "AUTHENTICATION_ERROR"
+                request_id: "550e8400-e29b-41d4-a716-446655440000"
+        '404':
+          description: No insights data found for the given parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "No insights found for pv1:+17705753103:chiropractic in account factory"
+                code: "NOT_FOUND"
+                request_id: "550e8400-e29b-41d4-a716-446655440000"
+        '429':
+          description: Rate limit exceeded
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Rate limit exceeded"
+                code: "RATE_LIMITED"
+                retry_after: 60
+                request_id: "550e8400-e29b-41d4-a716-446655440000"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Internal server error"
+                code: "SERVER_ERROR"
+                request_id: "550e8400-e29b-41d4-a716-446655440000"
+        '502':
+          description: Bad gateway (upstream failure)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '504':
+          description: Gateway timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /health:
+    get:
+      operationId: healthCheck
+      summary: Health check endpoint
+      description: Check if autom8_data service is healthy
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy]
+                  version:
+                    type: string
+        '503':
+          description: Service is unhealthy
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: S2S JWT token from auth service
+
+  schemas:
+    InsightsRequest:
+      type: object
+      required:
+        - office_phone
+        - vertical
+      properties:
+        office_phone:
+          type: string
+          description: E.164 formatted phone number
+          pattern: '^\+[1-9]\d{1,14}$'
+          example: "+17705753103"
+        vertical:
+          type: string
+          description: Business vertical identifier
+          example: "chiropractic"
+        insights_period:
+          type: string
+          description: |
+            Time period for insights. Options:
+            - Standard: lifetime, date, day, week, month, quarter, year
+            - Trailing: t1, t3, t7, t10, t14, t30, t90, t180, t365
+            - Last: l1, l3, l7, l10, l14, l30, l90, l180, l365, l24h
+          default: "lifetime"
+          example: "t30"
+        start_date:
+          type: string
+          format: date
+          description: Custom start date (YYYY-MM-DD)
+          example: "2024-01-01"
+        end_date:
+          type: string
+          format: date
+          description: Custom end date (YYYY-MM-DD)
+          example: "2024-12-31"
+        metrics:
+          type: array
+          items:
+            type: string
+          description: Override default metrics list
+          example: ["spend", "leads", "cpl"]
+        dimensions:
+          type: array
+          items:
+            type: string
+          description: Override default dimensions list
+        groups:
+          type: array
+          items:
+            type: string
+          description: Grouping columns
+        break_down:
+          type: array
+          items:
+            type: string
+          description: Breakdown dimensions
+        refresh:
+          type: boolean
+          default: false
+          description: Force cache refresh
+        filters:
+          type: object
+          additionalProperties: true
+          description: Additional factory-specific filters
+
+    InsightsResponse:
+      type: object
+      required:
+        - data
+        - metadata
+        - request_id
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          description: Records in row-oriented format
+        metadata:
+          $ref: '#/components/schemas/InsightsMetadata'
+        request_id:
+          type: string
+          format: uuid
+          description: Correlation ID for tracing
+        warnings:
+          type: array
+          items:
+            type: string
+          description: Non-fatal warnings (e.g., metric fallback, partial data)
+
+    InsightsMetadata:
+      type: object
+      required:
+        - factory
+        - row_count
+        - column_count
+        - columns
+        - cache_hit
+        - duration_ms
+      properties:
+        factory:
+          type: string
+          description: Factory that produced this data
+        frame_type:
+          type: string
+          description: Internal frame type identifier
+        insights_period:
+          type: string
+          description: Resolved period (may differ from request if defaults applied)
+        row_count:
+          type: integer
+          minimum: 0
+          description: Number of rows in data
+        column_count:
+          type: integer
+          minimum: 0
+          description: Number of columns in data
+        columns:
+          type: array
+          items:
+            $ref: '#/components/schemas/ColumnInfo'
+          description: Column metadata for dtype reconstruction
+        cache_hit:
+          type: boolean
+          description: Whether response was served from cache
+        duration_ms:
+          type: number
+          format: float
+          description: Server-side processing time in milliseconds
+        sort_history:
+          type: array
+          items:
+            type: string
+          description: Sort operations applied to DataFrame
+
+    ColumnInfo:
+      type: object
+      required:
+        - name
+        - dtype
+      properties:
+        name:
+          type: string
+          description: Column name
+        dtype:
+          type: string
+          description: |
+            Data type string. Common values:
+            - int64, int32: Integer types
+            - float64, float32: Floating point
+            - bool: Boolean
+            - object, string: String types
+            - datetime64[ns]: Datetime
+            - date: Date only
+          enum:
+            - int64
+            - int32
+            - float64
+            - float32
+            - bool
+            - object
+            - string
+            - datetime64[ns]
+            - date
+        nullable:
+          type: boolean
+          default: true
+          description: Whether column allows null values
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - code
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        code:
+          type: string
+          description: Machine-readable error code
+          enum:
+            - VALIDATION_ERROR
+            - AUTHENTICATION_ERROR
+            - NOT_FOUND
+            - RATE_LIMITED
+            - SERVER_ERROR
+        field:
+          type: string
+          description: Field name that caused validation error
+        request_id:
+          type: string
+          format: uuid
+          description: Request correlation ID for debugging
+        retry_after:
+          type: integer
+          description: Seconds to wait before retrying (for 429)
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error context
+
+    # Client-side models (not sent over wire, but for documentation)
+    PhoneVerticalPair:
+      type: object
+      description: |
+        Client-side model for business identification.
+        Used internally by DataServiceClient, not sent directly to API.
+      required:
+        - office_phone
+        - vertical
+      properties:
+        office_phone:
+          type: string
+          pattern: '^\+[1-9]\d{1,14}$'
+        vertical:
+          type: string
+        canonical_key:
+          type: string
+          readOnly: true
+          description: Generated key in format pv1:{phone}:{vertical}
+          example: "pv1:+17705753103:chiropractic"
+
+    BatchInsightsResult:
+      type: object
+      description: Result for a single PVP in batch response
+      required:
+        - pvp
+      properties:
+        pvp:
+          $ref: '#/components/schemas/PhoneVerticalPair'
+        response:
+          $ref: '#/components/schemas/InsightsResponse'
+        error:
+          type: string
+          description: Error message if request failed
+        success:
+          type: boolean
+          readOnly: true
+          description: Whether this PVP succeeded
+
+    BatchInsightsResponse:
+      type: object
+      description: Response from batch insights request
+      required:
+        - results
+        - request_id
+        - total_count
+        - success_count
+        - failure_count
+      properties:
+        results:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/BatchInsightsResult'
+          description: Results keyed by canonical_key
+        request_id:
+          type: string
+          format: uuid
+        total_count:
+          type: integer
+        success_count:
+          type: integer
+        failure_count:
+          type: integer
