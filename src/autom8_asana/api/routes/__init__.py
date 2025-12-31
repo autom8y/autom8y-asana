@@ -15,10 +15,12 @@ Current routes:
 - Tasks router (/api/v1/tasks) - authenticated
 - Projects router (/api/v1/projects) - authenticated
 - Sections router (/api/v1/sections) - authenticated
+- Internal router (/api/v1/internal) - S2S only (service token required)
 """
 
 from .dataframes import router as dataframes_router
 from .health import router as health_router
+from .internal import router as internal_router
 from .projects import router as projects_router
 from .sections import router as sections_router
 from .tasks import router as tasks_router
@@ -28,6 +30,7 @@ from .workspaces import router as workspaces_router
 __all__ = [
     "dataframes_router",
     "health_router",
+    "internal_router",
     "projects_router",
     "sections_router",
     "tasks_router",

@@ -48,6 +48,7 @@ from .rate_limit import limiter
 from .routes import (
     dataframes_router,
     health_router,
+    internal_router,
     projects_router,
     sections_router,
     tasks_router,
@@ -174,6 +175,7 @@ def create_app() -> FastAPI:
     app.include_router(tasks_router)
     app.include_router(projects_router)
     app.include_router(sections_router)
+    app.include_router(internal_router)
 
     # --- Exception Handlers ---
     register_exception_handlers(app)
