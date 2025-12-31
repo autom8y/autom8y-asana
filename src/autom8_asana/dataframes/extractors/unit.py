@@ -20,12 +20,12 @@ class UnitExtractor(BaseExtractor):
 
     Per FR-SUBCLASS-001: Extracts 12 base fields plus 11 Unit-specific fields.
 
-    Direct custom fields (5):
-        mrr, weekly_ad_spend, products, languages, discount
+    Direct custom fields (6):
+        mrr, weekly_ad_spend, products, languages, discount, office_phone
         These are extracted via CustomFieldResolver from cf: sources.
 
-    Derived fields (6):
-        office, office_phone, vertical_id, max_pipeline_stage
+    Derived fields (5):
+        office, vertical_id, max_pipeline_stage
         These return None with TODO comments pending autom8 team input.
         Note: vertical and specialty are direct custom fields, not derived.
 
@@ -91,29 +91,6 @@ class UnitExtractor(BaseExtractor):
         # This requires:
         # 1. Access to the Unit's associated business
         # 2. Lookup of office_phone to office mapping
-        # Deferred pending autom8 team input on business logic
-        return None
-
-    def _extract_office_phone(self, task: Task) -> str | None:
-        """Extract office phone number (derived field stub).
-
-        Per PRD-0003 Appendix A: Derived from business model.
-        Per MVP Note: Full implementation deferred pending autom8 team input.
-
-        Args:
-            task: Task to extract from
-
-        Returns:
-            None (stub implementation)
-
-        TODO:
-            Implement office_phone derivation from business model.
-            Requires access to business model relationships.
-        """
-        # TODO: Implement office_phone derivation from business model
-        # This requires:
-        # 1. Access to the Unit's associated business
-        # 2. Extraction of office_phone from business
         # Deferred pending autom8 team input on business logic
         return None
 

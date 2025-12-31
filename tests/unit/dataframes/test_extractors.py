@@ -491,16 +491,27 @@ class TestUnitExtractor:
 
         assert office is None
 
-    def test_derived_field_office_phone_returns_none(
+    def test_office_phone_extracted_from_custom_field(
+        self,
+        full_task: Task,
+    ) -> None:
+        """Test that office_phone is extracted from custom field."""
+        resolver = MockCustomFieldResolver({"office_phone": "555-123-4567"})
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
+        row = extractor.extract(full_task)
+
+        assert row.office_phone == "555-123-4567"
+
+    def test_office_phone_none_when_not_set(
         self,
         minimal_task: Task,
-        unit_resolver: MockCustomFieldResolver,
     ) -> None:
-        """Test that office_phone derived field returns None (stub)."""
-        extractor = UnitExtractor(UNIT_SCHEMA, unit_resolver)
-        office_phone = extractor._extract_office_phone(minimal_task)
+        """Test that office_phone returns None when custom field is not set."""
+        resolver = MockCustomFieldResolver({})  # No office_phone configured
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
+        row = extractor.extract(minimal_task)
 
-        assert office_phone is None
+        assert row.office_phone is None
 
     def test_derived_field_vertical_id_returns_none(
         self,
