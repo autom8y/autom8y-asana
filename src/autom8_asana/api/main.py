@@ -116,7 +116,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 "error": str(e),
                 "remediation": (
                     "Ensure workspace contains projects with names: "
-                    "Units (or Unit). Check ASANA_BOT_PAT is configured."
+                    "Business Units. Check ASANA_BOT_PAT is configured."
                 ),
             },
         )
@@ -199,7 +199,7 @@ async def _discover_entity_projects(app: FastAPI) -> None:
         # Pattern matching for entity type projects
         # Per TDD/PRD: Case-insensitive matching
         ENTITY_PATTERNS: dict[str, list[str]] = {
-            "unit": ["units", "unit"],
+            "unit": ["business units", "business unit"],
             # Phase 2: business, offer, contact entity types
             "business": ["business", "businesses"],
             "offer": ["offers", "offer"],
