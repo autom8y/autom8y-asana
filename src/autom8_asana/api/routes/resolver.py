@@ -1,0 +1,515 @@
+"""Entity Resolver routes for generalized GID resolution.
+
+Per TDD-entity-resolver Phase 1:
+This module provides the POST /v1/resolve/{entity_type} endpoint for resolving
+entity identifiers to Asana task GIDs.
+
+Phase 1 implements:
+- POST /v1/resolve/unit - Unit resolution via phone/vertical
+
+Routes:
+- POST /v1/resolve/{entity_type} - Resolve criteria to task GIDs
+
+Authentication:
+- All routes require service token (S2S JWT) authentication
+- PAT pass-through is NOT supported
+
+Request:
+    {
+        "criteria": [
+            {"phone": "+15551234567", "vertical": "dental"},
+            {"phone": "+15559876543", "vertical": "medical"}
+        ],
+        "fields": ["gid", "name"]  // Optional, Phase 2
+    }
+
+Response:
+    {
+        "results": [
+            {"gid": "1234567890123456"},
+            {"gid": null, "error": "NOT_FOUND"}
+        ],
+        "meta": {
+            "resolved_count": 1,
+            "unresolved_count": 1,
+            "entity_type": "unit",
+            "project_gid": "1201081073731555"
+        }
+    }
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import time
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from autom8_asana.api.routes.internal import (
+    ServiceClaims,
+    require_service_claims,
+)
+from autom8_asana.services.resolver import (
+    EntityProjectRegistry,
+    filter_result_fields,
+    get_strategy,
+)
+
+__all__ = [
+    "router",
+    "ResolutionCriterion",
+    "ResolutionRequest",
+    "ResolutionResultModel",
+    "ResolutionMeta",
+    "ResolutionResponse",
+]
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/v1/resolve", tags=["resolver"])
+
+
+# --- Request/Response Models ---
+
+
+class ResolutionCriterion(BaseModel):
+    """Single lookup criterion - fields vary by entity type.
+
+    Per TDD: Supports multiple resolution strategies via optional fields.
+
+    Phase 1 (Unit/Business):
+        - phone: E.164 formatted phone number
+        - vertical: Business vertical
+
+    Phase 2 (Offer):
+        - offer_id: Offer identifier
+        - offer_name: For phone/vertical + discriminator
+
+    Phase 2 (Contact):
+        - contact_email: Email address
+        - contact_phone: Phone number
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Unit/Business resolution
+    phone: str | None = None
+    vertical: str | None = None
+
+    # Offer resolution (Phase 2)
+    offer_id: str | None = None
+    offer_name: str | None = None
+
+    # Contact resolution (Phase 2)
+    contact_email: str | None = None
+    contact_phone: str | None = None
+
+    @field_validator("phone")
+    @classmethod
+    def validate_e164(cls, v: str | None) -> str | None:
+        """Validate E.164 format: +[1-9][0-9]{1,14}.
+
+        Per ITU-T E.164: + followed by 1-15 digits, where the first digit
+        after + must be non-zero (country code cannot start with 0).
+
+        Args:
+            v: Phone number string or None
+
+        Returns:
+            Validated phone number or None
+
+        Raises:
+            ValueError: If phone format is invalid.
+        """
+        if v is None:
+            return None
+
+        # Strip whitespace (including trailing newlines) before validation
+        v = v.strip()
+
+        if not re.match(r"^\+[1-9]\d{1,14}$", v):
+            raise ValueError(
+                f"Invalid E.164 format: {v}. "
+                f"Expected format: +[country][number] (e.g., +15551234567)"
+            )
+        return v
+
+
+class ResolutionRequest(BaseModel):
+    """Request body for entity resolution.
+
+    Per TDD: Batch resolution with max 1000 criteria.
+
+    Attributes:
+        criteria: List of lookup criteria (max 1000 items)
+        fields: Optional field filtering (Phase 2)
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    criteria: list[ResolutionCriterion]
+    fields: list[str] | None = None
+
+    @field_validator("criteria")
+    @classmethod
+    def validate_batch_size(
+        cls, v: list[ResolutionCriterion]
+    ) -> list[ResolutionCriterion]:
+        """Enforce max 1000 criteria per request.
+
+        Per TDD: Batch size limit preserves existing API behavior.
+
+        Args:
+            v: List of criteria to validate
+
+        Returns:
+            Validated criteria list
+
+        Raises:
+            ValueError: If batch size exceeds 1000.
+        """
+        MAX_BATCH_SIZE = 1000
+        if len(v) > MAX_BATCH_SIZE:
+            raise ValueError(
+                f"Batch size {len(v)} exceeds maximum {MAX_BATCH_SIZE}. "
+                f"Please chunk requests."
+            )
+        return v
+
+
+class ResolutionResultModel(BaseModel):
+    """Single resolution result.
+
+    Per TDD: Result of a single criterion resolution.
+
+    Attributes:
+        gid: Resolved task GID or None if not found
+        error: Error code if resolution failed
+        multiple: True if contact returned multiple matches (Phase 2)
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    gid: str | None
+    error: str | None = None
+    multiple: bool | None = None
+
+
+class ResolutionMeta(BaseModel):
+    """Response metadata.
+
+    Per TDD: Summary statistics for the resolution batch.
+
+    Attributes:
+        resolved_count: Number of successful resolutions
+        unresolved_count: Number of failed resolutions
+        entity_type: Entity type that was resolved
+        project_gid: Project GID used for resolution
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    resolved_count: int
+    unresolved_count: int
+    entity_type: str
+    project_gid: str
+
+
+class ResolutionResponse(BaseModel):
+    """Response body for entity resolution.
+
+    Per TDD: Results in same order as input criteria.
+
+    Attributes:
+        results: List of resolution results
+        meta: Response metadata
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    results: list[ResolutionResultModel]
+    meta: ResolutionMeta
+
+
+# --- Supported Entity Types ---
+
+# Phase 2: All entity types supported
+SUPPORTED_ENTITY_TYPES = {"unit", "business", "offer", "contact"}
+
+
+# --- Endpoints ---
+
+
+@router.post("/{entity_type}", response_model=ResolutionResponse)
+async def resolve_entities(
+    entity_type: str,
+    request_body: ResolutionRequest,
+    request: Request,
+    claims: Annotated[ServiceClaims, Depends(require_service_claims)],
+) -> ResolutionResponse:
+    """Resolve entity identifiers to task GIDs.
+
+    This endpoint resolves business identifiers (phone/vertical, offer_id, etc.)
+    to Asana task GIDs using entity-type-specific resolution strategies.
+
+    Authentication:
+        Requires valid service token (S2S JWT).
+        PAT tokens are NOT supported.
+
+    Path Parameters:
+        entity_type: Entity type to resolve (unit, business, offer, contact)
+
+    Request:
+        POST /v1/resolve/unit
+        {
+            "criteria": [
+                {"phone": "+15551234567", "vertical": "dental"},
+                {"phone": "+15559876543", "vertical": "medical"}
+            ]
+        }
+
+    Response:
+        {
+            "results": [
+                {"gid": "1234567890123456"},
+                {"gid": null, "error": "NOT_FOUND"}
+            ],
+            "meta": {
+                "resolved_count": 1,
+                "unresolved_count": 1,
+                "entity_type": "unit",
+                "project_gid": "1201081073731555"
+            }
+        }
+
+    Error Responses:
+        - 401 MISSING_AUTH: No Authorization header
+        - 401 SERVICE_TOKEN_REQUIRED: PAT token provided (S2S only)
+        - 404 UNKNOWN_ENTITY_TYPE: entity_type not in allowed values
+        - 422 VALIDATION_ERROR: Invalid request body
+        - 503 DISCOVERY_INCOMPLETE: Startup discovery not finished
+
+    Args:
+        entity_type: Path parameter for entity type
+        request_body: ResolutionRequest with criteria
+        request: FastAPI request object
+        claims: Validated service claims from JWT
+
+    Returns:
+        ResolutionResponse with results and metadata.
+    """
+    start_time = time.monotonic()
+    request_id = getattr(request.state, "request_id", "unknown")
+
+    logger.info(
+        "entity_resolution_request",
+        extra={
+            "request_id": request_id,
+            "entity_type": entity_type,
+            "criteria_count": len(request_body.criteria),
+            "caller_service": claims.service_name,
+        },
+    )
+
+    # Validate entity type
+    if entity_type not in SUPPORTED_ENTITY_TYPES:
+        logger.warning(
+            "unknown_entity_type",
+            extra={
+                "request_id": request_id,
+                "entity_type": entity_type,
+                "supported": list(SUPPORTED_ENTITY_TYPES),
+            },
+        )
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "UNKNOWN_ENTITY_TYPE",
+                "message": f"Unknown entity type: {entity_type}. "
+                f"Supported types: {', '.join(sorted(SUPPORTED_ENTITY_TYPES))}",
+            },
+        )
+
+    # Get entity project registry from app.state
+    entity_registry: EntityProjectRegistry | None = getattr(
+        request.app.state, "entity_project_registry", None
+    )
+
+    if entity_registry is None or not entity_registry.is_ready():
+        logger.error(
+            "entity_discovery_incomplete",
+            extra={
+                "request_id": request_id,
+                "entity_type": entity_type,
+            },
+        )
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "DISCOVERY_INCOMPLETE",
+                "message": "Entity resolver startup discovery has not completed. "
+                "Please retry after service is fully initialized.",
+            },
+        )
+
+    # Get project GID for entity type
+    project_gid = entity_registry.get_project_gid(entity_type)
+
+    if project_gid is None:
+        logger.error(
+            "entity_project_not_registered",
+            extra={
+                "request_id": request_id,
+                "entity_type": entity_type,
+            },
+        )
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "PROJECT_NOT_CONFIGURED",
+                "message": f"No project configured for entity type: {entity_type}. "
+                f"Check startup discovery logs for configuration issues.",
+            },
+        )
+
+    # Get resolution strategy
+    strategy = get_strategy(entity_type)
+
+    if strategy is None:
+        logger.error(
+            "strategy_not_found",
+            extra={
+                "request_id": request_id,
+                "entity_type": entity_type,
+            },
+        )
+        raise HTTPException(
+            status_code=501,
+            detail={
+                "error": "STRATEGY_NOT_IMPLEMENTED",
+                "message": f"Resolution strategy not implemented for: {entity_type}",
+            },
+        )
+
+    # Validate criteria for entity type
+    for i, criterion in enumerate(request_body.criteria):
+        validation_error = strategy.validate_criterion(criterion)
+        if validation_error:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "MISSING_REQUIRED_FIELD",
+                    "message": f"Criterion {i}: {validation_error}",
+                },
+            )
+
+    # Validate requested fields against schema (DEF-001)
+    if request_body.fields:
+        try:
+            # Call filter_result_fields with empty result to validate field names
+            filter_result_fields({}, request_body.fields, entity_type)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "INVALID_FIELD",
+                    "message": str(e),
+                },
+            )
+
+    # Resolve using strategy
+    try:
+        # Import here to avoid circular imports
+        from autom8_asana import AsanaClient
+        from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
+
+        try:
+            bot_pat = get_bot_pat()
+        except BotPATError as e:
+            logger.error(
+                "bot_pat_unavailable",
+                extra={
+                    "request_id": request_id,
+                    "error": str(e),
+                },
+            )
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "BOT_PAT_UNAVAILABLE",
+                    "message": "Bot PAT not configured for S2S Asana access.",
+                },
+            )
+
+        async with AsanaClient(token=bot_pat) as client:
+            resolution_results = await strategy.resolve(
+                criteria=request_body.criteria,
+                project_gid=project_gid,
+                client=client,
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(
+            "entity_resolution_error",
+            extra={
+                "request_id": request_id,
+                "entity_type": entity_type,
+                "error": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "RESOLUTION_ERROR",
+                "message": "An unexpected error occurred during resolution.",
+            },
+        )
+
+    # Convert ResolutionResult to ResolutionResultModel
+    results = [
+        ResolutionResultModel(
+            gid=r.gid,
+            error=r.error,
+            multiple=r.multiple,
+        )
+        for r in resolution_results
+    ]
+
+    # Calculate counts
+    resolved_count = sum(1 for r in results if r.gid is not None)
+    unresolved_count = len(results) - resolved_count
+
+    # Build response
+    response = ResolutionResponse(
+        results=results,
+        meta=ResolutionMeta(
+            resolved_count=resolved_count,
+            unresolved_count=unresolved_count,
+            entity_type=entity_type,
+            project_gid=project_gid,
+        ),
+    )
+
+    # Log completion
+    elapsed_ms = (time.monotonic() - start_time) * 1000
+
+    logger.info(
+        "entity_resolution_complete",
+        extra={
+            "request_id": request_id,
+            "entity_type": entity_type,
+            "criteria_count": len(request_body.criteria),
+            "resolved_count": resolved_count,
+            "unresolved_count": unresolved_count,
+            "duration_ms": round(elapsed_ms, 2),
+            "caller_service": claims.service_name,
+            "project_gid": project_gid,
+        },
+    )
+
+    return response
