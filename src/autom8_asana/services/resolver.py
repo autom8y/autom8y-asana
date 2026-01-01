@@ -511,6 +511,7 @@ class UnitResolutionStrategy:
         """
         # Import here to avoid circular imports
         from autom8_asana.dataframes.builders.project import ProjectDataFrameBuilder
+        from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
         from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
 
         # Minimal project proxy - only needs gid attribute for builder
@@ -524,10 +525,14 @@ class UnitResolutionStrategy:
         try:
             project_proxy = ProjectProxy(project_gid)
 
+            # Create resolver for custom field extraction (office_phone, vertical)
+            resolver = DefaultCustomFieldResolver()
+
             builder = ProjectDataFrameBuilder(
                 project=project_proxy,
                 task_type="Unit",
                 schema=UNIT_SCHEMA,
+                resolver=resolver,
             )
 
             # Use parallel fetch for efficient DataFrame construction
