@@ -42,6 +42,20 @@ _BASE_OPT_FIELDS: list[str] = [
     "tags.name",
     "memberships.section.name",
     "memberships.project.gid",
+    # Custom fields required for resolver-based extraction (cf:* sources)
+    # Per TDD-0009.1: DefaultCustomFieldResolver needs custom_fields to build
+    # the name->GID index and extract values for office_phone, vertical, etc.
+    "custom_fields",
+    "custom_fields.gid",
+    "custom_fields.name",
+    "custom_fields.resource_subtype",
+    "custom_fields.display_value",
+    "custom_fields.enum_value",
+    "custom_fields.enum_value.name",
+    "custom_fields.multi_enum_values",
+    "custom_fields.multi_enum_values.name",
+    "custom_fields.number_value",
+    "custom_fields.text_value",
 ]
 
 if TYPE_CHECKING:
