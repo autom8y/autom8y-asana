@@ -330,6 +330,77 @@ class TestCacheConfigFromEnv:
         assert config.ttl.default_ttl == 900
 
 
+class TestCacheProviderFactoryCreateUnifiedStore:
+    """Tests for CacheProviderFactory.create_unified_store()."""
+
+    def test_creates_unified_store_with_memory_provider(self) -> None:
+        """Creates UnifiedTaskStore with InMemoryCacheProvider."""
+        from autom8_asana.cache.freshness_coordinator import FreshnessMode
+        from autom8_asana.cache.unified import UnifiedTaskStore
+
+        config = CacheConfig(enabled=True, provider="memory")
+
+        store = CacheProviderFactory.create_unified_store(config)
+
+        assert isinstance(store, UnifiedTaskStore)
+        assert isinstance(store.cache, InMemoryCacheProvider)
+        assert store.freshness_mode == FreshnessMode.EVENTUAL
+        assert store.batch_client is None
+
+    def test_creates_unified_store_with_null_provider_when_disabled(self) -> None:
+        """Creates UnifiedTaskStore with NullCacheProvider when cache disabled."""
+        from autom8_asana.cache.unified import UnifiedTaskStore
+
+        config = CacheConfig(enabled=False)
+
+        store = CacheProviderFactory.create_unified_store(config)
+
+        assert isinstance(store, UnifiedTaskStore)
+        assert isinstance(store.cache, NullCacheProvider)
+
+    def test_creates_unified_store_with_batch_client(self) -> None:
+        """Creates UnifiedTaskStore with provided batch_client."""
+        from unittest.mock import MagicMock
+
+        from autom8_asana.cache.unified import UnifiedTaskStore
+
+        config = CacheConfig(enabled=True, provider="memory")
+        mock_batch_client = MagicMock()
+
+        store = CacheProviderFactory.create_unified_store(
+            config, batch_client=mock_batch_client
+        )
+
+        assert isinstance(store, UnifiedTaskStore)
+        assert store.batch_client is mock_batch_client
+
+    def test_creates_unified_store_with_freshness_mode(self) -> None:
+        """Creates UnifiedTaskStore with specified freshness mode."""
+        from autom8_asana.cache.freshness_coordinator import FreshnessMode
+        from autom8_asana.cache.unified import UnifiedTaskStore
+
+        config = CacheConfig(enabled=True, provider="memory")
+
+        store = CacheProviderFactory.create_unified_store(
+            config, freshness_mode=FreshnessMode.STRICT
+        )
+
+        assert isinstance(store, UnifiedTaskStore)
+        assert store.freshness_mode == FreshnessMode.STRICT
+
+    def test_defaults_to_eventual_freshness_mode(self) -> None:
+        """Defaults to EVENTUAL freshness mode when not specified."""
+        from autom8_asana.cache.freshness_coordinator import FreshnessMode
+        from autom8_asana.cache.unified import UnifiedTaskStore
+
+        config = CacheConfig(enabled=True, provider="memory")
+
+        store = CacheProviderFactory.create_unified_store(config)
+
+        assert isinstance(store, UnifiedTaskStore)
+        assert store.freshness_mode == FreshnessMode.EVENTUAL
+
+
 class TestCacheConfigDefaults:
     """Tests for CacheConfig default values and properties."""
 

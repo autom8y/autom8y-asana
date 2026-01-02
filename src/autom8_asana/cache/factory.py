@@ -6,16 +6,20 @@ Per ADR-0123: Detection chain priority for provider selection.
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING
+
+from autom8y_log import get_logger
 
 from autom8_asana.settings import get_settings
 
 if TYPE_CHECKING:
+    from autom8_asana.batch.client import BatchClient
+    from autom8_asana.cache.freshness_coordinator import FreshnessMode
+    from autom8_asana.cache.unified import UnifiedTaskStore
     from autom8_asana.config import CacheConfig
     from autom8_asana.protocols.cache import CacheProvider
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CacheProviderFactory:
@@ -207,6 +211,42 @@ class CacheProviderFactory:
         # For Phase 1, tiered maps to Redis (S3 cold tier is Phase 3)
         logger.info("Creating tiered cache provider (Redis-only for Phase 1)")
         return CacheProviderFactory._create_redis_provider(config)
+
+    @staticmethod
+    def create_unified_store(
+        config: "CacheConfig",
+        batch_client: "BatchClient | None" = None,
+        freshness_mode: "FreshnessMode | None" = None,
+    ) -> "UnifiedTaskStore":
+        """Create unified task store with environment-aware provider selection.
+
+        Per MIGRATION-PLAN-legacy-cache-elimination RF-001:
+        Follows same detection chain as create() for provider selection.
+
+        Args:
+            config: CacheConfig with provider settings.
+            batch_client: Optional BatchClient for freshness checks.
+            freshness_mode: Default freshness mode.
+
+        Returns:
+            UnifiedTaskStore configured for the environment.
+        """
+        from autom8_asana.cache.freshness_coordinator import FreshnessMode
+        from autom8_asana.cache.unified import UnifiedTaskStore
+
+        # Use same provider selection logic as create()
+        cache_provider = CacheProviderFactory.create(config)
+
+        # Default to EVENTUAL if not specified
+        if freshness_mode is None:
+            freshness_mode = FreshnessMode.EVENTUAL
+
+        # Create and return unified store
+        return UnifiedTaskStore(
+            cache=cache_provider,
+            batch_client=batch_client,
+            freshness_mode=freshness_mode,
+        )
 
 
 def create_cache_provider(
