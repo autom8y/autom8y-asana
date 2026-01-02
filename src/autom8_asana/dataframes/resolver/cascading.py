@@ -4,14 +4,18 @@ Per TDD-CASCADING-FIELD-RESOLUTION-001: Resolves field values by traversing
 the parent task chain, using CASCADING_FIELD_REGISTRY to find field definitions
 and respecting CascadingFieldDef rules (target_types, allow_override).
 
+Per TDD-UNIFIED-CACHE-001 Phase 3: Adds optional CascadeViewPlugin delegation
+for unified cache integration.
+
 This resolver bridges the DataFrame extraction layer to the business model layer's
 CascadingFieldDef system.
 """
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any
+
+from autom8y_log import get_logger
 
 from autom8_asana.models.business.detection import EntityType, detect_entity_type
 from autom8_asana.models.business.fields import (
@@ -22,10 +26,11 @@ from autom8_asana.models.business.fields import (
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
+    from autom8_asana.dataframes.views.cascade_view import CascadeViewPlugin
     from autom8_asana.models.task import Task
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CascadingFieldResolver:
@@ -37,24 +42,41 @@ class CascadingFieldResolver:
     Per TDD-CASCADING-FIELD-RESOLUTION-001: Bridges DataFrame extraction
     layer to business model layer's CascadingFieldDef system.
 
+    Per TDD-UNIFIED-CACHE-001 Phase 3: Supports optional CascadeViewPlugin
+    delegation for unified cache integration. When cascade_plugin is provided,
+    resolve_async() delegates to it instead of using the local _parent_cache.
+
     Example:
+        >>> # Traditional usage
         >>> resolver = CascadingFieldResolver(client=client)
-        >>> # Resolve Office Phone from Business ancestor
         >>> value = await resolver.resolve_async(unit_task, "Office Phone")
+
+        >>> # Unified cache integration
+        >>> from autom8_asana.dataframes.views.cascade_view import CascadeViewPlugin
+        >>> cascade_plugin = CascadeViewPlugin(store=unified_store)
+        >>> resolver = CascadingFieldResolver(client=client, cascade_plugin=cascade_plugin)
+        >>> value = await resolver.resolve_async(unit_task, "Office Phone")  # Delegates to plugin
 
     Attributes:
         _client: AsanaClient for fetching parent tasks.
-        _parent_cache: Cache of gid -> parent Task for batch efficiency.
+        _cascade_plugin: Optional CascadeViewPlugin for unified cache delegation.
     """
 
-    def __init__(self, client: AsanaClient) -> None:
+    def __init__(
+        self,
+        client: AsanaClient,
+        cascade_plugin: "CascadeViewPlugin | None" = None,
+    ) -> None:
         """Initialize resolver with Asana client.
 
         Args:
-            client: AsanaClient for fetching parent tasks when not cached.
+            client: AsanaClient for fetching parent tasks.
+            cascade_plugin: Optional CascadeViewPlugin for unified cache delegation.
+                           Per TDD-UNIFIED-CACHE-001 Phase 3: When provided, resolve_async()
+                           delegates to cascade_plugin.resolve_async().
         """
         self._client = client
-        self._parent_cache: dict[str, Task] = {}
+        self._cascade_plugin = cascade_plugin
 
     async def resolve_async(
         self,
@@ -66,6 +88,9 @@ class CascadingFieldResolver:
 
         Per FR-CASCADE-RESOLVE-002: Traverses parent chain until field
         is found or max_depth is reached.
+
+        Per TDD-UNIFIED-CACHE-001 Phase 3: When cascade_plugin is provided,
+        delegates to cascade_plugin.resolve_async() for unified cache usage.
 
         Args:
             task: Starting task to resolve from.
@@ -82,6 +107,14 @@ class CascadingFieldResolver:
             - Parent chain broken (no parent)
             - Field not found in any ancestor
         """
+        # TDD-UNIFIED-CACHE-001 Phase 3: Delegate to cascade_plugin if provided
+        if self._cascade_plugin is not None:
+            return await self._cascade_plugin.resolve_async(
+                task=task,
+                field_name=field_name,
+                max_depth=max_depth,
+            )
+
         # Look up field in registry
         result = get_cascading_field(field_name)
         if result is None:
@@ -252,36 +285,35 @@ class CascadingFieldResolver:
         return None
 
     async def _fetch_parent_async(self, parent_gid: str) -> Task | None:
-        """Fetch parent task, using cache if available.
+        """Fetch parent task via cascade plugin or API.
 
-        Per FR-CASCADE-RESOLVE-004: Cache fetched parent tasks.
+        Requires cascade_plugin to be provided during initialization.
 
         Args:
             parent_gid: GID of parent task to fetch.
 
         Returns:
             Parent Task if found, None on error.
-        """
-        # Check cache first
-        if parent_gid in self._parent_cache:
-            logger.debug(
-                "cascade_parent_fetch",
-                extra={"parent_gid": parent_gid, "cache_hit": True},
-            )
-            return self._parent_cache[parent_gid]
 
-        # Fetch from API
+        Raises:
+            ValueError: If cascade_plugin is not configured.
+        """
+        if self._cascade_plugin is None:
+            raise ValueError(
+                "CascadingFieldResolver requires cascade_plugin for parent fetch. "
+                "Legacy _parent_cache has been removed in Phase 4."
+            )
+
+        # Delegate to cascade plugin for fetch
         try:
             logger.debug(
                 "cascade_parent_fetch",
-                extra={"parent_gid": parent_gid, "cache_hit": False},
+                extra={"parent_gid": parent_gid},
             )
             parent = await self._client.tasks.get_async(
                 parent_gid,
                 opt_fields=list(STANDARD_TASK_OPT_FIELDS),
             )
-            # Cache the result
-            self._parent_cache[parent_gid] = parent
             return parent
         except Exception as e:
             logger.warning(
@@ -411,19 +443,3 @@ class CascadingFieldResolver:
         }
 
         return class_name_map.get(cls.__name__, EntityType.UNKNOWN)
-
-    def clear_cache(self) -> None:
-        """Clear the parent task cache.
-
-        Per FR-CASCADE-RESOLVE-004: Provide cache invalidation for testing.
-        """
-        self._parent_cache.clear()
-        logger.debug("cascade_cache_cleared")
-
-    def get_cache_size(self) -> int:
-        """Get current cache size for monitoring.
-
-        Returns:
-            Number of cached parent tasks.
-        """
-        return len(self._parent_cache)
