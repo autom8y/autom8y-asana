@@ -904,10 +904,11 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
             cached_rows = {}
             cache_misses = tasks
 
-        # Extract rows for cache misses
+        # Extract rows for cache misses using async extraction
+        # Per TDD-CASCADING-FIELD-RESOLUTION-001: Must use async for cascade: sources
         extracted_rows: list[tuple[str, dict[str, Any], datetime | str | None]] = []
         for task in cache_misses:
-            row = self._extract_row(task)
+            row = await self._extract_row_async(task)
             modified_at = getattr(task, "modified_at", None)
             extracted_rows.append((task.gid, row, modified_at))
 
@@ -1032,7 +1033,8 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
                     return existing_df, sync_start
 
                 # FR-006: Merge deltas into existing DataFrame
-                merged_df = self._merge_deltas(existing_df, modified_tasks)
+                # Per TDD-CASCADING-FIELD-RESOLUTION-001: Use async for cascade: sources
+                merged_df = await self._merge_deltas_async(existing_df, modified_tasks)
                 return merged_df, sync_start
 
             except Exception as e:
@@ -1108,7 +1110,7 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
 
         return tasks
 
-    def _merge_deltas(
+    async def _merge_deltas_async(
         self,
         existing_df: pl.DataFrame,
         changed_tasks: list[Task],
@@ -1120,6 +1122,8 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
         2. Remove existing rows with matching GIDs
         3. Append new/updated rows
         4. Return merged DataFrame
+
+        Per TDD-CASCADING-FIELD-RESOLUTION-001: Async for cascade: sources.
 
         Edge cases handled:
         - Task created: New GID appended to DataFrame
@@ -1139,10 +1143,11 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
         if not changed_tasks:
             return existing_df
 
-        # Extract rows from changed tasks using existing extractor
+        # Extract rows from changed tasks using async extractor
+        # Per TDD-CASCADING-FIELD-RESOLUTION-001: Must use async for cascade: sources
         changed_rows: list[dict[str, Any]] = []
         for task in changed_tasks:
-            row = self._extract_row(task)
+            row = await self._extract_row_async(task)
             changed_rows.append(row)
 
         # Create DataFrame from changed tasks

@@ -350,6 +350,9 @@ class DataFrameBuilder(ABC):
         Handles resolver initialization on first call and delegates
         to the extractor for actual field extraction.
 
+        Note: This sync method cannot handle cascade: sources.
+        Use _extract_row_async() for schemas with cascade: fields.
+
         Args:
             task: Task to extract data from
 
@@ -366,6 +369,34 @@ class DataFrameBuilder(ABC):
         # Extract row using extractor
         project_gid = self._get_project_gid()
         row = self._extractor.extract(task, project_gid)
+
+        return row.to_dict()
+
+    async def _extract_row_async(self, task: Task) -> dict[str, Any]:
+        """Extract a single row from a task asynchronously.
+
+        Per TDD-CASCADING-FIELD-RESOLUTION-001: Async extraction supporting
+        cascade: prefix for parent chain traversal.
+
+        Handles resolver initialization on first call and delegates
+        to the extractor's async extraction method.
+
+        Args:
+            task: Task to extract data from
+
+        Returns:
+            Dict mapping column names to extracted values
+        """
+        # Initialize resolver on first task
+        self._ensure_resolver_initialized(task)
+
+        # Get or create extractor
+        if self._extractor is None:
+            self._extractor = self._get_extractor()
+
+        # Extract row using async extractor method
+        project_gid = self._get_project_gid()
+        row = await self._extractor.extract_async(task, project_gid)
 
         return row.to_dict()
 
@@ -478,7 +509,8 @@ class DataFrameBuilder(ABC):
 
             if task_project_gid is None:
                 # Cannot cache without project context, extract directly
-                row = self._extract_row(task)
+                # Per TDD-CASCADING-FIELD-RESOLUTION-001: Use async for cascade: sources
+                row = await self._extract_row_async(task)
                 rows.append(row)
                 continue
 
@@ -495,7 +527,8 @@ class DataFrameBuilder(ABC):
                 rows.append(cached_row.data)
             else:
                 # Cache miss - extract and queue for caching
-                row = self._extract_row(task)
+                # Per TDD-CASCADING-FIELD-RESOLUTION-001: Use async for cascade: sources
+                row = await self._extract_row_async(task)
                 rows.append(row)
 
                 # Queue for caching if we have modified_at
