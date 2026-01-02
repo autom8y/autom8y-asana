@@ -464,3 +464,72 @@ class TestWorkspaceGidIndirection:
         # Token should also use indirection (existing pattern)
         token = client._auth_provider.get_secret("BOT_PAT")
         assert token == "test-pat-from-secrets"
+
+
+class TestAsanaClientUnifiedStore:
+    """Tests for AsanaClient.unified_store property."""
+
+    def test_unified_store_lazy_init(self) -> None:
+        """unified_store property lazily initializes UnifiedTaskStore."""
+        from autom8_asana._defaults.cache import InMemoryCacheProvider
+        from autom8_asana.cache.unified import UnifiedTaskStore
+
+        client = AsanaClient(token="test-token")
+
+        # Access unified_store
+        store = client.unified_store
+
+        assert store is not None
+        assert isinstance(store, UnifiedTaskStore)
+        assert isinstance(store.cache, InMemoryCacheProvider)
+
+    def test_unified_store_same_instance_on_repeated_calls(self) -> None:
+        """Repeated calls to unified_store return same instance."""
+        client = AsanaClient(token="test-token")
+
+        store1 = client.unified_store
+        store2 = client.unified_store
+
+        assert store1 is store2
+
+    def test_unified_store_none_when_cache_disabled(self) -> None:
+        """unified_store returns None when cache is disabled."""
+        from autom8_asana.config import AsanaConfig, CacheConfig
+
+        config = AsanaConfig(cache=CacheConfig(enabled=False))
+        client = AsanaClient(token="test-token", config=config)
+
+        assert client.unified_store is None
+
+    def test_unified_store_uses_batch_client(self) -> None:
+        """unified_store is wired with client's batch client."""
+        from autom8_asana.cache.unified import UnifiedTaskStore
+
+        client = AsanaClient(token="test-token")
+
+        store = client.unified_store
+
+        assert store is not None
+        assert isinstance(store, UnifiedTaskStore)
+        # Batch client is lazy-initialized, so access it first
+        assert store.batch_client is client.batch
+
+    def test_unified_store_thread_safe(self) -> None:
+        """unified_store initialization is thread-safe."""
+        import threading
+
+        client = AsanaClient(token="test-token")
+        stores = []
+
+        def access_store() -> None:
+            stores.append(client.unified_store)
+
+        threads = [threading.Thread(target=access_store) for _ in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # All threads should get the same instance
+        assert len(stores) == 10
+        assert all(s is stores[0] for s in stores)

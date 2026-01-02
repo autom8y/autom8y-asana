@@ -74,6 +74,7 @@ from autom8_asana.transport.http import AsyncHTTPClient
 if TYPE_CHECKING:
     from autom8_asana.automation.engine import AutomationEngine
     from autom8_asana.cache.metrics import CacheMetrics
+    from autom8_asana.cache.unified import UnifiedTaskStore
     from autom8_asana.protocols.auth import AuthProvider
     from autom8_asana.protocols.cache import CacheProvider
     from autom8_asana.protocols.log import LogProvider
@@ -242,6 +243,10 @@ class AsanaClient:
         # Search service (TDD-search-interface)
         self._search: SearchService | None = None
         self._search_lock = threading.Lock()
+
+        # Unified cache store (MIGRATION-PLAN-legacy-cache-elimination)
+        self._unified_store: UnifiedTaskStore | None = None
+        self._unified_store_lock = threading.Lock()
 
         # Automation engine (TDD-AUTOMATION-LAYER)
         from autom8_asana.automation.engine import AutomationEngine
@@ -651,6 +656,44 @@ class AsanaClient:
                 )
         return self._search
 
+    @property
+    def unified_store(self) -> "UnifiedTaskStore | None":
+        """Access unified task store for cache operations.
+
+        Per MIGRATION-PLAN-legacy-cache-elimination RF-002:
+        Provides single source of truth for task caching.
+
+        Thread-safe lazy initialization using double-checked locking.
+
+        Returns:
+            UnifiedTaskStore if caching enabled, None otherwise.
+
+        Example:
+            >>> if client.unified_store:
+            ...     task = await client.unified_store.get_async("task-gid")
+        """
+        from autom8_asana._defaults.cache import NullCacheProvider
+
+        # If cache provider is null, don't create unified store
+        if isinstance(self._cache_provider, NullCacheProvider):
+            return None
+
+        # Fast path: store already exists
+        if self._unified_store is not None:
+            return self._unified_store
+
+        # Slow path: acquire lock and create store
+        with self._unified_store_lock:
+            # Double-check after acquiring lock
+            if self._unified_store is None:
+                from autom8_asana.cache.factory import CacheProviderFactory
+
+                self._unified_store = CacheProviderFactory.create_unified_store(
+                    config=self._config.cache,
+                    batch_client=self.batch,
+                )
+        return self._unified_store
+
     # --- Auto-detection ---
 
     @staticmethod
@@ -880,8 +923,12 @@ class AsanaClient:
         if running_loop is not None:
             # There's a running loop - fail fast per ADR-0002
             raise SyncInAsyncContextError(
-                method_name="warm_cache",
-                async_method_name="warm_cache_async",
+                sync_method="warm_cache",
+                async_method="warm_cache_async",
+                message=(
+                    "Cannot call sync method 'warm_cache' from async context. "
+                    "Use 'warm_cache_async' instead."
+                ),
             )
 
         return asyncio.run(self.warm_cache_async(gids, entry_type))
