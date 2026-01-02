@@ -301,11 +301,6 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
         """
         import time
 
-        from autom8_asana.dataframes.builders.parallel_fetch import (
-            ParallelFetchError,
-            ParallelSectionFetcher,
-        )
-
         project_gid = self._get_project_gid()
         if not project_gid:
             # No project GID - fall back to existing build method
