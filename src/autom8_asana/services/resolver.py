@@ -22,11 +22,12 @@ Per TDD: Module-level cache dict for GidLookupIndex per project.
 
 from __future__ import annotations
 
-import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, runtime_checkable
+
+from autom8y_log import get_logger
 
 from autom8_asana.models.contracts.phone_vertical import PhoneVerticalPair
 from autom8_asana.services.gid_lookup import GidLookupIndex
@@ -51,7 +52,7 @@ __all__ = [
     "filter_result_fields",
 ]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # --- Module-Level GidLookupIndex Cache ---
 # Per TDD: TTL-based cache for O(1) lookups
@@ -571,6 +572,7 @@ class UnitResolutionStrategy:
                 schema=UNIT_SCHEMA,
                 resolver=resolver,
                 client=client,
+                unified_store=client.unified_store,
             )
 
             # Use incremental refresh when watermark and existing_df exist
@@ -649,6 +651,7 @@ class UnitResolutionStrategy:
                 schema=UNIT_SCHEMA,
                 resolver=resolver,
                 client=client,
+                unified_store=client.unified_store,
             )
 
             # Use parallel fetch for efficient DataFrame construction
@@ -1085,6 +1088,7 @@ class OfferResolutionStrategy:
                 project=project_proxy,
                 task_type="Offer",
                 schema=BASE_SCHEMA,
+                unified_store=client.unified_store,
             )
 
             df = await builder.build_with_parallel_fetch_async(client)
@@ -1325,6 +1329,7 @@ class ContactResolutionStrategy:
                 project=project_proxy,
                 task_type="Contact",
                 schema=CONTACT_SCHEMA,
+                unified_store=client.unified_store,
             )
 
             df = await builder.build_with_parallel_fetch_async(client)
