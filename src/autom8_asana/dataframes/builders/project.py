@@ -21,10 +21,7 @@ from autom8y_log import get_logger
 
 from autom8_asana.cache.dataframes import make_dataframe_key
 from autom8_asana.dataframes.builders.base import LAZY_THRESHOLD, DataFrameBuilder
-from autom8_asana.dataframes.builders.task_cache import (
-    TaskCacheCoordinator,
-    TaskCacheResult,
-)
+from autom8_asana.dataframes.builders.task_cache import TaskCacheCoordinator
 from autom8_asana.dataframes.extractors.base import BaseExtractor
 from autom8_asana.dataframes.models.schema import DataFrameSchema
 
@@ -70,7 +67,6 @@ if TYPE_CHECKING:
     from autom8_asana.dataframes.cache_integration import DataFrameCacheIntegration
     from autom8_asana.dataframes.resolver.protocol import CustomFieldResolver
     from autom8_asana.models.task import Task
-    from autom8_asana.protocols.cache import CacheProvider
 
 logger = get_logger(__name__)
 
@@ -317,10 +313,6 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
 
         # Determine concurrency limit
         max_concurrent = max_concurrent_sections or 8
-
-        # Determine if row cache is available and should be used
-        row_cache_available = use_cache and self._cache_integration is not None
-        schema_version = self._schema.version
 
         # Get Task-level cache coordinator from unified store
         task_cache_coordinator = TaskCacheCoordinator.from_unified_store(self._unified_store)

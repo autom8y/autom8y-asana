@@ -131,7 +131,6 @@ from autom8_asana.cache.tiered import TieredCacheProvider, TieredConfig
 # Lightweight staleness detection (TDD-CACHE-LIGHTWEIGHT-STALENESS)
 from autom8_asana.cache.coalescer import RequestCoalescer
 from autom8_asana.cache.lightweight_checker import LightweightChecker
-from autom8_asana.cache.staleness_coordinator import StalenessCheckCoordinator
 from autom8_asana.cache.staleness_settings import StalenessCheckSettings
 
 # Unified cache (TDD-UNIFIED-CACHE-001, MIGRATION-PLAN-legacy-cache-elimination RF-003)
@@ -204,7 +203,6 @@ __all__ = [
     "StalenessCheckSettings",
     "LightweightChecker",
     "RequestCoalescer",
-    "StalenessCheckCoordinator",
     # Unified cache (TDD-UNIFIED-CACHE-001, MIGRATION-PLAN-legacy-cache-elimination RF-003)
     "UnifiedTaskStore",
     "FreshnessMode",

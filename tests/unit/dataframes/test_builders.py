@@ -182,6 +182,12 @@ def mock_section(full_task: Task) -> MagicMock:
 
 
 @pytest.fixture
+def mock_unified_store() -> MagicMock:
+    """Create a mock UnifiedTaskStore for Phase 4 mandatory requirement."""
+    return MagicMock()
+
+
+@pytest.fixture
 def many_tasks() -> list[Task]:
     """Create a list of tasks exceeding LAZY_THRESHOLD."""
     tasks = []
@@ -560,6 +566,7 @@ class TestProjectDataFrameBuilder:
         self,
         mock_project: MagicMock,
         unit_resolver: MockCustomFieldResolver,
+        mock_unified_store: MagicMock,
     ) -> None:
         """Test builder initialization with project."""
         builder = ProjectDataFrameBuilder(
@@ -567,6 +574,7 @@ class TestProjectDataFrameBuilder:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
+            unified_store=mock_unified_store,
         )
 
         assert builder.project == mock_project
@@ -585,6 +593,7 @@ class TestProjectDataFrameBuilder:
             schema=UNIT_SCHEMA,
             sections=["Active", "In Progress"],
             resolver=unit_resolver,
+        unified_store=mock_unified_store,
         )
 
         assert builder.sections == ["Active", "In Progress"]
@@ -600,6 +609,7 @@ class TestProjectDataFrameBuilder:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
+        unified_store=mock_unified_store,
         )
 
         tasks = builder.get_tasks()
@@ -618,6 +628,7 @@ class TestProjectDataFrameBuilder:
             schema=UNIT_SCHEMA,
             sections=["Active"],
             resolver=unit_resolver,
+        unified_store=mock_unified_store,
         )
 
         tasks = builder.get_tasks()
@@ -637,6 +648,7 @@ class TestProjectDataFrameBuilder:
             schema=UNIT_SCHEMA,
             sections=["Active", "Done"],
             resolver=unit_resolver,
+        unified_store=mock_unified_store,
         )
 
         tasks = builder.get_tasks()
@@ -657,6 +669,7 @@ class TestProjectDataFrameBuilder:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
+        unified_store=mock_unified_store,
         )
 
         assert builder._get_project_gid() == "proj123"
@@ -674,6 +687,7 @@ class TestProjectDataFrameBuilder:
             project=project,
             task_type="Unit",
             schema=UNIT_SCHEMA,
+        unified_store=mock_unified_store,
         )
 
         assert builder._task_in_sections(task_in_active_section, ["Active"]) is True
@@ -691,6 +705,7 @@ class TestProjectDataFrameBuilder:
             project=project,
             task_type="Unit",
             schema=UNIT_SCHEMA,
+        unified_store=mock_unified_store,
         )
 
         assert builder._task_in_sections(task_in_active_section, ["Done"]) is False
@@ -708,6 +723,7 @@ class TestProjectDataFrameBuilder:
             project=project,
             task_type="Unit",
             schema=UNIT_SCHEMA,
+        unified_store=mock_unified_store,
         )
 
         assert builder._task_in_sections(task_no_memberships, ["Active"]) is False
@@ -723,6 +739,7 @@ class TestProjectDataFrameBuilder:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
+        unified_store=mock_unified_store,
         )
 
         df = builder.build(lazy=False)
@@ -744,6 +761,7 @@ class TestProjectDataFrameBuilder:
             schema=UNIT_SCHEMA,
             sections=["Active"],
             resolver=unit_resolver,
+        unified_store=mock_unified_store,
         )
 
         df = builder.build(lazy=False)
@@ -764,6 +782,7 @@ class TestProjectDataFrameBuilder:
             project=project,
             task_type="Unit",
             schema=UNIT_SCHEMA,
+        unified_store=mock_unified_store,
         )
 
         tasks = builder.get_tasks()
@@ -771,7 +790,8 @@ class TestProjectDataFrameBuilder:
         assert len(tasks) == 1
         assert tasks[0] == full_task
 
-    def test_get_tasks_empty_project(self) -> None:
+    def test_get_tasks_empty_project(self,
+        mock_unified_store: MagicMock,) -> None:
         """Test get_tasks returns empty list for project with no tasks."""
         project = MagicMock()
         project.gid = "proj123"
@@ -781,6 +801,7 @@ class TestProjectDataFrameBuilder:
             project=project,
             task_type="Unit",
             schema=UNIT_SCHEMA,
+        unified_store=mock_unified_store,
         )
 
         tasks = builder.get_tasks()
@@ -978,6 +999,7 @@ class TestBuildersIntegration:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
+        unified_store=mock_unified_store,
         )
 
         section_builder = SectionDataFrameBuilder(
@@ -1005,6 +1027,7 @@ class TestBuildersIntegration:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
+        unified_store=mock_unified_store,
         )
 
         eager_df = builder.build(lazy=False)
@@ -1043,6 +1066,7 @@ class TestBuildersIntegration:
             task_type="Contact",
             schema=CONTACT_SCHEMA,
             resolver=contact_resolver,
+        unified_store=mock_unified_store,
         )
 
         df = builder.build(lazy=False)
@@ -1065,7 +1089,8 @@ class TestBuildersIntegration:
 class TestBuildersEdgeCases:
     """Edge case tests for builders."""
 
-    def test_project_with_none_tasks(self) -> None:
+    def test_project_with_none_tasks(self,
+        mock_unified_store: MagicMock,) -> None:
         """Test project with None tasks attribute."""
         project = MagicMock()
         project.gid = "proj123"
@@ -1075,6 +1100,7 @@ class TestBuildersEdgeCases:
             project=project,
             task_type="Unit",
             schema=UNIT_SCHEMA,
+        unified_store=mock_unified_store,
         )
 
         tasks = builder.get_tasks()
@@ -1098,7 +1124,8 @@ class TestBuildersEdgeCases:
 
         assert tasks == []
 
-    def test_task_with_empty_memberships_list(self) -> None:
+    def test_task_with_empty_memberships_list(self,
+        mock_unified_store: MagicMock,) -> None:
         """Test section filtering with task having empty memberships list."""
         task = Task(
             gid="task_empty_memberships",
@@ -1119,13 +1146,15 @@ class TestBuildersEdgeCases:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             sections=["Active"],
+        unified_store=mock_unified_store,
         )
 
         tasks = builder.get_tasks()
 
         assert tasks == []  # Task should be filtered out
 
-    def test_membership_with_null_section(self) -> None:
+    def test_membership_with_null_section(self,
+        mock_unified_store: MagicMock,) -> None:
         """Test section filtering with membership having null section."""
         task = Task(
             gid="task_null_section",
@@ -1151,13 +1180,15 @@ class TestBuildersEdgeCases:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             sections=["Active"],
+        unified_store=mock_unified_store,
         )
 
         tasks = builder.get_tasks()
 
         assert tasks == []
 
-    def test_project_without_gid_attribute(self) -> None:
+    def test_project_without_gid_attribute(self,
+        mock_unified_store: MagicMock,) -> None:
         """Test project without gid attribute returns None for project_gid."""
         project = MagicMock(spec=[])  # No attributes
         project.tasks = []
@@ -1166,6 +1197,7 @@ class TestBuildersEdgeCases:
             project=project,
             task_type="Unit",
             schema=UNIT_SCHEMA,
+        unified_store=mock_unified_store,
         )
 
         assert builder._get_project_gid() is None
