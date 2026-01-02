@@ -33,7 +33,6 @@ Design Principles:
 - Structured JSON logging
 """
 
-import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -45,6 +44,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+
+from autom8y_log import get_logger
 
 if TYPE_CHECKING:
     import polars as pl
@@ -71,7 +72,7 @@ from .routes import (
     workspaces_router,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
@@ -646,6 +647,8 @@ async def _do_incremental_catchup(
                 task_type=task_type,
                 schema=schema,
                 resolver=resolver,
+                client=client,
+                unified_store=client.unified_store,
             )
 
             # Use incremental refresh
@@ -745,6 +748,8 @@ async def _do_full_rebuild(
                 task_type=task_type,
                 schema=schema,
                 resolver=resolver,
+                client=client,
+                unified_store=client.unified_store,
             )
 
             # Full fetch
