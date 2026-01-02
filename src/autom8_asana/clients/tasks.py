@@ -8,16 +8,17 @@ Per ADR-0059: P1 operations and TTL resolution extracted for SRP compliance.
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any, Literal, overload
+
+from autom8y_log import get_logger
 
 from autom8_asana.clients.base import BaseClient
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 from autom8_asana.models import PageIterator, Task
 from autom8_asana.models.business.fields import STANDARD_TASK_OPT_FIELDS
 from autom8_asana.observability import error_handler
-from autom8_asana.transport.sync import sync_wrapper
+from autom8_asana.transport import sync_wrapper
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
@@ -50,7 +51,6 @@ class TasksClient(BaseClient):
         cache_provider: Any | None = None,
         log_provider: Any | None = None,
         client: "AsanaClient | None" = None,
-        staleness_coordinator: Any | None = None,
     ) -> None:
         """Initialize TasksClient.
 
@@ -61,9 +61,6 @@ class TasksClient(BaseClient):
             cache_provider: Optional cache provider
             log_provider: Optional log provider
             client: Full AsanaClient instance (for SaveSession support)
-            staleness_coordinator: Optional staleness check coordinator for
-                lightweight staleness detection. Per ADR-0134: When provided,
-                enables staleness-aware cache lookups for get_async().
         """
         super().__init__(
             http=http,
@@ -71,7 +68,6 @@ class TasksClient(BaseClient):
             auth_provider=auth_provider,
             cache_provider=cache_provider,
             log_provider=log_provider,
-            staleness_coordinator=staleness_coordinator,
         )
         self._client = client
         # Lazy initialization to avoid circular imports (per ADR-0059)
@@ -142,7 +138,6 @@ class TasksClient(BaseClient):
         Per FR-CLIENT-002: Uses task GID as cache key with EntryType.TASK.
         Per FR-CLIENT-004: Respects TTL expiration.
         Per FR-CLIENT-007: raw=True returns cached dict directly.
-        Per ADR-0134: Uses staleness-aware cache lookup when coordinator available.
 
         Args:
             task_gid: Task GID
@@ -160,14 +155,8 @@ class TasksClient(BaseClient):
 
         validate_gid(task_gid, "task_gid")
 
-        # Per ADR-0134: Use staleness-aware cache if coordinator available
-        if self._staleness_coordinator is not None:
-            cached_entry = await self._cache_get_with_staleness_async(
-                task_gid, EntryType.TASK
-            )
-        else:
-            # FR-CLIENT-001: Check cache first (standard path)
-            cached_entry = self._cache_get(task_gid, EntryType.TASK)
+        # FR-CLIENT-001: Check cache first
+        cached_entry = self._cache_get(task_gid, EntryType.TASK)
 
         if cached_entry is not None:
             # Per NFR-OBS-001: Log cache hit at DEBUG level
