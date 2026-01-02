@@ -161,6 +161,7 @@ class Project(AsanaResource):
         cache_integration: DataFrameCacheIntegration | None = None,
         use_cache: bool = True,
         lazy: bool | None = None,
+        client: AsanaClient | None = None,
     ) -> pl.DataFrame:
         """Async variant of to_dataframe().
 
@@ -191,6 +192,7 @@ class Project(AsanaResource):
         from autom8_asana.dataframes.models.registry import SchemaRegistry
 
         schema = SchemaRegistry.get_instance().get_schema(task_type)
+        unified_store = client.unified_store if client else None
         builder = ProjectDataFrameBuilder(
             project=self,
             task_type=task_type,
@@ -198,6 +200,8 @@ class Project(AsanaResource):
             sections=sections,
             resolver=resolver,
             cache_integration=cache_integration if use_cache else None,
+            client=client,
+            unified_store=unified_store,
         )
         return await builder.build_async(lazy=lazy, use_cache=use_cache)
 
@@ -270,6 +274,7 @@ class Project(AsanaResource):
         if cache_integration is None:
             cache_integration = getattr(client, "_dataframe_cache_integration", None)
 
+        unified_store = client.unified_store if client else None
         builder = ProjectDataFrameBuilder(
             project=self,
             task_type=task_type,
@@ -278,6 +283,7 @@ class Project(AsanaResource):
             resolver=resolver,
             cache_integration=cache_integration,
             client=client,  # Per TDD-CASCADING-FIELD-RESOLUTION-001: Required for cascade: sources
+            unified_store=unified_store,
         )
 
         return await builder.build_with_parallel_fetch_async(client, **kwargs)
