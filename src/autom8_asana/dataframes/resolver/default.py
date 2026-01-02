@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 from autom8_asana.dataframes.resolver.normalizer import NameNormalizer
 
 if TYPE_CHECKING:
+    from autom8_asana.dataframes.models.schema import ColumnDef
     from autom8_asana.models.custom_field import CustomField
     from autom8_asana.models.task import Task
 
@@ -149,16 +150,23 @@ class DefaultCustomFieldResolver:
         task: Task,
         field_name: str,
         expected_type: type | None = None,
+        *,
+        column_def: ColumnDef | None = None,
     ) -> Any:
         """Extract custom field value from task.
 
         Args:
             task: Task to extract from
             field_name: Schema field name (with optional prefix)
-            expected_type: Optional type for coercion
+            expected_type: Optional type for coercion (deprecated, use column_def)
+            column_def: Optional column definition for schema-aware coercion
 
         Returns:
             Extracted value (coerced if type provided), or None
+
+        Note:
+            When column_def is provided, its dtype is used for coercion.
+            The expected_type parameter is deprecated in favor of column_def.
 
         Raises:
             KeyError: If strict mode and field not found
@@ -180,11 +188,49 @@ class DefaultCustomFieldResolver:
             )
             if cf_gid == gid:
                 raw_value = self._extract_raw_value(cf_data)
+
+                # Schema-aware coercion takes precedence
+                if column_def is not None:
+                    return self._coerce_with_schema(raw_value, column_def, cf_data)
+
+                # Fallback to legacy type-based coercion
                 if expected_type is not None and raw_value is not None:
                     return self._coerce(raw_value, expected_type)
+
                 return raw_value
 
         return None
+
+    def _coerce_with_schema(
+        self,
+        value: Any,
+        column_def: ColumnDef,
+        cf_data: dict[str, Any] | Any,
+    ) -> Any:
+        """Coerce value using schema dtype.
+
+        Args:
+            value: Raw value from Asana API
+            column_def: Column definition with target dtype
+            cf_data: Custom field data for source type info
+
+        Returns:
+            Coerced value
+        """
+        from autom8_asana.dataframes.resolver.coercer import coerce_value
+
+        # Get source type from custom field data
+        source_type = (
+            cf_data.get("resource_subtype")
+            if isinstance(cf_data, dict)
+            else getattr(cf_data, "resource_subtype", None)
+        )
+
+        return coerce_value(
+            value,
+            column_def.dtype,
+            source_type=source_type,
+        )
 
     def has_field(self, field_name: str) -> bool:
         """Check if field is resolvable.

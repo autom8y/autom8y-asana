@@ -13,6 +13,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from autom8_asana.dataframes.models.schema import ColumnDef
 from autom8_asana.dataframes.resolver import (
     CustomFieldResolver,
     DefaultCustomFieldResolver,
@@ -619,3 +620,828 @@ class TestProtocolCompliance:
         """Test FailingResolver satisfies Protocol."""
         resolver = FailingResolver(fail_on=[])
         assert isinstance(resolver, CustomFieldResolver)
+
+
+# ============================================================================
+# TestSchemaAwareCoercion
+# ============================================================================
+
+
+class TestSchemaAwareCoercion:
+    """Tests for _coerce_with_schema() method in DefaultCustomFieldResolver.
+
+    Per TDD-custom-field-type-coercion FR-002/FR-003: Tests schema-aware coercion
+    using column_def parameter.
+    """
+
+    def test_coerce_with_schema_multi_enum_to_string(self) -> None:
+        """Test multi_enum list coerced to comma-separated string via column_def."""
+        resolver = DefaultCustomFieldResolver()
+        custom_fields = [
+            MockCustomField(gid="123", name="Products", resource_subtype="multi_enum"),
+        ]
+        resolver.build_index(custom_fields)  # type: ignore[arg-type]
+
+        task = MockTask(
+            custom_fields=[
+                {
+                    "gid": "123",
+                    "name": "Products",
+                    "resource_subtype": "multi_enum",
+                    "multi_enum_values": [
+                        {"gid": "a", "name": "Product A"},
+                        {"gid": "b", "name": "Product B"},
+                    ],
+                }
+            ]
+        )
+
+        # Define column with Utf8 dtype (should join list to string)
+        column_def = ColumnDef(
+            name="products",
+            dtype="Utf8",
+            source="cf:Products",
+        )
+
+        value = resolver.get_value(
+            task, "cf:Products", column_def=column_def  # type: ignore[arg-type]
+        )
+        assert value == "Product A, Product B"
+
+    def test_coerce_with_schema_list_dtype_passthrough(self) -> None:
+        """Test list value passed through when column dtype is List[Utf8]."""
+        resolver = DefaultCustomFieldResolver()
+        custom_fields = [
+            MockCustomField(gid="123", name="Products", resource_subtype="multi_enum"),
+        ]
+        resolver.build_index(custom_fields)  # type: ignore[arg-type]
+
+        task = MockTask(
+            custom_fields=[
+                {
+                    "gid": "123",
+                    "name": "Products",
+                    "resource_subtype": "multi_enum",
+                    "multi_enum_values": [
+                        {"gid": "a", "name": "Product A"},
+                        {"gid": "b", "name": "Product B"},
+                    ],
+                }
+            ]
+        )
+
+        # Define column with List[Utf8] dtype (should preserve list)
+        column_def = ColumnDef(
+            name="products",
+            dtype="List[Utf8]",
+            source="cf:Products",
+        )
+
+        value = resolver.get_value(
+            task, "cf:Products", column_def=column_def  # type: ignore[arg-type]
+        )
+        assert value == ["Product A", "Product B"]
+
+    def test_coerce_with_schema_number_to_decimal(self) -> None:
+        """Test number value coerced to Decimal via column_def."""
+        resolver = DefaultCustomFieldResolver()
+        custom_fields = [
+            MockCustomField(gid="123", name="MRR", resource_subtype="number"),
+        ]
+        resolver.build_index(custom_fields)  # type: ignore[arg-type]
+
+        task = MockTask(
+            custom_fields=[
+                {
+                    "gid": "123",
+                    "name": "MRR",
+                    "resource_subtype": "number",
+                    "number_value": 5000.50,
+                }
+            ]
+        )
+
+        column_def = ColumnDef(
+            name="mrr",
+            dtype="Decimal",
+            source="cf:MRR",
+        )
+
+        value = resolver.get_value(
+            task, "cf:MRR", column_def=column_def  # type: ignore[arg-type]
+        )
+        assert value == Decimal("5000.5")
+        assert isinstance(value, Decimal)
+
+    def test_coerce_with_schema_number_to_float(self) -> None:
+        """Test number value coerced to Float64 via column_def."""
+        resolver = DefaultCustomFieldResolver()
+        custom_fields = [
+            MockCustomField(gid="123", name="Score", resource_subtype="number"),
+        ]
+        resolver.build_index(custom_fields)  # type: ignore[arg-type]
+
+        task = MockTask(
+            custom_fields=[
+                {
+                    "gid": "123",
+                    "name": "Score",
+                    "resource_subtype": "number",
+                    "number_value": 95.5,
+                }
+            ]
+        )
+
+        column_def = ColumnDef(
+            name="score",
+            dtype="Float64",
+            source="cf:Score",
+        )
+
+        value = resolver.get_value(
+            task, "cf:Score", column_def=column_def  # type: ignore[arg-type]
+        )
+        assert value == 95.5
+        assert isinstance(value, float)
+
+    def test_coerce_with_schema_empty_list_to_none(self) -> None:
+        """Test empty multi_enum list coerced to None for Utf8 dtype."""
+        resolver = DefaultCustomFieldResolver()
+        custom_fields = [
+            MockCustomField(gid="123", name="Tags", resource_subtype="multi_enum"),
+        ]
+        resolver.build_index(custom_fields)  # type: ignore[arg-type]
+
+        task = MockTask(
+            custom_fields=[
+                {
+                    "gid": "123",
+                    "name": "Tags",
+                    "resource_subtype": "multi_enum",
+                    "multi_enum_values": [],
+                }
+            ]
+        )
+
+        column_def = ColumnDef(
+            name="tags",
+            dtype="Utf8",
+            source="cf:Tags",
+        )
+
+        value = resolver.get_value(
+            task, "cf:Tags", column_def=column_def  # type: ignore[arg-type]
+        )
+        assert value is None
+
+    def test_column_def_takes_precedence_over_expected_type(self) -> None:
+        """Test column_def coercion takes precedence over expected_type."""
+        resolver = DefaultCustomFieldResolver()
+        custom_fields = [
+            MockCustomField(gid="123", name="Products", resource_subtype="multi_enum"),
+        ]
+        resolver.build_index(custom_fields)  # type: ignore[arg-type]
+
+        task = MockTask(
+            custom_fields=[
+                {
+                    "gid": "123",
+                    "name": "Products",
+                    "resource_subtype": "multi_enum",
+                    "multi_enum_values": [
+                        {"gid": "a", "name": "Product A"},
+                    ],
+                }
+            ]
+        )
+
+        # expected_type says list, but column_def says Utf8 - column_def wins
+        column_def = ColumnDef(
+            name="products",
+            dtype="Utf8",
+            source="cf:Products",
+        )
+
+        value = resolver.get_value(
+            task,  # type: ignore[arg-type]
+            "cf:Products",
+            expected_type=list,
+            column_def=column_def,
+        )
+        # Should be string (from column_def), not list (from expected_type)
+        assert value == "Product A"
+        assert isinstance(value, str)
+
+    def test_legacy_expected_type_still_works(self) -> None:
+        """Test backward compatibility - expected_type works when no column_def."""
+        resolver = DefaultCustomFieldResolver()
+        custom_fields = [
+            MockCustomField(gid="123", name="MRR", resource_subtype="number"),
+        ]
+        resolver.build_index(custom_fields)  # type: ignore[arg-type]
+
+        task = MockTask(
+            custom_fields=[
+                {
+                    "gid": "123",
+                    "name": "MRR",
+                    "resource_subtype": "number",
+                    "number_value": 5000.50,
+                }
+            ]
+        )
+
+        # Using old expected_type parameter without column_def
+        value = resolver.get_value(task, "cf:MRR", Decimal)  # type: ignore[arg-type]
+        assert value == Decimal("5000.5")
+        assert isinstance(value, Decimal)
+
+    def test_coerce_with_schema_null_value(self) -> None:
+        """Test null value is preserved through schema coercion."""
+        resolver = DefaultCustomFieldResolver()
+        custom_fields = [
+            MockCustomField(gid="123", name="MRR", resource_subtype="number"),
+        ]
+        resolver.build_index(custom_fields)  # type: ignore[arg-type]
+
+        task = MockTask(
+            custom_fields=[
+                {
+                    "gid": "123",
+                    "name": "MRR",
+                    "resource_subtype": "number",
+                    "number_value": None,
+                }
+            ]
+        )
+
+        column_def = ColumnDef(
+            name="mrr",
+            dtype="Decimal",
+            source="cf:MRR",
+        )
+
+        value = resolver.get_value(
+            task, "cf:MRR", column_def=column_def  # type: ignore[arg-type]
+        )
+        assert value is None
+
+    def test_coerce_with_schema_string_to_list(self) -> None:
+        """Test single string wrapped in list for List[Utf8] dtype."""
+        resolver = DefaultCustomFieldResolver()
+        custom_fields = [
+            MockCustomField(gid="123", name="Tag", resource_subtype="enum"),
+        ]
+        resolver.build_index(custom_fields)  # type: ignore[arg-type]
+
+        task = MockTask(
+            custom_fields=[
+                {
+                    "gid": "123",
+                    "name": "Tag",
+                    "resource_subtype": "enum",
+                    "enum_value": {"gid": "a", "name": "SingleTag"},
+                }
+            ]
+        )
+
+        column_def = ColumnDef(
+            name="tags",
+            dtype="List[Utf8]",
+            source="cf:Tag",
+        )
+
+        value = resolver.get_value(
+            task, "cf:Tag", column_def=column_def  # type: ignore[arg-type]
+        )
+        assert value == ["SingleTag"]
+        assert isinstance(value, list)
+
+
+# ============================================================================
+# ADVERSARIAL TESTS - MockCustomFieldResolver Consistency
+# Per TDD-custom-field-type-coercion validation
+# ============================================================================
+
+
+class TestAdversarialMockResolverConsistency:
+    """Adversarial tests to verify MockCustomFieldResolver matches DefaultCustomFieldResolver.
+
+    The mock resolver should behave identically to the real resolver when
+    schema-aware coercion is applied via column_def parameter.
+    """
+
+    def test_mock_coerces_list_to_string_with_column_def(self) -> None:
+        """Test MockCustomFieldResolver coerces list to string via column_def."""
+        resolver = MockCustomFieldResolver(
+            {"products": ["Product A", "Product B", "Product C"]}
+        )
+
+        column_def = ColumnDef(
+            name="products",
+            dtype="Utf8",
+            source="cf:Products",
+        )
+
+        value = resolver.get_value(None, "cf:Products", column_def=column_def)
+        assert value == "Product A, Product B, Product C"
+        assert isinstance(value, str)
+
+    def test_mock_coerces_empty_list_to_none(self) -> None:
+        """Test MockCustomFieldResolver coerces empty list to None."""
+        resolver = MockCustomFieldResolver({"tags": []})
+
+        column_def = ColumnDef(
+            name="tags",
+            dtype="Utf8",
+            source="cf:Tags",
+        )
+
+        value = resolver.get_value(None, "cf:Tags", column_def=column_def)
+        assert value is None
+
+    def test_mock_preserves_list_for_list_dtype(self) -> None:
+        """Test MockCustomFieldResolver preserves list for List[Utf8] dtype."""
+        resolver = MockCustomFieldResolver({"products": ["A", "B"]})
+
+        column_def = ColumnDef(
+            name="products",
+            dtype="List[Utf8]",
+            source="cf:Products",
+        )
+
+        value = resolver.get_value(None, "cf:Products", column_def=column_def)
+        assert value == ["A", "B"]
+        assert isinstance(value, list)
+
+    def test_mock_coerces_string_to_list(self) -> None:
+        """Test MockCustomFieldResolver wraps string in list for List[Utf8]."""
+        resolver = MockCustomFieldResolver({"tag": "SingleValue"})
+
+        column_def = ColumnDef(
+            name="tags",
+            dtype="List[Utf8]",
+            source="cf:Tag",
+        )
+
+        value = resolver.get_value(None, "cf:Tag", column_def=column_def)
+        assert value == ["SingleValue"]
+        assert isinstance(value, list)
+
+    def test_mock_coerces_number_to_decimal(self) -> None:
+        """Test MockCustomFieldResolver coerces float to Decimal."""
+        from decimal import Decimal
+
+        resolver = MockCustomFieldResolver({"mrr": 5000.50})
+
+        column_def = ColumnDef(
+            name="mrr",
+            dtype="Decimal",
+            source="cf:MRR",
+        )
+
+        value = resolver.get_value(None, "cf:MRR", column_def=column_def)
+        assert isinstance(value, Decimal)
+        assert value == Decimal("5000.5")
+
+    def test_mock_coerces_string_to_int(self) -> None:
+        """Test MockCustomFieldResolver coerces string to Int64."""
+        resolver = MockCustomFieldResolver({"count": "123"})
+
+        column_def = ColumnDef(
+            name="count",
+            dtype="Int64",
+            source="cf:Count",
+        )
+
+        value = resolver.get_value(None, "cf:Count", column_def=column_def)
+        assert value == 123
+        assert isinstance(value, int)
+
+    def test_mock_without_column_def_returns_raw(self) -> None:
+        """Test MockCustomFieldResolver returns raw value without column_def."""
+        resolver = MockCustomFieldResolver({"products": ["A", "B"]})
+
+        # No column_def - should return raw list
+        value = resolver.get_value(None, "cf:Products")
+        assert value == ["A", "B"]
+        assert isinstance(value, list)
+
+    def test_mock_consistency_with_default_multi_enum(self) -> None:
+        """Verify Mock and Default produce same result for multi_enum field."""
+        # Setup DefaultCustomFieldResolver
+        default_resolver = DefaultCustomFieldResolver()
+        custom_fields = [
+            MockCustomField(gid="123", name="Products", resource_subtype="multi_enum"),
+        ]
+        default_resolver.build_index(custom_fields)  # type: ignore[arg-type]
+
+        task = MockTask(
+            custom_fields=[
+                {
+                    "gid": "123",
+                    "name": "Products",
+                    "resource_subtype": "multi_enum",
+                    "multi_enum_values": [
+                        {"gid": "a", "name": "Product A"},
+                        {"gid": "b", "name": "Product B"},
+                    ],
+                }
+            ]
+        )
+
+        # Setup MockCustomFieldResolver with same data
+        mock_resolver = MockCustomFieldResolver(
+            {"products": ["Product A", "Product B"]}
+        )
+
+        column_def = ColumnDef(
+            name="products",
+            dtype="Utf8",
+            source="cf:Products",
+        )
+
+        # Both should produce the same result
+        default_value = default_resolver.get_value(
+            task, "cf:Products", column_def=column_def  # type: ignore[arg-type]
+        )
+        mock_value = mock_resolver.get_value(
+            None, "cf:Products", column_def=column_def
+        )
+
+        assert default_value == mock_value == "Product A, Product B"
+
+    def test_mock_consistency_empty_multi_enum(self) -> None:
+        """Verify Mock and Default produce same result for empty multi_enum."""
+        # Setup DefaultCustomFieldResolver
+        default_resolver = DefaultCustomFieldResolver()
+        custom_fields = [
+            MockCustomField(gid="123", name="Tags", resource_subtype="multi_enum"),
+        ]
+        default_resolver.build_index(custom_fields)  # type: ignore[arg-type]
+
+        task = MockTask(
+            custom_fields=[
+                {
+                    "gid": "123",
+                    "name": "Tags",
+                    "resource_subtype": "multi_enum",
+                    "multi_enum_values": [],
+                }
+            ]
+        )
+
+        # Setup MockCustomFieldResolver with same data
+        mock_resolver = MockCustomFieldResolver({"tags": []})
+
+        column_def = ColumnDef(
+            name="tags",
+            dtype="Utf8",
+            source="cf:Tags",
+        )
+
+        # Both should produce None
+        default_value = default_resolver.get_value(
+            task, "cf:Tags", column_def=column_def  # type: ignore[arg-type]
+        )
+        mock_value = mock_resolver.get_value(None, "cf:Tags", column_def=column_def)
+
+        assert default_value is None
+        assert mock_value is None
+
+    def test_mock_handles_unicode_in_coercion(self) -> None:
+        """Test MockCustomFieldResolver handles Unicode during coercion."""
+        resolver = MockCustomFieldResolver(
+            {"products": ["Product ", "Produkt Müller", ""]}
+        )
+
+        column_def = ColumnDef(
+            name="products",
+            dtype="Utf8",
+            source="cf:Products",
+        )
+
+        value = resolver.get_value(None, "cf:Products", column_def=column_def)
+        assert "" in value
+        assert "Müller" in value
+        assert "" in value
+
+    def test_mock_handles_none_in_list_during_coercion(self) -> None:
+        """Test MockCustomFieldResolver filters None during list-to-string coercion."""
+        resolver = MockCustomFieldResolver(
+            {"products": ["A", None, "B", None, "C"]}
+        )
+
+        column_def = ColumnDef(
+            name="products",
+            dtype="Utf8",
+            source="cf:Products",
+        )
+
+        value = resolver.get_value(None, "cf:Products", column_def=column_def)
+        assert value == "A, B, C"
+
+
+class TestAdversarialBackwardCompatibility:
+    """Adversarial tests for backward compatibility.
+
+    Verifies that the legacy expected_type parameter still works
+    and behaves correctly when mixed with column_def.
+    """
+
+    def test_legacy_expected_type_decimal(self) -> None:
+        """Test legacy expected_type=Decimal still works."""
+        resolver = DefaultCustomFieldResolver()
+        custom_fields = [
+            MockCustomField(gid="123", name="MRR", resource_subtype="number"),
+        ]
+        resolver.build_index(custom_fields)  # type: ignore[arg-type]
+
+        task = MockTask(
+            custom_fields=[
+                {
+                    "gid": "123",
+                    "name": "MRR",
+                    "resource_subtype": "number",
+                    "number_value": 1234.56,
+                }
+            ]
+        )
+
+        # Use legacy expected_type parameter
+        value = resolver.get_value(task, "cf:MRR", Decimal)  # type: ignore[arg-type]
+        assert isinstance(value, Decimal)
+        assert value == Decimal("1234.56")
+
+    def test_legacy_expected_type_str(self) -> None:
+        """Test legacy expected_type=str still works."""
+        resolver = DefaultCustomFieldResolver()
+        custom_fields = [
+            MockCustomField(gid="123", name="Count", resource_subtype="number"),
+        ]
+        resolver.build_index(custom_fields)  # type: ignore[arg-type]
+
+        task = MockTask(
+            custom_fields=[
+                {
+                    "gid": "123",
+                    "name": "Count",
+                    "resource_subtype": "number",
+                    "number_value": 42,
+                }
+            ]
+        )
+
+        value = resolver.get_value(task, "cf:Count", str)  # type: ignore[arg-type]
+        assert isinstance(value, str)
+        assert value == "42"
+
+    def test_legacy_expected_type_int(self) -> None:
+        """Test legacy expected_type=int still works."""
+        resolver = DefaultCustomFieldResolver()
+        custom_fields = [
+            MockCustomField(gid="123", name="Count", resource_subtype="number"),
+        ]
+        resolver.build_index(custom_fields)  # type: ignore[arg-type]
+
+        task = MockTask(
+            custom_fields=[
+                {
+                    "gid": "123",
+                    "name": "Count",
+                    "resource_subtype": "number",
+                    "number_value": 42.9,
+                }
+            ]
+        )
+
+        value = resolver.get_value(task, "cf:Count", int)  # type: ignore[arg-type]
+        assert isinstance(value, int)
+        assert value == 42
+
+    def test_legacy_expected_type_list(self) -> None:
+        """Test legacy expected_type=list wraps single value."""
+        resolver = DefaultCustomFieldResolver()
+        custom_fields = [
+            MockCustomField(gid="123", name="Tag", resource_subtype="text"),
+        ]
+        resolver.build_index(custom_fields)  # type: ignore[arg-type]
+
+        task = MockTask(
+            custom_fields=[
+                {
+                    "gid": "123",
+                    "name": "Tag",
+                    "resource_subtype": "text",
+                    "text_value": "SingleTag",
+                }
+            ]
+        )
+
+        value = resolver.get_value(task, "cf:Tag", list)  # type: ignore[arg-type]
+        assert isinstance(value, list)
+        assert value == ["SingleTag"]
+
+    def test_column_def_overrides_expected_type_decimal(self) -> None:
+        """Test column_def takes precedence over expected_type for Decimal."""
+        resolver = DefaultCustomFieldResolver()
+        custom_fields = [
+            MockCustomField(gid="123", name="MRR", resource_subtype="number"),
+        ]
+        resolver.build_index(custom_fields)  # type: ignore[arg-type]
+
+        task = MockTask(
+            custom_fields=[
+                {
+                    "gid": "123",
+                    "name": "MRR",
+                    "resource_subtype": "number",
+                    "number_value": 100.5,
+                }
+            ]
+        )
+
+        column_def = ColumnDef(
+            name="mrr",
+            dtype="Int64",  # Integer, not Decimal
+            source="cf:MRR",
+        )
+
+        # expected_type says Decimal, column_def says Int64 - column_def wins
+        value = resolver.get_value(
+            task,  # type: ignore[arg-type]
+            "cf:MRR",
+            expected_type=Decimal,
+            column_def=column_def,
+        )
+        assert isinstance(value, int)
+        assert value == 100  # Truncated to int
+
+    def test_no_coercion_when_neither_provided(self) -> None:
+        """Test no coercion when neither expected_type nor column_def provided."""
+        resolver = DefaultCustomFieldResolver()
+        custom_fields = [
+            MockCustomField(gid="123", name="MRR", resource_subtype="number"),
+        ]
+        resolver.build_index(custom_fields)  # type: ignore[arg-type]
+
+        task = MockTask(
+            custom_fields=[
+                {
+                    "gid": "123",
+                    "name": "MRR",
+                    "resource_subtype": "number",
+                    "number_value": 100.5,
+                }
+            ]
+        )
+
+        # No expected_type, no column_def - raw value returned
+        value = resolver.get_value(task, "cf:MRR")  # type: ignore[arg-type]
+        assert value == 100.5
+        assert isinstance(value, float)
+
+    def test_legacy_coercion_failure_returns_none(self) -> None:
+        """Test legacy coercion failure returns None gracefully."""
+        resolver = DefaultCustomFieldResolver()
+        custom_fields = [
+            MockCustomField(gid="123", name="Status", resource_subtype="text"),
+        ]
+        resolver.build_index(custom_fields)  # type: ignore[arg-type]
+
+        task = MockTask(
+            custom_fields=[
+                {
+                    "gid": "123",
+                    "name": "Status",
+                    "resource_subtype": "text",
+                    "text_value": "not-a-number",
+                }
+            ]
+        )
+
+        # Try to coerce text to Decimal - should fail gracefully
+        value = resolver.get_value(task, "cf:Status", Decimal)  # type: ignore[arg-type]
+        assert value is None
+
+
+class TestAdversarialIntegrationEndToEnd:
+    """End-to-end integration tests for the full extraction flow."""
+
+    def test_unit_extractor_coerces_multi_enum_to_string(self) -> None:
+        """Test UnitExtractor properly coerces multi_enum to string via schema."""
+        from autom8_asana.dataframes.extractors.unit import UnitExtractor
+        from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
+        from autom8_asana.models.task import Task
+
+        # Create resolver with list value (simulating multi_enum)
+        resolver = MockCustomFieldResolver(
+            {
+                "specialty": ["Dental", "Orthodontics"],
+                "products": ["Product A", "Product B"],
+            }
+        )
+
+        task = Task(
+            gid="123",
+            name="Test Unit",
+            created_at="2024-01-01T00:00:00Z",
+            modified_at="2024-01-01T00:00:00Z",
+        )
+
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
+        row = extractor.extract(task)
+
+        # specialty has dtype Utf8, so list should be coerced to string
+        assert row.specialty == "Dental, Orthodontics"
+        assert isinstance(row.specialty, str)
+
+        # products has dtype List[Utf8], so should remain list
+        assert row.products == ["Product A", "Product B"]
+        assert isinstance(row.products, list)
+
+    def test_unit_extractor_empty_multi_enum_to_none(self) -> None:
+        """Test UnitExtractor properly handles empty multi_enum (returns None)."""
+        from autom8_asana.dataframes.extractors.unit import UnitExtractor
+        from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
+        from autom8_asana.models.task import Task
+
+        resolver = MockCustomFieldResolver(
+            {
+                "specialty": [],  # Empty list
+                "vertical": [],
+            }
+        )
+
+        task = Task(
+            gid="123",
+            name="Test Unit",
+            created_at="2024-01-01T00:00:00Z",
+            modified_at="2024-01-01T00:00:00Z",
+        )
+
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
+        row = extractor.extract(task)
+
+        # Empty list should coerce to None for Utf8 dtype
+        assert row.specialty is None
+        assert row.vertical is None
+
+    def test_contact_extractor_coercion(self) -> None:
+        """Test ContactExtractor schema-aware coercion."""
+        from autom8_asana.dataframes.extractors.contact import ContactExtractor
+        from autom8_asana.dataframes.schemas.contact import CONTACT_SCHEMA
+        from autom8_asana.models.task import Task
+
+        resolver = MockCustomFieldResolver(
+            {
+                "full_name": "John Doe",
+                "contact_email": "john@example.com",
+            }
+        )
+
+        task = Task(
+            gid="456",
+            name="Test Contact",
+            created_at="2024-01-01T00:00:00Z",
+            modified_at="2024-01-01T00:00:00Z",
+        )
+
+        extractor = ContactExtractor(CONTACT_SCHEMA, resolver)
+        row = extractor.extract(task)
+
+        assert row.full_name == "John Doe"
+        assert row.contact_email == "john@example.com"
+
+    def test_extractor_handles_mixed_field_types(self) -> None:
+        """Test extractor handles mix of custom fields with different types."""
+        from autom8_asana.dataframes.extractors.unit import UnitExtractor
+        from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
+        from autom8_asana.models.task import Task
+
+        resolver = MockCustomFieldResolver(
+            {
+                "mrr": Decimal("5000.00"),  # Decimal
+                "weekly_ad_spend": 1500.50,  # float
+                "discount": "10.5",  # string that should become Decimal
+                "specialty": ["Dental"],  # list that should become string
+                "products": "SingleProduct",  # string that should become list
+            }
+        )
+
+        task = Task(
+            gid="789",
+            name="Mixed Types",
+            created_at="2024-01-01T00:00:00Z",
+            modified_at="2024-01-01T00:00:00Z",
+        )
+
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
+        row = extractor.extract(task)
+
+        # Verify proper coercion happened
+        assert row.mrr == Decimal("5000.00")
+        assert row.weekly_ad_spend == Decimal("1500.5")
+        assert row.discount == Decimal("10.5")
+        assert row.specialty == "Dental"
+        assert row.products == ["SingleProduct"]

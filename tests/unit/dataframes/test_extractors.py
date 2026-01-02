@@ -584,6 +584,61 @@ class TestUnitExtractor:
         assert row.products == []
         assert row.languages == []
 
+    def test_specialty_list_converts_to_string(
+        self,
+        minimal_task: Task,
+    ) -> None:
+        """Test that specialty field converts list to comma-joined string.
+
+        Per FR-SPECIALTY-001: multi_enum custom fields may return lists,
+        but UnitRow expects str | None for specialty.
+        """
+        # Simulate multi_enum returning a list
+        resolver = MockCustomFieldResolver({"specialty": ["Dental", "Orthodontics"]})
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
+        row = extractor.extract(minimal_task)
+
+        assert row.specialty == "Dental, Orthodontics"
+
+    def test_specialty_empty_list_converts_to_none(
+        self,
+        minimal_task: Task,
+    ) -> None:
+        """Test that empty specialty list converts to None.
+
+        Asana returns [] for unset multi_enum fields, not None.
+        """
+        resolver = MockCustomFieldResolver({"specialty": []})
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
+        row = extractor.extract(minimal_task)
+
+        assert row.specialty is None
+
+    def test_vertical_list_converts_to_string(
+        self,
+        minimal_task: Task,
+    ) -> None:
+        """Test that vertical field converts list to comma-joined string.
+
+        Same handling as specialty - multi_enum may return lists.
+        """
+        resolver = MockCustomFieldResolver({"vertical": ["Healthcare", "Dental"]})
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
+        row = extractor.extract(minimal_task)
+
+        assert row.vertical == "Healthcare, Dental"
+
+    def test_vertical_empty_list_converts_to_none(
+        self,
+        minimal_task: Task,
+    ) -> None:
+        """Test that empty vertical list converts to None."""
+        resolver = MockCustomFieldResolver({"vertical": []})
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
+        row = extractor.extract(minimal_task)
+
+        assert row.vertical is None
+
 
 # =============================================================================
 # TestContactExtractor

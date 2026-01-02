@@ -148,12 +148,13 @@ class BaseExtractor(ABC):
             return None
 
         if col.source.startswith("cf:") or col.source.startswith("gid:"):
-            # Custom field extraction via resolver
+            # Custom field extraction via resolver with schema-aware coercion
             if self._resolver is None:
                 raise ValueError(
                     f"Resolver required for custom field extraction: {col.source}"
                 )
-            return self._resolver.get_value(task, col.source)
+            # Pass column_def for schema-aware coercion
+            return self._resolver.get_value(task, col.source, column_def=col)
 
         # Direct attribute access with dtype-aware parsing
         return self._extract_attribute(task, col.source, col)

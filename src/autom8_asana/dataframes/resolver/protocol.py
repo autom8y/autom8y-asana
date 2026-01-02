@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
+    from autom8_asana.dataframes.models.schema import ColumnDef
     from autom8_asana.models.custom_field import CustomField
     from autom8_asana.models.task import Task
 
@@ -69,19 +70,26 @@ class CustomFieldResolver(Protocol):
         task: Task,
         field_name: str,
         expected_type: type | None = None,
+        *,
+        column_def: ColumnDef | None = None,
     ) -> Any:
         """Extract custom field value from task.
 
         Args:
             task: Task to extract value from
             field_name: Schema field name (with optional prefix)
-            expected_type: Optional type for value coercion
+            expected_type: Optional type for value coercion (deprecated, use column_def)
+            column_def: Optional column definition for schema-aware coercion
 
         Returns:
             Extracted and optionally coerced value, or None if:
             - Field cannot be resolved
             - Field not present on task
             - Value is null
+
+        Note:
+            When column_def is provided, its dtype is used for coercion.
+            The expected_type parameter is deprecated in favor of column_def.
 
         Raises:
             KeyError: If strict mode enabled and field not found

@@ -9,12 +9,16 @@ Public API:
     - MockCustomFieldResolver: Testing implementation with pre-defined values
     - FailingResolver: Error path testing implementation
     - NameNormalizer: Field name normalization utility
+    - TypeCoercer: Schema-aware type coercion for custom field values
+    - coerce_value: Module-level coercion function
 
 Example:
     >>> from autom8_asana.dataframes.resolver import (
     ...     DefaultCustomFieldResolver,
     ...     MockCustomFieldResolver,
     ...     NameNormalizer,
+    ...     TypeCoercer,
+    ...     coerce_value,
     ... )
     >>> # Production use
     >>> resolver = DefaultCustomFieldResolver()
@@ -28,8 +32,13 @@ Example:
     >>> # Name normalization
     >>> NameNormalizer.is_match("Weekly Ad Spend", "weekly_ad_spend")
     True
+
+    >>> # Type coercion
+    >>> coerce_value(["A", "B"], "Utf8")
+    'A, B'
 """
 
+from autom8_asana.dataframes.resolver.coercer import TypeCoercer, coerce_value
 from autom8_asana.dataframes.resolver.default import DefaultCustomFieldResolver
 from autom8_asana.dataframes.resolver.mock import (
     FailingResolver,
@@ -47,4 +56,6 @@ __all__ = [
     "FailingResolver",
     # Utilities
     "NameNormalizer",
+    "TypeCoercer",
+    "coerce_value",
 ]

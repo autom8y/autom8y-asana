@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 from autom8_asana.dataframes.resolver.normalizer import NameNormalizer
 
 if TYPE_CHECKING:
+    from autom8_asana.dataframes.models.schema import ColumnDef
     from autom8_asana.models.custom_field import CustomField
     from autom8_asana.models.task import Task
 
@@ -106,8 +107,10 @@ class MockCustomFieldResolver:
         task: Task | None,
         field_name: str,
         expected_type: type | None = None,
+        *,
+        column_def: ColumnDef | None = None,
     ) -> Any:
-        """Return pre-configured value for field.
+        """Return pre-configured value for field, with optional coercion.
 
         The task parameter is ignored - values come from the mock
         configuration, not the task.
@@ -116,9 +119,11 @@ class MockCustomFieldResolver:
             task: Ignored in mock implementation
             field_name: Field name with optional prefix
             expected_type: Ignored in mock (values pre-typed)
+            column_def: Column definition for schema-aware coercion
 
         Returns:
-            Pre-configured value if field exists, None otherwise
+            Pre-configured value if field exists, None otherwise.
+            When column_def is provided, value is coerced to target dtype.
 
         Raises:
             KeyError: If strict mode and field not found
@@ -133,7 +138,15 @@ class MockCustomFieldResolver:
         normalized = NameNormalizer.normalize(lookup)
 
         if normalized in self._normalized:
-            return self._normalized[normalized]
+            raw_value = self._normalized[normalized]
+
+            # Apply schema-aware coercion when column_def is provided
+            if column_def is not None:
+                from autom8_asana.dataframes.resolver.coercer import coerce_value
+
+                return coerce_value(raw_value, column_def.dtype)
+
+            return raw_value
 
         if self._strict:
             raise KeyError(f"Mock field not configured: {field_name}")
@@ -232,8 +245,16 @@ class FailingResolver:
         task: Task | None,
         field_name: str,
         expected_type: type | None = None,
+        *,
+        column_def: ColumnDef | None = None,
     ) -> Any:
         """Check if should fail, otherwise delegate to fallback.
+
+        Args:
+            task: Task to extract from (passed to fallback)
+            field_name: Field name with optional prefix
+            expected_type: Optional type for coercion (passed to fallback)
+            column_def: Optional column definition (passed to fallback)
 
         Raises:
             KeyError: If field is in fail_on list
@@ -245,7 +266,9 @@ class FailingResolver:
             raise KeyError(f"Configured to fail on field: {field_name}")
 
         if self._fallback:
-            return self._fallback.get_value(task, field_name, expected_type)
+            return self._fallback.get_value(
+                task, field_name, expected_type, column_def=column_def
+            )
         return None
 
     def has_field(self, field_name: str) -> bool:
