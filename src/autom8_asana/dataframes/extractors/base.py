@@ -97,6 +97,9 @@ class BaseExtractor(ABC):
         Per TDD-CASCADING-FIELD-RESOLUTION-001: Creates CascadingFieldResolver
         on first access, requiring client to be set.
 
+        Per MIGRATION-PLAN-legacy-cache-elimination RF-008: Wires CascadeViewPlugin
+        when unified_store is available for integrated parent chain resolution.
+
         Returns:
             CascadingFieldResolver instance for parent chain traversal.
 
@@ -111,7 +114,17 @@ class BaseExtractor(ABC):
                 )
             from autom8_asana.dataframes.resolver.cascading import CascadingFieldResolver
 
-            self._cascading_resolver = CascadingFieldResolver(self._client)
+            # Create cascade plugin if unified store available
+            cascade_plugin = None
+            if hasattr(self._client, "unified_store") and self._client.unified_store:
+                from autom8_asana.dataframes.views.cascade_view import CascadeViewPlugin
+
+                cascade_plugin = CascadeViewPlugin(store=self._client.unified_store)
+
+            self._cascading_resolver = CascadingFieldResolver(
+                self._client,
+                cascade_plugin=cascade_plugin,
+            )
         return self._cascading_resolver
 
     def extract(self, task: Task, project_gid: str | None = None) -> TaskRow:

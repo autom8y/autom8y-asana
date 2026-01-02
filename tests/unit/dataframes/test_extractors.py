@@ -482,10 +482,16 @@ class TestBaseExtractor:
         assert extractor.client == mock_client
 
     def test_cascading_resolver_lazy_initialization(self) -> None:
-        """Test cascading resolver is created lazily on first access."""
+        """Test cascading resolver is created lazily on first access.
+
+        Per MIGRATION-PLAN-legacy-cache-elimination RF-008: CascadingFieldResolver
+        is now created with cascade_plugin parameter when unified_store is available.
+        """
         from unittest.mock import MagicMock, patch
 
         mock_client = MagicMock()
+        # Mock client without unified_store attribute (legacy behavior)
+        mock_client.unified_store = None
         extractor = ConcreteExtractor(BASE_SCHEMA, client=mock_client)
 
         # Resolver should not be created yet
@@ -500,8 +506,8 @@ class TestBaseExtractor:
 
             resolver = extractor._get_cascading_resolver()
 
-            # Should create resolver
-            mock_resolver_class.assert_called_once_with(mock_client)
+            # Should create resolver with cascade_plugin=None (no unified store)
+            mock_resolver_class.assert_called_once_with(mock_client, cascade_plugin=None)
             assert resolver == mock_resolver_instance
 
     def test_cascading_resolver_cached(self) -> None:

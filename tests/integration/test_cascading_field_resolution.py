@@ -102,10 +102,16 @@ def make_custom_field(
 
 @pytest.fixture
 def mock_client() -> MagicMock:
-    """Create a mock AsanaClient with tasks.get_async method."""
+    """Create a mock AsanaClient with tasks.get_async method.
+
+    Per MIGRATION-PLAN-legacy-cache-elimination RF-008: Sets unified_store=None
+    to ensure tests use legacy cascade resolution path (not unified cache).
+    """
     client = MagicMock()
     client.tasks = MagicMock()
     client.tasks.get_async = AsyncMock()
+    # Explicitly set unified_store to None for legacy cascade path
+    client.unified_store = None
     return client
 
 
