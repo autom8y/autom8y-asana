@@ -123,7 +123,7 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
         lazy_threshold: int = LAZY_THRESHOLD,
         cache_integration: DataFrameCacheIntegration | None = None,
         client: AsanaClient | None = None,
-        unified_store: "UnifiedTaskStore" = None,
+        unified_store: "UnifiedTaskStore | None" = None,
     ) -> None:
         """Initialize project builder.
 
