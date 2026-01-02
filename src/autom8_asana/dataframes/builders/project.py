@@ -123,7 +123,7 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
         lazy_threshold: int = LAZY_THRESHOLD,
         cache_integration: DataFrameCacheIntegration | None = None,
         client: AsanaClient | None = None,
-        unified_store: "UnifiedTaskStore | None" = None,
+        unified_store: "UnifiedTaskStore" = None,
     ) -> None:
         """Initialize project builder.
 
@@ -140,15 +140,19 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
             cache_integration: Optional cache integration for struc caching
             client: Optional AsanaClient for cascade: field resolution.
                    Required if schema contains cascade: sources.
-            unified_store: Optional UnifiedTaskStore for unified cache integration.
-                          Per TDD-UNIFIED-CACHE-001 Phase 3: When provided, uses
-                          DataFrameViewPlugin for extraction instead of existing
-                          TaskCacheCoordinator path.
+            unified_store: UnifiedTaskStore for unified cache integration (mandatory).
+                          Per TDD-UNIFIED-CACHE-001 Phase 4: Required parameter.
+                          Uses DataFrameViewPlugin for extraction.
         """
         super().__init__(schema, resolver, lazy_threshold, cache_integration, client)
         self._project = project
         self._task_type = task_type
         self._sections = sections
+        if unified_store is None:
+            raise ValueError(
+                "unified_store is mandatory in Phase 4. "
+                "Legacy TaskCacheCoordinator path has been removed."
+            )
         self._unified_store = unified_store
 
     @property
@@ -318,12 +322,8 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
         row_cache_available = use_cache and self._cache_integration is not None
         schema_version = self._schema.version
 
-        # Get Task-level cache coordinator
-        if self._unified_store is not None:
-            task_cache_coordinator = TaskCacheCoordinator.from_unified_store(self._unified_store)
-        else:
-            task_cache_provider = self._get_task_cache_provider(client) if use_cache else None
-            task_cache_coordinator = TaskCacheCoordinator(task_cache_provider)
+        # Get Task-level cache coordinator from unified store
+        task_cache_coordinator = TaskCacheCoordinator.from_unified_store(self._unified_store)
 
         # TDD-CACHE-PERF-FETCH-PATH: Structured logging - build started
         start_time = time.perf_counter()
@@ -339,347 +339,15 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
             },
         )
 
-        # TDD-UNIFIED-CACHE-001 Phase 3: Use unified path if store is provided
-        if self._unified_store is not None:
-            return await self._build_with_unified_store_async(
-                client=client,
-                project_gid=project_gid,
-                use_parallel_fetch=use_parallel_fetch,
-                max_concurrent=max_concurrent,
-                start_time=start_time,
-                lazy=lazy,
-            )
-
-        # Track metrics for logging
-        fetch_strategy = "parallel" if use_parallel_fetch else "serial"
-        sections_fetched = 0
-        task_count = 0
-        task_cache_result: TaskCacheResult | None = None
-
-        # Try parallel fetch if enabled
-        if use_parallel_fetch:
-            try:
-                fetcher = ParallelSectionFetcher(
-                    sections_client=client.sections,
-                    tasks_client=client.tasks,
-                    project_gid=project_gid,
-                    max_concurrent=max_concurrent,
-                    opt_fields=_BASE_OPT_FIELDS,
-                    cache_provider=task_cache_provider,  # Per ADR-0131: GID enumeration caching
-                )
-
-                # TDD-CACHE-PERF-FETCH-PATH: Two-phase cache strategy
-                if task_cache_provider is not None:
-                    # Phase 1: Enumerate GIDs (lightweight)
-                    gid_enum_start = time.perf_counter()
-                    section_gids_map = await fetcher.fetch_section_task_gids_async()
-                    gid_enum_time_ms = (time.perf_counter() - gid_enum_start) * 1000
-
-                    logger.debug(
-                        "section_gid_enumeration_completed",
-                        extra={
-                            "project_gid": project_gid,
-                            "section_count": len(section_gids_map),
-                            "enumeration_time_ms": round(gid_enum_time_ms, 2),
-                        },
-                    )
-
-                    if not section_gids_map:
-                        # No sections - fall back to serial
-                        logger.debug(
-                            "No sections found for project %s, using serial fetch",
-                            project_gid,
-                        )
-                        fetch_strategy = "serial"
-                        df, task_cache_result = await self._build_serial_with_task_cache_async(
-                            client,
-                            task_cache_coordinator,
-                            lazy=lazy,
-                            use_row_cache=row_cache_available,
-                        )
-                        task_count = len(df)
-                    else:
-                        sections_fetched = len(section_gids_map)
-
-                        # Flatten and deduplicate GIDs (preserving section order)
-                        all_task_gids = self._flatten_section_gids(section_gids_map)
-
-                        # Phase 2: Batch cache lookup
-                        cache_lookup_start = time.perf_counter()
-                        cached_tasks_map = await task_cache_coordinator.lookup_tasks_async(
-                            all_task_gids
-                        )
-                        cache_lookup_time_ms = (time.perf_counter() - cache_lookup_start) * 1000
-
-                        # Partition into hits and misses
-                        cached_tasks: dict[str, Task] = {}
-                        miss_gids: list[str] = []
-                        for gid in all_task_gids:
-                            task = cached_tasks_map.get(gid)
-                            if task is not None:
-                                cached_tasks[gid] = task
-                            else:
-                                miss_gids.append(gid)
-
-                        # FR-OBS-001: Log cache lookup results
-                        hit_count = len(cached_tasks)
-                        miss_count = len(miss_gids)
-                        hit_rate = hit_count / len(all_task_gids) if all_task_gids else 0.0
-                        logger.info(
-                            "task_cache_lookup_completed",
-                            extra={
-                                "project_gid": project_gid,
-                                "hit_count": hit_count,
-                                "miss_count": miss_count,
-                                "hit_rate": round(hit_rate, 3),
-                                "lookup_time_ms": round(cache_lookup_time_ms, 2),
-                            },
-                        )
-
-                        # Phase 3: Fetch missing tasks from API
-                        fetched_tasks: list[Task] = []
-                        api_fetch_time_ms = 0.0
-                        cache_populate_time_ms = 0.0
-                        fetch_path = "none"
-
-                        if miss_gids:
-                            # Per ADR-0130/TDD-CACHE-OPT-P2: Targeted fetch for misses only
-                            # Cold cache (0% hit): use fetch_all() for efficiency
-                            # Partial cache: use fetch_by_gids() for targeted fetch
-                            is_cold_cache = len(cached_tasks) == 0
-                            api_fetch_start = time.perf_counter()
-                            try:
-                                if is_cold_cache:
-                                    # Cold cache: fetch all tasks in one pass
-                                    fetch_path = "cold"
-                                    result = await fetcher.fetch_all()
-                                    fetched_tasks = result.tasks
-                                else:
-                                    # Partial cache: fetch only missing GIDs
-                                    fetch_path = "partial"
-                                    result = await fetcher.fetch_by_gids(
-                                        miss_gids, section_gid_map=section_gids_map
-                                    )
-                                    fetched_tasks = result.tasks
-                            except ParallelFetchError:
-                                # Fallback: fetch all and filter to miss GIDs
-                                fetch_path = "fallback"
-                                logger.debug(
-                                    "fetch_by_gids failed, falling back to fetch_all"
-                                )
-                                result = await fetcher.fetch_all()
-                                miss_gid_set = set(miss_gids)
-                                fetched_tasks = [
-                                    t for t in result.tasks if t.gid in miss_gid_set
-                                ]
-                            api_fetch_time_ms = (time.perf_counter() - api_fetch_start) * 1000
-
-                            # FR-OBS-002: Log path selection and fetch timing
-                            logger.info(
-                                "api_fetch_completed",
-                                extra={
-                                    "project_gid": project_gid,
-                                    "fetch_path": fetch_path,
-                                    "tasks_fetched": len(fetched_tasks),
-                                    "fetch_time_ms": round(api_fetch_time_ms, 2),
-                                },
-                            )
-
-                            # Phase 4: Populate cache with newly fetched (ADR-0130)
-                            cache_populate_start = time.perf_counter()
-                            try:
-                                populated_count = await task_cache_coordinator.populate_tasks_async(
-                                    fetched_tasks
-                                )
-                                cache_populate_time_ms = (
-                                    time.perf_counter() - cache_populate_start
-                                ) * 1000
-                                logger.info(
-                                    "task_cache_population_completed",
-                                    extra={
-                                        "project_gid": project_gid,
-                                        "populated_count": populated_count,
-                                        "populate_time_ms": round(cache_populate_time_ms, 2),
-                                    },
-                                )
-                            except Exception as e:
-                                cache_populate_time_ms = (
-                                    time.perf_counter() - cache_populate_start
-                                ) * 1000
-                                # Graceful degradation on cache population failure
-                                logger.warning(
-                                    "task_cache_population_failed",
-                                    extra={
-                                        "error_type": type(e).__name__,
-                                        "error_message": str(e),
-                                        "task_count": len(fetched_tasks),
-                                    },
-                                )
-                        else:
-                            # 100% cache hit - no API fetch needed
-                            fetch_path = "warm"
-                            logger.info(
-                                "cache_hit_skip_api_fetch",
-                                extra={
-                                    "project_gid": project_gid,
-                                    "cached_task_count": len(cached_tasks),
-                                },
-                            )
-
-                        # Phase 5: Merge results
-                        task_cache_result = task_cache_coordinator.merge_results(
-                            all_task_gids, cached_tasks, fetched_tasks
-                        )
-                        tasks = task_cache_result.all_tasks
-
-                        # Apply section filtering if specified
-                        if self._sections:
-                            tasks = [
-                                t for t in tasks
-                                if self._task_in_sections(t, self._sections)
-                            ]
-
-                        task_count = len(tasks)
-
-                        # Build DataFrame with row cache integration
-                        df = await self._build_from_tasks_with_cache(
-                            tasks=tasks,
-                            project_gid=project_gid,
-                            cache_available=row_cache_available,
-                            schema_version=schema_version,
-                            lazy=lazy,
-                        )
-                else:
-                    # No Task cache - use original parallel fetch path
-                    result = await fetcher.fetch_all()
-                    sections_fetched = result.sections_fetched
-
-                    if result.sections_fetched == 0:
-                        logger.debug(
-                            "No sections found for project %s, using serial fetch",
-                            project_gid,
-                        )
-                        fetch_strategy = "serial"
-                        df = await self._build_serial_async(
-                            client, lazy=lazy, use_cache=use_cache
-                        )
-                        task_count = len(df)
-                    else:
-                        tasks = result.tasks
-
-                        if self._sections:
-                            tasks = [
-                                t for t in tasks
-                                if self._task_in_sections(t, self._sections)
-                            ]
-
-                        task_count = len(tasks)
-                        df = await self._build_from_tasks_with_cache(
-                            tasks=tasks,
-                            project_gid=project_gid,
-                            cache_available=row_cache_available,
-                            schema_version=schema_version,
-                            lazy=lazy,
-                        )
-
-            except ParallelFetchError as e:
-                # FR-FALLBACK-001: Fall back to serial fetch
-                logger.warning(
-                    "dataframe_fallback_triggered",
-                    extra={
-                        "project_gid": project_gid,
-                        "reason": str(e),
-                        "error_type": "ParallelFetchError",
-                    },
-                )
-                fetch_strategy = "serial"
-                df = await self._build_serial_async(
-                    client, lazy=lazy, use_cache=use_cache
-                )
-                task_count = len(df)
-
-            except Exception as e:
-                # Catch any unexpected exceptions and fall back
-                import traceback
-                tb = traceback.format_exc()
-                logger.warning(
-                    "dataframe_fallback_triggered",
-                    extra={
-                        "project_gid": project_gid,
-                        "reason": str(e),
-                        "error_type": type(e).__name__,
-                        "traceback": tb,
-                    },
-                )
-                fetch_strategy = "serial"
-                try:
-                    df = await self._build_serial_async(
-                        client, lazy=lazy, use_cache=use_cache
-                    )
-                    task_count = len(df)
-                except Exception as serial_e:
-                    # Serial fallback also failed - log and re-raise
-                    serial_tb = traceback.format_exc()
-                    logger.error(
-                        "dataframe_serial_fallback_failed",
-                        extra={
-                            "project_gid": project_gid,
-                            "original_error": str(e),
-                            "serial_error": str(serial_e),
-                            "traceback": serial_tb,
-                        },
-                    )
-                    raise
-
-        else:
-            # use_parallel_fetch=False: Use serial fetch
-            df = await self._build_serial_async(client, lazy=lazy, use_cache=use_cache)
-            task_count = len(df)
-
-        # TDD-CACHE-PERF-FETCH-PATH: Structured logging - build completed
-        elapsed_ms = (time.perf_counter() - start_time) * 1000
-
-        # Extract cache metrics
-        task_cache_hits = task_cache_result.cache_hits if task_cache_result else 0
-        task_cache_misses = task_cache_result.cache_misses if task_cache_result else 0
-        task_cache_hit_rate = task_cache_result.hit_rate if task_cache_result else 0.0
-        tasks_fetched_from_api = len(task_cache_result.fetched_tasks) if task_cache_result else 0
-
-        logger.info(
-            "dataframe_build_completed",
-            extra={
-                "project_gid": project_gid,
-                "task_count": task_count,
-                "fetch_strategy": fetch_strategy,
-                "fetch_time_ms": round(elapsed_ms, 2),
-                "sections_fetched": sections_fetched,
-                # Task cache metrics (TDD-CACHE-PERF-FETCH-PATH)
-                "task_cache_hits": task_cache_hits,
-                "task_cache_misses": task_cache_misses,
-                "task_cache_hit_rate": round(task_cache_hit_rate, 3),
-                "tasks_fetched_from_api": tasks_fetched_from_api,
-            },
+        # TDD-UNIFIED-CACHE-001 Phase 4: Always use unified path (mandatory)
+        return await self._build_with_unified_store_async(
+            client=client,
+            project_gid=project_gid,
+            use_parallel_fetch=use_parallel_fetch,
+            max_concurrent=max_concurrent,
+            start_time=start_time,
+            lazy=lazy,
         )
-
-        return df
-
-    def _get_task_cache_provider(self, client: AsanaClient) -> CacheProvider | None:
-        """Get Task-level cache provider from client.
-
-        Per TDD-CACHE-PERF-FETCH-PATH: Access cache provider for Task objects.
-        Uses the same cache provider as TasksClient.get_async().
-
-        Args:
-            client: AsanaClient instance.
-
-        Returns:
-            CacheProvider if available, None otherwise.
-        """
-        try:
-            # Access cache provider from client's tasks client
-            return getattr(client.tasks, "_cache", None)
-        except AttributeError:
-            return None
 
     def _flatten_section_gids(
         self, section_gids_map: dict[str, list[str]]
@@ -968,65 +636,6 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
         # Fetch in parallel with some concurrency limit
         results = await asyncio.gather(*[fetch_task(gid) for gid in gids])
         return [t for t in results if t is not None]
-
-    async def _build_serial_with_task_cache_async(
-        self,
-        client: AsanaClient,
-        task_cache_coordinator: TaskCacheCoordinator,
-        *,
-        lazy: bool | None = None,
-        use_row_cache: bool = True,
-    ) -> tuple[pl.DataFrame, TaskCacheResult | None]:
-        """Build DataFrame using serial fetch with Task cache integration.
-
-        Args:
-            client: AsanaClient for API calls.
-            task_cache_coordinator: Coordinator for Task-level cache.
-            lazy: Evaluation mode override.
-            use_row_cache: Enable row-level cache.
-
-        Returns:
-            Tuple of (DataFrame, TaskCacheResult or None).
-        """
-        project_gid = self._get_project_gid()
-        if not project_gid:
-            return self._build_empty(), None
-
-        # Fetch all tasks via project-level query
-        tasks: list[Task] = await client.tasks.list_async(
-            project=project_gid,
-            opt_fields=_BASE_OPT_FIELDS,
-        ).collect()
-
-        if not tasks:
-            return self._build_empty(), None
-
-        # Populate Task cache (no lookup for serial - we already have the data)
-        await task_cache_coordinator.populate_tasks_async(tasks)
-
-        # Apply section filtering
-        if self._sections:
-            tasks = [t for t in tasks if self._task_in_sections(t, self._sections)]
-
-        # Build result (all fetched, no cache hits)
-        task_cache_result = TaskCacheResult(
-            cached_tasks=[],
-            fetched_tasks=tasks,
-            cache_hits=0,
-            cache_misses=len(tasks),
-            all_tasks=tasks,
-        )
-
-        schema_version = self._schema.version
-        df = await self._build_from_tasks_with_cache(
-            tasks=tasks,
-            project_gid=project_gid,
-            cache_available=use_row_cache and self._cache_integration is not None,
-            schema_version=schema_version,
-            lazy=lazy,
-        )
-
-        return df, task_cache_result
 
     async def _build_serial_async(
         self,
