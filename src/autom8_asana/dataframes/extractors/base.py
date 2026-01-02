@@ -2,6 +2,9 @@
 
 Per TDD-0009 Phase 3: Abstract base extractor with 12 base field methods
 and schema-driven column extraction supporting custom field resolution.
+
+Per TDD-CASCADING-FIELD-RESOLUTION-001: Added cascade: prefix support for
+parent chain traversal of custom fields.
 """
 
 from __future__ import annotations
@@ -15,6 +18,8 @@ from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.dataframes.models.task_row import TaskRow
 
 if TYPE_CHECKING:
+    from autom8_asana.client import AsanaClient
+    from autom8_asana.dataframes.resolver.cascading import CascadingFieldResolver
     from autom8_asana.dataframes.resolver.protocol import CustomFieldResolver
     from autom8_asana.models.task import Task
 
@@ -27,24 +32,35 @@ class BaseExtractor(ABC):
     - Custom field extraction (source starts with "cf:" or "gid:")
     - Derived fields (source = None, delegates to subclass method)
 
+    Per TDD-CASCADING-FIELD-RESOLUTION-001: Added cascade: prefix support for
+    parent chain traversal of custom fields (requires async extraction).
+
     Subclasses implement type-specific extraction by overriding
     derived field methods and the row construction method.
 
     Attributes:
         schema: DataFrameSchema defining columns to extract
         resolver: Optional CustomFieldResolver for cf:/gid: fields
+        client: Optional AsanaClient for cascade: field resolution
 
     Example:
         >>> extractor = UnitExtractor(UNIT_SCHEMA, resolver)
         >>> row = extractor.extract(task)
         >>> row.gid
         '1234567890'
+
+        >>> # With cascade support:
+        >>> extractor = UnitExtractor(UNIT_SCHEMA, resolver, client=client)
+        >>> row = await extractor.extract_async(task)
+        >>> row.office_phone  # Resolved from Business ancestor
+        '555-123-4567'
     """
 
     def __init__(
         self,
         schema: DataFrameSchema,
         resolver: CustomFieldResolver | None = None,
+        client: AsanaClient | None = None,
     ) -> None:
         """Initialize extractor with schema and optional resolver.
 
@@ -52,9 +68,13 @@ class BaseExtractor(ABC):
             schema: DataFrameSchema defining columns to extract
             resolver: CustomFieldResolver for custom field extraction.
                       Required if schema contains cf: or gid: sources.
+            client: AsanaClient for cascade: field resolution.
+                    Required if schema contains cascade: sources.
         """
         self._schema = schema
         self._resolver = resolver
+        self._client = client
+        self._cascading_resolver: CascadingFieldResolver | None = None
 
     @property
     def schema(self) -> DataFrameSchema:
@@ -65,6 +85,34 @@ class BaseExtractor(ABC):
     def resolver(self) -> CustomFieldResolver | None:
         """Get the custom field resolver."""
         return self._resolver
+
+    @property
+    def client(self) -> AsanaClient | None:
+        """Get the Asana client for cascade resolution."""
+        return self._client
+
+    def _get_cascading_resolver(self) -> CascadingFieldResolver:
+        """Lazy initialization of cascading resolver.
+
+        Per TDD-CASCADING-FIELD-RESOLUTION-001: Creates CascadingFieldResolver
+        on first access, requiring client to be set.
+
+        Returns:
+            CascadingFieldResolver instance for parent chain traversal.
+
+        Raises:
+            ValueError: If client is not set (required for cascade: sources).
+        """
+        if self._cascading_resolver is None:
+            if self._client is None:
+                raise ValueError(
+                    "AsanaClient required for cascade: sources. "
+                    "Pass client parameter to extractor constructor."
+                )
+            from autom8_asana.dataframes.resolver.cascading import CascadingFieldResolver
+
+            self._cascading_resolver = CascadingFieldResolver(self._client)
+        return self._cascading_resolver
 
     def extract(self, task: Task, project_gid: str | None = None) -> TaskRow:
         """Extract a TaskRow from a Task using the schema.
@@ -100,6 +148,40 @@ class BaseExtractor(ABC):
         row = self._create_row(data)
         return row
 
+    async def extract_async(
+        self, task: Task, project_gid: str | None = None
+    ) -> TaskRow:
+        """Extract a TaskRow from a Task using async resolution for cascade fields.
+
+        Per TDD-CASCADING-FIELD-RESOLUTION-001: Async extraction supporting
+        cascade: prefix for parent chain traversal.
+
+        Args:
+            task: Task to extract data from
+            project_gid: Optional project GID for section extraction
+
+        Returns:
+            TaskRow (or subclass) with extracted field values
+
+        Raises:
+            ExtractionError: If extraction fails for critical fields
+        """
+        data: dict[str, Any] = {}
+        errors: list[ExtractionError] = []
+
+        for col in self._schema.columns:
+            try:
+                value = await self._extract_column_async(task, col, project_gid)
+                data[col.name] = value
+            except Exception as e:
+                # Per FR-ERROR-005: Continue on individual failures
+                task_gid = getattr(task, "gid", "unknown")
+                errors.append(ExtractionError(task_gid, col.name, e))
+                data[col.name] = None
+
+        row = self._create_row(data)
+        return row
+
     @abstractmethod
     def _create_row(self, data: dict[str, Any]) -> TaskRow:
         """Create the appropriate TaskRow subclass from extracted data.
@@ -123,6 +205,7 @@ class BaseExtractor(ABC):
         Per TDD-0009 custom field extraction logic:
         - source is None: Derived field, delegate to _extract_{name} method
         - source starts with "cf:" or "gid:": Custom field via resolver
+        - source starts with "cascade:": Requires async - use extract_async()
         - Otherwise: Direct attribute access
 
         Args:
@@ -135,6 +218,7 @@ class BaseExtractor(ABC):
 
         Raises:
             ValueError: If resolver required but not provided
+            ValueError: If cascade: source used (requires extract_async)
         """
         if col.source is None:
             # Derived field - delegate to subclass method
@@ -146,6 +230,64 @@ class BaseExtractor(ABC):
                     return method(task, project_gid)
                 return method(task)
             return None
+
+        # Per TDD-CASCADING-FIELD-RESOLUTION-001: cascade: requires async
+        if col.source.lower().startswith("cascade:"):
+            raise ValueError(
+                f"cascade: sources require async extraction. "
+                f"Use extract_async() for field: {col.source}"
+            )
+
+        if col.source.startswith("cf:") or col.source.startswith("gid:"):
+            # Custom field extraction via resolver with schema-aware coercion
+            if self._resolver is None:
+                raise ValueError(
+                    f"Resolver required for custom field extraction: {col.source}"
+                )
+            # Pass column_def for schema-aware coercion
+            return self._resolver.get_value(task, col.source, column_def=col)
+
+        # Direct attribute access with dtype-aware parsing
+        return self._extract_attribute(task, col.source, col)
+
+    async def _extract_column_async(
+        self,
+        task: Task,
+        col: ColumnDef,
+        project_gid: str | None = None,
+    ) -> Any:
+        """Extract a single column value from a task (async version).
+
+        Per TDD-CASCADING-FIELD-RESOLUTION-001: Async extraction supporting
+        cascade: prefix for parent chain traversal.
+
+        Args:
+            task: Task to extract from
+            col: Column definition specifying source
+            project_gid: Optional project GID for section extraction
+
+        Returns:
+            Extracted and optionally coerced value
+
+        Raises:
+            ValueError: If resolver/client required but not provided
+        """
+        if col.source is None:
+            # Derived field - delegate to subclass method
+            method_name = f"_extract_{col.name}"
+            if hasattr(self, method_name):
+                method = getattr(self, method_name)
+                # Special case for section which needs project_gid
+                if col.name == "section":
+                    return method(task, project_gid)
+                return method(task)
+            return None
+
+        # Per TDD-CASCADING-FIELD-RESOLUTION-001: Handle cascade: prefix
+        if col.source.lower().startswith("cascade:"):
+            field_name = col.source[8:]  # Strip "cascade:" prefix
+            resolver = self._get_cascading_resolver()
+            return await resolver.resolve_async(task, field_name)
 
         if col.source.startswith("cf:") or col.source.startswith("gid:"):
             # Custom field extraction via resolver with schema-aware coercion

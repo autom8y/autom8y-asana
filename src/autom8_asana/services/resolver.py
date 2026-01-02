@@ -564,11 +564,13 @@ class UnitResolutionStrategy:
             # Create resolver for custom field extraction (office_phone, vertical)
             resolver = DefaultCustomFieldResolver()
 
+            # Per TDD-CASCADING-FIELD-RESOLUTION-001: Pass client for cascade: sources
             builder = ProjectDataFrameBuilder(
                 project=project_proxy,
                 task_type="Unit",
                 schema=UNIT_SCHEMA,
                 resolver=resolver,
+                client=client,
             )
 
             # Use incremental refresh when watermark and existing_df exist
@@ -640,11 +642,13 @@ class UnitResolutionStrategy:
             # Create resolver for custom field extraction (office_phone, vertical)
             resolver = DefaultCustomFieldResolver()
 
+            # Per TDD-CASCADING-FIELD-RESOLUTION-001: Pass client for cascade: sources
             builder = ProjectDataFrameBuilder(
                 project=project_proxy,
                 task_type="Unit",
                 schema=UNIT_SCHEMA,
                 resolver=resolver,
+                client=client,
             )
 
             # Use parallel fetch for efficient DataFrame construction

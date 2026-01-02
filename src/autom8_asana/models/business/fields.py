@@ -252,3 +252,111 @@ DETECTION_OPT_FIELDS: tuple[str, ...] = (
     "memberships.project.gid",
     "memberships.project.name",
 )
+
+
+# =============================================================================
+# Cascading Field Registry (TDD-CASCADING-FIELD-RESOLUTION-001)
+# =============================================================================
+
+# Type alias for registry entries: (owner_entity_class, cascading_field_def)
+# Using TYPE_CHECKING to avoid circular imports at runtime
+CascadingFieldEntry = tuple[type, CascadingFieldDef]
+
+# Registry mapping normalized field names to their (owner_class, field_def) tuples.
+# Populated lazily on first access to avoid circular import issues.
+# Per TDD: Static registry is simpler, faster, and explicit (Option A).
+_CASCADING_FIELD_REGISTRY: dict[str, CascadingFieldEntry] | None = None
+
+
+def _normalize_field_name(name: str) -> str:
+    """Normalize field name for case-insensitive lookup.
+
+    Args:
+        name: Field name to normalize.
+
+    Returns:
+        Lowercase field name with whitespace trimmed.
+    """
+    return name.lower().strip()
+
+
+def _build_cascading_field_registry() -> dict[str, CascadingFieldEntry]:
+    """Build the cascading field registry from Business and Unit CascadingFields.
+
+    Deferred import to avoid circular dependency at module load time.
+    Business and Unit both import CascadingFieldDef from this module, so we
+    cannot import them at module scope.
+
+    Returns:
+        Dict mapping normalized field names to (owner_class, field_def) tuples.
+    """
+    # Import here to avoid circular import - Business/Unit import fields.py
+    from autom8_asana.models.business.business import Business
+    from autom8_asana.models.business.unit import Unit
+
+    registry: dict[str, CascadingFieldEntry] = {}
+
+    # Register Business cascading fields
+    for field_def in Business.CascadingFields.all():
+        key = _normalize_field_name(field_def.name)
+        registry[key] = (Business, field_def)
+
+    # Register Unit cascading fields
+    for field_def in Unit.CascadingFields.all():
+        key = _normalize_field_name(field_def.name)
+        registry[key] = (Unit, field_def)
+
+    return registry
+
+
+def get_cascading_field_registry() -> dict[str, CascadingFieldEntry]:
+    """Get the cascading field registry, building it on first access.
+
+    Returns:
+        Dict mapping normalized field names to (owner_class, field_def) tuples.
+
+    Example:
+        >>> registry = get_cascading_field_registry()
+        >>> owner, field_def = registry["office phone"]
+        >>> owner.__name__
+        'Business'
+        >>> field_def.name
+        'Office Phone'
+    """
+    global _CASCADING_FIELD_REGISTRY
+    if _CASCADING_FIELD_REGISTRY is None:
+        _CASCADING_FIELD_REGISTRY = _build_cascading_field_registry()
+    return _CASCADING_FIELD_REGISTRY
+
+
+def get_cascading_field(field_name: str) -> CascadingFieldEntry | None:
+    """Look up cascading field definition by name.
+
+    Performs case-insensitive lookup using normalized field names.
+
+    Args:
+        field_name: Custom field name to look up (e.g., "Office Phone").
+
+    Returns:
+        Tuple of (owner_entity_class, CascadingFieldDef) if found, None otherwise.
+
+    Example:
+        >>> result = get_cascading_field("Office Phone")
+        >>> if result:
+        ...     owner_class, field_def = result
+        ...     print(f"{field_def.name} owned by {owner_class.__name__}")
+        Office Phone owned by Business
+
+        >>> # Case-insensitive lookup
+        >>> get_cascading_field("office phone") is not None
+        True
+        >>> get_cascading_field("OFFICE PHONE") is not None
+        True
+
+        >>> # Unknown field returns None
+        >>> get_cascading_field("Unknown Field") is None
+        True
+    """
+    registry = get_cascading_field_registry()
+    key = _normalize_field_name(field_name)
+    return registry.get(key)

@@ -431,6 +431,214 @@ class TestBaseExtractor:
         with pytest.raises(ValueError, match="Resolver required"):
             extractor._extract_column(minimal_task, col)
 
+    # -------------------------------------------------------------------------
+    # Cascade prefix tests (per TDD-CASCADING-FIELD-RESOLUTION-001)
+    # -------------------------------------------------------------------------
+
+    def test_cascade_source_requires_async(self, minimal_task: Task) -> None:
+        """Test that cascade: sources require async extraction.
+
+        Per TDD-CASCADING-FIELD-RESOLUTION-001: cascade: prefix requires
+        async extraction due to parent chain traversal.
+        """
+        extractor = ConcreteExtractor(BASE_SCHEMA)
+
+        col = ColumnDef(
+            name="office_phone",
+            dtype="Utf8",
+            nullable=True,
+            source="cascade:Office Phone",
+        )
+
+        with pytest.raises(ValueError, match="cascade: sources require async extraction"):
+            extractor._extract_column(minimal_task, col)
+
+    def test_cascade_source_requires_client(self, minimal_task: Task) -> None:
+        """Test that cascade: sources require client to be set.
+
+        Per TDD-CASCADING-FIELD-RESOLUTION-001: CascadingFieldResolver needs
+        AsanaClient for parent task fetching.
+        """
+        extractor = ConcreteExtractor(BASE_SCHEMA, client=None)
+
+        col = ColumnDef(
+            name="office_phone",
+            dtype="Utf8",
+            nullable=True,
+            source="cascade:Office Phone",
+        )
+
+        with pytest.raises(ValueError, match="AsanaClient required for cascade: sources"):
+            # Try to get cascading resolver when client is None
+            extractor._get_cascading_resolver()
+
+    def test_init_with_client(self) -> None:
+        """Test extractor initialization with client parameter."""
+        from unittest.mock import MagicMock
+
+        mock_client = MagicMock()
+        extractor = ConcreteExtractor(BASE_SCHEMA, client=mock_client)
+
+        assert extractor.client == mock_client
+
+    def test_cascading_resolver_lazy_initialization(self) -> None:
+        """Test cascading resolver is created lazily on first access."""
+        from unittest.mock import MagicMock, patch
+
+        mock_client = MagicMock()
+        extractor = ConcreteExtractor(BASE_SCHEMA, client=mock_client)
+
+        # Resolver should not be created yet
+        assert extractor._cascading_resolver is None
+
+        # Patch where CascadingFieldResolver is imported inside the method
+        with patch(
+            "autom8_asana.dataframes.resolver.cascading.CascadingFieldResolver"
+        ) as mock_resolver_class:
+            mock_resolver_instance = MagicMock()
+            mock_resolver_class.return_value = mock_resolver_instance
+
+            resolver = extractor._get_cascading_resolver()
+
+            # Should create resolver
+            mock_resolver_class.assert_called_once_with(mock_client)
+            assert resolver == mock_resolver_instance
+
+    def test_cascading_resolver_cached(self) -> None:
+        """Test cascading resolver is cached after first creation."""
+        from unittest.mock import MagicMock, patch
+
+        mock_client = MagicMock()
+        extractor = ConcreteExtractor(BASE_SCHEMA, client=mock_client)
+
+        with patch(
+            "autom8_asana.dataframes.resolver.cascading.CascadingFieldResolver"
+        ) as mock_resolver_class:
+            mock_resolver_instance = MagicMock()
+            mock_resolver_class.return_value = mock_resolver_instance
+
+            # First access
+            resolver1 = extractor._get_cascading_resolver()
+            # Second access
+            resolver2 = extractor._get_cascading_resolver()
+
+            # Should only create once
+            assert mock_resolver_class.call_count == 1
+            assert resolver1 is resolver2
+
+
+# =============================================================================
+# TestCascadeAsyncExtraction
+# =============================================================================
+
+
+class TestCascadeAsyncExtraction:
+    """Tests for async cascade: prefix extraction."""
+
+    @pytest.mark.asyncio
+    async def test_extract_column_async_handles_cascade_source(
+        self, minimal_task: Task
+    ) -> None:
+        """Test that _extract_column_async handles cascade: sources."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_client = MagicMock()
+        extractor = ConcreteExtractor(BASE_SCHEMA, client=mock_client)
+
+        col = ColumnDef(
+            name="office_phone",
+            dtype="Utf8",
+            nullable=True,
+            source="cascade:Office Phone",
+        )
+
+        with patch.object(extractor, "_get_cascading_resolver") as mock_get_resolver:
+            mock_resolver = MagicMock()
+            mock_resolver.resolve_async = AsyncMock(return_value="555-1234")
+            mock_get_resolver.return_value = mock_resolver
+
+            result = await extractor._extract_column_async(minimal_task, col)
+
+            assert result == "555-1234"
+            mock_resolver.resolve_async.assert_called_once_with(
+                minimal_task, "Office Phone"
+            )
+
+    @pytest.mark.asyncio
+    async def test_extract_column_async_case_insensitive_prefix(
+        self, minimal_task: Task
+    ) -> None:
+        """Test that cascade: prefix matching is case-insensitive."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_client = MagicMock()
+        extractor = ConcreteExtractor(BASE_SCHEMA, client=mock_client)
+
+        # Test with uppercase prefix
+        col = ColumnDef(
+            name="office_phone",
+            dtype="Utf8",
+            nullable=True,
+            source="CASCADE:Office Phone",  # Uppercase
+        )
+
+        with patch.object(extractor, "_get_cascading_resolver") as mock_get_resolver:
+            mock_resolver = MagicMock()
+            mock_resolver.resolve_async = AsyncMock(return_value="555-9999")
+            mock_get_resolver.return_value = mock_resolver
+
+            result = await extractor._extract_column_async(minimal_task, col)
+
+            assert result == "555-9999"
+            mock_resolver.resolve_async.assert_called_once_with(
+                minimal_task, "Office Phone"
+            )
+
+    @pytest.mark.asyncio
+    async def test_extract_async_full_extraction(self, full_task: Task) -> None:
+        """Test full async extraction with cascade: source.
+
+        Per TDD-CASCADING-FIELD-RESOLUTION-001: extract_async() should handle
+        cascade: sources for full task extraction.
+        """
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_client = MagicMock()
+        mock_resolver = MockCustomFieldResolver({"mrr": 1000.0})
+        extractor = UnitExtractor(UNIT_SCHEMA, mock_resolver, client=mock_client)
+
+        with patch.object(extractor, "_get_cascading_resolver") as mock_get_cascade:
+            mock_cascade_resolver = MagicMock()
+            mock_cascade_resolver.resolve_async = AsyncMock(return_value="555-4321")
+            mock_get_cascade.return_value = mock_cascade_resolver
+
+            row = await extractor.extract_async(full_task)
+
+            assert isinstance(row, UnitRow)
+            assert row.office_phone == "555-4321"
+
+    @pytest.mark.asyncio
+    async def test_extract_async_cf_sources_still_work(self, full_task: Task) -> None:
+        """Test that cf: sources still work with async extraction.
+
+        Per TDD-CASCADING-FIELD-RESOLUTION-001: Backward compatibility with
+        existing cf: sources must be maintained.
+        """
+        from unittest.mock import MagicMock
+
+        mock_client = MagicMock()
+        mock_resolver = MockCustomFieldResolver({
+            "vertical": "Healthcare",
+            "specialty": "Dental",
+        })
+        extractor = ContactExtractor(CONTACT_SCHEMA, mock_resolver, client=mock_client)
+
+        row = await extractor.extract_async(full_task)
+
+        # Verify cf: sources still extract correctly
+        assert isinstance(row, ContactRow)
+        assert row.type == "Contact"
+
 
 # =============================================================================
 # TestUnitExtractor
@@ -491,27 +699,55 @@ class TestUnitExtractor:
 
         assert office is None
 
-    def test_office_phone_extracted_from_custom_field(
+    @pytest.mark.asyncio
+    async def test_office_phone_extracted_via_cascade(
         self,
         full_task: Task,
     ) -> None:
-        """Test that office_phone is extracted from custom field."""
-        resolver = MockCustomFieldResolver({"office_phone": "555-123-4567"})
-        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
-        row = extractor.extract(full_task)
+        """Test that office_phone is extracted via cascade: source.
 
-        assert row.office_phone == "555-123-4567"
+        Per TDD-CASCADING-FIELD-RESOLUTION-001: office_phone uses cascade:
+        prefix to resolve from Business ancestor.
+        """
+        from unittest.mock import AsyncMock, MagicMock, patch
 
-    def test_office_phone_none_when_not_set(
+        mock_client = MagicMock()
+        resolver = MockCustomFieldResolver({})
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver, client=mock_client)
+
+        with patch.object(extractor, "_get_cascading_resolver") as mock_get_cascade:
+            mock_cascade_resolver = MagicMock()
+            mock_cascade_resolver.resolve_async = AsyncMock(return_value="555-123-4567")
+            mock_get_cascade.return_value = mock_cascade_resolver
+
+            row = await extractor.extract_async(full_task)
+
+            assert row.office_phone == "555-123-4567"
+
+    @pytest.mark.asyncio
+    async def test_office_phone_none_when_cascade_returns_none(
         self,
         minimal_task: Task,
     ) -> None:
-        """Test that office_phone returns None when custom field is not set."""
-        resolver = MockCustomFieldResolver({})  # No office_phone configured
-        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
-        row = extractor.extract(minimal_task)
+        """Test that office_phone is None when cascade resolution returns None.
 
-        assert row.office_phone is None
+        Per TDD-CASCADING-FIELD-RESOLUTION-001: If no parent has the field,
+        cascade resolution returns None.
+        """
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_client = MagicMock()
+        resolver = MockCustomFieldResolver({})
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver, client=mock_client)
+
+        with patch.object(extractor, "_get_cascading_resolver") as mock_get_cascade:
+            mock_cascade_resolver = MagicMock()
+            mock_cascade_resolver.resolve_async = AsyncMock(return_value=None)
+            mock_get_cascade.return_value = mock_cascade_resolver
+
+            row = await extractor.extract_async(minimal_task)
+
+            assert row.office_phone is None
 
     def test_derived_field_vertical_id_returns_none(
         self,

@@ -115,6 +115,7 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
         resolver: CustomFieldResolver | None = None,
         lazy_threshold: int = LAZY_THRESHOLD,
         cache_integration: DataFrameCacheIntegration | None = None,
+        client: AsanaClient | None = None,
     ) -> None:
         """Initialize project builder.
 
@@ -129,8 +130,10 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
             resolver: Optional CustomFieldResolver for custom fields
             lazy_threshold: Task count threshold for lazy evaluation
             cache_integration: Optional cache integration for struc caching
+            client: Optional AsanaClient for cascade: field resolution.
+                   Required if schema contains cascade: sources.
         """
-        super().__init__(schema, resolver, lazy_threshold, cache_integration)
+        super().__init__(schema, resolver, lazy_threshold, cache_integration, client)
         self._project = project
         self._task_type = task_type
         self._sections = sections
@@ -569,19 +572,36 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
 
             except Exception as e:
                 # Catch any unexpected exceptions and fall back
+                import traceback
+                tb = traceback.format_exc()
                 logger.warning(
                     "dataframe_fallback_triggered",
                     extra={
                         "project_gid": project_gid,
                         "reason": str(e),
                         "error_type": type(e).__name__,
+                        "traceback": tb,
                     },
                 )
                 fetch_strategy = "serial"
-                df = await self._build_serial_async(
-                    client, lazy=lazy, use_cache=use_cache
-                )
-                task_count = len(df)
+                try:
+                    df = await self._build_serial_async(
+                        client, lazy=lazy, use_cache=use_cache
+                    )
+                    task_count = len(df)
+                except Exception as serial_e:
+                    # Serial fallback also failed - log and re-raise
+                    serial_tb = traceback.format_exc()
+                    logger.error(
+                        "dataframe_serial_fallback_failed",
+                        extra={
+                            "project_gid": project_gid,
+                            "original_error": str(e),
+                            "serial_error": str(serial_e),
+                            "traceback": serial_tb,
+                        },
+                    )
+                    raise
 
         else:
             # use_parallel_fetch=False: Use serial fetch

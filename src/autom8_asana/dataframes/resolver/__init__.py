@@ -3,11 +3,15 @@
 Per TDD-0009.1 and ADR-0034: Provides dynamic custom field resolution
 that maps schema field names to Asana custom field GIDs at runtime.
 
+Per TDD-CASCADING-FIELD-RESOLUTION-001: CascadingFieldResolver provides
+parent chain traversal for fields that cascade from ancestors.
+
 Public API:
     - CustomFieldResolver: Protocol defining the resolver interface
     - DefaultCustomFieldResolver: Production implementation
     - MockCustomFieldResolver: Testing implementation with pre-defined values
     - FailingResolver: Error path testing implementation
+    - CascadingFieldResolver: Async resolver for parent chain traversal
     - NameNormalizer: Field name normalization utility
     - TypeCoercer: Schema-aware type coercion for custom field values
     - coerce_value: Module-level coercion function
@@ -16,6 +20,7 @@ Example:
     >>> from autom8_asana.dataframes.resolver import (
     ...     DefaultCustomFieldResolver,
     ...     MockCustomFieldResolver,
+    ...     CascadingFieldResolver,
     ...     NameNormalizer,
     ...     TypeCoercer,
     ...     coerce_value,
@@ -29,6 +34,10 @@ Example:
     >>> resolver = MockCustomFieldResolver({"mrr": Decimal("5000")})
     >>> value = resolver.get_value(None, "cf:MRR")
 
+    >>> # Cascading field resolution
+    >>> cascading = CascadingFieldResolver(client=client)
+    >>> value = await cascading.resolve_async(task, "Office Phone")
+
     >>> # Name normalization
     >>> NameNormalizer.is_match("Weekly Ad Spend", "weekly_ad_spend")
     True
@@ -38,6 +47,7 @@ Example:
     'A, B'
 """
 
+from autom8_asana.dataframes.resolver.cascading import CascadingFieldResolver
 from autom8_asana.dataframes.resolver.coercer import TypeCoercer, coerce_value
 from autom8_asana.dataframes.resolver.default import DefaultCustomFieldResolver
 from autom8_asana.dataframes.resolver.mock import (
@@ -54,6 +64,7 @@ __all__ = [
     "DefaultCustomFieldResolver",
     "MockCustomFieldResolver",
     "FailingResolver",
+    "CascadingFieldResolver",
     # Utilities
     "NameNormalizer",
     "TypeCoercer",

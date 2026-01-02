@@ -5,6 +5,9 @@ resolver lifecycle management, and extractor factory pattern.
 
 Per TDD-0008 Session 4 Phase 4: Adds cache integration support with
 async build methods and cache hit/miss flow.
+
+Per TDD-CASCADING-FIELD-RESOLUTION-001: Added client parameter for
+cascade: field resolution in extractors.
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ from autom8_asana.dataframes.extractors import (
 from autom8_asana.dataframes.models.schema import DataFrameSchema
 
 if TYPE_CHECKING:
+    from autom8_asana.client import AsanaClient
     from autom8_asana.dataframes.cache_integration import DataFrameCacheIntegration
     from autom8_asana.dataframes.resolver.protocol import CustomFieldResolver
     from autom8_asana.models.task import Task
@@ -43,12 +47,16 @@ class DataFrameBuilder(ABC):
     Per TDD-0008 Session 4 Phase 4: Adds cache integration with async
     build methods and schema-version-aware caching.
 
+    Per TDD-CASCADING-FIELD-RESOLUTION-001: Added client parameter for
+    cascade: field resolution in extractors.
+
     Features:
         - Automatic lazy/eager evaluation selection based on task count
         - Resolver lifecycle management with lazy initialization
         - Extractor factory pattern for type-specific extraction
         - Empty DataFrame handling with schema preservation
         - Optional cache integration with schema version tracking
+        - Optional client for cascade: field resolution
 
     Subclasses implement:
         - get_tasks(): Returns list of tasks to extract
@@ -58,6 +66,7 @@ class DataFrameBuilder(ABC):
     Attributes:
         schema: DataFrameSchema defining columns to extract
         resolver: Optional CustomFieldResolver for custom fields
+        client: Optional AsanaClient for cascade: field resolution
         lazy_threshold: Task count threshold for automatic lazy selection
         cache_integration: Optional cache integration for struc caching
 
@@ -72,6 +81,10 @@ class DataFrameBuilder(ABC):
 
         >>> # Async with caching:
         >>> df = await builder.build_async(use_cache=True)
+
+        >>> # With cascade: field support:
+        >>> builder = ProjectDataFrameBuilder(project, "Unit", UNIT_SCHEMA, resolver, client=client)
+        >>> df = await builder.build_async()  # Uses cascade resolution
     """
 
     def __init__(
@@ -80,6 +93,7 @@ class DataFrameBuilder(ABC):
         resolver: CustomFieldResolver | None = None,
         lazy_threshold: int = LAZY_THRESHOLD,
         cache_integration: DataFrameCacheIntegration | None = None,
+        client: AsanaClient | None = None,
     ) -> None:
         """Initialize builder with schema and optional resolver.
 
@@ -91,11 +105,14 @@ class DataFrameBuilder(ABC):
                            Defaults to LAZY_THRESHOLD (100).
             cache_integration: Optional cache integration for struc caching.
                               When provided, build() can use cached rows.
+            client: Optional AsanaClient for cascade: field resolution.
+                   Required if schema contains cascade: sources.
         """
         self._schema = schema
         self._resolver = resolver
         self._lazy_threshold = lazy_threshold
         self._cache_integration = cache_integration
+        self._client = client
         self._resolver_initialized = False
         self._extractor: BaseExtractor | None = None
 
@@ -118,6 +135,11 @@ class DataFrameBuilder(ABC):
     def cache_integration(self) -> DataFrameCacheIntegration | None:
         """Get the cache integration instance."""
         return self._cache_integration
+
+    @property
+    def client(self) -> AsanaClient | None:
+        """Get the Asana client for cascade resolution."""
+        return self._client
 
     @abstractmethod
     def get_tasks(self) -> list[Task]:
@@ -363,6 +385,8 @@ class DataFrameBuilder(ABC):
         """Factory method for creating type-specific extractors.
 
         Per TDD-0009: Creates extractor based on task type string.
+        Per TDD-CASCADING-FIELD-RESOLUTION-001: Passes client for cascade: support.
+
         Subclasses can override for custom extractor selection logic.
 
         Args:
@@ -376,15 +400,15 @@ class DataFrameBuilder(ABC):
         """
         match task_type:
             case "Unit":
-                return UnitExtractor(self._schema, self._resolver)
+                return UnitExtractor(self._schema, self._resolver, client=self._client)
             case "Contact":
-                return ContactExtractor(self._schema, self._resolver)
+                return ContactExtractor(self._schema, self._resolver, client=self._client)
             case "*":
-                return DefaultExtractor(self._schema, self._resolver)
+                return DefaultExtractor(self._schema, self._resolver, client=self._client)
             case _:
                 # For unknown types, fall back to DefaultExtractor
                 # This matches SchemaRegistry's fallback to BASE_SCHEMA
-                return DefaultExtractor(self._schema, self._resolver)
+                return DefaultExtractor(self._schema, self._resolver, client=self._client)
 
     # =========================================================================
     # Cache Integration Methods

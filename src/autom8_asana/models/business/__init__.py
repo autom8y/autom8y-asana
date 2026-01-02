@@ -102,6 +102,10 @@ from autom8_asana.models.business.fields import (
     # Task opt_fields constants (per PRD-CACHE-PERF-HYDRATION)
     STANDARD_TASK_OPT_FIELDS,
     DETECTION_OPT_FIELDS,
+    # Cascading field registry (TDD-CASCADING-FIELD-RESOLUTION-001)
+    CascadingFieldEntry,
+    get_cascading_field,
+    get_cascading_field_registry,
 )
 from autom8_asana.models.business.mixins import (
     FinancialFieldsMixin,
@@ -169,6 +173,10 @@ __all__ = [
     # Task opt_fields constants (per PRD-CACHE-PERF-HYDRATION)
     "STANDARD_TASK_OPT_FIELDS",
     "DETECTION_OPT_FIELDS",
+    # Cascading field registry (TDD-CASCADING-FIELD-RESOLUTION-001)
+    "CascadingFieldEntry",
+    "get_cascading_field",
+    "get_cascading_field_registry",
     # Field mixins (TDD-SPRINT-1)
     "SharedCascadingFieldsMixin",
     "FinancialFieldsMixin",

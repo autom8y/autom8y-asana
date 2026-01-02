@@ -61,8 +61,8 @@ UNIT_COLUMNS: list[ColumnDef] = [
         name="office_phone",
         dtype="Utf8",
         nullable=True,
-        source="cf:Office Phone",  # Custom field on Unit tasks
-        description="Office phone number",
+        source="cascade:Office Phone",  # Cascades from Business ancestor
+        description="Office phone number (cascades from Business)",
     ),
     ColumnDef(
         name="vertical",
