@@ -134,6 +134,11 @@ from autom8_asana.cache.lightweight_checker import LightweightChecker
 from autom8_asana.cache.staleness_coordinator import StalenessCheckCoordinator
 from autom8_asana.cache.staleness_settings import StalenessCheckSettings
 
+# Unified cache (TDD-UNIFIED-CACHE-001, MIGRATION-PLAN-legacy-cache-elimination RF-003)
+from autom8_asana.cache.freshness_coordinator import FreshnessMode
+from autom8_asana.cache.hierarchy import HierarchyIndex
+from autom8_asana.cache.unified import UnifiedTaskStore
+
 __all__ = [
     # Entry types
     "CacheEntry",
@@ -200,4 +205,8 @@ __all__ = [
     "LightweightChecker",
     "RequestCoalescer",
     "StalenessCheckCoordinator",
+    # Unified cache (TDD-UNIFIED-CACHE-001, MIGRATION-PLAN-legacy-cache-elimination RF-003)
+    "UnifiedTaskStore",
+    "FreshnessMode",
+    "HierarchyIndex",
 ]
