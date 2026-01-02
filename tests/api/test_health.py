@@ -5,8 +5,10 @@ Tests cover:
 - GET /health/s2s returns S2S connectivity status
 - No authentication required
 - Response format matches expected structure
+- Cache readiness affects health status (FR-004)
 
 Per PRD-S2S-001 NFR-OPS-002: Health check includes S2S connectivity status.
+Per sprint-materialization-002 FR-004: Health returns 503 during cache warmup.
 """
 
 import os
@@ -15,6 +17,25 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+
+from autom8_asana.api.routes.health import (
+    is_cache_ready,
+    set_cache_ready,
+)
+
+
+@pytest.fixture(autouse=True)
+def reset_cache_ready():
+    """Reset cache ready state before and after each test.
+
+    This ensures tests start with cache ready (for backward compatibility)
+    and clean up after themselves.
+    """
+    # Set to ready by default for existing tests
+    set_cache_ready(True)
+    yield
+    # Clean up
+    set_cache_ready(True)
 
 
 class TestHealthEndpoint:
@@ -195,3 +216,113 @@ class TestS2SHealthEndpoint:
 
                 assert data["jwks_reachable"] is False
                 assert data["details"]["jwks_status"] == "connection_error"
+
+
+class TestCacheReadiness:
+    """Tests for cache readiness affecting health status.
+
+    Per sprint-materialization-002 FR-004:
+    - Returns 503 "warming" status during cache preload
+    - Returns 200 "healthy" status after cache is ready
+    """
+
+    def test_health_returns_503_when_cache_not_ready(self, client: TestClient) -> None:
+        """Health check returns 503 when cache is not ready.
+
+        Per FR-004: During cache preload, health endpoint returns 503 to
+        prevent traffic until caches are populated.
+        """
+        set_cache_ready(False)
+
+        response = client.get("/health")
+
+        assert response.status_code == 503
+        data = response.json()
+        assert data["status"] == "warming"
+        assert "version" in data
+        assert "message" in data
+        assert "preload" in data["message"].lower()
+
+    def test_health_returns_200_when_cache_ready(self, client: TestClient) -> None:
+        """Health check returns 200 when cache is ready.
+
+        Per FR-004: After cache preload completes, health returns 200.
+        """
+        set_cache_ready(True)
+
+        response = client.get("/health")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "healthy"
+
+    def test_set_cache_ready_changes_state(self) -> None:
+        """set_cache_ready() correctly updates the cache ready state."""
+        # Start with not ready
+        set_cache_ready(False)
+        assert is_cache_ready() is False
+
+        # Set to ready
+        set_cache_ready(True)
+        assert is_cache_ready() is True
+
+        # Set back to not ready
+        set_cache_ready(False)
+        assert is_cache_ready() is False
+
+    def test_is_cache_ready_returns_current_state(self) -> None:
+        """is_cache_ready() returns the current cache ready state."""
+        set_cache_ready(True)
+        assert is_cache_ready() is True
+
+        set_cache_ready(False)
+        assert is_cache_ready() is False
+
+    def test_health_warming_includes_version(self, client: TestClient) -> None:
+        """Health check in warming state still includes version."""
+        set_cache_ready(False)
+
+        response = client.get("/health")
+        data = response.json()
+
+        version = data["version"]
+        # Should be semver-like: X.Y.Z
+        parts = version.split(".")
+        assert len(parts) == 3
+
+    def test_health_warming_no_auth_required(self, client: TestClient) -> None:
+        """Health check in warming state does not require auth.
+
+        Per FR-API-HEALTH-002: Health endpoint never requires authentication.
+        """
+        set_cache_ready(False)
+
+        # No Authorization header
+        response = client.get("/health")
+
+        # Should return 503, not 401
+        assert response.status_code == 503
+
+        # Even with invalid header, should return 503 not 401
+        response = client.get("/health", headers={"Authorization": "invalid"})
+        assert response.status_code == 503
+
+    def test_cache_state_transition(self, client: TestClient) -> None:
+        """Health status changes as cache state transitions."""
+        # Initially not ready
+        set_cache_ready(False)
+        response = client.get("/health")
+        assert response.status_code == 503
+        assert response.json()["status"] == "warming"
+
+        # Transition to ready
+        set_cache_ready(True)
+        response = client.get("/health")
+        assert response.status_code == 200
+        assert response.json()["status"] == "healthy"
+
+        # Transition back to not ready (edge case)
+        set_cache_ready(False)
+        response = client.get("/health")
+        assert response.status_code == 503
+        assert response.json()["status"] == "warming"

@@ -14,6 +14,10 @@ Per PRD-ASANA-SATELLITE:
 Per PRD-S2S-001 (NFR-OPS-002):
 - GET /health/s2s returns S2S connectivity status
 - Checks JWKS endpoint reachability for JWT validation
+
+Per sprint-materialization-002 FR-004:
+- Returns 503 "warming" status during cache preload
+- Returns 200 "healthy" status after cache is ready
 """
 
 from __future__ import annotations
@@ -33,6 +37,37 @@ API_VERSION = "0.1.0"
 logger = logging.getLogger("autom8_asana.health")
 
 router = APIRouter(tags=["health"])
+
+# --- Cache Readiness State (FR-004) ---
+# Module-level flag for cache warm-up state
+# Set to True by startup preload after cache is populated
+_cache_ready: bool = False
+
+
+def set_cache_ready(ready: bool) -> None:
+    """Set cache readiness state.
+
+    Per FR-004: Called by startup preload to signal cache is ready.
+    Health check returns 503 "warming" until this is set to True.
+
+    Args:
+        ready: True when cache preload is complete.
+    """
+    global _cache_ready
+    _cache_ready = ready
+    logger.info(
+        "cache_ready_state_changed",
+        extra={"ready": ready},
+    )
+
+
+def is_cache_ready() -> bool:
+    """Check if cache is ready.
+
+    Returns:
+        True if cache preload is complete.
+    """
+    return _cache_ready
 
 
 class HealthResponse(TypedDict):
@@ -55,7 +90,7 @@ class S2SHealthResponse(TypedDict, total=False):
 
 @router.get("/health")
 async def health_check() -> JSONResponse:
-    """Liveness probe - returns healthy if the application is running.
+    """Liveness probe - returns healthy if the application is running and warm.
 
     Per FR-API-HEALTH-001:
     - Returns 200 with {"status": "healthy", "version": "0.1.0"}
@@ -64,12 +99,32 @@ async def health_check() -> JSONResponse:
     - This endpoint does NOT require authentication
     - No Authorization header needed
 
-    This endpoint should always return 200 as long as the application
-    process is running. It does not check external dependencies.
+    Per sprint-materialization-002 FR-004:
+    - Returns 503 with {"status": "warming"} during cache preload
+    - Returns 200 with {"status": "healthy"} after cache is ready
+
+    This endpoint checks cache readiness state. During startup preload,
+    it returns 503 to prevent traffic until caches are populated.
 
     Returns:
-        JSON response with status "healthy" and current version.
+        JSON response with status and current version.
+        - 200: Cache is ready, service is healthy
+        - 503: Cache is warming, service is not ready for traffic
     """
+    if not _cache_ready:
+        logger.debug(
+            "health_check_warming",
+            extra={"cache_ready": False},
+        )
+        return JSONResponse(
+            content={
+                "status": "warming",
+                "version": API_VERSION,
+                "message": "Cache preload in progress",
+            },
+            status_code=503,
+        )
+
     return JSONResponse(
         content={"status": "healthy", "version": API_VERSION},
         status_code=200,
@@ -163,4 +218,4 @@ async def s2s_health_check() -> JSONResponse:
     return JSONResponse(content=response_content, status_code=http_status)
 
 
-__all__ = ["router"]
+__all__ = ["router", "set_cache_ready", "is_cache_ready"]

@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2025-12-31
+
+### Breaking Changes
+
+- **Platform Primitive Migration**: Transport layer now delegates to `autom8y-*` packages
+  - `autom8y-config>=0.1.0` - Configuration primitives
+  - `autom8y-http>=0.1.0` - HTTP transport primitives (rate limiter, retry, circuit breaker)
+  - `autom8y-log>=0.1.0` - Logging primitives
+  - **Python 3.11+ required** (upgraded from 3.10)
+
+- **Transport Layer Refactored**: Components now wrap platform primitives
+  - `TokenBucketRateLimiter` wraps `autom8y_http.TokenBucketRateLimiter`
+  - `RetryHandler` wraps `autom8y_http.ExponentialBackoffRetry`
+  - `CircuitBreaker` wraps `autom8y_http.CircuitBreaker`
+  - `sync_wrapper` wraps `autom8y_http.sync_wrapper`
+  - Backward compatibility maintained via wrapper classes
+
+### Added
+
+- **LogProviderAdapter** (`autom8_asana.compat.log_adapter`): Bridges printf-style `LogProvider` to structured `LoggerProtocol`
+- **Platform config imports**: Transport configs available from `autom8y_http`
+
+### Migration Notes
+
+Existing code using `autom8_asana.transport.*` continues to work unchanged. The wrappers maintain the original API signatures while delegating to platform primitives internally.
+
+For new code, consider importing directly from platform primitives:
+```python
+# New pattern (recommended for new code)
+from autom8y_http import TokenBucketRateLimiter, ExponentialBackoffRetry
+
+# Old pattern (still works, maintained for backward compatibility)
+from autom8_asana.transport import TokenBucketRateLimiter, RetryHandler
+```
+
+### Technical Details
+
+- TDD: `docs/architecture/TDD-PRIMITIVE-MIGRATION-001.md`
+- Spike: `docs/spikes/SPIKE-AUTOM8-ASANA-PRIMITIVE-ADOPTION.md` (in autom8y_platform)
+- Validation: `docs/testing/VALIDATION-PRIMITIVE-MIGRATION-001.md`
+
+---
+
 ## [Unreleased]
 
 ### Added

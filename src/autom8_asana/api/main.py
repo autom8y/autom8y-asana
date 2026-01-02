@@ -36,12 +36,20 @@ Design Principles:
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import datetime
+from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+
+if TYPE_CHECKING:
+    import polars as pl
+
+    from autom8_asana.services.gid_lookup import GidLookupIndex
 
 from .config import get_settings
 from .errors import register_exception_handlers
@@ -76,6 +84,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     - Configure structured logging
     - Log startup event
     - Entity resolver discovery (FR-004, FR-005 per TDD-entity-resolver)
+    - DataFrame cache preload from S3 (FR-003 per sprint-materialization-002)
 
     Shutdown:
     - Log shutdown event
@@ -85,6 +94,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     so no persistent client initialization needed here.
 
     Per ADR-0060: Entity resolver discovers project GIDs at startup.
+
+    Per sprint-materialization-002 FR-003, FR-004:
+    - Pre-warm DataFrame cache before accepting traffic
+    - Health check returns 503 until cache is ready
 
     Args:
         app: FastAPI application instance.
@@ -122,6 +135,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
         # Per ADR-0060: Fail-fast on discovery failure
         raise RuntimeError(f"Entity resolver discovery failed: {e}") from e
+
+    # DataFrame cache preload (FR-003 per sprint-materialization-002)
+    # Runs after entity discovery so we know which projects exist
+    await _preload_dataframe_cache(app)
 
     yield
 
@@ -244,6 +261,507 @@ async def _discover_entity_projects(app: FastAPI) -> None:
                 "is_ready": entity_registry.is_ready(),
             },
         )
+
+
+async def _preload_dataframe_cache(app: FastAPI) -> None:
+    """Pre-warm DataFrame cache before accepting traffic with incremental catch-up.
+
+    Per sprint-materialization-002 FR-003:
+    - Attempts to load persisted DataFrames from S3 for all registered projects
+    - Populates WatermarkRepository with loaded watermarks
+    - Populates GidLookupIndex cache with loaded DataFrames
+    - Sets health check to ready after preload completes
+
+    Per sprint-materialization-003 Task 3:
+    - Loads persisted GidLookupIndex from S3 (before building new indices)
+    - Runs incremental catch-up (fetch only tasks modified since watermark)
+    - Falls back to full build when no persisted state
+    - Persists updated state after catch-up
+    - Logs timing metrics for cold start (target: <5s with persisted state)
+
+    Per sprint-materialization-003 Task 4:
+    - Loads watermarks FIRST from S3 before loading DataFrames
+    - Configures WatermarkRepository with persistence for write-through
+
+    Per FR-004:
+    - Health check returns 503 during preload
+    - Health check returns 200 after preload completes
+
+    Graceful Degradation:
+    - S3 unavailable: Logs warning, continues startup (cache will be built on first request)
+    - Load error for specific project: Logs warning, continues with other projects
+    - Always sets cache_ready to True at end (service can function without warm cache)
+
+    Args:
+        app: FastAPI application instance (provides access to entity_project_registry)
+    """
+    import time
+
+    from autom8_asana.api.routes.health import set_cache_ready
+    from autom8_asana.dataframes.persistence import DataFramePersistence
+    from autom8_asana.dataframes.watermark import get_watermark_repo
+    from autom8_asana.services.gid_lookup import GidLookupIndex
+    from autom8_asana.services.resolver import (
+        EntityProjectRegistry,
+        _gid_index_cache,
+    )
+
+    start_time = time.perf_counter()
+    loaded_count = 0
+    total_projects = 0
+    total_rows = 0
+    watermarks_loaded = 0
+    incremental_catchups = 0
+    full_rebuilds = 0
+    indices_loaded_from_s3 = 0
+
+    try:
+        # Get registered projects from entity resolver
+        entity_registry: EntityProjectRegistry = getattr(
+            app.state, "entity_project_registry", None
+        )
+
+        if entity_registry is None or not entity_registry.is_ready():
+            logger.warning(
+                "dataframe_preload_skipped",
+                extra={"reason": "entity_registry_not_ready"},
+            )
+            set_cache_ready(True)
+            return
+
+        # Get all registered project GIDs with their entity types
+        registered_types = entity_registry.get_all_entity_types()
+        project_configs: list[tuple[str, str]] = []  # (project_gid, entity_type)
+        for entity_type in registered_types:
+            config = entity_registry.get_config(entity_type)
+            if config and config.project_gid:
+                project_configs.append((config.project_gid, entity_type))
+
+        total_projects = len(project_configs)
+
+        if not project_configs:
+            logger.info(
+                "dataframe_preload_skipped",
+                extra={"reason": "no_registered_projects"},
+            )
+            set_cache_ready(True)
+            return
+
+        project_gids = [gid for gid, _ in project_configs]
+        logger.info(
+            "dataframe_preload_starting",
+            extra={
+                "project_count": total_projects,
+                "project_gids": project_gids,
+            },
+        )
+
+        # Initialize persistence layer
+        persistence = DataFramePersistence()
+
+        if not persistence.is_available:
+            logger.warning(
+                "dataframe_preload_s3_unavailable",
+                extra={
+                    "detail": "S3 persistence not available, cache will be built on first request",
+                },
+            )
+            set_cache_ready(True)
+            return
+
+        # Get watermark repository and configure persistence for write-through
+        watermark_repo = get_watermark_repo()
+        watermark_repo.set_persistence(persistence)
+
+        # Load all watermarks FIRST from S3 (sprint-materialization-003 Task 4)
+        # This bulk load is more efficient than per-project loads
+        watermarks_loaded = await watermark_repo.load_from_persistence(persistence)
+
+        logger.info(
+            "dataframe_preload_watermarks_restored",
+            extra={
+                "watermarks_loaded": watermarks_loaded,
+            },
+        )
+
+        # Process each project with incremental catch-up strategy
+        for project_gid, entity_type in project_configs:
+            project_start = time.perf_counter()
+
+            try:
+                # Step 1: Try loading persisted index from S3
+                index = await persistence.load_index(project_gid)
+                df, persisted_watermark = await persistence.load_dataframe(project_gid)
+                watermark = watermark_repo.get_watermark(project_gid)
+
+                # Use persisted watermark if in-memory is missing
+                if watermark is None and persisted_watermark is not None:
+                    watermark = persisted_watermark
+                    watermark_repo.set_watermark(project_gid, watermark)
+
+                if index is not None and df is not None and watermark is not None:
+                    # Have persisted state - do incremental catch-up
+                    indices_loaded_from_s3 += 1
+
+                    logger.info(
+                        "dataframe_preload_incremental_start",
+                        extra={
+                            "project_gid": project_gid,
+                            "entity_type": entity_type,
+                            "persisted_rows": len(df),
+                            "persisted_index_entries": len(index),
+                            "watermark": watermark.isoformat(),
+                        },
+                    )
+
+                    # Perform incremental catch-up
+                    updated_df, new_watermark, was_incremental = (
+                        await _do_incremental_catchup(
+                            project_gid=project_gid,
+                            entity_type=entity_type,
+                            existing_df=df,
+                            existing_index=index,
+                            watermark=watermark,
+                        )
+                    )
+
+                    if was_incremental:
+                        incremental_catchups += 1
+                    else:
+                        full_rebuilds += 1
+
+                    # Check if DataFrame changed (need to rebuild index)
+                    if updated_df is not df:
+                        # DataFrame was updated - rebuild index
+                        try:
+                            index = GidLookupIndex.from_dataframe(updated_df)
+                        except KeyError as e:
+                            logger.warning(
+                                "dataframe_preload_index_rebuild_failed",
+                                extra={
+                                    "project_gid": project_gid,
+                                    "error": str(e),
+                                },
+                            )
+                            # Use persisted index as fallback
+                            pass
+
+                        # Persist updated state
+                        await persistence.save_dataframe(
+                            project_gid, updated_df, new_watermark
+                        )
+                        await persistence.save_index(project_gid, index)
+                        watermark_repo.set_watermark(project_gid, new_watermark)
+
+                    # Cache index for fast lookups
+                    _gid_index_cache[project_gid] = index
+                    loaded_count += 1
+                    total_rows += len(updated_df)
+
+                    project_elapsed = (time.perf_counter() - project_start) * 1000
+                    logger.info(
+                        "dataframe_preload_project_complete",
+                        extra={
+                            "project_gid": project_gid,
+                            "entity_type": entity_type,
+                            "row_count": len(updated_df),
+                            "index_entries": len(index),
+                            "strategy": "incremental" if was_incremental else "full",
+                            "duration_ms": round(project_elapsed, 2),
+                        },
+                    )
+
+                else:
+                    # No persisted state - full rebuild required
+                    logger.info(
+                        "dataframe_preload_full_rebuild_start",
+                        extra={
+                            "project_gid": project_gid,
+                            "entity_type": entity_type,
+                            "has_index": index is not None,
+                            "has_df": df is not None,
+                            "has_watermark": watermark is not None,
+                        },
+                    )
+
+                    # Full rebuild
+                    new_df, new_watermark = await _do_full_rebuild(
+                        project_gid=project_gid,
+                        entity_type=entity_type,
+                    )
+                    full_rebuilds += 1
+
+                    if new_df is not None and len(new_df) > 0:
+                        try:
+                            new_index = GidLookupIndex.from_dataframe(new_df)
+
+                            # Persist new state
+                            await persistence.save_dataframe(
+                                project_gid, new_df, new_watermark
+                            )
+                            await persistence.save_index(project_gid, new_index)
+                            watermark_repo.set_watermark(project_gid, new_watermark)
+
+                            # Cache for fast lookups
+                            _gid_index_cache[project_gid] = new_index
+                            loaded_count += 1
+                            total_rows += len(new_df)
+
+                            project_elapsed = (time.perf_counter() - project_start) * 1000
+                            logger.info(
+                                "dataframe_preload_project_complete",
+                                extra={
+                                    "project_gid": project_gid,
+                                    "entity_type": entity_type,
+                                    "row_count": len(new_df),
+                                    "index_entries": len(new_index),
+                                    "strategy": "full_rebuild",
+                                    "duration_ms": round(project_elapsed, 2),
+                                },
+                            )
+
+                        except KeyError as e:
+                            logger.warning(
+                                "dataframe_preload_index_build_failed",
+                                extra={
+                                    "project_gid": project_gid,
+                                    "error": str(e),
+                                },
+                            )
+                    else:
+                        logger.debug(
+                            "dataframe_preload_no_data",
+                            extra={"project_gid": project_gid},
+                        )
+
+            except Exception as e:
+                # Graceful degradation - continue with other projects
+                logger.warning(
+                    "dataframe_preload_project_failed",
+                    extra={
+                        "project_gid": project_gid,
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                    },
+                )
+
+    except Exception as e:
+        # Graceful degradation - log and continue
+        logger.error(
+            "dataframe_preload_failed",
+            extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+            },
+        )
+
+    finally:
+        # Always set cache ready at end (service can function without warm cache)
+        set_cache_ready(True)
+
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        logger.info(
+            "dataframe_preload_complete",
+            extra={
+                "projects_loaded": loaded_count,
+                "total_projects": total_projects,
+                "total_rows": total_rows,
+                "watermarks_loaded": watermarks_loaded,
+                "indices_loaded_from_s3": indices_loaded_from_s3,
+                "incremental_catchups": incremental_catchups,
+                "full_rebuilds": full_rebuilds,
+                "duration_ms": round(elapsed_ms, 2),
+                "cold_start_target_met": elapsed_ms < 5000,  # Target: <5s
+            },
+        )
+
+
+async def _do_incremental_catchup(
+    project_gid: str,
+    entity_type: str,
+    existing_df: "pl.DataFrame",
+    existing_index: "GidLookupIndex",
+    watermark: "datetime",
+) -> tuple["pl.DataFrame", "datetime", bool]:
+    """Perform incremental catch-up for a project.
+
+    Fetches only tasks modified since the watermark and merges them
+    into the existing DataFrame.
+
+    Args:
+        project_gid: Asana project GID.
+        entity_type: Entity type (e.g., "unit").
+        existing_df: Persisted DataFrame.
+        existing_index: Persisted GidLookupIndex.
+        watermark: Last sync timestamp.
+
+    Returns:
+        Tuple of (updated_df, new_watermark, was_incremental).
+        was_incremental is True if we did incremental sync, False if we fell back.
+    """
+    from autom8_asana import AsanaClient
+    from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
+    from autom8_asana.dataframes.builders.project import ProjectDataFrameBuilder
+    from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
+    from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
+
+    # Get bot PAT for API access
+    try:
+        bot_pat = get_bot_pat()
+    except BotPATError:
+        logger.warning(
+            "incremental_catchup_no_bot_pat",
+            extra={"project_gid": project_gid},
+        )
+        # Return existing state unchanged
+        return existing_df, watermark, False
+
+    import os
+
+    workspace_gid = os.environ.get("ASANA_WORKSPACE_GID")
+    if not workspace_gid:
+        logger.warning(
+            "incremental_catchup_no_workspace",
+            extra={"project_gid": project_gid},
+        )
+        return existing_df, watermark, False
+
+    # Minimal project proxy for builder
+    class ProjectProxy:
+        def __init__(self, gid: str) -> None:
+            self.gid = gid
+            self.tasks: list = []
+
+    try:
+        async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
+            # Select schema based on entity type
+            schema = UNIT_SCHEMA  # Default to unit; extend for other types
+            task_type = entity_type.title()  # "unit" -> "Unit"
+
+            resolver = DefaultCustomFieldResolver()
+            project_proxy = ProjectProxy(project_gid)
+
+            builder = ProjectDataFrameBuilder(
+                project=project_proxy,
+                task_type=task_type,
+                schema=schema,
+                resolver=resolver,
+            )
+
+            # Use incremental refresh
+            updated_df, new_watermark = await builder.refresh_incremental(
+                client=client,
+                existing_df=existing_df,
+                watermark=watermark,
+            )
+
+            # Check if DataFrame actually changed
+            was_incremental = True
+            if updated_df is existing_df:
+                # No changes detected
+                logger.debug(
+                    "incremental_catchup_no_changes",
+                    extra={"project_gid": project_gid},
+                )
+
+            return updated_df, new_watermark, was_incremental
+
+    except Exception as e:
+        logger.warning(
+            "incremental_catchup_failed",
+            extra={
+                "project_gid": project_gid,
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "fallback": "return_existing",
+            },
+        )
+        # Return existing state unchanged
+        return existing_df, watermark, False
+
+
+async def _do_full_rebuild(
+    project_gid: str,
+    entity_type: str,
+) -> tuple["pl.DataFrame | None", "datetime"]:
+    """Perform full DataFrame rebuild for a project.
+
+    Fetches all tasks from the project and builds a new DataFrame.
+
+    Args:
+        project_gid: Asana project GID.
+        entity_type: Entity type (e.g., "unit").
+
+    Returns:
+        Tuple of (new_df, new_watermark). new_df may be None on failure.
+    """
+    from datetime import timezone
+
+    from autom8_asana import AsanaClient
+    from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
+    from autom8_asana.dataframes.builders.project import ProjectDataFrameBuilder
+    from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
+    from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
+
+    now = datetime.now(timezone.utc)
+
+    # Get bot PAT for API access
+    try:
+        bot_pat = get_bot_pat()
+    except BotPATError:
+        logger.warning(
+            "full_rebuild_no_bot_pat",
+            extra={"project_gid": project_gid},
+        )
+        return None, now
+
+    import os
+
+    workspace_gid = os.environ.get("ASANA_WORKSPACE_GID")
+    if not workspace_gid:
+        logger.warning(
+            "full_rebuild_no_workspace",
+            extra={"project_gid": project_gid},
+        )
+        return None, now
+
+    # Minimal project proxy for builder
+    class ProjectProxy:
+        def __init__(self, gid: str) -> None:
+            self.gid = gid
+            self.tasks: list = []
+
+    try:
+        async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
+            # Select schema based on entity type
+            schema = UNIT_SCHEMA  # Default to unit; extend for other types
+            task_type = entity_type.title()  # "unit" -> "Unit"
+
+            resolver = DefaultCustomFieldResolver()
+            project_proxy = ProjectProxy(project_gid)
+
+            builder = ProjectDataFrameBuilder(
+                project=project_proxy,
+                task_type=task_type,
+                schema=schema,
+                resolver=resolver,
+            )
+
+            # Full fetch
+            df = await builder.build_with_parallel_fetch_async(client)
+
+            return df, datetime.now(timezone.utc)
+
+    except Exception as e:
+        logger.warning(
+            "full_rebuild_failed",
+            extra={
+                "project_gid": project_gid,
+                "error": str(e),
+                "error_type": type(e).__name__,
+            },
+        )
+        return None, now
 
 
 def create_app() -> FastAPI:

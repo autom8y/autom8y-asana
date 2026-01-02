@@ -1,9 +1,9 @@
 [project]
 name = "autom8-asana"
-version = "0.1.0"
+version = "1.0.0"
 description = "Async-first Asana API client extracted from autom8"
 # readme = "README.md"  # Deferred to Phase 5
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.25.0",
     "pydantic>=2.0.0",
@@ -11,6 +11,11 @@ dependencies = [
     "asana>=5.0.3",
     "polars>=0.20.0",
     "arrow>=1.3.0",
+    # Platform primitives (TDD-PRIMITIVE-MIGRATION-001)
+    "autom8y-config>=0.1.0",
+    "autom8y-http>=0.1.0",
+    "autom8y-log>=0.1.0",
+    # autom8y-telemetry deferred - see TDD Phase 6
 ]
 
 [project.optional-dependencies]
@@ -69,12 +74,24 @@ markers = [
 ]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 strict = true
 warn_return_any = true
 warn_unused_ignores = true
 
 [tool.ruff]
 line-length = 88
-target-version = "py310"
+target-version = "py311"
+
+# CodeArtifact private package registry
+[[tool.uv.index]]
+name = "autom8y"
+url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/"
+
+# Platform primitive dependencies from CodeArtifact registry
+[tool.uv.sources]
+autom8y-auth = { index = "autom8y" }
+autom8y-config = { index = "autom8y" }
+autom8y-http = { index = "autom8y" }
+autom8y-log = { index = "autom8y" }
 

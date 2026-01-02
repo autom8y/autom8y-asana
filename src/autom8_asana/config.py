@@ -5,6 +5,10 @@ ASANA_PROJECT_* environment variables.
 
 Per TDD-CACHE-INTEGRATION: Includes CacheConfig for environment-aware
 cache provider selection.
+
+Per TDD-PRIMITIVE-MIGRATION-001: Platform config imports available for new code.
+Domain-specific configs (RateLimitConfig, etc.) remain as local dataclasses
+for backward compatibility. Transport wrappers handle translation.
 """
 
 from __future__ import annotations
@@ -15,6 +19,14 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+# Platform primitive configs - imported for use in transport wrappers
+# Per TDD-PRIMITIVE-MIGRATION-001 Phase 2
+from autom8y_http import (
+    CircuitBreakerConfig as PlatformCircuitBreakerConfig,
+    RateLimiterConfig as PlatformRateLimiterConfig,
+    RetryConfig as PlatformRetryConfig,
+)
+
 from autom8_asana.automation.config import AutomationConfig
 from autom8_asana.exceptions import ConfigurationError
 from autom8_asana.settings import get_settings
@@ -24,6 +36,7 @@ if TYPE_CHECKING:
     from autom8_asana.cache.settings import OverflowSettings, TTLSettings
 
 __all__ = [
+    # Domain-specific configs (backward compatible)
     "RateLimitConfig",
     "RetryConfig",
     "ConcurrencyConfig",
@@ -37,6 +50,10 @@ __all__ = [
     "validate_project_env_vars",
     "DEFAULT_ENTITY_TTLS",
     "DEFAULT_TTL",
+    # Platform primitive configs (for new code)
+    "PlatformRateLimiterConfig",
+    "PlatformRetryConfig",
+    "PlatformCircuitBreakerConfig",
 ]
 
 logger = logging.getLogger(__name__)

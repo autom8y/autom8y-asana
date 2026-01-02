@@ -10,7 +10,7 @@ Per task-002: Builds on cache population pattern from task-001.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     import polars as pl
@@ -132,6 +132,110 @@ class GidLookupIndex:
         age = datetime.now(timezone.utc) - self._created_at
         return age.total_seconds() > ttl_seconds
 
+    def __eq__(self, other: object) -> bool:
+        """Check equality for round-trip testing.
+
+        Two GidLookupIndex instances are equal if they have the same
+        lookup dictionary and created_at timestamp.
+
+        Args:
+            other: Object to compare against.
+
+        Returns:
+            True if both instances have identical lookup and created_at.
+        """
+        if not isinstance(other, GidLookupIndex):
+            return NotImplemented
+        return self._lookup == other._lookup and self._created_at == other._created_at
+
+    def serialize(self) -> dict[str, Any]:
+        """Serialize index to JSON-compatible dict for S3 persistence.
+
+        Creates a versioned, JSON-serializable representation of the index
+        that can be stored in S3 and later reconstructed via deserialize().
+
+        Returns:
+            Dict with keys:
+                - version: Format version string (currently "1.0")
+                - created_at: ISO 8601 timestamp string
+                - entry_count: Number of entries for validation
+                - lookup: The phone/vertical to GID mapping dict
+
+        Example:
+            >>> data = index.serialize()
+            >>> json.dumps(data)  # Safe for JSON storage
+            >>> reconstructed = GidLookupIndex.deserialize(data)
+        """
+        return {
+            "version": "1.0",
+            "created_at": self._created_at.isoformat(),
+            "entry_count": len(self._lookup),
+            "lookup": self._lookup,
+        }
+
+    @classmethod
+    def deserialize(cls, data: dict[str, Any]) -> GidLookupIndex:
+        """Reconstruct index from serialized dict.
+
+        Validates the serialized data and reconstructs a GidLookupIndex
+        instance. Performs integrity checks including version validation
+        and entry count verification.
+
+        Args:
+            data: Dict from serialize() or S3 load.
+
+        Returns:
+            Reconstructed GidLookupIndex instance.
+
+        Raises:
+            KeyError: If required keys (version, created_at, entry_count,
+                lookup) are missing.
+            ValueError: If data is invalid or corrupted:
+                - Unsupported version format
+                - Invalid ISO 8601 datetime format
+                - entry_count doesn't match actual lookup length
+
+        Example:
+            >>> data = json.loads(s3_object.read())
+            >>> index = GidLookupIndex.deserialize(data)
+        """
+        # Validate required keys exist (raises KeyError if missing)
+        required_keys = {"version", "created_at", "entry_count", "lookup"}
+        missing_keys = required_keys - set(data.keys())
+        if missing_keys:
+            raise KeyError(f"Missing required keys: {missing_keys}")
+
+        # Validate version
+        version = data["version"]
+        if version != "1.0":
+            raise ValueError(
+                f"Unsupported serialization version: {version}. "
+                f"Expected '1.0'."
+            )
+
+        # Parse datetime (raises ValueError if invalid format)
+        try:
+            created_at = datetime.fromisoformat(data["created_at"])
+        except (TypeError, ValueError) as e:
+            raise ValueError(
+                f"Invalid created_at datetime format: {data['created_at']}"
+            ) from e
+
+        # Validate entry count
+        lookup = data["lookup"]
+        expected_count = data["entry_count"]
+        actual_count = len(lookup)
+        if actual_count != expected_count:
+            raise ValueError(
+                f"Entry count mismatch: expected {expected_count}, "
+                f"got {actual_count}. Data may be corrupted."
+            )
+
+        return cls(
+            lookup_dict=lookup,
+            created_at=created_at,
+        )
+
     @classmethod
     def from_dataframe(cls, df: pl.DataFrame) -> GidLookupIndex:
         """Create a GidLookupIndex from a DataFrame.
@@ -180,9 +284,10 @@ class GidLookupIndex:
         )
 
         # Build the dictionary using canonical_key format
+        # Normalize vertical to lowercase for case-insensitive matching
         for row in valid_df.iter_rows(named=True):
             phone = row["office_phone"]
-            vertical = row["vertical"]
+            vertical = row["vertical"].lower()  # Normalize to lowercase
             gid = row["gid"]
             # Use canonical_key format: pv1:{phone}:{vertical}
             canonical_key = f"pv1:{phone}:{vertical}"

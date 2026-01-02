@@ -942,3 +942,202 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
             return lazy_frame.collect()
         else:
             return pl.DataFrame(all_rows, schema=self._schema.to_polars_schema())
+
+    # =========================================================================
+    # Incremental Refresh Methods (FR-002, FR-006: TDD-materialization-layer)
+    # =========================================================================
+
+    async def refresh_incremental(
+        self,
+        client: AsanaClient,
+        existing_df: pl.DataFrame | None,
+        watermark: datetime | None,
+    ) -> tuple[pl.DataFrame, datetime]:
+        """Fetch only tasks modified since watermark and merge.
+
+        Per FR-002: Uses modified_since parameter for efficient API calls.
+        Per FR-006: Merges changed tasks into existing DataFrame.
+
+        Behavior:
+        - watermark is None: Full fetch (first sync)
+        - watermark provided: Incremental fetch with modified_since
+        - existing_df is None with watermark: Treated as first sync
+
+        Args:
+            client: AsanaClient for API calls.
+            existing_df: Current DataFrame to merge into (None for first sync).
+            watermark: Last sync timestamp (None for full fetch).
+
+        Returns:
+            Tuple of (merged DataFrame, new watermark for next refresh).
+
+        Raises:
+            No exceptions - falls back to full fetch on API errors.
+
+        Example:
+            >>> df, new_wm = await builder.refresh_incremental(client, old_df, wm)
+            >>> watermark_repo.set_watermark(project_gid, new_wm)
+        """
+        import time
+        from datetime import timezone
+
+        project_gid = self._get_project_gid()
+        if not project_gid:
+            return self._build_empty(), datetime.now(timezone.utc)
+
+        start_time = time.perf_counter()
+        sync_start = datetime.now(timezone.utc)
+
+        # Determine fetch strategy - use explicit None checks for type narrowing
+        if watermark is not None and existing_df is not None:
+            # FR-002: Incremental fetch using modified_since
+            try:
+                modified_tasks = await self._fetch_modified_tasks(
+                    client, project_gid, watermark
+                )
+
+                elapsed_ms = (time.perf_counter() - start_time) * 1000
+                logger.info(
+                    "incremental_fetch_completed",
+                    extra={
+                        "project_gid": project_gid,
+                        "modified_count": len(modified_tasks),
+                        "watermark": watermark.isoformat(),
+                        "duration_ms": round(elapsed_ms, 2),
+                    },
+                )
+
+                if not modified_tasks:
+                    # No changes - return existing DataFrame with updated watermark
+                    return existing_df, sync_start
+
+                # FR-006: Merge deltas into existing DataFrame
+                merged_df = self._merge_deltas(existing_df, modified_tasks)
+                return merged_df, sync_start
+
+            except Exception as e:
+                # Fallback to full fetch on any error
+                logger.warning(
+                    "incremental_fetch_fallback",
+                    extra={
+                        "project_gid": project_gid,
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                        "fallback": "full_fetch",
+                    },
+                )
+                # Fall through to full fetch
+
+        # Full fetch (first sync or fallback)
+        df = await self.build_with_parallel_fetch_async(client)
+
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        logger.info(
+            "full_fetch_completed",
+            extra={
+                "project_gid": project_gid,
+                "task_count": len(df),
+                "reason": "first_sync" if watermark is None else "fallback",
+                "duration_ms": round(elapsed_ms, 2),
+            },
+        )
+
+        return df, sync_start
+
+    async def _fetch_modified_tasks(
+        self,
+        client: AsanaClient,
+        project_gid: str,
+        watermark: datetime,
+    ) -> list[Task]:
+        """Fetch tasks modified since watermark.
+
+        Per FR-002: Uses modified_since parameter for efficient API calls.
+
+        Args:
+            client: AsanaClient for API calls.
+            project_gid: Target project GID.
+            watermark: Timestamp for modified_since filter.
+
+        Returns:
+            List of modified Task objects.
+
+        Raises:
+            ValueError: If watermark is in the future (clock skew).
+        """
+        from datetime import timezone
+
+        # Edge case: Watermark in future (clock skew)
+        if watermark > datetime.now(timezone.utc):
+            logger.warning(
+                "watermark_future_detected",
+                extra={
+                    "project_gid": project_gid,
+                    "watermark": watermark.isoformat(),
+                    "action": "full_rebuild",
+                },
+            )
+            raise ValueError("Watermark in future - triggering full rebuild")
+
+        # Use existing list_async with modified_since parameter
+        tasks: list[Task] = await client.tasks.list_async(
+            project=project_gid,
+            modified_since=watermark.isoformat(),
+            opt_fields=_BASE_OPT_FIELDS,
+        ).collect()
+
+        return tasks
+
+    def _merge_deltas(
+        self,
+        existing_df: pl.DataFrame,
+        changed_tasks: list[Task],
+    ) -> pl.DataFrame:
+        """Merge changed tasks into existing DataFrame.
+
+        Per FR-006: Delta merge strategy:
+        1. Extract rows from changed tasks
+        2. Remove existing rows with matching GIDs
+        3. Append new/updated rows
+        4. Return merged DataFrame
+
+        Edge cases handled:
+        - Task created: New GID appended to DataFrame
+        - Task updated: Existing row replaced with new data
+        - Task deleted: NOT detected by modified_since (acceptable staleness)
+
+        Args:
+            existing_df: Current DataFrame with existing task data.
+            changed_tasks: List of modified Task objects from API.
+
+        Returns:
+            Merged DataFrame with updated task data.
+
+        Note:
+            Preserves schema and column order from existing DataFrame.
+        """
+        if not changed_tasks:
+            return existing_df
+
+        # Extract rows from changed tasks using existing extractor
+        changed_rows: list[dict[str, Any]] = []
+        for task in changed_tasks:
+            row = self._extract_row(task)
+            changed_rows.append(row)
+
+        # Create DataFrame from changed tasks
+        changed_df = pl.DataFrame(
+            changed_rows,
+            schema=self._schema.to_polars_schema(),
+        )
+
+        # Get GIDs of changed tasks for filtering
+        changed_gids = changed_df["gid"].to_list()
+
+        # Remove existing rows with matching GIDs (will be replaced)
+        unchanged_df = existing_df.filter(~pl.col("gid").is_in(changed_gids))
+
+        # Concatenate unchanged rows with updated rows
+        merged_df = pl.concat([unchanged_df, changed_df])
+
+        return merged_df

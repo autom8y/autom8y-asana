@@ -415,10 +415,20 @@ class UnitResolutionStrategy:
         project_gid: str,
         client: "AsanaClient",
     ) -> GidLookupIndex | None:
-        """Get cached GidLookupIndex or build a new one.
+        """Get cached GidLookupIndex or build a new one using incremental refresh.
 
         Per TDD: TTL-based caching with 1-hour staleness check.
-        Uses module-level _gid_index_cache.
+        Per FR-005 (sprint-materialization-002): Uses incremental refresh when
+        watermark exists, updating WatermarkRepository after successful sync.
+
+        Uses module-level _gid_index_cache for index storage.
+        Uses WatermarkRepository for per-project sync timestamps.
+
+        Refresh Strategy:
+        - Index not stale: Return cached index
+        - Index stale or missing:
+          - If watermark exists: Use refresh_incremental() for delta sync
+          - If no watermark: Full rebuild via build_with_parallel_fetch_async()
 
         Args:
             project_gid: Unit project GID
@@ -428,6 +438,8 @@ class UnitResolutionStrategy:
             GidLookupIndex if available, None on build failure.
         """
         global _gid_index_cache
+
+        from autom8_asana.dataframes.watermark import get_watermark_repo
 
         # Check for cached index
         cached_index = _gid_index_cache.get(project_gid)
@@ -445,18 +457,31 @@ class UnitResolutionStrategy:
             )
             return cached_index
 
-        # Cache miss or stale - rebuild index
+        # Cache miss or stale - rebuild using incremental refresh when possible
         cache_status = "stale" if cached_index is not None else "miss"
+        watermark_repo = get_watermark_repo()
+        watermark = watermark_repo.get_watermark(project_gid)
+
         logger.info(
             "gid_index_cache_rebuild",
             extra={
                 "project_gid": project_gid,
                 "reason": cache_status,
+                "has_watermark": watermark is not None,
             },
         )
 
-        # Build DataFrame
-        df = await self._build_dataframe(project_gid, client)
+        # Note: GidLookupIndex doesn't store the original DataFrame, so we can't
+        # do true incremental merge. When watermark exists, refresh_incremental
+        # will do a modified_since API query (which is still more efficient than
+        # a full fetch), but will do a full DataFrame build from the results.
+        # Future optimization: Store DataFrame alongside index for true delta merge.
+        existing_df = None
+
+        # Build DataFrame using incremental refresh
+        df, new_watermark = await self._build_dataframe_incremental(
+            project_gid, client, existing_df, watermark
+        )
 
         if df is None:
             logger.warning(
@@ -472,11 +497,16 @@ class UnitResolutionStrategy:
             # Cache the new index
             _gid_index_cache[project_gid] = index
 
+            # Update watermark after successful build
+            watermark_repo.set_watermark(project_gid, new_watermark)
+
             logger.info(
                 "gid_index_built",
                 extra={
                     "project_gid": project_gid,
                     "index_size": len(index),
+                    "watermark": new_watermark.isoformat(),
+                    "refresh_type": "incremental" if watermark else "full",
                 },
             )
 
@@ -492,6 +522,85 @@ class UnitResolutionStrategy:
             )
             return None
 
+    async def _build_dataframe_incremental(
+        self,
+        project_gid: str,
+        client: "AsanaClient",
+        existing_df: Any,
+        watermark: datetime | None,
+    ) -> tuple[Any, datetime]:
+        """Build DataFrame using incremental refresh when possible.
+
+        Per FR-005: Uses refresh_incremental() when watermark exists for
+        efficient delta sync, falling back to full build otherwise.
+
+        Args:
+            project_gid: Unit project GID
+            client: AsanaClient for Asana API access
+            existing_df: Current DataFrame for merge (None for first sync)
+            watermark: Last sync timestamp (None for full fetch)
+
+        Returns:
+            Tuple of (DataFrame, new_watermark). DataFrame may be None on failure.
+        """
+        # Import here to avoid circular imports
+        from datetime import timezone
+
+        from autom8_asana.dataframes.builders.project import ProjectDataFrameBuilder
+        from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
+        from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
+
+        # Minimal project proxy - only needs gid attribute for builder
+        class ProjectProxy:
+            """Minimal project object for DataFrame builder."""
+
+            def __init__(self, gid: str) -> None:
+                self.gid = gid
+                self.tasks: list[Any] = []
+
+        try:
+            project_proxy = ProjectProxy(project_gid)
+
+            # Create resolver for custom field extraction (office_phone, vertical)
+            resolver = DefaultCustomFieldResolver()
+
+            builder = ProjectDataFrameBuilder(
+                project=project_proxy,
+                task_type="Unit",
+                schema=UNIT_SCHEMA,
+                resolver=resolver,
+            )
+
+            # Use incremental refresh when watermark and existing_df exist
+            df, new_watermark = await builder.refresh_incremental(
+                client=client,
+                existing_df=existing_df,
+                watermark=watermark,
+            )
+
+            logger.info(
+                "unit_dataframe_built",
+                extra={
+                    "project_gid": project_gid,
+                    "row_count": len(df),
+                    "refresh_type": "incremental" if watermark else "full",
+                },
+            )
+
+            return df, new_watermark
+
+        except Exception as e:
+            logger.warning(
+                "unit_dataframe_build_failed",
+                extra={
+                    "project_gid": project_gid,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            )
+            # Return None with current timestamp as fallback
+            return None, datetime.now(timezone.utc)
+
     async def _build_dataframe(
         self,
         project_gid: str,
@@ -501,6 +610,9 @@ class UnitResolutionStrategy:
 
         Uses ProjectDataFrameBuilder with parallel fetch for efficient
         DataFrame construction.
+
+        Note: This method is preserved for backward compatibility.
+        New code should use _build_dataframe_incremental() instead.
 
         Args:
             project_gid: Unit project GID
