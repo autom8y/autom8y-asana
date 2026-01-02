@@ -132,6 +132,13 @@ class CascadingFieldResolver:
     ) -> Any:
         """Traverse parent chain to find cascading field value.
 
+        Traverses upward through the parent chain looking for the field owner.
+        When entity type detection returns UNKNOWN (e.g., project not registered),
+        continues traversing to ROOT and extracts field from root if owner is Business.
+
+        This fallback behavior ensures cascading works even when projects aren't
+        registered in ProjectTypeRegistry, which is common during DataFrame extraction.
+
         Args:
             task: Current task in traversal.
             field_def: CascadingFieldDef with field configuration.
@@ -144,6 +151,9 @@ class CascadingFieldResolver:
         visited: set[str] = set()
         current = task
         depth = 0
+
+        # Map owner class name to EntityType
+        owner_type = self._class_to_entity_type(owner_class)
 
         while depth < max_depth:
             # Check for circular reference
@@ -164,9 +174,6 @@ class CascadingFieldResolver:
             detection_result = detect_entity_type(current)
             current_type = detection_result.entity_type
 
-            # Map owner class name to EntityType
-            owner_type = self._class_to_entity_type(owner_class)
-
             if current_type == owner_type:
                 # Found the owner entity - extract field value
                 value = self._get_custom_field_value(current, field_def.name)
@@ -178,6 +185,7 @@ class CascadingFieldResolver:
                         "found_at_gid": current.gid,
                         "depth": depth,
                         "value": value,
+                        "detection_method": "entity_type",
                     },
                 )
                 return value
@@ -185,13 +193,33 @@ class CascadingFieldResolver:
             # Move to parent
             parent_gid = self._get_parent_gid(current)
             if parent_gid is None:
+                # Reached ROOT of parent chain (no more parents)
+                # If owner is Business and detection failed, treat ROOT as Business
+                # This handles the case where project isn't registered in ProjectTypeRegistry
+                if owner_type == EntityType.BUSINESS:
+                    value = self._get_custom_field_value(current, field_def.name)
+                    if value is not None:
+                        logger.debug(
+                            "cascade_field_found_at_root",
+                            extra={
+                                "task_gid": task.gid,
+                                "field_name": field_def.name,
+                                "root_gid": current.gid,
+                                "depth": depth,
+                                "value": value,
+                                "detection_method": "root_fallback",
+                            },
+                        )
+                        return value
+
                 logger.debug(
-                    "cascade_chain_broken",
+                    "cascade_chain_exhausted",
                     extra={
                         "task_gid": task.gid,
                         "field_name": field_def.name,
-                        "stopped_at_gid": current.gid,
+                        "root_gid": current.gid,
                         "depth": depth,
+                        "owner_type": owner_type.value,
                     },
                 )
                 return None

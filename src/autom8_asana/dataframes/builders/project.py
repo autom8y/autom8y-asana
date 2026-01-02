@@ -42,6 +42,11 @@ _BASE_OPT_FIELDS: list[str] = [
     "tags.name",
     "memberships.section.name",
     "memberships.project.gid",
+    # Parent reference required for cascade: field resolution
+    # Per TDD-CASCADING-FIELD-RESOLUTION-001: CascadingFieldResolver needs parent.gid
+    # to traverse the parent chain and resolve fields from ancestor tasks
+    "parent",
+    "parent.gid",
     # Custom fields required for resolver-based extraction (cf:* sources)
     # Per TDD-0009.1: DefaultCustomFieldResolver needs custom_fields to build
     # the name->GID index and extract values for office_phone, vertical, etc.

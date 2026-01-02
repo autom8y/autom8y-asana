@@ -249,13 +249,14 @@ class DataFrameBuilder(ABC):
         if use_cache and self._cache_integration is not None:
             return await self._build_with_cache_async(tasks, lazy)
 
-        # Non-cached build (sync code wrapped)
+        # Per TDD-CASCADING-FIELD-RESOLUTION-001: Use async extraction for cascade: support
+        # Even without cache, we must use async methods to support cascade: field resolution
         use_lazy = self._should_use_lazy(len(tasks), lazy)
 
         if use_lazy:
-            return self._build_lazy(tasks)
+            return await self._build_lazy_async(tasks)
         else:
-            return self._build_eager(tasks)
+            return await self._build_eager_async(tasks)
 
     def _ensure_resolver_initialized(self, task: Task) -> None:
         """Initialize resolver with task's custom fields if not already done.
@@ -341,6 +342,37 @@ class DataFrameBuilder(ABC):
             Polars DataFrame with extracted data (collected from LazyFrame)
         """
         rows = [self._extract_row(task) for task in tasks]
+        lazy_frame = pl.LazyFrame(rows, schema=self._schema.to_polars_schema())
+        return lazy_frame.collect()
+
+    async def _build_eager_async(self, tasks: list[Task]) -> pl.DataFrame:
+        """Build DataFrame using eager evaluation with async extraction.
+
+        Per TDD-CASCADING-FIELD-RESOLUTION-001: Async version supporting
+        cascade: field resolution during extraction.
+
+        Args:
+            tasks: List of tasks to extract
+
+        Returns:
+            Polars DataFrame with extracted data
+        """
+        rows = [await self._extract_row_async(task) for task in tasks]
+        return pl.DataFrame(rows, schema=self._schema.to_polars_schema())
+
+    async def _build_lazy_async(self, tasks: list[Task]) -> pl.DataFrame:
+        """Build DataFrame using lazy evaluation with async extraction.
+
+        Per TDD-CASCADING-FIELD-RESOLUTION-001: Async version supporting
+        cascade: field resolution during extraction.
+
+        Args:
+            tasks: List of tasks to extract
+
+        Returns:
+            Polars DataFrame with extracted data (collected from LazyFrame)
+        """
+        rows = [await self._extract_row_async(task) for task in tasks]
         lazy_frame = pl.LazyFrame(rows, schema=self._schema.to_polars_schema())
         return lazy_frame.collect()
 
