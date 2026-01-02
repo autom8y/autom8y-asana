@@ -8,6 +8,7 @@ Per TDD-0008 Session 4 Phase 4: Adds cache integration support.
 Per TDD-WATERMARK-CACHE Phase 1: Adds parallel section fetch via build_async().
 Per TDD-WATERMARK-CACHE Phase 2: Adds batch cache integration for get/set operations.
 Per TDD-CACHE-PERF-FETCH-PATH: Adds Task-level cache for <1s warm cache latency.
+Per TDD-UNIFIED-CACHE-001 Phase 3: Adds optional UnifiedTaskStore integration path.
 """
 
 from __future__ import annotations
@@ -64,6 +65,7 @@ _BASE_OPT_FIELDS: list[str] = [
 ]
 
 if TYPE_CHECKING:
+    from autom8_asana.cache.unified import UnifiedTaskStore
     from autom8_asana.client import AsanaClient
     from autom8_asana.dataframes.cache_integration import DataFrameCacheIntegration
     from autom8_asana.dataframes.resolver.protocol import CustomFieldResolver
@@ -121,6 +123,7 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
         lazy_threshold: int = LAZY_THRESHOLD,
         cache_integration: DataFrameCacheIntegration | None = None,
         client: AsanaClient | None = None,
+        unified_store: "UnifiedTaskStore | None" = None,
     ) -> None:
         """Initialize project builder.
 
@@ -137,11 +140,16 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
             cache_integration: Optional cache integration for struc caching
             client: Optional AsanaClient for cascade: field resolution.
                    Required if schema contains cascade: sources.
+            unified_store: Optional UnifiedTaskStore for unified cache integration.
+                          Per TDD-UNIFIED-CACHE-001 Phase 3: When provided, uses
+                          DataFrameViewPlugin for extraction instead of existing
+                          TaskCacheCoordinator path.
         """
         super().__init__(schema, resolver, lazy_threshold, cache_integration, client)
         self._project = project
         self._task_type = task_type
         self._sections = sections
+        self._unified_store = unified_store
 
     @property
     def project(self) -> Project:
@@ -310,9 +318,12 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
         row_cache_available = use_cache and self._cache_integration is not None
         schema_version = self._schema.version
 
-        # Get Task-level cache provider from client (if available)
-        task_cache_provider = self._get_task_cache_provider(client) if use_cache else None
-        task_cache_coordinator = TaskCacheCoordinator(task_cache_provider)
+        # Get Task-level cache coordinator
+        if self._unified_store is not None:
+            task_cache_coordinator = TaskCacheCoordinator.from_unified_store(self._unified_store)
+        else:
+            task_cache_provider = self._get_task_cache_provider(client) if use_cache else None
+            task_cache_coordinator = TaskCacheCoordinator(task_cache_provider)
 
         # TDD-CACHE-PERF-FETCH-PATH: Structured logging - build started
         start_time = time.perf_counter()
@@ -322,10 +333,22 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
                 "project_gid": project_gid,
                 "use_parallel_fetch": use_parallel_fetch,
                 "use_cache": use_cache,
-                "task_cache_enabled": task_cache_provider is not None,
+                "task_cache_enabled": task_cache_coordinator.cache_provider is not None,
+                "unified_store_enabled": self._unified_store is not None,
                 "max_concurrent_sections": max_concurrent,
             },
         )
+
+        # TDD-UNIFIED-CACHE-001 Phase 3: Use unified path if store is provided
+        if self._unified_store is not None:
+            return await self._build_with_unified_store_async(
+                client=client,
+                project_gid=project_gid,
+                use_parallel_fetch=use_parallel_fetch,
+                max_concurrent=max_concurrent,
+                start_time=start_time,
+                lazy=lazy,
+            )
 
         # Track metrics for logging
         fetch_strategy = "parallel" if use_parallel_fetch else "serial"
@@ -680,6 +703,271 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
                     seen.add(gid)
                     result.append(gid)
         return result
+
+    # =========================================================================
+    # Unified Cache Integration (Phase 3: TDD-UNIFIED-CACHE-001)
+    # =========================================================================
+
+    async def _build_with_unified_store_async(
+        self,
+        client: AsanaClient,
+        project_gid: str,
+        use_parallel_fetch: bool,
+        max_concurrent: int,
+        start_time: float,
+        lazy: bool | None = None,
+    ) -> pl.DataFrame:
+        """Build DataFrame using UnifiedTaskStore and DataFrameViewPlugin.
+
+        Per TDD-UNIFIED-CACHE-001 Phase 3: Unified cache integration path.
+        Uses DataFrameViewPlugin.materialize_async() for extraction.
+
+        Args:
+            client: AsanaClient for API calls.
+            project_gid: Project GID for section enumeration.
+            use_parallel_fetch: Enable parallel section fetch.
+            max_concurrent: Max concurrent section fetches.
+            start_time: Performance timer start.
+            lazy: Evaluation mode override.
+
+        Returns:
+            Polars DataFrame with extracted task data.
+        """
+        import time
+
+        from autom8_asana.cache.freshness_coordinator import FreshnessMode
+        from autom8_asana.dataframes.builders.parallel_fetch import (
+            ParallelFetchError,
+            ParallelSectionFetcher,
+        )
+        from autom8_asana.dataframes.views.dataframe_view import DataFrameViewPlugin
+
+        # unified_store is guaranteed to be non-None when this method is called
+        assert self._unified_store is not None
+
+        # Create DataFrameViewPlugin for extraction
+        view_plugin = DataFrameViewPlugin(
+            store=self._unified_store,
+            schema=self._schema,
+            resolver=self._resolver,
+            row_cache=self._cache_integration,
+        )
+
+        fetch_strategy = "unified_parallel" if use_parallel_fetch else "unified_serial"
+        sections_fetched = 0
+        task_count = 0
+
+        try:
+            if use_parallel_fetch:
+                # Enumerate section GIDs
+                fetcher = ParallelSectionFetcher(
+                    sections_client=client.sections,
+                    tasks_client=client.tasks,
+                    project_gid=project_gid,
+                    max_concurrent=max_concurrent,
+                    opt_fields=_BASE_OPT_FIELDS,
+                )
+
+                gid_enum_start = time.perf_counter()
+                section_gids_map = await fetcher.fetch_section_task_gids_async()
+                gid_enum_time_ms = (time.perf_counter() - gid_enum_start) * 1000
+
+                logger.debug(
+                    "unified_section_gid_enumeration_completed",
+                    extra={
+                        "project_gid": project_gid,
+                        "section_count": len(section_gids_map),
+                        "enumeration_time_ms": round(gid_enum_time_ms, 2),
+                    },
+                )
+
+                if not section_gids_map:
+                    # Fall back to serial
+                    fetch_strategy = "unified_serial"
+                    all_task_gids = await self._fetch_task_gids_serial_async(
+                        client, project_gid
+                    )
+                else:
+                    sections_fetched = len(section_gids_map)
+                    all_task_gids = self._flatten_section_gids(section_gids_map)
+            else:
+                # Serial GID enumeration
+                all_task_gids = await self._fetch_task_gids_serial_async(
+                    client, project_gid
+                )
+
+            if not all_task_gids:
+                logger.info(
+                    "unified_build_empty",
+                    extra={"project_gid": project_gid},
+                )
+                return self._build_empty()
+
+            # Check unified store for cached tasks
+            cache_check_start = time.perf_counter()
+            cached_data = await self._unified_store.get_batch_async(
+                all_task_gids, freshness=FreshnessMode.EVENTUAL
+            )
+            cache_check_time_ms = (time.perf_counter() - cache_check_start) * 1000
+
+            # Identify misses
+            cached_gids = [gid for gid, data in cached_data.items() if data is not None]
+            miss_gids = [gid for gid, data in cached_data.items() if data is None]
+
+            logger.info(
+                "unified_cache_check_completed",
+                extra={
+                    "project_gid": project_gid,
+                    "hit_count": len(cached_gids),
+                    "miss_count": len(miss_gids),
+                    "hit_rate": len(cached_gids) / len(all_task_gids) if all_task_gids else 0.0,
+                    "check_time_ms": round(cache_check_time_ms, 2),
+                },
+            )
+
+            # Fetch missing tasks from API
+            if miss_gids:
+                api_fetch_start = time.perf_counter()
+
+                # Fetch missing tasks
+                fetched_tasks = await self._fetch_tasks_by_gids_async(
+                    client, miss_gids
+                )
+                api_fetch_time_ms = (time.perf_counter() - api_fetch_start) * 1000
+
+                logger.info(
+                    "unified_api_fetch_completed",
+                    extra={
+                        "project_gid": project_gid,
+                        "fetched_count": len(fetched_tasks),
+                        "fetch_time_ms": round(api_fetch_time_ms, 2),
+                    },
+                )
+
+                # Populate unified store with fetched tasks
+                if fetched_tasks:
+                    populate_start = time.perf_counter()
+                    task_dicts = [t.model_dump(exclude_none=True) for t in fetched_tasks]
+                    await self._unified_store.put_batch_async(task_dicts)
+                    populate_time_ms = (time.perf_counter() - populate_start) * 1000
+
+                    logger.info(
+                        "unified_cache_population_completed",
+                        extra={
+                            "project_gid": project_gid,
+                            "populated_count": len(task_dicts),
+                            "populate_time_ms": round(populate_time_ms, 2),
+                        },
+                    )
+
+            # Materialize DataFrame using view plugin
+            materialize_start = time.perf_counter()
+            df = await view_plugin.materialize_async(
+                task_gids=all_task_gids,
+                project_gid=project_gid,
+                freshness=FreshnessMode.IMMEDIATE,  # Already validated freshness above
+            )
+            materialize_time_ms = (time.perf_counter() - materialize_start) * 1000
+
+            # Apply section filtering if specified
+            if self._sections and not df.is_empty():
+                # Filter by section name column
+                if "section" in df.columns:
+                    df = df.filter(pl.col("section").is_in(self._sections))
+
+            task_count = len(df)
+
+            # Log completion
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
+            logger.info(
+                "unified_dataframe_build_completed",
+                extra={
+                    "project_gid": project_gid,
+                    "task_count": task_count,
+                    "fetch_strategy": fetch_strategy,
+                    "sections_fetched": sections_fetched,
+                    "materialize_time_ms": round(materialize_time_ms, 2),
+                    "total_time_ms": round(elapsed_ms, 2),
+                },
+            )
+
+            return df
+
+        except ParallelFetchError as e:
+            # Fall back to serial on parallel fetch failure
+            logger.warning(
+                "unified_fallback_triggered",
+                extra={
+                    "project_gid": project_gid,
+                    "reason": str(e),
+                    "error_type": "ParallelFetchError",
+                },
+            )
+            return await self._build_serial_async(client, lazy=lazy, use_cache=True)
+
+        except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
+            logger.warning(
+                "unified_fallback_triggered",
+                extra={
+                    "project_gid": project_gid,
+                    "reason": str(e),
+                    "error_type": type(e).__name__,
+                    "traceback": tb,
+                },
+            )
+            return await self._build_serial_async(client, lazy=lazy, use_cache=True)
+
+    async def _fetch_task_gids_serial_async(
+        self,
+        client: AsanaClient,
+        project_gid: str,
+    ) -> list[str]:
+        """Fetch task GIDs via serial project-level query.
+
+        Args:
+            client: AsanaClient for API calls.
+            project_gid: Project GID.
+
+        Returns:
+            List of task GIDs.
+        """
+        tasks: list[Task] = await client.tasks.list_async(
+            project=project_gid,
+            opt_fields=["gid"],
+        ).collect()
+        return [t.gid for t in tasks if t.gid]
+
+    async def _fetch_tasks_by_gids_async(
+        self,
+        client: AsanaClient,
+        gids: list[str],
+    ) -> list[Task]:
+        """Fetch full task data by GIDs.
+
+        Args:
+            client: AsanaClient for API calls.
+            gids: Task GIDs to fetch.
+
+        Returns:
+            List of Task objects.
+        """
+        import asyncio
+
+        async def fetch_task(gid: str) -> Task | None:
+            try:
+                return await client.tasks.get_async(gid, opt_fields=_BASE_OPT_FIELDS)
+            except Exception as e:
+                logger.warning(
+                    "unified_task_fetch_failed",
+                    extra={"gid": gid, "error": str(e)},
+                )
+                return None
+
+        # Fetch in parallel with some concurrency limit
+        results = await asyncio.gather(*[fetch_task(gid) for gid in gids])
+        return [t for t in results if t is not None]
 
     async def _build_serial_with_task_cache_async(
         self,
