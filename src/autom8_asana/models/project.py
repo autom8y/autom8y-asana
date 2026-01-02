@@ -277,6 +277,7 @@ class Project(AsanaResource):
             sections=sections,
             resolver=resolver,
             cache_integration=cache_integration,
+            client=client,  # Per TDD-CASCADING-FIELD-RESOLUTION-001: Required for cascade: sources
         )
 
         return await builder.build_with_parallel_fetch_async(client, **kwargs)

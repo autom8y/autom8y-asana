@@ -12,11 +12,11 @@ Per TDD-CACHE-PERF-FETCH-PATH: Adds Task-level cache for <1s warm cache latency.
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
+from autom8y_log import get_logger
 
 from autom8_asana.cache.dataframes import make_dataframe_key
 from autom8_asana.dataframes.builders.base import LAZY_THRESHOLD, DataFrameBuilder
@@ -70,7 +70,7 @@ if TYPE_CHECKING:
     from autom8_asana.models.task import Task
     from autom8_asana.protocols.cache import CacheProvider
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Type alias for Project - using Any since Project is not defined in this package
 # and we want to accept any object with the required attributes
@@ -787,14 +787,15 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
             lazy=lazy,
         )
 
-    def _build_from_tasks(
+    async def _build_from_tasks(
         self,
         tasks: list[Task],
         lazy: bool | None = None,
     ) -> pl.DataFrame:
         """Build DataFrame from a list of tasks.
 
-        Reuses existing extraction logic from base class.
+        Per TDD-CASCADING-FIELD-RESOLUTION-001: Uses async extraction to support
+        cascade: sources that require parent chain traversal.
 
         Args:
             tasks: List of Task objects to extract.
@@ -809,11 +810,11 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
         # Determine evaluation mode
         use_lazy = self._should_use_lazy(len(tasks), lazy)
 
-        # Build DataFrame using appropriate mode
+        # Build DataFrame using async mode for cascade: support
         if use_lazy:
-            return self._build_lazy(tasks)
+            return await self._build_lazy_async(tasks)
         else:
-            return self._build_eager(tasks)
+            return await self._build_eager_async(tasks)
 
     # =========================================================================
     # Cache Integration Methods (Phase 2: TDD-WATERMARK-CACHE)
@@ -848,9 +849,9 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
         if not tasks:
             return self._build_empty()
 
-        # If cache not available, use standard build
+        # If cache not available, use standard build (async for cascade: support)
         if not cache_available or self._cache_integration is None:
-            return self._build_from_tasks(tasks, lazy=lazy)
+            return await self._build_from_tasks(tasks, lazy=lazy)
 
         # Build task map for efficient lookup
         task_map: dict[str, Task] = {task.gid: task for task in tasks}
