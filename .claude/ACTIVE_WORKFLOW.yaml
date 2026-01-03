@@ -3,10 +3,31 @@ workflow_type: sequential
 description: Full development lifecycle (PRD → TDD → Code → QA)
 
 entry_point:
-  agent: requirements-analyst
-  artifact:
-    type: prd
-    path_template: docs/requirements/PRD-{slug}.md
+  # Default entry point - can be overridden based on work type
+  default: requirements-analyst
+
+  # Dynamic entry selection based on work type
+  # Use --entry flag or specify work_type in session init
+  by_work_type:
+    new_feature: requirements-analyst
+    enhancement: requirements-analyst
+    technical_refactoring: architect
+    performance_optimization: architect
+    bug_fix: principal-engineer
+    security_fix: principal-engineer
+    hotfix: principal-engineer
+
+  # Entry point artifacts by agent
+  artifacts:
+    requirements-analyst:
+      type: prd
+      path_template: docs/requirements/PRD-{slug}.md
+    architect:
+      type: tdd
+      path_template: docs/design/TDD-{slug}.md
+    principal-engineer:
+      type: code
+      path_template: null  # Implementation path determined by scope
 
 phases:
   - name: requirements
@@ -34,6 +55,11 @@ complexity_levels:
   - name: SCRIPT
     scope: "Single file, <200 LOC"
     phases: [requirements, implementation, validation]
+    # High-impact SCRIPT work routes to Architect despite low complexity
+    conditional_phases:
+      - phase: design
+        condition: "impact == 'high'"
+        insert_after: requirements
   - name: MODULE
     scope: "Multiple files, <2000 LOC"
     phases: [requirements, design, implementation, validation]
@@ -43,6 +69,73 @@ complexity_levels:
   - name: PLATFORM
     scope: "Multi-service"
     phases: [requirements, design, implementation, validation]
+
+# Security consultation routing
+# Proactive gates for security-sensitive work
+security_consultation:
+  # Triggers that indicate security-pack consultation is recommended
+  triggers:
+    - pattern: "auth|authentication|authorization"
+      domain: authentication
+      severity: high
+    - pattern: "oauth|saml|sso|openid"
+      domain: authentication
+      severity: high
+    - pattern: "crypto|encryption|hashing|bcrypt|argon"
+      domain: cryptography
+      severity: critical
+    - pattern: "key management|secrets|certificates"
+      domain: cryptography
+      severity: critical
+    - pattern: "pii|personal data|user data|gdpr|ccpa|hipaa"
+      domain: data_privacy
+      severity: high
+    - pattern: "external integration|third-party api|webhook"
+      domain: integration
+      severity: medium
+    - pattern: "payment|billing|financial|transaction|credit card|pci"
+      domain: financial
+      severity: critical
+    - pattern: "session management|token|jwt|refresh token"
+      domain: session
+      severity: high
+
+  # Consultation target
+  target:
+    team: security-pack
+    agent: threat-modeler
+    phase: pre-implementation
+
+  # When consultation is required vs recommended
+  policy:
+    required:
+      - complexity: SYSTEM
+        domains: [authentication, cryptography, data_privacy, financial]
+      - complexity: SERVICE
+        domains: [cryptography, financial]
+    recommended:
+      - complexity: SYSTEM
+        domains: [integration, session]
+      - complexity: MODULE
+        domains: [authentication, data_privacy]
+
+  # Invocation pattern for architect
+  invocation: |
+    Task(threat-modeler, "Review design for {feature}
+    Security domains: {matched_domains}
+    Complexity: {complexity}
+    TDD draft: {tdd_path}")
+
+# Impact-based routing rules
+impact_routing:
+  # High-impact work requires architectural review regardless of complexity
+  high_impact:
+    requires_phases: [design]
+    rationale: "Architecturally significant changes need design review"
+  # Low-impact work follows standard complexity-based routing
+  low_impact:
+    requires_phases: []
+    rationale: "Standard complexity routing applies"
 
 # Agent roles for command mapping:
 # /architect  → architect
@@ -72,3 +165,33 @@ back_routes:
     target_agent: architect
     requires_user_confirmation: false
     condition: "Implementation reveals design flaw"
+
+# Entry Point Override Documentation
+#
+# The default workflow starts with requirements-analyst, but entry can be
+# overridden for work types that don't need full PRD cycle.
+#
+# Usage Patterns:
+#
+# 1. Via work_type in /task or /start:
+#    /task --work-type=bug_fix "Fix login timeout issue"
+#    /start --work-type=technical_refactoring "Migrate to new auth library"
+#
+# 2. Via explicit --entry flag:
+#    /task --entry=architect "Redesign caching layer"
+#    /task --entry=principal-engineer "Fix null pointer in user service"
+#
+# 3. Via Orchestrator consultation:
+#    The Orchestrator's Entry Point Selection guidance (see orchestrator.md)
+#    determines entry based on work type analysis during session init.
+#
+# Entry Point Implications:
+# - requirements-analyst: Full PRD -> TDD -> Code -> QA
+# - architect: TDD -> Code -> QA (skip PRD)
+# - principal-engineer: Code -> QA (skip PRD and TDD)
+#
+# When to override default:
+# - Bug fixes: Known issue, enter at principal-engineer
+# - Refactoring: No new features, enter at architect
+# - Hotfixes: Time-critical, enter at principal-engineer
+# - Security fixes: Immediate remediation, enter at principal-engineer

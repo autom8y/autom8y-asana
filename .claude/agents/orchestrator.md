@@ -122,6 +122,35 @@ Key sections: `directive`, `specialist` (with prompt), `information_needed`, `us
 | principal-engineer | Design complete, implementation needed |
 | qa-adversary | Implementation complete, validation needed |
 
+## Entry Point Selection
+
+The default workflow starts with Requirements Analyst, but certain work types benefit from alternative entry points. Select the entry agent based on work type:
+
+| Work Type | Entry Agent | Rationale |
+|-----------|-------------|-----------|
+| **New feature** | requirements-analyst | Scope must be defined before design or implementation |
+| **Enhancement** | requirements-analyst | Existing features need updated requirements |
+| **Technical refactoring** | architect | Design-first; no new requirements, but architecture decisions needed |
+| **Performance optimization** | architect | Requires analysis of bottlenecks and design tradeoffs |
+| **Bug fix** | principal-engineer | Problem is known; fix and verify |
+| **Security fix** | principal-engineer | Immediate remediation; design review post-implementation if needed |
+| **Hotfix** | principal-engineer | Time-critical; minimal ceremony |
+
+### Selection Criteria
+
+1. **Does this add user-facing capability?** -> requirements-analyst
+2. **Does this change system structure without adding features?** -> architect
+3. **Is this fixing known broken behavior?** -> principal-engineer
+4. **Is this time-critical remediation?** -> principal-engineer
+
+### Entry Point Implications
+
+- **requirements-analyst entry**: Full PRD -> TDD -> Code -> QA flow
+- **architect entry**: TDD -> Code -> QA flow (skip PRD when requirements are implicit in technical need)
+- **principal-engineer entry**: Code -> QA flow (skip PRD and TDD when scope is self-evident)
+
+When uncertain, default to requirements-analyst. It is cheaper to skip phases than to backtrack.
+
 ## Behavioral Constraints (DO NOT)
 
 **DO NOT** say: "Let me check the codebase to understand..."

@@ -21,6 +21,19 @@ Quality gates prevent low-quality work from propagating downstream. **Failing a 
 | Requirements testable | Each has acceptance criteria |
 | Priorities assigned | MoSCoW applied |
 | No blocking questions | Or owners assigned with dates |
+| **Impact assessed** | impact: low/high with categories if high |
+
+### Impact Assessment Validation
+
+The impact assessment determines workflow routing:
+- **Low impact**: Standard complexity-based routing applies
+- **High impact**: Routes to Architect even at SCRIPT complexity
+
+**Validation checklist**:
+- [ ] Impact level explicitly stated (low or high)
+- [ ] If high: impact_categories populated with at least one category
+- [ ] Rationale documented for the impact determination
+- [ ] Categories match the architectural significance (security, data_model, api_contract, auth, cross_service)
 
 ### Detailed Template
 

@@ -1,0 +1,691 @@
+"""DataFrame view plugin for materializing DataFrames from unified cache.
+
+Per TDD-UNIFIED-CACHE-001 Component 4: Materializes DataFrames from
+UnifiedTaskStore, treating DataFrames as computed views rather than
+stored data.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any
+
+import polars as pl
+from autom8y_log import get_logger
+
+from autom8_asana.cache.freshness_coordinator import FreshnessMode
+from autom8_asana.dataframes.views.cascade_view import CascadeViewPlugin
+
+if TYPE_CHECKING:
+    from autom8_asana.cache.unified import UnifiedTaskStore
+    from autom8_asana.dataframes.cache_integration import DataFrameCacheIntegration
+    from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
+    from autom8_asana.dataframes.resolver.protocol import CustomFieldResolver
+
+logger = get_logger(__name__)
+
+
+class DataFrameViewPlugin:
+    """Materializes DataFrames from unified cache.
+
+    Per TDD-UNIFIED-CACHE-001 Goal G2: DataFrames are derived views, not
+    stored data. Extraction uses existing BaseExtractor infrastructure.
+
+    This plugin fetches tasks from UnifiedTaskStore and extracts rows
+    using the provided schema. Optional row-level caching is available
+    as an optimization through DataFrameCacheIntegration.
+
+    Attributes:
+        store: UnifiedTaskStore for source task data.
+        schema: DataFrameSchema defining extraction columns.
+        resolver: Optional CustomFieldResolver for cf:/gid: fields.
+        row_cache: Optional DataFrameCacheIntegration for row caching.
+        cascade_plugin: CascadeViewPlugin for cascade: field resolution.
+
+    Example:
+        >>> plugin = DataFrameViewPlugin(
+        ...     store=unified_store,
+        ...     schema=UNIT_SCHEMA,
+        ...     resolver=resolver,
+        ... )
+        >>> df = await plugin.materialize_async(
+        ...     task_gids=["gid1", "gid2", "gid3"],
+        ...     project_gid="project-123",
+        ... )
+        >>> print(df.shape)
+        (3, 12)
+    """
+
+    def __init__(
+        self,
+        store: "UnifiedTaskStore",
+        schema: "DataFrameSchema",
+        resolver: "CustomFieldResolver | None" = None,
+        row_cache: "DataFrameCacheIntegration | None" = None,
+    ) -> None:
+        """Initialize view plugin.
+
+        Args:
+            store: Unified task store for source data.
+            schema: Schema for extraction (defines columns and types).
+            resolver: Custom field resolver for cf:/gid: prefix fields.
+            row_cache: Optional row cache for optimization.
+        """
+        self._store = store
+        self._schema = schema
+        self._resolver = resolver
+        self._row_cache = row_cache
+
+        # Create cascade plugin for cascade: field resolution
+        self._cascade_plugin = CascadeViewPlugin(store=store)
+
+        # Statistics
+        self._stats: dict[str, int] = {
+            "materialize_calls": 0,
+            "tasks_fetched": 0,
+            "rows_extracted": 0,
+            "row_cache_hits": 0,
+            "row_cache_misses": 0,
+            "cascade_resolutions": 0,
+        }
+
+    @property
+    def store(self) -> "UnifiedTaskStore":
+        """Get the unified task store."""
+        return self._store
+
+    @property
+    def schema(self) -> "DataFrameSchema":
+        """Get the extraction schema."""
+        return self._schema
+
+    @property
+    def resolver(self) -> "CustomFieldResolver | None":
+        """Get the custom field resolver."""
+        return self._resolver
+
+    @property
+    def cascade_plugin(self) -> CascadeViewPlugin:
+        """Get the cascade view plugin."""
+        return self._cascade_plugin
+
+    async def materialize_async(
+        self,
+        task_gids: list[str],
+        project_gid: str | None = None,
+        freshness: FreshnessMode = FreshnessMode.EVENTUAL,
+    ) -> pl.DataFrame:
+        """Materialize DataFrame from cached tasks.
+
+        Per TDD-UNIFIED-CACHE-001 Section 5.4:
+        1. Fetch tasks from unified store (with freshness)
+        2. Extract rows using schema
+        3. Optionally cache extracted rows
+        4. Build and return DataFrame
+
+        Args:
+            task_gids: Task GIDs to include in DataFrame.
+            project_gid: Optional project context for section extraction.
+            freshness: Freshness mode for cache lookups.
+
+        Returns:
+            Polars DataFrame with extracted data.
+
+        Note:
+            Tasks not found in cache (or stale with STRICT mode) will
+            result in None values. The caller is responsible for fetching
+            missing tasks before calling this method.
+        """
+        self._stats["materialize_calls"] += 1
+
+        if not task_gids:
+            return self._build_empty()
+
+        # Fetch tasks from unified store
+        task_data_map = await self._store.get_batch_async(
+            task_gids, freshness=freshness
+        )
+        self._stats["tasks_fetched"] += len(task_data_map)
+
+        # Filter to found tasks only
+        found_tasks: list[dict[str, Any]] = []
+        for gid in task_gids:
+            task_data = task_data_map.get(gid)
+            if task_data is not None:
+                found_tasks.append(task_data)
+
+        if not found_tasks:
+            logger.debug(
+                "dataframe_view_no_tasks_found",
+                extra={
+                    "requested_count": len(task_gids),
+                    "freshness": freshness.value,
+                },
+            )
+            return self._build_empty()
+
+        # Extract rows
+        rows = await self._extract_rows_async(found_tasks, project_gid)
+        self._stats["rows_extracted"] += len(rows)
+
+        # Build DataFrame
+        if not rows:
+            return self._build_empty()
+
+        return pl.DataFrame(rows, schema=self._schema.to_polars_schema())
+
+    async def materialize_incremental_async(
+        self,
+        existing_df: pl.DataFrame,
+        watermark: datetime,
+        project_gid: str,
+    ) -> tuple[pl.DataFrame, datetime]:
+        """Materialize delta updates since watermark.
+
+        Per TDD-UNIFIED-CACHE-001 Section 5.4:
+        1. Get changed GIDs from unified store (tasks with modified_at > watermark)
+        2. Extract rows for changed tasks
+        3. Merge with existing DataFrame
+        4. Return updated DataFrame and new watermark
+
+        Args:
+            existing_df: Current DataFrame to update.
+            watermark: Last sync timestamp.
+            project_gid: Project context for filtering.
+
+        Returns:
+            Tuple of (updated DataFrame, new watermark).
+
+        Note:
+            This is a simplified implementation. Full incremental support
+            requires integration with the Asana modified_since API parameter
+            which is handled at the ProjectDataFrameBuilder level.
+        """
+        new_watermark = datetime.now(timezone.utc)
+
+        # For now, this method delegates to the full materialization
+        # The real incremental logic involves:
+        # 1. API query with modified_since=watermark
+        # 2. Cache population with new/updated tasks
+        # 3. Row extraction for changed tasks only
+        # 4. Merge with existing DataFrame
+
+        # Get all GIDs from existing DataFrame
+        if "gid" not in existing_df.columns:
+            logger.warning(
+                "dataframe_view_incremental_no_gid_column",
+                extra={"project_gid": project_gid},
+            )
+            return existing_df, watermark
+
+        existing_gids = existing_df["gid"].to_list()
+
+        # Materialize fresh data for existing GIDs
+        # In full implementation, this would only fetch modified tasks
+        updated_df = await self.materialize_async(
+            task_gids=existing_gids,
+            project_gid=project_gid,
+            freshness=FreshnessMode.EVENTUAL,
+        )
+
+        return updated_df, new_watermark
+
+    async def _extract_rows_async(
+        self,
+        tasks: list[dict[str, Any]],
+        project_gid: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Extract rows from task data dicts.
+
+        Per TDD-UNIFIED-CACHE-001: Uses schema-driven extraction with
+        cascade: prefix support via CascadeViewPlugin.
+
+        Args:
+            tasks: List of task data dicts from cache.
+            project_gid: Optional project context.
+
+        Returns:
+            List of extracted row dicts.
+        """
+        rows: list[dict[str, Any]] = []
+
+        for task_data in tasks:
+            row = await self._extract_row_async(task_data, project_gid)
+            rows.append(row)
+
+        return rows
+
+    async def _extract_row_async(
+        self,
+        task_data: dict[str, Any],
+        project_gid: str | None = None,
+    ) -> dict[str, Any]:
+        """Extract a single row from task data dict.
+
+        Processes schema columns and handles different source types:
+        - None: Derived field (method call)
+        - cascade: prefix: Cascade resolution via CascadeViewPlugin
+        - cf:/gid: prefix: Custom field via resolver
+        - Otherwise: Direct attribute access
+
+        Args:
+            task_data: Task data dict from cache.
+            project_gid: Optional project context.
+
+        Returns:
+            Dict mapping column names to extracted values.
+        """
+        row: dict[str, Any] = {}
+
+        for col in self._schema.columns:
+            try:
+                value = await self._extract_column_async(
+                    task_data, col, project_gid
+                )
+                row[col.name] = value
+            except Exception as e:
+                # Log and continue with None
+                logger.debug(
+                    "dataframe_view_extraction_error",
+                    extra={
+                        "gid": task_data.get("gid"),
+                        "column": col.name,
+                        "error": str(e),
+                    },
+                )
+                row[col.name] = None
+
+        return row
+
+    async def _extract_column_async(
+        self,
+        task_data: dict[str, Any],
+        col: "ColumnDef",
+        project_gid: str | None = None,
+    ) -> Any:
+        """Extract a single column value from task data.
+
+        Args:
+            task_data: Task data dict from cache.
+            col: Column definition.
+            project_gid: Optional project context.
+
+        Returns:
+            Extracted value.
+        """
+        source = col.source
+
+        # Derived field - use extraction method
+        if source is None:
+            return self._extract_derived_field(task_data, col.name, project_gid)
+
+        # Cascade field - use cascade plugin
+        if source.lower().startswith("cascade:"):
+            field_name = source[8:]  # Strip "cascade:" prefix
+            self._stats["cascade_resolutions"] += 1
+
+            # Need to create a Task-like object for cascade resolution
+            # For now, use a simplified approach
+            return await self._resolve_cascade_from_dict(task_data, field_name)
+
+        # Custom field via resolver
+        if source.startswith("cf:") or source.startswith("gid:"):
+            return self._extract_custom_field(task_data, source, col)
+
+        # Direct attribute access
+        return self._extract_attribute(task_data, source, col)
+
+    async def _resolve_cascade_from_dict(
+        self,
+        task_data: dict[str, Any],
+        field_name: str,
+    ) -> Any:
+        """Resolve cascade field from task data dict.
+
+        This is a simplified cascade resolution that works directly
+        with cached task data dicts.
+
+        Args:
+            task_data: Task data dict.
+            field_name: Field name to resolve.
+
+        Returns:
+            Resolved field value or None.
+        """
+        # First try local extraction
+        local_value = self._cascade_plugin._get_custom_field_value_from_dict(
+            task_data, field_name
+        )
+        if local_value is not None:
+            return local_value
+
+        # Get parent chain from unified store
+        task_gid = task_data.get("gid")
+        if not task_gid:
+            return None
+
+        parent_chain = await self._store.get_parent_chain_async(task_gid)
+        if not parent_chain:
+            return None
+
+        # Search parent chain for field value
+        for parent_data in parent_chain:
+            value = self._cascade_plugin._get_custom_field_value_from_dict(
+                parent_data, field_name
+            )
+            if value is not None:
+                return value
+
+        return None
+
+    def _extract_derived_field(
+        self,
+        task_data: dict[str, Any],
+        field_name: str,
+        project_gid: str | None = None,
+    ) -> Any:
+        """Extract derived field value.
+
+        Args:
+            task_data: Task data dict.
+            field_name: Field name to extract.
+            project_gid: Optional project context.
+
+        Returns:
+            Extracted value.
+        """
+        # Standard derived fields
+        match field_name:
+            case "gid":
+                return task_data.get("gid", "")
+            case "name":
+                return task_data.get("name", "")
+            case "type":
+                return task_data.get("resource_subtype") or self._schema.task_type
+            case "created":
+                return self._parse_datetime(task_data.get("created_at"))
+            case "last_modified":
+                return self._parse_datetime(task_data.get("modified_at"))
+            case "due_on" | "date":
+                return self._parse_date(task_data.get("due_on"))
+            case "is_completed":
+                return bool(task_data.get("completed", False))
+            case "completed_at":
+                return self._parse_datetime(task_data.get("completed_at"))
+            case "url":
+                gid = task_data.get("gid", "")
+                return f"https://app.asana.com/0/0/{gid}"
+            case "section":
+                return self._extract_section(task_data, project_gid)
+            case "tags":
+                return self._extract_tags(task_data)
+            case _:
+                return None
+
+    def _extract_custom_field(
+        self,
+        task_data: dict[str, Any],
+        source: str,
+        col: "ColumnDef",
+    ) -> Any:
+        """Extract custom field value.
+
+        Args:
+            task_data: Task data dict.
+            source: Source string (cf:Name or gid:GID).
+            col: Column definition for type coercion.
+
+        Returns:
+            Extracted custom field value.
+        """
+        custom_fields = task_data.get("custom_fields")
+        if not custom_fields:
+            return None
+
+        # Extract directly from task data when no resolver provided
+        # or when task_data is a dict (not a Task object)
+        if source.startswith("cf:"):
+            field_name = source[3:]  # Strip "cf:" prefix
+            return self._extract_custom_field_by_name(custom_fields, field_name)
+        elif source.startswith("gid:"):
+            field_gid = source[4:]  # Strip "gid:" prefix
+            return self._extract_custom_field_by_gid(custom_fields, field_gid)
+
+        return None
+
+    def _extract_custom_field_by_name(
+        self,
+        custom_fields: list[dict[str, Any]],
+        field_name: str,
+    ) -> Any:
+        """Extract custom field value by name.
+
+        Args:
+            custom_fields: List of custom field dicts.
+            field_name: Field name to find.
+
+        Returns:
+            Field value or None.
+        """
+        normalized = field_name.lower().strip()
+
+        for cf in custom_fields:
+            cf_name = cf.get("name", "")
+            if cf_name.lower().strip() == normalized:
+                return self._extract_cf_value(cf)
+
+        return None
+
+    def _extract_custom_field_by_gid(
+        self,
+        custom_fields: list[dict[str, Any]],
+        field_gid: str,
+    ) -> Any:
+        """Extract custom field value by GID.
+
+        Args:
+            custom_fields: List of custom field dicts.
+            field_gid: Field GID to find.
+
+        Returns:
+            Field value or None.
+        """
+        for cf in custom_fields:
+            if cf.get("gid") == field_gid:
+                return self._extract_cf_value(cf)
+
+        return None
+
+    def _extract_cf_value(self, cf: dict[str, Any]) -> Any:
+        """Extract value from custom field dict.
+
+        Args:
+            cf: Custom field dict.
+
+        Returns:
+            Extracted value.
+        """
+        resource_subtype = cf.get("resource_subtype")
+
+        match resource_subtype:
+            case "text":
+                return cf.get("text_value")
+            case "number":
+                return cf.get("number_value")
+            case "enum":
+                enum_val = cf.get("enum_value")
+                if isinstance(enum_val, dict):
+                    return enum_val.get("name")
+                return None
+            case "multi_enum":
+                values = cf.get("multi_enum_values") or []
+                return [v.get("name") for v in values if v.get("name")]
+            case "date":
+                date_val = cf.get("date_value")
+                if isinstance(date_val, dict):
+                    return date_val.get("date")
+                return date_val
+            case "people":
+                people = cf.get("people_value") or []
+                return [p.get("gid") for p in people if p.get("gid")]
+            case _:
+                return cf.get("display_value")
+
+    def _extract_attribute(
+        self,
+        task_data: dict[str, Any],
+        source: str,
+        col: "ColumnDef",
+    ) -> Any:
+        """Extract direct attribute from task data.
+
+        Args:
+            task_data: Task data dict.
+            source: Attribute name.
+            col: Column definition for type handling.
+
+        Returns:
+            Extracted value.
+        """
+        value = task_data.get(source)
+
+        # Handle boolean fields
+        if source == "completed":
+            return bool(value) if value is not None else False
+
+        # Handle tags
+        if source == "tags" and value is not None:
+            if isinstance(value, list):
+                return [t.get("name") for t in value if isinstance(t, dict) and t.get("name")]
+            return []
+
+        # Parse datetime/date based on column dtype
+        if value is not None and isinstance(value, str):
+            if col.dtype == "Datetime":
+                return self._parse_datetime(value)
+            elif col.dtype == "Date":
+                return self._parse_date(value)
+
+        return value
+
+    def _extract_section(
+        self,
+        task_data: dict[str, Any],
+        project_gid: str | None = None,
+    ) -> str | None:
+        """Extract section name from task memberships.
+
+        Args:
+            task_data: Task data dict.
+            project_gid: Optional project GID filter.
+
+        Returns:
+            Section name or None.
+        """
+        memberships = task_data.get("memberships")
+        if not memberships:
+            return None
+
+        for membership in memberships:
+            if not isinstance(membership, dict):
+                continue
+
+            # Filter by project if specified
+            if project_gid:
+                project = membership.get("project", {})
+                if isinstance(project, dict) and project.get("gid") != project_gid:
+                    continue
+
+            # Extract section name
+            section = membership.get("section")
+            if section and isinstance(section, dict):
+                section_name = section.get("name")
+                if section_name is not None:
+                    return str(section_name)
+
+        return None
+
+    def _extract_tags(self, task_data: dict[str, Any]) -> list[str]:
+        """Extract tag names from task.
+
+        Args:
+            task_data: Task data dict.
+
+        Returns:
+            List of tag names.
+        """
+        tags = task_data.get("tags")
+        if not tags:
+            return []
+
+        result: list[str] = []
+        for tag in tags:
+            if isinstance(tag, dict):
+                name = tag.get("name")
+                if name:
+                    result.append(name)
+
+        return result
+
+    def _parse_datetime(self, value: str | None) -> datetime | None:
+        """Parse ISO datetime string.
+
+        Args:
+            value: ISO datetime string or None.
+
+        Returns:
+            Parsed datetime or None.
+        """
+        if not value:
+            return None
+
+        # Handle Z suffix
+        if value.endswith("Z"):
+            value = value[:-1] + "+00:00"
+
+        try:
+            dt = datetime.fromisoformat(value)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except ValueError:
+            return None
+
+    def _parse_date(self, value: str | None) -> Any:
+        """Parse date string.
+
+        Args:
+            value: Date string (YYYY-MM-DD) or None.
+
+        Returns:
+            Parsed date or None.
+        """
+        if not value:
+            return None
+
+        try:
+            from datetime import date
+            return date.fromisoformat(value)
+        except ValueError:
+            return None
+
+    def _build_empty(self) -> pl.DataFrame:
+        """Build empty DataFrame with schema columns.
+
+        Returns:
+            Empty Polars DataFrame with correct schema.
+        """
+        return pl.DataFrame(schema=self._schema.to_polars_schema())
+
+    def get_stats(self) -> dict[str, int]:
+        """Get plugin statistics.
+
+        Returns:
+            Dict with materialize_calls, tasks_fetched, rows_extracted, etc.
+        """
+        return self._stats.copy()
+
+    def reset_stats(self) -> None:
+        """Reset statistics to zero."""
+        for key in self._stats:
+            self._stats[key] = 0

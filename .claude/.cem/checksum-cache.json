@@ -17,9 +17,9 @@
       "size": 4511
     },
     "/Users/tomtenuta/Code/skeleton_claude/.claude/CLAUDE.md": {
-      "checksum": "61e29abdd3c5a980be24ca09693faaa1759549a5b78535bb406902957951b3a2",
-      "mtime": 1767071559,
-      "size": 4336
+      "checksum": "244f820c8c24a1cff7e77f0cc2ec6f8e1c18990c311db43ca65713f0dd7fc191",
+      "mtime": 1767320153,
+      "size": 4474
     },
     "/Users/tomtenuta/Code/skeleton_claude/.claude/skills/10x-ref/skill.md": {
       "checksum": "6304770f5a5cf26417b25f14bf81f2653d55bb007af4a46881f6f20879f01d4e",
@@ -1510,7 +1510,12 @@
       "checksum": "7e54c33d521496b398eb3755a03c0567f838a01c146f1aefdc19184c39c1f038",
       "mtime": 1766898719,
       "size": 17424
+    },
+    "/Users/tomtenuta/Code/roster/teams/10x-dev-pack/workflow.yaml": {
+      "checksum": "a309da7f2b6a7468f0d72947f41a6cbb537cd1af6603f4d1d1a4af2b7e4d5386",
+      "mtime": 1767387991,
+      "size": 6216
     }
   },
-  "updated_at": "2025-12-30T16:45:17Z"
+  "updated_at": "2026-01-02T23:41:14Z"
 }

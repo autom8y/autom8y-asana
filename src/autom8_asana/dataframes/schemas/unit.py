@@ -68,7 +68,7 @@ UNIT_COLUMNS: list[ColumnDef] = [
         name="vertical",
         dtype="Utf8",
         nullable=True,
-        source="cf:Vertical",  # Enum field
+        source="cascade:Vertical",  # Cascades from Unit or Business ancestor
         description="Business vertical",
     ),
     ColumnDef(

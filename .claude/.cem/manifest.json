@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "skeleton_path": "/Users/tomtenuta/Code/skeleton_claude",
-  "skeleton_commit": "a3d67b9fa792b45fa23a55b679fba29224818d74",
+  "skeleton_commit": "67e19bbb89b710c9920f03defaa99011b564748d",
   "skeleton_ref": "main",
-  "last_sync": "2025-12-30T16:45:17Z",
+  "last_sync": "2026-01-02T23:41:04Z",
   "managed_files": [
     {
       "path": ".claude/commands",

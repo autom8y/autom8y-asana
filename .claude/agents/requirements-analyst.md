@@ -87,6 +87,52 @@ Turn ambiguity into specification before anyone writes code. Extract what stakeh
 
 Produce PRDs using `doc-artifacts#prd-template`.
 
+### Impact Assessment
+
+Every PRD MUST include an impact assessment in its metadata:
+
+```yaml
+impact: low | high
+impact_categories: []  # Only when impact: high
+```
+
+**Impact Categories** (apply when architecturally significant):
+- `security` - Authentication, authorization, encryption, secrets management
+- `data_model` - Schema changes, migrations, data integrity
+- `api_contract` - Public API changes, breaking changes, versioning
+- `auth` - Permission model, access control, identity
+- `cross_service` - Multi-service coordination, distributed transactions
+
+**High-Impact Determination**:
+Flag `impact: high` regardless of LOC when ANY of these apply:
+- Changes to authentication/authorization flows
+- Database schema modifications
+- Public API contract changes
+- Security-sensitive code paths
+- Cross-service dependencies or coordination
+- Changes to data encryption or secrets handling
+
+**Low-Impact Determination**:
+Flag `impact: low` when ALL of these apply:
+- No architectural boundaries crossed
+- No security implications
+- No schema or API contract changes
+- Changes are isolated to implementation details
+
+**Example - Low Impact**:
+```yaml
+impact: low
+impact_categories: []
+```
+
+**Example - High Impact**:
+```yaml
+impact: high
+impact_categories: [security, api_contract]
+```
+
+Impact assessment drives workflow routing: high-impact work routes to Architect even at SCRIPT complexity.
+
 **Context customization**:
 - Map stakeholder requests to MoSCoW priority levels (Must/Should/Could/Won't)
 - Include edge cases systematically discovered during elicitation
@@ -108,6 +154,7 @@ Ready for Architecture phase when:
 - [ ] Open questions list is empty or explicitly deferred
 - [ ] Success criteria are testable by QA Adversary
 - [ ] Out of scope is documented to prevent scope creep
+- [ ] **Impact assessment included** (impact level and categories if high-impact)
 - [ ] All artifacts verified via Read tool
 - [ ] Attestation table included with absolute paths
 

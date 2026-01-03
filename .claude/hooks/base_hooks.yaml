@@ -1,0 +1,109 @@
+# Base Hooks Registration
+# These hooks are applied to all team packs
+# Team-specific hooks.yaml will append to these registrations
+#
+# Schema version: 1.0
+# See TDD-hook-parity-scope2.md for schema documentation
+# Priority: Lower values execute first (range: 1-100)
+
+schema_version: "1.0"
+
+hooks:
+  # ===========================================================================
+  # SessionStart Hooks
+  # ===========================================================================
+  - event: SessionStart
+    matcher: "startup|resume"
+    path: context-injection/session-context.sh
+    timeout: 10
+    priority: 10
+    description: "Injects session context on startup and resume"
+
+  - event: SessionStart
+    matcher: "startup|resume"
+    path: context-injection/orchestrated-mode.sh
+    timeout: 5
+    priority: 20
+    description: "Activates orchestrated mode guidance"
+
+  # ===========================================================================
+  # Stop Hooks
+  # ===========================================================================
+  - event: Stop
+    path: session-guards/auto-park.sh
+    timeout: 5
+    priority: 10
+    description: "Auto-parks session on stop"
+
+  # ===========================================================================
+  # PostToolUse Hooks
+  # ===========================================================================
+  - event: PostToolUse
+    matcher: "Write"
+    path: tracking/artifact-tracker.sh
+    timeout: 5
+    priority: 10
+    description: "Tracks written artifacts"
+
+  - event: PostToolUse
+    matcher: "Write"
+    path: tracking/session-audit.sh
+    timeout: 5
+    priority: 20
+    description: "Audits session file writes"
+
+  - event: PostToolUse
+    matcher: "Bash"
+    path: tracking/commit-tracker.sh
+    timeout: 5
+    priority: 10
+    description: "Tracks git commits"
+
+  # ===========================================================================
+  # PreToolUse Hooks
+  # ===========================================================================
+  - event: PreToolUse
+    matcher: "Bash"
+    path: validation/command-validator.sh
+    timeout: 5
+    priority: 10
+    description: "Validates bash commands"
+
+  - event: PreToolUse
+    matcher: "Edit|Write"
+    path: session-guards/session-write-guard.sh
+    timeout: 3
+    priority: 5
+    description: "Guards session context writes"
+
+  - event: PreToolUse
+    matcher: "Edit|Write"
+    path: validation/delegation-check.sh
+    timeout: 3
+    priority: 15
+    description: "Checks for delegation requirements"
+
+  - event: PreToolUse
+    matcher: "Task"
+    path: validation/orchestrator-bypass-check.sh
+    timeout: 3
+    priority: 20
+    description: "Warns when invoking specialists without orchestrator consultation"
+
+  # ===========================================================================
+  # UserPromptSubmit Hooks
+  # ===========================================================================
+  # Orchestrator routing for workflow commands (priority 5, before preflight)
+  - event: UserPromptSubmit
+    matcher: "^/(start|sprint|task)"
+    path: validation/orchestrator-router.sh
+    timeout: 5
+    priority: 5
+    description: "Injects orchestrator routing context for workflow commands"
+
+  - event: UserPromptSubmit
+    matcher: "^/"
+    path: session-guards/start-preflight.sh
+    timeout: 5
+    priority: 10
+    description: "Preflight check for slash commands"
