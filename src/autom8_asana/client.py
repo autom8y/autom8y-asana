@@ -69,9 +69,15 @@ from autom8_asana.config import AsanaConfig
 from autom8_asana.cache.entry import EntryType
 from autom8_asana.exceptions import AuthenticationError, ConfigurationError
 from autom8_asana.protocols.cache import WarmResult
+from autom8_asana.transport.asana_http import AsanaHttpClient, _should_use_legacy_transport
 from autom8_asana.transport.http import AsyncHTTPClient
 
 if TYPE_CHECKING:
+    from autom8y_http import (
+        CircuitBreakerProtocol,
+        RateLimiterProtocol,
+        RetryPolicyProtocol,
+    )
     from autom8_asana.automation.engine import AutomationEngine
     from autom8_asana.cache.metrics import CacheMetrics
     from autom8_asana.cache.unified import UnifiedTaskStore
@@ -181,12 +187,59 @@ class AsanaClient:
             observability_hook or NullObservabilityHook()
         )
 
-        # Create HTTP client
-        self._http = AsyncHTTPClient(
-            config=self._config,
-            auth_provider=self._auth_provider,
-            logger=self._log_provider,
-        )
+        # Create HTTP client with shared rate limiter
+        # Per TDD-ASANA-HTTP-MIGRATION-001/FR-002: Single rate limiter per AsanaClient
+        # Per ADR-0062: Client-scoped rate limiter injection
+        if _should_use_legacy_transport():
+            # Legacy transport for rollback capability
+            # Per TDD-ASANA-HTTP-MIGRATION-001 Rollback Plan: Feature flag
+            self._shared_rate_limiter: RateLimiterProtocol | None = None
+            self._shared_circuit_breaker: CircuitBreakerProtocol | None = None
+            self._shared_retry_policy: RetryPolicyProtocol | None = None
+            self._http = AsyncHTTPClient(
+                config=self._config,
+                auth_provider=self._auth_provider,
+                logger=self._log_provider,
+            )
+        else:
+            # New transport with shared policies
+            from autom8y_http import (
+                CircuitBreaker,
+                ExponentialBackoffRetry,
+                TokenBucketRateLimiter,
+            )
+            from autom8_asana.transport.config_translator import ConfigTranslator
+
+            # Create shared rate limiter (per ADR-0062)
+            rate_config = ConfigTranslator.to_rate_limiter_config(self._config)
+            self._shared_rate_limiter = TokenBucketRateLimiter(
+                config=rate_config,
+                logger=self._log_provider,
+            )
+
+            # Create shared circuit breaker
+            cb_config = ConfigTranslator.to_circuit_breaker_config(self._config)
+            self._shared_circuit_breaker = CircuitBreaker(
+                config=cb_config,
+                logger=self._log_provider,
+            )
+
+            # Create shared retry policy
+            retry_config = ConfigTranslator.to_retry_config(self._config)
+            self._shared_retry_policy = ExponentialBackoffRetry(
+                config=retry_config,
+                logger=self._log_provider,
+            )
+
+            # Create HTTP client with shared instances
+            self._http = AsanaHttpClient(
+                config=self._config,
+                auth_provider=self._auth_provider,
+                rate_limiter=self._shared_rate_limiter,
+                circuit_breaker=self._shared_circuit_breaker,
+                retry_policy=self._shared_retry_policy,
+                logger=self._log_provider,
+            )
 
         # Resolve workspace_gid: parameter > env var (with indirection) > auto-detect
         if workspace_gid is None:
