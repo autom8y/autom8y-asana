@@ -5,28 +5,38 @@
 
 ## Execution Mode
 
-**Active workflow?** MUST delegate via Task tool. See `orchestration/execution-mode.md`.
-**No workflow?** May execute directly for single-phase work.
+This project supports three operating modes (see PRD-hybrid-session-model for details):
+
+| Mode | Session | Team | Main Agent Behavior |
+|------|---------|------|---------------------|
+| **Native** | No | - | Direct execution, no tracking |
+| **Cross-Cutting** | Yes | No | Direct execution + session tracking |
+| **Orchestrated** | Yes | Yes (ACTIVE) | Coach pattern, delegate via Task tool |
+
+**Unsure?** Use `/consult` for workflow routing.
+
+For enforcement rules: `orchestration/execution-mode.md`
 
 ## Quick Start
 
-This project uses a 5-agent workflow (doc-team-pack):
+This project uses a 5-agent workflow (10x-dev-pack):
 
 | Agent | Role | Produces |
 | ----- | ---- | -------- |
-| **doc-auditor** | Inventories all existing documentation a | Artifacts |
-| **doc-reviewer** | QA for documentation. Verifies technical | Artifacts |
-| **information-architect** | Designs the organizational structure, ta | Artifacts |
-| **orchestrator** | Coordinates multi-phase workflows | Work breakdown |
-| **tech-writer** | Writes clear, consistent, scannable docu | Artifacts |
+| **architect** | Evaluates tradeoffs and designs systems | TDD |
+| **orchestrator** | | | Work breakdown |
+| **principal-engineer** | Transforms designs into production code | Code |
+| **qa-adversary** | Breaks things so users don't | Test reports |
+| **requirements-analyst** | Extracts stakeholder needs and produces specification | PRD |
 
 **New here?** Use the `prompting` skill for copy-paste patterns, or `initiative-scoping` to start a new project.
 
 <!-- SYNC: skeleton-owned -->
 ## Agent Routing
 
-**Active workflow?** Delegate via Task tool. **No workflow?** Execute directly or use `/task`.
-**Unsure?** Route to `/consult` for guidance.
+When working within an orchestrated session, the main thread coordinates via Task tool delegation to specialist agents. Without an active session, direct execution or `/task` initialization are both valid approaches.
+
+For routing guidance: `/consult`
 
 <!-- SYNC: skeleton-owned -->
 ## Skills
@@ -37,11 +47,11 @@ Skills are invoked via the **Skill tool**. Key skills: `10x-workflow` (coordinat
 
 Full agent prompts live in `.claude/agents/`:
 
-- `doc-auditor.md` - Inventories all existing documentation across a co
-- `doc-reviewer.md` - QA for documentation. Verifies technical accuracy 
-- `information-architect.md` - Designs the organizational structure, taxonomy, an
-- `orchestrator.md` - The coordination hub for documentation initiatives
-- `tech-writer.md` - Writes clear, consistent, scannable documentation 
+- `architect.md` - System design authority who evaluates technical tradeoffs and produces TDDs and
+- `orchestrator.md` - |
+- `principal-engineer.md` - Master builder who transforms approved designs into production-grade code with
+- `qa-adversary.md` - Adversarial tester who breaks implementations on purpose through edge cases,
+- `requirements-analyst.md` - Specification specialist who transforms ambiguity into requirements and
 
 ## Hooks
 
@@ -78,7 +88,7 @@ state-mate is the centralized authority for session and sprint mutations. It enf
 - Creating or managing sprints
 - Any modification to `*_CONTEXT.md` files
 
-**Invocation Pattern** (MUST include session context):
+**Invocation Pattern** (requires session context):
 ```
 Task(state-mate, "mark_complete task-001 artifact=docs/requirements/PRD-foo.md
 

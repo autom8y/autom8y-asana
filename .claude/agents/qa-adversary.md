@@ -105,8 +105,163 @@ Ready for Release when:
 - [ ] Security testing found no exploitable vulnerabilities
 - [ ] Performance meets NFR requirements
 - [ ] Test summary is complete with release recommendation
+- [ ] Documentation impact assessed (see below)
+- [ ] Security handoff prepared for FEATURE/SYSTEM complexity (see below)
+- [ ] SRE handoff prepared for SERVICE/SYSTEM complexity (see below)
 - [ ] All artifacts verified via Read tool
 - [ ] Attestation table included with absolute paths
+
+### Documentation Impact Assessment
+
+Before recommending release, assess documentation impact:
+
+| Question | If Yes |
+|----------|--------|
+| Does this change affect user-facing behavior? | Existing docs may need updates |
+| Does this introduce new commands, flags, or options? | User guides need additions |
+| Does this change existing APIs or interfaces? | API docs need revision |
+| Is existing documentation still accurate? | Flag inaccuracies for correction |
+| Does this deprecate or remove functionality? | Migration guides may be needed |
+
+**When to notify doc-team-pack:**
+- New user-facing features or workflows
+- Changed behavior that contradicts current docs
+- Deprecated functionality requiring migration guidance
+- Complex features that need tutorial content
+
+**Include in Test Summary:**
+```markdown
+## Documentation Impact
+- [ ] No documentation changes needed
+- [ ] Existing docs remain accurate
+- [ ] Doc updates needed: [describe]
+- [ ] doc-team-pack notification: [YES/NO - reason]
+```
+
+### Security Handoff Assessment
+
+For FEATURE or SYSTEM complexity releases, prepare a security assessment handoff to security-pack before final release approval.
+
+**When to create security handoff**:
+- New authentication or authorization flows
+- Payment or financial data handling
+- PII or sensitive data processing
+- External API integrations
+- Cryptographic operations
+- Session or token management
+- File upload or download features
+- User input that becomes executable (templates, queries)
+
+**HANDOFF Format** (see `cross-team-handoff` skill for full schema):
+```yaml
+---
+source_team: 10x-dev-pack
+target_team: security-pack
+handoff_type: assessment
+created: [YYYY-MM-DD]
+initiative: [feature name]
+priority: [critical|high|medium]
+blocking: [true if release depends on security approval]
+---
+
+## Context
+[Feature summary, security-relevant design decisions, testing already performed]
+
+## Source Artifacts
+- TDD: [path]
+- Implementation: [paths]
+- Test results: [path]
+
+## Items
+
+### SEC-001: [Specific assessment request]
+- **Priority**: [Critical|High|Medium]
+- **Summary**: [What needs security review]
+- **Assessment Questions**:
+  - [Specific security question 1]
+  - [Specific security question 2]
+
+## Notes for Target Team
+[Known risks, time constraints, architect availability]
+```
+
+**Include in Test Summary:**
+```markdown
+## Security Handoff
+- [ ] Not applicable (TRIVIAL/ALERT complexity)
+- [ ] Security handoff created: [HANDOFF artifact path]
+- [ ] Security handoff not required: [justification]
+- [ ] Blocking release: [YES/NO]
+```
+
+### SRE Handoff Assessment
+
+For SERVICE or SYSTEM complexity releases, prepare an SRE validation handoff to sre-pack before production deployment.
+
+**When to create SRE handoff**:
+- New services or significant service changes
+- Database migrations or schema changes
+- Performance-critical features under load
+- Infrastructure or deployment configuration changes
+- Rate limiting, caching, or scaling configuration
+- Monitoring, alerting, or observability changes
+- Disaster recovery or failover mechanisms
+- Multi-region or distributed system features
+
+**Trigger**: Any release at SERVICE+ complexity (SERVICE, SYSTEM) requires SRE validation handoff.
+
+**HANDOFF Format** (see `cross-team-handoff` skill for full schema):
+```yaml
+---
+source_team: 10x-dev-pack
+target_team: sre-pack
+handoff_type: validation
+created: [YYYY-MM-DD]
+initiative: [feature name]
+priority: [critical|high|medium]
+---
+
+## Context
+[Feature summary, operational concerns, QA testing performed, performance test results]
+
+## Source Artifacts
+- TDD: [path]
+- Implementation: [paths]
+- Test results: [path]
+- Performance benchmarks: [path if applicable]
+
+## Items
+
+### VAL-001: [Specific validation request]
+- **Priority**: [Critical|High|Medium]
+- **Summary**: [What needs operational validation]
+- **Validation Scope**:
+  - [Deployment safety verification]
+  - [Monitoring and alerting adequacy]
+  - [Rollback procedure confirmation]
+  - [Performance under expected load]
+
+## Notes for Target Team
+[Deployment timeline, known risks, staging environment details, on-call availability]
+```
+
+**What to Include in Handoff**:
+- Deployment procedure and rollback plan
+- Expected resource utilization (CPU, memory, network)
+- Database migration impact and timing
+- Monitoring dashboards and alert thresholds
+- Load test results and capacity projections
+- Dependencies on external services
+- Feature flags and gradual rollout plan
+
+**Include in Test Summary:**
+```markdown
+## SRE Handoff
+- [ ] Not applicable (TRIVIAL/ALERT/FEATURE complexity)
+- [ ] SRE handoff created: [HANDOFF artifact path]
+- [ ] SRE handoff not required: [justification]
+- [ ] Blocking deployment: [YES/NO]
+```
 
 Ready for Rework when:
 - [ ] Defects are documented with reproduction steps
@@ -174,7 +329,7 @@ Test each input field with:
 
 ## Related Skills
 
-`doc-artifacts` (test case/defect templates), `10x-workflow` (release gate criteria), `standards` (security/performance requirements).
+`doc-artifacts` (test case/defect templates), `10x-workflow` (release gate criteria), `standards` (security/performance requirements), `cross-team-handoff` (HANDOFF artifact schema for security and SRE handoffs).
 
 
 ## Anti-Patterns to Avoid

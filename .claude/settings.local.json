@@ -93,12 +93,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-context.sh",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/context-injection/session-context.sh",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/coach-mode.sh",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/context-injection/orchestrated-mode.sh",
             "timeout": 5
           }
         ]
@@ -109,34 +109,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/auto-park.sh",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/artifact-tracker.sh",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-audit.sh",
-            "timeout": 5
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/commit-tracker.sh",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-guards/auto-park.sh",
             "timeout": 5
           }
         ]
@@ -148,7 +121,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/command-validator.sh",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/validation/command-validator.sh",
             "timeout": 5
           }
         ]
@@ -158,23 +131,71 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-write-guard.sh",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-guards/session-write-guard.sh",
             "timeout": 3
           },
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/delegation-check.sh",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/validation/delegation-check.sh",
             "timeout": 3
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/validation/orchestrator-bypass-check.sh",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/tracking/artifact-tracker.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/tracking/session-audit.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/tracking/commit-tracker.sh",
+            "timeout": 5
           }
         ]
       }
     ],
     "UserPromptSubmit": [
       {
+        "matcher": "^/(start|sprint|task)",
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/start-preflight.sh",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/validation/orchestrator-router.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "^/",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-guards/start-preflight.sh",
             "timeout": 5
           }
         ]

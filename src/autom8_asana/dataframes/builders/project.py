@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 from autom8y_log import get_logger
 
+from autom8_asana.cache.completeness import CompletenessLevel
 from autom8_asana.cache.dataframes import make_dataframe_key
 from autom8_asana.dataframes.builders.base import LAZY_THRESHOLD, DataFrameBuilder
 from autom8_asana.dataframes.builders.task_cache import TaskCacheCoordinator
@@ -459,9 +460,13 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
                 return self._build_empty()
 
             # Check unified store for cached tasks
+            # Per TDD-CACHE-COMPLETENESS-001 Phase 3: Request STANDARD completeness
+            # to ensure custom_fields, parent, etc. are present for extraction
             cache_check_start = time.perf_counter()
             cached_data = await self._unified_store.get_batch_async(
-                all_task_gids, freshness=FreshnessMode.EVENTUAL
+                all_task_gids,
+                freshness=FreshnessMode.EVENTUAL,
+                required_level=CompletenessLevel.STANDARD,
             )
             cache_check_time_ms = (time.perf_counter() - cache_check_start) * 1000
 
@@ -500,10 +505,14 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
                 )
 
                 # Populate unified store with fetched tasks
+                # Per TDD-CACHE-COMPLETENESS-001 Phase 3: Include opt_fields for
+                # completeness tracking
                 if fetched_tasks:
                     populate_start = time.perf_counter()
                     task_dicts = [t.model_dump(exclude_none=True) for t in fetched_tasks]
-                    await self._unified_store.put_batch_async(task_dicts)
+                    await self._unified_store.put_batch_async(
+                        task_dicts, opt_fields=_BASE_OPT_FIELDS
+                    )
                     populate_time_ms = (time.perf_counter() - populate_start) * 1000
 
                     logger.info(

@@ -533,6 +533,13 @@ class ParallelSectionFetcher:
 
         Uses minimal opt_fields=['gid'] for efficiency.
 
+        Per TDD-CACHE-COMPLETENESS-001 Phase 3: This method intentionally
+        does NOT cache task data in UnifiedTaskStore. Caching GID-only entries
+        would create MINIMAL completeness entries that downstream consumers
+        (CascadeViewPlugin, DataFrameViewPlugin) cannot use for extraction.
+        Task data caching with proper completeness tracking is handled by
+        the caller (ProjectDataFrameBuilder).
+
         Args:
             section_gid: GID of the section to fetch.
             semaphore: Semaphore for concurrency control.
@@ -544,7 +551,7 @@ class ParallelSectionFetcher:
             self._api_call_count += 1
             tasks: list[Task] = await self.tasks_client.list_async(
                 section=section_gid,
-                opt_fields=["gid"],  # Minimal fields for efficiency
+                opt_fields=["gid"],  # Minimal fields for efficiency - NOT cached as task data
             ).collect()
             return [task.gid for task in tasks if task.gid]
 
@@ -558,6 +565,11 @@ class ParallelSectionFetcher:
         Per FR-FETCH-004: Uses semaphore to limit concurrent requests.
         Per FR-FETCH-005: Returns empty list for sections with no tasks.
         Per FR-FETCH-007: Passes opt_fields to task fetch.
+
+        Per TDD-CACHE-COMPLETENESS-001 Phase 3: Tasks are fetched with
+        self.opt_fields (typically _BASE_OPT_FIELDS for STANDARD completeness).
+        The caller is responsible for caching with proper completeness
+        tracking by passing opt_fields to UnifiedTaskStore.put_batch_async().
 
         Args:
             section_gid: GID of the section to fetch.

@@ -1,0 +1,67 @@
+# Quick-Switch Command Template
+# Copy to: .claude/commands/{team-name}.md
+# Replace all {placeholders} with actual values
+
+# =============================================================================
+# INSTRUCTIONS
+# =============================================================================
+# 1. Copy this file to .claude/commands/{team-name}.md
+# 2. Replace all {placeholders}
+# 3. Update COMMAND_REGISTRY.md with new command
+# 4. Test with: /{team-name}
+# =============================================================================
+
+---
+description: Quick switch to {team-name} ({workflow-description})
+allowed-tools: Bash, Read
+model: claude-haiku-4-5
+---
+
+## Context
+
+Auto-injected by SessionStart hook (project, team, session, git).
+
+## Your Task
+
+Switch to the {Team Display Name} team pack and display the team roster.
+
+## Behavior
+
+1. Execute: `~/Code/roster/swap-team.sh {team-name}`
+
+2. Display team roster:
+
+**{team-name}** ({N} agents):
+
+| Agent | Role |
+|-------|------|
+| {agent-1-name} | {role-1-description} |
+| {agent-2-name} | {role-2-description} |
+| {agent-3-name} | {role-3-description} |
+| {agent-4-name} | {role-4-description} |
+
+3. If an active session exists (hook-injected context shows session info):
+   - The active_team is automatically updated via team-validator hook
+
+## When to Use
+
+- {Use case 1 - when this team is appropriate}
+- {Use case 2 - another scenario}
+- {Use case 3 - another scenario}
+
+## Team Capabilities
+
+This team specializes in:
+- {Capability 1}
+- {Capability 2}
+- {Capability 3}
+
+## Workflow Phases
+
+```
+{phase-1} → {phase-2} → {phase-3} → {phase-4}
+```
+
+## Reference
+
+Full documentation: `.claude/skills/{team-name}-ref/skill.md`

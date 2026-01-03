@@ -1,12 +1,30 @@
 {
-  "manifest_version": "1.0",
-  "active_team": "doc-team-pack",
-  "last_swap": "2025-12-28T05:19:38Z",
+  "manifest_version": "1.2",
+  "active_team": "10x-dev-pack",
+  "last_swap": "2026-01-02T23:41:13Z",
   "agents": {
-    "doc-auditor.md": {"source": "team", "origin": "doc-team-pack", "installed_at": "2025-12-28T05:19:38Z"},
-    "doc-reviewer.md": {"source": "team", "origin": "doc-team-pack", "installed_at": "2025-12-28T05:19:38Z"},
-    "information-architect.md": {"source": "team", "origin": "doc-team-pack", "installed_at": "2025-12-28T05:19:38Z"},
-    "orchestrator.md": {"source": "team", "origin": "doc-team-pack", "installed_at": "2025-12-28T05:19:38Z"},
-    "tech-writer.md": {"source": "team", "origin": "doc-team-pack", "installed_at": "2025-12-28T05:19:38Z"}
+    "architect.md": {"source": "team", "origin": "10x-dev-pack", "installed_at": "2026-01-02T23:41:13Z"},
+    "orchestrator.md": {"source": "team", "origin": "10x-dev-pack", "installed_at": "2026-01-02T23:41:13Z"},
+    "principal-engineer.md": {"source": "team", "origin": "10x-dev-pack", "installed_at": "2026-01-02T23:41:13Z"},
+    "qa-adversary.md": {"source": "team", "origin": "10x-dev-pack", "installed_at": "2026-01-02T23:41:13Z"},
+    "requirements-analyst.md": {"source": "team", "origin": "10x-dev-pack", "installed_at": "2026-01-02T23:41:13Z"}
+  },
+  "commands": {
+    "pr.md": {"source": "team", "origin": "10x-dev-pack", "installed_at": "2026-01-02T23:41:13Z"},
+    "spike.md": {"source": "team", "origin": "10x-dev-pack", "installed_at": "2026-01-02T23:41:13Z"}
+  },
+  "hooks": {
+    "artifact-tracker.sh": {"source": "base", "origin": "user-hooks", "installed_at": "2026-01-02T23:41:13Z"},
+    "auto-park.sh": {"source": "base", "origin": "user-hooks", "installed_at": "2026-01-02T23:41:13Z"},
+    "coach-mode.sh": {"source": "base", "origin": "user-hooks", "installed_at": "2026-01-02T23:41:13Z"},
+    "command-validator.sh": {"source": "base", "origin": "user-hooks", "installed_at": "2026-01-02T23:41:13Z"},
+    "commit-tracker.sh": {"source": "base", "origin": "user-hooks", "installed_at": "2026-01-02T23:41:13Z"},
+    "delegation-check.sh": {"source": "base", "origin": "user-hooks", "installed_at": "2026-01-02T23:41:13Z"},
+    "session-audit.sh": {"source": "base", "origin": "user-hooks", "installed_at": "2026-01-02T23:41:13Z"},
+    "session-context.sh": {"source": "base", "origin": "user-hooks", "installed_at": "2026-01-02T23:41:13Z"},
+    "session-write-guard.sh": {"source": "base", "origin": "user-hooks", "installed_at": "2026-01-02T23:41:13Z"},
+    "start-preflight.sh": {"source": "base", "origin": "user-hooks", "installed_at": "2026-01-02T23:41:13Z"},
+    "team-validator.sh": {"source": "base", "origin": "user-hooks", "installed_at": "2026-01-02T23:41:13Z"},
+    "workflow-validator.sh": {"source": "base", "origin": "user-hooks", "installed_at": "2026-01-02T23:41:13Z"}
   }
 }

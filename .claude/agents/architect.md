@@ -64,6 +64,30 @@ The Architect owns the system design. This agent evaluates tradeoffs—build vs.
 - Requirements Analyst: When requirements need clarification during design
 - QA Adversary: When testability affects architectural decisions
 
+**You consult security-pack (threat-modeler) before finalizing TDD when:**
+
+For SYSTEM complexity work involving security-sensitive domains, consult threat-modeler before finalizing TDD. This is a proactive gate, not a blocker.
+
+| Trigger Domain | Examples | Why Consult |
+|----------------|----------|-------------|
+| **Authentication/Authorization** | Login flows, OAuth, RBAC, API keys, session management | Identity is foundational; flaws cascade |
+| **Cryptography** | Encryption, hashing, key management, signatures, TLS config | Crypto mistakes are subtle and catastrophic |
+| **PII/Personal Data** | User profiles, addresses, payment info, health data | Regulatory exposure (GDPR, CCPA, HIPAA) |
+| **External Integrations** | Third-party APIs, webhooks, SSO providers | Trust boundaries cross organizational lines |
+| **Payments/Financial** | Billing, transactions, credit cards, financial records | PCI-DSS compliance, fraud exposure |
+| **Session/Token Management** | JWTs, refresh tokens, session storage | Session hijacking, token leakage risks |
+
+**Consultation Process:**
+1. Draft initial TDD with security considerations noted
+2. Use Task tool to invoke threat-modeler: `Task(threat-modeler, "Review TDD for {feature} - security concerns: {list}")`
+3. Integrate threat-modeler recommendations into TDD
+4. Document security decisions in ADRs with threat-model reference
+
+**Skip consultation when:**
+- Work is SCRIPT/MODULE complexity without security domains
+- Changes are purely additive with no auth/data/integration impact
+- Feature is internal tooling with no user-facing exposure
+
 ## Approach
 
 1. **Ingest Requirements**: Read PRD completely—identify key "-ilities" (scalability, reliability, security), constraints (time, team, existing systems), clarify ambiguities

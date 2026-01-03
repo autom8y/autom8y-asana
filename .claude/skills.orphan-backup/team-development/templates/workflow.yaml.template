@@ -1,0 +1,95 @@
+# Workflow Configuration Template
+# Copy to: ~/Code/roster/teams/{team-name}/workflow.yaml
+# Replace all {placeholders} with actual values
+
+# =============================================================================
+# INSTRUCTIONS
+# =============================================================================
+# 1. Copy this file to your team directory
+# 2. Replace all {placeholders} with actual values
+# 3. Ensure agent names match files in agents/ directory
+# 4. Validate with: ~/Code/roster/swap-team.sh {team-name}
+# =============================================================================
+
+name: {team-name}
+workflow_type: sequential
+description: {One-line description of what this team does}
+
+# -----------------------------------------------------------------------------
+# Entry Point
+# -----------------------------------------------------------------------------
+# First agent to receive work. Defines initial artifact type and path.
+
+entry_point:
+  agent: {first-agent-name}
+  artifact:
+    type: {artifact-type}
+    path_template: docs/{category}/{PREFIX}-{slug}.md
+
+# -----------------------------------------------------------------------------
+# Phases
+# -----------------------------------------------------------------------------
+# Sequential phases from entry to completion.
+# Each phase: name, agent, produces, next
+# Terminal phase has next: null
+
+phases:
+  # Phase 1: Entry/Assessment
+  - name: {phase-1-name}
+    agent: {agent-1-name}
+    produces: {artifact-type-1}
+    next: {phase-2-name}
+
+  # Phase 2: Design/Planning (may be conditional)
+  - name: {phase-2-name}
+    agent: {agent-2-name}
+    produces: {artifact-type-2}
+    next: {phase-3-name}
+    # Uncomment to gate by complexity:
+    # condition: "complexity >= MODULE"
+
+  # Phase 3: Implementation/Execution
+  - name: {phase-3-name}
+    agent: {agent-3-name}
+    produces: {artifact-type-3}
+    next: {phase-4-name}
+
+  # Phase 4: Validation/Review (Terminal)
+  - name: {phase-4-name}
+    agent: {agent-4-name}
+    produces: {artifact-type-4}
+    next: null
+
+# -----------------------------------------------------------------------------
+# Complexity Levels
+# -----------------------------------------------------------------------------
+# Define 2-4 levels. Lower complexity skips early phases.
+# Phases listed are the ones that RUN at that level.
+
+complexity_levels:
+  # Minimal: Skip design phase
+  - name: {SIMPLE-LEVEL}
+    scope: "{Concrete scope description, e.g., Single file, <200 LOC}"
+    phases: [{phase-3-name}, {phase-4-name}]
+
+  # Standard: Run all phases
+  - name: {STANDARD-LEVEL}
+    scope: "{Scope description, e.g., Multiple files, <2000 LOC}"
+    phases: [{phase-1-name}, {phase-2-name}, {phase-3-name}, {phase-4-name}]
+
+  # Complex: Run all phases with extra rigor
+  - name: {COMPLEX-LEVEL}
+    scope: "{Scope description, e.g., APIs, persistence, external integrations}"
+    phases: [{phase-1-name}, {phase-2-name}, {phase-3-name}, {phase-4-name}]
+
+# -----------------------------------------------------------------------------
+# Command Mapping (Documentation)
+# -----------------------------------------------------------------------------
+# How slash commands route to agents. Document for reference.
+
+# Agent roles for command mapping:
+# /architect   → {design-phase-agent}
+# /build       → {implementation-phase-agent}
+# /qa          → {validation-phase-agent}
+# /hotfix      → {fast-path-agent}
+# /code-review → {review-mode-agent}

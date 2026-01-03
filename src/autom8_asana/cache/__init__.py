@@ -138,6 +138,19 @@ from autom8_asana.cache.freshness_coordinator import FreshnessMode
 from autom8_asana.cache.hierarchy import HierarchyIndex
 from autom8_asana.cache.unified import UnifiedTaskStore
 
+# Completeness tracking (TDD-CACHE-COMPLETENESS-001)
+from autom8_asana.cache.completeness import (
+    CompletenessLevel,
+    MINIMAL_FIELDS,
+    STANDARD_FIELDS,
+    FULL_FIELDS,
+    infer_completeness_level,
+    get_entry_completeness,
+    is_entry_sufficient,
+    create_completeness_metadata,
+    get_fields_for_level,
+)
+
 __all__ = [
     # Entry types
     "CacheEntry",
@@ -207,4 +220,14 @@ __all__ = [
     "UnifiedTaskStore",
     "FreshnessMode",
     "HierarchyIndex",
+    # Completeness tracking (TDD-CACHE-COMPLETENESS-001)
+    "CompletenessLevel",
+    "MINIMAL_FIELDS",
+    "STANDARD_FIELDS",
+    "FULL_FIELDS",
+    "infer_completeness_level",
+    "get_entry_completeness",
+    "is_entry_sufficient",
+    "create_completeness_metadata",
+    "get_fields_for_level",
 ]

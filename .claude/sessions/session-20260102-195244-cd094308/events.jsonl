@@ -1,0 +1,2 @@
+{"timestamp":"2026-01-02T18:52:44Z","event":"SESSION_CREATED","from":"NONE","to":"ACTIVE","metadata":{"initiative":"Unified Cache Migration - Legacy Path Elimination"}}}
+{"timestamp":"2026-01-02T19:38:09Z","event":"SESSION_PARKED","source":"migration","reason":"Session stopped (auto-park)"}

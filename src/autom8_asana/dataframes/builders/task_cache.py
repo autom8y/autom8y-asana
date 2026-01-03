@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any, Callable
 from autom8_asana.cache.entry import CacheEntry, EntryType
 
 if TYPE_CHECKING:
+    from autom8_asana.cache.unified import UnifiedTaskStore
     from autom8_asana.models import Task
     from autom8_asana.protocols.cache import CacheProvider
 
@@ -115,6 +116,28 @@ class TaskCacheCoordinator:
         """
         self._cache = cache_provider
         self._default_ttl = default_ttl
+        self._unified_store: "UnifiedTaskStore | None" = None
+
+    @classmethod
+    def from_unified_store(cls, unified_store: "UnifiedTaskStore") -> "TaskCacheCoordinator":
+        """Create coordinator that delegates to UnifiedTaskStore.
+
+        Per TDD-UNIFIED-CACHE-001: Provides adapter for unified cache integration.
+        The coordinator uses the unified store's cache backend for operations.
+
+        Args:
+            unified_store: UnifiedTaskStore instance to delegate to.
+
+        Returns:
+            TaskCacheCoordinator configured to use unified store.
+
+        Example:
+            >>> coordinator = TaskCacheCoordinator.from_unified_store(unified_store)
+            >>> cached = await coordinator.lookup_tasks_async(task_gids)
+        """
+        coordinator = cls(cache_provider=unified_store.cache)
+        coordinator._unified_store = unified_store
+        return coordinator
 
     @property
     def cache_provider(self) -> "CacheProvider | None":
@@ -200,6 +223,8 @@ class TaskCacheCoordinator:
         self,
         tasks: list["Task"],
         ttl_resolver: Callable[["Task"], int] | None = None,
+        *,
+        opt_fields: list[str] | None = None,
     ) -> int:
         """Batch populate cache with fetched tasks.
 
@@ -207,11 +232,13 @@ class TaskCacheCoordinator:
         Per FR-POPULATE-003: Uses task.modified_at as version.
         Per FR-POPULATE-004: Uses entity-type based TTL.
         Per FR-DEGRADE-002: Graceful degradation on cache failures.
+        Per FR-COMPLETENESS: Tracks opt_fields for completeness detection.
 
         Args:
             tasks: List of Task objects to cache.
             ttl_resolver: Optional function to resolve TTL per task.
                 If None, uses entity-type based TTL resolution.
+            opt_fields: Fields that were requested (for completeness tracking).
 
         Returns:
             Count of tasks successfully cached.

@@ -1,0 +1,3 @@
+{"timestamp":"2025-12-31T05:58:10Z","event":"SESSION_PARKED","source":"migration","reason":"Session stopped (auto-park)"}
+{"timestamp":"2025-12-31T18:41:16Z","event":"SCHEMA_MIGRATED","from_version":"1.0","to_version":"2.0","derived_status":"PARKED"}
+{"timestamp":"2025-12-31T18:42:38Z","event":"SESSION_ARCHIVED","from":"PARKED","to":"ARCHIVED","metadata":{}}}}
