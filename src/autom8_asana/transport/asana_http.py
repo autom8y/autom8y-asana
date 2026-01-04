@@ -683,15 +683,3 @@ class AsanaHttpClient:
         if self._platform_client is not None:
             await self._platform_client.close()
             self._platform_client = None
-
-
-def _should_use_legacy_transport() -> bool:
-    """Check if legacy transport should be used.
-
-    Per TDD-ASANA-HTTP-MIGRATION-001 Rollback Plan: Feature flag for
-    gradual rollout and quick revert capability.
-
-    Returns:
-        True if ASANA_USE_LEGACY_TRANSPORT=true in environment.
-    """
-    return os.environ.get("ASANA_USE_LEGACY_TRANSPORT", "").lower() == "true"
