@@ -30,15 +30,15 @@ For enforcement rules: `orchestration/execution-mode.md`
 
 ## Quick Start
 
-This project uses a 5-agent workflow (hygiene-pack):
+This project uses a 5-agent workflow (10x-dev-pack):
 
 | Agent | Role | Produces |
 | ----- | ---- | -------- |
-| **architect-enforcer** | Plans refactoring with architectural contracts | Refactor-plan |
-| **audit-lead** | Verifies refactoring preserves behavior | Audit-signoff |
-| **code-smeller** | Diagnoses code quality issues | Smell-report |
-| **janitor** | Executes refactoring with atomic commits | Commits |
+| **architect** | Evaluates tradeoffs and designs systems | TDD |
 | **orchestrator** | | | Work breakdown |
+| **principal-engineer** | Transforms designs into production code | Code |
+| **qa-adversary** | Breaks things so users don't | Test reports |
+| **requirements-analyst** | Extracts stakeholder needs and produces specification | PRD |
 
 **New here?** Use the `prompting` skill for copy-paste patterns, or `initiative-scoping` to start a new project.
 
@@ -79,11 +79,11 @@ Skills are invoked via the **Skill tool**. Key skills: `orchestration` (workflow
 
 Full agent prompts live in `.claude/agents/`:
 
-- `architect-enforcer.md` - Architectural refactoring specialist who evaluates smells through boundary lens
-- `audit-lead.md` - Refactoring QA specialist who verifies cleanup preserved behavior, validates
-- `code-smeller.md` - Code quality diagnostic specialist who detects dead code, DRY violations,
-- `janitor.md` - Refactoring execution specialist who implements cleanup plans with small,
+- `architect.md` - System design authority who evaluates technical tradeoffs and produces TDDs and
 - `orchestrator.md` - |
+- `principal-engineer.md` - Master builder who transforms approved designs into production-grade code with
+- `qa-adversary.md` - Adversarial tester who breaks implementations on purpose through edge cases,
+- `requirements-analyst.md` - Specification specialist who transforms ambiguity into requirements and
 
 ## Hooks
 
