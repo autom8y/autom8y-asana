@@ -1,0 +1,5 @@
+{"timestamp":"2026-01-04T17:15:50Z","event":"SESSION_CREATED","from":"NONE","to":"ACTIVE","metadata":{"initiative":"Cross-Project Hygiene Audit: autom8_asana + autom8y-cache SDK"}}}
+{"timestamp":"2026-01-04T17:21:50Z","event":"SESSION_PARKED","from":"ACTIVE","to":"PARKED","metadata":{"reason":"Session stopped (auto-park)","auto":true}}}}
+{"timestamp":"2026-01-04T20:12:47Z","event":"SESSION_RESUMED","from":"PARKED","to":"ACTIVE","metadata":{}}}}
+{"timestamp":"2026-01-04T20:13:32Z","event":"SESSION_PARKED","from":"ACTIVE","to":"PARKED","metadata":{"reason":"Restarting as orchestrated hygiene workflow","git_status":"uncommitted changes"}}}}
+{"timestamp":"2026-01-04T20:13:46Z","event":"SESSION_ARCHIVED","from":"PARKED","to":"ARCHIVED","metadata":{}}}}

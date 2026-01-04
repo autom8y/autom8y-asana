@@ -8,35 +8,42 @@
 #
 # This hook enforces centralized state management through the state-mate agent,
 # preventing unguarded writes that could corrupt session/sprint state.
+#
+# OPTIMIZATION: Lazy init - check tool type BEFORE sourcing hooks-init.sh
+# This saves ~35ms on 90%+ of invocations (Read, Bash, Glob, Grep, etc.)
 
-# Library Resolution - per ADR-0002
 HOOKS_LIB="${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/lib"
-
-# Absolute fallback if hooks-init.sh itself fails
-source "$HOOKS_LIB/hooks-init.sh" 2>/dev/null || exit 0
-
-hooks_init "session-write-guard" "DEFENSIVE"
-
-# Source session utilities for workflow detection
-source "$HOOKS_LIB/session-utils.sh" 2>/dev/null || true
-
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-.}"
+
+# =============================================================================
+# EARLY EXIT CHECK (before heavy initialization)
+# =============================================================================
 
 # Environment variables from Claude Code hook framework
 TOOL_NAME="${CLAUDE_HOOK_TOOL_NAME:-}"
 FILE_PATH="${CLAUDE_HOOK_FILE_PATH:-}"
 
-# Only intercept Write and Edit operations
-if [[ "$TOOL_NAME" != "Write" && "$TOOL_NAME" != "Edit" ]]; then
-    hooks_finalize 0
-    exit 0
+# Early exit: Not Write or Edit operation (vast majority of calls)
+[[ "$TOOL_NAME" != "Write" && "$TOOL_NAME" != "Edit" ]] && exit 0
+
+# Early exit: Not a context file
+[[ ! "$FILE_PATH" =~ _CONTEXT\.md$ ]] && exit 0
+
+# FIXED (state-mate Bypass): Allow state-mate to write via environment marker
+if [[ "${STATE_MATE_BYPASS:-}" == "true" ]]; then
+    exit 0  # Allow write
 fi
 
-# Check if target is a context file (pattern: *_CONTEXT.md)
-if [[ ! "$FILE_PATH" =~ _CONTEXT\.md$ ]]; then
-    hooks_finalize 0
-    exit 0
-fi
+# =============================================================================
+# FULL INITIALIZATION (only for Write/Edit to *_CONTEXT.md)
+# =============================================================================
+
+# Absolute fallback if hooks-init.sh itself fails
+source "$HOOKS_LIB/hooks-init.sh" 2>/dev/null || exit 0
+hooks_init "session-write-guard" "DEFENSIVE"
+
+# Source session utilities for workflow detection
+source "$HOOKS_LIB/session-utils.sh" 2>/dev/null || true
 
 # Check for active workflow and orchestrator presence
 has_active_workflow() {
@@ -102,7 +109,7 @@ Task(state-mate, "<your mutation request>")
 - `Task(state-mate, "transition to design phase")`
 - `Task(state-mate, "register artifact docs/PRD-foo.md")`
 
-See `.claude/user-agents/state-mate.md` for full documentation.
+See `~/.claude/agents/state-mate.md` for full documentation (synced from roster/user-agents/).
 
 EOF
 fi

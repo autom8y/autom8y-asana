@@ -60,29 +60,42 @@ if [[ "$TOOL_NAME" == "Write" && -n "$FILE_PATH" ]]; then
     BASENAME=$(basename "$FILE_PATH")
     echo "$TIMESTAMP | $TYPE | $FILE_PATH" >> "$ARTIFACTS_LOG"
 
-    # Update SESSION_CONTEXT with artifact location
+    # FIXED (Atomicity): Update SESSION_CONTEXT with artifact location using atomic operations
     SESSION_CONTEXT="$SESSION_DIR/SESSION_CONTEXT.md"
     if [ -f "$SESSION_CONTEXT" ]; then
-      # Update the Artifacts section
+      # Read current content
+      CURRENT_CONTENT=$(cat "$SESSION_CONTEXT")
+
+      # Apply transformation based on artifact type
       case "$TYPE" in
         PRD)
-          sed -i.bak "s|^- PRD:.*|- PRD: $FILE_PATH|" "$SESSION_CONTEXT" 2>/dev/null && rm -f "$SESSION_CONTEXT.bak"
+          UPDATED_CONTENT=$(echo "$CURRENT_CONTENT" | sed "s|^- PRD:.*|- PRD: $FILE_PATH|")
           ;;
         TDD)
-          sed -i.bak "s|^- TDD:.*|- TDD: $FILE_PATH|" "$SESSION_CONTEXT" 2>/dev/null && rm -f "$SESSION_CONTEXT.bak"
+          UPDATED_CONTENT=$(echo "$CURRENT_CONTENT" | sed "s|^- TDD:.*|- TDD: $FILE_PATH|")
           ;;
         ADR)
           # Append ADR to list (there can be multiple)
-          if ! grep -q "- ADR:.*$BASENAME" "$SESSION_CONTEXT" 2>/dev/null; then
-            sed -i.bak "/^## Artifacts/a\\
+          if ! echo "$CURRENT_CONTENT" | grep -q "- ADR:.*$BASENAME" 2>/dev/null; then
+            UPDATED_CONTENT=$(echo "$CURRENT_CONTENT" | sed "/^## Artifacts/a\\
 - ADR: $FILE_PATH
-" "$SESSION_CONTEXT" 2>/dev/null && rm -f "$SESSION_CONTEXT.bak"
+")
+          else
+            UPDATED_CONTENT="$CURRENT_CONTENT"
           fi
           ;;
         "Test Plan")
-          sed -i.bak "s|^- Test Plan:.*|- Test Plan: $FILE_PATH|" "$SESSION_CONTEXT" 2>/dev/null && rm -f "$SESSION_CONTEXT.bak"
+          UPDATED_CONTENT=$(echo "$CURRENT_CONTENT" | sed "s|^- Test Plan:.*|- Test Plan: $FILE_PATH|")
+          ;;
+        *)
+          UPDATED_CONTENT="$CURRENT_CONTENT"
           ;;
       esac
+
+      # Write atomically using atomic_write from session-utils
+      if ! atomic_write "$SESSION_CONTEXT" "$UPDATED_CONTENT"; then
+        echo '{"warning": "Failed to update SESSION_CONTEXT atomically"}' >&2
+      fi
     fi
 
     echo "{\"systemMessage\": \"Artifact tracked: $TYPE ($BASENAME)\"}"

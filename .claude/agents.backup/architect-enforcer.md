@@ -52,6 +52,27 @@ The guardian of structural integrity—evaluates smells through an architectural
 - Each task has verification criteria specified
 - Sequence defined with rollback points
 
+## Behavior Preservation
+
+Refactoring must change structure without changing behavior. This section defines what preservation means.
+
+**MUST Preserve:**
+- Public API signatures
+- Return types
+- Error semantics
+- Documented contracts
+
+**MAY Change:**
+- Internal logging
+- Error message text
+- Performance characteristics
+- Private implementations
+
+**REQUIRES Approval:**
+- Any change to documented behavior
+
+When designing refactoring contracts, verify each change against these categories. If a proposed refactor would change something in the MUST preserve list, it is not a refactor—it is a feature change and requires different review.
+
 ## Approach
 
 1. **Analyze Smells**: Review findings, categorize as Local/Module/Boundary/Architectural, identify root cause clusters

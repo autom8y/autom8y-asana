@@ -14,8 +14,9 @@ hooks_init "auto-park" "RECOVERABLE"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-.}"
 cd "$PROJECT_DIR" 2>/dev/null || true
 
-# Source session utilities
+# Source session utilities and FSM
 safe_source "$HOOKS_LIB/session-utils.sh" || exit 0
+safe_source "$HOOKS_LIB/session-fsm.sh" || exit 0
 
 SESSION_DIR=$(get_session_dir)
 SESSION_FILE="$SESSION_DIR/SESSION_CONTEXT.md"
@@ -26,32 +27,19 @@ if [ -z "$SESSION_DIR" ] || [ ! -f "$SESSION_FILE" ]; then
   exit 0
 fi
 
-# Check if already parked (manual or auto)
-if grep -q "^parked_at:" "$SESSION_FILE" 2>/dev/null; then
+# FIXED (Hook-FSM Coordination): Use FSM transition instead of direct write
+# Get session ID from directory name
+session_id=$(basename "$SESSION_DIR")
+
+# Attempt FSM transition to PARKED state
+result=$(fsm_transition "$session_id" "PARKED" '{"reason":"Session stopped (auto-park)","auto":true}' 2>/dev/null)
+
+# Check result - if already parked or transition failed, silently continue
+if [[ "$result" != *'"success": true'* ]]; then
+  # FSM transition failed - may already be parked or archived
+  # This is acceptable - degrade gracefully per RECOVERABLE category
   hooks_finalize 0
   exit 0
-fi
-if grep -q "^auto_parked_at:" "$SESSION_FILE" 2>/dev/null; then
-  hooks_finalize 0
-  exit 0
-fi
-
-# Add auto-park timestamp to frontmatter
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-# Generate updated content with auto-park fields inserted before closing ---
-UPDATED_CONTENT=$(awk -v ts="$TIMESTAMP" '
-  /^---$/ && ++count == 2 {
-    print "auto_parked_at: " ts
-    print "auto_parked_reason: \"Session stopped (auto-park)\""
-  }
-  { print }
-' "$SESSION_FILE")
-
-# Write atomically using session-utils function (prevents STATE-004 corruption)
-if ! atomic_write "$SESSION_FILE" "$UPDATED_CONTENT"; then
-  echo '{"error": "Failed to auto-park session: atomic write failed"}' >&2
-  exit 1
 fi
 
 # Output message for Claude
