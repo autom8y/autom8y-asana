@@ -9,8 +9,6 @@ Environment Variables:
     ASANA_WORKSPACE_GID: Default workspace GID
     ASANA_BASE_URL: API base URL (default: https://app.asana.com/api/1.0)
     ASANA_STRICT_CONFIG: Enable strict validation mode
-    ASANA_TOKEN_KEY: DEPRECATED - Legacy indirection key for PAT lookup
-    ASANA_WORKSPACE_KEY: DEPRECATED - Legacy indirection key for workspace GID
     ASANA_ENVIRONMENT: Environment hint (development, production, staging)
     ASANA_CACHE_ENABLED: Master cache enable/disable
     ASANA_CACHE_PROVIDER: Explicit cache provider selection
@@ -58,16 +56,12 @@ class AsanaSettings(BaseSettings):
         ASANA_WORKSPACE_GID: Default workspace GID
         ASANA_BASE_URL: API base URL
         ASANA_STRICT_CONFIG: Enable strict validation mode
-        ASANA_TOKEN_KEY: DEPRECATED - Legacy indirection key for PAT lookup
-        ASANA_WORKSPACE_KEY: DEPRECATED - Legacy indirection key for workspace GID
 
     Attributes:
         pat: Personal Access Token (optional, may use auth provider instead)
         workspace_gid: Default workspace GID for operations
         base_url: Asana API base URL
         strict_config: If True, raise on invalid ASANA_PROJECT_* vars
-        token_key: DEPRECATED - Legacy indirection key for PAT lookup
-        workspace_key: DEPRECATED - Legacy indirection key for workspace GID lookup
     """
 
     model_config = SettingsConfigDict(
@@ -87,40 +81,6 @@ class AsanaSettings(BaseSettings):
     strict_config: bool = Field(
         default=False, description="Enable strict configuration validation"
     )
-
-    # Deprecated indirection keys (for backward compatibility tracking)
-    token_key: str | None = Field(
-        default=None,
-        description="DEPRECATED: Legacy indirection key for PAT lookup",
-    )
-    workspace_key: str | None = Field(
-        default=None,
-        description="DEPRECATED: Legacy indirection key for workspace GID lookup",
-    )
-
-    @field_validator("token_key", mode="after")
-    @classmethod
-    def warn_token_key_deprecated(cls, v: str | None) -> str | None:
-        """Emit deprecation warning if ASANA_TOKEN_KEY is set."""
-        if v is not None:
-            warnings.warn(
-                "ASANA_TOKEN_KEY is deprecated. Set ASANA_PAT directly.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        return v
-
-    @field_validator("workspace_key", mode="after")
-    @classmethod
-    def warn_workspace_key_deprecated(cls, v: str | None) -> str | None:
-        """Emit deprecation warning if ASANA_WORKSPACE_KEY is set."""
-        if v is not None:
-            warnings.warn(
-                "ASANA_WORKSPACE_KEY is deprecated. Set ASANA_WORKSPACE_GID directly.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        return v
 
 
 class CacheSettings(BaseSettings):

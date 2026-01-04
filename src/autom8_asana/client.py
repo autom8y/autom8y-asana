@@ -12,39 +12,17 @@ from autom8_asana.settings import get_settings
 
 
 def _get_workspace_gid_from_env() -> str | None:
-    """Get workspace GID from environment.
-
-    Supports ASANA_WORKSPACE_KEY indirection for backward compatibility
-    (with deprecation warning via Pydantic Settings), then falls back to
-    ASANA_WORKSPACE_GID via Pydantic Settings.
-
-    Resolution order:
-    1. ASANA_WORKSPACE_KEY indirection (deprecated, takes precedence for compat)
-    2. ASANA_WORKSPACE_GID direct setting
+    """Get workspace GID from ASANA_WORKSPACE_GID environment variable.
 
     Returns:
-        Workspace GID if found, None otherwise.
+        Workspace GID if ASANA_WORKSPACE_GID is set, None otherwise.
 
     Example:
-        # Direct usage (recommended):
         # export ASANA_WORKSPACE_GID=1234567890123456
         gid = _get_workspace_gid_from_env()  # Returns "1234567890123456"
     """
-    # Use Pydantic Settings for all configuration
-    # Deprecation warning for workspace_key is emitted by field_validator in AsanaSettings
     settings = get_settings()
-
-    # Legacy: Check for ASANA_WORKSPACE_KEY indirection first (for backward compat)
-    # The indirection pattern takes precedence when set
-    if settings.asana.workspace_key:
-        # Deprecation warning already emitted by AsanaSettings validator
-        return os.environ.get(settings.asana.workspace_key)
-
-    # Use direct ASANA_WORKSPACE_GID
-    if settings.asana.workspace_gid:
-        return settings.asana.workspace_gid
-
-    return None
+    return settings.asana.workspace_gid
 
 
 from autom8_asana._defaults.log import DefaultLogProvider

@@ -470,25 +470,6 @@ class CacheConfig:
         return config
 
 
-def _default_token_key() -> str:
-    """Resolve default token key from environment or use ASANA_PAT.
-
-    Per ADR-VAULT-001: Support ASANA_TOKEN_KEY environment variable for
-    ECS deployments where secrets are injected with platform naming convention.
-
-    Note: ASANA_TOKEN_KEY indirection is deprecated. Prefer setting ASANA_PAT
-    directly with the actual token value.
-
-    Returns:
-        Token key to use with AuthProvider.get_secret().
-        Priority: ASANA_TOKEN_KEY env var (deprecated) > "ASANA_PAT" default
-    """
-    # Use Pydantic Settings for ASANA_TOKEN_KEY (deprecation warning emitted there)
-    settings = get_settings()
-    if settings.asana.token_key:
-        # Deprecation warning is emitted by the field_validator in AsanaSettings
-        return settings.asana.token_key
-    return "ASANA_PAT"
 
 
 @dataclass
@@ -501,9 +482,7 @@ class AsanaConfig:
 
     Attributes:
         token_key: Environment variable name containing the Asana PAT.
-            Defaults to reading ASANA_TOKEN_KEY env var, falling back to "ASANA_PAT".
-            In ECS deployments with autom8y naming convention, set
-            ASANA_TOKEN_KEY=BOT_PAT to read from the injected secret.
+            Defaults to "ASANA_PAT".
 
     Example:
         config = AsanaConfig(
@@ -517,9 +496,6 @@ class AsanaConfig:
             ),
         )
         client = AsanaClient(config=config)
-
-        # ECS deployment: Set ASANA_TOKEN_KEY=BOT_PAT in environment
-        # SDK will automatically read from BOT_PAT env var
     """
 
     base_url: str = "https://app.asana.com/api/1.0"
@@ -534,8 +510,7 @@ class AsanaConfig:
     automation: AutomationConfig = field(default_factory=AutomationConfig)
 
     # Auth key names (used with AuthProvider.get_secret)
-    # Per ADR-VAULT-001: Reads from ASANA_TOKEN_KEY env var for platform compatibility
-    token_key: str = field(default_factory=_default_token_key)
+    token_key: str = "ASANA_PAT"
 
 
 # --- Startup Validation ---
