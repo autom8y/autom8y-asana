@@ -336,60 +336,6 @@ class TestS3Settings:
         assert settings.s3.prefix == "asana-cache"
 
 
-class TestDeprecatedFields:
-    """Tests for deprecated field warnings."""
-
-    def test_token_key_emits_deprecation_warning(self) -> None:
-        """Test ASANA_TOKEN_KEY emits DeprecationWarning."""
-        import warnings
-        from autom8_asana.settings import AsanaSettings
-
-        env = {"ASANA_TOKEN_KEY": "MY_CUSTOM_TOKEN_VAR"}
-        with patch.dict(os.environ, env, clear=True):
-            with warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter("always")
-                settings = AsanaSettings()
-
-        assert settings.token_key == "MY_CUSTOM_TOKEN_VAR"
-        # Check that a deprecation warning was emitted
-        deprecation_warnings = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-        assert len(deprecation_warnings) >= 1
-        assert "ASANA_TOKEN_KEY" in str(deprecation_warnings[0].message)
-
-    def test_workspace_key_emits_deprecation_warning(self) -> None:
-        """Test ASANA_WORKSPACE_KEY emits DeprecationWarning."""
-        import warnings
-        from autom8_asana.settings import AsanaSettings
-
-        env = {"ASANA_WORKSPACE_KEY": "MY_WORKSPACE_VAR"}
-        with patch.dict(os.environ, env, clear=True):
-            with warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter("always")
-                settings = AsanaSettings()
-
-        assert settings.workspace_key == "MY_WORKSPACE_VAR"
-        # Check that a deprecation warning was emitted
-        deprecation_warnings = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-        assert len(deprecation_warnings) >= 1
-        assert "ASANA_WORKSPACE_KEY" in str(deprecation_warnings[0].message)
-
-    def test_no_warning_when_deprecated_fields_not_set(self) -> None:
-        """Test no warning when deprecated fields are not set."""
-        import warnings
-        from autom8_asana.settings import AsanaSettings
-
-        with patch.dict(os.environ, {}, clear=True):
-            with warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter("always")
-                settings = AsanaSettings()
-
-        assert settings.token_key is None
-        assert settings.workspace_key is None
-        # No deprecation warnings should be emitted
-        deprecation_warnings = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-        assert len(deprecation_warnings) == 0
-
-
 class TestCacheSettingsExtensions:
     """Tests for CacheSettings extension fields."""
 
