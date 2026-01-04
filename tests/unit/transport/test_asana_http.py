@@ -19,10 +19,7 @@ from autom8_asana.exceptions import (
     ServerError,
     TimeoutError,
 )
-from autom8_asana.transport.asana_http import (
-    AsanaHttpClient,
-    _should_use_legacy_transport,
-)
+from autom8_asana.transport.asana_http import AsanaHttpClient
 
 
 class MockAuthProvider:
@@ -310,32 +307,6 @@ class TestAsanaHttpClientRateLimiting:
 
         await client.get("/tasks")
         mock_limiter.acquire.assert_called_once()
-
-
-class TestFeatureFlag:
-    """Test feature flag for legacy transport."""
-
-    def test_returns_false_when_not_set(self):
-        """Returns False when env var not set."""
-        with patch.dict("os.environ", {}, clear=True):
-            assert _should_use_legacy_transport() is False
-
-    def test_returns_true_when_set_to_true(self):
-        """Returns True when env var is 'true'."""
-        with patch.dict("os.environ", {"ASANA_USE_LEGACY_TRANSPORT": "true"}):
-            assert _should_use_legacy_transport() is True
-
-    def test_returns_true_case_insensitive(self):
-        """Returns True for 'TRUE', 'True', etc."""
-        with patch.dict("os.environ", {"ASANA_USE_LEGACY_TRANSPORT": "TRUE"}):
-            assert _should_use_legacy_transport() is True
-
-    def test_returns_false_for_other_values(self):
-        """Returns False for any value other than 'true'."""
-        with patch.dict("os.environ", {"ASANA_USE_LEGACY_TRANSPORT": "false"}):
-            assert _should_use_legacy_transport() is False
-        with patch.dict("os.environ", {"ASANA_USE_LEGACY_TRANSPORT": "1"}):
-            assert _should_use_legacy_transport() is False
 
 
 class TestAsanaHttpClientClose:
