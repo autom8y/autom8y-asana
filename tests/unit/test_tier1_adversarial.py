@@ -1270,7 +1270,7 @@ class TestAsanaClientProperties:
 
     def test_all_client_properties_accessible(self) -> None:
         """All Tier 1 client properties are accessible."""
-        with patch("autom8_asana.client.AsyncHTTPClient") as mock_http_class:
+        with patch("autom8_asana.client.AsanaHttpClient") as mock_http_class:
             mock_http_class.return_value = MagicMock()
             client = AsanaClient(token="test-token")
 
@@ -1284,7 +1284,7 @@ class TestAsanaClientProperties:
 
     def test_client_properties_return_correct_types(self) -> None:
         """Client properties return correct client types."""
-        with patch("autom8_asana.client.AsyncHTTPClient") as mock_http_class:
+        with patch("autom8_asana.client.AsanaHttpClient") as mock_http_class:
             mock_http_class.return_value = MagicMock()
             client = AsanaClient(token="test-token")
 
@@ -1303,7 +1303,7 @@ class TestAsanaClientLazyInitialization:
 
     def test_clients_not_created_on_init(self) -> None:
         """Resource clients are not created during AsanaClient init."""
-        with patch("autom8_asana.client.AsyncHTTPClient") as mock_http_class:
+        with patch("autom8_asana.client.AsanaHttpClient") as mock_http_class:
             mock_http_class.return_value = MagicMock()
             client = AsanaClient(token="test-token")
 
@@ -1317,7 +1317,7 @@ class TestAsanaClientLazyInitialization:
 
     def test_clients_created_on_first_access(self) -> None:
         """Resource clients are created on first property access."""
-        with patch("autom8_asana.client.AsyncHTTPClient") as mock_http_class:
+        with patch("autom8_asana.client.AsanaHttpClient") as mock_http_class:
             mock_http_class.return_value = MagicMock()
             client = AsanaClient(token="test-token")
 
@@ -1333,7 +1333,7 @@ class TestAsanaClientLazyInitialization:
 
     def test_same_client_returned_on_multiple_access(self) -> None:
         """Same client instance returned on multiple property accesses."""
-        with patch("autom8_asana.client.AsyncHTTPClient") as mock_http_class:
+        with patch("autom8_asana.client.AsanaHttpClient") as mock_http_class:
             mock_http_class.return_value = MagicMock()
             client = AsanaClient(token="test-token")
 
@@ -1350,7 +1350,7 @@ class TestAsanaClientHTTPSharing:
 
     def test_all_clients_share_http_client(self) -> None:
         """All resource clients share the same HTTP client instance."""
-        with patch("autom8_asana.client.AsyncHTTPClient") as mock_http_class:
+        with patch("autom8_asana.client.AsanaHttpClient") as mock_http_class:
             mock_http = MagicMock()
             mock_http_class.return_value = mock_http
             client = AsanaClient(token="test-token")
@@ -1376,7 +1376,7 @@ class TestAsanaClientThreadSafety:
 
     def test_concurrent_access_same_client(self) -> None:
         """Concurrent access from multiple threads returns same client."""
-        with patch("autom8_asana.client.AsyncHTTPClient") as mock_http_class:
+        with patch("autom8_asana.client.AsanaHttpClient") as mock_http_class:
             mock_http_class.return_value = MagicMock()
             client = AsanaClient(token="test-token")
 

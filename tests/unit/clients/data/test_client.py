@@ -3382,7 +3382,7 @@ class TestCircuitBreaker:
         """Circuit stays closed when requests succeed."""
         import respx
 
-        from autom8_asana.transport.circuit_breaker import CircuitState
+        from autom8y_http.protocols import CircuitState
 
         client = DataServiceClient()
 
@@ -3421,7 +3421,7 @@ class TestCircuitBreaker:
 
         from autom8_asana.clients.data.config import CircuitBreakerConfig
         from autom8_asana.exceptions import InsightsServiceError
-        from autom8_asana.transport.circuit_breaker import CircuitState
+        from autom8y_http.protocols import CircuitState
 
         # Use config with default failure_threshold=5
         config = DataServiceConfig(
@@ -3461,7 +3461,7 @@ class TestCircuitBreaker:
 
         from autom8_asana.clients.data.config import CircuitBreakerConfig
         from autom8_asana.exceptions import InsightsServiceError
-        from autom8_asana.transport.circuit_breaker import CircuitState
+        from autom8y_http.protocols import CircuitState
 
         config = DataServiceConfig(
             circuit_breaker=CircuitBreakerConfig(
@@ -3512,7 +3512,7 @@ class TestCircuitBreaker:
 
         from autom8_asana.clients.data.config import CircuitBreakerConfig
         from autom8_asana.exceptions import InsightsServiceError
-        from autom8_asana.transport.circuit_breaker import CircuitState
+        from autom8y_http.protocols import CircuitState
 
         from autom8_asana.clients.data.config import RetryConfig
 
@@ -3569,7 +3569,7 @@ class TestCircuitBreaker:
 
         from autom8_asana.clients.data.config import CircuitBreakerConfig, RetryConfig
         from autom8_asana.exceptions import InsightsServiceError
-        from autom8_asana.transport.circuit_breaker import CircuitState
+        from autom8y_http.protocols import CircuitState
 
         # Disable retries to isolate circuit breaker behavior
         config = DataServiceConfig(
@@ -3644,7 +3644,7 @@ class TestCircuitBreaker:
 
         from autom8_asana.clients.data.config import CircuitBreakerConfig, RetryConfig
         from autom8_asana.exceptions import InsightsServiceError
-        from autom8_asana.transport.circuit_breaker import CircuitState
+        from autom8y_http.protocols import CircuitState
 
         # Disable retries to isolate circuit breaker behavior
         config = DataServiceConfig(
