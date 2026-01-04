@@ -7,10 +7,10 @@
     "last_sync": "2026-01-04T15:49:26Z"
   },
   "team": {
-    "name": "hygiene-pack",
-    "checksum": "3ed2f9e6b67a8bf30a3a77ce3d7b62824df08262b74ed2a0bad4d01aa0040019",
-    "last_refresh": "2026-01-04T20:11:41Z",
-    "roster_path": "/Users/tomtenuta/Code/roster/teams/hygiene-pack"
+    "name": "10x-dev-pack",
+    "checksum": "595dead3723f502f23095304d20179b6a970b76f06e2aef8a39a63907cb605c8",
+    "last_refresh": "2026-01-04T21:03:50Z",
+    "roster_path": "/Users/tomtenuta/Code/roster/teams/10x-dev-pack"
   },
   "managed_files": [
     {
