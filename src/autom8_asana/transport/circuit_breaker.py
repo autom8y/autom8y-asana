@@ -1,28 +1,25 @@
 """Circuit breaker for cascading failure prevention.
 
 Per ADR-0048: Composition pattern wrapping request execution.
+
+DEPRECATED: This module is deprecated in favor of autom8y-http.CircuitBreaker.
+Will be removed in v2.0. See TDD-ASANA-HTTP-MIGRATION-001 for migration guide.
 """
 
 from __future__ import annotations
 
 import asyncio
 import time
-from enum import Enum
 from typing import Any, Callable, TYPE_CHECKING
+
+# Re-export CircuitState from platform SDK for backward compatibility
+from autom8y_http.protocols import CircuitState
 
 if TYPE_CHECKING:
     from autom8_asana.config import CircuitBreakerConfig
     from autom8_asana.protocols.log import LogProvider
 
 from autom8_asana.exceptions import CircuitBreakerOpenError
-
-
-class CircuitState(Enum):
-    """Circuit breaker states."""
-
-    CLOSED = "closed"  # Normal operation
-    OPEN = "open"  # Fast-fail mode
-    HALF_OPEN = "half_open"  # Probe mode
 
 
 class CircuitBreaker:
