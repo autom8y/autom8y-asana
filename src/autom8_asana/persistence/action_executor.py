@@ -15,7 +15,7 @@ from autom8_asana.persistence.models import (
 from autom8_asana.models.common import NameGid
 
 if TYPE_CHECKING:
-    from autom8_asana.transport.http import AsyncHTTPClient
+    from autom8_asana.transport.asana_http import AsanaHttpClient
 
 
 class ActionExecutor:
@@ -43,11 +43,11 @@ class ActionExecutor:
                 print(f"Action {result.action.action.value} succeeded")
     """
 
-    def __init__(self, http_client: AsyncHTTPClient) -> None:
+    def __init__(self, http_client: AsanaHttpClient) -> None:
         """Initialize executor with HTTP client.
 
         Args:
-            http_client: The AsyncHTTPClient for making API requests.
+            http_client: The AsanaHttpClient for making API requests.
         """
         self._http = http_client
 
