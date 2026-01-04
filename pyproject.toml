@@ -91,6 +91,7 @@ url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/
 # Platform primitive dependencies from CodeArtifact registry
 [tool.uv.sources]
 autom8y-auth = { index = "autom8y" }
+autom8y-cache = { index = "autom8y" }
 autom8y-config = { index = "autom8y" }
 autom8y-http = { index = "autom8y" }
 autom8y-log = { index = "autom8y" }

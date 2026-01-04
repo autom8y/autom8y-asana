@@ -13,6 +13,19 @@ Environment variables:
 - NO_COLOR: Disable colors even with TTY
 - FORCE_COLOR: Force colors even without TTY
 
+Stdlib Logging Interception:
+    This module configures autom8y-log with `intercept_stdlib=True`, which redirects
+    all standard library logging calls through the structured logging pipeline.
+
+    This means modules can use standard logging without explicit SDK imports:
+
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("message")  # Intercepted and routed through autom8y-log
+
+    Third-party libraries (httpx, uvicorn, etc.) that use stdlib logging are
+    automatically integrated into the structured logging system. No action needed.
+
 Usage:
     # At application startup (e.g., in api/main.py)
     from autom8_asana.core.logging import configure
