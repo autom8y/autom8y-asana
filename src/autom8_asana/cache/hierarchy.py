@@ -3,19 +3,54 @@
 Per TDD-UNIFIED-CACHE-001: Maintains bidirectional parent-child mappings
 for efficient traversal in both directions. Used for cascade invalidation
 and parent chain resolution.
+
+Migration Note (SDK-PRIMITIVES-001):
+    This module now wraps autom8y_cache.HierarchyTracker with Asana-specific
+    extractors for gid and parent.gid. The HierarchyIndex class provides
+    backward compatibility while delegating to the SDK primitive.
 """
 
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
+from autom8y_cache import HierarchyTracker
 from autom8y_log import get_logger
 
-if TYPE_CHECKING:
-    pass
-
 logger = get_logger(__name__)
+
+
+def _asana_gid_extractor(entity: Any) -> str | None:
+    """Extract GID from Asana task dict.
+
+    Args:
+        entity: Task dict with "gid" key.
+
+    Returns:
+        GID string or None if not present.
+    """
+    if isinstance(entity, dict):
+        return entity.get("gid")
+    return None
+
+
+def _asana_parent_gid_extractor(entity: Any) -> str | None:
+    """Extract parent GID from Asana task dict.
+
+    Asana tasks have parent in nested structure: task.parent.gid
+
+    Args:
+        entity: Task dict with optional "parent" key containing nested "gid".
+
+    Returns:
+        Parent GID string or None if not present.
+    """
+    if isinstance(entity, dict):
+        parent = entity.get("parent")
+        if parent and isinstance(parent, dict):
+            return parent.get("gid")
+    return None
 
 
 class HierarchyIndex:
@@ -26,8 +61,13 @@ class HierarchyIndex:
     and parent chain resolution.
 
     Thread Safety:
-        All operations are protected by a threading.Lock to ensure
+        All operations are protected by thread-safe primitives to ensure
         thread-safe concurrent access.
+
+    Implementation Note:
+        This class wraps autom8y_cache.HierarchyTracker with Asana-specific
+        extractors for gid and parent.gid. Entity type tracking is maintained
+        locally as it's Asana-specific metadata not in the SDK primitive.
 
     Example:
         >>> index = HierarchyIndex()
@@ -42,14 +82,15 @@ class HierarchyIndex:
 
     def __init__(self) -> None:
         """Initialize empty hierarchy index."""
-        # Map: gid -> parent_gid (or None for root tasks)
-        self._parent_map: dict[str, str | None] = {}
-        # Map: gid -> set of child gids
-        self._children_map: dict[str, set[str]] = {}
-        # Map: gid -> entity_type (optional metadata)
+        # Delegate to SDK HierarchyTracker with Asana-specific extractors
+        self._tracker: HierarchyTracker[str] = HierarchyTracker(
+            id_extractor=_asana_gid_extractor,
+            parent_id_extractor=_asana_parent_gid_extractor,
+        )
+        # Map: gid -> entity_type (Asana-specific metadata not in SDK)
         self._entity_types: dict[str, str | None] = {}
-        # Lock for thread safety
-        self._lock = threading.Lock()
+        # Lock for entity_types (tracker has its own internal locking)
+        self._entity_types_lock = threading.Lock()
 
     def register(
         self,
@@ -73,42 +114,25 @@ class HierarchyIndex:
         if not gid:
             raise ValueError("Task must have 'gid' field")
 
-        # Extract parent_gid from nested structure
-        parent_gid: str | None = None
-        parent_data = task.get("parent")
-        if parent_data and isinstance(parent_data, dict):
-            parent_gid = parent_data.get("gid")
+        # Delegate hierarchy tracking to SDK
+        self._tracker.register(task)
 
-        with self._lock:
-            # Get existing parent to check if it changed
-            old_parent_gid = self._parent_map.get(gid)
-
-            # If parent changed, remove from old parent's children
-            if old_parent_gid is not None and old_parent_gid != parent_gid:
-                if old_parent_gid in self._children_map:
-                    self._children_map[old_parent_gid].discard(gid)
-
-            # Update parent mapping
-            self._parent_map[gid] = parent_gid
-
-            # Add to new parent's children
-            if parent_gid is not None:
-                if parent_gid not in self._children_map:
-                    self._children_map[parent_gid] = set()
-                self._children_map[parent_gid].add(gid)
-
-            # Store entity type if provided
-            if entity_type is not None:
+        # Store entity type locally (Asana-specific metadata)
+        if entity_type is not None:
+            with self._entity_types_lock:
                 self._entity_types[gid] = entity_type
 
-            logger.debug(
-                "hierarchy_registered",
-                extra={
-                    "gid": gid,
-                    "parent_gid": parent_gid,
-                    "entity_type": entity_type,
-                },
-            )
+        # Extract parent_gid for logging
+        parent_gid = _asana_parent_gid_extractor(task)
+
+        logger.debug(
+            "hierarchy_registered",
+            extra={
+                "gid": gid,
+                "parent_gid": parent_gid,
+                "entity_type": entity_type,
+            },
+        )
 
     def get_parent_gid(self, gid: str) -> str | None:
         """Get immediate parent GID.
@@ -119,8 +143,7 @@ class HierarchyIndex:
         Returns:
             Parent GID if exists and task has parent, None otherwise.
         """
-        with self._lock:
-            return self._parent_map.get(gid)
+        return self._tracker.get_parent_id(gid)
 
     def get_children_gids(self, gid: str) -> set[str]:
         """Get immediate children GIDs.
@@ -131,10 +154,7 @@ class HierarchyIndex:
         Returns:
             Set of child GIDs (may be empty).
         """
-        with self._lock:
-            # Return a copy to prevent external modification
-            children = self._children_map.get(gid)
-            return set(children) if children else set()
+        return self._tracker.get_children_ids(gid)
 
     def get_ancestor_chain(
         self,
@@ -158,18 +178,7 @@ class HierarchyIndex:
             >>> index.get_ancestor_chain("child")
             ['parent', 'grandparent']
         """
-        chain: list[str] = []
-        current_gid = gid
-
-        with self._lock:
-            for _ in range(max_depth):
-                parent_gid = self._parent_map.get(current_gid)
-                if parent_gid is None:
-                    break
-                chain.append(parent_gid)
-                current_gid = parent_gid
-
-        return chain
+        return self._tracker.get_ancestor_chain(gid, max_depth=max_depth)
 
     def get_descendant_gids(
         self,
@@ -187,29 +196,7 @@ class HierarchyIndex:
         Returns:
             Set of all descendant GIDs (not including the starting GID).
         """
-        descendants: set[str] = set()
-
-        with self._lock:
-            # BFS traversal
-            current_level = {gid}
-            depth = 0
-
-            while current_level:
-                if max_depth is not None and depth >= max_depth:
-                    break
-
-                next_level: set[str] = set()
-                for current_gid in current_level:
-                    children = self._children_map.get(current_gid, set())
-                    for child_gid in children:
-                        if child_gid not in descendants:
-                            descendants.add(child_gid)
-                            next_level.add(child_gid)
-
-                current_level = next_level
-                depth += 1
-
-        return descendants
+        return self._tracker.get_descendant_ids(gid, max_depth=max_depth)
 
     def get_root_gid(self, gid: str) -> str | None:
         """Get root GID for this task's hierarchy.
@@ -224,24 +211,7 @@ class HierarchyIndex:
         Returns:
             Root GID, or None if task not registered.
         """
-        with self._lock:
-            if gid not in self._parent_map:
-                return None
-
-            current_gid = gid
-            # Safety limit to prevent infinite loops
-            for _ in range(100):
-                parent_gid = self._parent_map.get(current_gid)
-                if parent_gid is None:
-                    return current_gid
-                current_gid = parent_gid
-
-            # Shouldn't reach here unless there's a cycle
-            logger.warning(
-                "hierarchy_cycle_detected",
-                extra={"gid": gid, "current_gid": current_gid},
-            )
-            return current_gid
+        return self._tracker.get_root_id(gid)
 
     def get_entity_type(self, gid: str) -> str | None:
         """Get stored entity type for a task.
@@ -252,7 +222,7 @@ class HierarchyIndex:
         Returns:
             Entity type if registered, None otherwise.
         """
-        with self._lock:
+        with self._entity_types_lock:
             return self._entity_types.get(gid)
 
     def contains(self, gid: str) -> bool:
@@ -264,8 +234,7 @@ class HierarchyIndex:
         Returns:
             True if GID is registered, False otherwise.
         """
-        with self._lock:
-            return gid in self._parent_map
+        return self._tracker.contains(gid)
 
     def remove(self, gid: str) -> None:
         """Remove task from index.
@@ -275,34 +244,21 @@ class HierarchyIndex:
         Args:
             gid: Task GID to remove.
         """
-        with self._lock:
-            # Get parent to update parent's children
-            parent_gid = self._parent_map.get(gid)
-            if parent_gid is not None and parent_gid in self._children_map:
-                self._children_map[parent_gid].discard(gid)
+        self._tracker.remove(gid)
 
-            # Remove from parent map
-            self._parent_map.pop(gid, None)
-
-            # Remove children mapping (children become orphaned)
-            # Note: We don't update children's parent references here
-            # as they still point to this GID
-            self._children_map.pop(gid, None)
-
-            # Remove entity type
+        # Also remove entity type
+        with self._entity_types_lock:
             self._entity_types.pop(gid, None)
 
     def clear(self) -> None:
         """Clear all entries from the index."""
-        with self._lock:
-            self._parent_map.clear()
-            self._children_map.clear()
+        self._tracker.clear()
+        with self._entity_types_lock:
             self._entity_types.clear()
 
     def __len__(self) -> int:
         """Return number of registered tasks."""
-        with self._lock:
-            return len(self._parent_map)
+        return len(self._tracker)
 
     def get_stats(self) -> dict[str, int]:
         """Get index statistics.
@@ -310,13 +266,10 @@ class HierarchyIndex:
         Returns:
             Dict with task_count, root_count, max_depth info.
         """
-        with self._lock:
-            task_count = len(self._parent_map)
-            root_count = sum(
-                1 for parent_gid in self._parent_map.values() if parent_gid is None
-            )
-            return {
-                "task_count": task_count,
-                "root_count": root_count,
-                "children_map_size": len(self._children_map),
-            }
+        stats = self._tracker.get_stats()
+        # Map SDK stat names to our existing API
+        return {
+            "task_count": stats.get("entity_count", 0),
+            "root_count": stats.get("root_count", 0),
+            "children_map_size": stats.get("children_map_size", 0),
+        }

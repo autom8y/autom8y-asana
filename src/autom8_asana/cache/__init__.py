@@ -151,6 +151,12 @@ from autom8_asana.cache.completeness import (
     get_fields_for_level,
 )
 
+# SDK Primitives (TDD-CACHE-SDK-PRIMITIVES-001)
+# Re-export SDK HierarchyTracker for advanced use cases
+from autom8y_cache import HierarchyTracker
+# Completeness upgrader implementation
+from autom8_asana.cache.upgrader import AsanaTaskUpgrader
+
 __all__ = [
     # Entry types
     "CacheEntry",
@@ -230,4 +236,7 @@ __all__ = [
     "is_entry_sufficient",
     "create_completeness_metadata",
     "get_fields_for_level",
+    # SDK Primitives (TDD-CACHE-SDK-PRIMITIVES-001)
+    "HierarchyTracker",
+    "AsanaTaskUpgrader",
 ]
