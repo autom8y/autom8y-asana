@@ -33,6 +33,7 @@ from autom8_asana.api.models import (
     ResponseMeta,
     build_success_response,
 )
+from autom8_asana.cache.unified import UnifiedTaskStore
 from autom8_asana.dataframes import (
     BASE_SCHEMA,
     CONTACT_SCHEMA,
@@ -41,6 +42,7 @@ from autom8_asana.dataframes import (
     ProjectDataFrameBuilder,
     SectionDataFrameBuilder,
 )
+from autom8_asana._defaults.cache import InMemoryCacheProvider
 from autom8_asana.models.task import Task
 
 router = APIRouter(prefix="/api/v1/dataframes", tags=["dataframes"])
@@ -214,11 +216,16 @@ async def get_project_dataframe(
     project_proxy = ProjectProxy(gid, tasks)
 
     # Build DataFrame
+    # Per TDD-UNIFIED-CACHE-001 Phase 4: unified_store is mandatory.
+    # Create a lightweight in-memory store for the API route since we already
+    # have the tasks fetched - no caching needed for this synchronous path.
+    unified_store = UnifiedTaskStore(cache=InMemoryCacheProvider())
     builder = ProjectDataFrameBuilder(
         project=project_proxy,
         task_type="*",  # Extract all task types
         schema=df_schema,
         resolver=resolver,
+        unified_store=unified_store,
     )
     df = builder.build(tasks=tasks)
 
