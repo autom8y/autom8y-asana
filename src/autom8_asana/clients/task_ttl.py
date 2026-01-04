@@ -99,29 +99,7 @@ class TaskTTLResolver:
         return DEFAULT_TTL
 
     def _detect_entity_type(self, data: dict[str, Any]) -> str | None:
-        """Detect entity type from task data.
+        """Detect entity type from task data."""
+        from autom8_asana.models.business.detection import detect_entity_type_from_dict
 
-        Uses existing detection infrastructure if available.
-
-        Args:
-            data: Task data dict.
-
-        Returns:
-            Entity type name or None if not detectable.
-        """
-        try:
-            from autom8_asana.models import Task as TaskModel
-            from autom8_asana.models.business.detection import detect_entity_type
-
-            # Create a temporary Task model to use detection
-            temp_task = TaskModel.model_validate(data)
-            result = detect_entity_type(temp_task)
-            if result and result.entity_type:
-                return result.entity_type.value
-            return None
-        except ImportError:
-            # Detection module not available
-            return None
-        except Exception:
-            # Detection failed, use default
-            return None
+        return detect_entity_type_from_dict(data)

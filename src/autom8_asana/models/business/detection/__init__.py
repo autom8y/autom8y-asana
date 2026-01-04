@@ -78,6 +78,7 @@ from autom8_asana.models.business.detection.facade import (
     detect_by_structure_async,
     detect_entity_type,
     detect_entity_type_async,
+    detect_entity_type_from_dict,
     identify_holder_type,
 )
 
@@ -122,6 +123,7 @@ __all__ = [
     "detect_by_structure_async",
     "detect_entity_type",
     "detect_entity_type_async",
+    "detect_entity_type_from_dict",
     "identify_holder_type",
     "_matches_holder_pattern",
 ]

@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import warnings
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from autom8_asana.cache.entry import CacheEntry, EntryType
 
@@ -56,6 +56,7 @@ __all__ = [
     "detect_by_structure_async",
     "detect_entity_type",
     "detect_entity_type_async",
+    "detect_entity_type_from_dict",
     "identify_holder_type",
     "_matches_holder_pattern",
 ]
@@ -166,6 +167,42 @@ def _cache_detection_result(
     except Exception:
         # Per FR-DEGRADE-002: Cache storage failures don't prevent detection
         pass
+
+
+# --- Utility Functions ---
+
+
+def detect_entity_type_from_dict(data: dict[str, Any]) -> str | None:
+    """Detect entity type from raw task data dict.
+
+    Convenience wrapper for TTL resolution and cache builders that work with
+    raw dicts before Task model instantiation. Uses lazy imports to avoid
+    circular dependencies at module load time.
+
+    Args:
+        data: Raw task data dict (as returned by Asana API).
+
+    Returns:
+        Entity type value string (e.g., "business", "contact") or None
+        if detection fails or model validation fails.
+
+    Example:
+        >>> entity_type = detect_entity_type_from_dict({"gid": "123", "name": "Contacts"})
+        >>> if entity_type:
+        ...     ttl = DEFAULT_ENTITY_TTLS.get(entity_type.lower(), DEFAULT_TTL)
+    """
+    try:
+        from autom8_asana.models import Task as TaskModel
+
+        temp_task = TaskModel.model_validate(data)
+        result = detect_entity_type(temp_task)
+        if result and result.entity_type:
+            return result.entity_type.value
+        return None
+    except ImportError:
+        return None
+    except Exception:
+        return None
 
 
 # --- Legacy Wrapper Functions ---
