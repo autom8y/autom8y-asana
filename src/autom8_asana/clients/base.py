@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from autom8_asana.protocols.auth import AuthProvider
     from autom8_asana.protocols.cache import CacheProvider
     from autom8_asana.protocols.log import LogProvider
-    from autom8_asana.transport.http import AsyncHTTPClient
+    from autom8_asana.transport.asana_http import AsanaHttpClient
 
 logger = get_logger(__name__)
 
@@ -34,7 +34,7 @@ class BaseClient:
 
     def __init__(
         self,
-        http: AsyncHTTPClient,
+        http: AsanaHttpClient,
         config: AsanaConfig,
         auth_provider: AuthProvider,
         cache_provider: CacheProvider | None = None,

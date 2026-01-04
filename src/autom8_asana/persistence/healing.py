@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
     from autom8_asana.models.business.base import BusinessEntity
     from autom8_asana.persistence.models import HealingReport
-    from autom8_asana.transport.http import AsyncHTTPClient
+    from autom8_asana.transport.asana_http import AsanaHttpClient
 
 __all__ = [
     "HealingResult",
@@ -190,7 +190,7 @@ class HealingManager:
             },
         )
 
-    async def execute_async(self, http_client: "AsyncHTTPClient") -> "HealingReport":
+    async def execute_async(self, http_client: "AsanaHttpClient") -> "HealingReport":
         """Execute healing for all queued entities.
 
         Per TDD-DETECTION/ADR-0095: Healing adds missing project memberships.
