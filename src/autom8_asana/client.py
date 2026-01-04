@@ -205,10 +205,9 @@ class AsanaClient:
             logger=self._log_provider,
         )
 
-        # Resolve workspace_gid: parameter > env var (with indirection) > auto-detect
+        # Resolve workspace_gid: parameter > env var > auto-detect
         if workspace_gid is None:
-            # Check environment variable with indirection support
-            # Per ASANA_WORKSPACE_KEY pattern (parallels ASANA_TOKEN_KEY)
+            # Check ASANA_WORKSPACE_GID environment variable
             env_workspace = _get_workspace_gid_from_env()
             if env_workspace and env_workspace.strip():
                 workspace_gid = env_workspace.strip()
