@@ -32,15 +32,21 @@ from autom8_asana.clients.data.models import (
     InsightsResponse,
 )
 from autom8_asana.exceptions import (
-    CircuitBreakerOpenError,
     InsightsError,
     InsightsNotFoundError,
     InsightsServiceError,
     InsightsValidationError,
     SyncInAsyncContextError,
 )
-from autom8_asana.transport.circuit_breaker import CircuitBreaker, CircuitState
-from autom8_asana.transport.retry import RetryHandler
+# Platform SDK resilience primitives (autom8y-http >= 0.3.0)
+from autom8y_http import (
+    CircuitBreaker,
+    CircuitBreakerConfig as SdkCircuitBreakerConfig,
+    CircuitBreakerOpenError as SdkCircuitBreakerOpenError,
+    ExponentialBackoffRetry,
+    RetryConfig as SdkRetryConfig,
+)
+from autom8y_http.protocols import CircuitState
 from autom8_asana.models.contracts import PhoneVerticalPair
 
 if TYPE_CHECKING:
@@ -193,10 +199,30 @@ class DataServiceClient:
         self._client_lock = asyncio.Lock()
 
         # Circuit breaker for cascade failure prevention (Story 2.3)
-        self._circuit_breaker = CircuitBreaker(self._config.circuit_breaker, self._log)
+        # Translate domain config to SDK config (autom8y-http >= 0.3.0)
+        cb_config = self._config.circuit_breaker
+        sdk_cb_config = SdkCircuitBreakerConfig(
+            enabled=cb_config.enabled,
+            failure_threshold=cb_config.failure_threshold,
+            recovery_timeout=cb_config.recovery_timeout,
+            half_open_max_calls=cb_config.half_open_max_calls,
+        )
+        self._circuit_breaker = CircuitBreaker(config=sdk_cb_config, logger=self._log)
 
         # Retry handler for transient failures (Story 2.2)
-        self._retry_handler = RetryHandler(self._config.retry, self._log)
+        # Translate domain config to SDK config (autom8y-http >= 0.3.0)
+        retry_cfg = self._config.retry
+        sdk_retry_config = SdkRetryConfig(
+            max_retries=retry_cfg.max_retries,
+            base_delay=retry_cfg.base_delay,
+            max_delay=retry_cfg.max_delay,
+            exponential_base=retry_cfg.exponential_base,
+            jitter=retry_cfg.jitter,
+            retryable_status_codes=retry_cfg.retryable_status_codes,
+        )
+        self._retry_handler = ExponentialBackoffRetry(
+            config=sdk_retry_config, logger=self._log
+        )
 
     # --- Async Context Manager Protocol (FR-001.5) ---
 
@@ -1061,11 +1087,11 @@ class DataServiceClient:
         # Fast-fail if circuit is open to prevent cascade failures
         try:
             await self._circuit_breaker.check()
-        except CircuitBreakerOpenError as e:
-            # Convert to InsightsServiceError with circuit_breaker reason
+        except SdkCircuitBreakerOpenError as e:
+            # Convert SDK error to domain error (autom8y-http >= 0.3.0)
             raise InsightsServiceError(
                 f"Circuit breaker open. Service appears degraded. "
-                f"Retry in {e.time_until_recovery:.1f}s.",
+                f"Retry in {e.time_remaining:.1f}s.",
                 request_id=request_id,
                 reason="circuit_breaker",
             ) from e

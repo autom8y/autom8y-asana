@@ -36,8 +36,8 @@ from autom8_asana.transport.asana_http import AsanaHttpClient
 from autom8_asana.transport.config_translator import ConfigTranslator
 from autom8_asana.transport.response_handler import AsanaResponseHandler
 
-# CircuitState enum is still useful, so we export it from the new location
-from autom8_asana.transport.circuit_breaker import CircuitState
+# CircuitState enum re-exported from platform SDK (autom8y-http >= 0.3.0)
+from autom8y_http.protocols import CircuitState
 
 if TYPE_CHECKING:
     # Type hints for deprecated imports
