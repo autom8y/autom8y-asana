@@ -29,8 +29,17 @@ fi
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-.}"
 cd "$PROJECT_DIR" 2>/dev/null || true
 
-# Get session directory using proper session-utils function
-SESSION_DIR=$(get_session_dir 2>/dev/null || echo "")
+# =============================================================================
+# OPTIMIZATION: Use cached session directory and workflow state
+# Avoids repeated disk reads for SESSION_CONTEXT.md parsing (~20-30ms savings)
+# =============================================================================
+
+# Get session directory (prefer cache if available)
+if [[ -n "${CACHED_SESSION_DIR:-}" ]]; then
+    SESSION_DIR="$CACHED_SESSION_DIR"
+else
+    SESSION_DIR=$(get_session_dir 2>/dev/null || echo "")
+fi
 SESSION_CTX="${SESSION_DIR:+$SESSION_DIR/SESSION_CONTEXT.md}"
 
 # If no session or session context file, allow
@@ -39,9 +48,15 @@ if [[ -z "$SESSION_CTX" ]] || [[ ! -f "$SESSION_CTX" ]]; then
   exit 0
 fi
 
-# Check workflow.active status
-# Parse YAML-like markdown for workflow.active
-WORKFLOW_ACTIVE=$(grep -A5 "^workflow:" "$SESSION_CTX" 2>/dev/null | grep "active:" | grep -o "true\|false" | head -1) || WORKFLOW_ACTIVE=""
+# Check workflow.active status (use cache if available)
+if [[ -n "${CACHED_WORKFLOW_ACTIVE:-}" ]]; then
+    WORKFLOW_ACTIVE="$CACHED_WORKFLOW_ACTIVE"
+else
+    # Parse YAML-like markdown for workflow.active
+    WORKFLOW_ACTIVE=$(grep -A5 "^workflow:" "$SESSION_CTX" 2>/dev/null | grep "active:" | grep -o "true\|false" | head -1) || WORKFLOW_ACTIVE=""
+    # Cache for subsequent hooks in same process
+    export CACHED_WORKFLOW_ACTIVE="$WORKFLOW_ACTIVE"
+fi
 
 if [[ "$WORKFLOW_ACTIVE" != "true" ]]; then
   hooks_finalize 0

@@ -17,62 +17,124 @@ This project supports three operating modes (see PRD-hybrid-session-model for de
 
 For enforcement rules: `orchestration/execution-mode.md`
 
+<!-- PRESERVE: satellite-owned, regenerated from ACTIVE_TEAM + agents/ -->
+
+
+
+
+
+
+
+
+
+
 ## Quick Start
 
-This project uses a 5-agent workflow (10x-dev-pack):
+This project uses a 5-agent workflow (hygiene-pack):
 
 | Agent | Role | Produces |
 | ----- | ---- | -------- |
-| **architect** | Evaluates tradeoffs and designs systems | TDD |
+| **architect-enforcer** | Plans refactoring with architectural contracts | Refactor-plan |
+| **audit-lead** | Verifies refactoring preserves behavior | Audit-signoff |
+| **code-smeller** | Diagnoses code quality issues | Smell-report |
+| **janitor** | Executes refactoring with atomic commits | Commits |
 | **orchestrator** | | | Work breakdown |
-| **principal-engineer** | Transforms designs into production code | Code |
-| **qa-adversary** | Breaks things so users don't | Test reports |
-| **requirements-analyst** | Extracts stakeholder needs and produces specification | PRD |
 
 **New here?** Use the `prompting` skill for copy-paste patterns, or `initiative-scoping` to start a new project.
 
 <!-- SYNC: skeleton-owned -->
+
 ## Agent Routing
 
 When working within an orchestrated session, the main thread coordinates via Task tool delegation to specialist agents. Without an active session, direct execution or `/task` initialization are both valid approaches.
 
 For routing guidance: `/consult`
 
-<!-- SYNC: skeleton-owned -->
+
+
+
+
+
+
+
+
+
+
 ## Skills
 
-Skills are invoked via the **Skill tool**. Key skills: `10x-workflow` (coordination), `documentation` (templates), `prompting` (agent invocation), `standards` (conventions). See `.claude/skills/` for full list.
+Skills are invoked via the **Skill tool**. Key skills: `orchestration` (workflow coordination), `documentation` (templates), `prompting` (agent invocation), `standards` (conventions), `ecosystem-ref` (roster ecosystem patterns). See `.claude/skills/` and `~/.claude/skills/` for full list.
+
+<!-- PRESERVE: satellite-owned, regenerated from ACTIVE_TEAM + agents/ -->
+
+
+
+
+
+
+
+
+
 
 ## Agent Configurations
 
 Full agent prompts live in `.claude/agents/`:
 
-- `architect.md` - System design authority who evaluates technical tradeoffs and produces TDDs and
+- `architect-enforcer.md` - Architectural refactoring specialist who evaluates smells through boundary lens
+- `audit-lead.md` - Refactoring QA specialist who verifies cleanup preserved behavior, validates
+- `code-smeller.md` - Code quality diagnostic specialist who detects dead code, DRY violations,
+- `janitor.md` - Refactoring execution specialist who implements cleanup plans with small,
 - `orchestrator.md` - |
-- `principal-engineer.md` - Master builder who transforms approved designs into production-grade code with
-- `qa-adversary.md` - Adversarial tester who breaks implementations on purpose through edge cases,
-- `requirements-analyst.md` - Specification specialist who transforms ambiguity into requirements and
 
 ## Hooks
 
 Hooks auto-inject context (SessionStart, Stop, PostToolUse). No manual context needed. See `.claude/hooks/`.
 
-<!-- SYNC: skeleton-owned -->
+
+
+
+
+
+
+
+
+
+
 ## Dynamic Context
 
 Commands use `!` prefix for live context: `!`cat .claude/ACTIVE_TEAM``. Prefer hooks for complex context.
 
-<!-- SYNC: skeleton-owned -->
+
+
+
+
+
+
+
+
+
+
 ## Getting Help
 
 | Question | Skill |
 |----------|-------|
 | Invoke agents | `prompting` |
-| Templates | `documentation` |
+| Templates | `documentation` or `doc-ecosystem` |
 | Conventions | `standards` |
-| Coordination | `10x-workflow` |
+| Workflow coordination | `orchestration` |
+| Roster ecosystem | `ecosystem-ref` |
+| User preferences | See `docs/guides/user-preferences.md` |
+| Unsure where to start | `/consult` |
 
-<!-- SYNC: skeleton-owned -->
+
+
+
+
+
+
+
+
+
+
 ## State Management
 
 **Mutating session/sprint state?** Use state-mate for all `SESSION_CONTEXT.md` and `SPRINT_CONTEXT.md` changes.
@@ -111,14 +173,31 @@ Task(state-mate, "Mark the PRD task complete with artifact at docs/requirements/
 
 **Direct writes blocked**: PreToolUse hook intercepts `Write`/`Edit` to `*_CONTEXT.md` and instructs use of state-mate.
 
-**Full documentation**: See `.claude/agents/state-mate.md` and `docs/decisions/ADR-0005-state-mate-centralized-state-authority.md`
+**Full documentation**: See `user-agents/state-mate.md` and `docs/decisions/ADR-0005-state-mate-centralized-state-authority.md`
 
-<!-- SYNC: skeleton-owned -->
+
+
+
+
+
+
+
+
+
+
 ## Slash Commands
 
 Always respond with outcome. "No response" is never correct for explicit user requests.
 
-<!-- SYNC: skeleton-owned -->
+
+
+
+
+
+
+
+
+
 ## Dynamic Context Syntax
 
 Commands can include dynamic context using the `!` prefix syntax:
@@ -138,22 +217,8 @@ When Claude reads a command file:
 - Always include fallbacks: `!`cat file 2>/dev/null || echo "default"`
 - Prefer hooks for complex context that all commands need
 
-## Hooks (Automatic Context)
 
-Hooks auto-inject context on session start and automate common operations:
 
-| Hook | Event | What It Does |
-|------|-------|--------------|
-| session-context | SessionStart | Loads project, team, session, git info |
-| auto-park | Stop | Saves session state when Claude exits |
-| artifact-tracker | PostToolUse | Tracks PRD/TDD/ADR creation |
-| team-validator | PreToolUse | Validates team switch commands |
-
-**No manual context needed** - hooks inject it automatically.
-
-See `.claude/hooks/` for scripts, `.claude/settings.local.json` for config.
-
-<!-- SYNC: skeleton-owned -->
 ## Skills Architecture
 
 Skills provide domain knowledge on-demand. They activate based on your task:
@@ -170,6 +235,7 @@ Skills provide domain knowledge on-demand. They activate based on your task:
 | **claude-md-architecture** | CLAUDE.md content placement, ownership model, boundary test |
 
 <!-- SYNC: skeleton-owned -->
+
 ## Slash Command Response Contract
 
 Slash commands (`/team`, `/sync`, `/start`, etc.) are **explicit user requests** invoked from the terminal. The user typed a command and is waiting for feedback.
@@ -178,3 +244,4 @@ Slash commands (`/team`, `/sync`, `/start`, etc.) are **explicit user requests**
 - ALWAYS respond with the outcome, even for idempotent operations ("already on this team")
 - "No response requested" is NEVER correct for slash commands
 - Error states must be explained with next steps
+

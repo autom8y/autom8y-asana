@@ -70,8 +70,8 @@ This registry maps all slash commands to their implementation files. Commands ar
 | Command | File | Status | Description |
 |---------|------|--------|-------------|
 | `/consult` | [commands/consult.md](commands/consult.md) | Active | Ecosystem guidance and command-flows |
-| `/sync` | [commands/sync.md](commands/sync.md) | Active | Sync project with skeleton_claude ecosystem |
-| `/cem-debug` | [commands/cem-debug.md](commands/cem-debug.md) | Active | Diagnose CEM sync issues and conflicts |
+| `/sync` | [commands/sync.md](commands/sync.md) | Active | Sync project with roster ecosystem |
+| `/roster-debug` | [commands/roster-debug.md](commands/roster-debug.md) | Active | Diagnose roster-sync issues and conflicts |
 
 ### Meta/Factory (4 commands)
 
@@ -308,10 +308,10 @@ Commands no longer need redundant `!` commands - context is auto-injected.
 - `.claude/knowledge/forge/` (patterns, evals, templates)
 - `.claude/skills/forge-ref/skill.md`
 
-### 2025-12-24: Claude Ecosystem Manager (CEM)
+### 2025-12-24: Roster Ecosystem Manager
 
 **Added**:
-- `cem` script for syncing skeleton_claude ecosystem to satellite projects
+- `roster-sync` for syncing roster ecosystem to satellite projects
 - `/sync` command for in-Claude synchronization
 - Physical copy with intelligent merge (not symlinks)
 
@@ -322,13 +322,13 @@ Commands no longer need redundant `!` commands - context is auto-injected.
 - Three sync strategies: COPY-REPLACE, MERGE-SETTINGS, MERGE-DOCS
 
 **Commands**:
-- `cem init` - Initialize project with ecosystem
-- `cem sync` - Pull updates from skeleton
-- `cem status` - Show sync state and version
-- `cem diff` - Show differences with skeleton
+- `roster-sync init` - Initialize project with ecosystem
+- `roster-sync sync` - Pull updates from roster
+- `roster-sync status` - Show sync state and version
+- `roster-sync diff` - Show differences with roster
 
 **Files Created**:
-- `skeleton_claude/cem` - Main CLI tool (~800 lines)
+- `roster/roster-sync` - Main CLI tool
 - `.claude/commands/sync.md` - Slash command wrapper
 
 ### 2025-12-24: Worktree Isolation
@@ -382,10 +382,10 @@ Commands no longer need redundant `!` commands - context is auto-injected.
 - `.claude/hooks/commit-tracker.sh` - PostToolUse hook for session tracking
 
 **Installation for Satellites**:
-CEM sync automatically installs the command:
+roster-sync automatically installs the command:
 ```bash
-# From skeleton_claude, sync to satellite
-cem sync
+# From roster, sync to satellite
+roster-sync sync
 
 # Or manually install command
 cp .claude/user-commands/commit.md ~/.claude/commands/commit.md

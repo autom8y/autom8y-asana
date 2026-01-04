@@ -3,39 +3,47 @@
 # Category: RECOVERABLE - can detect errors but must degrade gracefully
 # Fires on all Bash calls, filters for git commit operations
 # Logs commits to $SESSION_DIR/commits.log and updates SESSION_CONTEXT.md
+#
+# OPTIMIZATION: Lazy init - check early-exit conditions BEFORE sourcing hooks-init.sh
+# This saves ~35ms on 90%+ of invocations (non-commit Bash calls)
 
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-
-# Library Resolution - per ADR-0002
 HOOKS_LIB="${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/lib"
-source "$HOOKS_LIB/hooks-init.sh"
-hooks_init "commit-tracker" "RECOVERABLE"
 
-# Read JSON input from stdin
+# =============================================================================
+# EARLY EXIT CHECK (before heavy initialization)
+# =============================================================================
+
+# Read JSON input from stdin (must happen before any processing)
 INPUT=$(cat)
 
-# Extract tool details
+# Quick extraction using jq or grep fallback
 if command -v jq >/dev/null 2>&1; then
   TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
   TOOL_COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
-  TOOL_OUTPUT=$(echo "$INPUT" | jq -r '.tool_output // empty' 2>/dev/null)
 else
-  # Fallback: grep-based parsing
   TOOL_NAME=$(echo "$INPUT" | grep -o '"tool_name": *"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4)
   TOOL_COMMAND=$(echo "$INPUT" | grep -o '"command": *"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4)
+fi
+
+# Early exit: Not a Bash tool call
+[[ "$TOOL_NAME" != "Bash" ]] && exit 0
+
+# Early exit: Not a git commit command
+[[ ! "$TOOL_COMMAND" =~ git[[:space:]]+commit ]] && exit 0
+
+# =============================================================================
+# FULL INITIALIZATION (only for git commit operations)
+# =============================================================================
+
+source "$HOOKS_LIB/hooks-init.sh"
+hooks_init "commit-tracker" "RECOVERABLE"
+
+# Re-extract output (jq already available from above check)
+if command -v jq >/dev/null 2>&1; then
+  TOOL_OUTPUT=$(echo "$INPUT" | jq -r '.tool_output // empty' 2>/dev/null)
+else
   TOOL_OUTPUT=$(echo "$INPUT" | grep -o '"tool_output": *"[^"]*"' 2>/dev/null | head -1 | cut -d'"' -f4)
-fi
-
-# Only process Bash tool with git commit commands
-if [[ "$TOOL_NAME" != "Bash" ]]; then
-  hooks_finalize 0
-  exit 0
-fi
-
-# Check if this is a git commit command
-if [[ ! "$TOOL_COMMAND" =~ git[[:space:]]+commit ]]; then
-  hooks_finalize 0
-  exit 0
 fi
 
 # Check if commit succeeded (output contains commit hash pattern)

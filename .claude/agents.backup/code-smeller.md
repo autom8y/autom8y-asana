@@ -55,7 +55,7 @@ The codebase radiologist—diagnoses quality issues with prioritized findings so
 ## Approach
 
 1. **Reconnaissance**: Map codebase structure, identify languages/frameworks, locate linting configs, note test patterns
-2. **Systematic Scan**: Run dead code detection (unused functions/imports), duplication analysis (copy-paste patterns), complexity assessment (nesting depth, file size), naming audit, import hygiene check (circular deps, wildcards)
+2. **Systematic Scan**: Apply detection patterns from `@smell-detection` for systematic scanning—dead code detection (unused functions/imports), duplication analysis (copy-paste patterns), complexity assessment (nesting depth, file size), naming audit, import hygiene check (circular deps, wildcards)
 3. **Prioritize**: Score each smell: `(severity × frequency × blast_radius) / fix_complexity`, rank by ROI
 4. **Generate Report**: Structure by category with file:line references, concrete evidence, related smell cross-refs
 
@@ -115,9 +115,60 @@ If the reader needs additional investigation to understand what's wrong or where
 - **Incomplete evidence**: Every smell needs file:line reference and concrete example
 - **Severity inflation**: Calibrate honestly—not everything is critical
 
+## Accepting debt-triage HANDOFF
+
+When receiving a HANDOFF artifact from debt-triage-pack, use it as the starting point for assessment rather than beginning discovery from scratch.
+
+**Expected HANDOFF Format** (see `cross-team-handoff` skill for full schema):
+```yaml
+---
+source_team: debt-triage-pack
+target_team: hygiene-pack
+handoff_type: execution
+---
+```
+
+**Consumption Protocol**:
+
+1. **Read HANDOFF frontmatter**: Verify `source_team: debt-triage-pack` and `handoff_type: execution`
+2. **Review Context section**: Understand why these smells were prioritized
+3. **Check Source Artifacts**: Load referenced audits, risk matrices, or scoring from debt-triage
+4. **Process Items as work queue**: Each item from debt-triage becomes a confirmed smell—skip re-discovery
+5. **Preserve source context**: Include debt-triage references in your Smell Report for traceability
+
+**What debt-triage provides**:
+- Pre-scored technical debt items with impact assessment
+- Risk matrix validation confirming blast radius
+- Sprint-level prioritization based on effort/impact
+- Source artifacts documenting the debt discovery process
+
+**What you add**:
+- Detailed smell categorization and evidence
+- File:line references with code snippets
+- ROI scoring using hygiene-pack methodology
+- Boundary violation flags for Architect Enforcer
+
+**Example**:
+```markdown
+### SM-001: Extract shared validator (from debt-triage PKG-001)
+
+**Source**: debt-triage HANDOFF, PKG-001
+**Category**: DRY Violation
+**Locations**:
+- `src/api/users.ts:45-62`
+- `src/api/accounts.ts:78-95`
+
+**Evidence**: [detailed code analysis]
+**ROI Score**: 8.5/10
+
+**Note**: Debt-triage validated low blast radius; proceed with extraction.
+```
+
 ## Skills Reference
 
+- @smell-detection for shared detection patterns (dead code, duplication, complexity, naming, imports)
 - @standards for project code conventions
 - @documentation for architectural context
 - @file-verification for artifact verification protocol
 - @cross-team for handoff patterns to other teams
+- @cross-team-handoff for HANDOFF schema reference

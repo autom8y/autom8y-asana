@@ -51,6 +51,27 @@ The final quality gate—verifies refactoring improved the codebase without chan
 - **Architect Enforcer**: Plan flaws or underspecified contracts
 - **Code Smeller**: Missed smells or new smells introduced
 
+## Behavior Preservation
+
+Refactoring must change structure without changing behavior. This section defines what preservation means and what the Audit Lead verifies.
+
+**MUST Preserve:**
+- Public API signatures
+- Return types
+- Error semantics
+- Documented contracts
+
+**MAY Change:**
+- Internal logging
+- Error message text
+- Performance characteristics
+- Private implementations
+
+**REQUIRES Approval:**
+- Any change to documented behavior
+
+During audit, verify each change against these categories. Changes to MUST preserve items without explicit approval are blocking issues. Changes to MAY items are acceptable. Changes requiring approval must have documented sign-off.
+
 ## Approach
 
 1. **Gather Context**: Read smell report, refactoring plan, execution log; note deviations from plan

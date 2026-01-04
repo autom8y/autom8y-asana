@@ -1,46 +1,42 @@
 {
-  "schema_version": 1,
-  "skeleton_path": "/Users/tomtenuta/Code/skeleton_claude",
-  "skeleton_commit": "67e19bbb89b710c9920f03defaa99011b564748d",
-  "skeleton_ref": "main",
-  "last_sync": "2026-01-02T23:41:04Z",
+  "schema_version": 3,
+  "roster": {
+    "path": "/Users/tomtenuta/Code/roster",
+    "commit": "73dfd994135fb45de3e2045fec2bf2d0215aea39",
+    "ref": "main",
+    "last_sync": "2026-01-04T15:49:26Z"
+  },
+  "team": {
+    "name": "hygiene-pack",
+    "checksum": "3ed2f9e6b67a8bf30a3a77ce3d7b62824df08262b74ed2a0bad4d01aa0040019",
+    "last_refresh": "2026-01-04T20:11:41Z",
+    "roster_path": "/Users/tomtenuta/Code/roster/teams/hygiene-pack"
+  },
   "managed_files": [
-    {
-      "path": ".claude/commands",
-      "strategy": "copy-replace",
-      "checksum": "70781624c4933076514a917ad91f10ac90de3884c4dbcb229a1161e080d1612c"
-    },
-    {
-      "path": ".claude/skills",
-      "strategy": "copy-replace",
-      "checksum": "2f4626d67f9d628a18b42a7605d12e3b8c6a67916dc2130036864bfc1285ce8d"
-    },
-    {
-      "path": ".claude/hooks",
-      "strategy": "copy-replace",
-      "checksum": "38cf0d64818a96fa2c1597e33a504b549f52b71282144903dfcc220c539f3df7"
-    },
-    {
-      "path": ".claude/knowledge",
-      "strategy": "copy-replace",
-      "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    },
     {
       "path": ".claude/COMMAND_REGISTRY.md",
       "strategy": "copy-replace",
-      "checksum": "cb4b6c0712dd0c8b15f609ec1f4d3bb7d90fd3c6716e3a6ec770ccecc5bc5d88"
+      "checksum": "18bb17dad020370a437fdd2c2fafe5042c2f1fdfd9109758668fd981ffc90537",
+      "source": "roster",
+      "added_at": "2026-01-04T15:49:22Z",
+      "last_sync": "2026-01-04T15:49:24Z"
     },
     {
       "path": ".claude/settings.local.json",
       "strategy": "merge-settings",
-      "checksum": "8d4e940f959a08246049b9a2395a0907bb407f7b9297eb7314e5f435f97f2aea"
+      "checksum": "1ec68b6d80b52b647792dd3161e595414448297ea4cbc7a66c069f5813af67d1",
+      "source": "roster",
+      "added_at": "2026-01-04T15:49:22Z",
+      "last_sync": "2026-01-04T15:49:25Z"
     },
     {
       "path": ".claude/CLAUDE.md",
       "strategy": "merge-docs",
-      "checksum": "3244b7b739a42e1c4d101d7d4aff3857585c9c34d29e1324fa44cf06505c2700"
+      "checksum": "fde93e4775bba2517a48ed760c2df92a296ae568b626983721e60fcd907f4b95",
+      "source": "roster",
+      "added_at": "2026-01-04T15:49:22Z",
+      "last_sync": "2026-01-04T15:49:26Z"
     }
   ],
-  "local_files": [],
-  "merge_state": {}
+  "orphans": []
 }

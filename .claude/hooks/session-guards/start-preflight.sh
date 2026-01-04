@@ -75,6 +75,14 @@ You have a parked session: **$INITIATIVE**
 ---
 EOF
         else
+            # Session is active - check if orchestrator handled creation
+            if [[ -f "$PROJECT_DIR/.claude/agents/orchestrator.md" ]]; then
+                # Orchestrator present - router already created session and output message
+                # Exit silently to avoid duplicate output
+                hooks_finalize 0
+                exit 0
+            fi
+            # No orchestrator - this is pre-existing active session
             cat <<EOF
 
 ---
@@ -92,6 +100,16 @@ You have an active session: **$INITIATIVE**
 EOF
         fi
     else
+        # No session exists - check if orchestrator should handle creation
+        if [[ -f "$PROJECT_DIR/.claude/agents/orchestrator.md" ]]; then
+            # Orchestrator should have created session (router runs at P:5 before preflight at P:10)
+            # If we're here and session is missing, creation failed - let router's message stand
+            # Exit silently to avoid duplicate output
+            hooks_finalize 0
+            exit 0
+        fi
+
+        # No orchestrator - create session and output status
         ACTIVE_TEAM=$(cat ".claude/ACTIVE_TEAM" 2>/dev/null || echo "none")
         SUGGESTED_ID=$(generate_session_id)
 
