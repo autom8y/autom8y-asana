@@ -169,7 +169,7 @@ class TestClientAutomationProperty:
     def test_client_automation_none_when_disabled(self) -> None:
         """FR-009: client.automation is None when automation disabled."""
         # Mock the client with disabled automation
-        with patch("autom8_asana.client.AsyncHTTPClient"):
+        with patch("autom8_asana.client.AsanaHttpClient"):
             from autom8_asana.client import AsanaClient
 
             config = AsanaConfig(automation=AutomationConfig(enabled=False))
@@ -182,7 +182,7 @@ class TestClientAutomationProperty:
 
     def test_client_automation_present_when_enabled(self) -> None:
         """FR-009: client.automation is AutomationEngine when enabled."""
-        with patch("autom8_asana.client.AsyncHTTPClient"):
+        with patch("autom8_asana.client.AsanaHttpClient"):
             from autom8_asana.client import AsanaClient
 
             config = AsanaConfig(automation=AutomationConfig(enabled=True))
@@ -199,7 +199,7 @@ class TestRuleRegistrationEndToEnd:
 
     def test_register_pipeline_conversion_rule(self) -> None:
         """FR-010: Consumer can register PipelineConversionRule."""
-        with patch("autom8_asana.client.AsyncHTTPClient"):
+        with patch("autom8_asana.client.AsanaHttpClient"):
             from autom8_asana.client import AsanaClient
 
             config = AsanaConfig(
@@ -221,7 +221,7 @@ class TestRuleRegistrationEndToEnd:
 
     def test_register_custom_rule(self) -> None:
         """FR-010: Consumer can register custom rules."""
-        with patch("autom8_asana.client.AsyncHTTPClient"):
+        with patch("autom8_asana.client.AsanaHttpClient"):
             from autom8_asana.client import AsanaClient
 
             config = AsanaConfig(automation=AutomationConfig(enabled=True))
@@ -276,7 +276,7 @@ class TestSaveSessionAutomationTrigger:
         mock_batch = MagicMock()
         mock_batch.execute_async = AsyncMock(return_value=[])
 
-        with patch("autom8_asana.client.AsyncHTTPClient", return_value=mock_http):
+        with patch("autom8_asana.client.AsanaHttpClient", return_value=mock_http):
             from autom8_asana.client import AsanaClient
             from autom8_asana.persistence import SaveSession
 
@@ -339,7 +339,7 @@ class TestSaveSessionAutomationTrigger:
         mock_batch = MagicMock()
         mock_batch.execute_async = AsyncMock(return_value=[])
 
-        with patch("autom8_asana.client.AsyncHTTPClient", return_value=mock_http):
+        with patch("autom8_asana.client.AsanaHttpClient", return_value=mock_http):
             from autom8_asana.client import AsanaClient
             from autom8_asana.persistence import SaveSession
 
@@ -480,7 +480,7 @@ class TestAutomationFailureIsolation:
         mock_batch = MagicMock()
         mock_batch.execute_async = AsyncMock(return_value=[])
 
-        with patch("autom8_asana.client.AsyncHTTPClient", return_value=mock_http):
+        with patch("autom8_asana.client.AsanaHttpClient", return_value=mock_http):
             from autom8_asana.client import AsanaClient
             from autom8_asana.persistence import SaveSession
 
@@ -564,7 +564,7 @@ class TestFullFlowIntegration:
         # Mock add_to_project_async
         mock_tasks_client.add_to_project_async = AsyncMock(return_value=new_task)
 
-        with patch("autom8_asana.client.AsyncHTTPClient", return_value=mock_http):
+        with patch("autom8_asana.client.AsanaHttpClient", return_value=mock_http):
             from autom8_asana.client import AsanaClient
             from autom8_asana.persistence import SaveSession
 
@@ -665,7 +665,7 @@ class TestPostCommitHook:
         mock_batch = MagicMock()
         mock_batch.execute_async = AsyncMock(return_value=[])
 
-        with patch("autom8_asana.client.AsyncHTTPClient", return_value=mock_http):
+        with patch("autom8_asana.client.AsanaHttpClient", return_value=mock_http):
             from autom8_asana.client import AsanaClient
             from autom8_asana.persistence import SaveSession
 
