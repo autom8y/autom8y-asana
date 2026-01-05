@@ -13,7 +13,7 @@ Per TDD-UNIFIED-CACHE-001 Phase 3: Adds optional UnifiedTaskStore integration pa
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
@@ -21,7 +21,11 @@ from autom8y_log import get_logger
 
 from autom8_asana.cache.completeness import CompletenessLevel
 from autom8_asana.cache.dataframes import make_dataframe_key
-from autom8_asana.dataframes.builders.base import LAZY_THRESHOLD, DataFrameBuilder
+from autom8_asana.dataframes.builders.base import (
+    LAZY_THRESHOLD,
+    DataFrameBuilder,
+    gather_with_limit,
+)
 from autom8_asana.dataframes.builders.task_cache import TaskCacheCoordinator
 from autom8_asana.dataframes.extractors.base import BaseExtractor
 from autom8_asana.dataframes.models.schema import DataFrameSchema
@@ -66,6 +70,7 @@ if TYPE_CHECKING:
     from autom8_asana.cache.unified import UnifiedTaskStore
     from autom8_asana.client import AsanaClient
     from autom8_asana.dataframes.cache_integration import DataFrameCacheIntegration
+    from autom8_asana.dataframes.persistence import DataFramePersistence
     from autom8_asana.dataframes.resolver.protocol import CustomFieldResolver
     from autom8_asana.models.task import Task
 
@@ -121,36 +126,252 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
         cache_integration: DataFrameCacheIntegration | None = None,
         client: AsanaClient | None = None,
         unified_store: "UnifiedTaskStore | None" = None,
+        persistence: "DataFramePersistence | None" = None,
     ) -> None:
-        """Initialize project builder.
+        """Initialize the ProjectDataFrameBuilder.
 
         Args:
             project: Project object containing tasks. Expected to have:
-                     - gid: str attribute for project identifier
-                     - tasks: list[Task] attribute or method
-            task_type: Task type to filter and extract ("Unit", "Contact")
-            schema: DataFrameSchema for extraction
-            sections: Optional list of section names to filter by.
-                      If provided, only tasks in these sections are included.
-            resolver: Optional CustomFieldResolver for custom fields
-            lazy_threshold: Task count threshold for lazy evaluation
-            cache_integration: Optional cache integration for struc caching
-            client: Optional AsanaClient for cascade: field resolution.
-                   Required if schema contains cascade: sources.
-            unified_store: UnifiedTaskStore for unified cache integration (mandatory).
-                          Per TDD-UNIFIED-CACHE-001 Phase 4: Required parameter.
-                          Uses DataFrameViewPlugin for extraction.
+
+                - ``gid``: str attribute for project identifier
+                - ``tasks``: list[Task] attribute or method
+
+            task_type: Task type to filter and extract (e.g., ``"Unit"``,
+                ``"Contact"``).
+            schema: DataFrameSchema defining columns and extraction mappings.
+            sections: Optional list of section names to filter by. If provided,
+                only tasks belonging to at least one of these sections are
+                included in the resulting DataFrame.
+            resolver: Optional :class:`CustomFieldResolver` for extracting
+                custom field values. Required if schema contains ``cf:*``
+                source mappings.
+            lazy_threshold: Task count threshold for lazy evaluation. When
+                task count exceeds this threshold, lazy evaluation is used
+                for memory efficiency.
+            cache_integration: Optional :class:`DataFrameCacheIntegration`
+                for row-level caching of extracted data.
+            client: Optional :class:`AsanaClient` for ``cascade:`` field
+                resolution. Required if schema contains ``cascade:`` sources
+                that traverse parent task chains.
+            unified_store: :class:`UnifiedTaskStore` for unified cache
+                integration (mandatory). Per TDD-UNIFIED-CACHE-001 Phase 4,
+                this parameter is required. Uses :class:`DataFrameViewPlugin`
+                for extraction.
+            persistence: Optional :class:`DataFramePersistence` for automatic
+                S3 persistence. When provided, DataFrames are automatically
+                saved to S3 after successful builds via
+                :meth:`build_with_parallel_fetch_async`. Persistence operates
+                in fire-and-forget mode: S3 failures are logged but never
+                raise exceptions (graceful degradation). Use
+                :meth:`create_with_auto_persistence` for automatic
+                configuration from environment variables.
+
+        Raises:
+            ValueError: If ``unified_store`` is None (mandatory parameter).
+
+        Example:
+            >>> from autom8_asana.dataframes.builders.project import (
+            ...     ProjectDataFrameBuilder,
+            ... )
+            >>> from autom8_asana.dataframes.persistence import DataFramePersistence
+            >>>
+            >>> # With explicit persistence configuration
+            >>> persistence = DataFramePersistence(
+            ...     bucket="my-bucket",
+            ...     prefix="dataframes/",
+            ... )
+            >>> builder = ProjectDataFrameBuilder(
+            ...     project=project,
+            ...     task_type="Unit",
+            ...     schema=UNIT_SCHEMA,
+            ...     unified_store=store,
+            ...     persistence=persistence,
+            ... )
+            >>> df = await builder.build_with_parallel_fetch_async(client)
+            >>> # DataFrame is automatically persisted to S3 on success
+
+        See Also:
+            :meth:`create_with_auto_persistence`: Factory method for automatic
+                S3 configuration from environment variables.
         """
         super().__init__(schema, resolver, lazy_threshold, cache_integration, client)
         self._project = project
         self._task_type = task_type
         self._sections = sections
+        self._persistence = persistence
         if unified_store is None:
             raise ValueError(
                 "unified_store is mandatory in Phase 4. "
                 "Legacy TaskCacheCoordinator path has been removed."
             )
         self._unified_store = unified_store
+
+    @classmethod
+    def create_with_auto_persistence(
+        cls,
+        project: Project,
+        task_type: str,
+        schema: DataFrameSchema,
+        unified_store: "UnifiedTaskStore",
+        sections: list[str] | None = None,
+        resolver: "CustomFieldResolver | None" = None,
+        lazy_threshold: int = LAZY_THRESHOLD,
+        cache_integration: "DataFrameCacheIntegration | None" = None,
+        client: "AsanaClient | None" = None,
+    ) -> "ProjectDataFrameBuilder":
+        """Create builder with auto-persistence from environment configuration.
+
+        Factory method that simplifies builder creation by automatically
+        configuring S3 persistence from environment variables. This is the
+        **recommended way** to create a builder when you want S3 persistence
+        without explicitly managing :class:`DataFramePersistence` instances.
+
+        The factory handles three scenarios gracefully:
+
+        1. **S3 configured**: Creates builder with persistence enabled.
+           DataFrames are automatically saved after successful builds.
+        2. **S3 not configured**: Creates builder with ``persistence=None``.
+           Build operations work normally, just without S3 durability.
+        3. **Configuration error**: Logs warning and creates builder with
+           ``persistence=None`` (graceful degradation).
+
+        Environment Variables:
+            The following environment variables configure S3 persistence:
+
+            ``ASANA_CACHE_S3_BUCKET``
+                S3 bucket name for persistence storage. **Required** for
+                persistence to be enabled. If not set, persistence is
+                silently disabled.
+
+            ``ASANA_CACHE_S3_PREFIX``
+                Key prefix within the bucket (default: ``"dataframes/"``).
+                DataFrames are stored at ``{prefix}/{project_gid}/dataframe.parquet``.
+
+            ``ASANA_CACHE_S3_REGION``
+                AWS region for S3 operations (default: ``"us-east-1"``).
+
+            ``ASANA_CACHE_S3_ENDPOINT_URL``
+                Custom S3 endpoint URL for LocalStack or S3-compatible storage.
+                Useful for local development and testing.
+
+        Args:
+            project: Project object containing tasks to extract. Expected to
+                have ``gid`` and ``tasks`` attributes.
+            task_type: Task type to filter and extract (e.g., ``"Unit"``,
+                ``"Contact"``).
+            schema: :class:`DataFrameSchema` defining columns and extraction
+                mappings.
+            unified_store: :class:`UnifiedTaskStore` for unified cache
+                integration (mandatory).
+            sections: Optional list of section names to filter by.
+            resolver: Optional :class:`CustomFieldResolver` for custom field
+                extraction.
+            lazy_threshold: Task count threshold for lazy evaluation
+                (default: 1000).
+            cache_integration: Optional :class:`DataFrameCacheIntegration`
+                for row-level caching.
+            client: Optional :class:`AsanaClient` for ``cascade:`` field
+                resolution.
+
+        Returns:
+            :class:`ProjectDataFrameBuilder` instance with persistence
+            pre-configured if ``ASANA_CACHE_S3_BUCKET`` is set, or
+            ``persistence=None`` otherwise.
+
+        Example:
+            Basic usage with environment-based configuration::
+
+                import os
+                from autom8_asana.dataframes.builders.project import (
+                    ProjectDataFrameBuilder,
+                )
+                from autom8_asana.dataframes.schemas import UNIT_SCHEMA
+
+                # Set environment variables (typically in .env or deployment config)
+                os.environ["ASANA_CACHE_S3_BUCKET"] = "my-asana-cache"
+                os.environ["ASANA_CACHE_S3_PREFIX"] = "dataframes/"
+
+                # Create builder - persistence auto-configured from environment
+                builder = ProjectDataFrameBuilder.create_with_auto_persistence(
+                    project=project,
+                    task_type="Unit",
+                    schema=UNIT_SCHEMA,
+                    unified_store=store,
+                )
+
+                # Build DataFrame - automatically persisted to S3 on success
+                df = await builder.build_with_parallel_fetch_async(client)
+
+            LocalStack development setup::
+
+                os.environ["ASANA_CACHE_S3_BUCKET"] = "local-dev"
+                os.environ["ASANA_CACHE_S3_ENDPOINT_URL"] = "http://localhost:4566"
+
+                builder = ProjectDataFrameBuilder.create_with_auto_persistence(
+                    project=project,
+                    task_type="Unit",
+                    schema=UNIT_SCHEMA,
+                    unified_store=store,
+                )
+
+        Note:
+            This factory reads settings via :func:`get_settings` which caches
+            the configuration. Changes to environment variables after the first
+            call may not be reflected.
+
+        See Also:
+            :meth:`__init__`: For explicit persistence configuration.
+            :class:`DataFramePersistence`: S3 persistence layer implementation.
+        """
+        persistence = None
+        try:
+            from autom8_asana.settings import get_settings
+
+            settings = get_settings()
+            if settings.s3.bucket:
+                from autom8_asana.dataframes.persistence import DataFramePersistence
+
+                # DataFramePersistence reads from settings by default,
+                # but we can explicitly pass the prefix for clarity
+                persistence = DataFramePersistence(
+                    bucket=settings.s3.bucket,
+                    prefix=settings.s3.prefix or "dataframes/",
+                )
+                logger.debug(
+                    "auto_persistence_configured",
+                    extra={
+                        "bucket": settings.s3.bucket,
+                        "prefix": settings.s3.prefix,
+                    },
+                )
+            else:
+                logger.debug(
+                    "auto_persistence_skipped",
+                    extra={"reason": "no_s3_bucket_configured"},
+                )
+        except Exception as e:
+            # Graceful fallback - log and continue without persistence
+            logger.warning(
+                "auto_persistence_fallback",
+                extra={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "reason": "persistence_initialization_failed",
+                },
+            )
+
+        return cls(
+            project=project,
+            task_type=task_type,
+            schema=schema,
+            sections=sections,
+            resolver=resolver,
+            lazy_threshold=lazy_threshold,
+            cache_integration=cache_integration,
+            client=client,
+            unified_store=unified_store,
+            persistence=persistence,
+        )
 
     @property
     def project(self) -> Project:
@@ -360,6 +581,97 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
                     result.append(gid)
         return result
 
+    async def _persist_dataframe_async(
+        self,
+        project_gid: str,
+        df: pl.DataFrame,
+        watermark: datetime,
+    ) -> None:
+        """Persist DataFrame to S3 in fire-and-forget mode.
+
+        This method saves the DataFrame to S3 for durable storage and
+        cross-session recovery. It operates with graceful degradation:
+        any S3 failures are logged but never raise exceptions, ensuring
+        the primary DataFrame build flow is never interrupted by
+        persistence issues.
+
+        Fire-and-Forget Behavior:
+            - Success: Logs ``dataframe_persisted`` at INFO level
+            - Persistence unavailable: Logs ``dataframe_persistence_skipped``
+              at DEBUG level
+            - S3 error: Logs ``dataframe_persistence_failed`` at WARNING level
+            - **No exceptions are ever raised** from this method
+
+        The persisted DataFrame can later be loaded via
+        :meth:`DataFramePersistence.load_dataframe` for cold-start
+        scenarios where the in-memory cache is empty.
+
+        Args:
+            project_gid: Asana project GID used as the S3 key component.
+                The full S3 key is constructed as
+                ``{prefix}/{project_gid}/dataframe.parquet``.
+            df: Polars DataFrame to persist. Serialized to Parquet format
+                for efficient storage and columnar access.
+            watermark: Watermark timestamp marking when this DataFrame
+                snapshot was created. Stored alongside the DataFrame
+                for staleness detection on reload.
+
+        Note:
+            This method is called automatically by
+            :meth:`build_with_parallel_fetch_async` when ``persistence``
+            is configured. It should not typically be called directly.
+
+        Example:
+            Internal usage pattern (called automatically)::
+
+                # Inside build_with_parallel_fetch_async:
+                if self._persistence is not None:
+                    await self._persist_dataframe_async(
+                        project_gid=project_gid,
+                        df=df,
+                        watermark=datetime.now(timezone.utc),
+                    )
+
+        See Also:
+            :class:`DataFramePersistence`: S3 persistence layer implementation.
+        """
+        if self._persistence is None:
+            return
+
+        try:
+            success = await self._persistence.save_dataframe(
+                project_gid=project_gid,
+                df=df,
+                watermark=watermark,
+            )
+            if success:
+                logger.info(
+                    "dataframe_persisted",
+                    extra={
+                        "project_gid": project_gid,
+                        "row_count": len(df),
+                        "watermark": watermark.isoformat(),
+                    },
+                )
+            else:
+                logger.debug(
+                    "dataframe_persistence_skipped",
+                    extra={
+                        "project_gid": project_gid,
+                        "reason": "persistence_unavailable",
+                    },
+                )
+        except Exception as e:
+            # Silent fallback - log and continue
+            logger.warning(
+                "dataframe_persistence_failed",
+                extra={
+                    "project_gid": project_gid,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            )
+
     # =========================================================================
     # Unified Cache Integration (Phase 3: TDD-UNIFIED-CACHE-001)
     # =========================================================================
@@ -489,10 +801,32 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
             if miss_gids:
                 api_fetch_start = time.perf_counter()
 
-                # Fetch missing tasks
-                fetched_tasks = await self._fetch_tasks_by_gids_async(
-                    client, miss_gids
-                )
+                # HOTFIX: Use bulk list_async instead of individual get_async calls
+                # 2600 individual GETs = 2600 API calls = rate limit hell
+                # 1 bulk list_async = ~26 paginated calls (100/page)
+                miss_ratio = len(miss_gids) / len(all_task_gids) if all_task_gids else 1.0
+                if miss_ratio > 0.3:
+                    # High miss rate - bulk fetch is more efficient
+                    logger.info(
+                        "bulk_fetch_triggered",
+                        extra={
+                            "project_gid": project_gid,
+                            "miss_ratio": round(miss_ratio, 2),
+                            "miss_count": len(miss_gids),
+                        },
+                    )
+                    all_tasks: list[Task] = await client.tasks.list_async(
+                        project=project_gid,
+                        opt_fields=_BASE_OPT_FIELDS,
+                    ).collect()
+                    # Filter to only the GIDs we need
+                    miss_gid_set = set(miss_gids)
+                    fetched_tasks = [t for t in all_tasks if t.gid in miss_gid_set]
+                else:
+                    # Low miss rate - individual fetches acceptable
+                    fetched_tasks = await self._fetch_tasks_by_gids_async(
+                        client, miss_gids
+                    )
                 api_fetch_time_ms = (time.perf_counter() - api_fetch_start) * 1000
 
                 logger.info(
@@ -507,11 +841,16 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
                 # Populate unified store with fetched tasks
                 # Per TDD-CACHE-COMPLETENESS-001 Phase 3: Include opt_fields for
                 # completeness tracking
+                # Per ADR-hierarchy-registration-architecture: Enable hierarchy
+                # warming for cascade: field resolution
                 if fetched_tasks:
                     populate_start = time.perf_counter()
                     task_dicts = [t.model_dump(exclude_none=True) for t in fetched_tasks]
                     await self._unified_store.put_batch_async(
-                        task_dicts, opt_fields=_BASE_OPT_FIELDS
+                        task_dicts,
+                        opt_fields=_BASE_OPT_FIELDS,
+                        tasks_client=client.tasks,
+                        warm_hierarchy=True,
                     )
                     populate_time_ms = (time.perf_counter() - populate_start) * 1000
 
@@ -554,6 +893,14 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
                     "total_time_ms": round(elapsed_ms, 2),
                 },
             )
+
+            # Persist DataFrame if persistence is configured
+            if self._persistence is not None:
+                await self._persist_dataframe_async(
+                    project_gid=project_gid,
+                    df=df,
+                    watermark=datetime.now(timezone.utc),
+                )
 
             return df
 
@@ -617,8 +964,6 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
         Returns:
             List of Task objects.
         """
-        import asyncio
-
         async def fetch_task(gid: str) -> Task | None:
             try:
                 return await client.tasks.get_async(gid, opt_fields=_BASE_OPT_FIELDS)
@@ -629,8 +974,12 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
                 )
                 return None
 
-        # Fetch in parallel with some concurrency limit
-        results = await asyncio.gather(*[fetch_task(gid) for gid in gids])
+        # HOTFIX: Use bounded concurrency to prevent API rate limit overflow
+        # Previous: asyncio.gather(*[...]) spawned 2600 concurrent requests
+        # Now: gather_with_limit bounds to ConcurrencyConfig.max_concurrent (default 25)
+        results = await gather_with_limit(
+            [fetch_task(gid) for gid in gids]
+        )
         return [t for t in results if t is not None]
 
     async def _build_serial_async(
@@ -1042,12 +1391,13 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
         if not changed_tasks:
             return existing_df
 
-        # Extract rows from changed tasks using async extractor
+        # HOTFIX: Use bounded concurrency instead of sequential loop
+        # Previous: Sequential for-loop blocked on each extraction
+        # Now: Parallel extraction with bounded concurrency
         # Per TDD-CASCADING-FIELD-RESOLUTION-001: Must use async for cascade: sources
-        changed_rows: list[dict[str, Any]] = []
-        for task in changed_tasks:
-            row = await self._extract_row_async(task)
-            changed_rows.append(row)
+        changed_rows = await gather_with_limit(
+            [self._extract_row_async(task) for task in changed_tasks]
+        )
 
         # Create DataFrame from changed tasks
         changed_df = pl.DataFrame(
