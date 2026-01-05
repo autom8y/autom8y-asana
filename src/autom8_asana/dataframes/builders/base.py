@@ -8,16 +8,50 @@ async build methods and cache hit/miss flow.
 
 Per TDD-CASCADING-FIELD-RESOLUTION-001: Added client parameter for
 cascade: field resolution in extractors.
+
+Per TDD-GID-RESOLUTION-SERVICE: Adds ConcurrencyController integration
+for bounded parallel extraction, preventing timeout on large datasets.
 """
 
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Coroutine, TypeVar
 
 import polars as pl
+
+# Inline concurrency control (ConcurrencyController not in installed autom8y-http 0.3.0)
+DEFAULT_MAX_CONCURRENT = 25
+
+T = TypeVar("T")
+
+
+async def gather_with_limit(
+    coros: list[Coroutine[Any, Any, T]],
+    max_concurrent: int = DEFAULT_MAX_CONCURRENT,
+) -> list[T]:
+    """Execute coroutines with bounded concurrency using semaphore.
+
+    Simple inline implementation to replace ConcurrencyController.gather_with_limit
+    until autom8y-http is updated.
+
+    Args:
+        coros: List of coroutines to execute
+        max_concurrent: Maximum concurrent executions (default 25)
+
+    Returns:
+        List of results in same order as input coroutines
+    """
+    semaphore = asyncio.Semaphore(max_concurrent)
+
+    async def bounded_coro(coro: Coroutine[Any, Any, T]) -> T:
+        async with semaphore:
+            return await coro
+
+    return await asyncio.gather(*[bounded_coro(c) for c in coros])
 
 from autom8_asana.dataframes.extractors import (
     BaseExtractor,
@@ -94,6 +128,7 @@ class DataFrameBuilder(ABC):
         lazy_threshold: int = LAZY_THRESHOLD,
         cache_integration: DataFrameCacheIntegration | None = None,
         client: AsanaClient | None = None,
+        max_concurrent: int = DEFAULT_MAX_CONCURRENT,
     ) -> None:
         """Initialize builder with schema and optional resolver.
 
@@ -107,6 +142,9 @@ class DataFrameBuilder(ABC):
                               When provided, build() can use cached rows.
             client: Optional AsanaClient for cascade: field resolution.
                    Required if schema contains cascade: sources.
+            max_concurrent: Maximum concurrent async operations (default 25).
+                   Per TDD-GID-RESOLUTION-SERVICE: Prevents timeouts on large
+                   datasets by limiting concurrent extraction.
         """
         self._schema = schema
         self._resolver = resolver
@@ -115,6 +153,7 @@ class DataFrameBuilder(ABC):
         self._client = client
         self._resolver_initialized = False
         self._extractor: BaseExtractor | None = None
+        self._max_concurrent = max_concurrent
 
     @property
     def schema(self) -> DataFrameSchema:
@@ -140,6 +179,11 @@ class DataFrameBuilder(ABC):
     def client(self) -> AsanaClient | None:
         """Get the Asana client for cascade resolution."""
         return self._client
+
+    @property
+    def max_concurrent(self) -> int:
+        """Get maximum concurrent operations for bounded parallel extraction."""
+        return self._max_concurrent
 
     @abstractmethod
     def get_tasks(self) -> list[Task]:
@@ -351,13 +395,20 @@ class DataFrameBuilder(ABC):
         Per TDD-CASCADING-FIELD-RESOLUTION-001: Async version supporting
         cascade: field resolution during extraction.
 
+        Per TDD-GID-RESOLUTION-SERVICE: Uses ConcurrencyController to bound
+        parallel operations and prevent timeouts on large datasets.
+
         Args:
             tasks: List of tasks to extract
 
         Returns:
             Polars DataFrame with extracted data
         """
-        rows = [await self._extract_row_async(task) for task in tasks]
+        # Per TDD-GID-RESOLUTION-SERVICE: Use gather_with_limit for bounded
+        # parallel extraction instead of sequential awaits
+        rows = await gather_with_limit(
+            [self._extract_row_async(task) for task in tasks]
+        )
         return pl.DataFrame(rows, schema=self._schema.to_polars_schema())
 
     async def _build_lazy_async(self, tasks: list[Task]) -> pl.DataFrame:
@@ -366,13 +417,20 @@ class DataFrameBuilder(ABC):
         Per TDD-CASCADING-FIELD-RESOLUTION-001: Async version supporting
         cascade: field resolution during extraction.
 
+        Per TDD-GID-RESOLUTION-SERVICE: Uses ConcurrencyController to bound
+        parallel operations and prevent timeouts on large datasets.
+
         Args:
             tasks: List of tasks to extract
 
         Returns:
             Polars DataFrame with extracted data (collected from LazyFrame)
         """
-        rows = [await self._extract_row_async(task) for task in tasks]
+        # Per TDD-GID-RESOLUTION-SERVICE: Use gather_with_limit for bounded
+        # parallel extraction instead of sequential awaits
+        rows = await gather_with_limit(
+            [self._extract_row_async(task) for task in tasks]
+        )
         lazy_frame = pl.LazyFrame(rows, schema=self._schema.to_polars_schema())
         return lazy_frame.collect()
 
@@ -511,6 +569,8 @@ class DataFrameBuilder(ABC):
         """Build DataFrame with cache integration (async).
 
         Per TDD-0008 Session 4 Phase 4: Async cache-aware build flow.
+        Per TDD-GID-RESOLUTION-SERVICE: Uses ConcurrencyController for
+        bounded parallel extraction of cache misses.
 
         Args:
             tasks: List of tasks to process.
@@ -526,24 +586,25 @@ class DataFrameBuilder(ABC):
 
         project_gid = self._get_project_gid()
         schema_version = self._schema.version
-        rows: list[dict[str, Any]] = []
-        rows_to_cache: list[tuple[str, str, dict[str, Any], datetime | str]] = []
 
-        for task in tasks:
+        # Phase 1: Check cache for all tasks, collect misses
+        # Map: task index -> (task, task_project_gid, task_modified_at)
+        tasks_to_extract: list[tuple[int, Task, str | None, datetime | str | None]] = []
+        # Map: task index -> cached row data
+        cached_rows: dict[int, dict[str, Any]] = {}
+
+        for idx, task in enumerate(tasks):
             task_gid = task.gid
             task_modified_at = getattr(task, "modified_at", None)
 
             # Determine project_gid for this task
             task_project_gid = project_gid
             if task_project_gid is None:
-                # Try to get from task memberships
                 task_project_gid = self._get_task_project_gid(task)
 
             if task_project_gid is None:
-                # Cannot cache without project context, extract directly
-                # Per TDD-CASCADING-FIELD-RESOLUTION-001: Use async for cascade: sources
-                row = await self._extract_row_async(task)
-                rows.append(row)
+                # Cannot cache without project context, mark for extraction
+                tasks_to_extract.append((idx, task, None, None))
                 continue
 
             # Try to get from cache
@@ -555,19 +616,42 @@ class DataFrameBuilder(ABC):
             )
 
             if cached_row is not None:
-                # Cache hit - use cached data
-                rows.append(cached_row.data)
+                # Cache hit
+                cached_rows[idx] = cached_row.data
             else:
-                # Cache miss - extract and queue for caching
-                # Per TDD-CASCADING-FIELD-RESOLUTION-001: Use async for cascade: sources
-                row = await self._extract_row_async(task)
-                rows.append(row)
+                # Cache miss - queue for batch extraction
+                tasks_to_extract.append((idx, task, task_project_gid, task_modified_at))
 
-                # Queue for caching if we have modified_at
-                if task_modified_at is not None:
+        # Phase 2: Batch extract all cache misses with bounded concurrency
+        # Per TDD-GID-RESOLUTION-SERVICE: Use gather_with_limit instead of sequential
+        extracted_rows: dict[int, dict[str, Any]] = {}
+        rows_to_cache: list[tuple[str, str, dict[str, Any], datetime | str]] = []
+
+        if tasks_to_extract:
+            # Extract all cache misses in parallel with bounded concurrency
+            extraction_results = await gather_with_limit(
+                [self._extract_row_async(task) for _, task, _, _ in tasks_to_extract]
+            )
+
+            # Map results back to indices and prepare cache entries
+            for (idx, task, task_project_gid, task_modified_at), row in zip(
+                tasks_to_extract, extraction_results, strict=True
+            ):
+                extracted_rows[idx] = row
+                # Queue for caching if we have project context and modified_at
+                if task_project_gid is not None and task_modified_at is not None:
                     rows_to_cache.append(
-                        (task_gid, task_project_gid, row, task_modified_at)
+                        (task.gid, task_project_gid, row, task_modified_at)
                     )
+
+        # Phase 3: Combine rows in original order
+        rows: list[dict[str, Any]] = []
+        for idx in range(len(tasks)):
+            if idx in cached_rows:
+                rows.append(cached_rows[idx])
+            elif idx in extracted_rows:
+                rows.append(extracted_rows[idx])
+            # else: should not happen, indicates bug
 
         # Cache newly extracted rows in batch
         if rows_to_cache:
