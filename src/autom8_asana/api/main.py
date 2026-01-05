@@ -50,6 +50,7 @@ from autom8y_log import get_logger
 if TYPE_CHECKING:
     import polars as pl
 
+    from autom8_asana.dataframes.persistence import DataFramePersistence
     from autom8_asana.services.gid_lookup import GidLookupIndex
 
 from .config import get_settings
@@ -423,6 +424,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                             existing_df=df,
                             existing_index=index,
                             watermark=watermark,
+                            persistence=persistence,
                         )
                     )
 
@@ -448,9 +450,14 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                             pass
 
                         # Persist updated state
-                        await persistence.save_dataframe(
-                            project_gid, updated_df, new_watermark
-                        )
+                        # Note: For incremental deltas (was_incremental=True),
+                        # builder._merge_deltas_async does NOT auto-persist.
+                        # For full rebuild fallback (was_incremental=False),
+                        # builder already persisted via _persist_dataframe_async.
+                        if was_incremental:
+                            await persistence.save_dataframe(
+                                project_gid, updated_df, new_watermark
+                            )
                         await persistence.save_index(project_gid, index)
                         watermark_repo.set_watermark(project_gid, new_watermark)
 
@@ -489,6 +496,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                     new_df, new_watermark = await _do_full_rebuild(
                         project_gid=project_gid,
                         entity_type=entity_type,
+                        persistence=persistence,
                     )
                     full_rebuilds += 1
 
@@ -496,10 +504,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                         try:
                             new_index = GidLookupIndex.from_dataframe(new_df)
 
-                            # Persist new state
-                            await persistence.save_dataframe(
-                                project_gid, new_df, new_watermark
-                            )
+                            # Persist new index (DataFrame saved by builder)
                             await persistence.save_index(project_gid, new_index)
                             watermark_repo.set_watermark(project_gid, new_watermark)
 
@@ -583,6 +588,7 @@ async def _do_incremental_catchup(
     existing_df: "pl.DataFrame",
     existing_index: "GidLookupIndex",
     watermark: "datetime",
+    persistence: "DataFramePersistence | None" = None,
 ) -> tuple["pl.DataFrame", "datetime", bool]:
     """Perform incremental catch-up for a project.
 
@@ -649,6 +655,7 @@ async def _do_incremental_catchup(
                 resolver=resolver,
                 client=client,
                 unified_store=client.unified_store,
+                persistence=persistence,
             )
 
             # Use incremental refresh
@@ -686,6 +693,7 @@ async def _do_incremental_catchup(
 async def _do_full_rebuild(
     project_gid: str,
     entity_type: str,
+    persistence: "DataFramePersistence | None" = None,
 ) -> tuple["pl.DataFrame | None", "datetime"]:
     """Perform full DataFrame rebuild for a project.
 
@@ -750,6 +758,7 @@ async def _do_full_rebuild(
                 resolver=resolver,
                 client=client,
                 unified_store=client.unified_store,
+                persistence=persistence,
             )
 
             # Full fetch
