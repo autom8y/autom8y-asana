@@ -173,6 +173,70 @@ class TestCheckpointRecord:
         assert abs((restored.created_at - original.created_at).total_seconds()) < 1
         assert abs((restored.expires_at - original.expires_at).total_seconds()) < 1
 
+    def test_from_json_raises_on_invalid_json(self) -> None:
+        """from_json raises JSONDecodeError on malformed JSON (GAP-002)."""
+        invalid_json = "not valid json {"
+        with pytest.raises(json.JSONDecodeError):
+            CheckpointRecord.from_json(invalid_json)
+
+    def test_from_json_raises_on_empty_string(self) -> None:
+        """from_json raises JSONDecodeError on empty string (GAP-002)."""
+        with pytest.raises(json.JSONDecodeError):
+            CheckpointRecord.from_json("")
+
+    def test_from_json_raises_on_missing_required_field(self) -> None:
+        """from_json raises KeyError when required field is missing (GAP-002)."""
+        # Missing invocation_id field
+        incomplete_json = json.dumps({
+            "completed_entities": ["unit"],
+            "pending_entities": ["business"],
+            "entity_results": [],
+            "created_at": "2026-01-06T12:00:00+00:00",
+            "expires_at": "2026-01-06T13:00:00+00:00",
+        })
+        with pytest.raises(KeyError):
+            CheckpointRecord.from_json(incomplete_json)
+
+    def test_from_json_raises_on_missing_created_at(self) -> None:
+        """from_json raises KeyError when created_at is missing (GAP-002)."""
+        incomplete_json = json.dumps({
+            "invocation_id": "test-123",
+            "completed_entities": ["unit"],
+            "pending_entities": ["business"],
+            "entity_results": [],
+            # Missing created_at
+            "expires_at": "2026-01-06T13:00:00+00:00",
+        })
+        with pytest.raises(KeyError):
+            CheckpointRecord.from_json(incomplete_json)
+
+    def test_from_json_raises_on_invalid_datetime_format(self) -> None:
+        """from_json raises ValueError on invalid datetime format (GAP-002)."""
+        invalid_datetime_json = json.dumps({
+            "invocation_id": "test-123",
+            "completed_entities": ["unit"],
+            "pending_entities": ["business"],
+            "entity_results": [],
+            "created_at": "not-a-datetime",
+            "expires_at": "2026-01-06T13:00:00+00:00",
+        })
+        with pytest.raises(ValueError):
+            CheckpointRecord.from_json(invalid_datetime_json)
+
+    def test_from_json_handles_null_entity_lists(self) -> None:
+        """from_json accepts null/empty entity lists gracefully (GAP-002)."""
+        json_str = json.dumps({
+            "invocation_id": "test-null",
+            "completed_entities": [],
+            "pending_entities": [],
+            "entity_results": [],
+            "created_at": "2026-01-06T12:00:00+00:00",
+            "expires_at": "2026-01-06T13:00:00+00:00",
+        })
+        record = CheckpointRecord.from_json(json_str)
+        assert record.completed_entities == []
+        assert record.pending_entities == []
+
 
 class MockS3Client:
     """Mock S3 client for testing.

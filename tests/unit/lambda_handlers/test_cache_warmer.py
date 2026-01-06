@@ -478,6 +478,16 @@ class TestShouldExitEarly:
         context = MagicMock(spec=[])  # No methods
         assert _should_exit_early(context) is False
 
+    def test_returns_true_when_remaining_time_is_zero(self) -> None:
+        """Handler exits immediately when remaining time is 0ms (GAP-001)."""
+        context = MockLambdaContext(remaining_time_ms=0)
+        assert _should_exit_early(context) is True
+
+    def test_returns_true_when_remaining_time_is_one_ms(self) -> None:
+        """Handler exits when remaining time is 1ms (near-immediate timeout)."""
+        context = MockLambdaContext(remaining_time_ms=1)
+        assert _should_exit_early(context) is True
+
 
 # ============================================================================
 # Tests for CloudWatch Metric Emission (per TDD-lambda-cache-warmer Section 5.2)
