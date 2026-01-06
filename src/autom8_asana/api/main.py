@@ -151,6 +151,53 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
 
 
+def _normalize_project_name(name: str) -> str:
+    """Normalize project name for entity type matching.
+
+    Handles common patterns:
+    - "Business Units" -> "unit"
+    - "Business Offers" -> "offer"
+    - "Contacts" -> "contact"
+    - "Business" -> "business"
+
+    Args:
+        name: Raw project name from Asana.
+
+    Returns:
+        Normalized name (lowercase, no "business " prefix, singularized).
+    """
+    normalized = name.lower().strip()
+    # Check for standalone "Business" before stripping prefix
+    # (This handles the edge case where project name IS "Business")
+    if normalized == "business":
+        return "business"
+    # Strip common prefix
+    normalized = normalized.removeprefix("business ")
+    # Simple singularization (handles: units->unit, offers->offer, contacts->contact)
+    if normalized.endswith("es") and len(normalized) > 3:
+        # businesses -> business (but not "es" alone)
+        normalized = normalized[:-2]
+    elif normalized.endswith("s") and len(normalized) > 2:
+        normalized = normalized[:-1]
+    return normalized
+
+
+def _match_entity_type(project_name: str, entity_types: list[str]) -> str | None:
+    """Match a project name to an entity type.
+
+    Args:
+        project_name: Raw project name from Asana.
+        entity_types: List of known entity types to match against.
+
+    Returns:
+        Matched entity type or None if no match.
+    """
+    normalized = _normalize_project_name(project_name)
+    if normalized in entity_types:
+        return normalized
+    return None
+
+
 async def _discover_entity_projects(app: FastAPI) -> None:
     """Discover and register entity type project mappings.
 
@@ -215,42 +262,35 @@ async def _discover_entity_projects(app: FastAPI) -> None:
         # Map discovered projects to entity resolver registry
         entity_registry = EntityProjectRegistry.get_instance()
 
-        # Pattern matching for entity type projects
-        # Per TDD/PRD: Case-insensitive matching
-        ENTITY_PATTERNS: dict[str, list[str]] = {
-            "unit": ["business units", "business unit"],
-            # Phase 2: business, offer, contact entity types
-            "business": ["business", "businesses"],
-            "offer": ["offers", "offer"],
-            "contact": ["contacts", "contact"],
-        }
+        # Known entity types to discover
+        ENTITY_TYPES: list[str] = ["unit", "business", "offer", "contact"]
 
-        for entity_type, patterns in ENTITY_PATTERNS.items():
-            for pattern in patterns:
-                project_gid = workspace_registry.get_by_name(pattern)
-                if project_gid:
-                    entity_registry.register(
-                        entity_type=entity_type,
-                        project_gid=project_gid,
-                        project_name=pattern,
-                    )
-                    logger.info(
-                        "entity_project_registered",
-                        extra={
-                            "entity_type": entity_type,
-                            "project_gid": project_gid,
-                            "pattern": pattern,
-                        },
-                    )
-                    break
-            else:
-                # No pattern matched
-                logger.warning(
-                    "entity_project_not_found",
+        # Match projects to entity types via normalized name matching
+        # Handles: "Business Units" -> unit, "Offers" -> offer, etc.
+        for project_name, project_gid in workspace_registry.get_all_projects().items():
+            entity_type = _match_entity_type(project_name, ENTITY_TYPES)
+            if entity_type:
+                entity_registry.register(
+                    entity_type=entity_type,
+                    project_gid=project_gid,
+                    project_name=project_name,
+                )
+                logger.info(
+                    "entity_project_registered",
                     extra={
                         "entity_type": entity_type,
-                        "patterns": patterns,
+                        "project_gid": project_gid,
+                        "project_name": project_name,
                     },
+                )
+
+        # Log any entity types not found
+        registered = set(entity_registry.get_all_entity_types())
+        for entity_type in ENTITY_TYPES:
+            if entity_type not in registered:
+                logger.warning(
+                    "entity_project_not_found",
+                    extra={"entity_type": entity_type},
                 )
 
         # Store registry in app.state for request access
@@ -609,8 +649,8 @@ async def _do_incremental_catchup(
     from autom8_asana import AsanaClient
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
     from autom8_asana.dataframes.builders.project import ProjectDataFrameBuilder
+    from autom8_asana.dataframes.models.registry import SchemaRegistry
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
-    from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
 
     # Get bot PAT for API access
     try:
@@ -641,9 +681,9 @@ async def _do_incremental_catchup(
 
     try:
         async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
-            # Select schema based on entity type
-            schema = UNIT_SCHEMA  # Default to unit; extend for other types
+            # Select schema based on entity type (falls back to BASE_SCHEMA)
             task_type = entity_type.title()  # "unit" -> "Unit"
+            schema = SchemaRegistry.get_instance().get_schema(task_type)
 
             resolver = DefaultCustomFieldResolver()
             project_proxy = ProjectProxy(project_gid)
@@ -711,8 +751,8 @@ async def _do_full_rebuild(
     from autom8_asana import AsanaClient
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
     from autom8_asana.dataframes.builders.project import ProjectDataFrameBuilder
+    from autom8_asana.dataframes.models.registry import SchemaRegistry
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
-    from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
 
     now = datetime.now(timezone.utc)
 
@@ -744,9 +784,9 @@ async def _do_full_rebuild(
 
     try:
         async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
-            # Select schema based on entity type
-            schema = UNIT_SCHEMA  # Default to unit; extend for other types
+            # Select schema based on entity type (falls back to BASE_SCHEMA)
             task_type = entity_type.title()  # "unit" -> "Unit"
+            schema = SchemaRegistry.get_instance().get_schema(task_type)
 
             resolver = DefaultCustomFieldResolver()
             project_proxy = ProjectProxy(project_gid)

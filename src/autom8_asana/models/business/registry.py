@@ -658,6 +658,14 @@ class WorkspaceProjectRegistry:
         """
         return self._discovered_workspace is not None
 
+    def get_all_projects(self) -> dict[str, str]:
+        """Get all discovered projects.
+
+        Returns:
+            Dict mapping normalized project name -> GID.
+        """
+        return dict(self._name_to_gid)
+
     @classmethod
     def reset(cls) -> None:
         """Reset registry for testing.
