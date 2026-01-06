@@ -32,10 +32,10 @@ class PhoneVerticalPair(BaseModel):
     Example:
         >>> pvp = PhoneVerticalPair(
         ...     office_phone="+17705753103",
-        ...     vertical="chiropractic"
+        ...     vertical="Chiropractic"
         ... )
         >>> pvp.canonical_key
-        'pv1:+17705753103:chiropractic'
+        'pv1:+17705753103:chiropractic'  # vertical is lowercased
         >>> phone, vertical = pvp  # tuple unpacking
         >>> pvp[0]  # index access
         '+17705753103'
@@ -80,10 +80,13 @@ class PhoneVerticalPair(BaseModel):
         Per parent spike ADR-PVP-002: pv1: prefix enables graceful
         migration to pv2: if multi-tenant requirements emerge.
 
+        Note: Vertical is normalized to lowercase for case-insensitive
+        matching with gid_lookup index (which also lowercases verticals).
+
         Returns:
-            Canonical key in format 'pv1:{phone}:{vertical}'.
+            Canonical key in format 'pv1:{phone}:{vertical}' (vertical lowercase).
         """
-        return f"pv1:{self.office_phone}:{self.vertical}"
+        return f"pv1:{self.office_phone}:{self.vertical.lower()}"
 
     # --- Backward compatibility with tuple unpacking (per legacy namedtuple) ---
 
