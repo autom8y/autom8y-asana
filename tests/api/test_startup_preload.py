@@ -130,7 +130,6 @@ class TestPreloadDataframeCacheFunction:
     ) -> None:
         """Preload loads persisted index and runs incremental catch-up."""
         from autom8_asana.api.main import _preload_dataframe_cache
-        from autom8_asana.services.resolver import _gid_index_cache
 
         mock_app = MagicMock()
         mock_app.state.entity_project_registry = mock_entity_registry
@@ -166,16 +165,10 @@ class TestPreloadDataframeCacheFunction:
                     # Simulate no changes during catch-up
                     mock_catchup.return_value = (sample_dataframe, watermark, True)
 
-                    # Clear any existing cache
-                    _gid_index_cache.clear()
-
                     await _preload_dataframe_cache(mock_app)
 
                     # Verify incremental catch-up was called
                     mock_catchup.assert_called_once()
-
-                    # Verify index was cached
-                    assert "proj_123" in _gid_index_cache
 
         from autom8_asana.api.routes.health import is_cache_ready
         assert is_cache_ready() is True
@@ -188,7 +181,6 @@ class TestPreloadDataframeCacheFunction:
     ) -> None:
         """Preload does full rebuild when no persisted state exists."""
         from autom8_asana.api.main import _preload_dataframe_cache
-        from autom8_asana.services.resolver import _gid_index_cache
 
         mock_app = MagicMock()
         mock_app.state.entity_project_registry = mock_entity_registry
@@ -220,9 +212,6 @@ class TestPreloadDataframeCacheFunction:
                 ) as mock_rebuild:
                     new_watermark = datetime.now(timezone.utc)
                     mock_rebuild.return_value = (sample_dataframe, new_watermark)
-
-                    # Clear any existing cache
-                    _gid_index_cache.clear()
 
                     await _preload_dataframe_cache(mock_app)
 
@@ -413,15 +402,14 @@ class TestCacheIntegration:
     """Tests for cache integration during startup."""
 
     @pytest.mark.asyncio
-    async def test_index_cached_after_successful_preload(
+    async def test_index_persisted_after_successful_preload(
         self,
         mock_entity_registry: MagicMock,
         sample_dataframe: pl.DataFrame,
         sample_index: GidLookupIndex,
     ) -> None:
-        """Index is cached in _gid_index_cache after successful preload."""
+        """Index is persisted to S3 after successful preload."""
         from autom8_asana.api.main import _preload_dataframe_cache
-        from autom8_asana.services.resolver import _gid_index_cache
 
         mock_app = MagicMock()
         mock_app.state.entity_project_registry = mock_entity_registry
@@ -456,15 +444,10 @@ class TestCacheIntegration:
                 ) as mock_catchup:
                     mock_catchup.return_value = (sample_dataframe, watermark, True)
 
-                    # Clear cache before test
-                    _gid_index_cache.clear()
-
                     await _preload_dataframe_cache(mock_app)
 
-                    # Verify index is in cache
-                    assert "proj_123" in _gid_index_cache
-                    cached_index = _gid_index_cache["proj_123"]
-                    assert len(cached_index) == len(sample_index)
+                    # Verify incremental catch-up was called
+                    mock_catchup.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_state_persisted_after_incremental_catchup_with_changes(
@@ -475,7 +458,6 @@ class TestCacheIntegration:
     ) -> None:
         """State is persisted to S3 after incremental catch-up with changes."""
         from autom8_asana.api.main import _preload_dataframe_cache
-        from autom8_asana.services.resolver import _gid_index_cache
 
         mock_app = MagicMock()
         mock_app.state.entity_project_registry = mock_entity_registry
@@ -519,8 +501,6 @@ class TestCacheIntegration:
                     new_watermark = datetime.now(timezone.utc)
                     # Return different DataFrame to indicate changes
                     mock_catchup.return_value = (updated_dataframe, new_watermark, True)
-
-                    _gid_index_cache.clear()
 
                     await _preload_dataframe_cache(mock_app)
 

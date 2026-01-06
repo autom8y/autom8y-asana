@@ -15,7 +15,6 @@ Per TDD-custom-field-type-coercion:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -27,7 +26,7 @@ from autom8_asana.api.routes.health import set_cache_ready
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
 from autom8_asana.auth.bot_pat import clear_bot_pat_cache
 from autom8_asana.auth.jwt_validator import reset_auth_client
-from autom8_asana.services.resolver import EntityProjectRegistry, _gid_index_cache
+from autom8_asana.services.resolver import EntityProjectRegistry
 
 
 # --- Fixtures ---
@@ -39,14 +38,12 @@ def reset_singletons() -> Generator[None, None, None]:
     clear_bot_pat_cache()
     reset_auth_client()
     EntityProjectRegistry.reset()
-    _gid_index_cache.clear()
     # Ensure cache is marked ready for tests
     set_cache_ready(True)
     yield
     clear_bot_pat_cache()
     reset_auth_client()
     EntityProjectRegistry.reset()
-    _gid_index_cache.clear()
     set_cache_ready(True)
 
 
@@ -151,10 +148,8 @@ class TestEntityResolverE2E:
                 "autom8_asana.AsanaClient",
             ) as mock_client_class,
             patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_dataframe_incremental",
-                AsyncMock(
-                    return_value=(sample_unit_dataframe, datetime.now(timezone.utc))
-                ),
+                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
+                AsyncMock(return_value=sample_unit_dataframe),
             ),
         ):
             # Setup mock client
@@ -238,10 +233,8 @@ class TestEntityResolverE2E:
                 "autom8_asana.AsanaClient",
             ) as mock_client_class,
             patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_dataframe_incremental",
-                AsyncMock(
-                    return_value=(sample_unit_dataframe, datetime.now(timezone.utc))
-                ),
+                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
+                AsyncMock(return_value=sample_unit_dataframe),
             ),
         ):
             mock_client = MagicMock()
@@ -313,10 +306,8 @@ class TestEntityResolverE2E:
                 "autom8_asana.AsanaClient",
             ) as mock_client_class,
             patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_dataframe_incremental",
-                AsyncMock(
-                    return_value=(sample_unit_dataframe, datetime.now(timezone.utc))
-                ),
+                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
+                AsyncMock(return_value=sample_unit_dataframe),
             ),
         ):
             mock_client = MagicMock()
