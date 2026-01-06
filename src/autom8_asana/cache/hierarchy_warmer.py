@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
+from autom8_asana.cache.entry import EntryType
+
 if TYPE_CHECKING:
     from autom8_asana.cache.hierarchy import HierarchyIndex
     from autom8_asana.cache.unified import UnifiedTaskStore
@@ -145,11 +147,13 @@ async def warm_ancestors_async(
         if parent_gid and parent_gid not in visited:
             current_gids.append(parent_gid)
 
-    logger.debug(
-        "hierarchy_warm_start",
+    # INFO-level logging for warm_ancestors entry
+    logger.info(
+        "warm_ancestors_starting",
         extra={
-            "initial_gids": len(gids),
+            "initial_gids_count": len(gids),
             "parent_gids_to_fetch": len(current_gids),
+            "max_depth": max_depth,
         },
     )
 
@@ -160,18 +164,22 @@ async def warm_ancestors_async(
         # (we know about them from the previous level, but haven't fetched their data yet)
 
         # Filter to GIDs we haven't already fetched
+        # Per TDD-unit-cascade-resolution-fix Fix 2: Always check CACHE first.
+        # hierarchy_index.contains() returns True when a GID exists in _children_map
+        # (added during child registration), but this doesn't mean the task data
+        # is actually cached. We need the full task data for cascade resolution.
         gids_to_fetch: list[str] = []
         for gid in current_gids:
             if gid not in visited:
                 visited.add(gid)
-                # Check if we need to fetch this GID
-                # (either not in hierarchy or not in cache)
-                if not hierarchy_index.contains(gid):
-                    gids_to_fetch.append(gid)
-                elif unified_store:
-                    # Check if in cache
-                    cached = unified_store.cache.get(gid)
-                    if not cached:
+                # Check if task data is actually cached (not just hierarchy relationship)
+                if unified_store:
+                    cached = unified_store.cache.get_versioned(gid, EntryType.TASK)
+                    if cached is None:
+                        gids_to_fetch.append(gid)
+                else:
+                    # No unified_store - fall back to hierarchy check
+                    if not hierarchy_index.contains(gid):
                         gids_to_fetch.append(gid)
 
         if not gids_to_fetch:
@@ -246,8 +254,9 @@ async def warm_ancestors_async(
         current_gids = next_level_gids
         depth += 1
 
-    logger.debug(
-        "hierarchy_warm_complete",
+    # INFO-level logging for warm_ancestors completion
+    logger.info(
+        "warm_ancestors_completed",
         extra={
             "total_warmed": total_warmed,
             "total_visited": len(visited),

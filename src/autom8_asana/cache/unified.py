@@ -509,6 +509,16 @@ class UnifiedTaskStore:
             self.cache.set_batch(entries)
             self._stats["put_count"] += cached_count
 
+        # INFO-level logging for hierarchy warming visibility
+        logger.info(
+            "unified_store_hierarchy_warm_starting",
+            extra={
+                "task_count": len(tasks),
+                "warm_hierarchy": warm_hierarchy,
+                "has_tasks_client": tasks_client is not None,
+            },
+        )
+
         # Warm parent chains if requested
         # Per ADR-hierarchy-registration-architecture: Recursively fetch and
         # register missing ancestors for complete cascade resolution
@@ -523,13 +533,20 @@ class UnifiedTaskStore:
             # Per TDD-unit-cascade-resolution-fix Fix 4: Fetch and register immediate
             # parents BEFORE calling warm_ancestors_async. This ensures the hierarchy
             # index has parent tasks registered so get_ancestor_chain() works.
+            # Per TDD-unit-cascade-resolution-fix Fix 1: Check CACHE, not hierarchy.
+            # hierarchy.contains() returns True when a GID exists in _children_map
+            # (added during child registration), but this doesn't mean the parent's
+            # FULL TASK DATA is cached. We need the parent's custom_fields for cascade.
             parent_gids_needed: set[str] = set()
             for task in tasks:
                 parent = task.get("parent")
                 if parent and isinstance(parent, dict):
                     parent_gid = parent.get("gid")
-                    if parent_gid and not self._hierarchy.contains(parent_gid):
-                        parent_gids_needed.add(parent_gid)
+                    if parent_gid:
+                        # Check cache, not hierarchy - we need the parent's FULL TASK DATA
+                        cached_entry = self.cache.get_versioned(parent_gid, EntryType.TASK)
+                        if cached_entry is None:
+                            parent_gids_needed.add(parent_gid)
 
             if parent_gids_needed:
                 logger.debug(
@@ -553,6 +570,15 @@ class UnifiedTaskStore:
                             "warm_immediate_parent_failed",
                             extra={"parent_gid": parent_gid, "error": str(e)},
                         )
+
+            # INFO-level logging for immediate parent fetch results
+            logger.info(
+                "unified_store_immediate_parents_fetched",
+                extra={
+                    "parents_requested": len(parent_gids_needed),
+                    "parents_fetched": immediate_parents_fetched,
+                },
+            )
 
             # Then warm deeper ancestors (grandparents and beyond)
             task_gids = [t.get("gid") for t in tasks if t.get("gid")]
