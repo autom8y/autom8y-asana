@@ -1,16 +1,23 @@
 """Lambda handler for cache warming.
 
-Per TDD-DATAFRAME-CACHE-001 Section 5.7:
-Lambda warm-up handler for pre-deployment cache hydration.
+Per TDD-DATAFRAME-CACHE-001 Section 5.7 and TDD-lambda-cache-warmer Section 3.6:
+Lambda warm-up handler for pre-deployment cache hydration with timeout detection,
+checkpoint-based resume capability, and CloudWatch metric emission.
 
 This module provides:
 - handler: AWS Lambda entry point for cache warming
+- handler_async: Async Lambda entry point for direct async invocation
 - WarmResponse: Response dataclass for Lambda returns
+- Timeout detection via _should_exit_early()
+- Checkpoint integration for resume-on-retry
+- CloudWatch metric emission for observability
 
 Environment Variables Required:
     ASANA_PAT: Asana Personal Access Token
     ASANA_CACHE_S3_BUCKET: S3 bucket for cache storage
     ASANA_CACHE_S3_PREFIX: S3 key prefix (optional, default: "cache/")
+    ENVIRONMENT: Deployment environment (staging/production)
+    CLOUDWATCH_NAMESPACE: CloudWatch namespace (default: "autom8/cache-warmer")
 
 Usage:
     Deploy as AWS Lambda function with handler:
@@ -19,14 +26,17 @@ Usage:
     Invoke with optional event parameters:
     {
         "entity_types": ["unit", "offer"],  // Optional, defaults to all
-        "strict": true                       // Optional, default true
+        "strict": true,                      // Optional, default true
+        "resume_from_checkpoint": true       // Optional, default true
     }
 """
 
 from __future__ import annotations
 
 import asyncio
+import os
 import time
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
@@ -38,13 +48,30 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# ============================================================================
+# Constants (per TDD-lambda-cache-warmer Section 3.2)
+# ============================================================================
+
+# Timeout buffer: exit 2 minutes before Lambda timeout (per PRD FR-001)
+TIMEOUT_BUFFER_MS = 120_000
+
+# CloudWatch namespace for cache warmer metrics
+CLOUDWATCH_NAMESPACE = os.environ.get("CLOUDWATCH_NAMESPACE", "autom8/cache-warmer")
+
+# Environment for metric dimensions
+ENVIRONMENT = os.environ.get("ENVIRONMENT", "staging")
+
+# Lazy-initialized CloudWatch client
+_cloudwatch_client: Any = None
+
 
 @dataclass
 class WarmResponse:
     """Response from cache warming Lambda.
 
-    Per TDD-DATAFRAME-CACHE-001: Structured response for Lambda
-    invocation with detailed status per entity type.
+    Per TDD-DATAFRAME-CACHE-001 and TDD-lambda-cache-warmer: Structured response
+    for Lambda invocation with detailed status per entity type, checkpoint status,
+    and invocation correlation.
 
     Attributes:
         success: Overall success status (all entity types warmed).
@@ -53,6 +80,8 @@ class WarmResponse:
         total_rows: Total rows warmed across all entity types.
         duration_ms: Total execution time in milliseconds.
         timestamp: ISO timestamp of completion.
+        checkpoint_cleared: Whether checkpoint was cleared after successful completion.
+        invocation_id: Lambda request ID for correlation (if available).
     """
 
     success: bool
@@ -61,6 +90,8 @@ class WarmResponse:
     total_rows: int = 0
     duration_ms: float = 0.0
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    checkpoint_cleared: bool = False
+    invocation_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for Lambda response.
@@ -75,7 +106,116 @@ class WarmResponse:
             "total_rows": self.total_rows,
             "duration_ms": self.duration_ms,
             "timestamp": self.timestamp,
+            "checkpoint_cleared": self.checkpoint_cleared,
+            "invocation_id": self.invocation_id,
         }
+
+
+# ============================================================================
+# Timeout Detection (per TDD-lambda-cache-warmer Section 3.2)
+# ============================================================================
+
+
+def _should_exit_early(context: Any) -> bool:
+    """Check if we should exit to avoid Lambda timeout.
+
+    Per TDD-lambda-cache-warmer: Monitors context.get_remaining_time_in_millis()
+    and signals exit when remaining time falls below TIMEOUT_BUFFER_MS (2 minutes).
+
+    Args:
+        context: Lambda context with get_remaining_time_in_millis() method.
+            May be None in test or non-Lambda environments.
+
+    Returns:
+        True if remaining time < TIMEOUT_BUFFER_MS, False otherwise.
+        Returns False if context is None (no timeout enforcement).
+    """
+    if context is None:
+        return False
+
+    try:
+        remaining_ms: int = context.get_remaining_time_in_millis()
+        return bool(remaining_ms < TIMEOUT_BUFFER_MS)
+    except AttributeError:
+        # Context doesn't have the method (e.g., mock without it)
+        return False
+
+
+# ============================================================================
+# CloudWatch Metric Emission (per TDD-lambda-cache-warmer Section 5.2)
+# ============================================================================
+
+
+def _get_cloudwatch_client() -> Any:
+    """Lazily initialize CloudWatch client.
+
+    Uses module-level caching to avoid repeated client creation.
+
+    Returns:
+        boto3 CloudWatch client.
+    """
+    global _cloudwatch_client
+    if _cloudwatch_client is None:
+        import boto3
+
+        _cloudwatch_client = boto3.client("cloudwatch")
+    return _cloudwatch_client
+
+
+def _emit_metric(
+    metric_name: str,
+    value: float,
+    unit: str = "Count",
+    dimensions: dict[str, str] | None = None,
+) -> None:
+    """Emit CloudWatch metric with graceful degradation.
+
+    Per TDD-lambda-cache-warmer Section 5.2: Emits metrics to the
+    CLOUDWATCH_NAMESPACE with environment dimension always included.
+
+    Args:
+        metric_name: Name of the metric (e.g., "WarmSuccess", "WarmDuration").
+        value: Metric value.
+        unit: CloudWatch unit (Count, Milliseconds, etc.).
+        dimensions: Optional additional dimensions (e.g., {"entity_type": "unit"}).
+
+    Note:
+        Failures are logged as warnings but do not raise exceptions.
+        Per ADR-0064: CloudWatch errors should not block warming.
+    """
+    client = _get_cloudwatch_client()
+
+    # Build dimensions list with environment always first
+    metric_dimensions = [
+        {"Name": "environment", "Value": ENVIRONMENT},
+    ]
+
+    if dimensions:
+        for dim_name, dim_value in dimensions.items():
+            metric_dimensions.append({"Name": dim_name, "Value": dim_value})
+
+    try:
+        client.put_metric_data(
+            Namespace=CLOUDWATCH_NAMESPACE,
+            MetricData=[
+                {
+                    "MetricName": metric_name,
+                    "Value": value,
+                    "Unit": unit,
+                    "Dimensions": metric_dimensions,
+                }
+            ],
+        )
+    except Exception as e:
+        # Graceful degradation: log warning but don't fail the warm
+        logger.warning(
+            "metric_emit_error",
+            extra={
+                "metric": metric_name,
+                "error": str(e),
+                "error_type": type(e).__name__,
+            },
+        )
 
 
 async def _discover_entity_projects_for_lambda() -> None:
@@ -200,19 +340,26 @@ def _match_entity_type(project_name: str, entity_types: list[str]) -> str | None
 async def _warm_cache_async(
     entity_types: list[str] | None = None,
     strict: bool = True,
+    resume_from_checkpoint: bool = True,
+    context: Any = None,
 ) -> WarmResponse:
-    """Async implementation of cache warming.
+    """Async implementation of cache warming with checkpoint support.
+
+    Per TDD-lambda-cache-warmer Section 3.6: Enhanced cache warming with
+    timeout detection, checkpoint-based resume capability, and CloudWatch
+    metric emission.
 
     Args:
         entity_types: Optional list of entity types to warm.
-            Defaults to all types: ["offer", "unit", "business", "contact"]
+            Defaults to all types: ["unit", "business", "offer", "contact"]
         strict: If True, fail on any entity type warm failure.
+        resume_from_checkpoint: If True, resume from last checkpoint if available.
+        context: Lambda context for timeout detection and correlation ID.
+            Should have get_remaining_time_in_millis() and aws_request_id.
 
     Returns:
-        WarmResponse with detailed results.
+        WarmResponse with detailed results, checkpoint status, and invocation ID.
     """
-    import os
-
     from autom8_asana import AsanaClient
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
     from autom8_asana.cache.dataframe.factory import (
@@ -223,9 +370,18 @@ async def _warm_cache_async(
         CacheWarmer,
         WarmResult,
     )
+    from autom8_asana.lambda_handlers.checkpoint import CheckpointManager
     from autom8_asana.services.resolver import EntityProjectRegistry
 
     start_time = time.monotonic()
+
+    # Extract invocation ID from context or generate UUID
+    invocation_id = getattr(context, "aws_request_id", None) or str(uuid.uuid4())
+
+    # Initialize checkpoint manager
+    checkpoint_mgr = CheckpointManager(
+        bucket=os.environ.get("ASANA_CACHE_S3_BUCKET", "autom8-s3"),
+    )
 
     # Initialize DataFrameCache if not already done
     cache = get_dataframe_cache()
@@ -237,6 +393,7 @@ async def _warm_cache_async(
             success=False,
             message="Failed to initialize DataFrameCache. Check S3 configuration.",
             duration_ms=(time.monotonic() - start_time) * 1000,
+            invocation_id=invocation_id,
         )
 
     # Get EntityProjectRegistry
@@ -248,7 +405,7 @@ async def _warm_cache_async(
         except Exception as e:
             logger.warning(
                 "cache_warmer_discovery_failed",
-                extra={"error": str(e)},
+                extra={"error": str(e), "invocation_id": invocation_id},
             )
 
     if not registry.is_ready():
@@ -256,10 +413,11 @@ async def _warm_cache_async(
             success=False,
             message="EntityProjectRegistry not initialized. No projects discovered.",
             duration_ms=(time.monotonic() - start_time) * 1000,
+            invocation_id=invocation_id,
         )
 
-    # Determine entity types to warm
-    default_priority = ["offer", "unit", "business", "contact"]
+    # Determine entity types to warm - note: per TDD priority order is unit first
+    default_priority = ["unit", "business", "offer", "contact"]
     if entity_types:
         # Validate entity types
         valid_types = set(default_priority)
@@ -269,17 +427,37 @@ async def _warm_cache_async(
                 success=False,
                 message=f"Invalid entity types: {invalid}. Valid types: {valid_types}",
                 duration_ms=(time.monotonic() - start_time) * 1000,
+                invocation_id=invocation_id,
             )
-        priority = entity_types
+        processing_list = entity_types
     else:
-        priority = default_priority
+        processing_list = default_priority
 
-    # Create warmer with specified priority
-    warmer = CacheWarmer(
-        cache=cache,
-        priority=priority,
-        strict=strict,
-    )
+    # Track completed entities and results (may be populated from checkpoint)
+    completed_entities: list[str] = []
+    entity_results: list[dict[str, Any]] = []
+
+    # Check for existing checkpoint if resume is enabled
+    if resume_from_checkpoint:
+        checkpoint = await checkpoint_mgr.load_async()
+        if checkpoint:
+            completed_entities = checkpoint.completed_entities
+            entity_results = checkpoint.entity_results
+            # Only process pending entities
+            processing_list = checkpoint.pending_entities
+
+            logger.info(
+                "resuming_from_checkpoint",
+                extra={
+                    "prior_invocation": checkpoint.invocation_id,
+                    "completed": completed_entities,
+                    "pending": processing_list,
+                    "invocation_id": invocation_id,
+                },
+            )
+
+            # Emit checkpoint resumed metric
+            _emit_metric("CheckpointResumed", 1)
 
     # Get Asana client credentials
     try:
@@ -289,6 +467,7 @@ async def _warm_cache_async(
             success=False,
             message=f"Failed to get bot PAT: {e}",
             duration_ms=(time.monotonic() - start_time) * 1000,
+            invocation_id=invocation_id,
         )
 
     workspace_gid = os.environ.get("ASANA_WORKSPACE_GID")
@@ -297,29 +476,222 @@ async def _warm_cache_async(
             success=False,
             message="ASANA_WORKSPACE_GID environment variable not set",
             duration_ms=(time.monotonic() - start_time) * 1000,
+            invocation_id=invocation_id,
         )
 
     # Define project GID provider using EntityProjectRegistry
     def get_project_gid(entity_type: str) -> str | None:
         return registry.get_project_gid(entity_type)
 
+    # Create warmer - use strict=False for checkpoint granularity, handle failures individually
+    warmer = CacheWarmer(
+        cache=cache,
+        priority=processing_list,
+        strict=False,  # Handle failures individually for checkpointing
+    )
+
     # Execute warming with async context manager for client
     try:
         async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
-            results = await warmer.warm_all_async(
-                client=client,
-                project_gid_provider=get_project_gid,
-            )
+            # Process entity types sequentially for checkpoint granularity
+            for entity_type in processing_list:
+                # Check timeout before processing
+                if _should_exit_early(context):
+                    remaining_ms = (
+                        context.get_remaining_time_in_millis() if context else 0
+                    )
+                    logger.warning(
+                        "exiting_early_timeout",
+                        extra={
+                            "remaining_ms": remaining_ms,
+                            "completed": completed_entities,
+                            "pending": [
+                                et
+                                for et in processing_list
+                                if et not in completed_entities
+                            ],
+                            "invocation_id": invocation_id,
+                        },
+                    )
 
-        # Build response
-        entity_results = [status.to_dict() for status in results]
-        success_count = sum(1 for r in results if r.result == WarmResult.SUCCESS)
-        failure_count = sum(1 for r in results if r.result == WarmResult.FAILURE)
-        skipped_count = sum(1 for r in results if r.result == WarmResult.SKIPPED)
-        total_rows = sum(r.row_count for r in results)
+                    # Save checkpoint before exit
+                    pending = [
+                        et for et in processing_list if et not in completed_entities
+                    ]
+                    await checkpoint_mgr.save_async(
+                        invocation_id=invocation_id,
+                        completed_entities=completed_entities,
+                        pending_entities=pending,
+                        entity_results=entity_results,
+                    )
+                    _emit_metric("CheckpointSaved", 1)
+
+                    return WarmResponse(
+                        success=False,
+                        message=f"Partial completion due to timeout. Completed: {completed_entities}",
+                        entity_results=entity_results,
+                        total_rows=sum(r.get("row_count", 0) for r in entity_results),
+                        duration_ms=(time.monotonic() - start_time) * 1000,
+                        invocation_id=invocation_id,
+                    )
+
+                # Warm this entity type
+                entity_start = time.monotonic()
+                try:
+                    status = await warmer.warm_entity_async(
+                        entity_type=entity_type,
+                        client=client,
+                        project_gid_provider=get_project_gid,
+                    )
+
+                    entity_results.append(status.to_dict())
+                    entity_duration_ms = (time.monotonic() - entity_start) * 1000
+
+                    if status.result == WarmResult.SUCCESS:
+                        completed_entities.append(entity_type)
+
+                        # Emit success metrics
+                        _emit_metric(
+                            "WarmSuccess",
+                            1,
+                            dimensions={"entity_type": entity_type},
+                        )
+                        _emit_metric(
+                            "WarmDuration",
+                            entity_duration_ms,
+                            unit="Milliseconds",
+                            dimensions={"entity_type": entity_type},
+                        )
+                        _emit_metric(
+                            "RowsWarmed",
+                            status.row_count,
+                            dimensions={"entity_type": entity_type},
+                        )
+
+                        logger.info(
+                            "entity_warm_success",
+                            extra={
+                                "entity_type": entity_type,
+                                "row_count": status.row_count,
+                                "duration_ms": entity_duration_ms,
+                                "invocation_id": invocation_id,
+                            },
+                        )
+                    else:
+                        # Failure for this entity
+                        _emit_metric(
+                            "WarmFailure",
+                            1,
+                            dimensions={"entity_type": entity_type},
+                        )
+
+                        logger.warning(
+                            "entity_warm_failure",
+                            extra={
+                                "entity_type": entity_type,
+                                "error": status.error,
+                                "invocation_id": invocation_id,
+                            },
+                        )
+
+                        if strict:
+                            # Save checkpoint and exit
+                            pending = [
+                                et
+                                for et in processing_list
+                                if et not in completed_entities
+                            ]
+                            await checkpoint_mgr.save_async(
+                                invocation_id=invocation_id,
+                                completed_entities=completed_entities,
+                                pending_entities=pending,
+                                entity_results=entity_results,
+                            )
+                            _emit_metric("CheckpointSaved", 1)
+
+                            return WarmResponse(
+                                success=False,
+                                message=f"Failed on {entity_type}: {status.error}",
+                                entity_results=entity_results,
+                                total_rows=sum(
+                                    r.get("row_count", 0) for r in entity_results
+                                ),
+                                duration_ms=(time.monotonic() - start_time) * 1000,
+                                invocation_id=invocation_id,
+                            )
+
+                    # Save checkpoint after each entity (if more pending)
+                    pending = [
+                        et for et in processing_list if et not in completed_entities
+                    ]
+                    if pending:
+                        await checkpoint_mgr.save_async(
+                            invocation_id=invocation_id,
+                            completed_entities=completed_entities,
+                            pending_entities=pending,
+                            entity_results=entity_results,
+                        )
+                        _emit_metric("CheckpointSaved", 1)
+
+                except Exception as e:
+                    logger.error(
+                        "entity_warm_exception",
+                        extra={
+                            "entity_type": entity_type,
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                            "invocation_id": invocation_id,
+                        },
+                    )
+
+                    entity_results.append({
+                        "entity_type": entity_type,
+                        "result": "failure",
+                        "error": str(e),
+                    })
+
+                    _emit_metric(
+                        "WarmFailure",
+                        1,
+                        dimensions={"entity_type": entity_type},
+                    )
+
+                    if strict:
+                        pending = [
+                            et
+                            for et in processing_list
+                            if et not in completed_entities
+                        ]
+                        await checkpoint_mgr.save_async(
+                            invocation_id=invocation_id,
+                            completed_entities=completed_entities,
+                            pending_entities=pending,
+                            entity_results=entity_results,
+                        )
+                        _emit_metric("CheckpointSaved", 1)
+                        raise
+
+        # All entities completed - clear checkpoint
+        checkpoint_cleared = await checkpoint_mgr.clear_async()
+
+        total_rows = sum(r.get("row_count", 0) for r in entity_results)
+        duration_ms = (time.monotonic() - start_time) * 1000
+
+        # Emit total duration metric
+        _emit_metric("TotalDuration", duration_ms, unit="Milliseconds")
+
+        # Count successes/failures for message
+        success_count = sum(
+            1 for r in entity_results if r.get("result") == "success"
+        )
+        failure_count = sum(
+            1 for r in entity_results if r.get("result") == "failure"
+        )
+        skipped_count = sum(
+            1 for r in entity_results if r.get("result") == "skipped"
+        )
 
         all_success = failure_count == 0 and skipped_count == 0
-        duration_ms = (time.monotonic() - start_time) * 1000
 
         if all_success:
             message = f"Cache warm complete: {success_count} entity types warmed, {total_rows} total rows"
@@ -335,6 +707,8 @@ async def _warm_cache_async(
             entity_results=entity_results,
             total_rows=total_rows,
             duration_ms=duration_ms,
+            checkpoint_cleared=checkpoint_cleared,
+            invocation_id=invocation_id,
         )
 
     except Exception as e:
@@ -345,6 +719,7 @@ async def _warm_cache_async(
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "duration_ms": duration_ms,
+                "invocation_id": invocation_id,
             },
         )
 
@@ -352,22 +727,26 @@ async def _warm_cache_async(
             success=False,
             message=f"Cache warm failed: {e}",
             duration_ms=duration_ms,
+            invocation_id=invocation_id,
         )
 
 
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Lambda handler for cache warming.
 
-    Per TDD-DATAFRAME-CACHE-001: Entry point for AWS Lambda invocation.
-    Warms all configured entity types in priority order.
+    Per TDD-DATAFRAME-CACHE-001 and TDD-lambda-cache-warmer: Entry point for AWS
+    Lambda invocation. Warms all configured entity types in priority order with
+    timeout detection and checkpoint-based resume capability.
 
     Args:
         event: Lambda event with optional configuration:
             - entity_types (list[str]): Optional list of entity types to warm.
-                Defaults to ["offer", "unit", "business", "contact"].
+                Defaults to ["unit", "business", "offer", "contact"].
             - strict (bool): If True, fail on any entity type failure.
                 Defaults to True.
-        context: Lambda context (unused but required by AWS Lambda signature).
+            - resume_from_checkpoint (bool): If True, resume from last checkpoint
+                if available. Defaults to True.
+        context: Lambda context with get_remaining_time_in_millis() and aws_request_id.
 
     Returns:
         Dictionary with warming results:
@@ -377,7 +756,8 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     Example Event:
         {
             "entity_types": ["unit", "offer"],
-            "strict": false
+            "strict": false,
+            "resume_from_checkpoint": true
         }
 
     Example Response:
@@ -392,7 +772,9 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 ],
                 "total_rows": 15000,
                 "duration_ms": 4500.5,
-                "timestamp": "2026-01-06T12:00:00+00:00"
+                "timestamp": "2026-01-06T12:00:00+00:00",
+                "checkpoint_cleared": true,
+                "invocation_id": "abc-123-def-456"
             }
         }
 
@@ -400,24 +782,33 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         ASANA_PAT: Asana Personal Access Token (required)
         ASANA_CACHE_S3_BUCKET: S3 bucket for cache storage (required)
         ASANA_CACHE_S3_PREFIX: S3 key prefix (optional)
+        ENVIRONMENT: Deployment environment for metrics (optional)
+        CLOUDWATCH_NAMESPACE: CloudWatch namespace (optional)
     """
+    # Extract invocation ID for logging correlation
+    invocation_id = getattr(context, "aws_request_id", None)
+
     logger.info(
         "cache_warmer_handler_invoked",
         extra={
             "event": event,
             "has_context": context is not None,
+            "invocation_id": invocation_id,
         },
     )
 
     # Parse event parameters
     entity_types = event.get("entity_types")
     strict = event.get("strict", True)
+    resume_from_checkpoint = event.get("resume_from_checkpoint", True)
 
-    # Run async warming
+    # Run async warming with context for timeout detection
     try:
         response = asyncio.run(_warm_cache_async(
             entity_types=entity_types,
             strict=strict,
+            resume_from_checkpoint=resume_from_checkpoint,
+            context=context,
         ))
     except Exception as e:
         logger.error(
@@ -425,11 +816,13 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             extra={
                 "error": str(e),
                 "error_type": type(e).__name__,
+                "invocation_id": invocation_id,
             },
         )
         response = WarmResponse(
             success=False,
             message=f"Handler exception: {e}",
+            invocation_id=invocation_id,
         )
 
     # Return Lambda response format
@@ -448,28 +841,37 @@ async def handler_async(
     """Async Lambda handler for direct async invocation.
 
     Alternative entry point for environments that support async handlers
-    or for testing purposes.
+    or for testing purposes. Supports the same parameters as handler().
 
     Args:
-        event: Lambda event (same format as handler).
-        context: Lambda context (optional).
+        event: Lambda event with optional configuration:
+            - entity_types (list[str]): Optional list of entity types to warm.
+            - strict (bool): If True, fail on any entity type failure.
+            - resume_from_checkpoint (bool): If True, resume from checkpoint.
+        context: Lambda context with get_remaining_time_in_millis() and aws_request_id.
 
     Returns:
         Same format as handler().
     """
+    invocation_id = getattr(context, "aws_request_id", None)
+
     logger.info(
         "cache_warmer_handler_async_invoked",
         extra={
             "event": event,
+            "invocation_id": invocation_id,
         },
     )
 
     entity_types = event.get("entity_types")
     strict = event.get("strict", True)
+    resume_from_checkpoint = event.get("resume_from_checkpoint", True)
 
     response = await _warm_cache_async(
         entity_types=entity_types,
         strict=strict,
+        resume_from_checkpoint=resume_from_checkpoint,
+        context=context,
     )
 
     status_code = 200 if response.success else 500
