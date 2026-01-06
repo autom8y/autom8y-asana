@@ -506,6 +506,158 @@ class TestDataFrameViewPluginCascadeFields:
         assert result["office_phone"][0] == "555-PARENT"
 
 
+class TestDataFrameViewPluginCascadeFallback:
+    """Tests for cascade field resolution fallback.
+
+    Per TDD-unit-cascade-resolution-fix Fix 3: When parent_chain is empty
+    but task has parent.gid, try direct fetch from cache.
+    """
+
+    @pytest.mark.asyncio
+    async def test_cascade_fallback_when_parent_chain_empty(
+        self, mock_store: MagicMock, cascade_schema: DataFrameSchema
+    ) -> None:
+        """Test fallback to direct parent fetch when parent_chain is empty.
+
+        Per TDD-unit-cascade-resolution-fix: When get_parent_chain_async
+        returns empty but task has parent.gid, the fallback should try
+        get_with_upgrade_async to fetch the parent directly.
+        """
+        task_data = {
+            "gid": "unit-1",
+            "name": "Test Unit",
+            "parent": {"gid": "business-1"},  # Has parent reference
+            "custom_fields": [],  # No local value
+        }
+        parent_data = {
+            "gid": "business-1",
+            "name": "Business",
+            "parent": None,
+            "custom_fields": [
+                {
+                    "gid": "cf-1",
+                    "name": "Office Phone",
+                    "resource_subtype": "text",
+                    "text_value": "555-FALLBACK",
+                }
+            ],
+        }
+
+        # Parent chain returns empty (the bug scenario)
+        mock_store.get_batch_async = AsyncMock(return_value={"unit-1": task_data})
+        mock_store.get_parent_chain_async = AsyncMock(return_value=[])
+
+        # But get_with_upgrade_async can fetch the parent
+        mock_store.get_with_upgrade_async = AsyncMock(return_value=parent_data)
+
+        plugin = DataFrameViewPlugin(store=mock_store, schema=cascade_schema)
+
+        result = await plugin.materialize_async(["unit-1"])
+
+        # Should have used the fallback to get the parent
+        assert mock_store.get_with_upgrade_async.called
+        assert result["office_phone"][0] == "555-FALLBACK"
+
+    @pytest.mark.asyncio
+    async def test_cascade_fallback_not_triggered_when_chain_populated(
+        self, mock_store: MagicMock, cascade_schema: DataFrameSchema
+    ) -> None:
+        """Test fallback is NOT triggered when parent chain is populated."""
+        task_data = {
+            "gid": "unit-1",
+            "name": "Test Unit",
+            "parent": {"gid": "business-1"},
+            "custom_fields": [],
+        }
+        parent_data = {
+            "gid": "business-1",
+            "name": "Business",
+            "parent": None,
+            "custom_fields": [
+                {
+                    "gid": "cf-1",
+                    "name": "Office Phone",
+                    "resource_subtype": "text",
+                    "text_value": "555-FROM-CHAIN",
+                }
+            ],
+        }
+
+        mock_store.get_batch_async = AsyncMock(return_value={"unit-1": task_data})
+        # Parent chain returns the parent normally
+        mock_store.get_parent_chain_async = AsyncMock(return_value=[parent_data])
+        mock_store.get_with_upgrade_async = AsyncMock(return_value=None)
+
+        plugin = DataFrameViewPlugin(store=mock_store, schema=cascade_schema)
+
+        result = await plugin.materialize_async(["unit-1"])
+
+        # Should NOT have triggered the fallback
+        assert not mock_store.get_with_upgrade_async.called
+        assert result["office_phone"][0] == "555-FROM-CHAIN"
+
+    @pytest.mark.asyncio
+    async def test_cascade_fallback_returns_none_when_no_parent(
+        self, mock_store: MagicMock, cascade_schema: DataFrameSchema
+    ) -> None:
+        """Test cascade returns None when task has no parent and chain is empty."""
+        task_data = {
+            "gid": "root-1",
+            "name": "Root Task",
+            "parent": None,  # No parent
+            "custom_fields": [],
+        }
+
+        mock_store.get_batch_async = AsyncMock(return_value={"root-1": task_data})
+        mock_store.get_parent_chain_async = AsyncMock(return_value=[])
+        mock_store.get_with_upgrade_async = AsyncMock(return_value=None)
+
+        plugin = DataFrameViewPlugin(store=mock_store, schema=cascade_schema)
+
+        result = await plugin.materialize_async(["root-1"])
+
+        # Should NOT trigger fallback when no parent.gid
+        assert not mock_store.get_with_upgrade_async.called
+        assert result["office_phone"][0] is None
+
+    @pytest.mark.asyncio
+    async def test_resolve_cascade_from_populated_chain(
+        self, mock_store: MagicMock, cascade_schema: DataFrameSchema
+    ) -> None:
+        """Verify cascade field extracted from parent in chain.
+
+        Per TDD-unit-cascade-resolution-fix Test 2: When parent chain is
+        populated, the cascade field should be extracted from the parent.
+        """
+        task_data = {
+            "gid": "unit-1",
+            "name": "Test Unit",
+            "parent": {"gid": "business-1"},
+            "custom_fields": [],
+        }
+        business_data = {
+            "gid": "business-1",
+            "parent": None,
+            "custom_fields": [
+                {
+                    "gid": "cf-1",
+                    "name": "Office Phone",
+                    "resource_subtype": "text",
+                    "text_value": "+15551234567",
+                }
+            ],
+        }
+
+        mock_store.get_batch_async = AsyncMock(return_value={"unit-1": task_data})
+        mock_store.get_parent_chain_async = AsyncMock(return_value=[business_data])
+
+        plugin = DataFrameViewPlugin(store=mock_store, schema=cascade_schema)
+
+        result = await plugin.materialize_async(["unit-1"])
+
+        assert result["office_phone"][0] == "+15551234567"
+
+
 class TestDataFrameViewPluginIncremental:
     """Tests for incremental materialization."""
 

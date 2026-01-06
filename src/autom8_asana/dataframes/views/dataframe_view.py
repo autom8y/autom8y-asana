@@ -345,6 +345,9 @@ class DataFrameViewPlugin:
         This is a simplified cascade resolution that works directly
         with cached task data dicts.
 
+        Per TDD-unit-cascade-resolution-fix: If parent_chain is empty but
+        task has parent.gid, try direct fetch from cache as fallback.
+
         Args:
             task_data: Task data dict.
             field_name: Field name to resolve.
@@ -365,6 +368,32 @@ class DataFrameViewPlugin:
             return None
 
         parent_chain = await self._store.get_parent_chain_async(task_gid)
+
+        # Per TDD-unit-cascade-resolution-fix Fix 3: Fallback when parent_chain
+        # is empty but task has parent.gid - try direct fetch from cache
+        if not parent_chain:
+            parent = task_data.get("parent")
+            if parent and isinstance(parent, dict):
+                parent_gid = parent.get("gid")
+                if parent_gid:
+                    logger.debug(
+                        "cascade_fallback_direct_fetch",
+                        extra={
+                            "task_gid": task_gid,
+                            "parent_gid": parent_gid,
+                            "field_name": field_name,
+                        },
+                    )
+                    # Try to get parent directly from cache with upgrade
+                    from autom8_asana.cache.completeness import CompletenessLevel
+                    parent_data = await self._store.get_with_upgrade_async(
+                        parent_gid,
+                        required_level=CompletenessLevel.STANDARD,
+                        freshness=FreshnessMode.IMMEDIATE,
+                    )
+                    if parent_data:
+                        parent_chain = [parent_data]
+
         if not parent_chain:
             return None
 
