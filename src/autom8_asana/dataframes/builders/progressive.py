@@ -471,7 +471,7 @@ class ProgressiveProjectBuilder:
             try:
                 # Store task data for cascade lookups
                 task_data = self._task_to_dict(task)
-                await self._store.put_async(task.gid, task_data)
+                await self._store.put_async(task_data)  # put_async takes task dict, not gid
             except Exception as e:
                 # Don't fail build if store population fails
                 logger.debug(
