@@ -480,12 +480,32 @@ class ProgressiveProjectBuilder:
             try:
                 # Store task data for cascade lookups
                 task_data = self._task_to_dict(task)
+
+                # Debug: log parent info for cascade diagnosis
+                parent_info = task_data.get("parent")
+                parent_gid = None
+                if parent_info:
+                    if isinstance(parent_info, dict):
+                        parent_gid = parent_info.get("gid")
+                    elif hasattr(parent_info, "gid"):
+                        parent_gid = parent_info.gid
+
+                logger.info(
+                    "store_populate_task",
+                    extra={
+                        "task_gid": task.gid,
+                        "parent_gid": parent_gid,
+                        "has_custom_fields": bool(task_data.get("custom_fields")),
+                        "entity_type": self._entity_type,
+                    },
+                )
+
                 await self._store.put_async(task_data)  # put_async takes task dict, not gid
             except Exception as e:
                 # Don't fail build if store population fails
-                logger.debug(
+                logger.warning(
                     "store_populate_task_failed",
-                    extra={"task_gid": task.gid, "error": str(e)},
+                    extra={"task_gid": task.gid, "error": str(e), "error_type": type(e).__name__},
                 )
 
     def _build_index_data(self, df: pl.DataFrame) -> dict[str, Any] | None:
