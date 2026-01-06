@@ -448,15 +448,21 @@ class UnifiedTaskStore:
         tasks: list[dict[str, Any]],
         ttl: int | None = None,
         opt_fields: list[str] | None = None,
+        tasks_client: "TasksClient | None" = None,
+        warm_hierarchy: bool = False,
     ) -> int:
         """Store multiple tasks with batch write and completeness tracking.
 
         Per TDD-CACHE-COMPLETENESS-001: Includes completeness level in metadata.
+        Per ADR-hierarchy-registration-architecture: Optionally warms parent
+        chains for complete cascade resolution.
 
         Args:
             tasks: List of task dicts to cache.
             ttl: Optional TTL override.
             opt_fields: Fields used in fetch (for completeness inference).
+            tasks_client: Optional TasksClient for hierarchy warming.
+            warm_hierarchy: If True, recursively fetch and register parent chains.
 
         Returns:
             Count of successfully cached tasks.
@@ -503,6 +509,62 @@ class UnifiedTaskStore:
             self.cache.set_batch(entries)
             self._stats["put_count"] += cached_count
 
+        # Warm parent chains if requested
+        # Per ADR-hierarchy-registration-architecture: Recursively fetch and
+        # register missing ancestors for complete cascade resolution
+        ancestors_warmed = 0
+        immediate_parents_fetched = 0
+        if warm_hierarchy and tasks_client is not None:
+            from autom8_asana.cache.hierarchy_warmer import (
+                _HIERARCHY_OPT_FIELDS,
+                warm_ancestors_async,
+            )
+
+            # Per TDD-unit-cascade-resolution-fix Fix 4: Fetch and register immediate
+            # parents BEFORE calling warm_ancestors_async. This ensures the hierarchy
+            # index has parent tasks registered so get_ancestor_chain() works.
+            parent_gids_needed: set[str] = set()
+            for task in tasks:
+                parent = task.get("parent")
+                if parent and isinstance(parent, dict):
+                    parent_gid = parent.get("gid")
+                    if parent_gid and not self._hierarchy.contains(parent_gid):
+                        parent_gids_needed.add(parent_gid)
+
+            if parent_gids_needed:
+                logger.debug(
+                    "warm_hierarchy_fetching_immediate_parents",
+                    extra={"parent_count": len(parent_gids_needed)},
+                )
+                for parent_gid in parent_gids_needed:
+                    try:
+                        parent_task = await tasks_client.get_async(
+                            parent_gid, opt_fields=_HIERARCHY_OPT_FIELDS
+                        )
+                        if parent_task:
+                            parent_dict = parent_task.model_dump(exclude_none=True)
+                            self._hierarchy.register(parent_dict)
+                            await self.put_async(
+                                parent_dict, opt_fields=_HIERARCHY_OPT_FIELDS
+                            )
+                            immediate_parents_fetched += 1
+                    except Exception as e:
+                        logger.warning(
+                            "warm_immediate_parent_failed",
+                            extra={"parent_gid": parent_gid, "error": str(e)},
+                        )
+
+            # Then warm deeper ancestors (grandparents and beyond)
+            task_gids = [t.get("gid") for t in tasks if t.get("gid")]
+            if task_gids:
+                ancestors_warmed = await warm_ancestors_async(
+                    gids=task_gids,
+                    hierarchy_index=self._hierarchy,
+                    tasks_client=tasks_client,
+                    max_depth=5,
+                    unified_store=self,  # Pass self to cache fetched parents
+                )
+
         logger.debug(
             "unified_store_put_batch",
             extra={
@@ -510,6 +572,9 @@ class UnifiedTaskStore:
                 "cached_count": cached_count,
                 "ttl": ttl,
                 "completeness_level": completeness_metadata.get("completeness_level"),
+                "warm_hierarchy": warm_hierarchy,
+                "immediate_parents_fetched": immediate_parents_fetched,
+                "ancestors_warmed": ancestors_warmed,
             },
         )
 
