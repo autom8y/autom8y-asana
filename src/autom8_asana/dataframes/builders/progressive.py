@@ -470,43 +470,52 @@ class ProgressiveProjectBuilder:
     async def _populate_store_with_tasks(self, tasks: list["Task"]) -> None:
         """Populate UnifiedStore with fetched tasks for cascade resolution.
 
-        This ensures parent task data is available when resolving cascading
-        fields like office_phone and vertical that cascade from Business.
+        Per ADR-cascade-field-resolution: Uses put_batch_async with warm_hierarchy=True
+        to recursively fetch and cache parent tasks. This ensures fields like
+        office_phone and vertical that cascade from Business are properly resolved.
+
+        The hierarchy warming:
+        - Fetches immediate parents not already in cache
+        - Recursively warms ancestors up to max_depth=5
+        - Includes custom_fields for cascade field extraction
         """
-        if self._store is None:
+        if not tasks or self._store is None:
             return
 
-        for task in tasks:
-            try:
-                # Store task data for cascade lookups
-                task_data = self._task_to_dict(task)
+        try:
+            # Convert Task models to dicts for batch storage
+            task_dicts = [self._task_to_dict(task) for task in tasks]
 
-                # Debug: log parent info for cascade diagnosis
-                parent_info = task_data.get("parent")
-                parent_gid = None
-                if parent_info:
-                    if isinstance(parent_info, dict):
-                        parent_gid = parent_info.get("gid")
-                    elif hasattr(parent_info, "gid"):
-                        parent_gid = parent_info.gid
+            logger.info(
+                "store_populate_batch_starting",
+                extra={
+                    "task_count": len(task_dicts),
+                    "entity_type": self._entity_type,
+                    "project_gid": self._project_gid,
+                    "warm_hierarchy": True,
+                },
+            )
 
-                logger.info(
-                    "store_populate_task",
-                    extra={
-                        "task_gid": task.gid,
-                        "parent_gid": parent_gid,
-                        "has_custom_fields": bool(task_data.get("custom_fields")),
-                        "entity_type": self._entity_type,
-                    },
-                )
+            # Use put_batch_async with hierarchy warming - same pattern as project.py
+            # This recursively fetches and caches parent chains for cascade resolution
+            await self._store.put_batch_async(
+                task_dicts,
+                opt_fields=_BASE_OPT_FIELDS,
+                tasks_client=self._client.tasks,
+                warm_hierarchy=True,
+            )
 
-                await self._store.put_async(task_data)  # put_async takes task dict, not gid
-            except Exception as e:
-                # Don't fail build if store population fails
-                logger.warning(
-                    "store_populate_task_failed",
-                    extra={"task_gid": task.gid, "error": str(e), "error_type": type(e).__name__},
-                )
+        except Exception as e:
+            # Don't fail build if store population fails
+            logger.warning(
+                "store_populate_batch_failed",
+                extra={
+                    "task_count": len(tasks),
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "entity_type": self._entity_type,
+                },
+            )
 
     def _build_index_data(self, df: pl.DataFrame) -> dict[str, Any] | None:
         """Build GidLookupIndex serialized data from DataFrame."""

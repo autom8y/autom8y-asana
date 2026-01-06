@@ -387,3 +387,116 @@ class TestConvenienceFunction:
             mock_builder_class.assert_called_once()
             mock_builder.build_progressive_async.assert_called_once_with(resume=True)
             assert result.total_rows == 0
+
+
+@pytest.mark.asyncio
+class TestPopulateStoreWithTasks:
+    """Tests for _populate_store_with_tasks cascade warming."""
+
+    async def test_populate_store_uses_batch_with_warming(self) -> None:
+        """Progressive builder should use put_batch_async with warm_hierarchy=True.
+
+        Per ADR-cascade-field-resolution: Hierarchy warming ensures parent tasks
+        (Business, UnitHolder) are fetched and cached so cascade fields like
+        office_phone and vertical resolve correctly.
+        """
+        mock_client = MagicMock()
+        mock_client.tasks = MagicMock()  # tasks_client for hierarchy warming
+        mock_schema = MagicMock()
+        mock_persistence = MagicMock(spec=SectionPersistence)
+        mock_store = AsyncMock()
+        mock_store.put_batch_async = AsyncMock(return_value=5)
+
+        builder = ProgressiveProjectBuilder(
+            client=mock_client,
+            project_gid="proj_123",
+            entity_type="unit",
+            schema=mock_schema,
+            persistence=mock_persistence,
+            store=mock_store,
+        )
+
+        # Create mock tasks
+        mock_task = MagicMock()
+        mock_task.gid = "task_1"
+        mock_task.model_dump.return_value = {
+            "gid": "task_1",
+            "name": "Test Unit",
+            "parent": {"gid": "parent_1"},
+            "custom_fields": [],
+        }
+
+        await builder._populate_store_with_tasks([mock_task])
+
+        # Verify put_batch_async was called with warm_hierarchy=True
+        mock_store.put_batch_async.assert_called_once()
+        call_kwargs = mock_store.put_batch_async.call_args.kwargs
+        assert call_kwargs.get("warm_hierarchy") is True
+        assert call_kwargs.get("tasks_client") is mock_client.tasks
+
+    async def test_populate_store_empty_list(self) -> None:
+        """Empty task list skips store population."""
+        mock_client = MagicMock()
+        mock_schema = MagicMock()
+        mock_persistence = MagicMock(spec=SectionPersistence)
+        mock_store = AsyncMock()
+
+        builder = ProgressiveProjectBuilder(
+            client=mock_client,
+            project_gid="proj_123",
+            entity_type="unit",
+            schema=mock_schema,
+            persistence=mock_persistence,
+            store=mock_store,
+        )
+
+        await builder._populate_store_with_tasks([])
+
+        # Should not call put_batch_async for empty list
+        mock_store.put_batch_async.assert_not_called()
+
+    async def test_populate_store_no_store(self) -> None:
+        """No store skips population gracefully."""
+        mock_client = MagicMock()
+        mock_schema = MagicMock()
+        mock_persistence = MagicMock(spec=SectionPersistence)
+
+        builder = ProgressiveProjectBuilder(
+            client=mock_client,
+            project_gid="proj_123",
+            entity_type="unit",
+            schema=mock_schema,
+            persistence=mock_persistence,
+            store=None,  # No store
+        )
+
+        mock_task = MagicMock()
+        mock_task.gid = "task_1"
+
+        # Should not raise, just return
+        await builder._populate_store_with_tasks([mock_task])
+
+    async def test_populate_store_handles_exception(self) -> None:
+        """Store population failure doesn't crash build."""
+        mock_client = MagicMock()
+        mock_client.tasks = MagicMock()
+        mock_schema = MagicMock()
+        mock_persistence = MagicMock(spec=SectionPersistence)
+        mock_store = AsyncMock()
+        mock_store.put_batch_async = AsyncMock(side_effect=Exception("S3 error"))
+
+        builder = ProgressiveProjectBuilder(
+            client=mock_client,
+            project_gid="proj_123",
+            entity_type="unit",
+            schema=mock_schema,
+            persistence=mock_persistence,
+            store=mock_store,
+        )
+
+        mock_task = MagicMock()
+        mock_task.gid = "task_1"
+        mock_task.model_dump.return_value = {"gid": "task_1", "name": "Test"}
+
+        # Should not raise, just log warning
+        await builder._populate_store_with_tasks([mock_task])
