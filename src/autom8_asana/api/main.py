@@ -481,6 +481,42 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                     watermark = persisted_watermark
                     watermark_repo.set_watermark(project_gid, watermark)
 
+                # CRITICAL: If DataFrame exists but index doesn't, rebuild index from
+                # DataFrame in memory (milliseconds) instead of triggering full API rebuild.
+                # This handles the case where index failed to persist/load but DataFrame is intact.
+                if index is None and df is not None and watermark is not None:
+                    logger.info(
+                        "dataframe_preload_index_recovery",
+                        extra={
+                            "project_gid": project_gid,
+                            "entity_type": entity_type,
+                            "dataframe_rows": len(df),
+                            "reason": "index_missing_but_df_exists",
+                        },
+                    )
+                    try:
+                        index = GidLookupIndex.from_dataframe(df)
+                        # Persist the recovered index for next startup
+                        await persistence.save_index(project_gid, index)
+                        logger.info(
+                            "dataframe_preload_index_recovered",
+                            extra={
+                                "project_gid": project_gid,
+                                "entity_type": entity_type,
+                                "index_entries": len(index),
+                            },
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            "dataframe_preload_index_recovery_failed",
+                            extra={
+                                "project_gid": project_gid,
+                                "entity_type": entity_type,
+                                "error": str(e),
+                            },
+                        )
+                        # index remains None, will fall through to full rebuild
+
                 if index is not None and df is not None and watermark is not None:
                     # Have persisted state - do incremental catch-up
                     indices_loaded_from_s3 += 1
