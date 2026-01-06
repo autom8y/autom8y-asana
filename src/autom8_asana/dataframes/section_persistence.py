@@ -230,12 +230,13 @@ class SectionPersistence:
                 endpoint_url=config.endpoint_url,
             )
         )
+        # Initialize polars eagerly for is_available check
         self._polars_module: Any = None
+        self._initialize_polars()
 
     async def __aenter__(self) -> "SectionPersistence":
         """Async context manager entry."""
         await self._s3_client.__aenter__()
-        self._initialize_polars()
         return self
 
     async def __aexit__(
