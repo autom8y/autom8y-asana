@@ -29,6 +29,8 @@ from typing import TYPE_CHECKING, Any, ClassVar, Protocol, runtime_checkable
 
 from autom8y_log import get_logger
 
+from autom8_asana.cache.dataframe.decorator import dataframe_cache
+from autom8_asana.cache.dataframe.factory import get_dataframe_cache_provider
 from autom8_asana.models.contracts.phone_vertical import PhoneVerticalPair
 from autom8_asana.services.gid_lookup import GidLookupIndex
 
@@ -47,20 +49,10 @@ __all__ = [
     "get_strategy",
     "register_strategies",
     "RESOLUTION_STRATEGIES",
-    "_gid_index_cache",
-    "_INDEX_TTL_SECONDS",
     "filter_result_fields",
 ]
 
 logger = get_logger(__name__)
-
-# --- Module-Level GidLookupIndex Cache ---
-# Per TDD: TTL-based cache for O(1) lookups
-# Key: project_gid, Value: GidLookupIndex instance
-_gid_index_cache: dict[str, GidLookupIndex] = {}
-
-# Default TTL for index staleness check (1 hour)
-_INDEX_TTL_SECONDS = 3600
 
 
 # --- Data Models ---
@@ -290,11 +282,21 @@ class ResolutionStrategy(Protocol):
         ...
 
 
+@dataframe_cache(
+    cache_provider=get_dataframe_cache_provider,
+    entity_type="unit",
+    build_method="_build_dataframe",
+)
 class UnitResolutionStrategy:
     """Unit resolution via GidLookupIndex O(1) lookup.
 
     Per TDD Phase 1: Implements Unit resolution using existing GidLookupIndex.
     Uses phone/vertical pairs for O(1) dictionary lookup.
+
+    Per TDD-DATAFRAME-CACHE-001:
+    - @dataframe_cache decorator provides transparent caching
+    - self._cached_dataframe is injected on cache hit
+    - Cache miss returns 503 with retry guidance
 
     Resolution flow:
     1. Get or build GidLookupIndex from cached DataFrame
@@ -302,6 +304,9 @@ class UnitResolutionStrategy:
     3. Batch lookup via index.get_gids()
     4. Return ResolutionResult for each criterion
     """
+
+    # Injected by @dataframe_cache decorator on cache hit
+    _cached_dataframe: Any = None
 
     async def resolve(
         self,
@@ -416,20 +421,14 @@ class UnitResolutionStrategy:
         project_gid: str,
         client: "AsanaClient",
     ) -> GidLookupIndex | None:
-        """Get cached GidLookupIndex or build a new one using incremental refresh.
+        """Get GidLookupIndex from cached DataFrame or build directly.
 
-        Per TDD: TTL-based caching with 1-hour staleness check.
-        Per FR-005 (sprint-materialization-002): Uses incremental refresh when
-        watermark exists, updating WatermarkRepository after successful sync.
+        Per TDD-DATAFRAME-CACHE-001: When @dataframe_cache decorator injects
+        _cached_dataframe, use it directly to build the GidLookupIndex.
+        This provides consistent caching via the DataFrameCache layer.
 
-        Uses module-level _gid_index_cache for index storage.
-        Uses WatermarkRepository for per-project sync timestamps.
-
-        Refresh Strategy:
-        - Index not stale: Return cached index
-        - Index stale or missing:
-          - If watermark exists: Use refresh_incremental() for delta sync
-          - If no watermark: Full rebuild via build_with_parallel_fetch_async()
+        When cache is not available (bypass enabled or cache not configured),
+        builds DataFrame directly without caching.
 
         Args:
             project_gid: Unit project GID
@@ -438,51 +437,48 @@ class UnitResolutionStrategy:
         Returns:
             GidLookupIndex if available, None on build failure.
         """
-        global _gid_index_cache
-
-        from autom8_asana.dataframes.watermark import get_watermark_repo
-
-        # Check for cached index
-        cached_index = _gid_index_cache.get(project_gid)
-
-        if cached_index is not None and not cached_index.is_stale(_INDEX_TTL_SECONDS):
+        # Use cached DataFrame from @dataframe_cache decorator if available
+        # When decorator is active, _cached_dataframe is injected before resolve()
+        if self._cached_dataframe is not None:
             logger.debug(
-                "gid_index_cache_hit",
+                "gid_index_from_cached_dataframe",
                 extra={
                     "project_gid": project_gid,
-                    "index_size": len(cached_index),
-                    "age_seconds": (
-                        datetime.now(timezone.utc) - cached_index.created_at
-                    ).total_seconds(),
+                    "dataframe_rows": len(self._cached_dataframe),
                 },
             )
-            return cached_index
+            try:
+                index = GidLookupIndex.from_dataframe(self._cached_dataframe)
+                logger.info(
+                    "gid_index_built_from_cache",
+                    extra={
+                        "project_gid": project_gid,
+                        "index_size": len(index),
+                    },
+                )
+                return index
+            except KeyError as e:
+                logger.error(
+                    "gid_index_build_failed_missing_columns",
+                    extra={
+                        "project_gid": project_gid,
+                        "error": str(e),
+                        "source": "cached_dataframe",
+                    },
+                )
+                return None
 
-        # Cache miss or stale - rebuild using incremental refresh when possible
-        cache_status = "stale" if cached_index is not None else "miss"
-        watermark_repo = get_watermark_repo()
-        watermark = watermark_repo.get_watermark(project_gid)
-
+        # No cached DataFrame - build directly (bypass mode or cache not configured)
         logger.info(
-            "gid_index_cache_rebuild",
+            "gid_index_direct_build",
             extra={
                 "project_gid": project_gid,
-                "reason": cache_status,
-                "has_watermark": watermark is not None,
+                "reason": "no_cached_dataframe",
             },
         )
 
-        # Note: GidLookupIndex doesn't store the original DataFrame, so we can't
-        # do true incremental merge. When watermark exists, refresh_incremental
-        # will do a modified_since API query (which is still more efficient than
-        # a full fetch), but will do a full DataFrame build from the results.
-        # Future optimization: Store DataFrame alongside index for true delta merge.
-        existing_df = None
-
-        # Build DataFrame using incremental refresh
-        df, new_watermark = await self._build_dataframe_incremental(
-            project_gid, client, existing_df, watermark
-        )
+        # Build DataFrame directly using _build_unit_dataframe
+        df = await self._build_unit_dataframe(project_gid, client)
 
         if df is None:
             logger.warning(
@@ -495,19 +491,11 @@ class UnitResolutionStrategy:
             # Build index from DataFrame
             index = GidLookupIndex.from_dataframe(df)
 
-            # Cache the new index
-            _gid_index_cache[project_gid] = index
-
-            # Update watermark after successful build
-            watermark_repo.set_watermark(project_gid, new_watermark)
-
             logger.info(
-                "gid_index_built",
+                "gid_index_built_direct",
                 extra={
                     "project_gid": project_gid,
                     "index_size": len(index),
-                    "watermark": new_watermark.isoformat(),
-                    "refresh_type": "incremental" if watermark else "full",
                 },
             )
 
@@ -523,100 +511,40 @@ class UnitResolutionStrategy:
             )
             return None
 
-    async def _build_dataframe_incremental(
-        self,
-        project_gid: str,
-        client: "AsanaClient",
-        existing_df: Any,
-        watermark: datetime | None,
-    ) -> tuple[Any, datetime]:
-        """Build DataFrame using incremental refresh when possible.
-
-        Per FR-005: Uses refresh_incremental() when watermark exists for
-        efficient delta sync, falling back to full build otherwise.
-
-        Args:
-            project_gid: Unit project GID
-            client: AsanaClient for Asana API access
-            existing_df: Current DataFrame for merge (None for first sync)
-            watermark: Last sync timestamp (None for full fetch)
-
-        Returns:
-            Tuple of (DataFrame, new_watermark). DataFrame may be None on failure.
-        """
-        # Import here to avoid circular imports
-        from datetime import timezone
-
-        from autom8_asana.dataframes.builders.project import ProjectDataFrameBuilder
-        from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
-        from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
-
-        # Minimal project proxy - only needs gid attribute for builder
-        class ProjectProxy:
-            """Minimal project object for DataFrame builder."""
-
-            def __init__(self, gid: str) -> None:
-                self.gid = gid
-                self.tasks: list[Any] = []
-
-        try:
-            project_proxy = ProjectProxy(project_gid)
-
-            # Create resolver for custom field extraction (office_phone, vertical)
-            resolver = DefaultCustomFieldResolver()
-
-            # Per TDD-CASCADING-FIELD-RESOLUTION-001: Pass client for cascade: sources
-            builder = ProjectDataFrameBuilder(
-                project=project_proxy,
-                task_type="Unit",
-                schema=UNIT_SCHEMA,
-                resolver=resolver,
-                client=client,
-                unified_store=client.unified_store,
-            )
-
-            # Use incremental refresh when watermark and existing_df exist
-            df, new_watermark = await builder.refresh_incremental(
-                client=client,
-                existing_df=existing_df,
-                watermark=watermark,
-            )
-
-            logger.info(
-                "unit_dataframe_built",
-                extra={
-                    "project_gid": project_gid,
-                    "row_count": len(df),
-                    "refresh_type": "incremental" if watermark else "full",
-                },
-            )
-
-            return df, new_watermark
-
-        except Exception as e:
-            logger.warning(
-                "unit_dataframe_build_failed",
-                extra={
-                    "project_gid": project_gid,
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                },
-            )
-            # Return None with current timestamp as fallback
-            return None, datetime.now(timezone.utc)
-
     async def _build_dataframe(
         self,
         project_gid: str,
         client: "AsanaClient",
+    ) -> tuple[Any, datetime]:
+        """Build Unit project DataFrame for caching.
+
+        Per TDD-DATAFRAME-CACHE-001: Build method for @dataframe_cache decorator.
+        Returns (DataFrame, watermark) tuple for cache storage.
+
+        Args:
+            project_gid: Unit project GID
+            client: AsanaClient for data fetching
+
+        Returns:
+            Tuple of (Polars DataFrame, watermark datetime).
+            DataFrame may be None on failure.
+        """
+        df = await self._build_unit_dataframe(project_gid, client)
+        watermark = datetime.now(timezone.utc)
+        return df, watermark
+
+    async def _build_unit_dataframe(
+        self,
+        project_gid: str,
+        client: "AsanaClient",
     ) -> Any:
-        """Build Unit project DataFrame for GID lookups.
+        """Build Unit project DataFrame for lookups.
+
+        Internal method that performs the actual DataFrame construction.
+        Called by _build_dataframe for caching and directly when cache bypassed.
 
         Uses ProjectDataFrameBuilder with parallel fetch for efficient
         DataFrame construction.
-
-        Note: This method is preserved for backward compatibility.
-        New code should use _build_dataframe_incremental() instead.
 
         Args:
             project_gid: Unit project GID
@@ -844,6 +772,11 @@ class BusinessResolutionStrategy:
         return None
 
 
+@dataframe_cache(
+    cache_provider=get_dataframe_cache_provider,
+    entity_type="offer",
+    build_method="_build_dataframe",
+)
 class OfferResolutionStrategy:
     """Offer resolution via offer_id or phone/vertical + offer_name.
 
@@ -852,7 +785,15 @@ class OfferResolutionStrategy:
     2. Secondary: Composite lookup via phone/vertical + offer_name discriminator
 
     Uses DataFrame scan for custom field lookups.
+
+    Per TDD-DATAFRAME-CACHE-001:
+    - @dataframe_cache decorator provides transparent caching
+    - self._cached_dataframe is injected on cache hit
+    - Cache miss returns 503 with retry guidance
     """
+
+    # Injected by @dataframe_cache decorator on cache hit
+    _cached_dataframe: Any = None
 
     async def resolve(
         self,
@@ -879,8 +820,12 @@ class OfferResolutionStrategy:
         if not criteria:
             return []
 
-        # Build DataFrame for lookups
-        df = await self._build_offer_dataframe(project_gid, client)
+        # Use cached DataFrame if available (injected by @dataframe_cache decorator)
+        # Otherwise fall back to building fresh (when cache not configured)
+        df = self._cached_dataframe
+        if df is None:
+            # Cache not configured or bypass - build fresh
+            df = await self._build_offer_dataframe(project_gid, client)
 
         if df is None:
             logger.warning(
@@ -1055,12 +1000,37 @@ class OfferResolutionStrategy:
             )
             return None
 
+    async def _build_dataframe(
+        self,
+        project_gid: str,
+        client: "AsanaClient",
+    ) -> tuple[Any, datetime]:
+        """Build Offer project DataFrame for caching.
+
+        Per TDD-DATAFRAME-CACHE-001: Build method for @dataframe_cache decorator.
+        Returns (DataFrame, watermark) tuple for cache storage.
+
+        Args:
+            project_gid: Offer project GID
+            client: AsanaClient for data fetching
+
+        Returns:
+            Tuple of (Polars DataFrame, watermark datetime).
+            DataFrame may be None on failure.
+        """
+        df = await self._build_offer_dataframe(project_gid, client)
+        watermark = datetime.now(timezone.utc)
+        return df, watermark
+
     async def _build_offer_dataframe(
         self,
         project_gid: str,
         client: "AsanaClient",
     ) -> Any:
         """Build Offer project DataFrame for lookups.
+
+        Internal method that performs the actual DataFrame construction.
+        Called by _build_dataframe for caching and directly when cache bypassed.
 
         Args:
             project_gid: Offer project GID
@@ -1115,12 +1085,25 @@ class OfferResolutionStrategy:
             return None
 
 
+@dataframe_cache(
+    cache_provider=get_dataframe_cache_provider,
+    entity_type="contact",
+    build_method="_build_dataframe",
+)
 class ContactResolutionStrategy:
     """Contact resolution via email or phone with multiple matches support.
 
     Per TDD Phase 2: Looks up contacts by contact_email or contact_phone.
     Returns ALL matches with multiple=true flag when more than one found.
+
+    Per TDD-DATAFRAME-CACHE-001:
+    - @dataframe_cache decorator provides transparent caching
+    - self._cached_dataframe is injected on cache hit
+    - Cache miss returns 503 with retry guidance
     """
+
+    # Injected by @dataframe_cache decorator on cache hit
+    _cached_dataframe: Any = None
 
     async def resolve(
         self,
@@ -1150,8 +1133,12 @@ class ContactResolutionStrategy:
         if not criteria:
             return []
 
-        # Build DataFrame for lookups
-        df = await self._build_contact_dataframe(project_gid, client)
+        # Use cached DataFrame if available (injected by @dataframe_cache decorator)
+        # Otherwise fall back to building fresh (when cache not configured)
+        df = self._cached_dataframe
+        if df is None:
+            # Cache not configured or bypass - build fresh
+            df = await self._build_contact_dataframe(project_gid, client)
 
         if df is None:
             logger.warning(
@@ -1298,12 +1285,37 @@ class ContactResolutionStrategy:
             )
             return []
 
+    async def _build_dataframe(
+        self,
+        project_gid: str,
+        client: "AsanaClient",
+    ) -> tuple[Any, datetime]:
+        """Build Contact project DataFrame for caching.
+
+        Per TDD-DATAFRAME-CACHE-001: Build method for @dataframe_cache decorator.
+        Returns (DataFrame, watermark) tuple for cache storage.
+
+        Args:
+            project_gid: Contact project GID
+            client: AsanaClient for data fetching
+
+        Returns:
+            Tuple of (Polars DataFrame, watermark datetime).
+            DataFrame may be None on failure.
+        """
+        df = await self._build_contact_dataframe(project_gid, client)
+        watermark = datetime.now(timezone.utc)
+        return df, watermark
+
     async def _build_contact_dataframe(
         self,
         project_gid: str,
         client: "AsanaClient",
     ) -> Any:
         """Build Contact project DataFrame for lookups.
+
+        Internal method that performs the actual DataFrame construction.
+        Called by _build_dataframe for caching and directly when cache bypassed.
 
         Args:
             project_gid: Contact project GID

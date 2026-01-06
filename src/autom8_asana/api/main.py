@@ -73,6 +73,38 @@ from .routes import (
     workspaces_router,
 )
 
+
+def _initialize_dataframe_cache() -> None:
+    """Initialize the DataFrameCache singleton for resolution strategies.
+
+    Per TDD-DATAFRAME-CACHE-001 Phase 2:
+    - Initializes DataFrameCache with Memory + S3 tiering
+    - Used by @dataframe_cache decorator on Offer/Contact strategies
+    - Graceful degradation if S3 not configured (logs warning, cache disabled)
+
+    This is called during application startup, after entity project discovery.
+    """
+    from autom8_asana.cache.dataframe.factory import initialize_dataframe_cache
+
+    cache = initialize_dataframe_cache()
+
+    if cache is not None:
+        logger.info(
+            "dataframe_cache_ready",
+            extra={
+                "status": "initialized",
+                "entity_types": ["offer", "contact"],
+            },
+        )
+    else:
+        logger.warning(
+            "dataframe_cache_disabled",
+            extra={
+                "reason": "S3 not configured",
+                "impact": "Offer/Contact resolution will build DataFrames on every request",
+            },
+        )
+
 logger = get_logger(__name__)
 
 
@@ -137,6 +169,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
         # Per ADR-0060: Fail-fast on discovery failure
         raise RuntimeError(f"Entity resolver discovery failed: {e}") from e
+
+    # Initialize DataFrameCache for Offer/Contact resolution strategies
+    # Per TDD-DATAFRAME-CACHE-001: Provides tiered caching (Memory + S3)
+    _initialize_dataframe_cache()
 
     # DataFrame cache preload (FR-003 per sprint-materialization-002)
     # Runs after entity discovery so we know which projects exist
@@ -343,10 +379,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
     from autom8_asana.dataframes.persistence import DataFramePersistence
     from autom8_asana.dataframes.watermark import get_watermark_repo
     from autom8_asana.services.gid_lookup import GidLookupIndex
-    from autom8_asana.services.resolver import (
-        EntityProjectRegistry,
-        _gid_index_cache,
-    )
+    from autom8_asana.services.resolver import EntityProjectRegistry
 
     start_time = time.perf_counter()
     loaded_count = 0
@@ -501,8 +534,6 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                         await persistence.save_index(project_gid, index)
                         watermark_repo.set_watermark(project_gid, new_watermark)
 
-                    # Cache index for fast lookups
-                    _gid_index_cache[project_gid] = index
                     loaded_count += 1
                     total_rows += len(updated_df)
 
@@ -548,8 +579,6 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                             await persistence.save_index(project_gid, new_index)
                             watermark_repo.set_watermark(project_gid, new_watermark)
 
-                            # Cache for fast lookups
-                            _gid_index_cache[project_gid] = new_index
                             loaded_count += 1
                             total_rows += len(new_df)
 

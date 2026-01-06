@@ -112,7 +112,7 @@ class TestResolveUnitEndpoint:
             ),
             patch("autom8_asana.AsanaClient") as mock_client_class,
             patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_dataframe",
+                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
                 AsyncMock(return_value=mock_df),
             ),
         ):
@@ -170,7 +170,7 @@ class TestResolveUnitEndpoint:
             ),
             patch("autom8_asana.AsanaClient") as mock_client_class,
             patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_dataframe",
+                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
                 AsyncMock(return_value=mock_df),
             ),
         ):
@@ -332,7 +332,7 @@ class TestResolveValidation:
             ),
             patch("autom8_asana.AsanaClient") as mock_client_class,
             patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_dataframe",
+                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
                 AsyncMock(return_value=mock_df),
             ),
         ):
@@ -464,7 +464,7 @@ class TestResolveAuthentication:
             ),
             patch("autom8_asana.AsanaClient") as mock_client_class,
             patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_dataframe",
+                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
                 AsyncMock(return_value=mock_df),
             ),
         ):
@@ -590,10 +590,6 @@ class TestResolveInputOrder:
     def test_preserves_input_order(self, client: TestClient) -> None:
         """Response results preserve input order."""
         import polars as pl
-        from autom8_asana.services.resolver import _gid_index_cache
-
-        # Clear cache to ensure fresh build with our mock
-        _gid_index_cache.clear()
 
         jwt_token = "header.payload.signature"
 
@@ -623,7 +619,7 @@ class TestResolveInputOrder:
             ),
             patch("autom8_asana.AsanaClient") as mock_client_class,
             patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_dataframe",
+                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
                 AsyncMock(return_value=mock_df),
             ),
         ):
@@ -648,9 +644,6 @@ class TestResolveInputOrder:
         assert data["results"][2]["gid"] is None  # Not found
         assert data["results"][2]["error"] == "NOT_FOUND"
         assert data["results"][3]["gid"] == "3333333333333333"
-
-        # Clean up
-        _gid_index_cache.clear()
 
 
 class TestResolutionCriterionModel:
@@ -836,7 +829,7 @@ class TestBusinessResolution:
             ),
             patch("autom8_asana.AsanaClient") as mock_client_class,
             patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_dataframe",
+                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
                 AsyncMock(return_value=mock_df),
             ),
         ):
@@ -895,7 +888,7 @@ class TestBusinessResolution:
             ),
             patch("autom8_asana.AsanaClient") as mock_client_class,
             patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_dataframe",
+                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
                 AsyncMock(return_value=mock_df),
             ),
         ):
