@@ -33,6 +33,7 @@ Design Principles:
 - Structured JSON logging
 """
 
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -176,7 +177,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # DataFrame cache preload (FR-003 per sprint-materialization-002)
     # Runs after entity discovery so we know which projects exist
-    await _preload_dataframe_cache(app)
+    # Per progressive cache warming architecture: use progressive preload with
+    # parallel project processing, resume capability, and heartbeat monitoring
+    await _preload_dataframe_cache_progressive(app)
 
     yield
 
@@ -905,6 +908,275 @@ async def _do_full_rebuild(
             },
         )
         return None, now
+
+
+# ========== Progressive Preload with Parallel Projects ==========
+
+# Concurrency limit for parallel project processing
+# Per progressive cache warming architecture: 3 concurrent projects
+PROJECT_CONCURRENCY = 3
+
+# Heartbeat interval for preload monitoring
+HEARTBEAT_INTERVAL_SECONDS = 30
+
+
+async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
+    """Pre-warm DataFrame cache using progressive section writes.
+
+    Per progressive cache warming architecture:
+    - Processes projects in parallel (3 concurrent)
+    - Writes section DataFrames progressively to S3
+    - Resume capability from manifest on restart
+    - 30-second heartbeats during long operations
+
+    Args:
+        app: FastAPI application instance (provides access to entity_project_registry)
+    """
+    import os
+    import time
+
+    from autom8_asana import AsanaClient
+    from autom8_asana.api.routes.health import set_cache_ready
+    from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
+    from autom8_asana.cache.dataframe.factory import get_dataframe_cache
+    from autom8_asana.dataframes.builders.progressive import ProgressiveProjectBuilder
+    from autom8_asana.dataframes.models.registry import SchemaRegistry
+    from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
+    from autom8_asana.dataframes.section_persistence import SectionPersistence
+    from autom8_asana.dataframes.watermark import get_watermark_repo
+    from autom8_asana.services.gid_lookup import GidLookupIndex
+    from autom8_asana.services.resolver import EntityProjectRegistry
+
+    start_time = time.perf_counter()
+    loaded_count = 0
+    total_projects = 0
+    total_rows = 0
+    sections_fetched_total = 0
+    sections_resumed_total = 0
+    projects_in_progress: set[str] = set()
+    projects_completed: set[str] = set()
+
+    # Heartbeat state
+    heartbeat_task: asyncio.Task | None = None
+
+    async def heartbeat_loop() -> None:
+        """Log progress heartbeat every 30 seconds."""
+        nonlocal projects_in_progress, projects_completed
+        while True:
+            await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
+            elapsed = (time.perf_counter() - start_time) * 1000
+            remaining = total_projects - len(projects_completed)
+
+            logger.info(
+                "preload_heartbeat",
+                extra={
+                    "projects_completed": len(projects_completed),
+                    "projects_in_progress": len(projects_in_progress),
+                    "projects_remaining": remaining,
+                    "sections_fetched_total": sections_fetched_total,
+                    "sections_resumed_total": sections_resumed_total,
+                    "elapsed_ms": round(elapsed, 2),
+                },
+            )
+
+    try:
+        # Get registered projects from entity resolver
+        entity_registry: EntityProjectRegistry = getattr(
+            app.state, "entity_project_registry", None
+        )
+
+        if entity_registry is None or not entity_registry.is_ready():
+            logger.warning(
+                "progressive_preload_skipped",
+                extra={"reason": "entity_registry_not_ready"},
+            )
+            set_cache_ready(True)
+            return
+
+        # Get all registered project GIDs with their entity types
+        registered_types = entity_registry.get_all_entity_types()
+        project_configs: list[tuple[str, str]] = []  # (project_gid, entity_type)
+        for entity_type in registered_types:
+            config = entity_registry.get_config(entity_type)
+            if config and config.project_gid:
+                project_configs.append((config.project_gid, entity_type))
+
+        total_projects = len(project_configs)
+
+        if not project_configs:
+            logger.info(
+                "progressive_preload_skipped",
+                extra={"reason": "no_registered_projects"},
+            )
+            set_cache_ready(True)
+            return
+
+        project_gids = [gid for gid, _ in project_configs]
+        logger.info(
+            "progressive_preload_starting",
+            extra={
+                "project_count": total_projects,
+                "project_gids": project_gids,
+                "project_concurrency": PROJECT_CONCURRENCY,
+            },
+        )
+
+        # Get bot PAT for API access
+        try:
+            bot_pat = get_bot_pat()
+        except BotPATError:
+            logger.warning(
+                "progressive_preload_no_bot_pat",
+                extra={"fallback": "cache_built_on_request"},
+            )
+            set_cache_ready(True)
+            return
+
+        workspace_gid = os.environ.get("ASANA_WORKSPACE_GID")
+        if not workspace_gid:
+            logger.warning(
+                "progressive_preload_no_workspace",
+                extra={"fallback": "cache_built_on_request"},
+            )
+            set_cache_ready(True)
+            return
+
+        # Initialize section persistence
+        persistence = SectionPersistence()
+
+        if not persistence.is_available:
+            logger.warning(
+                "progressive_preload_s3_unavailable",
+                extra={
+                    "detail": "S3 not available, falling back to legacy preload",
+                },
+            )
+            # Fall back to existing preload
+            await _preload_dataframe_cache(app)
+            return
+
+        # Get watermark repository and DataFrameCache singleton
+        watermark_repo = get_watermark_repo()
+        dataframe_cache = get_dataframe_cache()
+
+        # Start heartbeat task
+        heartbeat_task = asyncio.create_task(heartbeat_loop())
+
+        # Process projects with bounded concurrency
+        semaphore = asyncio.Semaphore(PROJECT_CONCURRENCY)
+
+        async def process_project(project_gid: str, entity_type: str) -> bool:
+            """Process a single project with progressive build."""
+            nonlocal sections_fetched_total, sections_resumed_total
+
+            async with semaphore:
+                projects_in_progress.add(project_gid)
+
+                try:
+                    async with persistence:
+                        async with AsanaClient(
+                            token=bot_pat, workspace_gid=workspace_gid
+                        ) as client:
+                            task_type = entity_type.title()
+                            schema = SchemaRegistry.get_instance().get_schema(task_type)
+                            resolver = DefaultCustomFieldResolver()
+
+                            builder = ProgressiveProjectBuilder(
+                                client=client,
+                                project_gid=project_gid,
+                                entity_type=entity_type,
+                                schema=schema,
+                                persistence=persistence,
+                                resolver=resolver,
+                            )
+
+                            result = await builder.build_progressive_async(resume=True)
+
+                            # Update totals
+                            sections_fetched_total += result.sections_fetched
+                            sections_resumed_total += result.sections_resumed
+
+                            if result.total_rows > 0:
+                                # Store in watermark repo
+                                watermark_repo.set_watermark(
+                                    project_gid, result.watermark
+                                )
+
+                                # Store in DataFrameCache singleton
+                                if dataframe_cache is not None:
+                                    await dataframe_cache.put_async(
+                                        project_gid,
+                                        entity_type,
+                                        result.df,
+                                        result.watermark,
+                                    )
+
+                            return True
+
+                except Exception as e:
+                    logger.error(
+                        "progressive_preload_project_failed",
+                        extra={
+                            "project_gid": project_gid,
+                            "entity_type": entity_type,
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                        },
+                    )
+                    return False
+
+                finally:
+                    projects_in_progress.discard(project_gid)
+                    projects_completed.add(project_gid)
+
+        # Launch all projects with bounded concurrency
+        results = await asyncio.gather(
+            *[
+                process_project(project_gid, entity_type)
+                for project_gid, entity_type in project_configs
+            ],
+            return_exceptions=True,
+        )
+
+        # Count successes
+        for result in results:
+            if isinstance(result, bool) and result:
+                loaded_count += 1
+
+    except Exception as e:
+        logger.error(
+            "progressive_preload_failed",
+            extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+            },
+        )
+
+    finally:
+        # Stop heartbeat
+        if heartbeat_task is not None:
+            heartbeat_task.cancel()
+            try:
+                await heartbeat_task
+            except asyncio.CancelledError:
+                pass
+
+        # Always set cache ready
+        set_cache_ready(True)
+
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        logger.info(
+            "progressive_preload_complete",
+            extra={
+                "projects_loaded": loaded_count,
+                "total_projects": total_projects,
+                "total_rows": total_rows,
+                "sections_fetched": sections_fetched_total,
+                "sections_resumed": sections_resumed_total,
+                "duration_ms": round(elapsed_ms, 2),
+                "cold_start_target_met": elapsed_ms < 5000,
+            },
+        )
 
 
 def create_app() -> FastAPI:

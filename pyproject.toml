@@ -18,6 +18,7 @@ dependencies = [
     "autom8y-log>=0.3.2",
     # autom8y-telemetry deferred - see TDD Phase 6
     "boto3>=1.42.19",
+    "aioboto3>=12.0.0",  # True async S3 for progressive cache warming
 ]
 
 [project.optional-dependencies]
