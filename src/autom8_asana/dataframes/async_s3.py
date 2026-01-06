@@ -278,6 +278,15 @@ class AsyncS3Client:
         """Check if the client is available (not in degraded mode)."""
         return self._initialized and not self._degraded and bool(self._config.bucket)
 
+    @property
+    def can_be_available(self) -> bool:
+        """Check if client can potentially be available (has valid config).
+
+        Use this for pre-initialization checks before entering async context.
+        Unlike is_available, this doesn't require async initialization.
+        """
+        return bool(self._config.bucket)
+
     async def put_object_async(
         self,
         key: str,
