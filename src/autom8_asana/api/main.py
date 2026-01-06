@@ -1130,19 +1130,44 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                     projects_in_progress.discard(project_gid)
                     projects_completed.add(project_gid)
 
-        # Launch all projects with bounded concurrency
-        results = await asyncio.gather(
-            *[
-                process_project(project_gid, entity_type)
-                for project_gid, entity_type in project_configs
-            ],
-            return_exceptions=True,
-        )
+        # Process Business first for cascade dependencies
+        # Unit cascade fields (office_phone, vertical) need Business data in store
+        business_configs = [
+            (gid, etype) for gid, etype in project_configs if etype == "business"
+        ]
+        other_configs = [
+            (gid, etype) for gid, etype in project_configs if etype != "business"
+        ]
 
-        # Count successes
-        for result in results:
-            if isinstance(result, bool) and result:
-                loaded_count += 1
+        # Process Business project(s) first
+        if business_configs:
+            logger.info(
+                "progressive_preload_business_first",
+                extra={"business_count": len(business_configs)},
+            )
+            business_results = await asyncio.gather(
+                *[
+                    process_project(project_gid, entity_type)
+                    for project_gid, entity_type in business_configs
+                ],
+                return_exceptions=True,
+            )
+            for result in business_results:
+                if isinstance(result, bool) and result:
+                    loaded_count += 1
+
+        # Then process remaining projects in parallel
+        if other_configs:
+            other_results = await asyncio.gather(
+                *[
+                    process_project(project_gid, entity_type)
+                    for project_gid, entity_type in other_configs
+                ],
+                return_exceptions=True,
+            )
+            for result in other_results:
+                if isinstance(result, bool) and result:
+                    loaded_count += 1
 
     except Exception as e:
         logger.error(
