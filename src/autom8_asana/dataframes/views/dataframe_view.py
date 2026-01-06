@@ -14,7 +14,12 @@ import polars as pl
 from autom8y_log import get_logger
 
 from autom8_asana.cache.freshness_coordinator import FreshnessMode
+from autom8_asana.dataframes.builders.base import gather_with_limit
 from autom8_asana.dataframes.views.cascade_view import CascadeViewPlugin
+
+# Concurrency limit for parallel row extraction
+# Per FR-EXTRACT-001: 50 concurrent extractions balances speed vs memory
+ROW_EXTRACTION_CONCURRENCY = 50
 
 if TYPE_CHECKING:
     from autom8_asana.cache.unified import UnifiedTaskStore
@@ -44,8 +49,8 @@ class DataFrameViewPlugin:
 
     Example:
         >>> plugin = DataFrameViewPlugin(
-        ...     store=unified_store,
         ...     schema=UNIT_SCHEMA,
+        ...     store=unified_store,
         ...     resolver=resolver,
         ... )
         >>> df = await plugin.materialize_async(
@@ -58,26 +63,33 @@ class DataFrameViewPlugin:
 
     def __init__(
         self,
-        store: "UnifiedTaskStore",
         schema: "DataFrameSchema",
+        store: "UnifiedTaskStore | None" = None,
         resolver: "CustomFieldResolver | None" = None,
         row_cache: "DataFrameCacheIntegration | None" = None,
     ) -> None:
         """Initialize view plugin.
 
         Args:
-            store: Unified task store for source data.
             schema: Schema for extraction (defines columns and types).
+            store: Unified task store for source data (optional for extraction-only use).
             resolver: Custom field resolver for cf:/gid: prefix fields.
             row_cache: Optional row cache for optimization.
+
+        Note:
+            When store is None, cascade field resolution will skip parent chain lookup
+            and only use local custom field extraction. This mode is intended for
+            progressive builders that don't have access to a unified store.
         """
         self._store = store
         self._schema = schema
         self._resolver = resolver
         self._row_cache = row_cache
 
-        # Create cascade plugin for cascade: field resolution
-        self._cascade_plugin = CascadeViewPlugin(store=store)
+        # Create cascade plugin for cascade: field resolution (if store available)
+        self._cascade_plugin: CascadeViewPlugin | None = None
+        if store is not None:
+            self._cascade_plugin = CascadeViewPlugin(store=store)
 
         # Statistics
         self._stats: dict[str, int] = {
@@ -90,8 +102,8 @@ class DataFrameViewPlugin:
         }
 
     @property
-    def store(self) -> "UnifiedTaskStore":
-        """Get the unified task store."""
+    def store(self) -> "UnifiedTaskStore | None":
+        """Get the unified task store (may be None for extraction-only mode)."""
         return self._store
 
     @property
@@ -235,25 +247,34 @@ class DataFrameViewPlugin:
         tasks: list[dict[str, Any]],
         project_gid: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Extract rows from task data dicts.
+        """Extract rows from task data dicts with parallel execution.
 
         Per TDD-UNIFIED-CACHE-001: Uses schema-driven extraction with
         cascade: prefix support via CascadeViewPlugin.
+
+        Per FR-EXTRACT-001: Uses bounded parallelism (50 concurrent) to
+        prevent timeout on large task sets. Sequential extraction of 2600+
+        tasks at ~40ms each = 104s timeout. Parallel with 50 concurrent:
+        2600 / 50 = 52 batches * ~40ms = ~2s.
 
         Args:
             tasks: List of task data dicts from cache.
             project_gid: Optional project context.
 
         Returns:
-            List of extracted row dicts.
+            List of extracted row dicts in original order.
         """
-        rows: list[dict[str, Any]] = []
+        if not tasks:
+            return []
 
-        for task_data in tasks:
-            row = await self._extract_row_async(task_data, project_gid)
-            rows.append(row)
+        # Parallel extraction with bounded concurrency
+        # gather_with_limit maintains order, so results align with input tasks
+        rows = await gather_with_limit(
+            [self._extract_row_async(task_data, project_gid) for task_data in tasks],
+            max_concurrent=ROW_EXTRACTION_CONCURRENCY,
+        )
 
-        return rows
+        return list(rows)
 
     async def _extract_row_async(
         self,
@@ -355,12 +376,31 @@ class DataFrameViewPlugin:
         Returns:
             Resolved field value or None.
         """
-        # First try local extraction
-        local_value = self._cascade_plugin._get_custom_field_value_from_dict(
-            task_data, field_name
-        )
-        if local_value is not None:
-            return local_value
+        # First try local extraction (if cascade plugin available)
+        if self._cascade_plugin is not None:
+            local_value = self._cascade_plugin._get_custom_field_value_from_dict(
+                task_data, field_name
+            )
+            if local_value is not None:
+                return local_value
+        else:
+            # Fallback: try to extract from custom_fields directly
+            local_value = self._extract_custom_field_value_from_dict(
+                task_data, field_name
+            )
+            if local_value is not None:
+                return local_value
+
+        # If no store available, we can only do local extraction
+        if self._store is None:
+            logger.debug(
+                "cascade_resolution_no_store",
+                extra={
+                    "task_gid": task_data.get("gid"),
+                    "field_name": field_name,
+                },
+            )
+            return None
 
         # Get parent chain from unified store
         task_gid = task_data.get("gid")
@@ -415,6 +455,49 @@ class DataFrameViewPlugin:
             )
             if value is not None:
                 return value
+
+        return None
+
+    def _extract_custom_field_value_from_dict(
+        self, task_data: dict[str, Any], field_name: str
+    ) -> Any:
+        """Extract custom field value from task dict by name.
+
+        Fallback method used when cascade_plugin is not available.
+
+        Args:
+            task_data: Task data dict.
+            field_name: Custom field name to look up.
+
+        Returns:
+            Field value if found, None otherwise.
+        """
+        custom_fields = task_data.get("custom_fields")
+        if not custom_fields:
+            return None
+
+        # Normalize field name for comparison
+        normalized_name = field_name.lower().strip()
+
+        for cf in custom_fields:
+            if not isinstance(cf, dict):
+                continue
+            cf_name = cf.get("name")
+            if cf_name and cf_name.lower().strip() == normalized_name:
+                # Extract value based on field type
+                if "display_value" in cf:
+                    return cf.get("display_value")
+                if "text_value" in cf:
+                    return cf.get("text_value")
+                if "number_value" in cf:
+                    return cf.get("number_value")
+                if "enum_value" in cf and cf["enum_value"]:
+                    return cf["enum_value"].get("name")
+                if "multi_enum_values" in cf:
+                    vals = cf.get("multi_enum_values") or []
+                    return [v.get("name") for v in vals if v.get("name")]
+                # For people/date fields, try display_value or raw value
+                return cf.get("display_value")
 
         return None
 

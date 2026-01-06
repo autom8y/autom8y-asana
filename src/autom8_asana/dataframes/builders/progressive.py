@@ -146,7 +146,7 @@ class ProgressiveProjectBuilder:
         self._persistence = persistence
         self._resolver = resolver
         self._max_concurrent = max_concurrent_sections
-        self._dataframe_view: "DataFrameView | None" = None
+        self._dataframe_view: "DataFrameViewPlugin | None" = None
 
     async def build_progressive_async(
         self,
