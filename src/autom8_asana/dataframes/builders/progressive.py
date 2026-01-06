@@ -356,6 +356,10 @@ class ProgressiveProjectBuilder:
                 opt_fields=_BASE_OPT_FIELDS,
             ).collect()
 
+            # Populate UnifiedStore with fetched tasks for cascade resolution
+            if self._store is not None and tasks:
+                await self._populate_store_with_tasks(tasks)
+
             fetch_time = (time.perf_counter() - section_start) * 1000
 
             logger.info(
@@ -453,6 +457,27 @@ class ProgressiveProjectBuilder:
             project_gid=self._project_gid,
         )
         return rows
+
+    async def _populate_store_with_tasks(self, tasks: list["Task"]) -> None:
+        """Populate UnifiedStore with fetched tasks for cascade resolution.
+
+        This ensures parent task data is available when resolving cascading
+        fields like office_phone and vertical that cascade from Business.
+        """
+        if self._store is None:
+            return
+
+        for task in tasks:
+            try:
+                # Store task data for cascade lookups
+                task_data = self._task_to_dict(task)
+                await self._store.put_async(task.gid, task_data)
+            except Exception as e:
+                # Don't fail build if store population fails
+                logger.debug(
+                    "store_populate_task_failed",
+                    extra={"task_gid": task.gid, "error": str(e)},
+                )
 
     def _build_index_data(self, df: pl.DataFrame) -> dict[str, Any] | None:
         """Build GidLookupIndex serialized data from DataFrame."""
