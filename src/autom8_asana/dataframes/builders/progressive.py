@@ -126,6 +126,7 @@ class ProgressiveProjectBuilder:
         persistence: SectionPersistence,
         *,
         resolver: "CustomFieldResolver | None" = None,
+        store: "Any | None" = None,
         max_concurrent_sections: int = 8,
     ) -> None:
         """Initialize progressive builder.
@@ -137,6 +138,7 @@ class ProgressiveProjectBuilder:
             schema: DataFrame schema for extraction.
             persistence: SectionPersistence for S3 operations.
             resolver: Optional custom field resolver.
+            store: Optional UnifiedStore for cascade field resolution.
             max_concurrent_sections: Max parallel section fetches.
         """
         self._client = client
@@ -145,6 +147,7 @@ class ProgressiveProjectBuilder:
         self._schema = schema
         self._persistence = persistence
         self._resolver = resolver
+        self._store = store
         self._max_concurrent = max_concurrent_sections
         self._dataframe_view: "DataFrameViewPlugin | None" = None
 
@@ -308,6 +311,7 @@ class ProgressiveProjectBuilder:
 
         self._dataframe_view = DataFrameViewPlugin(
             schema=self._schema,
+            store=self._store,
             resolver=self._resolver,
         )
 
@@ -476,6 +480,7 @@ async def build_project_progressive_async(
     persistence: SectionPersistence,
     *,
     resolver: "CustomFieldResolver | None" = None,
+    store: "Any | None" = None,
     resume: bool = True,
 ) -> ProgressiveBuildResult:
     """Convenience function for progressive project build.
@@ -487,6 +492,7 @@ async def build_project_progressive_async(
         schema: DataFrame schema.
         persistence: SectionPersistence for S3 operations.
         resolver: Optional custom field resolver.
+        store: Optional UnifiedStore for cascade field resolution.
         resume: If True, resume from existing manifest.
 
     Returns:
@@ -499,5 +505,6 @@ async def build_project_progressive_async(
         schema=schema,
         persistence=persistence,
         resolver=resolver,
+        store=store,
     )
     return await builder.build_progressive_async(resume=resume)
