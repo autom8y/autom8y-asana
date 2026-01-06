@@ -624,7 +624,9 @@ class SectionPersistence:
             return None
 
         try:
-            merged = self._polars_module.concat(section_dfs)
+            # Use how="diagonal_relaxed" to handle type mismatches between sections
+            # (e.g., Null vs String when one section has empty values for a column)
+            merged = self._polars_module.concat(section_dfs, how="diagonal_relaxed")
 
             logger.info(
                 "sections_merged",
