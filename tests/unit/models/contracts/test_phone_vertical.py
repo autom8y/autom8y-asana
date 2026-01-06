@@ -103,6 +103,37 @@ class TestCanonicalKey:
         assert pvp2.canonical_key == "pv1:+12125551234:chiropractic"
         assert pvp1.canonical_key != pvp2.canonical_key
 
+    def test_canonical_key_normalizes_vertical_to_lowercase(self) -> None:
+        """canonical_key normalizes vertical to lowercase for case-insensitive matching.
+
+        Regression test: gid_lookup index builds with lowercase verticals,
+        so canonical_key must also lowercase to ensure lookups match.
+        """
+        # Mixed case vertical
+        pvp_mixed = PhoneVerticalPair(
+            office_phone="+17705753103",
+            vertical="Chiropractic",
+        )
+        # All uppercase vertical
+        pvp_upper = PhoneVerticalPair(
+            office_phone="+17705753103",
+            vertical="CHIROPRACTIC",
+        )
+        # Already lowercase vertical
+        pvp_lower = PhoneVerticalPair(
+            office_phone="+17705753103",
+            vertical="chiropractic",
+        )
+
+        # All should produce the same canonical_key (lowercase vertical)
+        expected_key = "pv1:+17705753103:chiropractic"
+        assert pvp_mixed.canonical_key == expected_key
+        assert pvp_upper.canonical_key == expected_key
+        assert pvp_lower.canonical_key == expected_key
+
+        # All three canonical keys should be equal
+        assert pvp_mixed.canonical_key == pvp_upper.canonical_key == pvp_lower.canonical_key
+
 
 class TestTupleUnpacking:
     """Tests for tuple unpacking backward compatibility."""
