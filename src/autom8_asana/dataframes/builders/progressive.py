@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
     from autom8_asana.dataframes.models.schema import DataFrameSchema
     from autom8_asana.dataframes.resolver.protocol import CustomFieldResolver
-    from autom8_asana.dataframes.views.dataframe_view import DataFrameView
+    from autom8_asana.dataframes.views.dataframe_view import DataFrameViewPlugin
     from autom8_asana.models.section import Section
     from autom8_asana.models.task import Task
     from autom8_asana.services.gid_lookup import GidLookupIndex
@@ -304,9 +304,9 @@ class ProgressiveProjectBuilder:
         if self._dataframe_view is not None:
             return
 
-        from autom8_asana.dataframes.views.dataframe_view import DataFrameView
+        from autom8_asana.dataframes.views.dataframe_view import DataFrameViewPlugin
 
-        self._dataframe_view = DataFrameView(
+        self._dataframe_view = DataFrameViewPlugin(
             schema=self._schema,
             resolver=self._resolver,
         )
@@ -437,7 +437,7 @@ class ProgressiveProjectBuilder:
         self,
         task_dicts: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
-        """Extract DataFrame rows from task dicts using DataFrameView."""
+        """Extract DataFrame rows from task dicts using DataFrameViewPlugin."""
         if self._dataframe_view is None:
             await self._ensure_dataframe_view()
 
