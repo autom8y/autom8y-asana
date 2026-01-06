@@ -258,8 +258,12 @@ class SectionPersistence:
 
     @property
     def is_available(self) -> bool:
-        """Check if persistence is available."""
-        return self._s3_client.is_available and self._polars_module is not None
+        """Check if persistence can potentially be available.
+
+        Uses can_be_available for pre-initialization check (bucket configured).
+        Full availability (initialized, not degraded) checked at operation time.
+        """
+        return self._s3_client.can_be_available and self._polars_module is not None
 
     def _make_manifest_key(self, project_gid: str) -> str:
         """Generate S3 key for manifest."""
