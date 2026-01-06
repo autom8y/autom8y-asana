@@ -93,7 +93,7 @@ def _initialize_dataframe_cache() -> None:
             "dataframe_cache_ready",
             extra={
                 "status": "initialized",
-                "entity_types": ["offer", "contact"],
+                "entity_types": ["unit", "offer", "contact"],
             },
         )
     else:
@@ -101,7 +101,7 @@ def _initialize_dataframe_cache() -> None:
             "dataframe_cache_disabled",
             extra={
                 "reason": "S3 not configured",
-                "impact": "Offer/Contact resolution will build DataFrames on every request",
+                "impact": "Unit/Offer/Contact resolution will build DataFrames on every request",
             },
         )
 
@@ -376,6 +376,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
     import time
 
     from autom8_asana.api.routes.health import set_cache_ready
+    from autom8_asana.cache.dataframe.factory import get_dataframe_cache
     from autom8_asana.dataframes.persistence import DataFramePersistence
     from autom8_asana.dataframes.watermark import get_watermark_repo
     from autom8_asana.services.gid_lookup import GidLookupIndex
@@ -389,6 +390,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
     incremental_catchups = 0
     full_rebuilds = 0
     indices_loaded_from_s3 = 0
+    cache_puts = 0  # DataFrameCache singleton puts
 
     try:
         # Get registered projects from entity resolver
@@ -447,6 +449,11 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
         # Get watermark repository and configure persistence for write-through
         watermark_repo = get_watermark_repo()
         watermark_repo.set_persistence(persistence)
+
+        # Get DataFrameCache singleton for @dataframe_cache decorator coordination
+        # Per TDD-DATAFRAME-CACHE-001: Preload must populate the cache singleton
+        # so @dataframe_cache decorator finds cache hits instead of rebuilding
+        dataframe_cache = get_dataframe_cache()
 
         # Load all watermarks FIRST from S3 (sprint-materialization-003 Task 4)
         # This bulk load is more efficient than per-project loads
@@ -534,6 +541,14 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                         await persistence.save_index(project_gid, index)
                         watermark_repo.set_watermark(project_gid, new_watermark)
 
+                    # Store in DataFrameCache singleton for @dataframe_cache decorator
+                    # This ensures decorator finds cache hit instead of rebuilding
+                    if dataframe_cache is not None:
+                        await dataframe_cache.put_async(
+                            project_gid, entity_type, updated_df, new_watermark
+                        )
+                        cache_puts += 1
+
                     loaded_count += 1
                     total_rows += len(updated_df)
 
@@ -578,6 +593,14 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                             # Persist new index (DataFrame saved by builder)
                             await persistence.save_index(project_gid, new_index)
                             watermark_repo.set_watermark(project_gid, new_watermark)
+
+                            # Store in DataFrameCache singleton for @dataframe_cache decorator
+                            # This ensures decorator finds cache hit instead of rebuilding
+                            if dataframe_cache is not None:
+                                await dataframe_cache.put_async(
+                                    project_gid, entity_type, new_df, new_watermark
+                                )
+                                cache_puts += 1
 
                             loaded_count += 1
                             total_rows += len(new_df)
@@ -645,6 +668,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                 "indices_loaded_from_s3": indices_loaded_from_s3,
                 "incremental_catchups": incremental_catchups,
                 "full_rebuilds": full_rebuilds,
+                "cache_puts": cache_puts,  # DataFrameCache singleton entries
                 "duration_ms": round(elapsed_ms, 2),
                 "cold_start_target_met": elapsed_ms < 5000,  # Target: <5s
             },
