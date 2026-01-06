@@ -427,6 +427,15 @@ class ProgressiveProjectBuilder:
         # Use task's model_dump if available, otherwise manual conversion
         if hasattr(task, "model_dump"):
             return task.model_dump()
+
+        # Manual fallback - must convert nested models to dicts
+        parent = getattr(task, "parent", None)
+        if parent is not None and hasattr(parent, "model_dump"):
+            parent = parent.model_dump()
+        elif parent is not None and hasattr(parent, "gid"):
+            # Convert parent model to dict with gid for hierarchy registration
+            parent = {"gid": parent.gid}
+
         return {
             "gid": task.gid,
             "name": task.name,
@@ -438,7 +447,7 @@ class ProgressiveProjectBuilder:
             "due_on": getattr(task, "due_on", None),
             "tags": getattr(task, "tags", []),
             "memberships": getattr(task, "memberships", []),
-            "parent": getattr(task, "parent", None),
+            "parent": parent,
             "custom_fields": getattr(task, "custom_fields", []),
         }
 
