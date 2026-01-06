@@ -715,8 +715,8 @@ class ProjectDataFrameBuilder(DataFrameBuilder):
 
         # Create DataFrameViewPlugin for extraction
         view_plugin = DataFrameViewPlugin(
-            store=self._unified_store,
             schema=self._schema,
+            store=self._unified_store,
             resolver=self._resolver,
             row_cache=self._cache_integration,
         )
