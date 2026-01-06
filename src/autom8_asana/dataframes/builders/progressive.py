@@ -178,7 +178,7 @@ class ProgressiveProjectBuilder:
                 extra={"project_gid": self._project_gid},
             )
             return ProgressiveBuildResult(
-                df=pl.DataFrame(),
+                df=pl.DataFrame(schema=self._schema.to_polars_schema()),
                 watermark=datetime.now(timezone.utc),
                 total_rows=0,
                 sections_fetched=0,
@@ -257,7 +257,7 @@ class ProgressiveProjectBuilder:
         )
 
         if merged_df is None:
-            merged_df = pl.DataFrame()
+            merged_df = pl.DataFrame(schema=self._schema.to_polars_schema())
 
         total_rows = len(merged_df)
         watermark = datetime.now(timezone.utc)
@@ -380,8 +380,9 @@ class ProgressiveProjectBuilder:
             task_dicts = [self._task_to_dict(task) for task in tasks]
             rows = await self._extract_rows(task_dicts)
 
-            # Build section DataFrame
-            section_df = pl.DataFrame(rows)
+            # Build section DataFrame with explicit schema to avoid type inference issues
+            # Per TDD: polars schema must match extraction schema for date/datetime types
+            section_df = pl.DataFrame(rows, schema=self._schema.to_polars_schema())
 
             # Write to S3 (this also updates manifest to COMPLETE)
             success = await self._persistence.write_section_async(
