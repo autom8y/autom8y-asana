@@ -195,8 +195,13 @@ class TestWarmAncestorsAsync:
         }
         mock_tasks_client.get_async = AsyncMock(return_value=business_task)
 
-        # Mock unified store
+        # Mock unified store with cache that returns None (parent not cached)
+        # Per TDD-unit-cascade-resolution-fix Fix 2: warm_ancestors_async now
+        # checks cache.get_versioned() instead of hierarchy.contains()
+        mock_cache = MagicMock()
+        mock_cache.get_versioned = MagicMock(return_value=None)
         mock_store = MagicMock()
+        mock_store.cache = mock_cache
         mock_store.put_async = AsyncMock()
 
         warmed = await warm_ancestors_async(

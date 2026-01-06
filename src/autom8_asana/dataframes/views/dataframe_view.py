@@ -372,7 +372,18 @@ class DataFrameViewPlugin:
         # Per TDD-unit-cascade-resolution-fix Fix 3: Fallback when parent_chain
         # is empty but task has parent.gid - try direct fetch from cache
         if not parent_chain:
+            # INFO-level logging when cascade resolution gets empty chain
             parent = task_data.get("parent")
+            parent_gid_for_log = parent.get("gid") if parent and isinstance(parent, dict) else None
+            logger.info(
+                "cascade_resolution_empty_chain",
+                extra={
+                    "task_gid": task_gid,
+                    "field_name": field_name,
+                    "parent_gid": parent_gid_for_log,
+                },
+            )
+
             if parent and isinstance(parent, dict):
                 parent_gid = parent.get("gid")
                 if parent_gid:
