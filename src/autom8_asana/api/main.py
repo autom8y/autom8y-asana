@@ -1044,6 +1044,20 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
         # Initialize section persistence
         persistence = SectionPersistence()
 
+        # Create SHARED UnifiedTaskStore for cascade field resolution
+        # Per cascade architecture: Business tasks must be available when Unit builds
+        # Each AsanaClient creates its own store, but cascade needs cross-project access
+        from autom8_asana.cache.factory import CacheProviderFactory
+        from autom8_asana.config import CacheConfig
+
+        shared_store = CacheProviderFactory.create_unified_store(
+            config=CacheConfig(enabled=True),
+        )
+        logger.info(
+            "progressive_preload_shared_store_created",
+            extra={"purpose": "cross_project_cascade_resolution"},
+        )
+
         if not persistence.is_available:
             logger.warning(
                 "progressive_preload_s3_unavailable",
@@ -1088,7 +1102,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                 schema=schema,
                                 persistence=persistence,
                                 resolver=resolver,
-                                store=client.unified_store,
+                                store=shared_store,  # Use SHARED store for cascade resolution
                             )
 
                             result = await builder.build_progressive_async(resume=True)
