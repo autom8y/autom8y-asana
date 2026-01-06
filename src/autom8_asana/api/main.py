@@ -1088,6 +1088,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                 schema=schema,
                                 persistence=persistence,
                                 resolver=resolver,
+                                store=client.unified_store,
                             )
 
                             result = await builder.build_progressive_async(resume=True)
