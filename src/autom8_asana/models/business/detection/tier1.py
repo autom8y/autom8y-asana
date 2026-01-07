@@ -89,6 +89,20 @@ def _detect_tier1_project_membership(task: Task) -> DetectionResult | None:
         DetectionResult if project GID is registered, None otherwise.
     """
     from autom8_asana.models.business.registry import get_registry
+    from autom8_asana.models.business._bootstrap import (
+        is_bootstrap_complete,
+        register_all_models,
+    )
+
+    # BOOTSTRAP GUARD: Ensure registry is populated before detection
+    # This guards against import paths that bypass models/business/__init__.py
+    # (e.g., importing directly from detection subpackage).
+    if not is_bootstrap_complete():
+        logger.info(
+            "tier1_bootstrap_triggered",
+            extra={"trigger": "detection_guard"},
+        )
+        register_all_models()
 
     project_gid = _extract_project_gid(task)
     if not project_gid:
@@ -96,6 +110,25 @@ def _detect_tier1_project_membership(task: Task) -> DetectionResult | None:
 
     # Registry lookup
     registry = get_registry()
+
+    # DIAGNOSTIC: Log only when registry is unexpectedly empty or bootstrap incomplete
+    # This helps identify production scenarios where bootstrap failed to populate registry
+    registry_size = len(registry._gid_to_type)
+    bootstrap_complete = is_bootstrap_complete()
+
+    if registry_size == 0 or not bootstrap_complete:
+        logger.warning(
+            "tier1_registry_anomaly",
+            extra={
+                "task_gid": task.gid,
+                "task_project_gid": project_gid,
+                "registry_id": id(registry),
+                "registry_size": registry_size,
+                "bootstrap_complete": bootstrap_complete,
+                "task_has_memberships": bool(task.memberships),
+            },
+        )
+
     entity_type = registry.lookup(project_gid)
 
     if entity_type is None:
