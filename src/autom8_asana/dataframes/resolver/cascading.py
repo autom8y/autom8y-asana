@@ -26,10 +26,12 @@ try:
 except ImportError:
     HierarchyAwareResolver = None  # type: ignore[assignment, misc]
 
-from autom8_asana.models.business.detection import EntityType, detect_entity_type
-from autom8_asana.models.business.fields import (
+# Per TDD-registry-consolidation: Import from package to ensure bootstrap runs
+from autom8_asana.models.business import (
     STANDARD_TASK_OPT_FIELDS,
     CascadingFieldDef,
+    EntityType,
+    detect_entity_type,
     get_cascading_field,
 )
 

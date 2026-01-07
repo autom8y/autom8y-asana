@@ -90,7 +90,9 @@ from autom8_asana.models.business.detection import (
     HOLDER_NAME_MAP,
     EntityType,
     detect_by_name,
+    detect_entity_type,
     detect_entity_type_async,
+    detect_entity_type_from_dict,
 )
 from autom8_asana.models.business.registry import (
     ProjectTypeRegistry,
@@ -194,7 +196,9 @@ __all__ = [
     "EntityType",
     "HOLDER_NAME_MAP",
     "detect_by_name",
+    "detect_entity_type",
     "detect_entity_type_async",
+    "detect_entity_type_from_dict",
     # Registry (TDD-DETECTION Phase 1, TDD-WORKSPACE-PROJECT-REGISTRY Phase 1)
     "ProjectTypeRegistry",
     "WorkspaceProjectRegistry",
