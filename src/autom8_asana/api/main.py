@@ -48,6 +48,11 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from autom8y_log import get_logger
 
+# CRITICAL: Import from models.business at module level to ensure bootstrap runs
+# on every app startup BEFORE any detection can occur. The bootstrap in
+# models/business/__init__.py populates ProjectTypeRegistry for Tier 1 detection.
+import autom8_asana.models.business  # noqa: F401 - side effect import for bootstrap
+
 if TYPE_CHECKING:
     import polars as pl
 

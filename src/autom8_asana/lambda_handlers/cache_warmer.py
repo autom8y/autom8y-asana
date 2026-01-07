@@ -43,6 +43,12 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
+# CRITICAL: Import from models.business at module level to ensure bootstrap runs
+# on every Lambda cold start BEFORE any detection can occur. The bootstrap in
+# models/business/__init__.py populates ProjectTypeRegistry for Tier 1 detection.
+# Without this, detection falls through to Tier 5 (unknown).
+import autom8_asana.models.business  # noqa: F401 - side effect import for bootstrap
+
 if TYPE_CHECKING:
     pass
 
