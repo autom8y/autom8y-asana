@@ -12,9 +12,9 @@ Do NOT add registration logic to __init_subclass__ or other hooks.
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _BOOTSTRAP_COMPLETE = False
 

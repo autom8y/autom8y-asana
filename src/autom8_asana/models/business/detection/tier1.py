@@ -14,8 +14,9 @@ Dependencies: types.py, config.py, registry.py
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING
+
+from autom8y_log import get_logger
 
 from autom8_asana.models.business.detection.types import (
     CONFIDENCE_TIER_1,
@@ -33,7 +34,7 @@ __all__ = [
     "_detect_tier1_project_membership_async",
 ]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _extract_project_gid(task: Task) -> str | None:

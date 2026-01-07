@@ -14,11 +14,12 @@ Per ADR-0109: Lazy discovery triggered on first unregistered GID in async path.
 
 from __future__ import annotations
 
-import logging
 import os
 import re
 import time
 from typing import TYPE_CHECKING, ClassVar, Any
+
+from autom8y_log import get_logger
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
@@ -32,7 +33,7 @@ __all__ = [
     "get_workspace_registry",
 ]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ProjectTypeRegistry:
