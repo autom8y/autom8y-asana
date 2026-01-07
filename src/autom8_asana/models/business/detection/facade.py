@@ -333,10 +333,22 @@ def _make_unknown_result(task: Task) -> DetectionResult:
     Returns:
         DetectionResult with UNKNOWN type and needs_healing=True.
     """
+    # Log with diagnostic info to help identify why detection failed
+    first_project_gid = None
+    if task.memberships:
+        first_membership = task.memberships[0]
+        project_data = first_membership.get("project") if isinstance(first_membership, dict) else None
+        first_project_gid = project_data.get("gid") if project_data else None
+
     logger.warning(
-        "Unable to detect type for task %s (Tier 5 fallback)",
-        task.gid,
-        extra={"task_gid": task.gid, "task_name": task.name},
+        "tier5_fallback",
+        extra={
+            "task_gid": task.gid,
+            "task_name": task.name,
+            "has_memberships": bool(task.memberships),
+            "memberships_count": len(task.memberships) if task.memberships else 0,
+            "first_project_gid": first_project_gid,
+        },
     )
 
     return DetectionResult(
