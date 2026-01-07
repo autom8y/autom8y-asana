@@ -40,11 +40,11 @@ Response:
 
 from __future__ import annotations
 
-import logging
 import re
 import time
 from typing import Annotated
 
+from autom8y_log import get_logger
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -67,7 +67,7 @@ __all__ = [
     "ResolutionResponse",
 ]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/v1/resolve", tags=["resolver"])
 

@@ -23,7 +23,7 @@ Example:
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
@@ -55,7 +55,7 @@ __all__ = [
     "_is_recoverable",
 ]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # =============================================================================

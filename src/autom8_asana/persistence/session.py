@@ -869,9 +869,9 @@ class SaveSession:
                 crud_result.automation_results = automation_results
             except Exception as e:
                 # Per NFR-003: Automation failures don't fail commit
-                import logging
+                from autom8y_log import get_logger
 
-                logging.getLogger(__name__).warning(
+                get_logger(__name__).warning(
                     "Automation evaluation failed: %s", e
                 )
 

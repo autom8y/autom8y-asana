@@ -42,7 +42,7 @@ from __future__ import annotations
 
 import io
 import json
-import logging
+from autom8y_log import get_logger
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -63,7 +63,7 @@ __all__ = [
     "SectionInfo",
 ]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SectionStatus(str, Enum):

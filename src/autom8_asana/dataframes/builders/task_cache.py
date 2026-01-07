@@ -18,7 +18,7 @@ Design per ADR-0119:
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Callable
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from autom8_asana.models import Task
     from autom8_asana.protocols.cache import CacheProvider
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

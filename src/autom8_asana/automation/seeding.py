@@ -16,7 +16,7 @@ After computation, write_fields_async() persists these values to the API.
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
     from autom8_asana.models.business import Business, Process, Unit
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _get_field_attr(field_obj: Any, attr: str, default: Any = None) -> Any:

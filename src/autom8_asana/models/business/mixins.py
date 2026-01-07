@@ -178,9 +178,9 @@ class UpwardTraversalMixin:
                 await business._fetch_holders_async(client)
             except Exception as e:
                 if partial_ok:
-                    import logging
+                    from autom8y_log import get_logger
 
-                    logger = logging.getLogger(__name__)
+                    logger = get_logger(__name__)
                     logger.warning(
                         "Hydration failed with partial_ok=True",
                         extra={"business_gid": business.gid, "error": str(e)},

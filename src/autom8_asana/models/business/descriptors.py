@@ -34,13 +34,13 @@ Example (Custom Fields):
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, overload
 
 import arrow
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 T = TypeVar("T")
 

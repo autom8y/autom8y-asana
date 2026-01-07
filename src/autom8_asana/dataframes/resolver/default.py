@@ -8,7 +8,7 @@ Thread-safe for concurrent extraction using RLock.
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 import threading
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from autom8_asana.models.task import Task
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DefaultCustomFieldResolver:

@@ -18,7 +18,7 @@ Example:
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -32,7 +32,7 @@ from autom8_asana.automation.polling.config_schema import (
 
 __all__ = ["TriggerEvaluator"]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class TriggerEvaluator:

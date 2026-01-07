@@ -129,7 +129,7 @@ class CacheSettings(BaseSettings):
         invalid ASANA_CACHE_TTL_DEFAULT values would log a warning
         and fall back to 300.
         """
-        import logging
+        from autom8y_log import get_logger
 
         if v is None:
             return 300
@@ -139,7 +139,7 @@ class CacheSettings(BaseSettings):
             try:
                 return int(v)
             except ValueError:
-                logging.getLogger(__name__).warning(
+                get_logger(__name__).warning(
                     "Invalid ASANA_CACHE_TTL_DEFAULT '%s', using default 300", v
                 )
                 return 300
@@ -301,10 +301,11 @@ class ProjectOverrideSettings(BaseSettings):
             ValueError: If ASANA_STRICT_CONFIG=true and any ASANA_PROJECT_*
                         has invalid GID format.
         """
-        import logging
         import re
 
-        logger = logging.getLogger(__name__)
+        from autom8y_log import get_logger
+
+        logger = get_logger(__name__)
         gid_pattern = re.compile(r"^\d{10,}$")
 
         # Check strict mode from environment (can't access other settings during validation)

@@ -12,7 +12,7 @@ Per Story 1.9: Full observability with structured logging, PII redaction, and me
 from __future__ import annotations
 
 import asyncio
-import logging
+from autom8y_log import get_logger
 import os
 import re
 import time
@@ -54,7 +54,7 @@ if TYPE_CHECKING:
     from autom8_asana.protocols.cache import CacheProvider
     from autom8_asana.protocols.log import LogProvider
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 __all__ = ["DataServiceClient", "mask_phone_number"]
 

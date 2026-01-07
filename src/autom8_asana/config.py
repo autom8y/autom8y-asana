@@ -13,7 +13,7 @@ for backward compatibility. Transport wrappers handle translation.
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 import os
 import re
 from dataclasses import dataclass, field
@@ -56,7 +56,7 @@ __all__ = [
     "PlatformCircuitBreakerConfig",
 ]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # =============================================================================

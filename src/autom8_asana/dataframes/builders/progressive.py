@@ -14,7 +14,7 @@ This builder enables:
 from __future__ import annotations
 
 import asyncio
-import logging
+from autom8y_log import get_logger
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from autom8_asana.models.task import Task
     from autom8_asana.services.gid_lookup import GidLookupIndex
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # Base opt_fields required for DataFrame extraction

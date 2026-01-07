@@ -19,7 +19,7 @@ Design decisions per user requirements:
 from __future__ import annotations
 
 import asyncio
-import logging
+from autom8y_log import get_logger
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 
 
 # Module-level logger for cache events
-_logger = logging.getLogger(__name__)
+_logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)

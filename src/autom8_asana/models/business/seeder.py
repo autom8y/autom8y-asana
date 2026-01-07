@@ -7,7 +7,7 @@ Per TDD-entity-creation: Business deduplication via SearchService.
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 import uuid
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -33,7 +33,7 @@ __all__ = [
     "ProcessData",
 ]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _temp_gid(prefix: str = "seed") -> str:

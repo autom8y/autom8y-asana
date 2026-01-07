@@ -22,7 +22,7 @@ Per PRD-ASANA-SATELLITE (FR-ERR-009):
 - Generic 500 responses hide implementation details
 """
 
-import logging
+from autom8y_log import get_logger
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -41,7 +41,7 @@ from autom8_asana.persistence.exceptions import GidValidationError
 
 from .models import ErrorDetail, ErrorResponse, ResponseMeta
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _build_error_response(

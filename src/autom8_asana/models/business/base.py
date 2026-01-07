@@ -13,7 +13,7 @@ Per ADR-0082: Fields class auto-generation from descriptors.
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, cast
 
 from pydantic import ConfigDict, PrivateAttr
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from autom8_asana.models.business.fields import CascadingFieldDef, InheritedFieldDef
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 T = TypeVar("T", bound=Task)
 
 

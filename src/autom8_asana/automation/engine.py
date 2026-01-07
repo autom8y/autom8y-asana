@@ -7,7 +7,7 @@ Per NFR-003: Failures do not propagate (isolated execution).
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 import time
 from typing import Any, TYPE_CHECKING
 
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from autom8_asana.persistence.models import SaveResult
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class AutomationEngine:

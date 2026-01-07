@@ -23,10 +23,10 @@ Per ADR-ASANA-007: SDK Client Lifecycle
 
 from __future__ import annotations
 
-import logging
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
+from autom8y_log import get_logger
 from fastapi import Depends, Header, HTTPException, Request
 
 from autom8_asana import AsanaClient
@@ -34,7 +34,7 @@ from autom8_asana import AsanaClient
 from ..auth.bot_pat import BotPATError, get_bot_pat
 from ..auth.dual_mode import AuthMode, detect_token_type
 
-logger = logging.getLogger("autom8_asana.api")
+logger = get_logger("autom8_asana.api")
 
 
 class AuthContext:

@@ -15,7 +15,7 @@ Dependencies: types.py, config.py
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 import re
 from functools import lru_cache
 from typing import TYPE_CHECKING
@@ -36,7 +36,7 @@ __all__ = [
     "_matches_pattern_with_word_boundary",
 ]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @lru_cache(maxsize=128)

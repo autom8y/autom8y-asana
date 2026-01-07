@@ -15,7 +15,7 @@ Dependencies: types.py, config.py, tier1.py, tier2.py, tier3.py, tier4.py
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 import warnings
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
@@ -61,7 +61,7 @@ __all__ = [
     "_matches_holder_pattern",
 ]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Per PRD-CACHE-PERF-DETECTION FR-VERSION-003: TTL matches task cache (300s)
 DETECTION_CACHE_TTL = 300

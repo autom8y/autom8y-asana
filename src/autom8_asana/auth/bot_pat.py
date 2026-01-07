@@ -23,11 +23,11 @@ Security:
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 import os
 from functools import lru_cache
 
-logger = logging.getLogger("autom8_asana.auth")
+logger = get_logger("autom8_asana.auth")
 
 
 class BotPATError(Exception):

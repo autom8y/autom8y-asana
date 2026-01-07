@@ -22,10 +22,11 @@ Example:
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
+
+from autom8y_log import get_logger
 
 from autom8_asana.cache.entry import CacheEntry, EntryType
 from autom8_asana.cache.freshness import Freshness
@@ -35,7 +36,7 @@ from autom8_asana.protocols.cache import CacheProvider, WarmResult
 if TYPE_CHECKING:
     pass
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

@@ -30,11 +30,11 @@ Use /health/ready for traffic gating decisions that require warm cache.
 
 from __future__ import annotations
 
-import logging
 import os
 from typing import TypedDict
 
 import httpx
+from autom8y_log import get_logger
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
@@ -42,7 +42,7 @@ from fastapi.responses import JSONResponse
 # (api/__init__.py imports from main.py which imports routes)
 API_VERSION = "0.1.0"
 
-logger = logging.getLogger("autom8_asana.health")
+logger = get_logger("autom8_asana.health")
 
 router = APIRouter(tags=["health"])
 

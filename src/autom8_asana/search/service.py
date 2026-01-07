@@ -18,7 +18,7 @@ Integration points:
 from __future__ import annotations
 
 import asyncio
-import logging
+from autom8y_log import get_logger
 import time
 from functools import reduce
 from typing import TYPE_CHECKING
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from autom8_asana.dataframes.cache_integration import DataFrameCacheIntegration
     from autom8_asana.protocols.cache import CacheProvider
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SearchService:
