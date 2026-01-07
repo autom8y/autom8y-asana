@@ -13,6 +13,7 @@ import pytest
 from autom8_asana.cache.dataframe_cache import (
     CacheEntry,
     DataFrameCache,
+    _get_schema_version_for_entity,
     get_dataframe_cache,
     reset_dataframe_cache,
     set_dataframe_cache,
@@ -25,14 +26,22 @@ from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
 def make_entry(
     project_gid: str = "proj-1",
     entity_type: str = "unit",
-    schema_version: str = "1.0.0",
+    schema_version: str | None = None,
     created_hours_ago: int = 0,
 ) -> CacheEntry:
-    """Create a test CacheEntry."""
+    """Create a test CacheEntry.
+
+    If schema_version is not provided, looks up the correct version from
+    SchemaRegistry to ensure test entries are valid by default.
+    """
     df = pl.DataFrame({
         "gid": ["gid-1", "gid-2"],
         "name": ["A", "B"],
     })
+
+    # Default to registry version if not explicitly provided
+    if schema_version is None:
+        schema_version = _get_schema_version_for_entity(entity_type) or "1.0.0"
 
     return CacheEntry(
         project_gid=project_gid,

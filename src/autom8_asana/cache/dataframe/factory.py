@@ -111,13 +111,16 @@ def initialize_dataframe_cache() -> "DataFrameCache | None":
     )
 
     # Create cache instance
+    # Note: schema_version is no longer passed here - each entity type uses
+    # its schema version from SchemaRegistry. The default "1.0.0" in the
+    # DataFrameCache dataclass is only used as a fallback if registry
+    # lookup fails during put_async().
     cache = DataFrameCache(
         memory_tier=memory_tier,
         s3_tier=s3_tier,
         coalescer=coalescer,
         circuit_breaker=circuit_breaker,
         ttl_hours=12,
-        schema_version="1.0.0",
     )
 
     # Set as singleton

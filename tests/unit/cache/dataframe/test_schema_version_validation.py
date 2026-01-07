@@ -1,0 +1,298 @@
+"""Unit tests for DataFrameCache schema version validation using SchemaRegistry.
+
+Per TDD-unit-cascade-resolution-fix: Tests that schema version validation
+uses SchemaRegistry lookup per entity type, not a hardcoded cache-level version.
+
+This prevents stale cache hits when entity schemas are bumped independently
+(e.g., UNIT_SCHEMA at 1.1.0 while cache was initialized with 1.0.0).
+"""
+
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import polars as pl
+import pytest
+
+from autom8_asana.cache.dataframe_cache import (
+    CacheEntry,
+    DataFrameCache,
+    _get_schema_version_for_entity,
+)
+from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker
+from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
+from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
+
+
+def make_entry(
+    project_gid: str = "proj-1",
+    entity_type: str = "unit",
+    schema_version: str = "1.0.0",
+    created_hours_ago: int = 0,
+) -> CacheEntry:
+    """Create a test CacheEntry."""
+    df = pl.DataFrame({
+        "gid": ["gid-1", "gid-2"],
+        "name": ["A", "B"],
+    })
+
+    return CacheEntry(
+        project_gid=project_gid,
+        entity_type=entity_type,
+        dataframe=df,
+        watermark=datetime.now(timezone.utc),
+        created_at=datetime.now(timezone.utc) - timedelta(hours=created_hours_ago),
+        schema_version=schema_version,
+    )
+
+
+def make_cache(
+    memory_tier: MemoryTier | None = None,
+    s3_tier: MagicMock | None = None,
+    coalescer: DataFrameCacheCoalescer | None = None,
+    circuit_breaker: CircuitBreaker | None = None,
+    ttl_hours: int = 12,
+    schema_version: str = "1.0.0",
+) -> DataFrameCache:
+    """Create a DataFrameCache with mocked dependencies."""
+    return DataFrameCache(
+        memory_tier=memory_tier if memory_tier is not None else MemoryTier(max_entries=100),
+        s3_tier=s3_tier if s3_tier is not None else MagicMock(),
+        coalescer=coalescer if coalescer is not None else DataFrameCacheCoalescer(),
+        circuit_breaker=circuit_breaker if circuit_breaker is not None else CircuitBreaker(),
+        ttl_hours=ttl_hours,
+        schema_version=schema_version,
+    )
+
+
+class TestSchemaVersionLookup:
+    """Tests for _get_schema_version_for_entity helper."""
+
+    def test_lookup_unit_schema_version(self) -> None:
+        """Lookup returns UNIT_SCHEMA version (1.1.0)."""
+        version = _get_schema_version_for_entity("unit")
+
+        # UNIT_SCHEMA is at 1.1.0 per schemas/unit.py
+        assert version == "1.1.0"
+
+    def test_lookup_contact_schema_version(self) -> None:
+        """Lookup returns CONTACT_SCHEMA version."""
+        version = _get_schema_version_for_entity("contact")
+
+        assert version is not None
+        # Contact schema should be at 1.0.0 or its current version
+        assert isinstance(version, str)
+
+    def test_lookup_offer_schema_version(self) -> None:
+        """Lookup returns OFFER_SCHEMA version."""
+        version = _get_schema_version_for_entity("offer")
+
+        assert version is not None
+        assert isinstance(version, str)
+
+    def test_lookup_unknown_entity_type_returns_base(self) -> None:
+        """Unknown entity type falls back to base schema version."""
+        # "Unknown" will title() to "Unknown", which falls back to "*" (base)
+        version = _get_schema_version_for_entity("unknown")
+
+        # Base schema is at 1.0.0
+        assert version == "1.0.0"
+
+    def test_lookup_handles_registry_failure_gracefully(self) -> None:
+        """Registry failure returns None instead of raising."""
+        with patch(
+            "autom8_asana.dataframes.models.registry.SchemaRegistry.get_instance"
+        ) as mock_registry:
+            mock_registry.side_effect = RuntimeError("Registry unavailable")
+
+            version = _get_schema_version_for_entity("unit")
+
+            assert version is None
+
+
+class TestSchemaVersionValidation:
+    """Tests for _is_valid() using SchemaRegistry lookup."""
+
+    @pytest.mark.asyncio
+    async def test_entry_valid_when_version_matches_registry(self) -> None:
+        """Entry is valid when its version matches registry version."""
+        memory = MemoryTier(max_entries=100)
+        # Create entry with version matching UNIT_SCHEMA (1.1.0)
+        entry = make_entry(entity_type="unit", schema_version="1.1.0")
+        memory.put("unit:proj-1", entry)
+
+        cache = make_cache(memory_tier=memory)
+
+        result = await cache.get_async("proj-1", "unit")
+
+        assert result is not None
+        assert result.schema_version == "1.1.0"
+
+    @pytest.mark.asyncio
+    async def test_entry_invalid_when_version_older_than_registry(self) -> None:
+        """Entry is invalid when its version is older than registry version.
+
+        This is the root cause bug fix: cache entries stamped with 1.0.0
+        should be rejected when UNIT_SCHEMA is at 1.1.0.
+        """
+        memory = MemoryTier(max_entries=100)
+        # Create entry with old version (1.0.0) but UNIT_SCHEMA is at 1.1.0
+        entry = make_entry(entity_type="unit", schema_version="1.0.0")
+        memory.put("unit:proj-1", entry)
+
+        s3_tier = AsyncMock()
+        s3_tier.get_async.return_value = None
+
+        cache = make_cache(memory_tier=memory, s3_tier=s3_tier)
+
+        result = await cache.get_async("proj-1", "unit")
+
+        # Should reject the stale entry
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_entry_invalid_when_registry_lookup_fails(self) -> None:
+        """Entry is invalid when registry lookup fails (defensive)."""
+        memory = MemoryTier(max_entries=100)
+        entry = make_entry(entity_type="unit", schema_version="1.1.0")
+        memory.put("unit:proj-1", entry)
+
+        s3_tier = AsyncMock()
+        s3_tier.get_async.return_value = None
+
+        cache = make_cache(memory_tier=memory, s3_tier=s3_tier)
+
+        with patch(
+            "autom8_asana.cache.dataframe_cache._get_schema_version_for_entity"
+        ) as mock_lookup:
+            mock_lookup.return_value = None  # Simulate registry failure
+
+            result = await cache.get_async("proj-1", "unit")
+
+            # Should reject entry when we can't verify version
+            assert result is None
+
+
+class TestPutAsyncSchemaVersion:
+    """Tests for put_async() stamping entries with registry version."""
+
+    @pytest.mark.asyncio
+    async def test_put_stamps_entry_with_registry_version(self) -> None:
+        """put_async stamps entry with version from SchemaRegistry."""
+        memory = MemoryTier(max_entries=100)
+        s3_tier = AsyncMock()
+
+        cache = make_cache(memory_tier=memory, s3_tier=s3_tier)
+
+        df = pl.DataFrame({"gid": ["1"], "name": ["A"]})
+        watermark = datetime.now(timezone.utc)
+
+        await cache.put_async("proj-1", "unit", df, watermark)
+
+        # Verify entry was stamped with UNIT_SCHEMA version (1.1.0)
+        entry = memory.get("unit:proj-1")
+        assert entry is not None
+        assert entry.schema_version == "1.1.0"
+
+    @pytest.mark.asyncio
+    async def test_put_uses_fallback_on_registry_failure(self) -> None:
+        """put_async uses cache default when registry lookup fails."""
+        memory = MemoryTier(max_entries=100)
+        s3_tier = AsyncMock()
+
+        cache = make_cache(
+            memory_tier=memory,
+            s3_tier=s3_tier,
+            schema_version="1.0.0",  # Fallback version
+        )
+
+        df = pl.DataFrame({"gid": ["1"], "name": ["A"]})
+        watermark = datetime.now(timezone.utc)
+
+        with patch(
+            "autom8_asana.cache.dataframe_cache._get_schema_version_for_entity"
+        ) as mock_lookup:
+            mock_lookup.return_value = None  # Simulate registry failure
+
+            await cache.put_async("proj-1", "unit", df, watermark)
+
+            # Should use fallback version
+            entry = memory.get("unit:proj-1")
+            assert entry is not None
+            assert entry.schema_version == "1.0.0"
+
+    @pytest.mark.asyncio
+    async def test_put_contact_uses_contact_schema_version(self) -> None:
+        """put_async for contact entity uses CONTACT_SCHEMA version."""
+        memory = MemoryTier(max_entries=100)
+        s3_tier = AsyncMock()
+
+        cache = make_cache(memory_tier=memory, s3_tier=s3_tier)
+
+        df = pl.DataFrame({"gid": ["1"], "name": ["A"]})
+        watermark = datetime.now(timezone.utc)
+
+        await cache.put_async("proj-1", "contact", df, watermark)
+
+        entry = memory.get("contact:proj-1")
+        assert entry is not None
+        # Contact schema version from registry
+        expected_version = _get_schema_version_for_entity("contact")
+        assert entry.schema_version == expected_version
+
+
+class TestRegressionPrevention:
+    """Regression tests for the root cause bug."""
+
+    @pytest.mark.asyncio
+    async def test_unit_schema_1_1_0_not_matched_by_cache_1_0_0(self) -> None:
+        """Regression: Cache entries with 1.0.0 are rejected for UNIT_SCHEMA at 1.1.0.
+
+        Root cause: factory.py hardcoded schema_version="1.0.0" but UNIT_SCHEMA
+        was bumped to "1.1.0", causing stale cache hits.
+
+        Fix: _is_valid() now looks up expected version from SchemaRegistry
+        instead of comparing against self.schema_version.
+        """
+        memory = MemoryTier(max_entries=100)
+        s3_tier = AsyncMock()
+        s3_tier.get_async.return_value = None
+
+        # This simulates the old bug: cache initialized with 1.0.0
+        cache = make_cache(
+            memory_tier=memory,
+            s3_tier=s3_tier,
+            schema_version="1.0.0",
+        )
+
+        # Entry stamped with old version
+        old_entry = make_entry(entity_type="unit", schema_version="1.0.0")
+        memory.put("unit:proj-1", old_entry)
+
+        # Get should reject because UNIT_SCHEMA is at 1.1.0
+        result = await cache.get_async("proj-1", "unit")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_new_entries_stamped_with_correct_version(self) -> None:
+        """Regression: New entries are stamped with registry version, not hardcoded.
+
+        Fix: put_async() looks up version from SchemaRegistry instead of
+        using self.schema_version.
+        """
+        memory = MemoryTier(max_entries=100)
+        s3_tier = AsyncMock()
+
+        # Even with hardcoded 1.0.0, entries should get 1.1.0 from registry
+        cache = make_cache(
+            memory_tier=memory,
+            s3_tier=s3_tier,
+            schema_version="1.0.0",  # Old hardcoded value
+        )
+
+        df = pl.DataFrame({"gid": ["1"], "name": ["A"]})
+        await cache.put_async("proj-1", "unit", df, datetime.now(timezone.utc))
+
+        entry = memory.get("unit:proj-1")
+        assert entry is not None
+        # Entry should have UNIT_SCHEMA version, not cache default
+        assert entry.schema_version == "1.1.0"
