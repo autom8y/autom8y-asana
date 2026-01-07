@@ -473,6 +473,13 @@ class CascadeViewPlugin:
 
         Returns:
             Extracted value based on resource_subtype.
+
+        Note:
+            For unknown resource_subtype, we check typed value fields in order
+            (number_value, text_value, enum_value, etc.) before falling back to
+            display_value. This handles cases where resource_subtype is missing
+            but the field has typed data (e.g., percentage fields with "0%" in
+            display_value but 0.0 in number_value).
         """
         if not isinstance(cf_data, dict):
             return None
@@ -519,7 +526,16 @@ class CascadeViewPlugin:
                         gids.append(gid)
                 return gids if gids else None
             case _:
-                # Fallback to display_value
+                # Fallback: check typed value fields before display_value
+                # This handles fields with missing/unknown resource_subtype
+                # Priority: number > text > enum > display_value
+                if cf_data.get("number_value") is not None:
+                    return cf_data.get("number_value")
+                if cf_data.get("text_value") is not None:
+                    return cf_data.get("text_value")
+                enum_value = cf_data.get("enum_value")
+                if enum_value is not None and isinstance(enum_value, dict):
+                    return enum_value.get("name")
                 return cf_data.get("display_value")
 
     def _detect_entity_type_from_dict(self, task_data: dict[str, Any]) -> EntityType:
