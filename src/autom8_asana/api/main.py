@@ -106,6 +106,21 @@ def _initialize_dataframe_cache() -> None:
             },
         )
 
+
+def _register_schema_providers() -> None:
+    """Register Asana schema providers with SDK registry.
+
+    Per SDK Phase 1 schema versioning:
+    - Bridges satellite SchemaRegistry to SDK SchemaVersionProvider
+    - Enables cache compatibility checks based on schema versions
+    - Required for schema mismatch detection (SC-004)
+
+    This is called during application startup, after entity project discovery.
+    """
+    from autom8_asana.cache.schema_providers import register_asana_schemas
+
+    register_asana_schemas()
+
 logger = get_logger(__name__)
 
 
@@ -174,6 +189,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Initialize DataFrameCache for Offer/Contact resolution strategies
     # Per TDD-DATAFRAME-CACHE-001: Provides tiered caching (Memory + S3)
     _initialize_dataframe_cache()
+
+    # Register schema providers with SDK for cache compatibility checks
+    # Per SDK Phase 1: Bridges satellite SchemaRegistry to SDK registry
+    _register_schema_providers()
 
     # DataFrame cache preload (FR-003 per sprint-materialization-002)
     # Runs after entity discovery so we know which projects exist

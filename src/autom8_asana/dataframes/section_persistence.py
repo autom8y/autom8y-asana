@@ -99,8 +99,24 @@ class SectionManifest(BaseModel):
     total_sections: int = 0
     completed_sections: int = 0
     version: int = 1
+    schema_version: str = ""
 
     model_config = {"use_enum_values": True}
+
+    def is_schema_compatible(self, current_schema_version: str) -> bool:
+        """Check if manifest schema is compatible with current version.
+
+        Returns False for legacy manifests (empty schema_version) to force rebuild.
+
+        Args:
+            current_schema_version: The current schema version to compare against.
+
+        Returns:
+            True if compatible, False if rebuild needed.
+        """
+        if not self.schema_version:
+            return False  # Legacy manifest - force rebuild
+        return self.schema_version == current_schema_version
 
     def get_incomplete_section_gids(self) -> list[str]:
         """Get list of section GIDs that need to be fetched."""
@@ -293,6 +309,7 @@ class SectionPersistence:
         project_gid: str,
         entity_type: str,
         section_gids: list[str],
+        schema_version: str = "",
     ) -> SectionManifest:
         """Create a new manifest for a project build.
 
@@ -300,6 +317,7 @@ class SectionPersistence:
             project_gid: Asana project GID.
             entity_type: Entity type (e.g., "offer", "contact").
             section_gids: List of section GIDs to track.
+            schema_version: Schema version for cache compatibility.
 
         Returns:
             Created SectionManifest.
@@ -309,6 +327,7 @@ class SectionPersistence:
             entity_type=entity_type,
             total_sections=len(section_gids),
             sections={gid: SectionInfo() for gid in section_gids},
+            schema_version=schema_version,
         )
 
         await self._save_manifest_async(manifest)

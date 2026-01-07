@@ -193,23 +193,37 @@ class ProgressiveProjectBuilder:
         # Step 2: Check for existing manifest (resume capability)
         manifest: SectionManifest | None = None
         sections_to_fetch: list[str] = section_gids
+        current_schema_version = self._schema.version
 
         if resume:
             manifest = await self._persistence.get_manifest_async(self._project_gid)
             if manifest is not None:
-                # Resume: only fetch incomplete sections
-                sections_to_fetch = manifest.get_incomplete_section_gids()
-                sections_resumed = manifest.completed_sections
+                # Check schema compatibility before resuming
+                if not manifest.is_schema_compatible(current_schema_version):
+                    logger.warning(
+                        "progressive_build_schema_mismatch",
+                        extra={
+                            "project_gid": self._project_gid,
+                            "cached_version": manifest.schema_version,
+                            "current_version": current_schema_version,
+                        },
+                    )
+                    await self._persistence.delete_manifest_async(self._project_gid)
+                    manifest = None  # Force fresh build
+                else:
+                    # Resume: only fetch incomplete sections
+                    sections_to_fetch = manifest.get_incomplete_section_gids()
+                    sections_resumed = manifest.completed_sections
 
-                logger.info(
-                    "progressive_build_resuming",
-                    extra={
-                        "project_gid": self._project_gid,
-                        "total_sections": len(section_gids),
-                        "completed_sections": sections_resumed,
-                        "sections_to_fetch": len(sections_to_fetch),
-                    },
-                )
+                    logger.info(
+                        "progressive_build_resuming",
+                        extra={
+                            "project_gid": self._project_gid,
+                            "total_sections": len(section_gids),
+                            "completed_sections": sections_resumed,
+                            "sections_to_fetch": len(sections_to_fetch),
+                        },
+                    )
 
         # Step 3: Create/update manifest
         if manifest is None:
@@ -217,6 +231,7 @@ class ProgressiveProjectBuilder:
                 self._project_gid,
                 self._entity_type,
                 section_gids,
+                schema_version=current_schema_version,
             )
 
         logger.info(
