@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from autom8y_cache import CacheEntry, CompletenessUpgrader
+from autom8y_cache import CacheEntry
 from autom8y_log import get_logger
 
 from autom8_asana.cache.completeness import (

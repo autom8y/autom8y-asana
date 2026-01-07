@@ -46,7 +46,6 @@ from autom8y_http import (
     ExponentialBackoffRetry,
     RetryConfig as SdkRetryConfig,
 )
-from autom8y_http.protocols import CircuitState
 from autom8_asana.models.contracts import PhoneVerticalPair
 
 if TYPE_CHECKING:

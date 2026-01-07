@@ -130,6 +130,20 @@ class DataFrameSchema:
         """
         return [col.name for col in self.columns]
 
+    def has_cascade_columns(self) -> bool:
+        """Check if schema has any cascade: source columns.
+
+        Per TDD-GID-RESOLUTION-SERVICE: Used to determine if parent
+        pre-warming is beneficial for extraction.
+
+        Returns:
+            True if any column has a cascade: source prefix.
+        """
+        return any(
+            col.source and col.source.lower().startswith("cascade:")
+            for col in self.columns
+        )
+
     def to_dict(self) -> dict[str, Any]:
         """Export schema as JSON-serializable dict (FR-MODEL-006).
 

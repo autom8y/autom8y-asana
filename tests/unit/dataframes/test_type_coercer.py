@@ -945,7 +945,6 @@ class TestAdversarialConcurrency:
 
     def test_concurrent_coercion_same_input(self) -> None:
         """Test concurrent coercion with same input."""
-        import threading
         from concurrent.futures import ThreadPoolExecutor
 
         coercer = TypeCoercer()

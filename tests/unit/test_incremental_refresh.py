@@ -25,7 +25,7 @@ from autom8_asana.dataframes.builders.project import ProjectDataFrameBuilder
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 
 if TYPE_CHECKING:
-    from autom8_asana.models.task import Task
+    pass
 
 
 # Minimal test schema with only required fields for testing

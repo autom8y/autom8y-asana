@@ -6,7 +6,6 @@ that maps field names to their CascadingFieldDef instances.
 
 from __future__ import annotations
 
-import pytest
 
 from autom8_asana.models.business.business import Business
 from autom8_asana.models.business.fields import (
@@ -235,7 +234,6 @@ class TestModuleExports:
     def test_direct_import_from_package(self) -> None:
         """Functions can be imported directly from package."""
         from autom8_asana.models.business import (
-            CascadingFieldEntry,
             get_cascading_field,
             get_cascading_field_registry,
         )

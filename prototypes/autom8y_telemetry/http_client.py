@@ -21,7 +21,6 @@ from opentelemetry import trace
 
 if TYPE_CHECKING:
     from .protocols import RateLimiterProtocol
-    from .rate_limiter import TokenBucketRateLimiter
 
 
 class TelemetryHTTPClient:

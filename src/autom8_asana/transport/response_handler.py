@@ -17,7 +17,6 @@ import httpx
 from autom8_asana.exceptions import (
     AsanaError,
     RateLimitError,
-    ServerError,
 )
 
 __all__ = ["AsanaResponseHandler"]
@@ -193,7 +192,7 @@ class AsanaResponseHandler:
 
         # Get message from response body
         request_id = response.headers.get("X-Request-Id")
-        context = f"HTTP 429"
+        context = "HTTP 429"
         if request_id:
             context += f", request_id={request_id}"
 

@@ -20,6 +20,10 @@ from autom8_asana.models.business.fields import STANDARD_TASK_OPT_FIELDS
 from autom8_asana.observability import error_handler
 from autom8_asana.transport import sync_wrapper
 
+# Minimum fields required for cascade resolution (per TDD-sdk-cascade-resolution).
+# parent.gid is always needed to traverse the hierarchy and resolve cascading fields.
+_MINIMUM_OPT_FIELDS: frozenset[str] = frozenset({"parent.gid"})
+
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
     from autom8_asana.clients.task_operations import TaskOperations
@@ -204,6 +208,42 @@ class TasksClient(BaseClient):
             TTL in seconds.
         """
         return self.ttl_resolver.resolve(data)
+
+    def _resolve_opt_fields(
+        self,
+        opt_fields: list[str] | None,
+        *,
+        include_standard: bool = True,
+    ) -> list[str]:
+        """Resolve opt_fields ensuring minimum fields are always included.
+
+        Per TDD-sdk-cascade-resolution Section 3.1: Ensures parent.gid is always
+        included in API requests to support cascade resolution.
+
+        Args:
+            opt_fields: User-provided opt_fields, or None for defaults.
+            include_standard: If True and opt_fields is None, use STANDARD_TASK_OPT_FIELDS.
+                            If False and opt_fields is None, use only _MINIMUM_OPT_FIELDS.
+
+        Returns:
+            List of opt_fields with _MINIMUM_OPT_FIELDS merged in.
+
+        Behavior:
+            - opt_fields=None, include_standard=True: Returns STANDARD_TASK_OPT_FIELDS
+            - opt_fields=None, include_standard=False: Returns list(_MINIMUM_OPT_FIELDS)
+            - opt_fields provided: Merges with _MINIMUM_OPT_FIELDS
+        """
+        if opt_fields is None:
+            if include_standard:
+                # Use full standard fields which already include parent.gid
+                return list(STANDARD_TASK_OPT_FIELDS)
+            else:
+                # Minimal mode: just the minimum required fields
+                return list(_MINIMUM_OPT_FIELDS)
+
+        # Merge user-provided fields with minimum required fields
+        merged = set(opt_fields) | _MINIMUM_OPT_FIELDS
+        return list(merged)
 
     @overload
     def get(
@@ -602,9 +642,13 @@ class TasksClient(BaseClient):
         """
         self._log_operation("list_async")
 
+        # Resolve opt_fields to ensure parent.gid is always included
+        # Per TDD-sdk-cascade-resolution: This is critical for cascade resolution
+        resolved_opt_fields = self._resolve_opt_fields(opt_fields)
+
         async def fetch_page(offset: str | None) -> tuple[list[Task], str | None]:
             """Fetch a single page of tasks."""
-            params = self._build_opt_fields(opt_fields)
+            params = self._build_opt_fields(resolved_opt_fields)
             if project:
                 params["project"] = project
             if section:
@@ -680,7 +724,7 @@ class TasksClient(BaseClient):
         """
         self._log_operation("subtasks_async")
 
-        # Merge detection fields if requested
+        # Merge detection fields if requested, then resolve to ensure minimum fields
         effective_opt_fields = opt_fields
         if include_detection_fields:
             detection_fields = set(self._DETECTION_FIELDS)
@@ -690,9 +734,13 @@ class TasksClient(BaseClient):
             else:
                 effective_opt_fields = list(detection_fields)
 
+        # Resolve opt_fields to ensure parent.gid is always included
+        # Per TDD-sdk-cascade-resolution: This is critical for cascade resolution
+        resolved_opt_fields = self._resolve_opt_fields(effective_opt_fields)
+
         async def fetch_page(offset: str | None) -> tuple[list[Task], str | None]:
             """Fetch a single page of subtasks."""
-            params = self._build_opt_fields(effective_opt_fields)
+            params = self._build_opt_fields(resolved_opt_fields)
             params["limit"] = min(limit, 100)
             if offset:
                 params["offset"] = offset
@@ -744,9 +792,13 @@ class TasksClient(BaseClient):
         validate_gid(task_gid, "task_gid")
         self._log_operation("dependents_async")
 
+        # Resolve opt_fields to ensure parent.gid is always included
+        # Per TDD-sdk-cascade-resolution: This is critical for cascade resolution
+        resolved_opt_fields = self._resolve_opt_fields(opt_fields)
+
         async def fetch_page(offset: str | None) -> tuple[list[Task], str | None]:
             """Fetch a single page of dependents."""
-            params = self._build_opt_fields(opt_fields)
+            params = self._build_opt_fields(resolved_opt_fields)
             params["limit"] = min(limit, 100)
             if offset:
                 params["offset"] = offset

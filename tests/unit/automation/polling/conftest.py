@@ -7,8 +7,6 @@ polling_scheduler, structured_logger, and cli tests.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 

@@ -37,8 +37,6 @@ from typing import TYPE_CHECKING
 import polars as pl
 
 from autom8_asana.client import AsanaClient
-from autom8_asana.search import SearchService
-from autom8_asana.search.models import FieldCondition, SearchCriteria
 
 if TYPE_CHECKING:
     pass
@@ -135,7 +133,7 @@ async def load_offers_dataframe(client: AsanaClient, verbose: bool = False, max_
 
     # Cache the DataFrame in SearchService
     search.set_project_dataframe(OFFERS_PROJECT_GID, df)
-    print(f"Cached in SearchService for fast lookup")
+    print("Cached in SearchService for fast lookup")
 
     return df
 
@@ -219,7 +217,7 @@ async def test_basic_search(client: AsanaClient, df: pl.DataFrame, verbose: bool
 
     # Even if no compound match, this is valid (might not have exact combo)
     results["passed"].append("compound_search_executes")
-    print(f"  PASS: Compound search executed successfully")
+    print("  PASS: Compound search executed successfully")
 
     results["info"]["compound_search_time_ms"] = elapsed
     results["info"]["compound_search_count"] = result.total_count
@@ -243,17 +241,17 @@ async def test_basic_search(client: AsanaClient, df: pl.DataFrame, verbose: bool
 
     print(f"  Warm cache max: {warm_max:.2f}ms")
     print(f"  Warm cache avg: {warm_avg:.2f}ms")
-    print(f"  Target: <10ms per TDD")
+    print("  Target: <10ms per TDD")
 
     results["info"]["warm_cache_max_ms"] = warm_max
     results["info"]["warm_cache_avg_ms"] = warm_avg
 
     if warm_avg < 10:
         results["passed"].append("performance_under_10ms")
-        print(f"  PASS: Warm cache queries under 10ms target")
+        print("  PASS: Warm cache queries under 10ms target")
     else:
         results["failed"].append(("performance_under_10ms", f"Warm avg: {warm_avg:.2f}ms"))
-        print(f"  FAIL: Query time exceeds 10ms target")
+        print("  FAIL: Query time exceeds 10ms target")
 
     return results
 
@@ -307,7 +305,7 @@ async def test_convenience_methods(client: AsanaClient, verbose: bool = False) -
         else:
             # No match is acceptable (criteria may not exist)
             results["passed"].append("find_one_returns_none_for_no_match")
-            print(f"  PASS: No match found (expected if combo doesn't exist)")
+            print("  PASS: No match found (expected if combo doesn't exist)")
 
     except ValueError as e:
         # Multiple matches - this is expected behavior
@@ -340,7 +338,7 @@ async def test_edge_cases(client: AsanaClient, df: pl.DataFrame, verbose: bool =
 
     if result.total_count == 0:
         results["passed"].append("nonexistent_field_returns_empty")
-        print(f"  PASS: Empty result for non-existent field")
+        print("  PASS: Empty result for non-existent field")
     else:
         results["failed"].append(("nonexistent_field_returns_empty", f"Got {result.total_count} results"))
         print(f"  FAIL: Expected 0 results, got {result.total_count}")
@@ -354,7 +352,7 @@ async def test_edge_cases(client: AsanaClient, df: pl.DataFrame, verbose: bool =
 
     if result.total_count == 0:
         results["passed"].append("empty_criteria_returns_empty")
-        print(f"  PASS: Empty result for empty criteria")
+        print("  PASS: Empty result for empty criteria")
     else:
         results["failed"].append(("empty_criteria_returns_empty", f"Got {result.total_count} results"))
         print(f"  FAIL: Expected 0 results, got {result.total_count}")
@@ -430,11 +428,11 @@ async def test_edge_cases(client: AsanaClient, df: pl.DataFrame, verbose: bool =
 
     if result.total_count == 0 and result.from_cache is False:
         results["passed"].append("uncached_project_returns_empty")
-        print(f"  PASS: Empty result for uncached project")
+        print("  PASS: Empty result for uncached project")
     else:
         results["failed"].append(("uncached_project_returns_empty",
                                   f"count={result.total_count}, from_cache={result.from_cache}"))
-        print(f"  FAIL: Unexpected result for uncached project")
+        print("  FAIL: Unexpected result for uncached project")
 
     return results
 
@@ -482,7 +480,7 @@ async def test_large_dataframe_performance(client: AsanaClient, df: pl.DataFrame
     # Per TDD: <10ms target
     if avg_time < 10:
         results["passed"].append("avg_under_10ms_target")
-        print(f"  PASS: Average query time under 10ms target")
+        print("  PASS: Average query time under 10ms target")
     else:
         results["failed"].append(("avg_under_10ms_target", f"Avg: {avg_time:.2f}ms"))
         print(f"  FAIL: Average {avg_time:.2f}ms exceeds 10ms target")
@@ -554,16 +552,16 @@ async def run_poc_tests(verbose: bool = False, edge_cases: bool = False) -> int:
         print(f"Failed: {total_failed}")
 
         if all_results["passed"]:
-            print(f"\nPassed Tests:")
+            print("\nPassed Tests:")
             for test in all_results["passed"]:
                 print(f"  [PASS] {test}")
 
         if all_results["failed"]:
-            print(f"\nFailed Tests:")
+            print("\nFailed Tests:")
             for test, reason in all_results["failed"]:
                 print(f"  [FAIL] {test}: {reason}")
 
-        print(f"\nKey Metrics:")
+        print("\nKey Metrics:")
         print(f"  DataFrame rows: {all_results['info'].get('dataframe_rows', 'N/A')}")
         print(f"  Phone search time: {all_results['info'].get('phone_search_time_ms', 'N/A'):.2f}ms")
         print(f"  Vertical search time: {all_results['info'].get('vertical_search_time_ms', 'N/A'):.2f}ms")

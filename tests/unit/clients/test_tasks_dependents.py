@@ -107,7 +107,11 @@ class TestDependentsAsync:
     async def test_dependents_async_with_opt_fields(
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
-        """dependents_async passes opt_fields parameter correctly."""
+        """dependents_async passes opt_fields parameter correctly.
+
+        Per TDD-sdk-cascade-resolution: parent.gid is always included via
+        _resolve_opt_fields() to ensure cascade resolution works.
+        """
         mock_http.get_paginated.return_value = (
             [{"gid": "dep1", "name": "Dependent 1", "notes": "Some notes"}],
             None,
@@ -119,10 +123,15 @@ class TestDependentsAsync:
         assert len(items) == 1
         assert items[0].notes == "Some notes"
 
-        # Verify opt_fields was passed in params
+        # Verify opt_fields was passed in params with parent.gid included
+        # Per TDD-sdk-cascade-resolution: parent.gid is always merged in
         mock_http.get_paginated.assert_called_once()
         call_args = mock_http.get_paginated.call_args
-        assert call_args[1]["params"]["opt_fields"] == "name,notes"
+        opt_fields_str = call_args[1]["params"]["opt_fields"]
+        opt_fields_set = set(opt_fields_str.split(","))
+        assert "name" in opt_fields_set
+        assert "notes" in opt_fields_set
+        assert "parent.gid" in opt_fields_set  # Always included for cascade resolution
 
     async def test_dependents_async_with_limit(
         self, tasks_client: TasksClient, mock_http: MockHTTPClient

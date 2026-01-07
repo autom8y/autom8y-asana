@@ -14,7 +14,6 @@ import pytest
 from autom8_asana.batch.models import BatchResult
 from autom8_asana.cache.entry import CacheEntry, EntryType
 from autom8_asana.cache.freshness_coordinator import (
-    ASANA_BATCH_LIMIT,
     FreshnessCoordinator,
     FreshnessMode,
     FreshnessResult,

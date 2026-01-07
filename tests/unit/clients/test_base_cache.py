@@ -7,10 +7,8 @@ Covers get/set/invalidate operations, graceful degradation, and error handling.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
-import pytest
 
 from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvider
 from autom8_asana.cache.entry import CacheEntry, EntryType

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import threading
 from typing import TYPE_CHECKING, Any
 
@@ -50,11 +49,6 @@ from autom8_asana.protocols.cache import WarmResult
 from autom8_asana.transport.asana_http import AsanaHttpClient
 
 if TYPE_CHECKING:
-    from autom8y_http import (
-        CircuitBreakerProtocol,
-        RateLimiterProtocol,
-        RetryPolicyProtocol,
-    )
     from autom8_asana.automation.engine import AutomationEngine
     from autom8_asana.cache.metrics import CacheMetrics
     from autom8_asana.cache.unified import UnifiedTaskStore

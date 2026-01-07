@@ -113,6 +113,10 @@ health port="8000":
         exit 1
     fi
 
+# Warm DataFrame cache by building and persisting to S3
+warm-cache:
+    uv run python scripts/warm_cache.py
+
 # === Docker ===
 
 # Build Docker image

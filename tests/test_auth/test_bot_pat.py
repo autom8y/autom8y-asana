@@ -8,7 +8,6 @@ Per TDD-S2S-001 Section 12.1:
 
 from __future__ import annotations
 
-import os
 from typing import Generator
 
 import pytest

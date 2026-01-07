@@ -17,7 +17,6 @@ while the platform client handles generic HTTP concerns.
 from __future__ import annotations
 
 import asyncio
-import os
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any, AsyncIterator
 

@@ -2,12 +2,12 @@
 
 > Entry point for Claude Code. Skills-based progressive disclosure architecture.
 
-
+<!-- KNOSSOS:START execution-mode -->
 ## Execution Mode
 
 This project supports three operating modes (see PRD-hybrid-session-model for details):
 
-| Mode | Session | Team | Main Agent Behavior |
+| Mode | Session | Rite | Main Agent Behavior |
 |------|---------|------|---------------------|
 | **Native** | No | - | Direct execution, no tracking |
 | **Cross-Cutting** | Yes | No | Direct execution + session tracking |
@@ -16,15 +16,31 @@ This project supports three operating modes (see PRD-hybrid-session-model for de
 **Unsure?** Use `/consult` for workflow routing.
 
 For enforcement rules: `orchestration/execution-mode.md`
+<!-- KNOSSOS:END execution-mode -->
 
-<!-- PRESERVE: satellite-owned, regenerated from ACTIVE_TEAM + agents/ -->
-
-
-
+<!-- KNOSSOS:START knossos-identity -->
 
 
 
+## Knossos Identity
 
+> **roster/.claude/ IS Knossos.** This repository is the Knossos platform.
+
+The naming reflects Greek mythology (see `docs/philosophy/knossos-doctrine.md` for the full doctrine):
+
+| Myth | Component | Function |
+|------|-----------|----------|
+| **Knossos** | The platform | The labyrinth itself |
+| **Ariadne** | CLI binary (`ari`) | The thread ensuring return |
+| **Theseus** | Claude Code agent | The navigator with amnesia |
+| **Moirai** | Session lifecycle agent | The Fates who spin, measure, and cut |
+| **White Sails** | Confidence signal | Honest return indicator |
+| **Rites** | Practice bundles | Invokable ceremonies (formerly "team packs") |
+
+For full details: `docs/guides/knossos-integration.md` and `docs/decisions/ADR-0009-knossos-roster-identity.md`
+<!-- KNOSSOS:END knossos-identity -->
+
+<!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 
 
 
@@ -44,19 +60,15 @@ This project uses a 5-agent workflow (10x-dev-pack):
 
 <!-- SYNC: skeleton-owned -->
 
+
 ## Agent Routing
 
 When working within an orchestrated session, the main thread coordinates via Task tool delegation to specialist agents. Without an active session, direct execution or `/task` initialization are both valid approaches.
 
 For routing guidance: `/consult`
+<!-- KNOSSOS:END agent-routing -->
 
-
-
-
-
-
-
-
+<!-- KNOSSOS:START skills -->
 
 
 
@@ -65,6 +77,7 @@ For routing guidance: `/consult`
 Skills are invoked via the **Skill tool**. Key skills: `orchestration` (workflow coordination), `documentation` (templates), `prompting` (agent invocation), `standards` (conventions), `ecosystem-ref` (roster ecosystem patterns). See `.claude/skills/` and `~/.claude/skills/` for full list.
 
 <!-- PRESERVE: satellite-owned, regenerated from ACTIVE_TEAM + agents/ -->
+
 
 
 
@@ -85,31 +98,69 @@ Full agent prompts live in `.claude/agents/`:
 - `qa-adversary.md` - Adversarial tester who breaks implementations on purpose through edge cases,
 - `requirements-analyst.md` - Specification specialist who transforms ambiguity into requirements and
 
+
 ## Hooks
 
 Hooks auto-inject context (SessionStart, Stop, PostToolUse). No manual context needed. See `.claude/hooks/`.
+<!-- KNOSSOS:END hooks -->
 
-
-
-
-
-
-
-
+<!-- KNOSSOS:START dynamic-context -->
 
 
 
 ## Dynamic Context
 
-Commands use `!` prefix for live context: `!`cat .claude/ACTIVE_TEAM``. Prefer hooks for complex context.
+Commands use `!` prefix for live context: `!`cat .claude/ACTIVE_RITE``. Prefer hooks for complex context.
+<!-- KNOSSOS:END dynamic-context -->
+
+<!-- KNOSSOS:START ariadne-cli -->
 
 
 
+## Ariadne CLI
 
+The `ari` binary provides session and hook operations:
 
+```bash
+# Session management
+ari session create "initiative" COMPLEXITY
+ari session status
+ari session park "reason"
 
+# Hook operations
+ari hook thread
+ari hook context
 
+# Quality gates
+ari sails check
 
+# Agent handoffs
+ari handoff prepare --from <agent> --to <agent>
+ari handoff execute --from <agent> --to <agent>
+ari handoff status
+ari handoff history
+
+# CLAUDE.md inscription
+ari inscription sync              # Sync CLAUDE.md with templates
+ari inscription sync --dry-run    # Preview changes
+ari inscription validate          # Check manifest and CLAUDE.md
+ari inscription backups           # List available backups
+ari inscription rollback          # Restore from backup
+```
+
+### Cognitive Budget
+
+Tool usage tracking with configurable thresholds:
+- `ARIADNE_MSG_WARN=250` - Warning threshold (default)
+- `ARIADNE_MSG_PARK` - Park suggestion threshold
+- `ARIADNE_BUDGET_DISABLE=1` - Disable tracking
+
+Build: `cd ariadne && just build`
+
+Full reference: `docs/guides/knossos-integration.md`
+<!-- KNOSSOS:END ariadne-cli -->
+
+<!-- KNOSSOS:START getting-help -->
 
 
 
@@ -123,25 +174,22 @@ Commands use `!` prefix for live context: `!`cat .claude/ACTIVE_TEAM``. Prefer h
 | Workflow coordination | `orchestration` |
 | Roster ecosystem | `ecosystem-ref` |
 | User preferences | See `docs/guides/user-preferences.md` |
+| Knossos integration | `docs/guides/knossos-integration.md` |
+| Migration path | `docs/guides/knossos-migration.md` |
 | Unsure where to start | `/consult` |
+<!-- KNOSSOS:END getting-help -->
 
-
-
-
-
-
-
-
+<!-- KNOSSOS:START state-management -->
 
 
 
 ## State Management
 
-**Mutating session/sprint state?** Use state-mate for all `SESSION_CONTEXT.md` and `SPRINT_CONTEXT.md` changes.
+**Mutating session/sprint state?** Use the **Moirai** (the Fates) for all `SESSION_CONTEXT.md` and `SPRINT_CONTEXT.md` changes.
 
-### state-mate Usage
+### Moirai Usage
 
-state-mate is the centralized authority for session and sprint mutations. It enforces schema validation, lifecycle transitions, and maintains audit trails.
+The Moirai are the centralized authority for session lifecycle--spinning sessions into existence (Clotho), measuring their allotment (Lachesis), and cutting when complete (Atropos). They enforce schema validation, lifecycle transitions, and maintain audit trails.
 
 **When to Use**:
 - Updating session state (park, resume, wrap)
@@ -149,10 +197,11 @@ state-mate is the centralized authority for session and sprint mutations. It enf
 - Transitioning workflow phases
 - Creating or managing sprints
 - Any modification to `*_CONTEXT.md` files
+- Generating White Sails confidence signals
 
 **Invocation Pattern** (requires session context):
 ```
-Task(state-mate, "mark_complete task-001 artifact=docs/requirements/PRD-foo.md
+Task(moirai, "mark_complete task-001 artifact=docs/requirements/PRD-foo.md
 
 Session Context:
 - Session ID: {from session-manager.sh status}
@@ -163,7 +212,7 @@ Get session context: `.claude/hooks/lib/session-manager.sh status | jq -r '.sess
 
 **Natural Language Supported**:
 ```
-Task(state-mate, "Mark the PRD task complete with artifact at docs/requirements/PRD-foo.md")
+Task(moirai, "Mark the PRD task complete with artifact at docs/requirements/PRD-foo.md")
 ```
 
 **Control Flags**:
@@ -171,30 +220,18 @@ Task(state-mate, "Mark the PRD task complete with artifact at docs/requirements/
 - `--emergency`: Bypass non-critical validations (logged)
 - `--override=reason`: Bypass lifecycle rules with explicit reason
 
-**Direct writes blocked**: PreToolUse hook intercepts `Write`/`Edit` to `*_CONTEXT.md` and instructs use of state-mate.
+**Direct writes blocked**: PreToolUse hook intercepts `Write`/`Edit` to `*_CONTEXT.md` and instructs use of Moirai.
 
-**Full documentation**: See `user-agents/state-mate.md` and `docs/decisions/ADR-0005-state-mate-centralized-state-authority.md`
+**Full documentation**: See `user-agents/moirai.md` and `docs/philosophy/knossos-doctrine.md`
+<!-- KNOSSOS:END state-management -->
 
-
-
-
-
-
-
-
+<!-- KNOSSOS:START slash-commands -->
 
 
 
 ## Slash Commands
 
 Always respond with outcome. "No response" is never correct for explicit user requests.
-
-
-
-
-
-
-
 
 
 
@@ -219,6 +256,7 @@ When Claude reads a command file:
 
 
 
+
 ## Skills Architecture
 
 Skills provide domain knowledge on-demand. They activate based on your task:
@@ -236,6 +274,7 @@ Skills provide domain knowledge on-demand. They activate based on your task:
 
 <!-- SYNC: skeleton-owned -->
 
+
 ## Slash Command Response Contract
 
 Slash commands (`/team`, `/sync`, `/start`, etc.) are **explicit user requests** invoked from the terminal. The user typed a command and is waiting for feedback.
@@ -244,4 +283,5 @@ Slash commands (`/team`, `/sync`, `/start`, etc.) are **explicit user requests**
 - ALWAYS respond with the outcome, even for idempotent operations ("already on this team")
 - "No response requested" is NEVER correct for slash commands
 - Error states must be explained with next steps
+
 

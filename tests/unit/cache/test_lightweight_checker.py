@@ -197,7 +197,7 @@ class TestLightweightChecker:
                 BatchResult(
                     status_code=200,
                     body={
-                        "data": {"gid": gid, "modified_at": f"2025-12-23T10:00:00.000Z"}
+                        "data": {"gid": gid, "modified_at": "2025-12-23T10:00:00.000Z"}
                     },
                 )
                 for gid in gids

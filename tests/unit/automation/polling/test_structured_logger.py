@@ -15,9 +15,6 @@ from __future__ import annotations
 
 import json
 import logging
-import sys
-from io import StringIO
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -129,7 +126,6 @@ class TestStructuredLoggerGetLogger:
     @pytest.mark.skipif(not _STRUCTLOG_AVAILABLE, reason="structlog not installed")
     def test_get_logger_with_structlog_returns_bound_logger(self) -> None:
         """get_logger() returns structlog BoundLogger when available."""
-        import structlog
 
         StructuredLogger.configure()
         logger = StructuredLogger.get_logger(test_key="test_value")

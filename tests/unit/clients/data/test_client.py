@@ -2436,7 +2436,6 @@ class TestStaleResponseMetadata:
     async def test_stale_response_has_cached_at_populated(self) -> None:
         """Stale response has cached_at populated from cache entry."""
         import respx
-        from datetime import datetime, timezone
 
         mock_cache = MagicMock()
         mock_cache.get.return_value = {
@@ -3956,7 +3955,6 @@ class TestRetryHandler:
     async def test_400_is_not_retried(self) -> None:
         """400 validation error is NOT retried."""
         import respx
-        from httpx import Response
 
         from autom8_asana.clients.data.config import RetryConfig
         from autom8_asana.exceptions import InsightsValidationError
@@ -3991,7 +3989,6 @@ class TestRetryHandler:
     async def test_404_is_not_retried(self) -> None:
         """404 not found error is NOT retried."""
         import respx
-        from httpx import Response
 
         from autom8_asana.clients.data.config import RetryConfig
         from autom8_asana.exceptions import InsightsNotFoundError

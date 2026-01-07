@@ -422,7 +422,6 @@ class BusinessSeeder:
             Matched Business or None if no match above threshold.
         """
         from autom8_asana.models.business.matching import (
-            Candidate,
             CompositeBlockingRule,
         )
 
