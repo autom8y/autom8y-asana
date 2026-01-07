@@ -304,6 +304,41 @@ class DefaultCustomFieldResolver:
                 # Fallback to display_value
                 return get_attr("display_value")
 
+    def _normalize_numeric_string(self, value: str) -> str:
+        """Normalize numeric-like strings by stripping common suffixes.
+
+        Per legacy solution: Enum values like "0%", "5%", "10%" should be
+        converted to their numeric equivalents for Decimal/int coercion.
+
+        Args:
+            value: String value that may have numeric suffix
+
+        Returns:
+            Normalized string with suffix stripped if numeric-like
+        """
+        stripped = value.strip()
+
+        # Handle percentage suffix (e.g., "0%", "5%", "10%")
+        if stripped.endswith("%"):
+            numeric_part = stripped[:-1].strip()
+            # Verify it's actually numeric before stripping
+            try:
+                float(numeric_part)
+                return numeric_part
+            except ValueError:
+                pass
+
+        # Handle currency prefixes (e.g., "$100", "€50")
+        if stripped and stripped[0] in "$€£¥":
+            numeric_part = stripped[1:].strip().replace(",", "")
+            try:
+                float(numeric_part)
+                return numeric_part
+            except ValueError:
+                pass
+
+        return value
+
     def _coerce(self, value: Any, expected_type: type) -> Any:
         """Coerce value to expected type.
 
@@ -324,12 +359,20 @@ class DefaultCustomFieldResolver:
                 if isinstance(value, (int, float)):
                     return Decimal(str(value))
                 if isinstance(value, str):
-                    return Decimal(value)
+                    # Normalize numeric strings (strip %, $, etc.)
+                    normalized = self._normalize_numeric_string(value)
+                    return Decimal(normalized)
             if expected_type is str:
                 return str(value)
             if expected_type is int:
+                if isinstance(value, str):
+                    normalized = self._normalize_numeric_string(value)
+                    return int(float(normalized))  # Handle "5.0" -> 5
                 return int(value)
             if expected_type is float:
+                if isinstance(value, str):
+                    normalized = self._normalize_numeric_string(value)
+                    return float(normalized)
                 return float(value)
             if expected_type is bool:
                 return bool(value)
