@@ -14,7 +14,7 @@ dependencies = [
     # Platform primitives (TDD-PRIMITIVE-MIGRATION-001)
     "autom8y-config>=0.1.0",
     "autom8y-http>=0.3.0",
-    "autom8y-cache>=0.1.0", # Per TDD-GID-RESOLUTION-SERVICE: HierarchyAwareResolver
+    "autom8y-cache>=0.3.0", # Per TDD-GID-RESOLUTION-SERVICE: HierarchyAwareResolver + schema versioning
     "autom8y-log>=0.3.2",
     # autom8y-telemetry deferred - see TDD Phase 6
     "boto3>=1.42.19",  # S3 for progressive cache warming (asyncio.to_thread)
