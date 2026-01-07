@@ -1,14 +1,20 @@
 """Tests for health check endpoints.
 
 Tests cover:
-- GET /health returns 200 with status and version
+- GET /health returns 200 always (liveness probe for ALB)
+- GET /health/ready returns 503 during warmup, 200 when ready (readiness probe)
 - GET /health/s2s returns S2S connectivity status
 - No authentication required
 - Response format matches expected structure
-- Cache readiness affects health status (FR-004)
+- Cache readiness affects /health/ready status (FR-004)
 
 Per PRD-S2S-001 NFR-OPS-002: Health check includes S2S connectivity status.
-Per sprint-materialization-002 FR-004: Health returns 503 during cache warmup.
+Per sprint-materialization-002 FR-004: Readiness returns 503 during cache warmup.
+
+Health Check Architecture:
+- /health: Liveness probe - always 200 if app is running (for ALB)
+- /health/ready: Readiness probe - 503 during warmup, 200 when ready
+- /health/s2s: S2S connectivity check
 """
 
 import os
@@ -222,19 +228,55 @@ class TestCacheReadiness:
     """Tests for cache readiness affecting health status.
 
     Per sprint-materialization-002 FR-004:
-    - Returns 503 "warming" status during cache preload
-    - Returns 200 "healthy" status after cache is ready
+    - GET /health/ready returns 503 "warming" status during cache preload
+    - GET /health/ready returns 200 "ready" status after cache is ready
+    - GET /health always returns 200 (liveness probe for ALB)
+
+    Architecture:
+    - /health is the liveness probe - always 200 if app is running
+    - /health/ready is the readiness probe - 503 during warmup
     """
 
-    def test_health_returns_503_when_cache_not_ready(self, client: TestClient) -> None:
-        """Health check returns 503 when cache is not ready.
+    def test_health_returns_200_always_even_when_cache_not_ready(
+        self, client: TestClient
+    ) -> None:
+        """Health (liveness) always returns 200, even during warmup.
 
-        Per FR-004: During cache preload, health endpoint returns 503 to
-        prevent traffic until caches are populated.
+        The /health endpoint is used by ALB health checks and must return
+        200 to prevent container termination during cache warming.
         """
         set_cache_ready(False)
 
         response = client.get("/health")
+
+        # Liveness probe always returns 200
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "healthy"
+        # But includes cache_ready flag for observability
+        assert data["cache_ready"] is False
+
+    def test_health_includes_cache_ready_flag(self, client: TestClient) -> None:
+        """Health check includes cache_ready flag for observability."""
+        set_cache_ready(True)
+        response = client.get("/health")
+        assert response.json()["cache_ready"] is True
+
+        set_cache_ready(False)
+        response = client.get("/health")
+        assert response.json()["cache_ready"] is False
+
+    def test_readiness_returns_503_when_cache_not_ready(
+        self, client: TestClient
+    ) -> None:
+        """Readiness check returns 503 when cache is not ready.
+
+        Per FR-004: During cache preload, readiness endpoint returns 503 to
+        signal service may have degraded performance.
+        """
+        set_cache_ready(False)
+
+        response = client.get("/health/ready")
 
         assert response.status_code == 503
         data = response.json()
@@ -243,18 +285,20 @@ class TestCacheReadiness:
         assert "message" in data
         assert "preload" in data["message"].lower()
 
-    def test_health_returns_200_when_cache_ready(self, client: TestClient) -> None:
-        """Health check returns 200 when cache is ready.
+    def test_readiness_returns_200_when_cache_ready(
+        self, client: TestClient
+    ) -> None:
+        """Readiness check returns 200 when cache is ready.
 
-        Per FR-004: After cache preload completes, health returns 200.
+        Per FR-004: After cache preload completes, readiness returns 200.
         """
         set_cache_ready(True)
 
-        response = client.get("/health")
+        response = client.get("/health/ready")
 
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "healthy"
+        assert data["status"] == "ready"
 
     def test_set_cache_ready_changes_state(self) -> None:
         """set_cache_ready() correctly updates the cache ready state."""
@@ -278,51 +322,90 @@ class TestCacheReadiness:
         set_cache_ready(False)
         assert is_cache_ready() is False
 
-    def test_health_warming_includes_version(self, client: TestClient) -> None:
-        """Health check in warming state still includes version."""
+    def test_health_always_includes_version(self, client: TestClient) -> None:
+        """Health check always includes version regardless of cache state."""
+        set_cache_ready(False)
+        response = client.get("/health")
+        data = response.json()
+        version = data["version"]
+        parts = version.split(".")
+        assert len(parts) == 3
+
+        set_cache_ready(True)
+        response = client.get("/health")
+        data = response.json()
+        version = data["version"]
+        parts = version.split(".")
+        assert len(parts) == 3
+
+    def test_readiness_warming_includes_version(self, client: TestClient) -> None:
+        """Readiness check in warming state still includes version."""
         set_cache_ready(False)
 
-        response = client.get("/health")
+        response = client.get("/health/ready")
         data = response.json()
 
         version = data["version"]
-        # Should be semver-like: X.Y.Z
         parts = version.split(".")
         assert len(parts) == 3
 
     def test_health_warming_no_auth_required(self, client: TestClient) -> None:
-        """Health check in warming state does not require auth.
+        """Health and readiness checks never require authentication.
 
         Per FR-API-HEALTH-002: Health endpoint never requires authentication.
         """
         set_cache_ready(False)
 
-        # No Authorization header
+        # /health - No Authorization header, should return 200
         response = client.get("/health")
+        assert response.status_code == 200
 
-        # Should return 503, not 401
-        assert response.status_code == 503
-
-        # Even with invalid header, should return 503 not 401
+        # Even with invalid header, should still work
         response = client.get("/health", headers={"Authorization": "invalid"})
+        assert response.status_code == 200
+
+        # /health/ready - should return 503, not 401
+        response = client.get("/health/ready")
         assert response.status_code == 503
 
-    def test_cache_state_transition(self, client: TestClient) -> None:
-        """Health status changes as cache state transitions."""
+        response = client.get("/health/ready", headers={"Authorization": "invalid"})
+        assert response.status_code == 503
+
+    def test_readiness_state_transition(self, client: TestClient) -> None:
+        """Readiness status changes as cache state transitions."""
         # Initially not ready
         set_cache_ready(False)
-        response = client.get("/health")
+        response = client.get("/health/ready")
         assert response.status_code == 503
         assert response.json()["status"] == "warming"
 
         # Transition to ready
         set_cache_ready(True)
-        response = client.get("/health")
+        response = client.get("/health/ready")
         assert response.status_code == 200
-        assert response.json()["status"] == "healthy"
+        assert response.json()["status"] == "ready"
 
         # Transition back to not ready (edge case)
         set_cache_ready(False)
-        response = client.get("/health")
+        response = client.get("/health/ready")
         assert response.status_code == 503
         assert response.json()["status"] == "warming"
+
+    def test_liveness_stable_during_state_transitions(
+        self, client: TestClient
+    ) -> None:
+        """Liveness probe (/health) always returns 200 during transitions."""
+        # Initially not ready
+        set_cache_ready(False)
+        response = client.get("/health")
+        assert response.status_code == 200
+
+        # Transition to ready
+        set_cache_ready(True)
+        response = client.get("/health")
+        assert response.status_code == 200
+
+        # Transition back
+        set_cache_ready(False)
+        response = client.get("/health")
+        assert response.status_code == 200

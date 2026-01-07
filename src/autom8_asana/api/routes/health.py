@@ -18,6 +18,14 @@ Per PRD-S2S-001 (NFR-OPS-002):
 Per sprint-materialization-002 FR-004:
 - Returns 503 "warming" status during cache preload
 - Returns 200 "healthy" status after cache is ready
+
+Health Check Architecture (ECS/ALB):
+- GET /health: Liveness probe - returns 200 if app is running (for ALB health checks)
+- GET /health/ready: Readiness probe - returns 503 during cache warming, 200 when ready
+- GET /health/s2s: S2S connectivity check - verifies JWKS and PAT configuration
+
+The /health endpoint always returns 200 to satisfy ALB health checks during startup.
+Use /health/ready for traffic gating decisions that require warm cache.
 """
 
 from __future__ import annotations
@@ -90,7 +98,7 @@ class S2SHealthResponse(TypedDict, total=False):
 
 @router.get("/health")
 async def health_check() -> JSONResponse:
-    """Liveness probe - returns healthy if the application is running and warm.
+    """Liveness probe - returns 200 if the application is running.
 
     Per FR-API-HEALTH-001:
     - Returns 200 with {"status": "healthy", "version": "0.1.0"}
@@ -99,21 +107,46 @@ async def health_check() -> JSONResponse:
     - This endpoint does NOT require authentication
     - No Authorization header needed
 
-    Per sprint-materialization-002 FR-004:
-    - Returns 503 with {"status": "warming"} during cache preload
-    - Returns 200 with {"status": "healthy"} after cache is ready
+    This endpoint is used by ALB/ECS health checks to determine if the
+    application process is running and can accept connections. It always
+    returns 200 to ensure containers are not killed during cache warming.
 
-    This endpoint checks cache readiness state. During startup preload,
-    it returns 503 to prevent traffic until caches are populated.
+    For cache readiness checks, use GET /health/ready instead.
 
     Returns:
         JSON response with status and current version.
-        - 200: Cache is ready, service is healthy
-        - 503: Cache is warming, service is not ready for traffic
+        - 200: Application is running (always)
+    """
+    # Include cache_ready status for observability, but always return 200
+    return JSONResponse(
+        content={
+            "status": "healthy",
+            "version": API_VERSION,
+            "cache_ready": _cache_ready,
+        },
+        status_code=200,
+    )
+
+
+@router.get("/health/ready")
+async def readiness_check() -> JSONResponse:
+    """Readiness probe - returns 200 only when cache is warm.
+
+    Per sprint-materialization-002 FR-004:
+    - Returns 503 with {"status": "warming"} during cache preload
+    - Returns 200 with {"status": "ready"} after cache is ready
+
+    Use this endpoint for traffic gating decisions that require warm cache.
+    The ALB should use /health for liveness, not this endpoint.
+
+    Returns:
+        JSON response with status and current version.
+        - 200: Cache is ready, service can handle traffic optimally
+        - 503: Cache is warming, service may have degraded performance
     """
     if not _cache_ready:
         logger.debug(
-            "health_check_warming",
+            "readiness_check_warming",
             extra={"cache_ready": False},
         )
         return JSONResponse(
@@ -126,7 +159,7 @@ async def health_check() -> JSONResponse:
         )
 
     return JSONResponse(
-        content={"status": "healthy", "version": API_VERSION},
+        content={"status": "ready", "version": API_VERSION},
         status_code=200,
     )
 
