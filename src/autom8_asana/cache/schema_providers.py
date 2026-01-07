@@ -12,21 +12,40 @@ Per SDK Phase 1:
 Example:
     >>> from autom8_asana.cache.schema_providers import register_asana_schemas
     >>> register_asana_schemas()  # Call during app startup
+
+Note:
+    Schema versioning requires autom8y-cache >= 0.5.0 with schema_version module.
+    If unavailable, register_asana_schemas() logs a warning and returns gracefully.
 """
 
 from __future__ import annotations
 
 import logging
-
-from autom8y_cache import (
-    CompatibilityMode,
-    SchemaVersion,
-    register_schema_provider,
-)
+from typing import TYPE_CHECKING
 
 from autom8_asana.dataframes.models.registry import SchemaRegistry
 
 logger = logging.getLogger(__name__)
+
+# Schema versioning is optional - requires SDK >= 0.5.0
+# Fail gracefully if not available (SDK not yet published with these features)
+_SCHEMA_VERSIONING_AVAILABLE = False
+try:
+    from autom8y_cache import (
+        CompatibilityMode,
+        SchemaVersion,
+        register_schema_provider,
+    )
+
+    _SCHEMA_VERSIONING_AVAILABLE = True
+except ImportError:
+    # SDK version doesn't have schema versioning yet
+    CompatibilityMode = None  # type: ignore[misc, assignment]
+    SchemaVersion = None  # type: ignore[misc, assignment]
+    register_schema_provider = None  # type: ignore[misc, assignment]
+
+if TYPE_CHECKING:
+    from autom8y_cache import CompatibilityMode, SchemaVersion
 
 
 class AsanaSchemaProvider:
@@ -81,7 +100,23 @@ def register_asana_schemas() -> None:
 
     Registers providers for: unit, contact, offer, business
     Each is prefixed with "asana:" namespace (e.g., "asana:unit").
+
+    Note:
+        If autom8y-cache doesn't have schema versioning support (< 0.5.0),
+        this function logs a warning and returns without error. Schema
+        registration will be enabled once the SDK is updated.
     """
+    if not _SCHEMA_VERSIONING_AVAILABLE:
+        logger.warning(
+            "schema_versioning_unavailable",
+            extra={
+                "reason": "autom8y-cache missing schema versioning exports",
+                "impact": "Schema compatibility checks disabled",
+                "remediation": "Update autom8y-cache to >= 0.5.0 when available",
+            },
+        )
+        return
+
     entity_types = ["unit", "contact", "offer", "business"]
 
     for entity_type in entity_types:
