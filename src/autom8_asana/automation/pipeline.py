@@ -25,7 +25,8 @@ from autom8_asana.automation.seeding import FieldSeeder
 from autom8_asana.automation.templates import TemplateDiscovery
 from autom8_asana.automation.validation import ValidationResult
 from autom8_asana.automation.waiter import SubtaskWaiter
-from autom8_asana.models.business.process import Process, ProcessSection, ProcessType
+# Per TDD-registry-consolidation: Import from package to ensure bootstrap runs
+from autom8_asana.models.business import Process, ProcessSection, ProcessType
 from autom8_asana.persistence.models import AutomationResult
 from autom8_asana.persistence.session import SaveSession
 
