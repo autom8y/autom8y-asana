@@ -3,6 +3,7 @@
 Per TDD-BIZMODEL: Provides typed Business, Contact, Unit, Offer, Process and
 supporting classes for navigating the Asana task hierarchy with strong typing.
 Per TDD-HARDENING-C: Migrated to descriptor-based navigation and ClassVar configuration.
+Per TDD-registry-consolidation: Bootstrap registration runs at import time.
 
 Phase 1 + 2 + 3 + Hardening Exports:
     - Business: Root entity with 7 holder properties and 19 typed fields
@@ -52,6 +53,15 @@ Example:
         await session.commit_async()
 """
 
+# Per TDD-registry-consolidation: Bootstrap registration FIRST - before any
+# other imports that might trigger detection. This ensures ProjectRegistry
+# is populated at module import time, not at class definition time via
+# __init_subclass__ (which is import-order dependent and unreliable).
+from autom8_asana.models.business._bootstrap import register_all_models
+
+register_all_models()
+
+# Then export all entity classes (unchanged)
 from autom8_asana.models.business.asset_edit import AssetEdit
 from autom8_asana.models.business.base import BusinessEntity, HolderMixin
 from autom8_asana.models.business.business import (

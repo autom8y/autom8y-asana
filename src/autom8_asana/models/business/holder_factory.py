@@ -2,7 +2,7 @@
 
 Per TDD-PATTERNS-C: Declarative holder definitions with auto-configuration.
 Per PRD-PATTERNS-C: Consolidates 4 near-identical stub holder implementations.
-Per TDD-DETECTION/ADR-0093: Auto-registration with ProjectTypeRegistry.
+Per TDD-registry-consolidation: Registration moved to _bootstrap.py.
 
 This module provides HolderFactory, a base class that uses Python's
 __init_subclass__ hook to enable declarative holder definitions:
@@ -218,10 +218,9 @@ class HolderFactory(Task, HolderMixin[Task]):
             },
         )
 
-        # NEW: Register with ProjectTypeRegistry (ADR-0093, TDD-DETECTION)
-        from autom8_asana.models.business.registry import _register_entity_with_registry
-
-        _register_entity_with_registry(cls)
+        # Per TDD-registry-consolidation: Registration REMOVED from __init_subclass__.
+        # Registration now happens explicitly via register_all_models() in _bootstrap.py.
+        # Do NOT register here - it causes import-order-dependent behavior.
 
     @property
     def children(self) -> list[Any]:

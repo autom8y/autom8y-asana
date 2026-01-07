@@ -3,13 +3,12 @@
 Per TDD-BIZMODEL: HolderMixin and BusinessEntity base class.
 Per TDD-HARDENING-C: Enhanced with ClassVar configuration and auto-discovery.
 Per TDD-PATTERNS-A: Custom field descriptor support with Fields auto-generation.
-Per TDD-DETECTION: Auto-registration with ProjectTypeRegistry via __init_subclass__.
+Per TDD-registry-consolidation: Registration moved to _bootstrap.py (explicit bootstrap).
 Per ADR-0050: Holder lazy loading with prefetch support.
 Per ADR-0052: Cached bidirectional references with explicit invalidation.
 Per ADR-0075: Navigation descriptor pattern support.
 Per ADR-0076: Auto-invalidation strategy.
 Per ADR-0082: Fields class auto-generation from descriptors.
-Per ADR-0093: Project-to-EntityType registry auto-population.
 """
 
 from __future__ import annotations
@@ -48,7 +47,7 @@ class HolderMixin(Generic[T]):
 
     Per ADR-0050: Holder lazy loading with prefetch support.
     Per TDD-HARDENING-C: ClassVar configuration for single _populate_children().
-    Per TDD-DETECTION/ADR-0093: Auto-registration with ProjectTypeRegistry.
+    Per TDD-registry-consolidation: Registration moved to _bootstrap.py.
 
     Holders group related child tasks under a parent. Each holder
     maintains a cached list of typed children that is populated
@@ -86,19 +85,19 @@ class HolderMixin(Generic[T]):
     _children_cache: list[T] | None = PrivateAttr(default=None)
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        """Register holder with ProjectTypeRegistry.
+        """Initialize holder subclass.
 
-        Per ADR-0093: Auto-registration of holder types.
+        Per TDD-registry-consolidation: Registration REMOVED from __init_subclass__.
+            Registration now happens explicitly via register_all_models() in _bootstrap.py.
 
         Args:
             **kwargs: Passed to parent __init_subclass__.
         """
         super().__init_subclass__(**kwargs)
 
-        # Register with ProjectTypeRegistry (ADR-0093, TDD-DETECTION)
-        from autom8_asana.models.business.registry import _register_entity_with_registry
-
-        _register_entity_with_registry(cls)
+        # Per TDD-registry-consolidation: Registration REMOVED from __init_subclass__.
+        # Registration now happens explicitly via register_all_models() in _bootstrap.py.
+        # Do NOT register here - it causes import-order-dependent behavior.
 
     def _populate_children(self, subtasks: list[Task]) -> None:
         """Populate typed children from fetched subtasks.
@@ -238,7 +237,7 @@ class BusinessEntity(Task):
     # e.g., class CascadingFields: ...
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        """Auto-discover cached reference attributes, generate Fields class, and register with registry.
+        """Auto-discover cached reference attributes and generate Fields class.
 
         Per FR-INV-001: Discovers attrs matching pattern:
         - Starts with underscore
@@ -246,7 +245,8 @@ class BusinessEntity(Task):
         - Not a list type (those are children, not refs)
 
         Per ADR-0082: Generates Fields class from registered custom field descriptors.
-        Per ADR-0093: Registers entity with ProjectTypeRegistry.
+        Per TDD-registry-consolidation: Registration REMOVED from __init_subclass__.
+            Registration now happens explicitly via register_all_models() in _bootstrap.py.
 
         IMPORTANT: Works correctly with Pydantic models because Pydantic
         also uses __init_subclass__ and this runs after class creation.
@@ -284,7 +284,7 @@ class BusinessEntity(Task):
 
         cls._CACHED_REF_ATTRS = tuple(set(parent_refs) | set(ref_attrs))
 
-        # NEW: Generate Fields class from registered custom field descriptors (ADR-0082)
+        # Generate Fields class from registered custom field descriptors (ADR-0082)
         # Per TDD-SPRINT-1: Also collect fields from mixin base classes
         field_constants: dict[str, str] = {}
 
@@ -325,10 +325,9 @@ class BusinessEntity(Task):
                 fields_cls = type("Fields", (), field_constants)
                 cls.Fields = fields_cls  # type: ignore[attr-defined]
 
-        # NEW: Register with ProjectTypeRegistry (ADR-0093, TDD-DETECTION)
-        from autom8_asana.models.business.registry import _register_entity_with_registry
-
-        _register_entity_with_registry(cls)
+        # Per TDD-registry-consolidation: Registration REMOVED from __init_subclass__.
+        # Registration now happens explicitly via register_all_models() in _bootstrap.py.
+        # Do NOT register here - it causes import-order-dependent behavior.
 
     @classmethod
     async def from_gid_async(
