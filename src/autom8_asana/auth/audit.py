@@ -18,7 +18,7 @@ Per FR-AUDIT-001, FR-AUDIT-002:
 from __future__ import annotations
 
 import json
-import logging
+from autom8y_log import get_logger
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from autom8_asana.api.dependencies import AuthContext
 
-logger = logging.getLogger("autom8_asana.audit")
+logger = get_logger("autom8_asana.audit")
 
 
 @dataclass(frozen=True, slots=True)

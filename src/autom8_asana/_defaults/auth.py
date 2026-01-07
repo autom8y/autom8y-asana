@@ -10,7 +10,7 @@ Per ADR-VAULT-001: Platform Service Auth uses Secrets Manager, not custom vaults
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 import os
 from typing import TYPE_CHECKING
 
@@ -20,7 +20,7 @@ from autom8_asana.settings import get_settings
 if TYPE_CHECKING:
     from mypy_boto3_secretsmanager import SecretsManagerClient
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class EnvAuthProvider:

@@ -24,7 +24,7 @@ Exit Codes:
 from __future__ import annotations
 
 import argparse
-import logging
+from autom8y_log import get_logger
 import sys
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
@@ -46,7 +46,7 @@ __all__ = [
 ]
 
 # Configure module logger
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def validate_command(config_path: str) -> int:

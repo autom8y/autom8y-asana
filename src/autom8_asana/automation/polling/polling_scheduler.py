@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import asyncio
 import fcntl
-import logging
+from autom8y_log import get_logger
 import sys
 import time
 from datetime import datetime, timezone
@@ -57,7 +57,7 @@ if TYPE_CHECKING:
 __all__ = ["PollingScheduler"]
 
 # Fallback stdlib logger for non-evaluation logging (initialization, locks)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Default lock file location
 DEFAULT_LOCK_PATH = "/tmp/autom8_asana_polling.lock"

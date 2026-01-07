@@ -30,7 +30,7 @@ Example:
 from __future__ import annotations
 
 import asyncio
-import logging
+from autom8y_log import get_logger
 import time
 from dataclasses import dataclass, field
 from types import TracebackType
@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 
 __all__ = ["AsyncS3Client", "S3WriteResult", "S3ReadResult", "AsyncS3Config"]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

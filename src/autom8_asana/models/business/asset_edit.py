@@ -13,7 +13,7 @@ Per ADR-0076: Auto-invalidation on parent reference change.
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from autom8_asana.models.business.offer import Offer
     from autom8_asana.models.business.unit import Unit
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class AssetEdit(Process):

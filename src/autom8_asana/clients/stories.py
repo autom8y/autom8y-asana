@@ -6,7 +6,7 @@ Use raw=True for backward-compatible dict returns.
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 import time
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Literal, overload
 
@@ -18,7 +18,7 @@ from autom8_asana.transport.sync import sync_wrapper
 if TYPE_CHECKING:
     pass
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class StoriesClient(BaseClient):

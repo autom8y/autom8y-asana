@@ -28,7 +28,7 @@ Example:
 from __future__ import annotations
 
 import asyncio
-import logging
+from autom8y_log import get_logger
 from typing import TYPE_CHECKING, Any
 
 # Import HealingResult from models (canonical location per ABS-001)
@@ -47,7 +47,7 @@ __all__ = [
     "heal_entities_async",
 ]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class HealingManager:

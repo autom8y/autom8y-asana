@@ -14,7 +14,7 @@ Sales process moves to the "Converted" section.
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 import re
 import time
 from datetime import date, timedelta
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from autom8_asana.automation.context import AutomationContext
     from autom8_asana.models.base import AsanaResource
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class PipelineConversionRule:

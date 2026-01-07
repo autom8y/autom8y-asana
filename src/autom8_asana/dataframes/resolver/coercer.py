@@ -10,13 +10,13 @@ that return lists but may be mapped to string columns.
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 from decimal import Decimal, InvalidOperation
 from typing import Any, ClassVar
 
 __all__ = ["TypeCoercer", "coerce_value"]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class TypeCoercer:

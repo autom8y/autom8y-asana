@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
-import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from threading import Lock
 from types import ModuleType
 from typing import Any, cast
+
+from autom8y_log import get_logger
 
 from autom8_asana.cache.entry import CacheEntry, EntryType
 from autom8_asana.cache.freshness import Freshness
@@ -18,7 +19,7 @@ from autom8_asana.cache.settings import CacheSettings
 from autom8_asana.cache.versioning import format_version, is_current, parse_version
 from autom8_asana.protocols.cache import WarmResult
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

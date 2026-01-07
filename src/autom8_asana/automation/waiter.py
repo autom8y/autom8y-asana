@@ -10,14 +10,14 @@ This utility polls until the expected subtask count is reached or timeout expire
 from __future__ import annotations
 
 import asyncio
-import logging
+from autom8y_log import get_logger
 import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SubtaskWaiter:

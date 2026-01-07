@@ -44,7 +44,7 @@ from __future__ import annotations
 
 import io
 import json
-import logging
+from autom8y_log import get_logger
 import threading
 import time
 from dataclasses import dataclass
@@ -59,7 +59,7 @@ if TYPE_CHECKING:
 
 __all__ = ["DataFramePersistence", "PersistenceConfig"]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

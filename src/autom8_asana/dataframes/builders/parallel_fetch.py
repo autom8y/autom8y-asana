@@ -11,7 +11,7 @@ Per PRD-CACHE-OPT-P3 / ADR-0131: GID enumeration caching for 10x speedup.
 from __future__ import annotations
 
 import asyncio
-import logging
+from autom8y_log import get_logger
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from autom8_asana.models.task import Task
     from autom8_asana.protocols.cache import CacheProvider
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ParallelFetchError(DataFrameError):

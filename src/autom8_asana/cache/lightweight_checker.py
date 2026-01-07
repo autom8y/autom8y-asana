@@ -9,9 +9,10 @@ Per FR-BATCH-003: Chunks into groups of 10 (Asana batch limit).
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
+
+from autom8y_log import get_logger
 
 if TYPE_CHECKING:
     from autom8_asana.batch.client import BatchClient
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
 
 from autom8_asana.batch.models import BatchRequest
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Asana batch API limit per request
 ASANA_BATCH_LIMIT = 10

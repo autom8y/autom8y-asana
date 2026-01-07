@@ -13,7 +13,7 @@ Dependencies: types.py, config.py
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 from typing import TYPE_CHECKING
 
 from autom8_asana.models.business.detection.types import (
@@ -30,7 +30,7 @@ __all__ = [
     "detect_by_structure_inspection",
 ]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Structure indicators for entity type detection
 BUSINESS_INDICATORS: frozenset[str] = frozenset({"contacts", "units", "location"})

@@ -6,7 +6,7 @@ Per TDD FR-M-002: Composite field comparison with configurable weights.
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 import math
 from typing import TYPE_CHECKING
 
@@ -31,7 +31,7 @@ from autom8_asana.models.business.matching.normalizers import (
 if TYPE_CHECKING:
     from autom8_asana.models.business.seeder import BusinessData
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def log_odds_to_probability(log_odds: float) -> float:

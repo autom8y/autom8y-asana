@@ -17,7 +17,7 @@ This replaces ~70 lines of boilerplate per holder with 3-5 lines.
 from __future__ import annotations
 
 import importlib
-import logging
+from autom8y_log import get_logger
 import re
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from autom8_asana.models.business.business import Business
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _camel_to_snake(name: str) -> str:

@@ -14,7 +14,7 @@ Per ADR-0073: Batch operations implemented as module-level functions.
 from __future__ import annotations
 
 import asyncio
-import logging
+from autom8y_log import get_logger
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Generic, Sequence, TypeVar
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 T = TypeVar("T", bound="BusinessEntity")
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ResolutionStrategy(str, Enum):

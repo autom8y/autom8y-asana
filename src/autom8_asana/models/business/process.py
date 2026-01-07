@@ -16,7 +16,7 @@ field that doesn't exist on the underlying Asana task returns None.
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 from enum import Enum
 from typing import TYPE_CHECKING, ClassVar
 
@@ -45,7 +45,7 @@ if TYPE_CHECKING:
     from autom8_asana.models.business.business import Business
     from autom8_asana.models.business.unit import Unit
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ProcessType(str, Enum):

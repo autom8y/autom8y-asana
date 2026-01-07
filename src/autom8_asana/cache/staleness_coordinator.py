@@ -9,10 +9,11 @@ Per ADR-0134: Integrates with BaseClient as optional coordinator pattern.
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
+
+from autom8y_log import get_logger
 
 if TYPE_CHECKING:
     from autom8_asana.batch.client import BatchClient
@@ -23,7 +24,7 @@ from autom8_asana.cache.entry import CacheEntry
 from autom8_asana.cache.lightweight_checker import LightweightChecker
 from autom8_asana.cache.staleness_settings import StalenessCheckSettings
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

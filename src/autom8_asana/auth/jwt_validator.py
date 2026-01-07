@@ -16,13 +16,13 @@ Per ADR-S2S-001: No custom JWT validation logic - delegate entirely to SDK.
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from autom8y_auth import AuthClient, ServiceClaims
 
-logger = logging.getLogger("autom8_asana.auth")
+logger = get_logger("autom8_asana.auth")
 
 # Module-level client (lazy initialized, thread-safe)
 _auth_client: "AuthClient | None" = None

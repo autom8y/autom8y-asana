@@ -225,9 +225,9 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
             except Exception as e:
                 if partial_ok:
                     # Log and continue with partially hydrated business
-                    import logging
+                    from autom8y_log import get_logger
 
-                    logger = logging.getLogger(__name__)
+                    logger = get_logger(__name__)
                     logger.warning(
                         "Hydration failed with partial_ok=True",
                         extra={"business_gid": gid, "error": str(e)},

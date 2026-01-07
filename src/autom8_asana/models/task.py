@@ -9,9 +9,9 @@ Per TDD-TRIAGE-FIXES: Snapshot-based detection of direct custom field modificati
 from __future__ import annotations
 
 import copy
-import logging
 from typing import TYPE_CHECKING, Any
 
+from autom8y_log import get_logger
 from pydantic import Field, PrivateAttr, model_validator
 
 from autom8_asana.models.base import AsanaResource
@@ -21,7 +21,7 @@ from autom8_asana.models.custom_field_accessor import CustomFieldAccessor
 if TYPE_CHECKING:
     pass
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Task(AsanaResource):

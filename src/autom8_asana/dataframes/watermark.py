@@ -42,7 +42,7 @@ Example:
 from __future__ import annotations
 
 import asyncio
-import logging
+from autom8y_log import get_logger
 import threading
 from datetime import datetime
 from typing import TYPE_CHECKING, ClassVar
@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 
 __all__ = ["WatermarkRepository", "get_watermark_repo"]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class WatermarkRepository:

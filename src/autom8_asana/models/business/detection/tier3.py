@@ -13,7 +13,7 @@ Dependencies: types.py, config.py
 
 from __future__ import annotations
 
-import logging
+from autom8y_log import get_logger
 from typing import TYPE_CHECKING
 
 from autom8_asana.models.business.detection.config import PARENT_CHILD_MAP
@@ -30,7 +30,7 @@ __all__ = [
     "detect_by_parent_inference",
 ]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def detect_by_parent_inference(
