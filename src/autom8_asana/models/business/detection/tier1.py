@@ -47,9 +47,9 @@ def _extract_project_gid(task: Task) -> str | None:
         Project GID if found, None otherwise.
     """
     if not task.memberships:
-        logger.debug(
-            "No memberships on task for Tier 1 detection",
-            extra={"task_gid": task.gid},
+        logger.warning(
+            "tier1_no_memberships",
+            extra={"task_gid": task.gid, "task_name": task.name},
         )
         return None
 
