@@ -441,6 +441,41 @@ class TieredCacheProvider:
         """
         self._metrics.reset()
 
+    def clear_all_tasks(self) -> dict[str, int]:
+        """Clear all task entries from both tiers.
+
+        Clears task cache from both Redis (hot) and S3 (cold) tiers.
+        Used for cache invalidation when cached data becomes stale
+        or corrupted (e.g., missing required fields like memberships).
+
+        Returns:
+            Dict with counts: {"redis": N, "s3": M}
+        """
+        result = {"redis": 0, "s3": 0}
+
+        # Clear hot tier (Redis)
+        try:
+            result["redis"] = self._hot.clear_all_tasks()
+        except Exception as e:
+            logger.warning(f"Redis clear_all_tasks failed: {e}")
+
+        # Clear cold tier (S3) if enabled
+        if self.s3_enabled and self._cold is not None:
+            try:
+                result["s3"] = self._cold.clear_all_tasks()
+            except Exception as e:
+                logger.warning(f"S3 clear_all_tasks failed: {e}")
+
+        logger.info(
+            "tiered_clear_all_tasks_complete",
+            extra={
+                "redis_deleted": result["redis"],
+                "s3_deleted": result["s3"],
+            },
+        )
+
+        return result
+
     def get_hot_metrics(self) -> CacheMetrics:
         """Get hot tier (Redis) metrics.
 
