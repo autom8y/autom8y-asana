@@ -100,6 +100,7 @@ class TaskTTLResolver:
 
     def _detect_entity_type(self, data: dict[str, Any]) -> str | None:
         """Detect entity type from task data."""
-        from autom8_asana.models.business.detection import detect_entity_type_from_dict
+        # Per TDD-registry-consolidation: Import from package to ensure bootstrap runs
+        from autom8_asana.models.business import detect_entity_type_from_dict
 
         return detect_entity_type_from_dict(data)
