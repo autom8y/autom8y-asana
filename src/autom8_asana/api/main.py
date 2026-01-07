@@ -198,9 +198,42 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Runs after entity discovery so we know which projects exist
     # Per progressive cache warming architecture: use progressive preload with
     # parallel project processing, resume capability, and heartbeat monitoring
-    await _preload_dataframe_cache_progressive(app)
+    #
+    # IMPORTANT: Run cache warming as background task to not block startup.
+    # This allows /health to return 200 immediately while cache warms.
+    # The /health/ready endpoint returns 503 until cache is warm.
+    # Per ECS health check fix: blocking startup causes health check failures
+    # when rate limiting or other errors slow down cache warming.
+    background_task = asyncio.create_task(
+        _preload_dataframe_cache_progressive(app),
+        name="cache_warming",
+    )
+
+    # Store task reference to cancel on shutdown
+    app.state.cache_warming_task = background_task
+
+    logger.info(
+        "cache_warming_started_background",
+        extra={"task_name": "cache_warming"},
+    )
 
     yield
+
+    # Cancel background cache warming if still running
+    if hasattr(app.state, "cache_warming_task"):
+        task = app.state.cache_warming_task
+        if not task.done():
+            logger.info("cache_warming_cancelling")
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                logger.info("cache_warming_cancelled")
+            except Exception as e:
+                logger.warning(
+                    "cache_warming_cancel_error",
+                    extra={"error": str(e)},
+                )
 
     # Shutdown
     logger.info(
