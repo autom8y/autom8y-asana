@@ -404,24 +404,28 @@ class UnitHolder(
     Per FR-HOLDER-003: UnitHolder extends Task with _units PrivateAttr.
     Per TDD-SPRINT-1: Migrated to HolderFactory pattern.
 
-    PRIMARY_PROJECT_GID Design (FR-DET-004):
-        UnitHolder intentionally has no dedicated Asana project. It is a
-        **container task** (subtask of Business) that groups Unit children,
-        but does not have custom fields or project membership of its own.
+    PRIMARY_PROJECT_GID Design (HOTFIX-entity-collision):
+        UnitHolder has its own Asana project "Units" (GID 1204433992667196).
+        This is REQUIRED to prevent entity resolution collision:
 
-        Detection relies on:
-        - **Tier 2**: Name pattern matching ("units", "unit", "business units")
-        - **Tier 3**: Parent inference from Business
+        Without PRIMARY_PROJECT_GID:
+        - "Business Units" normalizes to entity_type "unit" -> Unit
+        - "Units" also normalizes to entity_type "unit" -> overwrites Unit mapping
+        - Result: Resolver returns UnitHolder GIDs instead of Unit GIDs
 
-        Note that Unit *entities* (children of UnitHolder) DO have a
-        PRIMARY_PROJECT_GID ("1201081073731555") for Tier 1 detection. This is
-        only the *holder* that has no dedicated project.
+        With PRIMARY_PROJECT_GID:
+        - Unit maps to "Business Units" (GID 1201081073731555)
+        - UnitHolder maps to "Units" (GID 1204433992667196)
+        - Each entity type has its own project, no collision
 
-        The None value is intentional and correct - UnitHolder is a structural
-        container, not a project member.
+        Detection:
+        - **Tier 1**: Project membership (PRIMARY_PROJECT_GID) - preferred
+        - **Tier 2**: Name pattern matching (fallback)
+        - **Tier 3**: Parent inference from Business (fallback)
     """
 
-    # Per TDD-DETECTION/FR-DET-004: UnitHolder is a container task with no dedicated
-    # project. Detection uses Tier 2 (name pattern) and Tier 3 (parent inference from
-    # Business). See class docstring for full explanation.
-    PRIMARY_PROJECT_GID: ClassVar[str | None] = None
+    # Per HOTFIX-entity-collision: UnitHolder DOES have a dedicated project ("Units",
+    # GID 1204433992667196). Without this, "Units" normalizes to "unit" and collides
+    # with "Business Units" (Unit entity), causing last-write-wins to return wrong GIDs.
+    # Previous None value was incorrect - UnitHolder needs its own project mapping.
+    PRIMARY_PROJECT_GID: ClassVar[str | None] = "1204433992667196"
