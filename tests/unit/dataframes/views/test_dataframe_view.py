@@ -817,3 +817,212 @@ class TestDataFrameViewPluginEdgeCases:
 
         expected_url = "https://app.asana.com/0/0/12345678901234567"
         assert result["url"][0] == expected_url
+
+
+class TestDataFrameViewPluginMixedTypes:
+    """Tests for handling mixed type fields (e.g., percentage fields).
+
+    Per progressive builder fix: Fields with missing resource_subtype
+    should prefer typed values (number_value) over display_value to
+    avoid Polars schema inference errors like "0%" vs 0.0.
+    """
+
+    @pytest.fixture
+    def percentage_schema(self) -> DataFrameSchema:
+        """Schema with percentage/decimal fields."""
+        return DataFrameSchema(
+            name="percentage_test",
+            task_type="Unit",
+            columns=[
+                ColumnDef("gid", "Utf8", nullable=False, source=None),
+                ColumnDef("name", "Utf8", nullable=False, source=None),
+                ColumnDef("discount", "Float64", nullable=True, source="cf:Discount"),
+                ColumnDef("commission", "Float64", nullable=True, source="cf:Commission"),
+            ],
+            version="1.0.0",
+        )
+
+    @pytest.mark.asyncio
+    async def test_extract_cf_value_prefers_number_over_display(
+        self, mock_store: MagicMock, percentage_schema: DataFrameSchema
+    ) -> None:
+        """Test that number_value is preferred over display_value.
+
+        This is the exact scenario that caused the progressive builder error:
+        display_value="0%" but number_value=0.0.
+        """
+        task_data = {
+            "gid": "task-123",
+            "name": "Test Unit",
+            "resource_subtype": "default_task",
+            "completed": False,
+            "created_at": "2025-01-01T00:00:00Z",
+            "modified_at": "2025-01-01T00:00:00Z",
+            "memberships": [],
+            "tags": [],
+            "custom_fields": [
+                {
+                    "gid": "cf-1",
+                    "name": "Discount",
+                    "resource_subtype": None,  # Missing type info
+                    "number_value": 0.0,
+                    "display_value": "0%",
+                },
+                {
+                    "gid": "cf-2",
+                    "name": "Commission",
+                    "resource_subtype": "number",  # Correct type
+                    "number_value": 0.15,
+                    "display_value": "15%",
+                },
+            ],
+        }
+        mock_store.get_batch_async = AsyncMock(return_value={"task-123": task_data})
+        mock_store.get_parent_chain_async = AsyncMock(return_value=[])
+
+        plugin = DataFrameViewPlugin(store=mock_store, schema=percentage_schema)
+
+        result = await plugin.materialize_async(["task-123"])
+
+        # Both should be numeric, not strings like "0%" or "15%"
+        assert result["discount"][0] == 0.0
+        assert result["commission"][0] == 0.15
+        assert not isinstance(result["discount"][0], str)
+        assert not isinstance(result["commission"][0], str)
+
+    def test_extract_cf_value_fallback_priority(
+        self, mock_store: MagicMock, simple_schema: DataFrameSchema
+    ) -> None:
+        """Test fallback priority: number > text > enum > display."""
+        plugin = DataFrameViewPlugin(store=mock_store, schema=simple_schema)
+
+        # Test 1: number_value present - should return number
+        cf_number = {
+            "resource_subtype": None,
+            "number_value": 42.5,
+            "text_value": "forty-two",
+            "display_value": "42.5 (formatted)",
+        }
+        assert plugin._extract_cf_value(cf_number) == 42.5
+
+        # Test 2: number_value None, text_value present - should return text
+        cf_text = {
+            "resource_subtype": None,
+            "number_value": None,
+            "text_value": "hello world",
+            "display_value": "Hello, World!",
+        }
+        assert plugin._extract_cf_value(cf_text) == "hello world"
+
+        # Test 3: number and text None, enum present - should return enum name
+        cf_enum = {
+            "resource_subtype": None,
+            "number_value": None,
+            "text_value": None,
+            "enum_value": {"gid": "e1", "name": "Active"},
+            "display_value": "Active status",
+        }
+        assert plugin._extract_cf_value(cf_enum) == "Active"
+
+        # Test 4: only display_value - should return display
+        cf_display_only = {
+            "resource_subtype": "formula",
+            "display_value": "Computed: 123",
+        }
+        assert plugin._extract_cf_value(cf_display_only) == "Computed: 123"
+
+    def test_extract_custom_field_value_from_dict_priority(
+        self, mock_store: MagicMock, simple_schema: DataFrameSchema
+    ) -> None:
+        """Test _extract_custom_field_value_from_dict fallback priority.
+
+        This method is used as fallback when cascade_plugin is not available.
+        """
+        plugin = DataFrameViewPlugin(store=mock_store, schema=simple_schema)
+
+        # Task with percentage-like field
+        task_data = {
+            "custom_fields": [
+                {
+                    "gid": "cf-1",
+                    "name": "Commission",
+                    "resource_subtype": None,  # Missing
+                    "number_value": 0.0,
+                    "display_value": "0%",
+                },
+            ]
+        }
+
+        result = plugin._extract_custom_field_value_from_dict(task_data, "Commission")
+
+        # Should return 0.0, not "0%"
+        assert result == 0.0
+        assert not isinstance(result, str)
+
+    @pytest.mark.asyncio
+    async def test_polars_dataframe_creation_with_percentage(
+        self, mock_store: MagicMock, percentage_schema: DataFrameSchema
+    ) -> None:
+        """Test that DataFrame creation succeeds with percentage fields.
+
+        This verifies the fix prevents the ComputeError that occurred when
+        Polars tried to append "0%" string to a Float64 column.
+        """
+        # Multiple tasks with varying percentage values
+        tasks = {
+            "task-1": {
+                "gid": "task-1",
+                "name": "Task 1",
+                "resource_subtype": "default_task",
+                "completed": False,
+                "created_at": "2025-01-01T00:00:00Z",
+                "modified_at": "2025-01-01T00:00:00Z",
+                "memberships": [],
+                "tags": [],
+                "custom_fields": [
+                    {
+                        "gid": "cf-1",
+                        "name": "Discount",
+                        "resource_subtype": None,  # Edge case: missing type
+                        "number_value": 0.0,
+                        "display_value": "0%",
+                    },
+                ],
+            },
+            "task-2": {
+                "gid": "task-2",
+                "name": "Task 2",
+                "resource_subtype": "default_task",
+                "completed": False,
+                "created_at": "2025-01-01T00:00:00Z",
+                "modified_at": "2025-01-01T00:00:00Z",
+                "memberships": [],
+                "tags": [],
+                "custom_fields": [
+                    {
+                        "gid": "cf-1",
+                        "name": "Discount",
+                        "resource_subtype": "number",  # Normal case
+                        "number_value": 0.25,
+                        "display_value": "25%",
+                    },
+                ],
+            },
+        }
+        mock_store.get_batch_async = AsyncMock(return_value=tasks)
+        mock_store.get_parent_chain_async = AsyncMock(return_value=[])
+
+        plugin = DataFrameViewPlugin(store=mock_store, schema=percentage_schema)
+
+        # This should NOT raise ComputeError
+        result = await plugin.materialize_async(["task-1", "task-2"])
+
+        # Verify DataFrame was created successfully
+        assert len(result) == 2
+        assert result.schema["discount"] == pl.Float64
+
+        # Verify all values are numeric
+        discounts = result["discount"].to_list()
+        assert 0.0 in discounts
+        assert 0.25 in discounts
+        assert all(isinstance(d, (int, float)) or d is None for d in discounts)

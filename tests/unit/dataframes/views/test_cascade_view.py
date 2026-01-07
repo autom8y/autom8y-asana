@@ -597,3 +597,125 @@ class TestCascadeViewPluginEdgeCases:
 
         # Should find at root
         assert result == "root-phone"
+
+
+class TestCascadeViewPluginMixedTypes:
+    """Tests for handling mixed type fields (e.g., percentage fields).
+
+    Per progressive builder fix: Fields with missing resource_subtype
+    should prefer typed values (number_value) over display_value to
+    avoid schema inference errors like "0%" vs 0.0.
+    """
+
+    def test_extract_unknown_type_prefers_number_value(
+        self, cascade_plugin: CascadeViewPlugin
+    ) -> None:
+        """Test that number_value is preferred over display_value for unknown types.
+
+        This handles percentage fields where display_value is "0%" but
+        number_value is 0.0, which was causing Polars schema errors.
+        """
+        cf_data = {
+            "gid": "cf-percent",
+            "name": "Commission",
+            "resource_subtype": None,  # Unknown/missing type
+            "number_value": 0.0,
+            "display_value": "0%",
+        }
+
+        result = cascade_plugin._extract_field_value(cf_data)
+
+        # Should return number_value (0.0) not display_value ("0%")
+        assert result == 0.0
+        assert not isinstance(result, str)
+
+    def test_extract_unknown_type_prefers_text_over_display(
+        self, cascade_plugin: CascadeViewPlugin
+    ) -> None:
+        """Test that text_value is preferred over display_value when number is None."""
+        cf_data = {
+            "gid": "cf-text",
+            "name": "Notes",
+            "resource_subtype": None,
+            "text_value": "Some notes",
+            "display_value": "Display: Some notes",
+        }
+
+        result = cascade_plugin._extract_field_value(cf_data)
+
+        assert result == "Some notes"
+
+    def test_extract_unknown_type_prefers_enum_over_display(
+        self, cascade_plugin: CascadeViewPlugin
+    ) -> None:
+        """Test enum_value is preferred over display_value when text/number are None."""
+        cf_data = {
+            "gid": "cf-enum",
+            "name": "Status",
+            "resource_subtype": None,  # Missing
+            "enum_value": {"gid": "e1", "name": "Active"},
+            "display_value": "Active (custom)",
+        }
+
+        result = cascade_plugin._extract_field_value(cf_data)
+
+        assert result == "Active"
+
+    def test_extract_unknown_type_falls_back_to_display(
+        self, cascade_plugin: CascadeViewPlugin
+    ) -> None:
+        """Test display_value is used when no typed values exist."""
+        cf_data = {
+            "gid": "cf-formula",
+            "name": "Computed",
+            "resource_subtype": "formula",  # Unrecognized type
+            "display_value": "Computed: 42",
+            # No typed values
+        }
+
+        result = cascade_plugin._extract_field_value(cf_data)
+
+        assert result == "Computed: 42"
+
+    def test_extract_percentage_field_returns_numeric(
+        self, cascade_plugin: CascadeViewPlugin
+    ) -> None:
+        """Test realistic percentage field scenario.
+
+        This is the exact scenario that caused the progressive builder error:
+        - resource_subtype may be "number" or missing
+        - display_value contains formatted percentage string
+        - number_value contains actual numeric value
+        """
+        # Scenario 1: resource_subtype is "number" (should work via match case)
+        cf_with_type = {
+            "gid": "cf-discount",
+            "name": "Discount",
+            "resource_subtype": "number",
+            "number_value": 0.15,
+            "display_value": "15%",
+        }
+        result = cascade_plugin._extract_field_value(cf_with_type)
+        assert result == 0.15
+
+        # Scenario 2: resource_subtype is missing (fallback case)
+        cf_without_type = {
+            "gid": "cf-discount",
+            "name": "Discount",
+            "resource_subtype": None,
+            "number_value": 0.15,
+            "display_value": "15%",
+        }
+        result = cascade_plugin._extract_field_value(cf_without_type)
+        assert result == 0.15
+
+        # Scenario 3: resource_subtype is unknown
+        cf_unknown_type = {
+            "gid": "cf-discount",
+            "name": "Discount",
+            "resource_subtype": "percentage",  # Not a standard Asana type
+            "number_value": 0.15,
+            "display_value": "15%",
+        }
+        result = cascade_plugin._extract_field_value(cf_unknown_type)
+        assert result == 0.15

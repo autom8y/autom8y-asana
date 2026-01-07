@@ -471,6 +471,12 @@ class DataFrameViewPlugin:
 
         Returns:
             Field value if found, None otherwise.
+
+        Note:
+            Priority order for extraction: number_value > text_value > enum_value >
+            multi_enum_values > display_value. This ensures typed values are preferred
+            over display_value which may contain formatted strings (e.g., "0%" instead
+            of 0.0 for percentage fields).
         """
         custom_fields = task_data.get("custom_fields")
         if not custom_fields:
@@ -484,19 +490,18 @@ class DataFrameViewPlugin:
                 continue
             cf_name = cf.get("name")
             if cf_name and cf_name.lower().strip() == normalized_name:
-                # Extract value based on field type
-                if "display_value" in cf:
-                    return cf.get("display_value")
-                if "text_value" in cf:
-                    return cf.get("text_value")
-                if "number_value" in cf:
+                # Extract value based on field type - prioritize typed values
+                # over display_value to avoid type mismatches (e.g., "0%" vs 0.0)
+                if cf.get("number_value") is not None:
                     return cf.get("number_value")
-                if "enum_value" in cf and cf["enum_value"]:
+                if cf.get("text_value") is not None:
+                    return cf.get("text_value")
+                if cf.get("enum_value") and isinstance(cf["enum_value"], dict):
                     return cf["enum_value"].get("name")
                 if "multi_enum_values" in cf:
                     vals = cf.get("multi_enum_values") or []
                     return [v.get("name") for v in vals if v.get("name")]
-                # For people/date fields, try display_value or raw value
+                # Fallback to display_value for people/date/unknown fields
                 return cf.get("display_value")
 
         return None
@@ -627,6 +632,13 @@ class DataFrameViewPlugin:
 
         Returns:
             Extracted value.
+
+        Note:
+            For unknown resource_subtype, we check typed value fields in order
+            (number_value, text_value, enum_value, etc.) before falling back to
+            display_value. This handles cases where resource_subtype is missing
+            but the field has typed data (e.g., percentage fields with "0%" in
+            display_value but 0.0 in number_value).
         """
         resource_subtype = cf.get("resource_subtype")
 
@@ -652,6 +664,16 @@ class DataFrameViewPlugin:
                 people = cf.get("people_value") or []
                 return [p.get("gid") for p in people if p.get("gid")]
             case _:
+                # Fallback: check typed value fields before display_value
+                # This handles fields with missing/unknown resource_subtype
+                # Priority: number > text > enum > display_value
+                if cf.get("number_value") is not None:
+                    return cf.get("number_value")
+                if cf.get("text_value") is not None:
+                    return cf.get("text_value")
+                enum_val = cf.get("enum_value")
+                if enum_val is not None and isinstance(enum_val, dict):
+                    return enum_val.get("name")
                 return cf.get("display_value")
 
     def _extract_attribute(
