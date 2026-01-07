@@ -759,3 +759,60 @@ class RedisCacheProvider:
                 self._degraded = True
         else:
             logger.error(f"Redis error: {error}")
+
+    def clear_all_tasks(self) -> int:
+        """Clear all task entries from Redis cache.
+
+        Uses SCAN to find all task keys and deletes them in batches.
+        Used for cache invalidation when cached data becomes stale
+        or corrupted (e.g., missing required fields like memberships).
+
+        Returns:
+            Count of keys deleted.
+        """
+        if self._degraded:
+            logger.warning("clear_all_tasks called while in degraded mode")
+            return 0
+
+        try:
+            conn = self._get_connection()
+            try:
+                pattern = f"{self.TASK_PREFIX}:*"
+                deleted_count = 0
+                cursor = 0
+
+                # Use SCAN to iterate over all task keys
+                while True:
+                    cursor, keys = conn.scan(cursor=cursor, match=pattern, count=1000)
+
+                    if keys:
+                        # Delete keys in a pipeline for efficiency
+                        pipe = conn.pipeline()
+                        for key in keys:
+                            pipe.delete(key)
+                        results = pipe.execute()
+                        deleted_count += sum(1 for r in results if r)
+
+                    if cursor == 0:
+                        break
+
+                logger.info(
+                    "redis_clear_all_tasks_complete",
+                    extra={
+                        "deleted_count": deleted_count,
+                        "pattern": pattern,
+                    },
+                )
+
+                return deleted_count
+
+            finally:
+                conn.close()
+
+        except Exception as e:
+            logger.error(
+                "redis_clear_all_tasks_failed",
+                extra={"error": str(e), "error_type": type(e).__name__},
+            )
+            self._handle_redis_error(e)
+            return 0

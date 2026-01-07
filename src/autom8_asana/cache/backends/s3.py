@@ -832,3 +832,74 @@ class S3CacheProvider:
                 self._degraded = True
         else:
             logger.error(f"S3 error: {error}")
+
+    def clear_all_tasks(self) -> int:
+        """Clear all task entries from S3 cache.
+
+        Deletes all objects under the tasks/ prefix. Used for cache
+        invalidation when cached data becomes stale or corrupted
+        (e.g., missing required fields like memberships).
+
+        Returns:
+            Count of objects deleted.
+
+        Raises:
+            RuntimeError: If S3 client is not available.
+        """
+        if self._degraded:
+            logger.warning("clear_all_tasks called while in degraded mode")
+            return 0
+
+        try:
+            client = self._get_client()
+            prefix = f"{self._config.prefix}/tasks/"
+            deleted_count = 0
+
+            # List and delete objects in batches (S3 allows up to 1000 per delete)
+            paginator = client.get_paginator("list_objects_v2")
+
+            for page in paginator.paginate(Bucket=self._config.bucket, Prefix=prefix):
+                objects = page.get("Contents", [])
+                if not objects:
+                    continue
+
+                # Build delete request
+                delete_keys = [{"Key": obj["Key"]} for obj in objects]
+
+                response = client.delete_objects(
+                    Bucket=self._config.bucket,
+                    Delete={"Objects": delete_keys, "Quiet": True},
+                )
+
+                # Count successful deletions
+                deleted_count += len(delete_keys) - len(response.get("Errors", []))
+
+                # Log any errors
+                for error in response.get("Errors", []):
+                    logger.warning(
+                        "s3_delete_error",
+                        extra={
+                            "key": error.get("Key"),
+                            "code": error.get("Code"),
+                            "message": error.get("Message"),
+                        },
+                    )
+
+            logger.info(
+                "s3_clear_all_tasks_complete",
+                extra={
+                    "deleted_count": deleted_count,
+                    "bucket": self._config.bucket,
+                    "prefix": prefix,
+                },
+            )
+
+            return deleted_count
+
+        except Exception as e:
+            logger.error(
+                "s3_clear_all_tasks_failed",
+                extra={"error": str(e), "error_type": type(e).__name__},
+            )
+            self._handle_s3_error(e)
+            return 0
