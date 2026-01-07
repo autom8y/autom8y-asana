@@ -29,6 +29,8 @@ _HIERARCHY_OPT_FIELDS: list[str] = [
     "name",
     "parent",
     "parent.gid",
+    # Per TDD-DETECTION: Required for Tier 1 detection via ProjectTypeRegistry
+    "memberships.project.gid",
     "custom_fields",
     "custom_fields.gid",
     "custom_fields.name",
