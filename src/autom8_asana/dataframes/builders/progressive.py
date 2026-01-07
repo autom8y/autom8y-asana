@@ -24,7 +24,11 @@ import polars as pl
 
 from autom8_asana.dataframes.builders.base import gather_with_limit
 from autom8_asana.dataframes.builders.delta_merger import DeltaMerger
-from autom8_asana.dataframes.builders.fields import BASE_OPT_FIELDS, WATERMARK_COLUMN_NAME
+from autom8_asana.dataframes.builders.fields import (
+    BASE_OPT_FIELDS,
+    WATERMARK_COLUMN_NAME,
+    coerce_rows_to_schema,
+)
 from autom8_asana.dataframes.builders.incremental_filter import IncrementalFilter
 from autom8_asana.dataframes.builders.parallel_fetch import ParallelSectionFetcher
 from autom8_asana.dataframes.section_persistence import (
@@ -401,9 +405,12 @@ class ProgressiveProjectBuilder:
             task_dicts = [self._task_to_dict(task) for task in tasks]
             rows = await self._extract_rows(task_dicts)
 
+            # Coerce row values to match schema types (handles "0%" → 0.0, etc.)
+            coerced_rows = coerce_rows_to_schema(rows, self._schema)
+
             # Build section DataFrame with explicit schema to avoid type inference issues
             # Per TDD: polars schema must match extraction schema for date/datetime types
-            section_df = pl.DataFrame(rows, schema=self._schema.to_polars_schema())
+            section_df = pl.DataFrame(coerced_rows, schema=self._schema.to_polars_schema())
 
             # Write to S3 (this also updates manifest to COMPLETE)
             success = await self._persistence.write_section_async(
@@ -784,7 +791,8 @@ class ProgressiveProjectBuilder:
         else:
             # No existing DataFrame - build from scratch
             if all_new_rows:
-                merged_df = pl.DataFrame(all_new_rows, schema=schema.to_polars_schema())
+                coerced_rows = coerce_rows_to_schema(all_new_rows, schema)
+                merged_df = pl.DataFrame(coerced_rows, schema=schema.to_polars_schema())
             else:
                 merged_df = self._build_empty_dataframe(schema)
 

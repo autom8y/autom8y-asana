@@ -19,7 +19,10 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 from autom8y_log import get_logger
 
-from autom8_asana.dataframes.builders.fields import WATERMARK_COLUMN_NAME
+from autom8_asana.dataframes.builders.fields import (
+    WATERMARK_COLUMN_NAME,
+    coerce_rows_to_schema,
+)
 
 if TYPE_CHECKING:
     from autom8_asana.dataframes.models.schema import DataFrameSchema
@@ -92,8 +95,9 @@ class DeltaMerger:
 
         # 2. Build DataFrame from new rows
         if new_rows:
+            coerced_rows = coerce_rows_to_schema(new_rows, schema)
             new_df = pl.DataFrame(
-                new_rows,
+                coerced_rows,
                 schema=schema.to_polars_schema(),
             )
         else:

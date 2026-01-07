@@ -59,6 +59,7 @@ from autom8_asana.dataframes.extractors import (
     DefaultExtractor,
     UnitExtractor,
 )
+from autom8_asana.dataframes.builders.fields import coerce_rows_to_schema
 from autom8_asana.dataframes.models.schema import DataFrameSchema
 
 if TYPE_CHECKING:
@@ -371,7 +372,8 @@ class DataFrameBuilder(ABC):
             Polars DataFrame with extracted data
         """
         rows = [self._extract_row(task) for task in tasks]
-        return pl.DataFrame(rows, schema=self._schema.to_polars_schema())
+        coerced_rows = coerce_rows_to_schema(rows, self._schema)
+        return pl.DataFrame(coerced_rows, schema=self._schema.to_polars_schema())
 
     def _build_lazy(self, tasks: list[Task]) -> pl.DataFrame:
         """Build DataFrame using lazy evaluation.
@@ -409,7 +411,8 @@ class DataFrameBuilder(ABC):
         rows = await gather_with_limit(
             [self._extract_row_async(task) for task in tasks]
         )
-        return pl.DataFrame(rows, schema=self._schema.to_polars_schema())
+        coerced_rows = coerce_rows_to_schema(rows, self._schema)
+        return pl.DataFrame(coerced_rows, schema=self._schema.to_polars_schema())
 
     async def _build_lazy_async(self, tasks: list[Task]) -> pl.DataFrame:
         """Build DataFrame using lazy evaluation with async extraction.
@@ -665,11 +668,12 @@ class DataFrameBuilder(ABC):
             return self._build_empty()
 
         use_lazy = self._should_use_lazy(len(rows), lazy)
+        coerced_rows = coerce_rows_to_schema(rows, self._schema)
         if use_lazy:
-            lazy_frame = pl.LazyFrame(rows, schema=self._schema.to_polars_schema())
+            lazy_frame = pl.LazyFrame(coerced_rows, schema=self._schema.to_polars_schema())
             return lazy_frame.collect()
         else:
-            return pl.DataFrame(rows, schema=self._schema.to_polars_schema())
+            return pl.DataFrame(coerced_rows, schema=self._schema.to_polars_schema())
 
     def _get_task_project_gid(self, task: Task) -> str | None:
         """Extract project GID from task memberships.
