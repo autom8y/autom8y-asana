@@ -1,2 +1,5 @@
 {"timestamp":"2026-01-07T13:10:29Z","event":"SESSION_PARKED","from":"ACTIVE","to":"PARKED","metadata":{"reason":"Session stopped (auto-park)","auto":true}}}}
 {"timestamp":"null","event":"SESSION_PARKED","source":"migration","reason":"null"}
+{"timestamp":"null","event":"SESSION_PARKED","source":"migration","reason":"null"}
+{"timestamp":"null","event":"SESSION_PARKED","source":"migration","reason":"null"}
+{"timestamp":"2026-01-07T17:02:54Z","event":"SESSION_ARCHIVED","from":"PARKED","to":"ARCHIVED","metadata":{}}}}
