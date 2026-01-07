@@ -18,8 +18,38 @@ if TYPE_CHECKING:
     from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker
     from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
     from autom8_asana.cache.dataframe.tiers.s3 import S3Tier
+    from autom8_asana.dataframes.models.registry import SchemaRegistry
 
 logger = get_logger(__name__)
+
+
+def _get_schema_version_for_entity(entity_type: str) -> str | None:
+    """Look up schema version from SchemaRegistry for an entity type.
+
+    Args:
+        entity_type: Entity type in lowercase (e.g., "unit", "contact").
+
+    Returns:
+        Schema version string if found, None if lookup fails.
+    """
+    try:
+        from autom8_asana.dataframes.models.registry import SchemaRegistry
+
+        registry = SchemaRegistry.get_instance()
+        # Convert lowercase entity_type to title case for registry lookup
+        # e.g., "unit" -> "Unit", "contact" -> "Contact"
+        registry_key = entity_type.title()
+        schema = registry.get_schema(registry_key)
+        return schema.version
+    except Exception as e:
+        logger.warning(
+            "schema_version_lookup_failed",
+            extra={
+                "entity_type": entity_type,
+                "error": str(e),
+            },
+        )
+        return None
 
 
 @dataclass
@@ -256,13 +286,27 @@ class DataFrameCache:
         """
         cache_key = self._build_key(project_gid, entity_type)
 
+        # Look up schema version from registry for this entity type
+        schema_version = _get_schema_version_for_entity(entity_type)
+        if schema_version is None:
+            # Fallback to instance default if registry lookup fails
+            schema_version = self.schema_version
+            logger.warning(
+                "put_async_schema_version_fallback",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "fallback_version": schema_version,
+                },
+            )
+
         entry = CacheEntry(
             project_gid=project_gid,
             entity_type=entity_type,
             dataframe=dataframe,
             watermark=watermark,
             created_at=datetime.now(timezone.utc),
-            schema_version=self.schema_version,
+            schema_version=schema_version,
         )
 
         # Write to S3 first (source of truth)
@@ -422,9 +466,35 @@ class DataFrameCache:
         entry: CacheEntry,
         current_watermark: datetime | None,
     ) -> bool:
-        """Check if entry is valid (not stale, correct schema)."""
-        # Schema version check
-        if entry.schema_version != self.schema_version:
+        """Check if entry is valid (not stale, correct schema).
+
+        Schema version validation uses the SchemaRegistry to look up the
+        expected version for the entry's entity type, rather than comparing
+        against a hardcoded cache-level version. This ensures cache entries
+        are invalidated when individual entity schemas are bumped.
+        """
+        # Schema version check using registry lookup
+        expected_version = _get_schema_version_for_entity(entry.entity_type)
+        if expected_version is None:
+            # Registry lookup failed - treat as invalid to force rebuild
+            logger.warning(
+                "cache_entry_invalid_no_schema",
+                extra={
+                    "entity_type": entry.entity_type,
+                    "entry_version": entry.schema_version,
+                },
+            )
+            return False
+
+        if entry.schema_version != expected_version:
+            logger.debug(
+                "cache_entry_version_mismatch",
+                extra={
+                    "entity_type": entry.entity_type,
+                    "entry_version": entry.schema_version,
+                    "expected_version": expected_version,
+                },
+            )
             return False
 
         # TTL check
