@@ -302,6 +302,7 @@ async def _discover_entity_projects(app: FastAPI) -> None:
     Per TDD-entity-resolver: Startup discovery populates EntityProjectRegistry.
     Per ADR-0060: Uses WorkspaceProjectRegistry for discovery.
     Per ADR-HOTFIX-entity-collision: Model PRIMARY_PROJECT_GID is source of truth.
+    Per TDD-registry-consolidation: Package imports ensure bootstrap runs at import time.
 
     Discovery flow (discovery-first, model-select):
     1. Get bot PAT for Asana API access
@@ -320,11 +321,16 @@ async def _discover_entity_projects(app: FastAPI) -> None:
     """
     from autom8_asana import AsanaClient
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
-    from autom8_asana.models.business.business import Business
-    from autom8_asana.models.business.contact import Contact
-    from autom8_asana.models.business.offer import Offer
-    from autom8_asana.models.business.registry import get_workspace_registry
-    from autom8_asana.models.business.unit import Unit, UnitHolder
+    # Per TDD-registry-consolidation: Use package imports to ensure bootstrap runs.
+    # Direct submodule imports bypass __init__.py and skip model registration.
+    from autom8_asana.models.business import (
+        Business,
+        Contact,
+        Offer,
+        Unit,
+        UnitHolder,
+        get_workspace_registry,
+    )
     from autom8_asana.services.resolver import EntityProjectRegistry
 
     # Get bot PAT for S2S Asana access
