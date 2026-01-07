@@ -105,7 +105,7 @@ from autom8_asana.dataframes import (
     # Builders
     DataFrameBuilder,
     SectionDataFrameBuilder,
-    ProjectDataFrameBuilder,
+    ProgressiveProjectBuilder,
     # Extractors
     BaseExtractor,
     UnitExtractor,
@@ -214,7 +214,7 @@ __all__ = [
     # Builders
     "DataFrameBuilder",
     "SectionDataFrameBuilder",
-    "ProjectDataFrameBuilder",
+    "ProgressiveProjectBuilder",
     # Extractors
     "BaseExtractor",
     "UnitExtractor",

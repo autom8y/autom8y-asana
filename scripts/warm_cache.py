@@ -88,16 +88,10 @@ async def warm_all_projects() -> int:
             try:
                 # Get schema and client
                 from autom8_asana.client import get_client
-                from autom8_asana.dataframes.builders.project import (
-                    ProjectDataFrameBuilder,
-                )
-                from autom8_asana.cache.unified import UnifiedTaskStore
+                from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
+                from autom8_asana.dataframes.section_persistence import SectionPersistence
 
                 client = get_client()
-                unified_store = UnifiedTaskStore()
-
-                # Get project entity
-                project = await client.projects.get_async(project_gid)
 
                 # Get schema for entity type
                 schema = entity_registry.get_schema(entity_type)
@@ -106,20 +100,23 @@ async def warm_all_projects() -> int:
                     failure_count += 1
                     continue
 
-                # Build DataFrame with persistence
-                builder = ProjectDataFrameBuilder(
-                    project=project,
-                    task_type=entity_type,
+                # Create section persistence for progressive builder
+                section_persistence = SectionPersistence()
+
+                # Build DataFrame with progressive builder
+                builder = ProgressiveProjectBuilder(
+                    client=client,
+                    project_gid=project_gid,
+                    entity_type=entity_type,
                     schema=schema,
-                    unified_store=unified_store,
-                    persistence=persistence,
+                    persistence=section_persistence,
                 )
 
-                # Build DataFrame (will auto-persist to S3)
-                df = await builder.build_with_parallel_fetch_async(client)
+                # Build DataFrame progressively (will auto-persist sections to S3)
+                result = await builder.build_progressive_async()
 
                 logger.info(
-                    f"Successfully warmed {entity_type}: {len(df)} rows persisted"
+                    f"Successfully warmed {entity_type}: {result.total_rows} rows persisted"
                 )
                 success_count += 1
 

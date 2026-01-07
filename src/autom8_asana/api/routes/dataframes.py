@@ -39,9 +39,9 @@ from autom8_asana.dataframes import (
     CONTACT_SCHEMA,
     UNIT_SCHEMA,
     DefaultCustomFieldResolver,
-    ProjectDataFrameBuilder,
     SectionDataFrameBuilder,
 )
+from autom8_asana.dataframes.views.dataframe_view import DataFrameViewPlugin
 from autom8_asana._defaults.cache import InMemoryCacheProvider
 from autom8_asana.models.task import Task
 
@@ -198,36 +198,33 @@ async def get_project_dataframe(
     # Fetch tasks using HTTP client
     data, next_offset = await client._http.get_paginated("/tasks", params=params)
 
-    # Convert to Task models for builder
-    tasks = [Task.model_validate(t) for t in data]
-
     # Get schema and build DataFrame
     df_schema = _get_schema(schema)
 
     # Create resolver for custom field mapping
     resolver = DefaultCustomFieldResolver()
 
-    # Create a mock project object with the gid for the builder
-    class ProjectProxy:
-        def __init__(self, gid: str, tasks: list[Task]):
-            self.gid = gid
-            self.tasks = tasks
-
-    project_proxy = ProjectProxy(gid, tasks)
-
-    # Build DataFrame
+    # Build DataFrame using DataFrameViewPlugin
     # Per TDD-UNIFIED-CACHE-001 Phase 4: unified_store is mandatory.
     # Create a lightweight in-memory store for the API route since we already
     # have the tasks fetched - no caching needed for this synchronous path.
     unified_store = UnifiedTaskStore(cache=InMemoryCacheProvider())
-    builder = ProjectDataFrameBuilder(
-        project=project_proxy,
-        task_type="*",  # Extract all task types
+
+    # Create DataFrameViewPlugin for extraction
+    view_plugin = DataFrameViewPlugin(
         schema=df_schema,
+        store=unified_store,
         resolver=resolver,
-        unified_store=unified_store,
     )
-    df = builder.build(tasks=tasks)
+
+    # Extract rows from tasks using the view plugin (async endpoint)
+    import polars as pl
+
+    rows = await view_plugin._extract_rows_async(data, project_gid=gid)
+    if rows:
+        df = pl.DataFrame(rows, schema=df_schema.to_polars_schema())
+    else:
+        df = pl.DataFrame(schema=df_schema.to_polars_schema())
 
     # Create pagination metadata
     pagination = PaginationMeta(

@@ -16,7 +16,7 @@ parked_reason: "Session stopped (auto-park)"
 
 ## Artifacts
 - PRD: pending
-- TDD: pending
+- TDD: /Users/tomtenuta/Code/autom8_asana/docs/design/TDD-dataframe-builder-watermark.md
 
 ## Blockers
 None yet.

@@ -18,7 +18,7 @@ Public API:
     - SchemaRegistry: Task-type to schema mapping
     - BASE_SCHEMA, UNIT_SCHEMA, CONTACT_SCHEMA: Built-in schemas
     - BaseExtractor, UnitExtractor, ContactExtractor: Task extractors
-    - DataFrameBuilder, ProjectDataFrameBuilder, SectionDataFrameBuilder: DataFrame builders
+    - DataFrameBuilder, ProgressiveProjectBuilder, SectionDataFrameBuilder: DataFrame builders
     - DataFrameError and subclasses: Exception hierarchy
     - CustomFieldResolver, DefaultCustomFieldResolver: Dynamic field resolution
     - MockCustomFieldResolver, FailingResolver: Testing support
@@ -30,7 +30,7 @@ Public API:
 from autom8_asana.dataframes.builders import (
     LAZY_THRESHOLD,
     DataFrameBuilder,
-    ProjectDataFrameBuilder,
+    ProgressiveProjectBuilder,
     SectionDataFrameBuilder,
 )
 from autom8_asana.dataframes.cache_integration import (
@@ -90,7 +90,7 @@ __all__ = [
     "ContactExtractor",
     # Builders (TDD-0009 Phase 4)
     "DataFrameBuilder",
-    "ProjectDataFrameBuilder",
+    "ProgressiveProjectBuilder",
     "SectionDataFrameBuilder",
     # Resolver (TDD-0009.1)
     "CustomFieldResolver",
