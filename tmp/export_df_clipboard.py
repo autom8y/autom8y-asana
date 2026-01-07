@@ -47,7 +47,7 @@ async def main():
             task_type="Unit",  # Uses UNIT_SCHEMA automatically
         )
 
-        print(f"\n3. DataFrame Stats:")
+        print("\n3. DataFrame Stats:")
         print(f"   Rows: {len(df)}")
         print(f"   Columns: {len(df.columns)}")
 
@@ -65,7 +65,7 @@ async def main():
                 print(f"   vertical values: {sample_verts[:10]}")
 
         # Export to clipboard
-        print(f"\n4. Exporting to clipboard...")
+        print("\n4. Exporting to clipboard...")
 
         # Select key columns for debugging
         export_cols = ["gid", "name", "office_phone", "vertical", "section", "mrr"]

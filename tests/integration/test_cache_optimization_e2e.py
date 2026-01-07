@@ -21,18 +21,14 @@ from __future__ import annotations
 
 import time
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
-import polars as pl
 import pytest
 
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
 from autom8_asana.config import AsanaConfig
-from autom8_asana.dataframes.builders.project import ProjectDataFrameBuilder
 from autom8_asana.dataframes.builders.task_cache import TaskCacheCoordinator
 from autom8_asana.dataframes.models.schema import DataFrameSchema
-from autom8_asana.models.project import Project
-from autom8_asana.models.section import Section
 from autom8_asana.models.task import Task
 
 

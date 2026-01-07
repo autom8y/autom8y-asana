@@ -245,6 +245,7 @@ class TestProgressiveBuild:
         )
 
         mock_schema = MagicMock()
+        mock_schema.version = "1.0.0"  # Set schema version for compatibility check
 
         # Mock persistence with completed manifest
         mock_persistence = MagicMock(spec=SectionPersistence)
@@ -253,6 +254,7 @@ class TestProgressiveBuild:
             entity_type="offer",
             total_sections=1,
             completed_sections=1,
+            schema_version="1.0.0",  # Must match mock_schema.version for resume
             sections={
                 "sec_1": SectionInfo(status=SectionStatus.COMPLETE, rows=100),
             },

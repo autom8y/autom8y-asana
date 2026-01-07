@@ -8,18 +8,16 @@ from __future__ import annotations
 
 from decimal import Decimal
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import polars as pl
 import pytest
 
 from autom8_asana.dataframes.builders import (
     ProjectDataFrameBuilder,
-    ParallelFetchError,
 )
-from autom8_asana.dataframes.builders.parallel_fetch import FetchResult
 from autom8_asana.dataframes.resolver import MockCustomFieldResolver
-from autom8_asana.dataframes.schemas import BASE_SCHEMA, UNIT_SCHEMA
+from autom8_asana.dataframes.schemas import BASE_SCHEMA
 from autom8_asana.models.section import Section
 from autom8_asana.models.task import Task
 
@@ -656,8 +654,6 @@ class TestCacheIntegration:
     @pytest.fixture
     def mock_cache_integration(self) -> MagicMock:
         """Create a mock DataFrameCacheIntegration."""
-        from autom8_asana.dataframes.cache_integration import CachedRow
-        from datetime import datetime, timezone
 
         cache = MagicMock()
         cache.get_cached_batch_async = AsyncMock(return_value={})
@@ -1894,7 +1890,6 @@ class TestCacheOptimizationP2:
         mock_client: MagicMock,
         mock_unified_store: MagicMock) -> None:
         """Test cache population failure does not break fetch (NFR-DEGRADE-001)."""
-        from unittest.mock import patch
 
         sections = [Section(gid="section_1", name="Section 1")]
         mock_client.sections.list_for_project_async = MagicMock(

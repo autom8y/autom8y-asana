@@ -13,8 +13,7 @@ Tests verify:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Generator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -22,7 +21,6 @@ import pytest
 
 from autom8_asana.dataframes.extractors.base import BaseExtractor
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
-from autom8_asana.dataframes.models.task_row import TaskRow
 from autom8_asana.dataframes.resolver.cascading import CascadingFieldResolver
 from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
 from autom8_asana.models.business.detection import EntityType

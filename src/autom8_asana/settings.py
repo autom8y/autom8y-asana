@@ -39,10 +39,8 @@ Example:
 from __future__ import annotations
 
 import os
-from functools import lru_cache
 from typing import Literal
 
-import warnings
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict

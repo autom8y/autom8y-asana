@@ -48,7 +48,7 @@ async def main() -> None:
         )
 
         # Check results summary
-        print(f"\nBatch Results:")
+        print("\nBatch Results:")
         print(f"  Total requests: {batch_response.total_count}")
         print(f"  Successful: {batch_response.success_count}")
         print(f"  Failed: {batch_response.failure_count}")

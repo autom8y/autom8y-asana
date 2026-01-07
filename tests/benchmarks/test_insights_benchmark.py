@@ -19,12 +19,10 @@ Target: P95 overhead < 50ms (excluding network latency)
 
 from __future__ import annotations
 
-import asyncio
 import statistics
 import time
 from typing import NamedTuple
 
-import httpx
 import pytest
 import respx
 

@@ -44,7 +44,7 @@ async def demonstrate_validation_error() -> None:
                 vertical="chiropractic",
             )
         except InsightsValidationError as e:
-            print(f"\nCaught InsightsValidationError:")
+            print("\nCaught InsightsValidationError:")
             print(f"  Message: {e}")
             print(f"  Field: {e.field}")
             print(f"  Request ID: {e.request_id}")
@@ -61,7 +61,7 @@ async def demonstrate_validation_error() -> None:
                 vertical="chiropractic",
             )
         except InsightsValidationError as e:
-            print(f"\nPhone validation error:")
+            print("\nPhone validation error:")
             print(f"  Field: {e.field}")
             print(f"  Message: {e}")
 
@@ -80,7 +80,7 @@ async def demonstrate_not_found_error() -> None:
                 vertical="unknown_vertical",
             )
         except InsightsNotFoundError as e:
-            print(f"\nCaught InsightsNotFoundError:")
+            print("\nCaught InsightsNotFoundError:")
             print(f"  Message: {e}")
             print(f"  Request ID: {e.request_id}")
 

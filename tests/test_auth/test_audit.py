@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from datetime import datetime
+from unittest.mock import patch
 
 import pytest
 

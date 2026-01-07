@@ -5,7 +5,6 @@ Production version would have comprehensive test suite.
 """
 
 import asyncio
-import time
 
 import pytest
 

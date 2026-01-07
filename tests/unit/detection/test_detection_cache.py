@@ -29,7 +29,6 @@ from autom8_asana.models.business.detection.facade import (
     detect_entity_type_async,
 )
 from autom8_asana.models.business.detection.types import (
-    CONFIDENCE_TIER_1,
     CONFIDENCE_TIER_4,
     DetectionResult,
     EntityType,

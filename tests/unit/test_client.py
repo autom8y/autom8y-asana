@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from autom8_asana.cache.metrics import CacheMetrics
-from autom8_asana.client import AsanaClient, _TokenAuthProvider, _get_workspace_gid_from_env
+from autom8_asana.client import AsanaClient, _TokenAuthProvider
 from autom8_asana.clients.tasks import TasksClient
 from autom8_asana.config import AsanaConfig
 from autom8_asana.exceptions import AuthenticationError, ConfigurationError

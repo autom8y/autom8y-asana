@@ -30,7 +30,7 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import polars as pl
+    pass
 
 from autom8_asana.client import AsanaClient
 
@@ -80,18 +80,18 @@ def print_cache_metrics(
     print(f"  Estimated hit rate: {estimated_hit_rate:.0%}")
 
     # Performance target validation
-    print(f"\n  Performance Targets:")
+    print("\n  Performance Targets:")
     warm_target_met = warm_time < 1.0
     print(f"    Warm fetch < 1.0s: {'PASS' if warm_target_met else 'FAIL'} ({warm_time:.2f}s)")
 
     if show_metrics:
-        print(f"\n  Timing Breakdown (estimated):")
+        print("\n  Timing Breakdown (estimated):")
         lookup_time = warm_time * 0.1  # ~10% for cache lookup
         extract_time = warm_time * 0.9  # ~90% for extraction
         print(f"    Cache lookup: ~{lookup_time*1000:.0f}ms")
         print(f"    DataFrame extraction: ~{extract_time*1000:.0f}ms")
 
-        print(f"\n  Cache Efficiency:")
+        print("\n  Cache Efficiency:")
         api_time_saved = cold_time - warm_time
         print(f"    API time saved: {api_time_saved:.2f}s")
         print(f"    API calls avoided: ~{task_count} task fetches")
@@ -156,7 +156,7 @@ async def demo_parallel_fetch(
         print(f"Columns: {df_parallel.columns[:5]}..." if len(df_parallel.columns) > 5 else f"Columns: {df_parallel.columns}")
 
         if verbose and len(df_parallel) > 0:
-            print(f"\nFirst 3 tasks:")
+            print("\nFirst 3 tasks:")
             print(df_parallel.select(["gid", "name"]).head(3))
 
         if compare:

@@ -183,7 +183,7 @@ async def s2s_health_check() -> JSONResponse:
             "JWKS health check failed",
             extra={"jwks_url": jwks_url, "error": str(e)},
         )
-    except Exception as e:
+    except Exception:
         details["jwks_status"] = "error"
         logger.exception("JWKS health check unexpected error")
 

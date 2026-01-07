@@ -13,15 +13,12 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import AsyncMock
 
-import httpx
 import pytest
-import respx
 
 from autom8_asana.clients.stories import StoriesClient
 from autom8_asana.clients.tags import TagsClient
 from autom8_asana.clients.teams import TeamsClient
-from autom8_asana.config import AsanaConfig, RetryConfig
-from autom8_asana.exceptions import AsanaError
+from autom8_asana.config import AsanaConfig
 from autom8_asana.models import PageIterator, Story, Tag, Team, User
 from autom8_asana.models.team import TeamMembership
 
