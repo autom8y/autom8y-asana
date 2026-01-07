@@ -13,10 +13,11 @@ from autom8y_log import get_logger
 
 from autom8_asana.cache.completeness import CompletenessLevel
 # Per TDD-registry-consolidation: Import from package to ensure bootstrap runs
-from autom8_asana.models.business import EntityType, detect_entity_type
-from autom8_asana.models.business.fields import (
+from autom8_asana.models.business import (
     CascadingFieldDef,
     CascadingFieldEntry,
+    EntityType,
+    detect_entity_type,
     get_cascading_field,
     get_cascading_field_registry,
 )

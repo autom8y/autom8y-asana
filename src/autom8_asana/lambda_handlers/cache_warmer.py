@@ -231,7 +231,8 @@ async def _discover_entity_projects_for_lambda() -> None:
 
     from autom8_asana import AsanaClient
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
-    from autom8_asana.models.business.registry import get_workspace_registry
+    # Per TDD-registry-consolidation: Import from package to ensure bootstrap runs
+    from autom8_asana.models.business import get_workspace_registry
     from autom8_asana.services.resolver import EntityProjectRegistry
 
     # Get bot PAT for S2S Asana access

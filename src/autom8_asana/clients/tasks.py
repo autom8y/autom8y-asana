@@ -16,7 +16,8 @@ from autom8_asana.clients.base import BaseClient
 
 logger = get_logger(__name__)
 from autom8_asana.models import PageIterator, Task
-from autom8_asana.models.business.fields import STANDARD_TASK_OPT_FIELDS
+# Per TDD-registry-consolidation: Import from package to ensure bootstrap runs
+from autom8_asana.models.business import STANDARD_TASK_OPT_FIELDS
 from autom8_asana.observability import error_handler
 from autom8_asana.transport import sync_wrapper
 
