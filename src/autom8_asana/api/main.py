@@ -217,6 +217,7 @@ def _normalize_project_name(name: str) -> str:
     - "Business Offers" -> "offer"
     - "Contacts" -> "contact"
     - "Business" -> "business"
+    - "Units" -> "unit_holder" (per ADR-HOTFIX-entity-collision)
 
     Args:
         name: Raw project name from Asana.
@@ -225,6 +226,12 @@ def _normalize_project_name(name: str) -> str:
         Normalized name (lowercase, no "business " prefix, singularized).
     """
     normalized = name.lower().strip()
+
+    # Per ADR-HOTFIX-entity-collision: "Units" (exact) maps to "unit_holder"
+    # to avoid collision with "Business Units" -> "unit"
+    if normalized == "units":
+        return "unit_holder"
+
     # Check for standalone "Business" before stripping prefix
     # (This handles the edge case where project name IS "Business")
     if normalized == "business":
@@ -261,23 +268,30 @@ async def _discover_entity_projects(app: FastAPI) -> None:
 
     Per TDD-entity-resolver: Startup discovery populates EntityProjectRegistry.
     Per ADR-0060: Uses WorkspaceProjectRegistry for discovery.
+    Per ADR-HOTFIX-entity-collision: Model PRIMARY_PROJECT_GID is source of truth.
 
-    Discovery flow:
+    Discovery flow (discovery-first, model-select):
     1. Get bot PAT for Asana API access
-    2. Use WorkspaceProjectRegistry to discover workspace projects
-    3. Match project names to entity types via pattern matching
-    4. Register matches in EntityProjectRegistry
-    5. Store registry in app.state for request access
+    2. Run WorkspaceProjectRegistry discovery (get all projects with real names)
+    3. Use model PRIMARY_PROJECT_GID to SELECT which discovered project maps to each entity type
+    4. For remaining discovered projects, use name normalization as fallback
+    5. Fail-fast on collision (multiple projects map to same entity type)
+    6. Store registry in app.state for request access
 
     Args:
         app: FastAPI application instance
 
     Raises:
+        RuntimeError: If collision detected (fail-fast per user decision)
         Exception: If discovery fails (fail-fast per ADR-0060)
     """
     from autom8_asana import AsanaClient
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
+    from autom8_asana.models.business.business import Business
+    from autom8_asana.models.business.contact import Contact
+    from autom8_asana.models.business.offer import Offer
     from autom8_asana.models.business.registry import get_workspace_registry
+    from autom8_asana.models.business.unit import Unit, UnitHolder
     from autom8_asana.services.resolver import EntityProjectRegistry
 
     # Get bot PAT for S2S Asana access
@@ -312,37 +326,116 @@ async def _discover_entity_projects(app: FastAPI) -> None:
         app.state.entity_project_registry = entity_registry
         return
 
+    # Model class -> entity_type mapping
+    # NOTE: Only include models that should be resolvable via Entity Resolver
+    ENTITY_MODEL_MAP: dict[str, type] = {
+        "unit": Unit,
+        "unit_holder": UnitHolder,
+        "business": Business,
+        "offer": Offer,
+        "contact": Contact,
+    }
+
+    entity_registry = EntityProjectRegistry.get_instance()
+
     async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
-        # Use existing WorkspaceProjectRegistry discovery
+        # --- Phase 1: Discovery (get all projects with real names) ---
         workspace_registry = get_workspace_registry()
         await workspace_registry.discover_async(client)
 
-        # Map discovered projects to entity resolver registry
-        entity_registry = EntityProjectRegistry.get_instance()
+        # Build GID -> project_name lookup from discovered projects
+        discovered_projects = workspace_registry.get_all_projects()
+        gid_to_name: dict[str, str] = {
+            gid: name for name, gid in discovered_projects.items()
+        }
 
-        # Known entity types to discover
-        ENTITY_TYPES: list[str] = ["unit", "business", "offer", "contact"]
+        # --- Phase 2: Model-Select (PRIMARY_PROJECT_GID selects from discovered) ---
+        # Per ADR-HOTFIX-entity-collision: Model PRIMARY_PROJECT_GID is authoritative
+        registered_from_model: set[str] = set()
+        model_gids_used: set[str] = set()
 
-        # Match projects to entity types via normalized name matching
-        # Handles: "Business Units" -> unit, "Offers" -> offer, etc.
-        for project_name, project_gid in workspace_registry.get_all_projects().items():
+        for entity_type, model_class in ENTITY_MODEL_MAP.items():
+            model_gid = getattr(model_class, "PRIMARY_PROJECT_GID", None)
+            if model_gid:
+                # Look up real project name from discovery
+                project_name = gid_to_name.get(model_gid)
+                if project_name:
+                    entity_registry.register(
+                        entity_type=entity_type,
+                        project_gid=model_gid,
+                        project_name=project_name,
+                    )
+                    registered_from_model.add(entity_type)
+                    model_gids_used.add(model_gid)
+                    logger.info(
+                        "entity_project_registered_from_model",
+                        extra={
+                            "entity_type": entity_type,
+                            "project_gid": model_gid,
+                            "project_name": project_name,
+                            "model_class": model_class.__name__,
+                            "source": "PRIMARY_PROJECT_GID",
+                        },
+                    )
+                else:
+                    # Model GID not found in discovery - warn but still register
+                    logger.warning(
+                        "entity_model_gid_not_in_discovery",
+                        extra={
+                            "entity_type": entity_type,
+                            "model_gid": model_gid,
+                            "model_class": model_class.__name__,
+                            "detail": "Project may not exist or bot lacks access",
+                        },
+                    )
+
+        # --- Phase 3: Discovery Fallback (fill gaps via name normalization) ---
+        ENTITY_TYPES: list[str] = list(ENTITY_MODEL_MAP.keys())
+
+        for project_name, project_gid in discovered_projects.items():
+            # Skip projects already used by model selection
+            if project_gid in model_gids_used:
+                continue
+
             entity_type = _match_entity_type(project_name, ENTITY_TYPES)
             if entity_type:
-                entity_registry.register(
-                    entity_type=entity_type,
-                    project_gid=project_gid,
-                    project_name=project_name,
-                )
-                logger.info(
-                    "entity_project_registered",
-                    extra={
-                        "entity_type": entity_type,
-                        "project_gid": project_gid,
-                        "project_name": project_name,
-                    },
-                )
+                if entity_type in registered_from_model:
+                    # Collision: discovered project normalizes to model-registered type
+                    existing_gid = entity_registry.get_project_gid(entity_type)
+                    error_msg = (
+                        f"Entity collision detected: '{project_name}' (GID {project_gid}) "
+                        f"normalizes to entity_type '{entity_type}' which is already "
+                        f"registered from model with GID {existing_gid}. "
+                        f"Fix: Update _normalize_project_name() to handle this case."
+                    )
+                    logger.error(
+                        "entity_collision_fail_fast",
+                        extra={
+                            "entity_type": entity_type,
+                            "discovered_project": project_name,
+                            "discovered_gid": project_gid,
+                            "model_gid": existing_gid,
+                        },
+                    )
+                    raise RuntimeError(error_msg)
+                else:
+                    # Not registered from model - discovery fills gap
+                    entity_registry.register(
+                        entity_type=entity_type,
+                        project_gid=project_gid,
+                        project_name=project_name,
+                    )
+                    logger.info(
+                        "entity_project_registered_from_discovery",
+                        extra={
+                            "entity_type": entity_type,
+                            "project_gid": project_gid,
+                            "project_name": project_name,
+                            "source": "discovery_fallback",
+                        },
+                    )
 
-        # Log any entity types not found
+        # Log any entity types not found (neither model nor discovery)
         registered = set(entity_registry.get_all_entity_types())
         for entity_type in ENTITY_TYPES:
             if entity_type not in registered:
@@ -358,6 +451,8 @@ async def _discover_entity_projects(app: FastAPI) -> None:
             "entity_resolver_discovery_complete",
             extra={
                 "registered_types": entity_registry.get_all_entity_types(),
+                "model_registered": list(registered_from_model),
+                "discovery_registered": list(registered - registered_from_model),
                 "is_ready": entity_registry.is_ready(),
             },
         )
