@@ -99,5 +99,5 @@ UNIT_SCHEMA = DataFrameSchema(
     name="unit",
     task_type="Unit",
     columns=[*BASE_COLUMNS, *UNIT_COLUMNS],  # 12 + 11 = 23 columns
-    version="1.0.0",
+    version="1.1.0",  # Bump to invalidate stale caches missing warm_hierarchy fix
 )
