@@ -36,7 +36,7 @@ Design Principles:
 import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
@@ -891,6 +891,7 @@ async def _do_incremental_catchup(
         existing_df: Persisted DataFrame.
         existing_index: Persisted GidLookupIndex.
         watermark: Last sync timestamp.
+        persistence: Optional DataFramePersistence (legacy, unused).
 
     Returns:
         Tuple of (updated_df, new_watermark, was_incremental).
@@ -898,9 +899,10 @@ async def _do_incremental_catchup(
     """
     from autom8_asana import AsanaClient
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
-    from autom8_asana.dataframes.builders.project import ProjectDataFrameBuilder
+    from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
     from autom8_asana.dataframes.models.registry import SchemaRegistry
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
+    from autom8_asana.dataframes.section_persistence import SectionPersistence
 
     # Get bot PAT for API access
     try:
@@ -923,12 +925,6 @@ async def _do_incremental_catchup(
         )
         return existing_df, watermark, False
 
-    # Minimal project proxy for builder
-    class ProjectProxy:
-        def __init__(self, gid: str) -> None:
-            self.gid = gid
-            self.tasks: list = []
-
     try:
         async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
             # Select schema based on entity type (falls back to BASE_SCHEMA)
@@ -936,32 +932,39 @@ async def _do_incremental_catchup(
             schema = SchemaRegistry.get_instance().get_schema(task_type)
 
             resolver = DefaultCustomFieldResolver()
-            project_proxy = ProjectProxy(project_gid)
+            section_persistence = SectionPersistence()
 
-            builder = ProjectDataFrameBuilder(
-                project=project_proxy,
-                task_type=task_type,
+            builder = ProgressiveProjectBuilder(
+                client=client,
+                project_gid=project_gid,
+                entity_type=entity_type,
                 schema=schema,
+                persistence=section_persistence,
                 resolver=resolver,
-                client=client,
-                unified_store=client.unified_store,
-                persistence=persistence,
+                store=client.unified_store,
             )
 
-            # Use incremental refresh
-            updated_df, new_watermark = await builder.refresh_incremental(
-                client=client,
-                existing_df=existing_df,
-                watermark=watermark,
+            # Use build_with_parallel_fetch_async with incremental=True
+            # This will use the IncrementalFilter to only process changed tasks
+            updated_df = await builder.build_with_parallel_fetch_async(
+                project_gid=project_gid,
+                schema=schema,
+                resume=True,
+                incremental=True,
             )
+
+            new_watermark = datetime.now(timezone.utc)
 
             # Check if DataFrame actually changed
             was_incremental = True
-            if updated_df is existing_df:
-                # No changes detected
+            if len(updated_df) == len(existing_df):
+                # May be the same - compare row counts as heuristic
                 logger.debug(
-                    "incremental_catchup_no_changes",
-                    extra={"project_gid": project_gid},
+                    "incremental_catchup_completed",
+                    extra={
+                        "project_gid": project_gid,
+                        "rows": len(updated_df),
+                    },
                 )
 
             return updated_df, new_watermark, was_incremental
@@ -992,17 +995,17 @@ async def _do_full_rebuild(
     Args:
         project_gid: Asana project GID.
         entity_type: Entity type (e.g., "unit").
+        persistence: Optional DataFramePersistence (legacy, unused).
 
     Returns:
         Tuple of (new_df, new_watermark). new_df may be None on failure.
     """
-    from datetime import timezone
-
     from autom8_asana import AsanaClient
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
-    from autom8_asana.dataframes.builders.project import ProjectDataFrameBuilder
+    from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
     from autom8_asana.dataframes.models.registry import SchemaRegistry
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
+    from autom8_asana.dataframes.section_persistence import SectionPersistence
 
     now = datetime.now(timezone.utc)
 
@@ -1026,12 +1029,6 @@ async def _do_full_rebuild(
         )
         return None, now
 
-    # Minimal project proxy for builder
-    class ProjectProxy:
-        def __init__(self, gid: str) -> None:
-            self.gid = gid
-            self.tasks: list = []
-
     try:
         async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
             # Select schema based on entity type (falls back to BASE_SCHEMA)
@@ -1039,20 +1036,25 @@ async def _do_full_rebuild(
             schema = SchemaRegistry.get_instance().get_schema(task_type)
 
             resolver = DefaultCustomFieldResolver()
-            project_proxy = ProjectProxy(project_gid)
+            section_persistence = SectionPersistence()
 
-            builder = ProjectDataFrameBuilder(
-                project=project_proxy,
-                task_type=task_type,
-                schema=schema,
-                resolver=resolver,
+            builder = ProgressiveProjectBuilder(
                 client=client,
-                unified_store=client.unified_store,
-                persistence=persistence,
+                project_gid=project_gid,
+                entity_type=entity_type,
+                schema=schema,
+                persistence=section_persistence,
+                resolver=resolver,
+                store=client.unified_store,
             )
 
-            # Full fetch
-            df = await builder.build_with_parallel_fetch_async(client)
+            # Full fetch with resume=False to force fresh build
+            df = await builder.build_with_parallel_fetch_async(
+                project_gid=project_gid,
+                schema=schema,
+                resume=False,
+                incremental=False,
+            )
 
             return df, datetime.now(timezone.utc)
 

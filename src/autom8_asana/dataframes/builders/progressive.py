@@ -23,6 +23,9 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 from autom8_asana.dataframes.builders.base import gather_with_limit
+from autom8_asana.dataframes.builders.delta_merger import DeltaMerger
+from autom8_asana.dataframes.builders.fields import BASE_OPT_FIELDS, WATERMARK_COLUMN_NAME
+from autom8_asana.dataframes.builders.incremental_filter import IncrementalFilter
 from autom8_asana.dataframes.builders.parallel_fetch import ParallelSectionFetcher
 from autom8_asana.dataframes.section_persistence import (
     SectionManifest,
@@ -31,6 +34,8 @@ from autom8_asana.dataframes.section_persistence import (
 )
 
 if TYPE_CHECKING:
+    from typing import Callable
+
     from autom8_asana.client import AsanaClient
     from autom8_asana.dataframes.models.schema import DataFrameSchema
     from autom8_asana.dataframes.resolver.protocol import CustomFieldResolver
@@ -42,35 +47,28 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-# Base opt_fields required for DataFrame extraction
-# Duplicated from project.py to avoid circular imports
-_BASE_OPT_FIELDS: list[str] = [
-    "gid",
-    "name",
-    "resource_subtype",
-    "completed",
-    "completed_at",
-    "created_at",
-    "modified_at",
-    "due_on",
-    "tags",
-    "tags.name",
-    "memberships.section.name",
-    "memberships.project.gid",
-    "parent",
-    "parent.gid",
-    "custom_fields",
-    "custom_fields.gid",
-    "custom_fields.name",
-    "custom_fields.resource_subtype",
-    "custom_fields.display_value",
-    "custom_fields.enum_value",
-    "custom_fields.enum_value.name",
-    "custom_fields.multi_enum_values",
-    "custom_fields.multi_enum_values.name",
-    "custom_fields.number_value",
-    "custom_fields.text_value",
-]
+@dataclass
+class BuildProgress:
+    """Progress information for incremental build callback.
+
+    Per TDD-DATAFRAME-BUILDER-WATERMARK-001: Progress reporting for
+    long-running build operations.
+
+    Attributes:
+        phase: Current build phase name.
+        sections_total: Total sections to process.
+        sections_complete: Sections completed so far.
+        tasks_processed: Total tasks processed.
+        tasks_skipped: Tasks skipped due to cache.
+        elapsed_ms: Time elapsed since build start.
+    """
+
+    phase: str
+    sections_total: int
+    sections_complete: int
+    tasks_processed: int
+    tasks_skipped: int
+    elapsed_ms: float
 
 
 @dataclass
@@ -368,7 +366,7 @@ class ProgressiveProjectBuilder:
             # Fetch tasks for section
             tasks: list["Task"] = await self._client.tasks.list_async(
                 section=section_gid,
-                opt_fields=_BASE_OPT_FIELDS,
+                opt_fields=BASE_OPT_FIELDS,
             ).collect()
 
             # Populate UnifiedStore with fetched tasks for cascade resolution
@@ -515,7 +513,7 @@ class ProgressiveProjectBuilder:
             # This recursively fetches and caches parent chains for cascade resolution
             await self._store.put_batch_async(
                 task_dicts,
-                opt_fields=_BASE_OPT_FIELDS,
+                opt_fields=BASE_OPT_FIELDS,
                 tasks_client=self._client.tasks,
                 warm_hierarchy=True,
             )
@@ -547,6 +545,358 @@ class ProgressiveProjectBuilder:
                     "error": str(e),
                 },
             )
+            return None
+
+    # =========================================================================
+    # Incremental Build with Watermark Filtering (TDD-DATAFRAME-BUILDER-WATERMARK-001)
+    # =========================================================================
+
+    async def build_with_parallel_fetch_async(
+        self,
+        project_gid: str,
+        schema: "DataFrameSchema",
+        *,
+        resume: bool = True,
+        incremental: bool = True,
+        max_concurrent_sections: int = 5,
+        on_progress: "Callable[[BuildProgress], None] | None" = None,
+    ) -> pl.DataFrame:
+        """Build DataFrame with parallel section fetch and incremental filtering.
+
+        Per TDD-DATAFRAME-BUILDER-WATERMARK-001: Implements watermark-based
+        incremental processing with parallel section fetch.
+
+        Flow:
+        1. Load existing DataFrame from S3 (if exists and resume=True)
+        2. Build IncrementalFilter from existing DataFrame watermarks
+        3. Fetch sections in parallel with bounded concurrency
+        4. For each section: filter tasks against watermarks
+        5. Extract rows only for changed/new tasks
+        6. Use DeltaMerger to combine results
+        7. Persist merged DataFrame to S3
+        8. Return merged DataFrame
+
+        Args:
+            project_gid: Asana project GID.
+            schema: DataFrame schema for extraction.
+            resume: If True, load existing DataFrame from S3 and merge.
+            incremental: If True, use watermark filtering to skip unchanged tasks.
+            max_concurrent_sections: Max concurrent section fetches (default 5).
+            on_progress: Optional callback for progress reporting.
+
+        Returns:
+            Merged Polars DataFrame with all tasks.
+
+        Example:
+            >>> builder = ProgressiveProjectBuilder(
+            ...     client=client,
+            ...     project_gid=project_gid,
+            ...     entity_type="offer",
+            ...     schema=schema,
+            ...     persistence=persistence,
+            ... )
+            >>> df = await builder.build_with_parallel_fetch_async(
+            ...     project_gid=project_gid,
+            ...     schema=schema,
+            ...     incremental=True,
+            ... )
+        """
+        start_time = time.perf_counter()
+
+        # Initialize DataFrameView for row extraction
+        await self._ensure_dataframe_view()
+
+        # Step 1: Load existing DataFrame from S3 (if resume enabled)
+        existing_df: pl.DataFrame | None = None
+        if resume:
+            existing_df = await self._load_existing_dataframe_async(project_gid)
+            if existing_df is not None:
+                logger.info(
+                    "incremental_build_existing_loaded",
+                    extra={
+                        "project_gid": project_gid,
+                        "existing_rows": len(existing_df),
+                        "has_watermark_column": WATERMARK_COLUMN_NAME in existing_df.columns,
+                    },
+                )
+
+        # Step 2: Build incremental filter from existing DataFrame
+        incremental_filter: IncrementalFilter | None = None
+        if incremental and existing_df is not None:
+            incremental_filter = IncrementalFilter.from_dataframe(existing_df)
+            logger.info(
+                "incremental_filter_built",
+                extra={
+                    "project_gid": project_gid,
+                    "cache_size": incremental_filter.cache_size,
+                },
+            )
+
+        # Step 3: Fetch sections for project
+        sections = await self._list_sections()
+        if not sections:
+            logger.warning(
+                "incremental_build_no_sections",
+                extra={"project_gid": project_gid},
+            )
+            return self._build_empty_dataframe(schema)
+
+        total_sections = len(sections)
+
+        # Report initial progress
+        if on_progress:
+            on_progress(BuildProgress(
+                phase="fetching_sections",
+                sections_total=total_sections,
+                sections_complete=0,
+                tasks_processed=0,
+                tasks_skipped=0,
+                elapsed_ms=(time.perf_counter() - start_time) * 1000,
+            ))
+
+        # Step 4: Fetch and filter tasks from all sections in parallel
+        semaphore = asyncio.Semaphore(max_concurrent_sections)
+        all_new_rows: list[dict[str, Any]] = []
+        all_skipped_gids: list[str] = []
+        all_fetched_gids: set[str] = set()
+        sections_complete = 0
+
+        async def process_section(section: "Section") -> tuple[list[dict[str, Any]], list[str], set[str]]:
+            """Process a single section: fetch, filter, extract."""
+            async with semaphore:
+                # Fetch tasks for section
+                tasks: list["Task"] = await self._client.tasks.list_async(
+                    section=section.gid,
+                    opt_fields=BASE_OPT_FIELDS,
+                ).collect()
+
+                # Convert to dicts for filtering
+                task_dicts = [self._task_to_dict(task) for task in tasks]
+                fetched_gids = {t.get("gid") for t in task_dicts if t.get("gid")}
+
+                # Apply incremental filter
+                if incremental_filter is not None:
+                    filter_result = incremental_filter.filter(task_dicts)
+                    to_process = filter_result.to_process
+                    skipped = filter_result.to_skip
+                else:
+                    # No filter - process all
+                    to_process = task_dicts
+                    skipped = []
+
+                # Extract rows for tasks to process
+                rows: list[dict[str, Any]] = []
+                if to_process:
+                    # Populate store for cascade resolution
+                    if self._store is not None:
+                        await self._store.put_batch_async(
+                            to_process,
+                            opt_fields=BASE_OPT_FIELDS,
+                            tasks_client=self._client.tasks,
+                            warm_hierarchy=True,
+                        )
+
+                    # Extract rows
+                    rows = await self._extract_rows(to_process)
+
+                    # Add _modified_at column to each row
+                    for i, task_dict in enumerate(to_process):
+                        if i < len(rows):
+                            modified_at = task_dict.get("modified_at")
+                            if modified_at:
+                                rows[i][WATERMARK_COLUMN_NAME] = self._parse_datetime(modified_at)
+
+                logger.debug(
+                    "section_processed",
+                    extra={
+                        "section_gid": section.gid,
+                        "fetched": len(task_dicts),
+                        "processed": len(to_process),
+                        "skipped": len(skipped),
+                    },
+                )
+
+                return rows, skipped, fetched_gids
+
+        # Process all sections in parallel
+        results = await asyncio.gather(
+            *[process_section(section) for section in sections],
+            return_exceptions=True,
+        )
+
+        # Aggregate results
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(
+                    "section_processing_failed",
+                    extra={
+                        "section_gid": sections[i].gid,
+                        "error": str(result),
+                        "error_type": type(result).__name__,
+                    },
+                )
+                continue
+
+            rows, skipped, fetched_gids = result
+            all_new_rows.extend(rows)
+            all_skipped_gids.extend(skipped)
+            all_fetched_gids.update(fetched_gids)
+            sections_complete += 1
+
+            # Report progress
+            if on_progress:
+                on_progress(BuildProgress(
+                    phase="processing_sections",
+                    sections_total=total_sections,
+                    sections_complete=sections_complete,
+                    tasks_processed=len(all_new_rows),
+                    tasks_skipped=len(all_skipped_gids),
+                    elapsed_ms=(time.perf_counter() - start_time) * 1000,
+                ))
+
+        # Step 5: Compute deleted GIDs (in cache but not in any fetch)
+        deleted_gids: list[str] = []
+        if incremental_filter is not None:
+            cached_gids = incremental_filter.cached_gids
+            deleted_gids = list(cached_gids - all_fetched_gids)
+
+        logger.info(
+            "incremental_aggregation_complete",
+            extra={
+                "project_gid": project_gid,
+                "new_rows": len(all_new_rows),
+                "skipped_gids": len(all_skipped_gids),
+                "deleted_gids": len(deleted_gids),
+                "fetched_gids": len(all_fetched_gids),
+            },
+        )
+
+        # Step 6: Merge using DeltaMerger
+        if existing_df is not None and incremental:
+            merger = DeltaMerger()
+            merged_df = merger.merge(
+                existing_df=existing_df,
+                new_rows=all_new_rows,
+                skipped_gids=all_skipped_gids,
+                deleted_gids=deleted_gids,
+                schema=schema,
+            )
+        else:
+            # No existing DataFrame - build from scratch
+            if all_new_rows:
+                merged_df = pl.DataFrame(all_new_rows, schema=schema.to_polars_schema())
+            else:
+                merged_df = self._build_empty_dataframe(schema)
+
+        # Step 7: Persist merged DataFrame to S3
+        if len(merged_df) > 0:
+            watermark = datetime.now(timezone.utc)
+            index_data = self._build_index_data(merged_df)
+            await self._persistence.write_final_artifacts_async(
+                project_gid=project_gid,
+                df=merged_df,
+                watermark=watermark,
+                index_data=index_data,
+            )
+
+        total_time = (time.perf_counter() - start_time) * 1000
+
+        # Final progress report
+        if on_progress:
+            on_progress(BuildProgress(
+                phase="complete",
+                sections_total=total_sections,
+                sections_complete=sections_complete,
+                tasks_processed=len(all_new_rows),
+                tasks_skipped=len(all_skipped_gids),
+                elapsed_ms=total_time,
+            ))
+
+        logger.info(
+            "incremental_build_complete",
+            extra={
+                "project_gid": project_gid,
+                "total_rows": len(merged_df),
+                "new_rows": len(all_new_rows),
+                "skipped": len(all_skipped_gids),
+                "deleted": len(deleted_gids),
+                "sections": total_sections,
+                "total_time_ms": round(total_time, 2),
+            },
+        )
+
+        return merged_df
+
+    async def _load_existing_dataframe_async(
+        self,
+        project_gid: str,
+    ) -> pl.DataFrame | None:
+        """Load existing DataFrame from S3.
+
+        Args:
+            project_gid: Asana project GID.
+
+        Returns:
+            Existing DataFrame if found, None otherwise.
+        """
+        try:
+            # Try to load merged DataFrame first
+            merged_df = await self._persistence.merge_sections_to_dataframe_async(
+                project_gid
+            )
+            return merged_df
+        except Exception as e:
+            logger.warning(
+                "load_existing_dataframe_failed",
+                extra={
+                    "project_gid": project_gid,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            )
+            return None
+
+    def _build_empty_dataframe(self, schema: "DataFrameSchema") -> pl.DataFrame:
+        """Build empty DataFrame with schema columns.
+
+        Args:
+            schema: DataFrame schema.
+
+        Returns:
+            Empty Polars DataFrame with correct schema.
+        """
+        return pl.DataFrame(schema=schema.to_polars_schema())
+
+    def _parse_datetime(self, value: str | datetime | None) -> datetime | None:
+        """Parse datetime value to timezone-aware datetime.
+
+        Args:
+            value: Raw datetime value (string or datetime).
+
+        Returns:
+            Timezone-aware datetime in UTC, or None if unparseable.
+        """
+        if value is None:
+            return None
+
+        if isinstance(value, datetime):
+            if value.tzinfo is None:
+                return value.replace(tzinfo=timezone.utc)
+            return value
+
+        if not isinstance(value, str):
+            return None
+
+        # Handle Z suffix
+        if value.endswith("Z"):
+            value = value[:-1] + "+00:00"
+
+        try:
+            dt = datetime.fromisoformat(value)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except ValueError:
             return None
 
 

@@ -31,6 +31,8 @@ from autom8y_log import get_logger
 
 from autom8_asana.cache.dataframe.decorator import dataframe_cache
 from autom8_asana.cache.dataframe.factory import get_dataframe_cache_provider
+from autom8_asana.dataframes.builders import BASE_OPT_FIELDS, ProgressiveProjectBuilder
+from autom8_asana.dataframes.section_persistence import SectionPersistence
 from autom8_asana.models.contracts.phone_vertical import PhoneVerticalPair
 from autom8_asana.services.gid_lookup import GidLookupIndex
 
@@ -543,8 +545,8 @@ class UnitResolutionStrategy:
         Internal method that performs the actual DataFrame construction.
         Called by _build_dataframe for caching and directly when cache bypassed.
 
-        Uses ProjectDataFrameBuilder with parallel fetch for efficient
-        DataFrame construction.
+        Uses ProgressiveProjectBuilder with watermark-based incremental filtering
+        for efficient DataFrame construction.
 
         Args:
             project_gid: Unit project GID
@@ -554,36 +556,35 @@ class UnitResolutionStrategy:
             Polars DataFrame with unit data, or None on failure.
         """
         # Import here to avoid circular imports
-        from autom8_asana.dataframes.builders.project import ProjectDataFrameBuilder
         from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
         from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
 
-        # Minimal project proxy - only needs gid attribute for builder
-        class ProjectProxy:
-            """Minimal project object for DataFrame builder."""
-
-            def __init__(self, gid: str) -> None:
-                self.gid = gid
-                self.tasks: list[Any] = []
-
         try:
-            project_proxy = ProjectProxy(project_gid)
-
             # Create resolver for custom field extraction (office_phone, vertical)
             resolver = DefaultCustomFieldResolver()
 
-            # Per TDD-CASCADING-FIELD-RESOLUTION-001: Pass client for cascade: sources
-            builder = ProjectDataFrameBuilder(
-                project=project_proxy,
-                task_type="Unit",
-                schema=UNIT_SCHEMA,
-                resolver=resolver,
+            # Create SectionPersistence for S3 operations (auto-configures from settings)
+            persistence = SectionPersistence()
+
+            # Per TDD-DATAFRAME-BUILDER-WATERMARK-001: Use ProgressiveProjectBuilder
+            # with incremental watermark-based filtering
+            builder = ProgressiveProjectBuilder(
                 client=client,
-                unified_store=client.unified_store,
+                project_gid=project_gid,
+                entity_type="unit",
+                schema=UNIT_SCHEMA,
+                persistence=persistence,
+                resolver=resolver,
+                store=client.unified_store,
             )
 
-            # Use parallel fetch for efficient DataFrame construction
-            df = await builder.build_with_parallel_fetch_async(client)
+            # Use build_with_parallel_fetch_async with watermark filtering enabled
+            df = await builder.build_with_parallel_fetch_async(
+                project_gid=project_gid,
+                schema=UNIT_SCHEMA,
+                resume=True,
+                incremental=True,
+            )
 
             logger.info(
                 "unit_dataframe_built",
@@ -1032,6 +1033,9 @@ class OfferResolutionStrategy:
         Internal method that performs the actual DataFrame construction.
         Called by _build_dataframe for caching and directly when cache bypassed.
 
+        Uses ProgressiveProjectBuilder with watermark-based incremental filtering
+        for efficient DataFrame construction.
+
         Args:
             project_gid: Offer project GID
             client: AsanaClient for data fetching
@@ -1040,28 +1044,31 @@ class OfferResolutionStrategy:
             Polars DataFrame with offer data, or None on failure.
         """
         # Import here to avoid circular imports
-        from autom8_asana.dataframes.builders.project import ProjectDataFrameBuilder
         from autom8_asana.dataframes.schemas.base import BASE_SCHEMA
 
-        # Minimal project proxy
-        class ProjectProxy:
-            def __init__(self, gid: str) -> None:
-                self.gid = gid
-                self.tasks: list[Any] = []
-
         try:
-            project_proxy = ProjectProxy(project_gid)
+            # Create SectionPersistence for S3 operations (auto-configures from settings)
+            persistence = SectionPersistence()
 
+            # Per TDD-DATAFRAME-BUILDER-WATERMARK-001: Use ProgressiveProjectBuilder
+            # with incremental watermark-based filtering
             # Use base schema since Offer schema not defined yet
-            # Include offer_id, office_phone, vertical columns
-            builder = ProjectDataFrameBuilder(
-                project=project_proxy,
-                task_type="Offer",
+            builder = ProgressiveProjectBuilder(
+                client=client,
+                project_gid=project_gid,
+                entity_type="offer",
                 schema=BASE_SCHEMA,
-                unified_store=client.unified_store,
+                persistence=persistence,
+                store=client.unified_store,
             )
 
-            df = await builder.build_with_parallel_fetch_async(client)
+            # Use build_with_parallel_fetch_async with watermark filtering enabled
+            df = await builder.build_with_parallel_fetch_async(
+                project_gid=project_gid,
+                schema=BASE_SCHEMA,
+                resume=True,
+                incremental=True,
+            )
 
             logger.info(
                 "offer_dataframe_built",
@@ -1317,6 +1324,9 @@ class ContactResolutionStrategy:
         Internal method that performs the actual DataFrame construction.
         Called by _build_dataframe for caching and directly when cache bypassed.
 
+        Uses ProgressiveProjectBuilder with watermark-based incremental filtering
+        for efficient DataFrame construction.
+
         Args:
             project_gid: Contact project GID
             client: AsanaClient for data fetching
@@ -1325,26 +1335,30 @@ class ContactResolutionStrategy:
             Polars DataFrame with contact data, or None on failure.
         """
         # Import here to avoid circular imports
-        from autom8_asana.dataframes.builders.project import ProjectDataFrameBuilder
         from autom8_asana.dataframes.schemas.contact import CONTACT_SCHEMA
 
-        # Minimal project proxy
-        class ProjectProxy:
-            def __init__(self, gid: str) -> None:
-                self.gid = gid
-                self.tasks: list[Any] = []
-
         try:
-            project_proxy = ProjectProxy(project_gid)
+            # Create SectionPersistence for S3 operations (auto-configures from settings)
+            persistence = SectionPersistence()
 
-            builder = ProjectDataFrameBuilder(
-                project=project_proxy,
-                task_type="Contact",
+            # Per TDD-DATAFRAME-BUILDER-WATERMARK-001: Use ProgressiveProjectBuilder
+            # with incremental watermark-based filtering
+            builder = ProgressiveProjectBuilder(
+                client=client,
+                project_gid=project_gid,
+                entity_type="contact",
                 schema=CONTACT_SCHEMA,
-                unified_store=client.unified_store,
+                persistence=persistence,
+                store=client.unified_store,
             )
 
-            df = await builder.build_with_parallel_fetch_async(client)
+            # Use build_with_parallel_fetch_async with watermark filtering enabled
+            df = await builder.build_with_parallel_fetch_async(
+                project_gid=project_gid,
+                schema=CONTACT_SCHEMA,
+                resume=True,
+                incremental=True,
+            )
 
             logger.info(
                 "contact_dataframe_built",

@@ -175,6 +175,7 @@ class Project(AsanaResource):
             use_cache: Whether to use caching (default True, requires cache_integration).
             lazy: If True, force lazy evaluation. If False, force eager.
                   If None, auto-select based on task count threshold.
+            client: AsanaClient for API calls (required for progressive builder).
 
         Returns:
             Polars DataFrame with extracted task data.
@@ -182,28 +183,46 @@ class Project(AsanaResource):
         Raises:
             SchemaNotFoundError: If task_type has no registered schema.
             ExtractionError: If extraction fails for any task.
+            ValueError: If client is None (required for ProgressiveProjectBuilder).
 
         Example:
-            >>> df = await project.to_dataframe_async(task_type="Unit")
+            >>> df = await project.to_dataframe_async(task_type="Unit", client=client)
             >>> df.columns
             ['gid', 'name', 'type', 'mrr', ...]
         """
-        from autom8_asana.dataframes.builders.project import ProjectDataFrameBuilder
+        from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
         from autom8_asana.dataframes.models.registry import SchemaRegistry
+        from autom8_asana.dataframes.section_persistence import SectionPersistence
+
+        if client is None:
+            raise ValueError(
+                "client is required for to_dataframe_async. "
+                "Pass an AsanaClient instance."
+            )
 
         schema = SchemaRegistry.get_instance().get_schema(task_type)
-        unified_store = client.unified_store if client else None
-        builder = ProjectDataFrameBuilder(
-            project=self,
-            task_type=task_type,
-            schema=schema,
-            sections=sections,
-            resolver=resolver,
-            cache_integration=cache_integration if use_cache else None,
+        entity_type = task_type.lower() if task_type != "*" else "task"
+
+        # Create section persistence for S3 storage
+        persistence = SectionPersistence()
+
+        builder = ProgressiveProjectBuilder(
             client=client,
-            unified_store=unified_store,
+            project_gid=self.gid,
+            entity_type=entity_type,
+            schema=schema,
+            persistence=persistence,
+            resolver=resolver,
+            store=client.unified_store,
         )
-        return await builder.build_async(lazy=lazy, use_cache=use_cache)
+
+        # Use build_with_parallel_fetch_async for incremental support
+        return await builder.build_with_parallel_fetch_async(
+            project_gid=self.gid,
+            schema=schema,
+            resume=use_cache,
+            incremental=use_cache,
+        )
 
     async def to_dataframe_parallel_async(
         self,
@@ -234,10 +253,9 @@ class Project(AsanaResource):
             cache_integration: Optional explicit cache integration. If None,
                 uses client's configured cache provider.
             **kwargs: Passed to build_with_parallel_fetch_async():
-                - use_parallel_fetch: bool (default True)
-                - use_cache: bool (default True)
-                - max_concurrent_sections: int (default 8)
-                - lazy: bool | None (default None for auto-select)
+                - resume: bool (default True)
+                - incremental: bool (default True)
+                - max_concurrent_sections: int (default 5)
 
         Returns:
             Polars DataFrame with extracted task data.
@@ -260,30 +278,44 @@ class Project(AsanaResource):
             ...     client,
             ...     task_type="Unit",
             ...     sections=["Active", "In Progress"],
-            ...     use_cache=False,
+            ...     resume=False,
             ... )
         """
-        from autom8_asana.dataframes.builders.project import ProjectDataFrameBuilder
+        from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
         from autom8_asana.dataframes.models.registry import SchemaRegistry
+        from autom8_asana.dataframes.section_persistence import SectionPersistence
 
         # Auto-detect schema if not provided
         if schema is None:
             schema = SchemaRegistry.get_instance().get_schema(task_type)
 
-        # Use client's cache integration if not explicitly provided
-        if cache_integration is None:
-            cache_integration = getattr(client, "_dataframe_cache_integration", None)
+        entity_type = task_type.lower() if task_type != "*" else "task"
 
-        unified_store = client.unified_store if client else None
-        builder = ProjectDataFrameBuilder(
-            project=self,
-            task_type=task_type,
+        # Create section persistence for S3 storage
+        persistence = SectionPersistence()
+
+        # Extract kwargs for ProgressiveProjectBuilder
+        max_concurrent = kwargs.pop("max_concurrent_sections", 5)
+
+        builder = ProgressiveProjectBuilder(
+            client=client,
+            project_gid=self.gid,
+            entity_type=entity_type,
             schema=schema,
-            sections=sections,
+            persistence=persistence,
             resolver=resolver,
-            cache_integration=cache_integration,
-            client=client,  # Per TDD-CASCADING-FIELD-RESOLUTION-001: Required for cascade: sources
-            unified_store=unified_store,
+            store=client.unified_store,
+            max_concurrent_sections=max_concurrent,
         )
 
-        return await builder.build_with_parallel_fetch_async(client, **kwargs)
+        # Map legacy kwargs to new interface
+        resume = kwargs.pop("use_cache", True)
+        incremental = kwargs.pop("use_parallel_fetch", True)
+
+        return await builder.build_with_parallel_fetch_async(
+            project_gid=self.gid,
+            schema=schema,
+            resume=resume,
+            incremental=incremental,
+            **kwargs,
+        )
