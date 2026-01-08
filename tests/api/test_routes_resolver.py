@@ -718,3 +718,185 @@ class TestUniversalStrategyIntegration:
 
         strategy = get_strategy("unknown_entity")
         assert strategy is None
+
+
+class TestSchemaDiscoveryEndpoint:
+    """Test GET /v1/resolve/{entity_type}/schema endpoint.
+
+    Per SPIKE-dynamic-api-criteria: Schema discovery enables API consumers
+    to discover valid criterion fields dynamically.
+    """
+
+    def test_schema_endpoint_returns_queryable_fields(self, client: TestClient) -> None:
+        """Schema endpoint returns field metadata for valid entity type."""
+        jwt_token = "header.payload.signature"
+
+        with patch(
+            "autom8_asana.api.routes.internal.validate_service_token",
+            _mock_jwt_validation(),
+        ):
+            response = client.get(
+                "/v1/resolve/unit/schema",
+                headers={"Authorization": f"Bearer {jwt_token}"},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["entity_type"] == "unit"
+        assert "version" in data
+        assert "queryable_fields" in data
+        assert isinstance(data["queryable_fields"], list)
+
+        # Verify expected fields present
+        field_names = [f["name"] for f in data["queryable_fields"]]
+        assert "gid" in field_names
+        assert "name" in field_names
+
+    def test_schema_endpoint_unknown_entity_returns_404(
+        self, client: TestClient
+    ) -> None:
+        """Unknown entity type returns 404 with helpful error."""
+        jwt_token = "header.payload.signature"
+
+        with patch(
+            "autom8_asana.api.routes.internal.validate_service_token",
+            _mock_jwt_validation(),
+        ):
+            response = client.get(
+                "/v1/resolve/invalid_type/schema",
+                headers={"Authorization": f"Bearer {jwt_token}"},
+            )
+
+        assert response.status_code == 404
+        data = response.json()
+        assert data["detail"]["error"] == "UNKNOWN_ENTITY_TYPE"
+        assert "available_types" in data["detail"]
+
+    def test_schema_endpoint_requires_auth(self, client: TestClient) -> None:
+        """Schema endpoint requires authentication."""
+        response = client.get("/v1/resolve/unit/schema")
+        assert response.status_code == 401
+
+    def test_schema_endpoint_returns_field_types(self, client: TestClient) -> None:
+        """Schema fields include type information."""
+        jwt_token = "header.payload.signature"
+
+        with patch(
+            "autom8_asana.api.routes.internal.validate_service_token",
+            _mock_jwt_validation(),
+        ):
+            response = client.get(
+                "/v1/resolve/unit/schema",
+                headers={"Authorization": f"Bearer {jwt_token}"},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Find gid field and verify it has type info
+        gid_field = next(
+            (f for f in data["queryable_fields"] if f["name"] == "gid"), None
+        )
+        assert gid_field is not None
+        assert "type" in gid_field
+
+
+class TestDynamicCriteriaFields:
+    """Test that dynamic criterion fields are accepted.
+
+    Per SPIKE-dynamic-api-criteria: ResolutionCriterion uses extra="allow"
+    to accept arbitrary schema columns beyond the typed common fields.
+    """
+
+    def test_dynamic_criterion_field_not_rejected(self, client: TestClient) -> None:
+        """Dynamic criterion fields (not in typed model) are not immediately rejected.
+
+        The field validation happens at the backend strategy level, not the API model.
+        """
+        jwt_token = "header.payload.signature"
+
+        # Create mock DataFrame with the dynamic field
+        mock_df = pl.DataFrame(
+            {
+                "gid": ["1234567890123456"],
+                "mrr": ["5000"],  # Dynamic field
+                "vertical": ["dental"],
+                "office_phone": ["+15551234567"],
+            }
+        )
+
+        with (
+            patch(
+                "autom8_asana.api.routes.internal.validate_service_token",
+                _mock_jwt_validation(),
+            ),
+            patch(
+                "autom8_asana.api.routes.resolver.get_strategy",
+            ) as mock_get_strategy,
+            patch(
+                "autom8_asana.auth.bot_pat.get_bot_pat",
+                return_value="mock-pat",
+            ),
+        ):
+            # Create mock strategy
+            mock_strategy = MagicMock()
+            mock_strategy.entity_type = "unit"
+            mock_strategy.validate_criterion.return_value = []  # No validation errors
+            mock_strategy.resolve = AsyncMock(
+                return_value=[ResolutionResult.from_gids(["1234567890123456"])]
+            )
+            mock_get_strategy.return_value = mock_strategy
+
+            # Use a dynamic field (mrr) not in the typed model
+            response = client.post(
+                "/v1/resolve/unit",
+                headers={"Authorization": f"Bearer {jwt_token}"},
+                json={
+                    "criteria": [
+                        {"mrr": "5000", "vertical": "dental"},  # mrr is dynamic
+                    ]
+                },
+            )
+
+        # Should not be rejected at API level (extra="allow")
+        # Backend validation determines if field is valid
+        assert response.status_code == 200
+
+    def test_invalid_dynamic_field_rejected_by_backend(
+        self, client: TestClient
+    ) -> None:
+        """Invalid dynamic fields are rejected by backend validation."""
+        jwt_token = "header.payload.signature"
+
+        with (
+            patch(
+                "autom8_asana.api.routes.internal.validate_service_token",
+                _mock_jwt_validation(),
+            ),
+            patch(
+                "autom8_asana.api.routes.resolver.get_strategy",
+            ) as mock_get_strategy,
+        ):
+            # Create mock strategy that rejects the field
+            mock_strategy = MagicMock()
+            mock_strategy.entity_type = "unit"
+            mock_strategy.validate_criterion.return_value = [
+                "Unknown field 'invalid_field'. Valid: [gid, mrr, name, ...]"
+            ]
+            mock_get_strategy.return_value = mock_strategy
+
+            response = client.post(
+                "/v1/resolve/unit",
+                headers={"Authorization": f"Bearer {jwt_token}"},
+                json={
+                    "criteria": [
+                        {"invalid_field": "value"},  # Not in schema
+                    ]
+                },
+            )
+
+        # Backend validation rejects unknown field
+        assert response.status_code == 422
+        data = response.json()
+        assert "MISSING_REQUIRED_FIELD" in data["detail"]["error"]
