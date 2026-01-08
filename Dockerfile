@@ -59,8 +59,10 @@ COPY --from=builder /build/src/autom8_asana /app/autom8_asana
 COPY scripts/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Add packages to Python path
+# Add packages to Python path and bin scripts to PATH
+# Note: pip --target installs executables to /app/packages/bin
 ENV PYTHONPATH="/app/packages:/app" \
+    PATH="/app/packages/bin:${PATH}" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 

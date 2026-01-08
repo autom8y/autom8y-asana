@@ -49,7 +49,8 @@ if [ -z "${AWS_LAMBDA_RUNTIME_API:-}" ]; then
     API_PORT="${API_PORT:-8000}"
 
     log_info "Launching uvicorn on ${API_HOST}:${API_PORT}"
-    exec uvicorn autom8_asana.api.main:create_app \
+    # Use python -m to ensure PYTHONPATH is respected for module resolution
+    exec python -m uvicorn autom8_asana.api.main:create_app \
         --host "${API_HOST}" \
         --port "${API_PORT}" \
         --factory
