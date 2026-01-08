@@ -43,6 +43,11 @@ auth = [
 scheduler = [
     "apscheduler>=3.10.0",
 ]
+# lambda: AWS Lambda Runtime Interface Client for container-based Lambda execution
+# Required for dual-mode Docker images that run both ECS (uvicorn) and Lambda (handler)
+lambda = [
+    "awslambdaric>=2.2.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.23.0",
