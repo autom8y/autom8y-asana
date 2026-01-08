@@ -26,7 +26,50 @@ from autom8_asana.api.routes.health import set_cache_ready
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
 from autom8_asana.auth.bot_pat import clear_bot_pat_cache
 from autom8_asana.auth.jwt_validator import reset_auth_client
-from autom8_asana.services.resolver import EntityProjectRegistry
+from autom8_asana.services.dynamic_index import DynamicIndex
+from autom8_asana.services.resolution_result import ResolutionResult
+from autom8_asana.services.resolver import EntityProjectRegistry, LEGACY_FIELD_MAPPING
+
+
+# --- Helpers ---
+
+
+def _apply_legacy_mapping(criterion: dict, entity_type: str) -> dict:
+    """Apply legacy field mapping to criterion."""
+    mapped = dict(criterion)
+    # Apply global mappings
+    global_map = LEGACY_FIELD_MAPPING.get("_global", {})
+    for old_key, new_key in global_map.items():
+        if old_key in mapped:
+            mapped[new_key] = mapped.pop(old_key)
+    # Apply entity-specific mappings
+    entity_map = LEGACY_FIELD_MAPPING.get(entity_type, {})
+    for old_key, new_key in entity_map.items():
+        if old_key in mapped:
+            mapped[new_key] = mapped.pop(old_key)
+    return mapped
+
+
+def _make_mock_strategy_resolve(
+    mock_df: pl.DataFrame, key_columns: list[str], entity_type: str = "unit"
+):
+    """Create a mock resolve function using the universal strategy pattern."""
+
+    async def mock_resolve(self, criteria, project_gid, client):
+        # Build index from mock DataFrame
+        index = DynamicIndex.from_dataframe(mock_df, key_columns)
+        results = []
+        for criterion in criteria:
+            # Apply legacy mapping like real strategy does
+            mapped = _apply_legacy_mapping(criterion, entity_type)
+            gids = index.lookup(mapped)
+            if gids:
+                results.append(ResolutionResult.from_gids(gids))
+            else:
+                results.append(ResolutionResult.not_found())
+        return results
+
+    return mock_resolve
 
 
 # --- Fixtures ---
@@ -130,6 +173,11 @@ class TestEntityResolverE2E:
             )
             app.state.entity_project_registry = registry
 
+        # Create mock resolve function that uses the sample DataFrame
+        mock_resolve = _make_mock_strategy_resolve(
+            sample_unit_dataframe, ["office_phone", "vertical"]
+        )
+
         with (
             patch(
                 "autom8_asana.api.main._discover_entity_projects",
@@ -148,8 +196,8 @@ class TestEntityResolverE2E:
                 "autom8_asana.AsanaClient",
             ) as mock_client_class,
             patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
-                AsyncMock(return_value=sample_unit_dataframe),
+                "autom8_asana.services.universal_strategy.UniversalResolutionStrategy.resolve",
+                mock_resolve,
             ),
         ):
             # Setup mock client
@@ -215,6 +263,11 @@ class TestEntityResolverE2E:
             )
             app.state.entity_project_registry = registry
 
+        # Create mock resolve function that uses the sample DataFrame
+        mock_resolve = _make_mock_strategy_resolve(
+            sample_unit_dataframe, ["office_phone", "vertical"]
+        )
+
         with (
             patch(
                 "autom8_asana.api.main._discover_entity_projects",
@@ -233,8 +286,8 @@ class TestEntityResolverE2E:
                 "autom8_asana.AsanaClient",
             ) as mock_client_class,
             patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
-                AsyncMock(return_value=sample_unit_dataframe),
+                "autom8_asana.services.universal_strategy.UniversalResolutionStrategy.resolve",
+                mock_resolve,
             ),
         ):
             mock_client = MagicMock()
@@ -288,6 +341,11 @@ class TestEntityResolverE2E:
             )
             app.state.entity_project_registry = registry
 
+        # Create mock resolve function that uses the sample DataFrame
+        mock_resolve = _make_mock_strategy_resolve(
+            sample_unit_dataframe, ["office_phone", "vertical"]
+        )
+
         with (
             patch(
                 "autom8_asana.api.main._discover_entity_projects",
@@ -306,8 +364,8 @@ class TestEntityResolverE2E:
                 "autom8_asana.AsanaClient",
             ) as mock_client_class,
             patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
-                AsyncMock(return_value=sample_unit_dataframe),
+                "autom8_asana.services.universal_strategy.UniversalResolutionStrategy.resolve",
+                mock_resolve,
             ),
         ):
             mock_client = MagicMock()

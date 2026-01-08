@@ -55,7 +55,9 @@ from autom8_asana.api.routes.internal import (
 from autom8_asana.services.resolver import (
     EntityProjectRegistry,
     filter_result_fields,
+    get_resolvable_entities,
     get_strategy,
+    is_entity_resolvable,
 )
 
 __all__ = [
@@ -186,16 +188,18 @@ class ResolutionResultModel(BaseModel):
     Per TDD: Result of a single criterion resolution.
 
     Attributes:
-        gid: Resolved task GID or None if not found
+        gid: First matching GID or None if not found (backwards compat)
+        gids: All matching GIDs (new multi-match support)
+        match_count: Number of matches
         error: Error code if resolution failed
-        multiple: True if contact returned multiple matches (Phase 2)
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    gid: str | None
+    gid: str | None  # Backwards compatible - first match
+    gids: list[str] | None = None  # All matches
+    match_count: int = 0
     error: str | None = None
-    multiple: bool | None = None
 
 
 class ResolutionMeta(BaseModel):
@@ -236,8 +240,59 @@ class ResolutionResponse(BaseModel):
 
 # --- Supported Entity Types ---
 
-# Phase 2: All entity types supported
+# DEPRECATED: Use get_resolvable_entities() instead (TASK-004)
+# This constant is preserved for backwards compatibility but will be removed
+# in a future release. The dynamic discovery function derives resolvable
+# entities from SchemaRegistry + EntityProjectRegistry at runtime.
 SUPPORTED_ENTITY_TYPES = {"unit", "business", "offer", "contact"}
+
+
+def _get_supported_entity_types() -> set[str]:
+    """Get supported entity types via dynamic discovery with fallback.
+
+    Per TDD-DYNAMIC-RESOLVER-001 / FR-001:
+    Derives resolvable entities from SchemaRegistry + EntityProjectRegistry.
+
+    The universal strategy supports any entity with a schema and registered project.
+
+    Returns:
+        Set of entity type strings that are resolvable.
+    """
+    supported: set[str] = set()
+
+    # Primary: Schema-based discovery
+    try:
+        discovered = get_resolvable_entities()
+        supported.update(discovered)
+    except Exception as e:
+        logger.warning(
+            "entity_discovery_error",
+            extra={"error": str(e)},
+        )
+
+    # Secondary: Include all entities with registered projects
+    # The universal strategy can handle any entity with a schema
+    try:
+        project_registry = EntityProjectRegistry.get_instance()
+        if project_registry.is_ready():
+            for entity_type in project_registry.get_all_entity_types():
+                if is_entity_resolvable(entity_type):
+                    supported.add(entity_type)
+    except Exception as e:
+        logger.warning(
+            "entity_registry_check_error",
+            extra={"error": str(e)},
+        )
+
+    # Final fallback if nothing discovered
+    if not supported:
+        logger.warning(
+            "entity_discovery_fallback",
+            extra={"fallback": "SUPPORTED_ENTITY_TYPES"},
+        )
+        return SUPPORTED_ENTITY_TYPES
+
+    return supported
 
 
 # --- Endpoints ---
@@ -314,14 +369,15 @@ async def resolve_entities(
         },
     )
 
-    # Validate entity type
-    if entity_type not in SUPPORTED_ENTITY_TYPES:
+    # Validate entity type via dynamic discovery (TASK-004)
+    supported_types = _get_supported_entity_types()
+    if entity_type not in supported_types:
         logger.warning(
             "unknown_entity_type",
             extra={
                 "request_id": request_id,
                 "entity_type": entity_type,
-                "supported": list(SUPPORTED_ENTITY_TYPES),
+                "supported": sorted(supported_types),
             },
         )
         raise HTTPException(
@@ -329,7 +385,8 @@ async def resolve_entities(
             detail={
                 "error": "UNKNOWN_ENTITY_TYPE",
                 "message": f"Unknown entity type: {entity_type}. "
-                f"Supported types: {', '.join(sorted(SUPPORTED_ENTITY_TYPES))}",
+                f"Supported types: {', '.join(sorted(supported_types))}",
+                "available_types": sorted(supported_types),
             },
         )
 
@@ -394,15 +451,18 @@ async def resolve_entities(
             },
         )
 
+    # Convert criteria to dicts for universal strategy
+    criteria_dicts = [criterion.model_dump(exclude_none=True) for criterion in request_body.criteria]
+
     # Validate criteria for entity type
-    for i, criterion in enumerate(request_body.criteria):
-        validation_error = strategy.validate_criterion(criterion)
-        if validation_error:
+    for i, criterion_dict in enumerate(criteria_dicts):
+        validation_errors = strategy.validate_criterion(criterion_dict)
+        if validation_errors:
             raise HTTPException(
                 status_code=422,
                 detail={
                     "error": "MISSING_REQUIRED_FIELD",
-                    "message": f"Criterion {i}: {validation_error}",
+                    "message": f"Criterion {i}: {'; '.join(validation_errors)}",
                 },
             )
 
@@ -446,7 +506,7 @@ async def resolve_entities(
 
         async with AsanaClient(token=bot_pat) as client:
             resolution_results = await strategy.resolve(
-                criteria=request_body.criteria,
+                criteria=criteria_dicts,
                 project_gid=project_gid,
                 client=client,
             )
@@ -473,9 +533,10 @@ async def resolve_entities(
     # Convert ResolutionResult to ResolutionResultModel
     results = [
         ResolutionResultModel(
-            gid=r.gid,
+            gid=r.gid,  # Backwards compat: first match
+            gids=list(r.gids) if r.gids else None,
+            match_count=r.match_count,
             error=r.error,
-            multiple=r.multiple,
         )
         for r in resolution_results
     ]

@@ -1,19 +1,11 @@
-"""Unit schema with 23 columns (12 base + 11 Unit-specific).
-
-Per FR-SUBCLASS-001: UNIT_SCHEMA extends BASE_SCHEMA with Unit fields.
-Per TDD-0009.1: Custom fields use cf: prefix for dynamic resolution.
-"""
+"""Unit schema extending BASE_SCHEMA with Unit fields."""
 
 from __future__ import annotations
 
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.dataframes.schemas.base import BASE_COLUMNS
 
-
-# Unit-specific column definitions (11 columns) - FR-SUBCLASS-001
-# Per TDD-0009.1: source="cf:Name" enables dynamic resolution by field name
 UNIT_COLUMNS: list[ColumnDef] = [
-    # Direct custom fields (5) - resolved by name
     ColumnDef(
         name="mrr",
         dtype="Decimal",
@@ -49,13 +41,12 @@ UNIT_COLUMNS: list[ColumnDef] = [
         source="cf:Discount",  # Number field (percentage)
         description="Discount percentage",
     ),
-    # Derived fields (6) - no source, custom extractor logic
     ColumnDef(
         name="office",
         dtype="Utf8",
         nullable=True,
         source=None,  # Derived from business.office_phone lookup
-        description="Office location (derived)",
+        description="Office name (derived)",
     ),
     ColumnDef(
         name="office_phone",
@@ -98,6 +89,9 @@ UNIT_COLUMNS: list[ColumnDef] = [
 UNIT_SCHEMA = DataFrameSchema(
     name="unit",
     task_type="Unit",
-    columns=[*BASE_COLUMNS, *UNIT_COLUMNS],  # 12 + 11 = 23 columns
+    columns=[
+        *BASE_COLUMNS,
+        *[c for c in UNIT_COLUMNS if c not in BASE_COLUMNS],
+    ],
     version="1.1.0",  # Bump to invalidate stale caches missing warm_hierarchy fix
 )

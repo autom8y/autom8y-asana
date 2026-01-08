@@ -392,8 +392,7 @@ class CacheWarmer:
     def _get_strategy_instance(self, entity_type: str) -> Any:
         """Get resolution strategy instance for entity type.
 
-        Creates a new instance of the appropriate resolution strategy
-        for the given entity type.
+        Creates a UniversalResolutionStrategy for the given entity type.
 
         Args:
             entity_type: Entity type (e.g., "unit", "offer", "contact").
@@ -402,25 +401,9 @@ class CacheWarmer:
             Strategy instance or None if not found.
         """
         # Import here to avoid circular imports
-        from autom8_asana.services.resolver import (
-            BusinessResolutionStrategy,
-            ContactResolutionStrategy,
-            OfferResolutionStrategy,
-            UnitResolutionStrategy,
-        )
+        from autom8_asana.services.resolver import get_strategy
 
-        strategy_map: dict[str, type] = {
-            "unit": UnitResolutionStrategy,
-            "business": BusinessResolutionStrategy,
-            "offer": OfferResolutionStrategy,
-            "contact": ContactResolutionStrategy,
-        }
-
-        strategy_class = strategy_map.get(entity_type)
-        if strategy_class is None:
-            return None
-
-        return strategy_class()
+        return get_strategy(entity_type)
 
     async def warm_entity_async(
         self,

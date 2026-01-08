@@ -1,57 +1,39 @@
 """Entity Resolver service for generalized GID resolution.
 
-Per TDD-entity-resolver Phase 1:
-This module provides the Entity Resolver system for resolving entity identifiers
-to Asana task GIDs. The system supports multiple entity types with pluggable
-resolution strategies.
-
-Phase 1 implements:
-- EntityProjectRegistry singleton for entity_type -> project_gid mapping
-- ResolutionStrategy protocol for strategy dispatch
-- UnitResolutionStrategy using GidLookupIndex O(1) lookup
+Provides schema-driven entity resolution using DynamicIndex for O(1) lookups.
+Supports any entity type with a registered schema and project.
 
 Components:
 - EntityProjectConfig: Configuration for a single entity type's project mapping
 - EntityProjectRegistry: Singleton registry populated at startup
-- ResolutionStrategy: Protocol for entity-specific resolution logic
-- UnitResolutionStrategy: Phone/vertical O(1) lookup via GidLookupIndex
+- ResolutionResult: Multi-match result imported from resolution_result module
+- get_strategy: Factory function returning UniversalResolutionStrategy
 
 Per ADR-0060: Project GIDs discovered at startup via WorkspaceProjectRegistry.
-Per TDD: Module-level cache dict for GidLookupIndex per project.
 """
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, ClassVar, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from autom8y_log import get_logger
 
-from autom8_asana.cache.dataframe.decorator import dataframe_cache
-from autom8_asana.cache.dataframe.factory import get_dataframe_cache_provider
-from autom8_asana.dataframes.builders import BASE_OPT_FIELDS, ProgressiveProjectBuilder
-from autom8_asana.dataframes.section_persistence import SectionPersistence
-from autom8_asana.models.contracts.phone_vertical import PhoneVerticalPair
-from autom8_asana.services.gid_lookup import GidLookupIndex
+from autom8_asana.services.resolution_result import ResolutionResult
 
 if TYPE_CHECKING:
-    from autom8_asana.client import AsanaClient
+    from autom8_asana.services.universal_strategy import UniversalResolutionStrategy
 
 __all__ = [
     "EntityProjectConfig",
     "EntityProjectRegistry",
-    "ResolutionStrategy",
-    "UnitResolutionStrategy",
-    "BusinessResolutionStrategy",
-    "OfferResolutionStrategy",
-    "ContactResolutionStrategy",
     "ResolutionResult",
     "get_strategy",
-    "register_strategies",
-    "RESOLUTION_STRATEGIES",
     "filter_result_fields",
+    "get_resolvable_entities",
+    "validate_criterion_for_entity",
+    "CriterionValidationResult",
+    "LEGACY_FIELD_MAPPING",
 ]
 
 logger = get_logger(__name__)
@@ -77,23 +59,6 @@ class EntityProjectConfig:
     project_gid: str
     project_name: str
     schema_task_type: str | None = None
-
-
-@dataclass
-class ResolutionResult:
-    """Single resolution result.
-
-    Per TDD: Result of a single criterion resolution.
-
-    Attributes:
-        gid: Resolved task GID or None if not found
-        error: Error code if resolution failed (e.g., "NOT_FOUND")
-        multiple: True if contact returned multiple matches (Phase 2)
-    """
-
-    gid: str | None
-    error: str | None = None
-    multiple: bool | None = None
 
 
 # --- EntityProjectRegistry ---
@@ -243,1143 +208,300 @@ class EntityProjectRegistry:
         logger.debug("EntityProjectRegistry reset")
 
 
-# --- Resolution Strategies ---
+# --- Legacy Field Mapping (FR-006) ---
+
+# Legacy field name mapping for backwards compatibility.
+#
+# Per TDD-DYNAMIC-RESOLVER-001 / FR-006:
+# Maps legacy API field names to schema column names.
+#
+# Structure:
+#     {
+#         "entity_type": {"legacy_field": "schema_column"},
+#         "*": {"global_legacy_field": "schema_column"},
+#     }
+#
+# Entity-specific mappings take precedence over global ("*") mappings.
+
+LEGACY_FIELD_MAPPING: dict[str, dict[str, str]] = {
+    # Global mappings (apply to all entity types unless overridden)
+    "*": {},
+    # Unit-specific mappings
+    "unit": {
+        "phone": "office_phone",  # Legacy name -> schema column
+    },
+    # Business-specific mappings (same as Unit - uses phone/vertical)
+    "business": {
+        "phone": "office_phone",
+    },
+    # Offer-specific mappings
+    "offer": {
+        "phone": "office_phone",
+    },
+    # Contact-specific mappings
+    "contact": {
+        "contact_email": "email",  # Alias for schema column
+        "contact_phone": "phone",  # Alias for schema column
+    },
+}
 
 
-@runtime_checkable
-class ResolutionStrategy(Protocol):
-    """Protocol for entity-specific resolution logic.
+# --- Schema-Driven Entity Discovery (FR-001, FR-002) ---
 
-    Per TDD: Strategy pattern for entity-specific resolution.
-    Each strategy implements resolution logic for one entity type.
+
+@dataclass
+class CriterionValidationResult:
+    """Result of criterion validation against schema.
+
+    Per TDD-DYNAMIC-RESOLVER-001 / FR-002:
+    Provides detailed validation results with helpful error messages.
+
+    Attributes:
+        is_valid: True if all criterion fields are valid schema columns.
+        errors: List of validation error messages.
+        unknown_fields: Fields in criterion not in schema.
+        available_fields: All valid fields from schema.
+        normalized_criterion: Criterion with legacy fields mapped to schema names.
     """
 
-    async def resolve(
-        self,
-        criteria: list[Any],  # ResolutionCriterion from routes
-        project_gid: str,
-        client: "AsanaClient",
-    ) -> list[ResolutionResult]:
-        """Resolve criteria to entity GIDs.
-
-        Args:
-            criteria: List of resolution criteria
-            project_gid: Target project GID
-            client: AsanaClient for Asana API access
-
-        Returns:
-            List of ResolutionResult in same order as input criteria.
-        """
-        ...
-
-    def validate_criterion(self, criterion: Any) -> str | None:
-        """Return error message if criterion invalid, None if valid.
-
-        Args:
-            criterion: Single resolution criterion
-
-        Returns:
-            Error message string if invalid, None if valid.
-        """
-        ...
+    is_valid: bool
+    errors: list[str]
+    unknown_fields: list[str]
+    available_fields: list[str]
+    normalized_criterion: dict[str, Any]
 
 
-@dataframe_cache(
-    cache_provider=get_dataframe_cache_provider,
-    entity_type="unit",
-    build_method="_build_dataframe",
-)
-class UnitResolutionStrategy:
-    """Unit resolution via GidLookupIndex O(1) lookup.
+def get_resolvable_entities(
+    schema_registry: Any | None = None,
+    project_registry: EntityProjectRegistry | None = None,
+) -> set[str]:
+    """Derive resolvable entities from existing registries.
 
-    Per TDD Phase 1: Implements Unit resolution using existing GidLookupIndex.
-    Uses phone/vertical pairs for O(1) dictionary lookup.
+    Per TDD-DYNAMIC-RESOLVER-001 / FR-001:
+    An entity is resolvable if and only if:
+    1. It has a schema registered in SchemaRegistry
+    2. It has a project registered in EntityProjectRegistry
 
-    Per TDD-DATAFRAME-CACHE-001:
-    - @dataframe_cache decorator provides transparent caching
-    - self._cached_dataframe is injected on cache hit
-    - Cache miss returns 503 with retry guidance
+    Args:
+        schema_registry: SchemaRegistry instance (uses singleton if None).
+        project_registry: EntityProjectRegistry instance (uses singleton if None).
 
-    Resolution flow:
-    1. Get or build GidLookupIndex from cached DataFrame
-    2. Convert criteria to PhoneVerticalPair instances
-    3. Batch lookup via index.get_gids()
-    4. Return ResolutionResult for each criterion
+    Returns:
+        Set of entity type strings that are resolvable.
+
+    Example:
+        >>> entities = get_resolvable_entities()
+        >>> "unit" in entities
+        True
+        >>> "unknown" in entities
+        False
     """
+    from autom8_asana.dataframes.models.registry import SchemaRegistry
 
-    # Injected by @dataframe_cache decorator on cache hit
-    _cached_dataframe: Any = None
+    if schema_registry is None:
+        schema_registry = SchemaRegistry.get_instance()
+    if project_registry is None:
+        project_registry = EntityProjectRegistry.get_instance()
 
-    async def resolve(
-        self,
-        criteria: list[Any],
-        project_gid: str,
-        client: "AsanaClient",
-    ) -> list[ResolutionResult]:
-        """Resolve phone/vertical pairs to Unit task GIDs.
+    resolvable: set[str] = set()
 
-        Args:
-            criteria: List of ResolutionCriterion with phone and vertical
-            project_gid: Unit project GID
-            client: AsanaClient for DataFrame building
+    # Get all task types with schemas (excludes "*" base schema)
+    for task_type in schema_registry.list_task_types():
+        entity_type = task_type.lower()  # "Unit" -> "unit"
 
-        Returns:
-            List of ResolutionResult in same order as input criteria.
-        """
-        start_time = time.monotonic()
-
-        if not criteria:
-            return []
-
-        # Get or build the lookup index
-        index = await self._get_or_build_index(project_gid, client)
-
-        if index is None:
-            # Index build failed - return NOT_FOUND for all
-            logger.warning(
-                "unit_resolution_no_index",
-                extra={
-                    "project_gid": project_gid,
-                    "criteria_count": len(criteria),
-                },
-            )
-            return [
-                ResolutionResult(gid=None, error="INDEX_UNAVAILABLE")
-                for _ in criteria
-            ]
-
-        # Convert criteria to PhoneVerticalPair and resolve
-        results: list[ResolutionResult] = []
-
-        for criterion in criteria:
-            # Validate criterion has required fields
-            validation_error = self.validate_criterion(criterion)
-            if validation_error:
-                results.append(ResolutionResult(gid=None, error="INVALID_CRITERIA"))
-                continue
-
-            try:
-                pvp = PhoneVerticalPair(
-                    office_phone=criterion.phone,
-                    vertical=criterion.vertical,
-                )
-                gid = index.get_gid(pvp)
-                results.append(
-                    ResolutionResult(
-                        gid=gid,
-                        error="NOT_FOUND" if gid is None else None,
-                    )
-                )
-            except ValueError as e:
-                # PhoneVerticalPair validation failed
-                logger.warning(
-                    "pvp_conversion_failed",
-                    extra={
-                        "phone": getattr(criterion, "phone", None),
-                        "vertical": getattr(criterion, "vertical", None),
-                        "error": str(e),
-                    },
-                )
-                results.append(ResolutionResult(gid=None, error="INVALID_CRITERIA"))
-
-        # Log batch completion
-        elapsed_ms = (time.monotonic() - start_time) * 1000
-        resolved_count = sum(1 for r in results if r.gid is not None)
-
-        logger.info(
-            "entity_resolution_batch_complete",
-            extra={
-                "entity_type": "unit",
-                "criteria_count": len(criteria),
-                "resolved_count": resolved_count,
-                "unresolved_count": len(criteria) - resolved_count,
-                "duration_ms": round(elapsed_ms, 2),
-                "cache_hit": index is not None,
-                "project_gid": project_gid,
-            },
-        )
-
-        return results
-
-    def validate_criterion(self, criterion: Any) -> str | None:
-        """Validate that criterion has phone and vertical.
-
-        Args:
-            criterion: ResolutionCriterion to validate
-
-        Returns:
-            Error message if invalid, None if valid.
-        """
-        phone = getattr(criterion, "phone", None)
-        vertical = getattr(criterion, "vertical", None)
-
-        if not phone or not vertical:
-            return "phone and vertical required for unit resolution"
-
-        return None
-
-    async def _get_or_build_index(
-        self,
-        project_gid: str,
-        client: "AsanaClient",
-    ) -> GidLookupIndex | None:
-        """Get GidLookupIndex from cached DataFrame or build directly.
-
-        Per TDD-DATAFRAME-CACHE-001: When @dataframe_cache decorator injects
-        _cached_dataframe, use it directly to build the GidLookupIndex.
-        This provides consistent caching via the DataFrameCache layer.
-
-        When cache is not available (bypass enabled or cache not configured),
-        builds DataFrame directly without caching.
-
-        Args:
-            project_gid: Unit project GID
-            client: AsanaClient for DataFrame building
-
-        Returns:
-            GidLookupIndex if available, None on build failure.
-        """
-        # Use cached DataFrame from @dataframe_cache decorator if available
-        # When decorator is active, _cached_dataframe is injected before resolve()
-        if self._cached_dataframe is not None:
+        # Check if entity has a registered project
+        if project_registry.get_project_gid(entity_type) is not None:
+            resolvable.add(entity_type)
             logger.debug(
-                "gid_index_from_cached_dataframe",
+                "entity_discovered_resolvable",
                 extra={
-                    "project_gid": project_gid,
-                    "dataframe_rows": len(self._cached_dataframe),
-                },
-            )
-            try:
-                index = GidLookupIndex.from_dataframe(self._cached_dataframe)
-                logger.info(
-                    "gid_index_built_from_cache",
-                    extra={
-                        "project_gid": project_gid,
-                        "index_size": len(index),
-                    },
-                )
-                return index
-            except KeyError as e:
-                logger.error(
-                    "gid_index_build_failed_missing_columns",
-                    extra={
-                        "project_gid": project_gid,
-                        "error": str(e),
-                        "source": "cached_dataframe",
-                    },
-                )
-                return None
-
-        # No cached DataFrame - build directly (bypass mode or cache not configured)
-        logger.info(
-            "gid_index_direct_build",
-            extra={
-                "project_gid": project_gid,
-                "reason": "no_cached_dataframe",
-            },
-        )
-
-        # Build DataFrame directly using _build_unit_dataframe
-        df = await self._build_unit_dataframe(project_gid, client)
-
-        if df is None:
-            logger.warning(
-                "gid_index_build_failed_no_dataframe",
-                extra={"project_gid": project_gid},
-            )
-            return None
-
-        try:
-            # Build index from DataFrame
-            index = GidLookupIndex.from_dataframe(df)
-
-            logger.info(
-                "gid_index_built_direct",
-                extra={
-                    "project_gid": project_gid,
-                    "index_size": len(index),
+                    "entity_type": entity_type,
+                    "task_type": task_type,
                 },
             )
 
-            return index
+    logger.info(
+        "resolvable_entities_discovered",
+        extra={
+            "count": len(resolvable),
+            "entities": sorted(resolvable),
+        },
+    )
 
-        except KeyError as e:
-            logger.error(
-                "gid_index_build_failed_missing_columns",
-                extra={
-                    "project_gid": project_gid,
-                    "error": str(e),
-                },
-            )
-            return None
-
-    async def _build_dataframe(
-        self,
-        project_gid: str,
-        client: "AsanaClient",
-    ) -> tuple[Any, datetime]:
-        """Build Unit project DataFrame for caching.
-
-        Per TDD-DATAFRAME-CACHE-001: Build method for @dataframe_cache decorator.
-        Returns (DataFrame, watermark) tuple for cache storage.
-
-        Args:
-            project_gid: Unit project GID
-            client: AsanaClient for data fetching
-
-        Returns:
-            Tuple of (Polars DataFrame, watermark datetime).
-            DataFrame may be None on failure.
-        """
-        df = await self._build_unit_dataframe(project_gid, client)
-        watermark = datetime.now(timezone.utc)
-        return df, watermark
-
-    async def _build_unit_dataframe(
-        self,
-        project_gid: str,
-        client: "AsanaClient",
-    ) -> Any:
-        """Build Unit project DataFrame for lookups.
-
-        Internal method that performs the actual DataFrame construction.
-        Called by _build_dataframe for caching and directly when cache bypassed.
-
-        Uses ProgressiveProjectBuilder with watermark-based incremental filtering
-        for efficient DataFrame construction.
-
-        Args:
-            project_gid: Unit project GID
-            client: AsanaClient with valid authentication
-
-        Returns:
-            Polars DataFrame with unit data, or None on failure.
-        """
-        # Import here to avoid circular imports
-        from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
-        from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
-
-        try:
-            # Create resolver for custom field extraction (office_phone, vertical)
-            resolver = DefaultCustomFieldResolver()
-
-            # Create SectionPersistence for S3 operations (auto-configures from settings)
-            persistence = SectionPersistence()
-
-            # Per TDD-DATAFRAME-BUILDER-WATERMARK-001: Use ProgressiveProjectBuilder
-            # with incremental watermark-based filtering
-            builder = ProgressiveProjectBuilder(
-                client=client,
-                project_gid=project_gid,
-                entity_type="unit",
-                schema=UNIT_SCHEMA,
-                persistence=persistence,
-                resolver=resolver,
-                store=client.unified_store,
-            )
-
-            # Use build_with_parallel_fetch_async with watermark filtering enabled
-            df = await builder.build_with_parallel_fetch_async(
-                project_gid=project_gid,
-                schema=UNIT_SCHEMA,
-                resume=True,
-                incremental=True,
-            )
-
-            logger.info(
-                "unit_dataframe_built",
-                extra={
-                    "project_gid": project_gid,
-                    "row_count": len(df),
-                },
-            )
-
-            return df
-
-        except Exception as e:
-            logger.warning(
-                "unit_dataframe_build_failed",
-                extra={
-                    "project_gid": project_gid,
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                },
-            )
-            return None
+    return resolvable
 
 
-class BusinessResolutionStrategy:
-    """Business resolution: Unit lookup + parent navigation.
+def is_entity_resolvable(entity_type: str) -> bool:
+    """Check if a single entity type is resolvable.
 
-    Per TDD Phase 2: Resolves business entities by:
-    1. First resolving phone/vertical to Unit GID via UnitResolutionStrategy
-    2. Fetching the Unit task to get its parent (Business) GID
+    Args:
+        entity_type: Entity type to check (e.g., "unit").
 
-    The Unit task's parent reference contains the Business GID.
+    Returns:
+        True if entity has both schema and project registered.
     """
+    return entity_type.lower() in get_resolvable_entities()
 
-    def __init__(self, unit_strategy: UnitResolutionStrategy) -> None:
-        """Initialize with Unit strategy for delegation.
 
-        Args:
-            unit_strategy: UnitResolutionStrategy for phone/vertical lookup.
-        """
-        self._unit_strategy = unit_strategy
+def validate_criterion_for_entity(
+    entity_type: str,
+    criterion: dict[str, Any],
+) -> CriterionValidationResult:
+    """Validate criterion fields against entity schema.
 
-    async def resolve(
-        self,
-        criteria: list[Any],
-        project_gid: str,
-        client: "AsanaClient",
-    ) -> list[ResolutionResult]:
-        """Resolve phone/vertical pairs to Business task GIDs.
+    Per TDD-DYNAMIC-RESOLVER-001 / FR-002:
+    Schema-Aware Criterion Validation
 
-        For each criterion:
-        1. Resolve to Unit GID using UnitResolutionStrategy
-        2. If Unit found, fetch task to get parent (Business) GID
-        3. Return Business GID or error if no parent
+    Validation rules:
+    - Unknown field: Return error with available_fields list
+    - Type mismatch: Coerce string to target type or error
+    - Empty criteria: Valid (returns empty results)
 
-        Args:
-            criteria: List of ResolutionCriterion with phone and vertical
-            project_gid: Business project GID (used for logging, not lookup)
-            client: AsanaClient for task fetching
+    Also applies legacy field mapping (FR-006) before validation.
 
-        Returns:
-            List of ResolutionResult with Business GIDs.
-        """
-        start_time = time.monotonic()
+    Args:
+        entity_type: Entity type identifier (e.g., "unit").
+        criterion: Dictionary of field -> value lookup criteria.
 
-        if not criteria:
-            return []
+    Returns:
+        CriterionValidationResult with validation status and details.
 
-        # Get unit project GID for delegation
-        unit_project_gid = self._get_unit_project_gid()
-        if unit_project_gid is None:
-            logger.warning(
-                "business_resolution_no_unit_project",
-                extra={"business_project_gid": project_gid},
-            )
-            return [
-                ResolutionResult(gid=None, error="UNIT_PROJECT_UNAVAILABLE")
-                for _ in criteria
-            ]
+    Example:
+        >>> result = validate_criterion_for_entity(
+        ...     "unit",
+        ...     {"phone": "+15551234567", "vertical": "dental"}
+        ... )
+        >>> result.is_valid
+        True
+        >>> result.normalized_criterion
+        {"office_phone": "+15551234567", "vertical": "dental"}
+    """
+    from autom8_asana.dataframes.models.registry import SchemaRegistry
 
-        # First resolve to units
-        unit_results = await self._unit_strategy.resolve(
-            criteria=criteria,
-            project_gid=unit_project_gid,
-            client=client,
+    # Apply legacy field mapping first
+    normalized = _apply_legacy_mapping(entity_type, criterion)
+
+    # Get schema for entity type
+    schema_registry = SchemaRegistry.get_instance()
+    schema_key = entity_type.title()  # "unit" -> "Unit"
+
+    try:
+        schema = schema_registry.get_schema(schema_key)
+    except Exception:
+        # Fall back to base schema if entity-specific not found
+        schema = schema_registry.get_schema("*")
+
+    # Get valid column names
+    available_fields = schema.column_names()
+    available_set = set(available_fields)
+
+    # Check for unknown fields
+    criterion_fields = set(normalized.keys())
+    unknown_fields = list(criterion_fields - available_set)
+
+    errors: list[str] = []
+
+    if unknown_fields:
+        errors.append(
+            f"Unknown field(s) for {entity_type}: {sorted(unknown_fields)}. "
+            f"Valid fields: {sorted(available_fields)}"
         )
 
-        # Navigate to parent for each resolved unit
-        results: list[ResolutionResult] = []
-
-        for i, unit_result in enumerate(unit_results):
-            if unit_result.gid is None:
-                # Unit not found - pass through the error
-                results.append(unit_result)
-                continue
-
-            # Fetch unit task to get parent GID
-            try:
-                business_gid = await self._get_parent_gid(unit_result.gid, client)
-                if business_gid is not None:
-                    results.append(ResolutionResult(gid=business_gid))
-                else:
-                    # Unit exists but has no parent
-                    logger.warning(
-                        "business_resolution_no_parent",
-                        extra={
-                            "unit_gid": unit_result.gid,
-                            "criterion_index": i,
-                        },
-                    )
-                    results.append(
-                        ResolutionResult(gid=None, error="NO_PARENT_BUSINESS")
-                    )
-            except Exception as e:
-                logger.warning(
-                    "business_resolution_parent_fetch_failed",
-                    extra={
-                        "unit_gid": unit_result.gid,
-                        "error": str(e),
-                    },
+    # Type coercion validation
+    for field_name, value in normalized.items():
+        if field_name in available_set:
+            column_def = schema.get_column(field_name)
+            if column_def is not None:
+                coercion_error = _validate_field_type(
+                    field_name, value, column_def.dtype
                 )
-                results.append(
-                    ResolutionResult(gid=None, error="PARENT_FETCH_FAILED")
-                )
+                if coercion_error:
+                    errors.append(coercion_error)
 
-        # Log batch completion
-        elapsed_ms = (time.monotonic() - start_time) * 1000
-        resolved_count = sum(1 for r in results if r.gid is not None)
+    return CriterionValidationResult(
+        is_valid=len(errors) == 0,
+        errors=errors,
+        unknown_fields=unknown_fields,
+        available_fields=available_fields,
+        normalized_criterion=normalized,
+    )
 
-        logger.info(
-            "entity_resolution_batch_complete",
-            extra={
-                "entity_type": "business",
-                "criteria_count": len(criteria),
-                "resolved_count": resolved_count,
-                "unresolved_count": len(criteria) - resolved_count,
-                "duration_ms": round(elapsed_ms, 2),
-                "project_gid": project_gid,
-            },
-        )
 
-        return results
+def _apply_legacy_mapping(
+    entity_type: str,
+    criterion: dict[str, Any],
+) -> dict[str, Any]:
+    """Apply legacy field name mapping for backwards compatibility.
 
-    def validate_criterion(self, criterion: Any) -> str | None:
-        """Validate that criterion has phone and vertical (same as Unit).
+    Per TDD-DYNAMIC-RESOLVER-001 / FR-006:
+    Maps legacy API field names to schema column names.
 
-        Args:
-            criterion: ResolutionCriterion to validate
+    Args:
+        entity_type: Entity type for entity-specific mappings.
+        criterion: Original criterion dict.
 
-        Returns:
-            Error message if invalid, None if valid.
-        """
-        return self._unit_strategy.validate_criterion(criterion)
+    Returns:
+        New dict with legacy fields mapped to schema column names.
+    """
+    # Get entity-specific mappings (fall back to empty dict)
+    entity_mappings = LEGACY_FIELD_MAPPING.get(entity_type, {})
 
-    def _get_unit_project_gid(self) -> str | None:
-        """Get Unit project GID from EntityProjectRegistry.
+    # Also apply global mappings
+    global_mappings = LEGACY_FIELD_MAPPING.get("*", {})
 
-        Returns:
-            Unit project GID if registered, None otherwise.
-        """
-        registry = EntityProjectRegistry.get_instance()
-        return registry.get_project_gid("unit")
+    # Entity-specific takes precedence over global
+    combined = {**global_mappings, **entity_mappings}
 
-    async def _get_parent_gid(
-        self,
-        unit_gid: str,
-        client: "AsanaClient",
-    ) -> str | None:
-        """Fetch unit task and extract parent (Business) GID.
+    result: dict[str, Any] = {}
+    for field_name, value in criterion.items():
+        # Map legacy field to schema column if mapping exists
+        mapped_field = combined.get(field_name, field_name)
+        result[mapped_field] = value
 
-        Args:
-            unit_gid: Unit task GID
-            client: AsanaClient for task fetching
+    return result
 
-        Returns:
-            Business GID if parent exists, None otherwise.
-        """
-        # Fetch task with parent field
-        task = await client.tasks.get_async(
-            unit_gid,
-            opt_fields=["parent.gid"],
-        )
 
-        if task.parent is not None:
-            return task.parent.gid
+def _validate_field_type(field_name: str, value: Any, dtype: str) -> str | None:
+    """Validate and coerce value to target dtype.
 
+    Args:
+        field_name: Field name for error messages.
+        value: Value to validate.
+        dtype: Target Polars dtype string.
+
+    Returns:
+        Error message if invalid, None if valid.
+    """
+    # String types accept anything (coerce to string)
+    if dtype in ("Utf8", "String"):
         return None
 
-
-@dataframe_cache(
-    cache_provider=get_dataframe_cache_provider,
-    entity_type="offer",
-    build_method="_build_dataframe",
-)
-class OfferResolutionStrategy:
-    """Offer resolution via offer_id or phone/vertical + offer_name.
-
-    Per TDD Phase 2: Supports two resolution modes:
-    1. Primary: Direct lookup by offer_id custom field
-    2. Secondary: Composite lookup via phone/vertical + offer_name discriminator
-
-    Uses DataFrame scan for custom field lookups.
-
-    Per TDD-DATAFRAME-CACHE-001:
-    - @dataframe_cache decorator provides transparent caching
-    - self._cached_dataframe is injected on cache hit
-    - Cache miss returns 503 with retry guidance
-    """
-
-    # Injected by @dataframe_cache decorator on cache hit
-    _cached_dataframe: Any = None
-
-    async def resolve(
-        self,
-        criteria: list[Any],
-        project_gid: str,
-        client: "AsanaClient",
-    ) -> list[ResolutionResult]:
-        """Resolve offer criteria to Offer task GIDs.
-
-        Supports two modes per criterion:
-        - offer_id: Direct custom field lookup
-        - phone + vertical + offer_name: Composite lookup
-
-        Args:
-            criteria: List of ResolutionCriterion with offer fields
-            project_gid: Offer project GID
-            client: AsanaClient for DataFrame building
-
-        Returns:
-            List of ResolutionResult with Offer GIDs.
-        """
-        start_time = time.monotonic()
-
-        if not criteria:
-            return []
-
-        # Use cached DataFrame if available (injected by @dataframe_cache decorator)
-        # Otherwise fall back to building fresh (when cache not configured)
-        df = self._cached_dataframe
-        if df is None:
-            # Cache not configured or bypass - build fresh
-            df = await self._build_offer_dataframe(project_gid, client)
-
-        if df is None:
-            logger.warning(
-                "offer_resolution_no_dataframe",
-                extra={"project_gid": project_gid},
-            )
-            return [
-                ResolutionResult(gid=None, error="DATAFRAME_UNAVAILABLE")
-                for _ in criteria
-            ]
-
-        results: list[ResolutionResult] = []
-
-        for criterion in criteria:
-            # Validate criterion first
-            validation_error = self.validate_criterion(criterion)
-            if validation_error:
-                results.append(ResolutionResult(gid=None, error="INVALID_CRITERIA"))
-                continue
-
-            # Try offer_id lookup first (primary)
-            offer_id = getattr(criterion, "offer_id", None)
-            if offer_id:
-                gid = self._lookup_by_offer_id(df, offer_id)
-                results.append(
-                    ResolutionResult(
-                        gid=gid,
-                        error="NOT_FOUND" if gid is None else None,
-                    )
-                )
-                continue
-
-            # Secondary: phone + vertical + offer_name
-            phone = getattr(criterion, "phone", None)
-            vertical = getattr(criterion, "vertical", None)
-            offer_name = getattr(criterion, "offer_name", None)
-
-            gid = self._lookup_by_composite(df, phone, vertical, offer_name)
-            results.append(
-                ResolutionResult(
-                    gid=gid,
-                    error="NOT_FOUND" if gid is None else None,
-                )
-            )
-
-        # Log batch completion
-        elapsed_ms = (time.monotonic() - start_time) * 1000
-        resolved_count = sum(1 for r in results if r.gid is not None)
-
-        logger.info(
-            "entity_resolution_batch_complete",
-            extra={
-                "entity_type": "offer",
-                "criteria_count": len(criteria),
-                "resolved_count": resolved_count,
-                "unresolved_count": len(criteria) - resolved_count,
-                "duration_ms": round(elapsed_ms, 2),
-                "project_gid": project_gid,
-            },
-        )
-
-        return results
-
-    def validate_criterion(self, criterion: Any) -> str | None:
-        """Validate offer resolution criterion.
-
-        Valid combinations:
-        - offer_id only
-        - phone + vertical + offer_name (all three required)
-
-        Args:
-            criterion: ResolutionCriterion to validate
-
-        Returns:
-            Error message if invalid, None if valid.
-        """
-        offer_id = getattr(criterion, "offer_id", None)
-        phone = getattr(criterion, "phone", None)
-        vertical = getattr(criterion, "vertical", None)
-        offer_name = getattr(criterion, "offer_name", None)
-
-        # Primary: offer_id
-        if offer_id:
-            return None
-
-        # Secondary: all three required
-        if phone and vertical and offer_name:
-            return None
-
-        return (
-            "offer resolution requires either offer_id, "
-            "or (phone + vertical + offer_name)"
-        )
-
-    def _lookup_by_offer_id(self, df: Any, offer_id: str) -> str | None:
-        """Lookup Offer GID by offer_id custom field.
-
-        Args:
-            df: Polars DataFrame with offer data
-            offer_id: Offer identifier to search for
-
-        Returns:
-            Task GID if found, None otherwise.
-        """
+    # Integer types
+    if dtype in ("Int64", "Int32"):
         try:
-            # Filter by offer_id column
-            if "offer_id" not in df.columns:
-                logger.warning("offer_dataframe_missing_offer_id_column")
-                return None
-
-            filtered = df.filter(df["offer_id"] == offer_id)
-            if len(filtered) > 0:
-                gid: str = filtered["gid"][0]
-                return gid
+            int(value)
             return None
-        except Exception as e:
-            logger.warning(
-                "offer_lookup_by_id_failed",
-                extra={"offer_id": offer_id, "error": str(e)},
-            )
-            return None
+        except (ValueError, TypeError):
+            return f"Field '{field_name}' expects integer, got: {type(value).__name__}"
 
-    def _lookup_by_composite(
-        self,
-        df: Any,
-        phone: str | None,
-        vertical: str | None,
-        offer_name: str | None,
-    ) -> str | None:
-        """Lookup Offer GID by phone/vertical + offer_name.
-
-        Args:
-            df: Polars DataFrame with offer data
-            phone: Office phone number
-            vertical: Business vertical
-            offer_name: Offer name discriminator
-
-        Returns:
-            Task GID if found, None otherwise.
-        """
+    # Float types
+    if dtype in ("Float64", "Decimal"):
         try:
-            # Check required columns exist
-            required_cols = ["office_phone", "vertical", "name", "gid"]
-            for col in required_cols:
-                if col not in df.columns:
-                    logger.warning(
-                        "offer_dataframe_missing_column",
-                        extra={"column": col},
-                    )
-                    return None
-
-            # Filter by all three criteria
-            filtered = df.filter(
-                (df["office_phone"] == phone)
-                & (df["vertical"] == vertical)
-                & (df["name"] == offer_name)
-            )
-
-            if len(filtered) > 0:
-                gid: str = filtered["gid"][0]
-                return gid
+            float(value)
             return None
-        except Exception as e:
-            logger.warning(
-                "offer_lookup_by_composite_failed",
-                extra={
-                    "phone": phone,
-                    "vertical": vertical,
-                    "offer_name": offer_name,
-                    "error": str(e),
-                },
-            )
+        except (ValueError, TypeError):
+            return f"Field '{field_name}' expects number, got: {type(value).__name__}"
+
+    # Boolean
+    if dtype == "Boolean":
+        if isinstance(value, bool):
             return None
-
-    async def _build_dataframe(
-        self,
-        project_gid: str,
-        client: "AsanaClient",
-    ) -> tuple[Any, datetime]:
-        """Build Offer project DataFrame for caching.
-
-        Per TDD-DATAFRAME-CACHE-001: Build method for @dataframe_cache decorator.
-        Returns (DataFrame, watermark) tuple for cache storage.
-
-        Args:
-            project_gid: Offer project GID
-            client: AsanaClient for data fetching
-
-        Returns:
-            Tuple of (Polars DataFrame, watermark datetime).
-            DataFrame may be None on failure.
-        """
-        df = await self._build_offer_dataframe(project_gid, client)
-        watermark = datetime.now(timezone.utc)
-        return df, watermark
-
-    async def _build_offer_dataframe(
-        self,
-        project_gid: str,
-        client: "AsanaClient",
-    ) -> Any:
-        """Build Offer project DataFrame for lookups.
-
-        Internal method that performs the actual DataFrame construction.
-        Called by _build_dataframe for caching and directly when cache bypassed.
-
-        Uses ProgressiveProjectBuilder with watermark-based incremental filtering
-        for efficient DataFrame construction.
-
-        Args:
-            project_gid: Offer project GID
-            client: AsanaClient for data fetching
-
-        Returns:
-            Polars DataFrame with offer data, or None on failure.
-        """
-        # Import here to avoid circular imports
-        from autom8_asana.dataframes.schemas.base import BASE_SCHEMA
-
-        try:
-            # Create SectionPersistence for S3 operations (auto-configures from settings)
-            persistence = SectionPersistence()
-
-            # Per TDD-DATAFRAME-BUILDER-WATERMARK-001: Use ProgressiveProjectBuilder
-            # with incremental watermark-based filtering
-            # Use base schema since Offer schema not defined yet
-            builder = ProgressiveProjectBuilder(
-                client=client,
-                project_gid=project_gid,
-                entity_type="offer",
-                schema=BASE_SCHEMA,
-                persistence=persistence,
-                store=client.unified_store,
-            )
-
-            # Use build_with_parallel_fetch_async with watermark filtering enabled
-            df = await builder.build_with_parallel_fetch_async(
-                project_gid=project_gid,
-                schema=BASE_SCHEMA,
-                resume=True,
-                incremental=True,
-            )
-
-            logger.info(
-                "offer_dataframe_built",
-                extra={
-                    "project_gid": project_gid,
-                    "row_count": len(df),
-                },
-            )
-
-            return df
-
-        except Exception as e:
-            logger.warning(
-                "offer_dataframe_build_failed",
-                extra={
-                    "project_gid": project_gid,
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                },
-            )
+        if isinstance(value, str) and value.lower() in ("true", "false", "1", "0"):
             return None
+        return f"Field '{field_name}' expects boolean, got: {value}"
 
-
-@dataframe_cache(
-    cache_provider=get_dataframe_cache_provider,
-    entity_type="contact",
-    build_method="_build_dataframe",
-)
-class ContactResolutionStrategy:
-    """Contact resolution via email or phone with multiple matches support.
-
-    Per TDD Phase 2: Looks up contacts by contact_email or contact_phone.
-    Returns ALL matches with multiple=true flag when more than one found.
-
-    Per TDD-DATAFRAME-CACHE-001:
-    - @dataframe_cache decorator provides transparent caching
-    - self._cached_dataframe is injected on cache hit
-    - Cache miss returns 503 with retry guidance
-    """
-
-    # Injected by @dataframe_cache decorator on cache hit
-    _cached_dataframe: Any = None
-
-    async def resolve(
-        self,
-        criteria: list[Any],
-        project_gid: str,
-        client: "AsanaClient",
-    ) -> list[ResolutionResult]:
-        """Resolve contact criteria to Contact task GIDs.
-
-        Supports lookup by:
-        - contact_email: Email address
-        - contact_phone: Phone number
-
-        Per PRD: Returns ALL matches with multiple=true flag.
-
-        Args:
-            criteria: List of ResolutionCriterion with contact fields
-            project_gid: Contact project GID
-            client: AsanaClient for DataFrame building
-
-        Returns:
-            List of ResolutionResult with Contact GIDs.
-            When multiple matches exist, returns first GID with multiple=true.
-        """
-        start_time = time.monotonic()
-
-        if not criteria:
-            return []
-
-        # Use cached DataFrame if available (injected by @dataframe_cache decorator)
-        # Otherwise fall back to building fresh (when cache not configured)
-        df = self._cached_dataframe
-        if df is None:
-            # Cache not configured or bypass - build fresh
-            df = await self._build_contact_dataframe(project_gid, client)
-
-        if df is None:
-            logger.warning(
-                "contact_resolution_no_dataframe",
-                extra={"project_gid": project_gid},
-            )
-            return [
-                ResolutionResult(gid=None, error="DATAFRAME_UNAVAILABLE")
-                for _ in criteria
-            ]
-
-        results: list[ResolutionResult] = []
-
-        for criterion in criteria:
-            # Validate criterion first
-            validation_error = self.validate_criterion(criterion)
-            if validation_error:
-                results.append(ResolutionResult(gid=None, error="INVALID_CRITERIA"))
-                continue
-
-            # Try email lookup
-            contact_email = getattr(criterion, "contact_email", None)
-            if contact_email:
-                gids = self._lookup_by_email(df, contact_email)
-                results.append(self._build_result(gids))
-                continue
-
-            # Try phone lookup
-            contact_phone = getattr(criterion, "contact_phone", None)
-            if contact_phone:
-                gids = self._lookup_by_phone(df, contact_phone)
-                results.append(self._build_result(gids))
-                continue
-
-            # Should not reach here if validation is correct
-            results.append(ResolutionResult(gid=None, error="INVALID_CRITERIA"))
-
-        # Log batch completion
-        elapsed_ms = (time.monotonic() - start_time) * 1000
-        resolved_count = sum(1 for r in results if r.gid is not None)
-        multiple_count = sum(1 for r in results if r.multiple is True)
-
-        logger.info(
-            "entity_resolution_batch_complete",
-            extra={
-                "entity_type": "contact",
-                "criteria_count": len(criteria),
-                "resolved_count": resolved_count,
-                "unresolved_count": len(criteria) - resolved_count,
-                "multiple_match_count": multiple_count,
-                "duration_ms": round(elapsed_ms, 2),
-                "project_gid": project_gid,
-            },
-        )
-
-        return results
-
-    def validate_criterion(self, criterion: Any) -> str | None:
-        """Validate contact resolution criterion.
-
-        Valid combinations:
-        - contact_email only
-        - contact_phone only
-
-        Args:
-            criterion: ResolutionCriterion to validate
-
-        Returns:
-            Error message if invalid, None if valid.
-        """
-        contact_email = getattr(criterion, "contact_email", None)
-        contact_phone = getattr(criterion, "contact_phone", None)
-
-        if contact_email or contact_phone:
-            return None
-
-        return "contact resolution requires either contact_email or contact_phone"
-
-    def _build_result(self, gids: list[str]) -> ResolutionResult:
-        """Build ResolutionResult from list of matching GIDs.
-
-        Args:
-            gids: List of matching task GIDs
-
-        Returns:
-            ResolutionResult with first GID and multiple flag if applicable.
-        """
-        if not gids:
-            return ResolutionResult(gid=None, error="NOT_FOUND")
-
-        if len(gids) == 1:
-            return ResolutionResult(gid=gids[0])
-
-        # Multiple matches - return first with flag
-        return ResolutionResult(gid=gids[0], multiple=True)
-
-    def _lookup_by_email(self, df: Any, email: str) -> list[str]:
-        """Lookup Contact GIDs by contact_email.
-
-        Args:
-            df: Polars DataFrame with contact data
-            email: Email address to search for
-
-        Returns:
-            List of matching task GIDs (may be empty).
-        """
-        try:
-            if "contact_email" not in df.columns:
-                logger.warning("contact_dataframe_missing_email_column")
-                return []
-
-            filtered = df.filter(df["contact_email"] == email)
-            result: list[str] = filtered["gid"].to_list()
-            return result
-        except Exception as e:
-            logger.warning(
-                "contact_lookup_by_email_failed",
-                extra={"email": email, "error": str(e)},
-            )
-            return []
-
-    def _lookup_by_phone(self, df: Any, phone: str) -> list[str]:
-        """Lookup Contact GIDs by contact_phone.
-
-        Args:
-            df: Polars DataFrame with contact data
-            phone: Phone number to search for
-
-        Returns:
-            List of matching task GIDs (may be empty).
-        """
-        try:
-            if "contact_phone" not in df.columns:
-                logger.warning("contact_dataframe_missing_phone_column")
-                return []
-
-            filtered = df.filter(df["contact_phone"] == phone)
-            result: list[str] = filtered["gid"].to_list()
-            return result
-        except Exception as e:
-            logger.warning(
-                "contact_lookup_by_phone_failed",
-                extra={"phone": phone, "error": str(e)},
-            )
-            return []
-
-    async def _build_dataframe(
-        self,
-        project_gid: str,
-        client: "AsanaClient",
-    ) -> tuple[Any, datetime]:
-        """Build Contact project DataFrame for caching.
-
-        Per TDD-DATAFRAME-CACHE-001: Build method for @dataframe_cache decorator.
-        Returns (DataFrame, watermark) tuple for cache storage.
-
-        Args:
-            project_gid: Contact project GID
-            client: AsanaClient for data fetching
-
-        Returns:
-            Tuple of (Polars DataFrame, watermark datetime).
-            DataFrame may be None on failure.
-        """
-        df = await self._build_contact_dataframe(project_gid, client)
-        watermark = datetime.now(timezone.utc)
-        return df, watermark
-
-    async def _build_contact_dataframe(
-        self,
-        project_gid: str,
-        client: "AsanaClient",
-    ) -> Any:
-        """Build Contact project DataFrame for lookups.
-
-        Internal method that performs the actual DataFrame construction.
-        Called by _build_dataframe for caching and directly when cache bypassed.
-
-        Uses ProgressiveProjectBuilder with watermark-based incremental filtering
-        for efficient DataFrame construction.
-
-        Args:
-            project_gid: Contact project GID
-            client: AsanaClient for data fetching
-
-        Returns:
-            Polars DataFrame with contact data, or None on failure.
-        """
-        # Import here to avoid circular imports
-        from autom8_asana.dataframes.schemas.contact import CONTACT_SCHEMA
-
-        try:
-            # Create SectionPersistence for S3 operations (auto-configures from settings)
-            persistence = SectionPersistence()
-
-            # Per TDD-DATAFRAME-BUILDER-WATERMARK-001: Use ProgressiveProjectBuilder
-            # with incremental watermark-based filtering
-            builder = ProgressiveProjectBuilder(
-                client=client,
-                project_gid=project_gid,
-                entity_type="contact",
-                schema=CONTACT_SCHEMA,
-                persistence=persistence,
-                store=client.unified_store,
-            )
-
-            # Use build_with_parallel_fetch_async with watermark filtering enabled
-            df = await builder.build_with_parallel_fetch_async(
-                project_gid=project_gid,
-                schema=CONTACT_SCHEMA,
-                resume=True,
-                incremental=True,
-            )
-
-            logger.info(
-                "contact_dataframe_built",
-                extra={
-                    "project_gid": project_gid,
-                    "row_count": len(df),
-                },
-            )
-
-            return df
-
-        except Exception as e:
-            logger.warning(
-                "contact_dataframe_build_failed",
-                extra={
-                    "project_gid": project_gid,
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                },
-            )
-            return None
+    # Default: accept (be permissive for unknown types)
+    return None
 
 
 # --- Field Filtering ---
@@ -1440,54 +562,35 @@ def filter_result_fields(
     return {k: v for k, v in result.items() if k in fields_to_include}
 
 
-# --- Strategy Dispatch ---
-
-# Strategy registry dict - simple dispatch without over-engineering
-RESOLUTION_STRATEGIES: dict[str, ResolutionStrategy] = {}
+# --- Strategy Factory ---
 
 
-def get_strategy(entity_type: str) -> ResolutionStrategy | None:
+def get_strategy(entity_type: str) -> "UniversalResolutionStrategy | None":
     """Get resolution strategy for entity type.
 
+    Returns a UniversalResolutionStrategy for any resolvable entity type.
+    The strategy uses schema-driven resolution with DynamicIndex for O(1) lookups.
+
     Args:
-        entity_type: Entity type identifier (e.g., "unit")
+        entity_type: Entity type identifier (e.g., "unit", "business", "offer")
 
     Returns:
-        ResolutionStrategy if registered, None otherwise.
+        UniversalResolutionStrategy if entity is resolvable, None otherwise.
+
+    Example:
+        >>> strategy = get_strategy("unit")
+        >>> if strategy:
+        ...     results = await strategy.resolve(
+        ...         criteria=[{"phone": "+15551234567", "vertical": "dental"}],
+        ...         project_gid="1234567890",
+        ...         client=client,
+        ...     )
     """
-    return RESOLUTION_STRATEGIES.get(entity_type)
+    # Import here to avoid circular imports
+    from autom8_asana.services.universal_strategy import get_universal_strategy
 
+    # Check if entity is resolvable
+    if not is_entity_resolvable(entity_type):
+        return None
 
-def register_strategies() -> None:
-    """Register all resolution strategies.
-
-    Called at module load time to populate RESOLUTION_STRATEGIES.
-    Phase 1: UnitResolutionStrategy
-    Phase 2: Business, Offer, Contact strategies
-    """
-    global RESOLUTION_STRATEGIES
-
-    # Phase 1: Unit resolution
-    unit_strategy = UnitResolutionStrategy()
-    RESOLUTION_STRATEGIES["unit"] = unit_strategy
-
-    # Phase 2: Business resolution (delegates to Unit + parent navigation)
-    business_strategy = BusinessResolutionStrategy(unit_strategy)
-    RESOLUTION_STRATEGIES["business"] = business_strategy
-
-    # Phase 2: Offer resolution (offer_id or phone/vertical/offer_name)
-    offer_strategy = OfferResolutionStrategy()
-    RESOLUTION_STRATEGIES["offer"] = offer_strategy
-
-    # Phase 2: Contact resolution (email or phone, with multiple flag)
-    contact_strategy = ContactResolutionStrategy()
-    RESOLUTION_STRATEGIES["contact"] = contact_strategy
-
-    logger.debug(
-        "resolution_strategies_registered",
-        extra={"strategies": list(RESOLUTION_STRATEGIES.keys())},
-    )
-
-
-# Register strategies on module import
-register_strategies()
+    return get_universal_strategy(entity_type)

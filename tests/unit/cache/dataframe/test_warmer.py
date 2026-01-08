@@ -347,34 +347,20 @@ class TestCacheWarmer:
         assert status.error == "No project GID configured"
 
     def test_get_strategy_instance_unit(self, mock_cache: MagicMock) -> None:
-        """Get UnitResolutionStrategy instance."""
+        """Get UniversalResolutionStrategy instance for unit entity type."""
         warmer = CacheWarmer(cache=mock_cache)
 
-        # The strategy is instantiated inside _get_strategy_instance
-        # We can test this by checking the returned instance type
+        # Mock is_entity_resolvable to return True for unit
         with patch(
-            "autom8_asana.services.resolver.UnitResolutionStrategy"
-        ) as mock_class:
-            mock_instance = MagicMock()
-            mock_class.return_value = mock_instance
+            "autom8_asana.services.resolver.is_entity_resolvable",
+            return_value=True,
+        ):
+            strategy = warmer._get_strategy_instance("unit")
 
-            # Import and patch at module level where it's used
-            with patch.dict(
-                "sys.modules",
-                {"autom8_asana.services.resolver": MagicMock(
-                    UnitResolutionStrategy=mock_class,
-                    BusinessResolutionStrategy=MagicMock(),
-                    OfferResolutionStrategy=MagicMock(),
-                    ContactResolutionStrategy=MagicMock(),
-                )},
-            ):
-                # Re-import to get patched version
-                pass
-
-        # For simplicity, just test that the method doesn't crash
-        # and returns something for a valid entity type
-        strategy = warmer._get_strategy_instance("unit")
+        # Should return a valid strategy
         assert strategy is not None
+        # Strategy should be for the unit entity type
+        assert strategy.entity_type == "unit"
 
     def test_get_strategy_instance_unknown(self, mock_cache: MagicMock) -> None:
         """Get None for unknown entity type."""
