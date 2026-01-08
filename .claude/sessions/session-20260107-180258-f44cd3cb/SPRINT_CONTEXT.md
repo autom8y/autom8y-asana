@@ -1,72 +1,130 @@
 ---
-sprint_id: sprint-dataframe-builder-consolidation
+sprint_id: sprint-dynamic-resolver-phase1-20260108
 session_id: session-20260107-180258-f44cd3cb
-name: DataFrame Builder Consolidation
-goal: Consolidate ProjectDataFrameBuilder and ProgressiveProjectBuilder into unified builder with parallel fetch + incremental resume
-status: COMPLETE
-created_at: 2026-01-07T19:51:00Z
-started_at: 2026-01-07T19:51:00Z
-completed_at: 2026-01-07T19:40:00Z
+sprint_name: Dynamic Schema-Driven Resolver - Phase 1
+initiative: EntityTypeDetectionFix
+created_at: 2026-01-08T00:00:00Z
+status: active
+goal: "Implement Phase 1 of Dynamic Schema-Driven Resolver architecture in autom8_asana"
 complexity: MODULE
+active_rite: 10x-dev-pack
+estimated_duration: "1-2 weeks"
+source_spikes:
+  - docs/spikes/SPIKE-dynamic-resolver-architecture.md
+  - docs/spikes/SPIKE-platform-schema-lookup-abstraction.md
+schema_version: "1.0"
+current_task: TASK-003, TASK-004, TASK-005 (parallel)
+last_updated: 2026-01-08T12:45:00Z
 ---
 
-# Sprint: DataFrame Builder Consolidation
+# Sprint: Dynamic Schema-Driven Resolver - Phase 1
 
-## Objective
-Eliminate code smell by consolidating two DataFrame builders into one unified builder that combines:
-- Parallel fetch capability (from ProjectDataFrameBuilder)
-- Incremental resume with S3 persistence (from ProgressiveProjectBuilder)
-- Watermark-based task filtering for efficient rebuilds
+## Sprint Goal
+
+Implement the foundation components for a universal schema-driven entity resolution system, replacing hardcoded per-entity strategies with dynamic schema-derived lookup capabilities.
+
+## Success Criteria
+
+- [ ] DynamicIndex supports arbitrary column combinations with O(1) lookup
+- [ ] EnhancedResolutionResult supports multi-match scenarios
+- [ ] Schema-driven entity discovery replaces SUPPORTED_ENTITY_TYPES
+- [ ] UniversalResolutionStrategy handles all entity types
+- [ ] Backwards compatibility maintained (single `gid` property preserved)
+- [ ] All existing resolver tests pass
 
 ## Task Breakdown
 
-| ID | Phase | Description | Agent | Status | Depends On |
-|----|-------|-------------|-------|--------|------------|
-| T1.0 | 1 | Watermark filtering design (TDD) | architect | in_progress | - |
-| T1.1 | 1 | `build_with_parallel_fetch_async()` | principal-engineer | pending | T1.0 |
-| T1.2 | 1 | Watermark-based task filtering impl | principal-engineer | pending | T1.0 |
-| T1.3 | 1 | Create `fields.py` with BASE_OPT_FIELDS | principal-engineer | pending | T1.0 |
-| T2.0 | 2 | Factory function + compatibility shim | principal-engineer | pending | T1.1, T1.2, T1.3 |
-| T2.1 | 2 | Integration test: old interface → new | qa-adversary | pending | T2.0 |
-| T3.1 | 3 | Migrate UnitResolutionStrategy | principal-engineer | pending | T2.1 |
-| T3.2 | 3 | Migrate OfferResolutionStrategy | principal-engineer | pending | T2.1 |
-| T3.3 | 3 | Migrate ContactResolutionStrategy | principal-engineer | pending | T2.1 |
-| T3.4 | 3 | Resolution strategy integration test | qa-adversary | pending | T3.1, T3.2, T3.3 |
-| T4.0 | 4 | Migrate decorator.py, dataframe_cache.py | principal-engineer | pending | T3.4 |
-| T4.1 | 4 | Migrate extractors | principal-engineer | pending | T3.4 |
-| T5.0 | 5 | Delete project.py, rename progressive.py | principal-engineer | pending | T4.0, T4.1 |
-| T5.1 | 5 | Import path verification | qa-adversary | pending | T5.0 |
-| T6.0 | 6 | Update 68 tests across 4 files | principal-engineer | pending | T5.1 |
-| T6.1 | 6 | Full test suite validation | qa-adversary | pending | T6.0 |
-| T7.0 | 7 | Dead code removal, doc updates | principal-engineer | pending | T6.1 |
+### TASK-001: PRD - Dynamic Resolver Requirements
+- **Status**: complete
+- **Agent**: requirements-analyst
+- **Complexity**: SMALL
+- **Depends On**: none
+- **Produces**: docs/requirements/PRD-dynamic-resolver-architecture.md
+- **Artifact**: docs/requirements/PRD-dynamic-resolver-architecture.md
+- **Completed At**: 2026-01-08T00:00:00Z
 
-## QA Checkpoints
+### TASK-002: TDD - DynamicIndex and UniversalResolutionStrategy
+- **Status**: complete
+- **Agent**: architect
+- **Complexity**: MEDIUM
+- **Depends On**: TASK-001
+- **Produces**: docs/design/TDD-dynamic-resolver-architecture.md
+- **Artifact**: docs/design/TDD-dynamic-resolver-architecture.md
+- **Started At**: 2026-01-08T00:00:00Z
+- **Completed At**: 2026-01-08T12:45:00Z
 
-| Gate | After | Focus |
-|------|-------|-------|
-| QA-1 | T2.0 | Compatibility shim: old callers work unchanged |
-| QA-2 | T3.4 | Resolution strategies: identical output |
-| QA-3 | T5.0 | Import audit: no dangling references |
-| QA-4 | T6.1 | Full regression: all tests pass |
+### TASK-003: Implementation - DynamicIndex
+- **Status**: in_progress
+- **Agent**: principal-engineer
+- **Complexity**: MEDIUM
+- **Depends On**: TASK-002
+- **Produces**: src/autom8_asana/services/dynamic_index.py
+- **Started At**: 2026-01-08T12:45:00Z
 
-## Critical Path
+### TASK-004: Implementation - Schema-Driven Entity Discovery
+- **Status**: in_progress
+- **Agent**: principal-engineer
+- **Complexity**: SMALL
+- **Depends On**: TASK-002
+- **Produces**: Updates to src/autom8_asana/api/routes/resolver.py
+- **Started At**: 2026-01-08T12:45:00Z
+
+### TASK-005: Implementation - EnhancedResolutionResult
+- **Status**: in_progress
+- **Agent**: principal-engineer
+- **Complexity**: SMALL
+- **Depends On**: TASK-002
+- **Produces**: src/autom8_asana/services/resolution_result.py
+- **Started At**: 2026-01-08T12:45:00Z
+
+### TASK-006: Implementation - UniversalResolutionStrategy
+- **Status**: pending
+- **Agent**: principal-engineer
+- **Complexity**: MEDIUM
+- **Depends On**: [TASK-003, TASK-004, TASK-005]
+- **Produces**: src/autom8_asana/services/universal_strategy.py
+
+### TASK-007: QA - Validation Suite
+- **Status**: pending
+- **Agent**: qa-adversary
+- **Complexity**: MEDIUM
+- **Depends On**: TASK-006
+- **Produces**: Test report + updated test coverage
+
+## Dependency Graph
 
 ```
-T1.0 → T1.1/T1.2/T1.3 (parallel) → T2.0 → T2.1 → T3.x → T3.4 → T4.x → T5.0 → T5.1 → T6.x → T7.0
+TASK-001 (PRD)
+    │
+    ▼
+TASK-002 (TDD)
+    │
+    ├──────────────┬──────────────┐
+    ▼              ▼              ▼
+TASK-003      TASK-004       TASK-005
+(DynamicIndex) (Discovery)   (Result)
+    │              │              │
+    └──────────────┴──────────────┘
+                   │
+                   ▼
+              TASK-006
+        (UniversalStrategy)
+                   │
+                   ▼
+              TASK-007
+                (QA)
 ```
 
-## Progress Log
+## Risk Register
 
-### 2026-01-07T19:51:00Z
-- Sprint created
-- T1.0 started: Architect consultation for watermark design
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Performance regression | Medium | High | Benchmark DynamicIndex vs GidLookupIndex |
+| Breaking existing clients | Low | High | Preserve backwards-compatible `gid` property |
+| Index memory growth | Medium | Medium | LRU cache per (entity, column_combo) |
 
-## Completion Criteria
+## Out of Scope (Phase 2+)
 
-- [ ] `ProjectDataFrameBuilder` class removed entirely
-- [ ] `ProgressiveProjectBuilder` renamed to `ProjectDataFrameBuilder`
-- [ ] All 13+ files migrated
-- [ ] All 3 resolution strategies use unified builder
-- [ ] Tests pass (68 tests)
-- [ ] `_BASE_OPT_FIELDS` deduplicated
-- [ ] Parallel fetch + resume capability both work
+- Platform extraction to autom8y-frame SDK
+- context_fields support for rich responses
+- OpenAPI schema documentation updates

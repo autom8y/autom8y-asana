@@ -1,0 +1,47 @@
+schema_version: "1.0"
+inscription_version: "1"
+last_sync: 2026-01-08T12:49:12.610365Z
+template_path: knossos/templates/CLAUDE.md.tpl
+regions:
+    agent-configurations:
+        owner: regenerate
+        source: agents/*.md
+    agent-routing:
+        owner: knossos
+    ariadne-cli:
+        owner: knossos
+    dynamic-context:
+        owner: knossos
+    execution-mode:
+        owner: knossos
+    getting-help:
+        owner: knossos
+    hooks:
+        owner: knossos
+    knossos-identity:
+        owner: knossos
+    quick-start:
+        owner: regenerate
+        source: ACTIVE_RITE+agents
+    skills:
+        owner: knossos
+    slash-commands:
+        owner: knossos
+    state-management:
+        owner: knossos
+    user-content:
+        owner: satellite
+section_order:
+    - execution-mode
+    - knossos-identity
+    - quick-start
+    - agent-routing
+    - skills
+    - agent-configurations
+    - hooks
+    - dynamic-context
+    - ariadne-cli
+    - getting-help
+    - state-management
+    - slash-commands
+    - user-content
