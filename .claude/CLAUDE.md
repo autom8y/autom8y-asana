@@ -1,7 +1,3 @@
-# CLAUDE.md
-
-> Entry point for Claude Code. Skills-based progressive disclosure architecture.
-
 <!-- KNOSSOS:START execution-mode -->
 ## Execution Mode
 
@@ -19,9 +15,6 @@ For enforcement rules: `orchestration/execution-mode.md`
 <!-- KNOSSOS:END execution-mode -->
 
 <!-- KNOSSOS:START knossos-identity -->
-
-
-
 ## Knossos Identity
 
 > **roster/.claude/ IS Knossos.** This repository is the Knossos platform.
@@ -35,32 +28,29 @@ The naming reflects Greek mythology (see `docs/philosophy/knossos-doctrine.md` f
 | **Theseus** | Claude Code agent | The navigator with amnesia |
 | **Moirai** | Session lifecycle agent | The Fates who spin, measure, and cut |
 | **White Sails** | Confidence signal | Honest return indicator |
-| **Rites** | Practice bundles | Invokable ceremonies (formerly "team packs") |
+| **Rites** | Practice bundles | Invokable ceremonies |
+| **Pantheon** | Agent collection | The specialist agents within a rite |
 
 For full details: `docs/guides/knossos-integration.md` and `docs/decisions/ADR-0009-knossos-roster-identity.md`
 <!-- KNOSSOS:END knossos-identity -->
 
 <!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
-
-
-
 ## Quick Start
 
-This project uses a 5-agent workflow (10x-dev-pack):
+This project uses a 5-agent workflow (10x-dev):
 
 | Agent | Role | Produces |
 | ----- | ---- | -------- |
-| **architect** | Evaluates tradeoffs and designs systems | TDD |
-| **orchestrator** | | | Work breakdown |
-| **principal-engineer** | Transforms designs into production code | Code |
-| **qa-adversary** | Breaks things so users don't | Test reports |
-| **requirements-analyst** | Extracts stakeholder needs and produces specification | PRD |
+| **orchestrator** | Coordinates development lifecycle phases and routes work to specialists |  |
+| **requirements-analyst** | Gathers requirements and produces PRD artifacts |  |
+| **architect** | Creates technical design documents and architecture decisions |  |
+| **principal-engineer** | Implements code according to design specifications |  |
+| **qa-adversary** | Validates implementation through adversarial testing |  |
 
 **New here?** Use the `prompting` skill for copy-paste patterns, or `initiative-scoping` to start a new project.
+<!-- KNOSSOS:END quick-start -->
 
-<!-- SYNC: skeleton-owned -->
-
-
+<!-- KNOSSOS:START agent-routing -->
 ## Agent Routing
 
 When working within an orchestrated session, the main thread coordinates via Task tool delegation to specialist agents. Without an active session, direct execution or `/task` initialization are both valid approaches.
@@ -69,83 +59,159 @@ For routing guidance: `/consult`
 <!-- KNOSSOS:END agent-routing -->
 
 <!-- KNOSSOS:START skills -->
-
-
-
 ## Skills
 
 Skills are invoked via the **Skill tool**. Key skills: `orchestration` (workflow coordination), `documentation` (templates), `prompting` (agent invocation), `standards` (conventions), `ecosystem-ref` (roster ecosystem patterns). See `.claude/skills/` and `~/.claude/skills/` for full list.
+<!-- KNOSSOS:END skills -->
 
-<!-- PRESERVE: satellite-owned, regenerated from ACTIVE_TEAM + agents/ -->
-
-
-
-
-
-
-
-
-
-
-
+<!-- KNOSSOS:START agent-configurations regenerate=true source=agents/*.md -->
 ## Agent Configurations
 
 Full agent prompts live in `.claude/agents/`:
 
-- `architect.md` - System design authority who evaluates technical tradeoffs and produces TDDs and
-- `orchestrator.md` - |
-- `principal-engineer.md` - Master builder who transforms approved designs into production-grade code with
-- `qa-adversary.md` - Adversarial tester who breaks implementations on purpose through edge cases,
-- `requirements-analyst.md` - Specification specialist who transforms ambiguity into requirements and
+- `orchestrator.md` - Coordinates development lifecycle phases and routes work to specialists
+- `requirements-analyst.md` - Gathers requirements and produces PRD artifacts
+- `architect.md` - Creates technical design documents and architecture decisions
+- `principal-engineer.md` - Implements code according to design specifications
+- `qa-adversary.md` - Validates implementation through adversarial testing
+<!-- KNOSSOS:END agent-configurations -->
 
-
+<!-- KNOSSOS:START hooks -->
 ## Hooks
 
 Hooks auto-inject context (SessionStart, Stop, PostToolUse). No manual context needed. See `.claude/hooks/`.
 <!-- KNOSSOS:END hooks -->
 
 <!-- KNOSSOS:START dynamic-context -->
-
-
-
 ## Dynamic Context
 
 Commands use `!` prefix for live context: `!`cat .claude/ACTIVE_RITE``. Prefer hooks for complex context.
 <!-- KNOSSOS:END dynamic-context -->
 
 <!-- KNOSSOS:START ariadne-cli -->
-
-
-
 ## Ariadne CLI
 
-The `ari` binary provides session and hook operations:
+The `ari` binary provides session lifecycle, rite management, and workflow operations.
+
+### Session Management
 
 ```bash
-# Session management
-ari session create "initiative" COMPLEXITY
-ari session status
-ari session park "reason"
+ari session create "initiative" COMPLEXITY    # Create new session (PATCH|MODULE|SYSTEM|INITIATIVE|MIGRATION)
+ari session status                            # Show current session state
+ari session list                              # List all sessions
+ari session park --reason "taking break"      # Park session with reason
+ari session resume                            # Resume parked session
+ari session wrap                              # Complete session with sails
+ari session transition <phase>                # Transition to workflow phase
+ari session audit                             # Show session audit log
+```
 
-# Hook operations
-ari hook thread
-ari hook context
+### Rite Management
 
-# Quality gates
-ari sails check
+```bash
+ari rite list                                 # List available rites
+ari rite info <name>                          # Show rite details
+ari rite status                               # Show active rite status
+ari rite current                              # Show current active rite
+ari rite swap <name>                          # Switch to different rite
+ari rite invoke <name>                        # Invoke rite entry point
+ari rite validate <name>                      # Validate rite manifest
+```
 
-# Agent handoffs
-ari handoff prepare --from <agent> --to <agent>
-ari handoff execute --from <agent> --to <agent>
-ari handoff status
-ari handoff history
+### Sync Operations
 
-# CLAUDE.md inscription
-ari inscription sync              # Sync CLAUDE.md with templates
-ari inscription sync --dry-run    # Preview changes
-ari inscription validate          # Check manifest and CLAUDE.md
-ari inscription backups           # List available backups
-ari inscription rollback          # Restore from backup
+```bash
+ari sync materialize --rite <name>            # Materialize rite to .claude/
+ari sync materialize --force                  # Force overwrite existing
+ari sync status                               # Show sync status
+ari sync diff                                 # Show pending changes
+ari sync pull                                 # Pull from source
+ari sync push                                 # Push to destination
+ari sync history                              # Show sync history
+```
+
+### Hook Operations
+
+```bash
+ari hook clew                                 # Emit session clew (breadcrumb)
+ari hook context                              # Emit full context injection
+ari hook validate                             # Validate hook configuration
+ari hook route                                # Route to appropriate handler
+ari hook writeguard                           # Check write permissions
+ari hook autopark                             # Check autopark conditions
+```
+
+### Quality Gates
+
+```bash
+ari sails check                               # Check White Sails confidence
+ari validate artifact <file>                  # Validate PRD/TDD/ADR artifact
+ari validate handoff --phase=<phase>          # Validate handoff criteria
+ari validate schema <name> <file>             # Validate against schema
+```
+
+### Agent Handoffs
+
+```bash
+ari handoff prepare --from <agent> --to <agent>   # Prepare handoff package
+ari handoff execute --from <agent> --to <agent>   # Execute handoff
+ari handoff status                                # Show handoff status
+ari handoff history                               # Show handoff history
+```
+
+### Manifest Operations
+
+```bash
+ari manifest show                             # Show current manifest
+ari manifest diff                             # Show manifest differences
+ari manifest merge                            # Merge manifest sources
+ari manifest validate                         # Validate manifest structure
+```
+
+### Inscription (CLAUDE.md)
+
+```bash
+ari inscription sync                          # Sync CLAUDE.md with templates
+ari inscription sync --dry-run                # Preview changes
+ari inscription validate                      # Check manifest and CLAUDE.md
+ari inscription diff                          # Show pending changes
+ari inscription backups                       # List available backups
+ari inscription rollback                      # Restore from backup
+```
+
+### Artifact Registry
+
+```bash
+ari artifact list                             # List registered artifacts
+ari artifact register <path>                  # Register new artifact
+ari artifact query <type>                     # Query artifacts by type
+ari artifact rebuild                          # Rebuild artifact index
+```
+
+### Session Cleanup (Naxos)
+
+```bash
+ari naxos scan                                # Scan for orphaned sessions
+ari naxos scan --inactive-threshold=12h       # Custom inactivity threshold
+ari naxos scan --include-archived             # Include archived sessions
+```
+
+### Worktree Management
+
+```bash
+ari worktree create <name>                    # Create isolated worktree
+ari worktree list                             # List worktrees
+ari worktree status                           # Show worktree status
+ari worktree switch <name>                    # Switch to worktree
+ari worktree sync                             # Sync worktree state
+ari worktree remove <name>                    # Remove worktree
+ari worktree cleanup                          # Clean up stale worktrees
+```
+
+### Tribute Generation
+
+```bash
+ari tribute generate                          # Generate session tribute/summary
 ```
 
 ### Cognitive Budget
@@ -155,15 +221,12 @@ Tool usage tracking with configurable thresholds:
 - `ARIADNE_MSG_PARK` - Park suggestion threshold
 - `ARIADNE_BUDGET_DISABLE=1` - Disable tracking
 
-Build: `cd ariadne && just build`
+Build: `just build` (from repo root)
 
-Full reference: `docs/guides/knossos-integration.md`
+Full reference: `docs/guides/ariadne-cli.md`
 <!-- KNOSSOS:END ariadne-cli -->
 
 <!-- KNOSSOS:START getting-help -->
-
-
-
 ## Getting Help
 
 | Question | Skill |
@@ -180,16 +243,13 @@ Full reference: `docs/guides/knossos-integration.md`
 <!-- KNOSSOS:END getting-help -->
 
 <!-- KNOSSOS:START state-management -->
-
-
-
 ## State Management
 
 **Mutating session/sprint state?** Use the **Moirai** (the Fates) for all `SESSION_CONTEXT.md` and `SPRINT_CONTEXT.md` changes.
 
 ### Moirai Usage
 
-The Moirai are the centralized authority for session lifecycle--spinning sessions into existence (Clotho), measuring their allotment (Lachesis), and cutting when complete (Atropos). They enforce schema validation, lifecycle transitions, and maintain audit trails.
+Moirai is the unified session lifecycle agent embodying the three Fates: Clotho (creation), Lachesis (measurement), and Atropos (termination). It enforces schema validation, lifecycle transitions, and maintains audit trails. The Fates exist as internal skills loaded on-demand, not as separate agents.
 
 **When to Use**:
 - Updating session state (park, resume, wrap)
@@ -222,66 +282,29 @@ Task(moirai, "Mark the PRD task complete with artifact at docs/requirements/PRD-
 
 **Direct writes blocked**: PreToolUse hook intercepts `Write`/`Edit` to `*_CONTEXT.md` and instructs use of Moirai.
 
-**Full documentation**: See `user-agents/moirai.md` and `docs/philosophy/knossos-doctrine.md`
+**Full documentation**: See `.claude/agents/moirai.md` and `docs/philosophy/knossos-doctrine.md`
 <!-- KNOSSOS:END state-management -->
 
 <!-- KNOSSOS:START slash-commands -->
-
-
-
 ## Slash Commands
 
 Always respond with outcome. "No response" is never correct for explicit user requests.
+<!-- KNOSSOS:END slash-commands -->
 
+<!-- KNOSSOS:START user-content -->
+## Project-Specific Instructions
 
+<!--
+Add your project-specific Claude instructions here.
+This section is preserved during re-materialization.
 
-## Dynamic Context Syntax
+Examples:
+- Project conventions and coding standards
+- Important architectural decisions
+- Team-specific workflows
+- Links to key documentation
 
-Commands can include dynamic context using the `!` prefix syntax:
-
-```markdown
-**Active team**: !`cat .claude/ACTIVE_TEAM`
-**Git branch**: !`git branch --show-current`
-```
-
-When Claude reads a command file:
-1. Lines starting with `!` followed by backtick-wrapped commands are executed
-2. The output replaces the command inline
-3. This provides live context without hook complexity
-
-**Best practices:**
-- Use for simple, fast queries (avoid slow operations)
-- Always include fallbacks: `!`cat file 2>/dev/null || echo "default"`
-- Prefer hooks for complex context that all commands need
-
-
-
-
-## Skills Architecture
-
-Skills provide domain knowledge on-demand. They activate based on your task:
-
-| Skill                | When to Activate                                           |
-| -------------------- | ---------------------------------------------------------- |
-| **10x-workflow**     | Agent coordination, handoffs, pipeline flow                |
-| **atuin-desktop**    | Creating/editing .atrb runbooks, validating runbook YAML   |
-| **documentation**    | PRD/TDD/ADR/Test Plan templates and formats                |
-| **initiative-scoping** | Starting new projects, Prompt -1/0 templates             |
-| **justfile**         | Task automation, just recipes, project commands            |
-| **prompting**        | Copy-paste prompt patterns, agent invocation examples      |
-| **standards**        | Code conventions, tech stack, repository structure, commands |
-| **claude-md-architecture** | CLAUDE.md content placement, ownership model, boundary test |
-
-<!-- SYNC: skeleton-owned -->
-
-
-## Slash Command Response Contract
-
-Slash commands (`/team`, `/sync`, `/start`, etc.) are **explicit user requests** invoked from the terminal. The user typed a command and is waiting for feedback.
-
-**Requirements:**
-- ALWAYS respond with the outcome, even for idempotent operations ("already on this team")
-- "No response requested" is NEVER correct for slash commands
-- Error states must be explained with next steps
-
-
+To add more custom sections:
+  ari inscription add-region --name=my-section --owner=satellite
+-->
+<!-- KNOSSOS:END user-content -->

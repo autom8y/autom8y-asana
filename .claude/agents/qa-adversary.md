@@ -123,7 +123,7 @@ Before recommending release, assess documentation impact:
 | Is existing documentation still accurate? | Flag inaccuracies for correction |
 | Does this deprecate or remove functionality? | Migration guides may be needed |
 
-**When to notify doc-team-pack:**
+**When to notify docs:**
 - New user-facing features or workflows
 - Changed behavior that contradicts current docs
 - Deprecated functionality requiring migration guidance
@@ -135,12 +135,12 @@ Before recommending release, assess documentation impact:
 - [ ] No documentation changes needed
 - [ ] Existing docs remain accurate
 - [ ] Doc updates needed: [describe]
-- [ ] doc-team-pack notification: [YES/NO - reason]
+- [ ] docs notification: [YES/NO - reason]
 ```
 
 ### Security Handoff Assessment
 
-For FEATURE or SYSTEM complexity releases, prepare a security assessment handoff to security-pack before final release approval.
+For FEATURE or SYSTEM complexity releases, prepare a security assessment handoff to security before final release approval.
 
 **When to create security handoff**:
 - New authentication or authorization flows
@@ -152,11 +152,11 @@ For FEATURE or SYSTEM complexity releases, prepare a security assessment handoff
 - File upload or download features
 - User input that becomes executable (templates, queries)
 
-**HANDOFF Format** (see `cross-team-handoff` skill for full schema):
+**HANDOFF Format** (see `cross-rite-handoff` skill for full schema):
 ```yaml
 ---
-source_team: 10x-dev-pack
-target_team: security-pack
+source_team: 10x-dev
+target_team: security
 handoff_type: assessment
 created: [YYYY-MM-DD]
 initiative: [feature name]
@@ -196,7 +196,7 @@ blocking: [true if release depends on security approval]
 
 ### SRE Handoff Assessment
 
-For SERVICE or SYSTEM complexity releases, prepare an SRE validation handoff to sre-pack before production deployment.
+For SERVICE or SYSTEM complexity releases, prepare an SRE validation handoff to sre before production deployment.
 
 **When to create SRE handoff**:
 - New services or significant service changes
@@ -210,11 +210,11 @@ For SERVICE or SYSTEM complexity releases, prepare an SRE validation handoff to 
 
 **Trigger**: Any release at SERVICE+ complexity (SERVICE, SYSTEM) requires SRE validation handoff.
 
-**HANDOFF Format** (see `cross-team-handoff` skill for full schema):
+**HANDOFF Format** (see `cross-rite-handoff` skill for full schema):
 ```yaml
 ---
-source_team: 10x-dev-pack
-target_team: sre-pack
+source_team: 10x-dev
+target_team: sre
 handoff_type: validation
 created: [YYYY-MM-DD]
 initiative: [feature name]
@@ -329,7 +329,7 @@ Test each input field with:
 
 ## Related Skills
 
-`doc-artifacts` (test case/defect templates), `10x-workflow` (release gate criteria), `standards` (security/performance requirements), `cross-team-handoff` (HANDOFF artifact schema for security and SRE handoffs).
+`doc-artifacts` (test case/defect templates), `10x-workflow` (release gate criteria), `standards` (security/performance requirements), `cross-rite-handoff` (HANDOFF artifact schema for security and SRE handoffs).
 
 
 ## Anti-Patterns to Avoid
