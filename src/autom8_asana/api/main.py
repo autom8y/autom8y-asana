@@ -422,14 +422,23 @@ async def _discover_entity_projects(app: FastAPI) -> None:
                         },
                     )
                 else:
-                    # Model GID not found in discovery - warn but still register
+                    # Model GID not found in discovery - register anyway with GID as name
+                    # This ensures models with PRIMARY_PROJECT_GID are always registered
+                    # even if workspace discovery misses the project (access issues, timing, etc.)
+                    entity_registry.register(
+                        entity_type=entity_type,
+                        project_gid=model_gid,
+                        project_name=f"[gid:{model_gid}]",  # Placeholder until discovery finds it
+                    )
+                    registered_from_model.add(entity_type)
+                    model_gids_used.add(model_gid)
                     logger.warning(
                         "entity_model_gid_not_in_discovery",
                         extra={
                             "entity_type": entity_type,
                             "model_gid": model_gid,
                             "model_class": model_class.__name__,
-                            "detail": "Project may not exist or bot lacks access",
+                            "detail": "Registered with placeholder name - project may not exist or bot lacks access",
                         },
                     )
 
@@ -1079,6 +1088,11 @@ PROJECT_CONCURRENCY = 3
 # Heartbeat interval for preload monitoring
 HEARTBEAT_INTERVAL_SECONDS = 30
 
+# Projects to EXCLUDE from preload (exclude-list pattern for DX)
+# All registered entity projects are preloaded by default.
+# Use this for projects that don't need DataFrame caching.
+PRELOAD_EXCLUDE_PROJECT_GIDS: set[str] = set()
+
 
 async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
     """Pre-warm DataFrame cache using progressive section writes.
@@ -1154,11 +1168,23 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
             return
 
         # Get all registered project GIDs with their entity types
+        # Per DX improvement: Preload all registered projects by default, exclude-list for opt-out
         registered_types = entity_registry.get_all_entity_types()
         project_configs: list[tuple[str, str]] = []  # (project_gid, entity_type)
+        excluded_count = 0
         for entity_type in registered_types:
             config = entity_registry.get_config(entity_type)
             if config and config.project_gid:
+                if config.project_gid in PRELOAD_EXCLUDE_PROJECT_GIDS:
+                    logger.debug(
+                        "progressive_preload_project_excluded",
+                        extra={
+                            "entity_type": entity_type,
+                            "project_gid": config.project_gid,
+                        },
+                    )
+                    excluded_count += 1
+                    continue
                 project_configs.append((config.project_gid, entity_type))
 
         total_projects = len(project_configs)
@@ -1166,7 +1192,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
         if not project_configs:
             logger.info(
                 "progressive_preload_skipped",
-                extra={"reason": "no_registered_projects"},
+                extra={"reason": "no_registered_projects", "excluded_count": excluded_count},
             )
             set_cache_ready(True)
             return
@@ -1178,6 +1204,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                 "project_count": total_projects,
                 "project_gids": project_gids,
                 "project_concurrency": PROJECT_CONCURRENCY,
+                "excluded_count": excluded_count,
             },
         )
 

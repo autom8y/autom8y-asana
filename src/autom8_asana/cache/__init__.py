@@ -153,7 +153,13 @@ from autom8_asana.cache.completeness import (
 
 # SDK Primitives (TDD-CACHE-SDK-PRIMITIVES-001)
 # Re-export SDK HierarchyTracker for advanced use cases
-from autom8y_cache import HierarchyTracker
+# HOTFIX: Make import defensive for Lambda compatibility when autom8y_cache
+# has missing modules (e.g., protocols.resolver in version mismatch scenarios)
+try:
+    from autom8y_cache import HierarchyTracker
+except ImportError:
+    HierarchyTracker = None  # type: ignore[misc, assignment]
+
 # Completeness upgrader implementation
 from autom8_asana.cache.upgrader import AsanaTaskUpgrader
 

@@ -43,16 +43,34 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-# CRITICAL: Import from models.business at module level to ensure bootstrap runs
-# on every Lambda cold start BEFORE any detection can occur. The bootstrap in
-# models/business/__init__.py populates ProjectTypeRegistry for Tier 1 detection.
-# Without this, detection falls through to Tier 5 (unknown).
-import autom8_asana.models.business  # noqa: F401 - side effect import for bootstrap
-
 if TYPE_CHECKING:
     pass
 
 logger = get_logger(__name__)
+
+# Flag to track if bootstrap has run (for lazy initialization)
+_bootstrap_initialized = False
+
+
+def _ensure_bootstrap() -> None:
+    """Lazy bootstrap initialization for Lambda cold starts.
+
+    HOTFIX: Moved from module-level import to avoid import chain failures
+    when autom8y_cache has missing modules. The bootstrap populates
+    ProjectTypeRegistry for Tier 1 detection.
+    """
+    global _bootstrap_initialized
+    if not _bootstrap_initialized:
+        try:
+            import autom8_asana.models.business  # noqa: F401 - side effect import
+            _bootstrap_initialized = True
+            logger.info("bootstrap_complete", detail="ProjectTypeRegistry populated")
+        except ImportError as e:
+            logger.warning(
+                "bootstrap_failed",
+                error=str(e),
+                impact="Detection may fall through to Tier 5 (unknown)",
+            )
 
 # ============================================================================
 # Constants (per TDD-lambda-cache-warmer Section 3.2)
@@ -792,6 +810,9 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         ENVIRONMENT: Deployment environment for metrics (optional)
         CLOUDWATCH_NAMESPACE: CloudWatch namespace (optional)
     """
+    # HOTFIX: Lazy bootstrap to avoid import chain failures
+    _ensure_bootstrap()
+
     # Extract invocation ID for logging correlation
     invocation_id = getattr(context, "aws_request_id", None)
 
@@ -860,6 +881,9 @@ async def handler_async(
     Returns:
         Same format as handler().
     """
+    # HOTFIX: Lazy bootstrap to avoid import chain failures
+    _ensure_bootstrap()
+
     invocation_id = getattr(context, "aws_request_id", None)
 
     logger.info(
