@@ -14,68 +14,48 @@
 #   docker run -p 8000:8000 autom8_asana:latest
 
 # =============================================================================
-# Stage 1: Builder
+# Stage 1: Builder (using Lambda base for architecture compatibility)
 # =============================================================================
-FROM python:3.12-slim AS builder
-
-# Install uv for fast dependency resolution
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+FROM public.ecr.aws/lambda/python:3.12 AS builder
 
 # Build arguments for private package index
 ARG EXTRA_INDEX_URL
-ENV UV_EXTRA_INDEX_URL=${EXTRA_INDEX_URL}
 
-# Optimize Python and uv behavior
-ENV UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy \
+# Environment for pip
+ENV PIP_EXTRA_INDEX_URL=${EXTRA_INDEX_URL} \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-WORKDIR /app
+WORKDIR /build
 
 # Copy dependency files first for better caching
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml ./
 
 # Copy source code
 COPY src ./src
 
-# Install dependencies with [api] and [auth] extras
-# --frozen ensures lockfile is used exactly
-# --no-dev excludes development dependencies
-# --extra auth includes autom8y-auth SDK for platform authentication
-RUN uv sync --frozen --no-dev --extra api --extra auth
+# Install dependencies using pip (not uv) for better cross-platform native extensions
+# NOTE: Do NOT use editable mode (-e) as it creates .pth files pointing to build paths
+# that won't exist in the runtime container
+RUN pip install --target /packages ".[api,auth]" "awslambdaric>=2.2.0"
 
 # =============================================================================
-# Stage 2: Runtime
+# Stage 2: Runtime (AWS Lambda Python base)
 # =============================================================================
-FROM python:3.12-slim AS runtime
+FROM public.ecr.aws/lambda/python:3.12 AS runtime
 
-# Create non-root user for security
-RUN groupadd --gid 1000 appuser && \
-    useradd --uid 1000 --gid appuser --shell /bin/bash --create-home appuser
+# Copy installed packages to Lambda task root
+COPY --from=builder /packages /var/task
 
-WORKDIR /app
+# Copy source code to Lambda task root
+COPY --from=builder /build/src/autom8_asana /var/task/autom8_asana
 
-# Copy virtual environment and source from builder
-COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
-COPY --from=builder --chown=appuser:appuser /app/src /app/src
+# Ensure all files are readable (Lambda runs as sbx_user1051)
+RUN chmod -R a+r /var/task
 
-# Add venv to PATH
-ENV PATH="/app/.venv/bin:$PATH" \
-    PYTHONDONTWRITEBYTECODE=1 \
+# Environment
+ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Switch to non-root user
-USER appuser
-
-# Expose API port
-EXPOSE 8000
-
-# Health check for container orchestration
-# Per FR-API-HEALTH-001: GET /health returns 200 when healthy
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
-
-# Run uvicorn with factory pattern
-# --factory: create_app is a factory function, not an app instance
-CMD ["uvicorn", "autom8_asana.api.main:create_app", "--host", "0.0.0.0", "--port", "8000", "--factory"]
+# Lambda handler
+CMD ["autom8_asana.lambda_handlers.cache_warmer.handler"]
