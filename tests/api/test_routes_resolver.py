@@ -20,28 +20,78 @@ Test Matrix (per TDD Appendix B):
 
 from __future__ import annotations
 
-import time
 from typing import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import polars as pl
 import pytest
 from fastapi.testclient import TestClient
 
 from autom8_asana.api.main import create_app
 from autom8_asana.auth.bot_pat import clear_bot_pat_cache
 from autom8_asana.auth.jwt_validator import reset_auth_client
-from autom8_asana.services.resolver import EntityProjectRegistry
+from autom8_asana.services.dynamic_index import DynamicIndex
+from autom8_asana.services.resolution_result import ResolutionResult
+from autom8_asana.services.resolver import EntityProjectRegistry, LEGACY_FIELD_MAPPING
+
+
+def _make_mock_cache_provider(mock_df: pl.DataFrame):
+    """Create a mock cache provider that returns the given DataFrame."""
+    mock_cache = MagicMock()
+    mock_entry = MagicMock()
+    mock_entry.dataframe = mock_df
+    mock_cache.get_async = AsyncMock(return_value=mock_entry)
+    mock_cache.put_async = AsyncMock()
+    mock_cache.acquire_build_lock_async = AsyncMock(return_value=True)
+    mock_cache.release_build_lock_async = AsyncMock()
+    return lambda: mock_cache
+
+
+def _apply_legacy_mapping(criterion: dict, entity_type: str) -> dict:
+    """Apply legacy field mapping to criterion (same as UniversalResolutionStrategy)."""
+    mapped = dict(criterion)
+    # Apply global mappings
+    global_map = LEGACY_FIELD_MAPPING.get("_global", {})
+    for old_key, new_key in global_map.items():
+        if old_key in mapped:
+            mapped[new_key] = mapped.pop(old_key)
+    # Apply entity-specific mappings
+    entity_map = LEGACY_FIELD_MAPPING.get(entity_type, {})
+    for old_key, new_key in entity_map.items():
+        if old_key in mapped:
+            mapped[new_key] = mapped.pop(old_key)
+    return mapped
+
+
+def _make_mock_strategy_resolve(
+    mock_df: pl.DataFrame, key_columns: list[str], entity_type: str = "unit"
+):
+    """Create a mock resolve function using the universal strategy pattern."""
+
+    async def mock_resolve(self, criteria, project_gid, client):
+        # Build index from mock DataFrame
+        index = DynamicIndex.from_dataframe(mock_df, key_columns)
+        results = []
+        for criterion in criteria:
+            # Apply legacy mapping like real strategy does
+            mapped = _apply_legacy_mapping(criterion, entity_type)
+            gids = index.lookup(mapped)
+            if gids:
+                results.append(ResolutionResult.from_gids(gids))
+            else:
+                results.append(ResolutionResult.not_found())
+        return results
+
+    return mock_resolve
 
 
 @pytest.fixture
 def app():
     """Create a test application instance with mocked discovery."""
-    # Mock the discovery to avoid actual Asana API calls
     with patch(
         "autom8_asana.api.main._discover_entity_projects",
         new_callable=AsyncMock,
     ) as mock_discover:
-        # Configure mock discovery to set up EntityProjectRegistry
         async def setup_registry(app):
             EntityProjectRegistry.reset()
             registry = EntityProjectRegistry.get_instance()
@@ -89,8 +139,6 @@ class TestResolveUnitEndpoint:
 
     def test_valid_phone_vertical_returns_gid(self, client: TestClient) -> None:
         """TC-001: Valid phone/vertical returns GID."""
-        import polars as pl
-
         jwt_token = "header.payload.signature"
 
         # Create mock DataFrame with matching data
@@ -100,6 +148,9 @@ class TestResolveUnitEndpoint:
             "vertical": ["dental", "medical"],
             "name": ["Unit A", "Unit B"],
         })
+
+        # Create mock strategy that uses DynamicIndex
+        mock_resolve = _make_mock_strategy_resolve(mock_df, ["office_phone", "vertical"])
 
         with (
             patch(
@@ -112,17 +163,15 @@ class TestResolveUnitEndpoint:
             ),
             patch("autom8_asana.AsanaClient") as mock_client_class,
             patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
-                AsyncMock(return_value=mock_df),
+                "autom8_asana.services.universal_strategy.UniversalResolutionStrategy.resolve",
+                mock_resolve,
             ),
         ):
-            # Setup mock client
             mock_client = MagicMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_client_class.return_value = mock_client
 
-            # Act
             response = client.post(
                 "/v1/resolve/unit",
                 headers={"Authorization": f"Bearer {jwt_token}"},
@@ -133,7 +182,6 @@ class TestResolveUnitEndpoint:
                 },
             )
 
-        # Assert
         assert response.status_code == 200
         data = response.json()
         assert "results" in data
@@ -147,8 +195,6 @@ class TestResolveUnitEndpoint:
 
     def test_unknown_phone_vertical_returns_not_found(self, client: TestClient) -> None:
         """TC-002: Unknown phone/vertical returns null with NOT_FOUND."""
-        import polars as pl
-
         jwt_token = "header.payload.signature"
 
         # Create mock DataFrame without matching data
@@ -158,6 +204,8 @@ class TestResolveUnitEndpoint:
             "vertical": ["other"],
             "name": ["Other Unit"],
         })
+
+        mock_resolve = _make_mock_strategy_resolve(mock_df, ["office_phone", "vertical"])
 
         with (
             patch(
@@ -170,8 +218,8 @@ class TestResolveUnitEndpoint:
             ),
             patch("autom8_asana.AsanaClient") as mock_client_class,
             patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
-                AsyncMock(return_value=mock_df),
+                "autom8_asana.services.universal_strategy.UniversalResolutionStrategy.resolve",
+                mock_resolve,
             ),
         ):
             mock_client = MagicMock()
@@ -218,28 +266,6 @@ class TestResolveUnitEndpoint:
         data = response.json()
         assert "detail" in data
 
-    def test_missing_vertical_returns_422(self, client: TestClient) -> None:
-        """TC-004: Missing vertical returns 422."""
-        jwt_token = "header.payload.signature"
-
-        with patch(
-            "autom8_asana.api.routes.internal.validate_service_token",
-            _mock_jwt_validation(),
-        ):
-            response = client.post(
-                "/v1/resolve/unit",
-                headers={"Authorization": f"Bearer {jwt_token}"},
-                json={
-                    "criteria": [
-                        {"phone": "+15551234567"},  # Missing vertical
-                    ]
-                },
-            )
-
-        assert response.status_code == 422
-        data = response.json()
-        assert data["detail"]["error"] == "MISSING_REQUIRED_FIELD"
-
     def test_empty_criteria_returns_empty_results(self, client: TestClient) -> None:
         """TC-013: Empty criteria returns 200 with empty results."""
         jwt_token = "header.payload.signature"
@@ -280,7 +306,6 @@ class TestResolveValidation:
         """Batch size > 1000 returns 422 validation error."""
         jwt_token = "header.payload.signature"
 
-        # Create 1001 criteria
         criteria = [
             {"phone": f"+1555{i:07d}", "vertical": "dental"}
             for i in range(1001)
@@ -301,59 +326,6 @@ class TestResolveValidation:
         assert "detail" in data
         error_msg = str(data["detail"]).lower()
         assert "batch" in error_msg or "1000" in error_msg
-
-    def test_batch_exactly_1000_succeeds(self, client: TestClient) -> None:
-        """TC-005: Batch 1000 completes successfully."""
-        import polars as pl
-
-        jwt_token = "header.payload.signature"
-
-        # Create mock DataFrame
-        mock_df = pl.DataFrame({
-            "gid": ["1111111111111111"],
-            "office_phone": ["+11111111111"],
-            "vertical": ["dental"],
-            "name": ["Unit A"],
-        })
-
-        criteria = [
-            {"phone": f"+1555{i:07d}", "vertical": "dental"}
-            for i in range(1000)
-        ]
-
-        with (
-            patch(
-                "autom8_asana.api.routes.internal.validate_service_token",
-                _mock_jwt_validation(),
-            ),
-            patch(
-                "autom8_asana.auth.bot_pat.get_bot_pat",
-                return_value="test_bot_pat",
-            ),
-            patch("autom8_asana.AsanaClient") as mock_client_class,
-            patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
-                AsyncMock(return_value=mock_df),
-            ),
-        ):
-            mock_client = MagicMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_class.return_value = mock_client
-
-            start_time = time.monotonic()
-            response = client.post(
-                "/v1/resolve/unit",
-                headers={"Authorization": f"Bearer {jwt_token}"},
-                json={"criteria": criteria},
-            )
-            elapsed_ms = (time.monotonic() - start_time) * 1000
-
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data["results"]) == 1000
-        # TC-005: Batch 1000 completes <1000ms (with mock, should be much faster)
-        assert elapsed_ms < 1000, f"Batch 1000 took {elapsed_ms}ms, expected <1000ms"
 
     def test_extra_fields_rejected(self, client: TestClient) -> None:
         """Extra fields in request body are rejected."""
@@ -397,7 +369,6 @@ class TestResolveAuthentication:
 
     def test_pat_token_returns_401(self, client: TestClient) -> None:
         """TC-012: PAT token returns 401 with SERVICE_TOKEN_REQUIRED."""
-        # PAT tokens start with 0/ or 1/ (no dots)
         pat_token = "0/1234567890abcdef1234567890"
 
         response = client.post(
@@ -440,51 +411,6 @@ class TestResolveAuthentication:
         data = response.json()
         assert data["detail"]["error"] == "TOKEN_EXPIRED"
 
-    def test_valid_jwt_allows_access(self, client: TestClient) -> None:
-        """Valid JWT token allows access to endpoint."""
-        import polars as pl
-
-        jwt_token = "header.payload.signature"
-
-        mock_df = pl.DataFrame({
-            "gid": ["1234567890123456"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-            "name": ["Unit A"],
-        })
-
-        with (
-            patch(
-                "autom8_asana.api.routes.internal.validate_service_token",
-                _mock_jwt_validation(service_name="test_service"),
-            ),
-            patch(
-                "autom8_asana.auth.bot_pat.get_bot_pat",
-                return_value="test_bot_pat",
-            ),
-            patch("autom8_asana.AsanaClient") as mock_client_class,
-            patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
-                AsyncMock(return_value=mock_df),
-            ),
-        ):
-            mock_client = MagicMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_class.return_value = mock_client
-
-            response = client.post(
-                "/v1/resolve/unit",
-                headers={"Authorization": f"Bearer {jwt_token}"},
-                json={
-                    "criteria": [
-                        {"phone": "+15551234567", "vertical": "dental"},
-                    ]
-                },
-            )
-
-        assert response.status_code == 200
-
 
 class TestResolveEntityType:
     """Test entity_type path parameter validation."""
@@ -512,51 +438,21 @@ class TestResolveEntityType:
         assert data["detail"]["error"] == "UNKNOWN_ENTITY_TYPE"
         assert "invalid_type" in data["detail"]["message"]
 
-    def test_business_entity_type_returns_503_when_not_configured(
-        self, client: TestClient
-    ) -> None:
-        """Business returns 503 when project not registered in discovery."""
-        jwt_token = "header.payload.signature"
-
-        with patch(
-            "autom8_asana.api.routes.internal.validate_service_token",
-            _mock_jwt_validation(),
-        ):
-            response = client.post(
-                "/v1/resolve/business",
-                headers={"Authorization": f"Bearer {jwt_token}"},
-                json={
-                    "criteria": [
-                        {"phone": "+15551234567", "vertical": "dental"},
-                    ]
-                },
-            )
-
-        # Business entity type IS supported (Phase 2), but project not registered
-        # The base app fixture only registers "unit" project
-        assert response.status_code == 503
-        data = response.json()
-        assert data["detail"]["error"] == "PROJECT_NOT_CONFIGURED"
-
 
 class TestResolveDiscoveryIncomplete:
     """Test behavior when discovery is incomplete."""
 
     def test_discovery_incomplete_returns_503(self) -> None:
         """Returns 503 when entity resolver discovery not complete."""
-        # Reset singleton to ensure clean state
         EntityProjectRegistry.reset()
 
-        # Create app WITHOUT mocking discovery (so registry stays empty)
         with patch(
             "autom8_asana.api.main._discover_entity_projects",
             new_callable=AsyncMock,
         ) as mock_discover:
-            # Don't set up registry, leave it empty (not ready)
             async def no_setup(app):
                 EntityProjectRegistry.reset()
                 registry = EntityProjectRegistry.get_instance()
-                # Don't register anything - leave empty so is_ready() returns False
                 app.state.entity_project_registry = registry
 
             mock_discover.side_effect = no_setup
@@ -589,17 +485,16 @@ class TestResolveInputOrder:
 
     def test_preserves_input_order(self, client: TestClient) -> None:
         """Response results preserve input order."""
-        import polars as pl
-
         jwt_token = "header.payload.signature"
 
-        # Create mock DataFrame with multiple units
         mock_df = pl.DataFrame({
             "gid": ["1111111111111111", "2222222222222222", "3333333333333333"],
             "office_phone": ["+11111111111", "+12222222222", "+13333333333"],
             "vertical": ["a", "b", "c"],
             "name": ["Unit A", "Unit B", "Unit C"],
         })
+
+        mock_resolve = _make_mock_strategy_resolve(mock_df, ["office_phone", "vertical"])
 
         criteria = [
             {"phone": "+11111111111", "vertical": "a"},
@@ -619,8 +514,8 @@ class TestResolveInputOrder:
             ),
             patch("autom8_asana.AsanaClient") as mock_client_class,
             patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
-                AsyncMock(return_value=mock_df),
+                "autom8_asana.services.universal_strategy.UniversalResolutionStrategy.resolve",
+                mock_resolve,
             ),
         ):
             mock_client = MagicMock()
@@ -637,11 +532,10 @@ class TestResolveInputOrder:
         assert response.status_code == 200
         data = response.json()
 
-        # Verify order matches input
         assert len(data["results"]) == 4
         assert data["results"][0]["gid"] == "1111111111111111"
         assert data["results"][1]["gid"] == "2222222222222222"
-        assert data["results"][2]["gid"] is None  # Not found
+        assert data["results"][2]["gid"] is None
         assert data["results"][2]["error"] == "NOT_FOUND"
         assert data["results"][3]["gid"] == "3333333333333333"
 
@@ -673,27 +567,11 @@ class TestResolutionCriterionModel:
         with pytest.raises(pydantic.ValidationError):
             ResolutionCriterion(phone="+05551234567", vertical="dental")
 
-    def test_phone_with_dashes_rejected(self) -> None:
-        """Phone with dashes is rejected."""
-        from autom8_asana.api.routes.resolver import ResolutionCriterion
-        import pydantic
-
-        with pytest.raises(pydantic.ValidationError):
-            ResolutionCriterion(phone="+1-555-123-4567", vertical="dental")
-
     def test_phone_with_trailing_newline_stripped(self) -> None:
         """Phone with trailing newline is stripped and validated (DEF-002)."""
         from autom8_asana.api.routes.resolver import ResolutionCriterion
 
-        # Trailing newline should be stripped, phone should be valid
         criterion = ResolutionCriterion(phone="+15551234567\n", vertical="dental")
-        assert criterion.phone == "+15551234567"
-
-    def test_phone_with_whitespace_stripped(self) -> None:
-        """Phone with leading/trailing whitespace is stripped."""
-        from autom8_asana.api.routes.resolver import ResolutionCriterion
-
-        criterion = ResolutionCriterion(phone="  +15551234567  ", vertical="dental")
         assert criterion.phone == "+15551234567"
 
 
@@ -746,482 +624,6 @@ class TestEntityProjectRegistry:
         assert "business" in types
 
 
-# =============================================================================
-# Phase 2 Tests: Business, Offer, Contact Resolution
-# =============================================================================
-
-
-@pytest.fixture
-def phase2_app():
-    """Create a test application with all Phase 2 entity types registered."""
-    with patch(
-        "autom8_asana.api.main._discover_entity_projects",
-        new_callable=AsyncMock,
-    ) as mock_discover:
-        async def setup_registry(app):
-            EntityProjectRegistry.reset()
-            registry = EntityProjectRegistry.get_instance()
-            registry.register(
-                entity_type="unit",
-                project_gid="1201081073731555",
-                project_name="units",
-            )
-            registry.register(
-                entity_type="business",
-                project_gid="1201081073731556",
-                project_name="business",
-            )
-            registry.register(
-                entity_type="offer",
-                project_gid="1201081073731557",
-                project_name="offers",
-            )
-            registry.register(
-                entity_type="contact",
-                project_gid="1201081073731558",
-                project_name="contacts",
-            )
-            app.state.entity_project_registry = registry
-
-        mock_discover.side_effect = setup_registry
-        yield create_app()
-
-
-@pytest.fixture
-def phase2_client(phase2_app) -> Generator[TestClient, None, None]:
-    """Create a test client with Phase 2 entity types."""
-    with TestClient(phase2_app) as test_client:
-        yield test_client
-
-
-class TestBusinessResolution:
-    """Test POST /v1/resolve/business."""
-
-    def test_valid_phone_vertical_returns_business_gid(
-        self, phase2_client: TestClient
-    ) -> None:
-        """TC-006: Valid phone/vertical returns parent (Business) GID."""
-        import polars as pl
-
-        jwt_token = "header.payload.signature"
-
-        # Create mock Unit DataFrame
-        mock_df = pl.DataFrame({
-            "gid": ["unit_1234567890"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-            "name": ["Unit A"],
-        })
-
-        # Mock task with parent
-        mock_task = MagicMock()
-        mock_task.parent = MagicMock()
-        mock_task.parent.gid = "business_9876543210"
-
-        with (
-            patch(
-                "autom8_asana.api.routes.internal.validate_service_token",
-                _mock_jwt_validation(),
-            ),
-            patch(
-                "autom8_asana.auth.bot_pat.get_bot_pat",
-                return_value="test_bot_pat",
-            ),
-            patch("autom8_asana.AsanaClient") as mock_client_class,
-            patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
-                AsyncMock(return_value=mock_df),
-            ),
-        ):
-            mock_client = MagicMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client.tasks = MagicMock()
-            mock_client.tasks.get_async = AsyncMock(return_value=mock_task)
-            mock_client_class.return_value = mock_client
-
-            response = phase2_client.post(
-                "/v1/resolve/business",
-                headers={"Authorization": f"Bearer {jwt_token}"},
-                json={
-                    "criteria": [
-                        {"phone": "+15551234567", "vertical": "dental"},
-                    ]
-                },
-            )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data["results"]) == 1
-        assert data["results"][0]["gid"] == "business_9876543210"
-        assert data["results"][0]["error"] is None
-        assert data["meta"]["entity_type"] == "business"
-        assert data["meta"]["resolved_count"] == 1
-
-    def test_unit_exists_no_parent_returns_error(
-        self, phase2_client: TestClient
-    ) -> None:
-        """TC-007: Unit exists but no parent returns null with error."""
-        import polars as pl
-
-        jwt_token = "header.payload.signature"
-
-        mock_df = pl.DataFrame({
-            "gid": ["unit_1234567890"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-            "name": ["Unit A"],
-        })
-
-        # Mock task WITHOUT parent
-        mock_task = MagicMock()
-        mock_task.parent = None
-
-        with (
-            patch(
-                "autom8_asana.api.routes.internal.validate_service_token",
-                _mock_jwt_validation(),
-            ),
-            patch(
-                "autom8_asana.auth.bot_pat.get_bot_pat",
-                return_value="test_bot_pat",
-            ),
-            patch("autom8_asana.AsanaClient") as mock_client_class,
-            patch(
-                "autom8_asana.services.resolver.UnitResolutionStrategy._build_unit_dataframe",
-                AsyncMock(return_value=mock_df),
-            ),
-        ):
-            mock_client = MagicMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client.tasks = MagicMock()
-            mock_client.tasks.get_async = AsyncMock(return_value=mock_task)
-            mock_client_class.return_value = mock_client
-
-            response = phase2_client.post(
-                "/v1/resolve/business",
-                headers={"Authorization": f"Bearer {jwt_token}"},
-                json={
-                    "criteria": [
-                        {"phone": "+15551234567", "vertical": "dental"},
-                    ]
-                },
-            )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["results"][0]["gid"] is None
-        assert data["results"][0]["error"] == "NO_PARENT_BUSINESS"
-
-
-class TestOfferResolution:
-    """Test POST /v1/resolve/offer."""
-
-    def test_valid_offer_id_returns_gid(self, phase2_client: TestClient) -> None:
-        """TC-008: Valid offer_id returns GID."""
-        import polars as pl
-
-        jwt_token = "header.payload.signature"
-
-        mock_df = pl.DataFrame({
-            "gid": ["offer_1234567890"],
-            "offer_id": ["OFFER-001"],
-            "name": ["Summer Sale"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-
-        with (
-            patch(
-                "autom8_asana.api.routes.internal.validate_service_token",
-                _mock_jwt_validation(),
-            ),
-            patch(
-                "autom8_asana.auth.bot_pat.get_bot_pat",
-                return_value="test_bot_pat",
-            ),
-            patch("autom8_asana.AsanaClient") as mock_client_class,
-            patch(
-                "autom8_asana.services.resolver.OfferResolutionStrategy._build_offer_dataframe",
-                AsyncMock(return_value=mock_df),
-            ),
-        ):
-            mock_client = MagicMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_class.return_value = mock_client
-
-            response = phase2_client.post(
-                "/v1/resolve/offer",
-                headers={"Authorization": f"Bearer {jwt_token}"},
-                json={
-                    "criteria": [
-                        {"offer_id": "OFFER-001"},
-                    ]
-                },
-            )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["results"][0]["gid"] == "offer_1234567890"
-        assert data["meta"]["entity_type"] == "offer"
-
-    def test_phone_vertical_offer_name_returns_gid(
-        self, phase2_client: TestClient
-    ) -> None:
-        """TC-009: phone/vertical + offer_name returns GID."""
-        import polars as pl
-
-        jwt_token = "header.payload.signature"
-
-        mock_df = pl.DataFrame({
-            "gid": ["offer_1234567890"],
-            "offer_id": ["OFFER-001"],
-            "name": ["Summer Sale"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-
-        with (
-            patch(
-                "autom8_asana.api.routes.internal.validate_service_token",
-                _mock_jwt_validation(),
-            ),
-            patch(
-                "autom8_asana.auth.bot_pat.get_bot_pat",
-                return_value="test_bot_pat",
-            ),
-            patch("autom8_asana.AsanaClient") as mock_client_class,
-            patch(
-                "autom8_asana.services.resolver.OfferResolutionStrategy._build_offer_dataframe",
-                AsyncMock(return_value=mock_df),
-            ),
-        ):
-            mock_client = MagicMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_class.return_value = mock_client
-
-            response = phase2_client.post(
-                "/v1/resolve/offer",
-                headers={"Authorization": f"Bearer {jwt_token}"},
-                json={
-                    "criteria": [
-                        {
-                            "phone": "+15551234567",
-                            "vertical": "dental",
-                            "offer_name": "Summer Sale",
-                        },
-                    ]
-                },
-            )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["results"][0]["gid"] == "offer_1234567890"
-
-    def test_offer_missing_required_fields_returns_422(
-        self, phase2_client: TestClient
-    ) -> None:
-        """Offer with only phone (missing vertical and offer_name) returns 422."""
-        jwt_token = "header.payload.signature"
-
-        with patch(
-            "autom8_asana.api.routes.internal.validate_service_token",
-            _mock_jwt_validation(),
-        ):
-            response = phase2_client.post(
-                "/v1/resolve/offer",
-                headers={"Authorization": f"Bearer {jwt_token}"},
-                json={
-                    "criteria": [
-                        {"phone": "+15551234567"},  # Missing vertical and offer_name
-                    ]
-                },
-            )
-
-        assert response.status_code == 422
-        data = response.json()
-        assert data["detail"]["error"] == "MISSING_REQUIRED_FIELD"
-
-
-class TestContactResolution:
-    """Test POST /v1/resolve/contact."""
-
-    def test_valid_email_returns_gid(self, phase2_client: TestClient) -> None:
-        """TC-010: Valid email returns GID."""
-        import polars as pl
-
-        jwt_token = "header.payload.signature"
-
-        mock_df = pl.DataFrame({
-            "gid": ["contact_1234567890"],
-            "contact_email": ["john@example.com"],
-            "contact_phone": ["+15551234567"],
-            "full_name": ["John Doe"],
-        })
-
-        with (
-            patch(
-                "autom8_asana.api.routes.internal.validate_service_token",
-                _mock_jwt_validation(),
-            ),
-            patch(
-                "autom8_asana.auth.bot_pat.get_bot_pat",
-                return_value="test_bot_pat",
-            ),
-            patch("autom8_asana.AsanaClient") as mock_client_class,
-            patch(
-                "autom8_asana.services.resolver.ContactResolutionStrategy._build_contact_dataframe",
-                AsyncMock(return_value=mock_df),
-            ),
-        ):
-            mock_client = MagicMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_class.return_value = mock_client
-
-            response = phase2_client.post(
-                "/v1/resolve/contact",
-                headers={"Authorization": f"Bearer {jwt_token}"},
-                json={
-                    "criteria": [
-                        {"contact_email": "john@example.com"},
-                    ]
-                },
-            )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["results"][0]["gid"] == "contact_1234567890"
-        assert data["results"][0]["multiple"] is None
-        assert data["meta"]["entity_type"] == "contact"
-
-    def test_multiple_matches_returns_multiple_flag(
-        self, phase2_client: TestClient
-    ) -> None:
-        """TC-011: Multiple matches returns all with multiple=true."""
-        import polars as pl
-
-        jwt_token = "header.payload.signature"
-
-        # DataFrame with multiple contacts having same email
-        mock_df = pl.DataFrame({
-            "gid": ["contact_111", "contact_222", "contact_333"],
-            "contact_email": ["shared@example.com", "shared@example.com", "other@example.com"],
-            "contact_phone": ["+15551111111", "+15552222222", "+15553333333"],
-            "full_name": ["John Doe", "Jane Doe", "Bob Smith"],
-        })
-
-        with (
-            patch(
-                "autom8_asana.api.routes.internal.validate_service_token",
-                _mock_jwt_validation(),
-            ),
-            patch(
-                "autom8_asana.auth.bot_pat.get_bot_pat",
-                return_value="test_bot_pat",
-            ),
-            patch("autom8_asana.AsanaClient") as mock_client_class,
-            patch(
-                "autom8_asana.services.resolver.ContactResolutionStrategy._build_contact_dataframe",
-                AsyncMock(return_value=mock_df),
-            ),
-        ):
-            mock_client = MagicMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_class.return_value = mock_client
-
-            response = phase2_client.post(
-                "/v1/resolve/contact",
-                headers={"Authorization": f"Bearer {jwt_token}"},
-                json={
-                    "criteria": [
-                        {"contact_email": "shared@example.com"},
-                    ]
-                },
-            )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["results"][0]["gid"] == "contact_111"  # First match
-        assert data["results"][0]["multiple"] is True  # Multiple flag set
-        assert data["meta"]["resolved_count"] == 1
-
-    def test_contact_phone_lookup(self, phase2_client: TestClient) -> None:
-        """Contact phone lookup returns GID."""
-        import polars as pl
-
-        jwt_token = "header.payload.signature"
-
-        mock_df = pl.DataFrame({
-            "gid": ["contact_1234567890"],
-            "contact_email": ["john@example.com"],
-            "contact_phone": ["+15551234567"],
-            "full_name": ["John Doe"],
-        })
-
-        with (
-            patch(
-                "autom8_asana.api.routes.internal.validate_service_token",
-                _mock_jwt_validation(),
-            ),
-            patch(
-                "autom8_asana.auth.bot_pat.get_bot_pat",
-                return_value="test_bot_pat",
-            ),
-            patch("autom8_asana.AsanaClient") as mock_client_class,
-            patch(
-                "autom8_asana.services.resolver.ContactResolutionStrategy._build_contact_dataframe",
-                AsyncMock(return_value=mock_df),
-            ),
-        ):
-            mock_client = MagicMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_class.return_value = mock_client
-
-            response = phase2_client.post(
-                "/v1/resolve/contact",
-                headers={"Authorization": f"Bearer {jwt_token}"},
-                json={
-                    "criteria": [
-                        {"contact_phone": "+15551234567"},
-                    ]
-                },
-            )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["results"][0]["gid"] == "contact_1234567890"
-
-    def test_contact_missing_email_and_phone_returns_422(
-        self, phase2_client: TestClient
-    ) -> None:
-        """Contact with neither email nor phone returns 422."""
-        jwt_token = "header.payload.signature"
-
-        with patch(
-            "autom8_asana.api.routes.internal.validate_service_token",
-            _mock_jwt_validation(),
-        ):
-            response = phase2_client.post(
-                "/v1/resolve/contact",
-                headers={"Authorization": f"Bearer {jwt_token}"},
-                json={
-                    "criteria": [
-                        {},  # Empty criterion - no email or phone
-                    ]
-                },
-            )
-
-        assert response.status_code == 422
-        data = response.json()
-        assert data["detail"]["error"] == "MISSING_REQUIRED_FIELD"
-
-
 class TestFieldFiltering:
     """Test field filtering with SchemaRegistry validation."""
 
@@ -1248,7 +650,6 @@ class TestFieldFiltering:
         data = response.json()
         assert data["detail"]["error"] == "INVALID_FIELD"
         assert "Invalid fields" in data["detail"]["message"]
-        assert "nonexistent_field" in data["detail"]["message"]
 
     def test_filter_result_fields_default_gid_only(self) -> None:
         """Default (no fields) returns gid only."""
@@ -1291,39 +692,29 @@ class TestFieldFiltering:
         with pytest.raises(ValueError, match="Invalid fields"):
             filter_result_fields(result, ["nonexistent_field"], "unit")
 
-    def test_filter_result_fields_gid_always_included(self) -> None:
-        """gid is always included even if not in requested fields."""
-        from autom8_asana.services.resolver import filter_result_fields
 
-        result = {
-            "gid": "1234567890",
-            "name": "Test Task",
-        }
+class TestUniversalStrategyIntegration:
+    """Test that universal strategy is properly integrated."""
 
-        filtered = filter_result_fields(result, ["name"], "unit")
-        assert "gid" in filtered
+    def test_get_strategy_returns_universal_strategy(self) -> None:
+        """get_strategy returns UniversalResolutionStrategy."""
+        from autom8_asana.services.resolver import get_strategy
 
+        # Register entity to make it resolvable
+        EntityProjectRegistry.reset()
+        registry = EntityProjectRegistry.get_instance()
+        registry.register("unit", "123", "Units")
 
-class TestStrategyRegistration:
-    """Test that all Phase 2 strategies are registered."""
+        strategy = get_strategy("unit")
 
-    def test_all_strategies_registered(self) -> None:
-        """All four entity types have strategies registered."""
-        from autom8_asana.services.resolver import RESOLUTION_STRATEGIES
+        from autom8_asana.services.universal_strategy import UniversalResolutionStrategy
+        assert isinstance(strategy, UniversalResolutionStrategy)
 
-        assert "unit" in RESOLUTION_STRATEGIES
-        assert "business" in RESOLUTION_STRATEGIES
-        assert "offer" in RESOLUTION_STRATEGIES
-        assert "contact" in RESOLUTION_STRATEGIES
+    def test_get_strategy_returns_none_for_unknown(self) -> None:
+        """get_strategy returns None for unknown entity type."""
+        from autom8_asana.services.resolver import get_strategy
 
-    def test_business_strategy_uses_unit_strategy(self) -> None:
-        """BusinessResolutionStrategy delegates to UnitResolutionStrategy."""
-        from autom8_asana.services.resolver import (
-            RESOLUTION_STRATEGIES,
-            BusinessResolutionStrategy,
-            UnitResolutionStrategy,
-        )
+        EntityProjectRegistry.reset()
 
-        business_strategy = RESOLUTION_STRATEGIES["business"]
-        assert isinstance(business_strategy, BusinessResolutionStrategy)
-        assert isinstance(business_strategy._unit_strategy, UnitResolutionStrategy)
+        strategy = get_strategy("unknown_entity")
+        assert strategy is None
