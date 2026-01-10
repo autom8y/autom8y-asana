@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 from autom8_asana.services.resolver import (
     CriterionValidationResult,
     EntityProjectRegistry,
-    LEGACY_FIELD_MAPPING,
+    ENTITY_ALIASES,
     _apply_legacy_mapping,
     _validate_field_type,
     get_resolvable_entities,
@@ -275,16 +275,20 @@ class TestApplyLegacyMapping:
         assert "phone" not in result
 
     def test_maps_contact_fields(self) -> None:
-        """Maps contact-specific legacy fields."""
+        """Maps contact short field names to schema column names.
+
+        Per TDD-dynamic-field-normalization:
+        Short names like 'email' expand to prefixed schema columns like 'contact_email'.
+        """
         result = _apply_legacy_mapping(
             "contact",
-            {"contact_email": "test@example.com", "contact_phone": "+15551234567"},
+            {"email": "test@example.com", "phone": "+15551234567"},
         )
 
-        assert result["email"] == "test@example.com"
-        assert result["phone"] == "+15551234567"
-        assert "contact_email" not in result
-        assert "contact_phone" not in result
+        assert result["contact_email"] == "test@example.com"
+        assert result["contact_phone"] == "+15551234567"
+        assert "email" not in result
+        assert "phone" not in result
 
     def test_unmapped_fields_pass_through(self) -> None:
         """Fields without mappings pass through unchanged."""
@@ -379,35 +383,37 @@ class TestValidateFieldType:
         assert _validate_field_type("field", 123, "CustomType") is None
 
 
-class TestLegacyFieldMappingConstant:
-    """Tests for LEGACY_FIELD_MAPPING constant structure."""
+class TestEntityAliasesConstant:
+    """Tests for ENTITY_ALIASES constant structure.
 
-    def test_has_global_mapping(self) -> None:
-        """Constant has global ('*') mapping key."""
-        assert "*" in LEGACY_FIELD_MAPPING
-        assert isinstance(LEGACY_FIELD_MAPPING["*"], dict)
+    Per TDD-dynamic-field-normalization:
+    ENTITY_ALIASES encodes the semantic domain hierarchy for field resolution.
+    """
 
-    def test_has_unit_mapping(self) -> None:
-        """Constant has unit entity mapping."""
-        assert "unit" in LEGACY_FIELD_MAPPING
-        assert "phone" in LEGACY_FIELD_MAPPING["unit"]
-        assert LEGACY_FIELD_MAPPING["unit"]["phone"] == "office_phone"
+    def test_has_unit_alias(self) -> None:
+        """Unit aliases to business_unit for chain resolution."""
+        assert "unit" in ENTITY_ALIASES
+        assert "business_unit" in ENTITY_ALIASES["unit"]
 
-    def test_has_business_mapping(self) -> None:
-        """Constant has business entity mapping."""
-        assert "business" in LEGACY_FIELD_MAPPING
-        assert LEGACY_FIELD_MAPPING["business"]["phone"] == "office_phone"
+    def test_has_offer_alias(self) -> None:
+        """Offer aliases to business_offer for chain resolution."""
+        assert "offer" in ENTITY_ALIASES
+        assert "business_offer" in ENTITY_ALIASES["offer"]
 
-    def test_has_offer_mapping(self) -> None:
-        """Constant has offer entity mapping."""
-        assert "offer" in LEGACY_FIELD_MAPPING
-        assert LEGACY_FIELD_MAPPING["offer"]["phone"] == "office_phone"
+    def test_has_business_alias(self) -> None:
+        """Business aliases to office for prefix resolution."""
+        assert "business" in ENTITY_ALIASES
+        assert "office" in ENTITY_ALIASES["business"]
 
-    def test_has_contact_mapping(self) -> None:
-        """Constant has contact entity mapping."""
-        assert "contact" in LEGACY_FIELD_MAPPING
-        assert LEGACY_FIELD_MAPPING["contact"]["contact_email"] == "email"
-        assert LEGACY_FIELD_MAPPING["contact"]["contact_phone"] == "phone"
+    def test_has_contact_empty_alias(self) -> None:
+        """Contact has empty aliases (uses its own prefix)."""
+        assert "contact" in ENTITY_ALIASES
+        assert ENTITY_ALIASES["contact"] == []
+
+    def test_alias_values_are_lists(self) -> None:
+        """All alias values are lists (not dicts or strings)."""
+        for entity_type, aliases in ENTITY_ALIASES.items():
+            assert isinstance(aliases, list), f"{entity_type} aliases should be a list"
 
 
 class TestCriterionValidationResultDataclass:

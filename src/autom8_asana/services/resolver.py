@@ -33,7 +33,7 @@ __all__ = [
     "get_resolvable_entities",
     "validate_criterion_for_entity",
     "CriterionValidationResult",
-    "LEGACY_FIELD_MAPPING",
+    "ENTITY_ALIASES",
 ]
 
 logger = get_logger(__name__)
@@ -208,41 +208,23 @@ class EntityProjectRegistry:
         logger.debug("EntityProjectRegistry reset")
 
 
-# --- Legacy Field Mapping (FR-006) ---
+# --- Dynamic Field Normalization (FR-006) ---
 
-# Legacy field name mapping for backwards compatibility.
+# Entity type aliases - semantic domain hierarchy
+# Encodes: unit IS-A business_unit, offer IS-A business_offer,
+# business USES office_ prefix
 #
-# Per TDD-DYNAMIC-RESOLVER-001 / FR-006:
-# Maps legacy API field names to schema column names.
-#
-# Structure:
-#     {
-#         "entity_type": {"legacy_field": "schema_column"},
-#         "*": {"global_legacy_field": "schema_column"},
-#     }
-#
-# Entity-specific mappings take precedence over global ("*") mappings.
-
-LEGACY_FIELD_MAPPING: dict[str, dict[str, str]] = {
-    # Global mappings (apply to all entity types unless overridden)
-    "*": {},
-    # Unit-specific mappings
-    "unit": {
-        "phone": "office_phone",  # Legacy name -> schema column
-    },
-    # Business-specific mappings (same as Unit - uses phone/vertical)
-    "business": {
-        "phone": "office_phone",
-    },
-    # Offer-specific mappings
-    "offer": {
-        "phone": "office_phone",
-    },
-    # Contact-specific mappings
-    "contact": {
-        "contact_email": "email",  # Alias for schema column
-        "contact_phone": "phone",  # Alias for schema column
-    },
+# Per TDD-dynamic-field-normalization:
+# Hierarchical alias resolution replaces static field mappings.
+# Resolution chain examples:
+#   - unit + "phone" -> office_phone (via unit->business_unit->business->office)
+#   - offer + "phone" -> office_phone (via offer->business_offer->business->office)
+#   - contact + "email" -> contact_email (via prefix expansion)
+ENTITY_ALIASES: dict[str, list[str]] = {
+    "unit": ["business_unit"],      # unit is a business_unit
+    "offer": ["business_offer"],    # offer is a business_offer
+    "business": ["office"],         # business fields use office_ prefix
+    "contact": [],                  # contact uses its own prefix
 }
 
 
@@ -427,38 +409,110 @@ def validate_criterion_for_entity(
     )
 
 
+def _normalize_field(
+    field_name: str,
+    entity_type: str,
+    available_fields: set[str],
+    _visited: set[str] | None = None,
+) -> str:
+    """Normalize a single field name using hierarchical alias resolution.
+
+    Per TDD-dynamic-field-normalization:
+    Implements 5-step resolution algorithm with recursion guard.
+
+    Resolution order:
+    1. Exact match: field_name in available_fields
+    2. Prefix expansion: {entity_type}_{field_name}
+    3. Prefix removal: strip {entity_type}_ from field_name
+    4. Alias expansion: {alias}_{field_name} for each alias
+    5. Alias decomposition: strip suffix, recurse to parent entity
+
+    Args:
+        field_name: The field name from the criterion (e.g., "phone", "email").
+        entity_type: The entity type context (e.g., "contact", "unit").
+        available_fields: Set of valid schema column names from SchemaRegistry.
+        _visited: Internal set tracking visited entities to prevent infinite recursion.
+
+    Returns:
+        Normalized field name. Returns unchanged if no resolution found
+        (validation will catch invalid fields downstream).
+
+    Raises:
+        No exceptions raised. Invalid fields pass through unchanged.
+    """
+    # 1. Recursion guard
+    if _visited is None:
+        _visited = set()
+    if entity_type in _visited:
+        return field_name
+    _visited = _visited | {entity_type}
+
+    # 2. Exact match
+    if field_name in available_fields:
+        return field_name
+
+    # 3. Prefix expansion: {entity}_{field}
+    prefixed = f"{entity_type}_{field_name}"
+    if prefixed in available_fields:
+        return prefixed
+
+    # 4. Prefix removal: strip {entity}_
+    prefix = f"{entity_type}_"
+    if field_name.startswith(prefix):
+        stripped = field_name[len(prefix):]
+        if stripped in available_fields:
+            return stripped
+
+    # 5. Alias resolution
+    for alias in ENTITY_ALIASES.get(entity_type, []):
+        # 5a. Direct alias expansion: {alias}_{field}
+        alias_prefixed = f"{alias}_{field_name}"
+        if alias_prefixed in available_fields:
+            return alias_prefixed
+
+        # 5b. Alias decomposition: recurse to parent
+        if "_" in alias:
+            parent = alias.rsplit("_", 1)[0]  # "business_unit" -> "business"
+            result = _normalize_field(field_name, parent, available_fields, _visited)
+            if result in available_fields:
+                return result
+
+    # 6. Fallback: return unchanged
+    return field_name
+
+
 def _apply_legacy_mapping(
     entity_type: str,
     criterion: dict[str, Any],
 ) -> dict[str, Any]:
-    """Apply legacy field name mapping for backwards compatibility.
+    """Apply field normalization with hierarchical alias resolution.
 
-    Per TDD-DYNAMIC-RESOLVER-001 / FR-006:
-    Maps legacy API field names to schema column names.
+    Per TDD-dynamic-field-normalization:
+    Replaces static LEGACY_FIELD_MAPPING with dynamic algorithm.
 
     Args:
-        entity_type: Entity type for entity-specific mappings.
-        criterion: Original criterion dict.
+        entity_type: Entity type for context (e.g., "unit", "contact").
+        criterion: Original criterion dict with field -> value pairs.
 
     Returns:
-        New dict with legacy fields mapped to schema column names.
+        New dict with fields normalized to schema column names.
     """
-    # Get entity-specific mappings (fall back to empty dict)
-    entity_mappings = LEGACY_FIELD_MAPPING.get(entity_type, {})
+    from autom8_asana.dataframes.models.registry import SchemaRegistry
 
-    # Also apply global mappings
-    global_mappings = LEGACY_FIELD_MAPPING.get("*", {})
+    # Get available fields from schema
+    schema_registry = SchemaRegistry.get_instance()
+    schema_key = entity_type.title()
+    try:
+        schema = schema_registry.get_schema(schema_key)
+        available_fields = set(schema.column_names())
+    except Exception:
+        available_fields = set()
 
-    # Entity-specific takes precedence over global
-    combined = {**global_mappings, **entity_mappings}
-
-    result: dict[str, Any] = {}
-    for field_name, value in criterion.items():
-        # Map legacy field to schema column if mapping exists
-        mapped_field = combined.get(field_name, field_name)
-        result[mapped_field] = value
-
-    return result
+    # Normalize each field
+    return {
+        _normalize_field(field_name, entity_type, available_fields): value
+        for field_name, value in criterion.items()
+    }
 
 
 def _validate_field_type(field_name: str, value: Any, dtype: str) -> str | None:

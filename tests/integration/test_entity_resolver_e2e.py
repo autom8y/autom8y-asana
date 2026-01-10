@@ -28,26 +28,18 @@ from autom8_asana.auth.bot_pat import clear_bot_pat_cache
 from autom8_asana.auth.jwt_validator import reset_auth_client
 from autom8_asana.services.dynamic_index import DynamicIndex
 from autom8_asana.services.resolution_result import ResolutionResult
-from autom8_asana.services.resolver import EntityProjectRegistry, LEGACY_FIELD_MAPPING
+from autom8_asana.services.resolver import (
+    EntityProjectRegistry,
+    _apply_legacy_mapping as resolver_apply_legacy_mapping,
+)
 
 
 # --- Helpers ---
 
 
 def _apply_legacy_mapping(criterion: dict, entity_type: str) -> dict:
-    """Apply legacy field mapping to criterion."""
-    mapped = dict(criterion)
-    # Apply global mappings
-    global_map = LEGACY_FIELD_MAPPING.get("_global", {})
-    for old_key, new_key in global_map.items():
-        if old_key in mapped:
-            mapped[new_key] = mapped.pop(old_key)
-    # Apply entity-specific mappings
-    entity_map = LEGACY_FIELD_MAPPING.get(entity_type, {})
-    for old_key, new_key in entity_map.items():
-        if old_key in mapped:
-            mapped[new_key] = mapped.pop(old_key)
-    return mapped
+    """Apply legacy field mapping to criterion using resolver's dynamic algorithm."""
+    return resolver_apply_legacy_mapping(entity_type, criterion)
 
 
 def _make_mock_strategy_resolve(
