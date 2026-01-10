@@ -82,24 +82,30 @@ class UniversalResolutionStrategy:
         criteria: list[dict[str, Any]],
         project_gid: str,
         client: "AsanaClient",
+        requested_fields: list[str] | None = None,
     ) -> list[ResolutionResult]:
-        """Resolve criteria to entity GIDs.
+        """Resolve criteria to entity GIDs with optional field enrichment.
 
         Per FR-005: Schema-driven resolution for any entity type.
+        Per TDD-FIELDS-ENRICHMENT-001: When requested_fields is provided,
+        returns field values from the DataFrame for each matched GID via match_context.
 
         Resolution flow:
         1. Validate and normalize criteria against schema
         2. Get or build DynamicIndex for criterion columns
         3. Perform O(1) lookups for each criterion
-        4. Return ResolutionResult with all matches
+        4. If fields requested, enrich from DataFrame
+        5. Return ResolutionResult with all matches
 
         Args:
             criteria: List of criterion dicts.
             project_gid: Target project GID.
             client: AsanaClient for DataFrame building.
+            requested_fields: Optional list of field names to return.
 
         Returns:
             List of ResolutionResult in same order as input.
+            If requested_fields provided, match_context contains field data.
         """
         start_time = time.monotonic()
 
@@ -148,7 +154,22 @@ class UniversalResolutionStrategy:
 
                 # Perform lookup
                 gids = index.lookup(normalized)
-                results.append(ResolutionResult.from_gids(gids))
+
+                # Enrich if fields requested and GIDs found
+                context: list[dict[str, Any]] | None = None
+                if requested_fields and gids:
+                    # Use cached DataFrame if available, otherwise fetch
+                    df = (
+                        self._cached_dataframe
+                        if self._cached_dataframe is not None
+                        else await self._get_dataframe(project_gid, client)
+                    )
+                    if df is not None:
+                        context = self._enrich_from_dataframe(
+                            df, gids, requested_fields
+                        )
+
+                results.append(ResolutionResult.from_gids(gids, context=context))
 
             except Exception as e:
                 logger.warning(
@@ -261,6 +282,86 @@ class UniversalResolutionStrategy:
                 },
             )
             return None
+
+    def _enrich_from_dataframe(
+        self,
+        df: "pl.DataFrame",
+        gids: list[str],
+        fields: list[str],
+    ) -> list[dict[str, Any]]:
+        """Extract requested field values from DataFrame for matched GIDs.
+
+        Per TDD-FIELDS-ENRICHMENT-001:
+        Post-lookup enrichment from DataFrame. Only runs when fields requested.
+        Always includes 'gid' in returned data for correlation.
+
+        Args:
+            df: Entity DataFrame with all columns.
+            gids: List of matched GIDs to enrich.
+            fields: Requested field names to extract.
+
+        Returns:
+            List of dicts with field values, one per GID in same order.
+            Each dict contains 'gid' plus requested fields.
+            Returns empty list if no GIDs or DataFrame unavailable.
+
+        Example:
+            >>> context = strategy._enrich_from_dataframe(
+            ...     df=unit_df,
+            ...     gids=["123", "456"],
+            ...     fields=["name", "vertical"],
+            ... )
+            >>> context
+            [
+                {"gid": "123", "name": "Acme Dental", "vertical": "dental"},
+                {"gid": "456", "name": "Beta Medical", "vertical": "medical"},
+            ]
+        """
+        if not gids or df is None:
+            return []
+
+        # Ensure gid is always included
+        all_fields = list(set(["gid"] + fields))
+
+        # Filter to only columns that exist in DataFrame
+        available_columns = set(df.columns)
+        valid_fields = [f for f in all_fields if f in available_columns]
+
+        if "gid" not in valid_fields:
+            # gid column must exist for filtering
+            logger.warning(
+                "enrichment_missing_gid_column",
+                extra={"entity_type": self.entity_type},
+            )
+            return []
+
+        try:
+            # Filter DataFrame to matching GIDs
+            gid_set = set(gids)
+            filtered = df.filter(df["gid"].is_in(gid_set))
+
+            # Select only requested fields
+            selected = filtered.select(valid_fields)
+
+            # Convert to list of dicts, maintaining GID order
+            result_map = {
+                row["gid"]: {k: v for k, v in row.items()}
+                for row in selected.iter_rows(named=True)
+            }
+
+            # Return in same order as input GIDs
+            return [result_map.get(gid, {"gid": gid}) for gid in gids]
+
+        except Exception as e:
+            logger.warning(
+                "enrichment_extraction_failed",
+                extra={
+                    "entity_type": self.entity_type,
+                    "error": str(e),
+                    "gid_count": len(gids),
+                },
+            )
+            return []
 
     async def _get_dataframe(
         self,

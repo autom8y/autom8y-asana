@@ -654,3 +654,294 @@ class TestDynamicIndexBuilding:
         assert email_index is not None
         assert phone_index is not None
         assert email_index is not phone_index
+
+
+# --- Field Enrichment Tests ---
+
+
+class TestEnrichFromDataframe:
+    """Tests for _enrich_from_dataframe method.
+
+    Per TDD-FIELDS-ENRICHMENT-001: Post-lookup enrichment from DataFrame.
+    """
+
+    def test_enrichment_returns_requested_fields(
+        self, index_cache: DynamicIndexCache
+    ) -> None:
+        """Enrichment returns only requested fields plus gid."""
+        strategy = UniversalResolutionStrategy(
+            entity_type="unit",
+            index_cache=index_cache,
+        )
+
+        df = pl.DataFrame(
+            {
+                "gid": ["123", "456", "789"],
+                "name": ["A", "B", "C"],
+                "vertical": ["dental", "medical", "chiro"],
+                "mrr": [100.0, 200.0, 300.0],
+            }
+        )
+
+        result = strategy._enrich_from_dataframe(
+            df=df,
+            gids=["123", "456"],
+            fields=["name", "vertical"],
+        )
+
+        assert len(result) == 2
+        assert result[0] == {"gid": "123", "name": "A", "vertical": "dental"}
+        assert result[1] == {"gid": "456", "name": "B", "vertical": "medical"}
+        # mrr not included (not requested)
+        assert "mrr" not in result[0]
+
+    def test_enrichment_always_includes_gid(
+        self, index_cache: DynamicIndexCache
+    ) -> None:
+        """GID is always included even if not in requested fields."""
+        strategy = UniversalResolutionStrategy(
+            entity_type="unit",
+            index_cache=index_cache,
+        )
+
+        df = pl.DataFrame(
+            {
+                "gid": ["123"],
+                "name": ["Test"],
+            }
+        )
+
+        result = strategy._enrich_from_dataframe(
+            df=df,
+            gids=["123"],
+            fields=["name"],  # gid not in list
+        )
+
+        assert "gid" in result[0]
+        assert result[0]["gid"] == "123"
+
+    def test_enrichment_preserves_gid_order(
+        self, index_cache: DynamicIndexCache
+    ) -> None:
+        """Results returned in same order as input GIDs."""
+        strategy = UniversalResolutionStrategy(
+            entity_type="unit",
+            index_cache=index_cache,
+        )
+
+        df = pl.DataFrame(
+            {
+                "gid": ["123", "456", "789"],
+                "name": ["A", "B", "C"],
+            }
+        )
+
+        # Request in different order than DataFrame
+        result = strategy._enrich_from_dataframe(
+            df=df,
+            gids=["789", "123", "456"],
+            fields=["name"],
+        )
+
+        assert result[0]["gid"] == "789"
+        assert result[1]["gid"] == "123"
+        assert result[2]["gid"] == "456"
+
+    def test_enrichment_handles_missing_gid(
+        self, index_cache: DynamicIndexCache
+    ) -> None:
+        """Missing GID returns dict with just gid."""
+        strategy = UniversalResolutionStrategy(
+            entity_type="unit",
+            index_cache=index_cache,
+        )
+
+        df = pl.DataFrame(
+            {
+                "gid": ["123"],
+                "name": ["A"],
+            }
+        )
+
+        result = strategy._enrich_from_dataframe(
+            df=df,
+            gids=["123", "999"],  # 999 not in DataFrame
+            fields=["name"],
+        )
+
+        assert len(result) == 2
+        assert result[0] == {"gid": "123", "name": "A"}
+        assert result[1] == {"gid": "999"}  # Only gid returned
+
+    def test_enrichment_empty_gids(self, index_cache: DynamicIndexCache) -> None:
+        """Empty GID list returns empty result."""
+        strategy = UniversalResolutionStrategy(
+            entity_type="unit",
+            index_cache=index_cache,
+        )
+
+        df = pl.DataFrame({"gid": ["123"], "name": ["A"]})
+
+        result = strategy._enrich_from_dataframe(
+            df=df,
+            gids=[],
+            fields=["name"],
+        )
+
+        assert result == []
+
+    def test_enrichment_none_dataframe(self, index_cache: DynamicIndexCache) -> None:
+        """None DataFrame returns empty result."""
+        strategy = UniversalResolutionStrategy(
+            entity_type="unit",
+            index_cache=index_cache,
+        )
+
+        result = strategy._enrich_from_dataframe(
+            df=None,
+            gids=["123"],
+            fields=["name"],
+        )
+
+        assert result == []
+
+    def test_enrichment_skips_missing_columns(
+        self, index_cache: DynamicIndexCache
+    ) -> None:
+        """Missing columns in DataFrame are skipped gracefully."""
+        strategy = UniversalResolutionStrategy(
+            entity_type="unit",
+            index_cache=index_cache,
+        )
+
+        df = pl.DataFrame(
+            {
+                "gid": ["123"],
+                "name": ["A"],
+                # no 'vertical' column
+            }
+        )
+
+        result = strategy._enrich_from_dataframe(
+            df=df,
+            gids=["123"],
+            fields=["name", "vertical"],  # vertical doesn't exist
+        )
+
+        assert result[0] == {"gid": "123", "name": "A"}
+        # vertical not in result (column doesn't exist)
+
+
+class TestResolveWithFields:
+    """Tests for resolve() with requested_fields.
+
+    Per TDD-FIELDS-ENRICHMENT-001: Tests for field enrichment integration.
+    """
+
+    @pytest.mark.asyncio
+    async def test_resolve_without_fields_no_enrichment(
+        self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
+    ) -> None:
+        """Resolve without fields returns no data."""
+        strategy = UniversalResolutionStrategy(
+            entity_type="unit",
+            index_cache=index_cache,
+        )
+        strategy._cached_dataframe = unit_dataframe
+
+        results = await strategy.resolve(
+            criteria=[{"office_phone": "+11234567890", "vertical": "dental"}],
+            project_gid="test-project",
+            client=MagicMock(),
+            requested_fields=None,  # No fields
+        )
+
+        assert len(results) == 1
+        assert results[0].gid == "unit-1"
+        assert results[0].match_context is None
+
+    @pytest.mark.asyncio
+    async def test_resolve_with_fields_returns_data(
+        self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
+    ) -> None:
+        """Resolve with fields returns enriched data."""
+        strategy = UniversalResolutionStrategy(
+            entity_type="unit",
+            index_cache=index_cache,
+        )
+        strategy._cached_dataframe = unit_dataframe
+
+        results = await strategy.resolve(
+            criteria=[{"office_phone": "+11234567890", "vertical": "dental"}],
+            project_gid="test-project",
+            client=MagicMock(),
+            requested_fields=["name"],  # Request name field
+        )
+
+        assert len(results) == 1
+        assert results[0].gid == "unit-1"
+        assert results[0].match_context is not None
+        assert len(results[0].match_context) == 1
+        assert results[0].match_context[0]["gid"] == "unit-1"
+        assert results[0].match_context[0]["name"] == "Unit A"
+
+    @pytest.mark.asyncio
+    async def test_resolve_not_found_with_fields_no_data(
+        self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
+    ) -> None:
+        """Resolve with no matches returns no data even when fields requested."""
+        strategy = UniversalResolutionStrategy(
+            entity_type="unit",
+            index_cache=index_cache,
+        )
+        strategy._cached_dataframe = unit_dataframe
+
+        results = await strategy.resolve(
+            criteria=[{"office_phone": "+10000000000", "vertical": "unknown"}],
+            project_gid="test-project",
+            client=MagicMock(),
+            requested_fields=["name"],  # Request name field but no match
+        )
+
+        assert len(results) == 1
+        assert results[0].gid is None
+        assert results[0].error == "NOT_FOUND"
+        assert results[0].match_context is None  # No enrichment for no matches
+
+    @pytest.mark.asyncio
+    async def test_resolve_multi_match_with_fields(
+        self, contact_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
+    ) -> None:
+        """Resolve with multiple matches returns data for all matches."""
+        strategy = UniversalResolutionStrategy(
+            entity_type="contact",
+            index_cache=index_cache,
+        )
+        strategy._cached_dataframe = contact_dataframe
+
+        # Mock validation to pass
+        with patch(
+            "autom8_asana.services.resolver.validate_criterion_for_entity"
+        ) as mock_validate:
+            mock_validate.return_value = MagicMock(
+                is_valid=True,
+                errors=[],
+                normalized_criterion={"contact_email": "a@test.com"},
+            )
+
+            results = await strategy.resolve(
+                criteria=[{"contact_email": "a@test.com"}],
+                project_gid="test-project",
+                client=MagicMock(),
+                requested_fields=["name"],
+            )
+
+        assert len(results) == 1
+        result = results[0]
+        assert result.match_count == 2
+        assert result.match_context is not None
+        assert len(result.match_context) == 2
+        # Both matches should have name field
+        names = [item["name"] for item in result.match_context]
+        assert "Contact A" in names
+        assert "Contact C" in names

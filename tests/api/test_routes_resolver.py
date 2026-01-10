@@ -60,7 +60,9 @@ def _make_mock_strategy_resolve(
 ):
     """Create a mock resolve function using the universal strategy pattern."""
 
-    async def mock_resolve(self, criteria, project_gid, client):
+    async def mock_resolve(
+        self, criteria, project_gid, client, requested_fields=None
+    ):
         # Build index from mock DataFrame
         index = DynamicIndex.from_dataframe(mock_df, key_columns)
         results = []
@@ -69,7 +71,21 @@ def _make_mock_strategy_resolve(
             mapped = _apply_legacy_mapping(criterion, entity_type)
             gids = index.lookup(mapped)
             if gids:
-                results.append(ResolutionResult.from_gids(gids))
+                # Enrich if fields requested
+                context = None
+                if requested_fields and gids:
+                    gid_set = set(gids)
+                    all_fields = list(set(["gid"] + requested_fields))
+                    valid_fields = [f for f in all_fields if f in mock_df.columns]
+                    if "gid" in valid_fields:
+                        filtered = mock_df.filter(mock_df["gid"].is_in(gid_set))
+                        selected = filtered.select(valid_fields)
+                        result_map = {
+                            row["gid"]: {k: v for k, v in row.items()}
+                            for row in selected.iter_rows(named=True)
+                        }
+                        context = [result_map.get(gid, {"gid": gid}) for gid in gids]
+                results.append(ResolutionResult.from_gids(gids, context=context))
             else:
                 results.append(ResolutionResult.not_found())
         return results
