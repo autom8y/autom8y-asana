@@ -150,13 +150,13 @@ echo ""
 echo -e "${BLUE}[3/6] TEST 2: Business - Company ID (Dynamic Field)${NC}"
 echo -e "${YELLOW}Query:${NC}"
 echo '  POST /v1/resolve/business'
-echo '  {"criteria": [{"company_id": "40aca14c-2c11-492f-a351-cfde39"}]}'
+echo '  {"criteria": [{"company_id": "abb01032-f53c-4bb3-89b7-f78107c9bf50"}]}'
 echo ""
 
 API_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API_URL/v1/resolve/business" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"criteria": [{"company_id": "40aca14c-2c11-492f-a351-cfde39"}]}')
+  -d '{"criteria": [{"company_id": "abb01032-f53c-4bb3-89b7-f78107c9bf50"}]}')
 
 HTTP_CODE=$(echo "$API_RESPONSE" | tail -n1)
 RESPONSE=$(echo "$API_RESPONSE" | sed '$d')
@@ -178,7 +178,7 @@ else
   RESOLVED=$(safe_jq "$RESPONSE" '.meta.resolved_count' "0")
 
   if [ "$RESOLVED" = "1" ]; then
-    echo -e "${GREEN}✓ Found: Hawaii Facial Plastic Surgery (GID: $RESULT_GID)${NC}"
+    echo -e "${GREEN}✓ Found Business (GID: $RESULT_GID)${NC}"
   else
     echo -e "${RED}✗ Resolution failed${NC}"
   fi
