@@ -29,7 +29,7 @@ See `sprints/sprint-dynamic-api-criteria-20260108/SPRINT_CONTEXT.md` for task br
 ## Artifacts
 - Spike: /Users/tomtenuta/Code/autom8_asana/docs/spikes/SPIKE-dynamic-api-criteria.md
 - PRD: /Users/tomtenuta/Code/autom8_asana/docs/requirements/PRD-dynamic-resolver-architecture.md (related)
-- TDD: /Users/tomtenuta/Code/autom8_asana/docs/design/TDD-dynamic-resolver-architecture.md (related)
+- TDD: /Users/tomtenuta/Code/autom8_asana/docs/design/TDD-fields-enrichment.md
 - Implementation: pending (TASK-001 through TASK-003)
 - QA Report: pending (TASK-004)
 

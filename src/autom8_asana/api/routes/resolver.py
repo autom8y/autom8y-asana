@@ -42,7 +42,7 @@ from __future__ import annotations
 
 import re
 import time
-from typing import Annotated
+from typing import Annotated, Any
 
 from autom8y_log import get_logger
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -192,12 +192,14 @@ class ResolutionResultModel(BaseModel):
     """Single resolution result.
 
     Per TDD: Result of a single criterion resolution.
+    Per TDD-FIELDS-ENRICHMENT-001: Added data field for enriched field values.
 
     Attributes:
         gid: First matching GID or None if not found (backwards compat)
         gids: All matching GIDs (new multi-match support)
         match_count: Number of matches
         error: Error code if resolution failed
+        data: Field data for each match (only when fields requested)
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -206,6 +208,7 @@ class ResolutionResultModel(BaseModel):
     gids: list[str] | None = None  # All matches
     match_count: int = 0
     error: str | None = None
+    data: list[dict[str, Any]] | None = None  # Field data per match
 
 
 class ResolutionMeta(BaseModel):
@@ -515,6 +518,7 @@ async def resolve_entities(
                 criteria=criteria_dicts,
                 project_gid=project_gid,
                 client=client,
+                requested_fields=request_body.fields,
             )
 
     except HTTPException:
@@ -543,6 +547,7 @@ async def resolve_entities(
             gids=list(r.gids) if r.gids else None,
             match_count=r.match_count,
             error=r.error,
+            data=list(r.match_context) if r.match_context else None,
         )
         for r in resolution_results
     ]
