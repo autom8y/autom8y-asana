@@ -256,6 +256,7 @@ def _normalize_project_name(name: str) -> str:
     - "Contacts" -> "contact"
     - "Business" -> "business"
     - "Units" -> "unit_holder" (per ADR-HOTFIX-entity-collision)
+    - "Paid Content" -> "asset_edit" (non-standard project name)
 
     Args:
         name: Raw project name from Asana.
@@ -263,7 +264,16 @@ def _normalize_project_name(name: str) -> str:
     Returns:
         Normalized name (lowercase, no "business " prefix, singularized).
     """
+    # Explicit mappings for non-standard project names
+    EXPLICIT_MAPPINGS: dict[str, str] = {
+        "paid content": "asset_edit",
+    }
+
     normalized = name.lower().strip()
+
+    # Check explicit mappings first
+    if normalized in EXPLICIT_MAPPINGS:
+        return EXPLICIT_MAPPINGS[normalized]
 
     # Per ADR-HOTFIX-entity-collision: "Units" (exact) maps to "unit_holder"
     # to avoid collision with "Business Units" -> "unit"
