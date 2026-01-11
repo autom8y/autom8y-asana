@@ -324,6 +324,7 @@ def _normalize_project_name(name: str) -> str:
     """Normalize project name for entity type matching.
 
     Converts names like "Business Units" to "unit", "Offers" to "offer", etc.
+    Includes explicit mappings for non-standard project names.
 
     Args:
         name: Project name to normalize.
@@ -331,8 +332,17 @@ def _normalize_project_name(name: str) -> str:
     Returns:
         Normalized name suitable for entity type matching.
     """
-    # Remove common suffixes and prefixes
+    # Explicit mappings for non-standard project names
+    # "Paid Content" is the Asana project for AssetEdit entities
+    EXPLICIT_MAPPINGS: dict[str, str] = {
+        "paid content": "asset_edit",
+    }
+
     normalized = name.lower().strip()
+
+    # Check explicit mappings first
+    if normalized in EXPLICIT_MAPPINGS:
+        return EXPLICIT_MAPPINGS[normalized]
 
     # Handle "Business Units" -> "unit"
     if "unit" in normalized:
