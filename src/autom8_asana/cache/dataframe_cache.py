@@ -34,11 +34,12 @@ def _get_schema_version_for_entity(entity_type: str) -> str | None:
     """
     try:
         from autom8_asana.dataframes.models.registry import SchemaRegistry
+        from autom8_asana.services.resolver import to_pascal_case
 
         registry = SchemaRegistry.get_instance()
-        # Convert lowercase entity_type to title case for registry lookup
-        # e.g., "unit" -> "Unit", "contact" -> "Contact"
-        registry_key = entity_type.title()
+        # Convert entity_type to PascalCase for registry lookup
+        # e.g., "unit" -> "Unit", "asset_edit" -> "AssetEdit"
+        registry_key = to_pascal_case(entity_type)
         schema = registry.get_schema(registry_key)
         return schema.version
     except Exception as e:

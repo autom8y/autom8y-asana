@@ -34,9 +34,38 @@ __all__ = [
     "validate_criterion_for_entity",
     "CriterionValidationResult",
     "ENTITY_ALIASES",
+    "to_pascal_case",
 ]
 
 logger = get_logger(__name__)
+
+
+# --- Utility Functions ---
+
+
+def to_pascal_case(s: str) -> str:
+    """Convert snake_case to PascalCase.
+
+    Used for entity type to schema key conversion.
+    Python's .title() incorrectly handles underscores:
+    - "asset_edit".title() -> "Asset_Edit" (WRONG)
+    - to_pascal_case("asset_edit") -> "AssetEdit" (CORRECT)
+
+    Args:
+        s: Snake_case string to convert.
+
+    Returns:
+        PascalCase string suitable for SchemaRegistry lookups.
+
+    Examples:
+        >>> to_pascal_case("unit")
+        "Unit"
+        >>> to_pascal_case("asset_edit")
+        "AssetEdit"
+        >>> to_pascal_case("asset_edit_holder")
+        "AssetEditHolder"
+    """
+    return "".join(word.capitalize() for word in s.split("_"))
 
 
 # --- Data Models ---
@@ -138,7 +167,7 @@ class EntityProjectRegistry:
         """
         # Derive schema_task_type from entity_type if not provided
         if schema_task_type is None:
-            schema_task_type = entity_type.title()  # "unit" -> "Unit"
+            schema_task_type = to_pascal_case(entity_type)  # "unit" -> "Unit"
 
         config = EntityProjectConfig(
             entity_type=entity_type,
@@ -225,6 +254,8 @@ ENTITY_ALIASES: dict[str, list[str]] = {
     "offer": ["business_offer"],    # offer is a business_offer
     "business": ["office"],         # business fields use office_ prefix
     "contact": [],                  # contact uses its own prefix
+    "asset_edit": ["process"],      # asset_edit inherits Process field patterns
+    "asset_edit_holder": [],        # asset_edit_holder uses its own prefix
 }
 
 
@@ -365,7 +396,7 @@ def validate_criterion_for_entity(
 
     # Get schema for entity type
     schema_registry = SchemaRegistry.get_instance()
-    schema_key = entity_type.title()  # "unit" -> "Unit"
+    schema_key = to_pascal_case(entity_type)  # "unit" -> "Unit"
 
     try:
         schema = schema_registry.get_schema(schema_key)
@@ -501,7 +532,7 @@ def _apply_legacy_mapping(
 
     # Get available fields from schema
     schema_registry = SchemaRegistry.get_instance()
-    schema_key = entity_type.title()
+    schema_key = to_pascal_case(entity_type)
     try:
         schema = schema_registry.get_schema(schema_key)
         available_fields = set(schema.column_names())
@@ -592,7 +623,7 @@ def filter_result_fields(
     registry = SchemaRegistry.get_instance()
 
     # Convert entity_type to schema key (e.g., "unit" -> "Unit")
-    schema_key = entity_type.title()
+    schema_key = to_pascal_case(entity_type)
 
     try:
         schema = registry.get_schema(schema_key)

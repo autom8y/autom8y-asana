@@ -80,6 +80,10 @@ class SchemaRegistry:
                 return
 
             # Import schemas here to avoid circular imports
+            from autom8_asana.dataframes.schemas.asset_edit import ASSET_EDIT_SCHEMA
+            from autom8_asana.dataframes.schemas.asset_edit_holder import (
+                ASSET_EDIT_HOLDER_SCHEMA,
+            )
             from autom8_asana.dataframes.schemas.base import BASE_SCHEMA
             from autom8_asana.dataframes.schemas.business import BUSINESS_SCHEMA
             from autom8_asana.dataframes.schemas.contact import CONTACT_SCHEMA
@@ -91,6 +95,8 @@ class SchemaRegistry:
             self._schemas["Business"] = BUSINESS_SCHEMA
             self._schemas["Contact"] = CONTACT_SCHEMA
             self._schemas["Offer"] = OFFER_SCHEMA
+            self._schemas["AssetEdit"] = ASSET_EDIT_SCHEMA
+            self._schemas["AssetEditHolder"] = ASSET_EDIT_HOLDER_SCHEMA
             self._initialized = True
 
     def get_schema(self, task_type: str) -> DataFrameSchema:

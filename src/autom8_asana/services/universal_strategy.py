@@ -18,6 +18,7 @@ from autom8y_log import get_logger
 
 from autom8_asana.services.dynamic_index import DynamicIndex, DynamicIndexCache
 from autom8_asana.services.resolution_result import ResolutionResult
+from autom8_asana.services.resolver import to_pascal_case
 
 if TYPE_CHECKING:
     import polars as pl
@@ -37,6 +38,8 @@ DEFAULT_KEY_COLUMNS: dict[str, list[str]] = {
     "business": ["office_phone", "vertical"],
     "offer": ["offer_id"],
     "contact": ["email"],
+    "asset_edit": ["offer_id"],
+    "asset_edit_holder": ["office_phone"],
 }
 
 
@@ -554,7 +557,7 @@ class UniversalResolutionStrategy:
         from autom8_asana.dataframes.models.registry import SchemaRegistry
 
         registry = SchemaRegistry.get_instance()
-        schema_key = self.entity_type.title()  # "unit" -> "Unit"
+        schema_key = to_pascal_case(self.entity_type)  # "unit" -> "Unit"
 
         try:
             return registry.get_schema(schema_key)

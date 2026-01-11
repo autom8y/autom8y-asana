@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 from autom8y_log import get_logger
 
 from autom8_asana.dataframes.models.registry import SchemaRegistry
+from autom8_asana.services.resolver import to_pascal_case
 
 logger = get_logger(__name__)
 
@@ -75,8 +76,8 @@ class AsanaSchemaProvider:
         Returns:
             SchemaVersion parsed from the schema's version string.
         """
-        # SchemaRegistry expects title case: "unit" -> "Unit"
-        task_type = self._entity_type.title()
+        # SchemaRegistry expects PascalCase: "unit" -> "Unit", "asset_edit" -> "AssetEdit"
+        task_type = to_pascal_case(self._entity_type)
         schema = SchemaRegistry.get_instance().get_schema(task_type)
         return SchemaVersion.from_string(schema.version)
 

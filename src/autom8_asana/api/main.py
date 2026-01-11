@@ -329,6 +329,7 @@ async def _discover_entity_projects(app: FastAPI) -> None:
     # Per TDD-registry-consolidation: Use package imports to ensure bootstrap runs.
     # Direct submodule imports bypass __init__.py and skip model registration.
     from autom8_asana.models.business import (
+        AssetEditHolder,
         Business,
         Contact,
         Offer,
@@ -336,6 +337,7 @@ async def _discover_entity_projects(app: FastAPI) -> None:
         UnitHolder,
         get_workspace_registry,
     )
+    from autom8_asana.models.business.asset_edit import AssetEdit
     from autom8_asana.services.resolver import EntityProjectRegistry
 
     # Get bot PAT for S2S Asana access
@@ -378,6 +380,8 @@ async def _discover_entity_projects(app: FastAPI) -> None:
         "business": Business,
         "offer": Offer,
         "contact": Contact,
+        "asset_edit": AssetEdit,
+        "asset_edit_holder": AssetEditHolder,
     }
 
     entity_registry = EntityProjectRegistry.get_instance()
@@ -912,6 +916,7 @@ async def _do_incremental_catchup(
     from autom8_asana.dataframes.models.registry import SchemaRegistry
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
     from autom8_asana.dataframes.section_persistence import SectionPersistence
+    from autom8_asana.services.resolver import to_pascal_case
 
     # Get bot PAT for API access
     try:
@@ -937,7 +942,7 @@ async def _do_incremental_catchup(
     try:
         async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
             # Select schema based on entity type (falls back to BASE_SCHEMA)
-            task_type = entity_type.title()  # "unit" -> "Unit"
+            task_type = to_pascal_case(entity_type)  # "unit" -> "Unit"
             schema = SchemaRegistry.get_instance().get_schema(task_type)
 
             resolver = DefaultCustomFieldResolver()
@@ -1015,6 +1020,7 @@ async def _do_full_rebuild(
     from autom8_asana.dataframes.models.registry import SchemaRegistry
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
     from autom8_asana.dataframes.section_persistence import SectionPersistence
+    from autom8_asana.services.resolver import to_pascal_case
 
     now = datetime.now(timezone.utc)
 
@@ -1041,7 +1047,7 @@ async def _do_full_rebuild(
     try:
         async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
             # Select schema based on entity type (falls back to BASE_SCHEMA)
-            task_type = entity_type.title()  # "unit" -> "Unit"
+            task_type = to_pascal_case(entity_type)  # "unit" -> "Unit"
             schema = SchemaRegistry.get_instance().get_schema(task_type)
 
             resolver = DefaultCustomFieldResolver()
@@ -1119,7 +1125,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
     from autom8_asana.dataframes.section_persistence import SectionPersistence
     from autom8_asana.dataframes.watermark import get_watermark_repo
     from autom8_asana.services.gid_lookup import GidLookupIndex
-    from autom8_asana.services.resolver import EntityProjectRegistry
+    from autom8_asana.services.resolver import EntityProjectRegistry, to_pascal_case
 
     start_time = time.perf_counter()
     loaded_count = 0
@@ -1278,7 +1284,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                         async with AsanaClient(
                             token=bot_pat, workspace_gid=workspace_gid
                         ) as client:
-                            task_type = entity_type.title()
+                            task_type = to_pascal_case(entity_type)
                             schema = SchemaRegistry.get_instance().get_schema(task_type)
                             resolver = DefaultCustomFieldResolver()
 
