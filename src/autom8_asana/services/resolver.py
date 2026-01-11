@@ -320,7 +320,9 @@ def get_resolvable_entities(
 
     # Get all task types with schemas (excludes "*" base schema)
     for task_type in schema_registry.list_task_types():
-        entity_type = task_type.lower()  # "Unit" -> "unit"
+        # Use schema.name for entity_type (handles snake_case like "asset_edit")
+        schema = schema_registry.get_schema(task_type)
+        entity_type = schema.name  # "asset_edit", "unit", etc.
 
         # Check if entity has a registered project
         if project_registry.get_project_gid(entity_type) is not None:
