@@ -350,6 +350,12 @@ def _normalize_project_name(name: str) -> str:
     if normalized.startswith("contact"):
         return "contact"
 
+    # Handle "Asset Edit" or "AssetEdit" -> "asset_edit"
+    if "asset" in normalized and "edit" in normalized:
+        if "holder" in normalized:
+            return "asset_edit_holder"
+        return "asset_edit"
+
     return normalized
 
 
