@@ -119,7 +119,14 @@ def register_asana_schemas() -> None:
         )
         return
 
-    entity_types = ["unit", "contact", "offer", "business"]
+    entity_types = [
+        "unit",
+        "contact",
+        "offer",
+        "business",
+        "asset_edit",
+        "asset_edit_holder",
+    ]
 
     for entity_type in entity_types:
         entry_type = f"asana:{entity_type}"

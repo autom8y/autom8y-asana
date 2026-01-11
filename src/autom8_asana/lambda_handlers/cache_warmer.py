@@ -285,7 +285,14 @@ async def _discover_entity_projects_for_lambda() -> None:
         entity_registry = EntityProjectRegistry.get_instance()
 
         # Known entity types to discover
-        entity_types_to_discover: list[str] = ["unit", "business", "offer", "contact"]
+        entity_types_to_discover: list[str] = [
+            "unit",
+            "business",
+            "offer",
+            "contact",
+            "asset_edit",
+            "asset_edit_holder",
+        ]
 
         # Match projects to entity types via normalized name matching
         for project_name, project_gid in workspace_registry.get_all_projects().items():
@@ -376,7 +383,8 @@ async def _warm_cache_async(
 
     Args:
         entity_types: Optional list of entity types to warm.
-            Defaults to all types: ["unit", "business", "offer", "contact"]
+            Defaults to all types: ["unit", "business", "offer", "contact",
+            "asset_edit", "asset_edit_holder"]
         strict: If True, fail on any entity type warm failure.
         resume_from_checkpoint: If True, resume from last checkpoint if available.
         context: Lambda context for timeout detection and correlation ID.
@@ -442,7 +450,14 @@ async def _warm_cache_async(
         )
 
     # Determine entity types to warm - note: per TDD priority order is unit first
-    default_priority = ["unit", "business", "offer", "contact"]
+    default_priority = [
+        "unit",
+        "business",
+        "offer",
+        "contact",
+        "asset_edit",
+        "asset_edit_holder",
+    ]
     if entity_types:
         # Validate entity types
         valid_types = set(default_priority)
