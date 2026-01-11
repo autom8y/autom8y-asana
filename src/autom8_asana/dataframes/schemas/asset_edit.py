@@ -1,7 +1,7 @@
 """AssetEdit Schema extending BASE_SCHEMA with Process and AssetEdit fields.
 
-Per TDD-resolution-hardening: AssetEdit schema with 20 fields total:
-- 9 Process fields (common to all process types)
+Per TDD-resolution-hardening: AssetEdit schema with 21 fields total:
+- 10 Process fields (common to all process types, includes office_phone cascade)
 - 11 AssetEdit-specific fields
 
 Field sources derived from:
@@ -15,7 +15,7 @@ from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.dataframes.schemas.base import BASE_COLUMNS
 
 
-# Process fields (9 fields) - inherited by AssetEdit from Process
+# Process fields (10 fields) - inherited by AssetEdit from Process
 PROCESS_COLUMNS: list[ColumnDef] = [
     ColumnDef(
         name="started_at",
@@ -72,6 +72,13 @@ PROCESS_COLUMNS: list[ColumnDef] = [
         nullable=True,
         source="cascade:Vertical",
         description="Business vertical (cascades from Unit or Business)",
+    ),
+    ColumnDef(
+        name="office_phone",
+        dtype="Utf8",
+        nullable=True,
+        source="cascade:Office Phone",
+        description="Office phone number (cascades from Business)",
     ),
     ColumnDef(
         name="specialty",
@@ -165,7 +172,7 @@ ASSET_EDIT_SPECIFIC_COLUMNS: list[ColumnDef] = [
 ]
 
 
-# Combined AssetEdit columns (20 fields total)
+# Combined AssetEdit columns (21 fields total)
 ASSET_EDIT_COLUMNS: list[ColumnDef] = [
     *PROCESS_COLUMNS,
     *ASSET_EDIT_SPECIFIC_COLUMNS,
@@ -179,5 +186,5 @@ ASSET_EDIT_SCHEMA = DataFrameSchema(
         *BASE_COLUMNS,
         *[c for c in ASSET_EDIT_COLUMNS if c.name not in {col.name for col in BASE_COLUMNS}],
     ],
-    version="1.0.0",
+    version="1.1.0",
 )
