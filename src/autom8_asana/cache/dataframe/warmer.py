@@ -126,7 +126,14 @@ class CacheWarmer:
 
     cache: "DataFrameCache"
     priority: list[str] = field(
-        default_factory=lambda: ["offer", "unit", "business", "contact"]
+        default_factory=lambda: [
+            "offer",
+            "unit",
+            "business",
+            "contact",
+            "asset_edit",
+            "asset_edit_holder",
+        ]
     )
     strict: bool = True
 
