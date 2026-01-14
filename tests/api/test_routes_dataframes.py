@@ -236,10 +236,14 @@ class TestGetProjectDataframe:
         assert response.status_code == 200
         assert response.json()["data"] == []
 
-    def test_get_project_dataframe_invalid_schema_returns_422(
+    def test_get_project_dataframe_invalid_schema_returns_400(
         self, authed_client: tuple[TestClient, MagicMock]
     ) -> None:
-        """Invalid schema value returns 422 validation error."""
+        """Invalid schema value returns 400 with valid schema list.
+
+        Per TDD-dynamic-schema-api: Invalid schema returns 400 with list of
+        valid schemas in the error response.
+        """
         client, _ = authed_client
 
         response = client.get(
@@ -247,7 +251,14 @@ class TestGetProjectDataframe:
             headers={"Authorization": "Bearer test_pat_token_12345"},
         )
 
-        assert response.status_code == 422
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        assert detail["error"] == "INVALID_SCHEMA"
+        assert "valid_schemas" in detail
+        assert len(detail["valid_schemas"]) == 7
+        assert "base" in detail["valid_schemas"]
+        assert "unit" in detail["valid_schemas"]
+        assert "offer" in detail["valid_schemas"]
 
     def test_get_project_dataframe_limit_validation_min(
         self, authed_client: tuple[TestClient, MagicMock]
@@ -506,18 +517,32 @@ class TestGetSectionDataframe:
         assert response.status_code == 200
         assert response.json()["data"] == []
 
-    def test_get_section_dataframe_invalid_schema_returns_422(
+    def test_get_section_dataframe_invalid_schema_returns_400(
         self, authed_client: tuple[TestClient, MagicMock]
     ) -> None:
-        """Invalid schema value returns 422 validation error."""
-        client, _ = authed_client
+        """Invalid schema value returns 400 with valid schema list.
+
+        Per TDD-dynamic-schema-api: Invalid schema returns 400 with list of
+        valid schemas in the error response.
+        """
+        client, mock_sdk = authed_client
+
+        # Mock section lookup (required since validation happens in handler)
+        mock_sdk._http.get.return_value = {
+            "gid": TEST_SECTION_GID,
+            "project": {"gid": TEST_PROJECT_GID},
+        }
 
         response = client.get(
             f"/api/v1/dataframes/section/{TEST_SECTION_GID}?schema=invalid",
             headers={"Authorization": "Bearer test_pat_token_12345"},
         )
 
-        assert response.status_code == 422
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        assert detail["error"] == "INVALID_SCHEMA"
+        assert "valid_schemas" in detail
+        assert len(detail["valid_schemas"]) == 7
 
     def test_get_section_dataframe_limit_validation_min(
         self, authed_client: tuple[TestClient, MagicMock]
@@ -693,36 +718,227 @@ class TestContentNegotiation:
         assert response.headers["content-type"] == "application/json"
 
 
-class TestSchemaTypeEnum:
-    """Tests for SchemaType enum values and behavior."""
+class TestDynamicSchemaValidation:
+    """Tests for dynamic schema validation (TDD-dynamic-schema-api)."""
 
-    def test_all_valid_schema_types(
+    def test_all_registered_schemas_accessible(
         self, authed_client: tuple[TestClient, MagicMock]
     ) -> None:
-        """All valid schema types are accepted."""
+        """All 7 registered schemas are accessible via API."""
         client, mock_sdk = authed_client
-
         mock_sdk._http.get_paginated.return_value = ([], None)
 
-        for schema_type in ["base", "unit", "contact"]:
+        valid_schemas = [
+            "base",
+            "unit",
+            "contact",
+            "business",
+            "offer",
+            "asset_edit",
+            "asset_edit_holder",
+        ]
+
+        for schema in valid_schemas:
             response = client.get(
-                f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema={schema_type}",
+                f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema={schema}",
                 headers={"Authorization": "Bearer test_pat_token_12345"},
             )
-            assert response.status_code == 200, f"Schema {schema_type} should be valid"
+            assert response.status_code == 200, f"Schema {schema} should be valid"
 
-    def test_case_sensitive_schema_validation(
+    def test_case_insensitive_schema_validation(
         self, authed_client: tuple[TestClient, MagicMock]
     ) -> None:
-        """Schema type validation is case-sensitive."""
+        """Schema validation is case-insensitive (PRD FR-007)."""
+        client, mock_sdk = authed_client
+        mock_sdk._http.get_paginated.return_value = ([], None)
+
+        # Test various case combinations
+        case_variants = ["UNIT", "Unit", "uNiT", "unit"]
+
+        for variant in case_variants:
+            response = client.get(
+                f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema={variant}",
+                headers={"Authorization": "Bearer test_pat_token_12345"},
+            )
+            assert response.status_code == 200, f"Schema {variant} should be valid"
+
+    def test_invalid_schema_lists_valid_options(
+        self, authed_client: tuple[TestClient, MagicMock]
+    ) -> None:
+        """Error response includes list of valid schemas."""
         client, _ = authed_client
 
-        # Uppercase should fail
         response = client.get(
-            f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema=BASE",
+            f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema=foobar",
             headers={"Authorization": "Bearer test_pat_token_12345"},
         )
-        assert response.status_code == 422
+
+        assert response.status_code == 400
+        detail = response.json()["detail"]
+        valid_schemas = detail["valid_schemas"]
+
+        assert "base" in valid_schemas
+        assert "unit" in valid_schemas
+        assert "business" in valid_schemas
+        assert "offer" in valid_schemas
+        assert "asset_edit" in valid_schemas
+
+    def test_wildcard_schema_rejected(
+        self, authed_client: tuple[TestClient, MagicMock]
+    ) -> None:
+        """Wildcard '*' is rejected as direct input."""
+        client, _ = authed_client
+
+        response = client.get(
+            f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema=*",
+            headers={"Authorization": "Bearer test_pat_token_12345"},
+        )
+
+        assert response.status_code == 400
+        assert "base" in response.json()["detail"]["message"]
+
+    def test_default_schema_unchanged(
+        self, authed_client: tuple[TestClient, MagicMock]
+    ) -> None:
+        """Default schema remains 'base' when not specified."""
+        client, mock_sdk = authed_client
+        mock_sdk._http.get_paginated.return_value = ([], None)
+
+        response = client.get(
+            f"/api/v1/dataframes/project/{TEST_PROJECT_GID}",
+            headers={"Authorization": "Bearer test_pat_token_12345"},
+        )
+
+        assert response.status_code == 200
+
+
+class TestNewSchemaAccess:
+    """Tests for newly exposed schemas (PRD US-001)."""
+
+    def test_offer_schema_accessible(
+        self, authed_client: tuple[TestClient, MagicMock]
+    ) -> None:
+        """Offer schema is now accessible."""
+        client, mock_sdk = authed_client
+        mock_sdk._http.get_paginated.return_value = ([], None)
+
+        response = client.get(
+            f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema=offer",
+            headers={"Authorization": "Bearer test_pat_token_12345"},
+        )
+
+        assert response.status_code == 200
+
+    def test_business_schema_accessible(
+        self, authed_client: tuple[TestClient, MagicMock]
+    ) -> None:
+        """Business schema is now accessible."""
+        client, mock_sdk = authed_client
+        mock_sdk._http.get_paginated.return_value = ([], None)
+
+        response = client.get(
+            f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema=business",
+            headers={"Authorization": "Bearer test_pat_token_12345"},
+        )
+
+        assert response.status_code == 200
+
+    def test_asset_edit_schema_accessible(
+        self, authed_client: tuple[TestClient, MagicMock]
+    ) -> None:
+        """AssetEdit schema is now accessible."""
+        client, mock_sdk = authed_client
+        mock_sdk._http.get_paginated.return_value = ([], None)
+
+        response = client.get(
+            f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema=asset_edit",
+            headers={"Authorization": "Bearer test_pat_token_12345"},
+        )
+
+        assert response.status_code == 200
+
+    def test_asset_edit_holder_schema_accessible(
+        self, authed_client: tuple[TestClient, MagicMock]
+    ) -> None:
+        """AssetEditHolder schema is now accessible."""
+        client, mock_sdk = authed_client
+        mock_sdk._http.get_paginated.return_value = ([], None)
+
+        response = client.get(
+            f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema=asset_edit_holder",
+            headers={"Authorization": "Bearer test_pat_token_12345"},
+        )
+
+        assert response.status_code == 200
+
+    def test_section_endpoint_supports_new_schemas(
+        self, authed_client: tuple[TestClient, MagicMock]
+    ) -> None:
+        """Section endpoint also supports new schemas."""
+        client, mock_sdk = authed_client
+        mock_sdk._http.get.return_value = {
+            "gid": TEST_SECTION_GID,
+            "project": {"gid": TEST_PROJECT_GID},
+        }
+        mock_sdk._http.get_paginated.return_value = ([], None)
+
+        response = client.get(
+            f"/api/v1/dataframes/section/{TEST_SECTION_GID}?schema=offer",
+            headers={"Authorization": "Bearer test_pat_token_12345"},
+        )
+
+        assert response.status_code == 200
+
+
+class TestBackwardsCompatibility:
+    """Tests ensuring backwards compatibility (PRD US-002)."""
+
+    def test_existing_schema_base_unchanged(
+        self, authed_client: tuple[TestClient, MagicMock]
+    ) -> None:
+        """schema=base continues to work identically."""
+        client, mock_sdk = authed_client
+        mock_sdk._http.get_paginated.return_value = ([SAMPLE_TASK_DATA], None)
+
+        response = client.get(
+            f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema=base",
+            headers={"Authorization": "Bearer test_pat_token_12345"},
+        )
+
+        assert response.status_code == 200
+        # Verify response structure unchanged
+        data = response.json()
+        assert "data" in data
+        assert "meta" in data
+        assert "pagination" in data["meta"]
+
+    def test_existing_schema_unit_unchanged(
+        self, authed_client: tuple[TestClient, MagicMock]
+    ) -> None:
+        """schema=unit continues to work identically."""
+        client, mock_sdk = authed_client
+        mock_sdk._http.get_paginated.return_value = ([], None)
+
+        response = client.get(
+            f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema=unit",
+            headers={"Authorization": "Bearer test_pat_token_12345"},
+        )
+
+        assert response.status_code == 200
+
+    def test_existing_schema_contact_unchanged(
+        self, authed_client: tuple[TestClient, MagicMock]
+    ) -> None:
+        """schema=contact continues to work identically."""
+        client, mock_sdk = authed_client
+        mock_sdk._http.get_paginated.return_value = ([], None)
+
+        response = client.get(
+            f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema=contact",
+            headers={"Authorization": "Bearer test_pat_token_12345"},
+        )
+
+        assert response.status_code == 200
 
 
 class TestApiCallParameters:
