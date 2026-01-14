@@ -12,15 +12,20 @@ Per TDD-ASANA-SATELLITE (FR-API-DF-001 through FR-API-DF-005):
 - Content negotiation via Accept header (ADR-ASANA-005):
   - application/json (default): JSON records array
   - application/x-polars-json: Polars-serialized format
-- Schema selector via query parameter (base, unit, contact)
+- Schema selector via query parameter (dynamic from SchemaRegistry)
 
 Per ADR-ASANA-005:
 - Accept header determines response format
 - Default to JSON records for broad compatibility
 - Polars format for clients that can deserialize directly
+
+Per TDD-dynamic-schema-api:
+- Schema validation is dynamic, sourced from SchemaRegistry
+- All registered schemas are accessible (base, unit, contact, business,
+  offer, asset_edit, asset_edit_holder)
+- Invalid schema returns HTTP 400 with list of valid schemas
 """
 
-from enum import Enum
 from io import StringIO
 from typing import Annotated, Any
 
@@ -35,12 +40,11 @@ from autom8_asana.api.models import (
 )
 from autom8_asana.cache.unified import UnifiedTaskStore
 from autom8_asana.dataframes import (
-    BASE_SCHEMA,
-    CONTACT_SCHEMA,
-    UNIT_SCHEMA,
     DefaultCustomFieldResolver,
     SectionDataFrameBuilder,
 )
+from autom8_asana.dataframes.models.registry import SchemaRegistry
+from autom8_asana.dataframes.models.schema import DataFrameSchema
 from autom8_asana.dataframes.views.dataframe_view import DataFrameViewPlugin
 from autom8_asana._defaults.cache import InMemoryCacheProvider
 from autom8_asana.models.task import Task
@@ -55,24 +59,94 @@ MAX_LIMIT = 100
 MIME_JSON = "application/json"
 MIME_POLARS = "application/x-polars-json"
 
-
-class SchemaType(str, Enum):
-    """Schema type selector for DataFrame extraction."""
-
-    base = "base"
-    unit = "unit"
-    contact = "contact"
+# Module-level cached mapping (built on first access)
+# Per TDD-dynamic-schema-api: Lazy initialization with thread-safe registry
+_schema_mapping: dict[str, str] | None = None
+_valid_schemas: list[str] | None = None
 
 
-def _get_schema(schema_type: SchemaType):
-    """Get DataFrameSchema for the given schema type."""
-    match schema_type:
-        case SchemaType.unit:
-            return UNIT_SCHEMA
-        case SchemaType.contact:
-            return CONTACT_SCHEMA
-        case SchemaType.base:
-            return BASE_SCHEMA
+def _get_schema_mapping() -> tuple[dict[str, str], list[str]]:
+    """Get cached schema mapping, building it if necessary.
+
+    Returns:
+        Tuple of (name_to_task_type mapping, sorted valid schema names).
+
+    Note:
+        Thread-safe: SchemaRegistry._ensure_initialized() uses locking.
+        The global assignment is atomic in CPython.
+    """
+    global _schema_mapping, _valid_schemas
+
+    if _schema_mapping is None:
+        registry = SchemaRegistry.get_instance()
+
+        # Build mapping: schema.name -> task_type
+        # Special case: base schema uses "*" wildcard
+        mapping = {"base": "*"}
+        for task_type in registry.list_task_types():
+            schema = registry.get_schema(task_type)
+            mapping[schema.name] = task_type
+
+        _schema_mapping = mapping
+        _valid_schemas = sorted(mapping.keys())
+
+    return _schema_mapping, _valid_schemas
+
+
+def _get_schema(schema_name: str) -> DataFrameSchema:
+    """Get DataFrameSchema for the given schema name.
+
+    Per TDD-dynamic-schema-api: Dynamic validation against SchemaRegistry.
+
+    Args:
+        schema_name: Schema name from API request (case-insensitive).
+
+    Returns:
+        DataFrameSchema from registry.
+
+    Raises:
+        HTTPException: 400 if schema name is invalid.
+    """
+    mapping, valid_schemas = _get_schema_mapping()
+
+    # Handle empty/whitespace input (FastAPI defaults handle missing)
+    if not schema_name or not schema_name.strip():
+        # Use base schema as fallback
+        return SchemaRegistry.get_instance().get_schema("*")
+
+    # Normalize: lowercase and strip whitespace
+    normalized = schema_name.lower().strip()
+
+    # Block wildcard as direct input (it's exposed as "base")
+    if normalized == "*":
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "INVALID_SCHEMA",
+                "message": (
+                    "Unknown schema '*'. Use 'base' for the base schema. "
+                    f"Valid schemas: {', '.join(valid_schemas)}"
+                ),
+                "valid_schemas": valid_schemas,
+            },
+        )
+
+    task_type = mapping.get(normalized)
+
+    if task_type is None:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "INVALID_SCHEMA",
+                "message": (
+                    f"Unknown schema '{schema_name}'. "
+                    f"Valid schemas: {', '.join(valid_schemas)}"
+                ),
+                "valid_schemas": valid_schemas,
+            },
+        )
+
+    return SchemaRegistry.get_instance().get_schema(task_type)
 
 
 def _should_use_polars_format(accept: str | None) -> bool:
@@ -123,9 +197,14 @@ async def get_project_dataframe(
     client: AsanaClientDualMode,
     request_id: RequestId,
     schema: Annotated[
-        SchemaType,
-        Query(description="Schema to use for extraction (base, unit, contact)"),
-    ] = SchemaType.base,
+        str,
+        Query(
+            description=(
+                "Schema to use for extraction. Valid values: base, unit, "
+                "contact, business, offer, asset_edit, asset_edit_holder"
+            ),
+        ),
+    ] = "base",
     limit: Annotated[
         int,
         Query(ge=1, le=MAX_LIMIT, description="Number of items per page"),
@@ -141,20 +220,24 @@ async def get_project_dataframe(
 ) -> Response:
     """Get project tasks as a DataFrame.
 
-    Per FR-API-DF-001, FR-API-DF-002:
+    Per FR-API-DF-001, FR-API-DF-002, TDD-dynamic-schema-api:
     - Fetches tasks from the specified project
     - Returns DataFrame in JSON or Polars format based on Accept header
-    - Supports schema selection for type-specific extraction
+    - Supports all registered schemas via dynamic validation
 
     Args:
         gid: Asana project GID.
-        schema: Schema for extraction (base, unit, contact).
+        schema: Schema for extraction (base, unit, contact, business,
+            offer, asset_edit, asset_edit_holder). Case-insensitive.
         limit: Number of items per page (1-100, default 100).
         offset: Pagination cursor from previous response.
         accept: Accept header for content negotiation.
 
     Returns:
         DataFrame data in requested format with pagination metadata.
+
+    Raises:
+        HTTPException: 400 if schema is invalid (includes valid_schemas list).
     """
     # Build opt_fields for custom field data needed by extractors
     opt_fields = [
@@ -301,9 +384,14 @@ async def get_section_dataframe(
     client: AsanaClientDualMode,
     request_id: RequestId,
     schema: Annotated[
-        SchemaType,
-        Query(description="Schema to use for extraction (base, unit, contact)"),
-    ] = SchemaType.base,
+        str,
+        Query(
+            description=(
+                "Schema to use for extraction. Valid values: base, unit, "
+                "contact, business, offer, asset_edit, asset_edit_holder"
+            ),
+        ),
+    ] = "base",
     limit: Annotated[
         int,
         Query(ge=1, le=MAX_LIMIT, description="Number of items per page"),
@@ -319,20 +407,25 @@ async def get_section_dataframe(
 ) -> Response:
     """Get section tasks as a DataFrame.
 
-    Per FR-API-DF-003, FR-API-DF-004:
+    Per FR-API-DF-003, FR-API-DF-004, TDD-dynamic-schema-api:
     - Fetches tasks from the specified section
     - Returns DataFrame in JSON or Polars format based on Accept header
-    - Supports schema selection for type-specific extraction
+    - Supports all registered schemas via dynamic validation
 
     Args:
         gid: Asana section GID.
-        schema: Schema for extraction (base, unit, contact).
+        schema: Schema for extraction (base, unit, contact, business,
+            offer, asset_edit, asset_edit_holder). Case-insensitive.
         limit: Number of items per page (1-100, default 100).
         offset: Pagination cursor from previous response.
         accept: Accept header for content negotiation.
 
     Returns:
         DataFrame data in requested format with pagination metadata.
+
+    Raises:
+        HTTPException: 400 if schema is invalid (includes valid_schemas list).
+        HTTPException: 404 if section not found or has no parent project.
     """
     # First, get the section to find its parent project
     section_data = await client._http.get(
