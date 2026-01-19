@@ -24,6 +24,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pytest_mock import MockerFixture
 
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
 from autom8_asana.config import AsanaConfig
@@ -535,7 +536,7 @@ class TestCacheLoggingObservability:
         self,
         cache_provider: EnhancedInMemoryCacheProvider,
         sample_tasks: list[dict[str, Any]],
-        mocker: pytest.MonkeyPatch,
+        mocker: MockerFixture,
     ) -> None:
         """Cache lookup produces debug log events.
 
@@ -561,7 +562,7 @@ class TestCacheLoggingObservability:
         self,
         cache_provider: EnhancedInMemoryCacheProvider,
         sample_tasks: list[dict[str, Any]],
-        mocker: pytest.MonkeyPatch,
+        mocker: MockerFixture,
     ) -> None:
         """Cache population produces debug log events.
 
