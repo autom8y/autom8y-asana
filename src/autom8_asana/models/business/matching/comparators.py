@@ -134,7 +134,9 @@ class FuzzyComparator:
         """
         # Try rapidfuzz first (faster, more accurate)
         try:
-            from rapidfuzz.distance import JaroWinkler  # type: ignore[import-not-found, unused-ignore]
+            from rapidfuzz.distance import (
+                JaroWinkler,  # type: ignore[import-not-found, unused-ignore]
+            )
 
             # rapidfuzz JaroWinkler.similarity returns 0.0-1.0
             score: float = JaroWinkler.similarity(left, right)
