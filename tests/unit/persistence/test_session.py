@@ -2056,9 +2056,13 @@ class TestCustomFieldTrackingReset:
         # Verify invariant: exactly one accessor should be reset, one should retain changes
         # Note: Order depends on DependencyGraph internals, so check both possibilities
         has_changes_list = [accessor1.has_changes(), accessor2.has_changes()]
-        assert True in has_changes_list, "Failed entity should retain custom field changes"
+        assert True in has_changes_list, (
+            "Failed entity should retain custom field changes"
+        )
         assert False in has_changes_list, "Successful entity should have changes reset"
-        assert has_changes_list.count(True) == 1, "Exactly one entity should retain changes"
+        assert has_changes_list.count(True) == 1, (
+            "Exactly one entity should retain changes"
+        )
         assert has_changes_list.count(False) == 1, "Exactly one entity should be reset"
 
     @pytest.mark.asyncio

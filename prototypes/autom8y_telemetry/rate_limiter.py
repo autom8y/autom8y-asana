@@ -51,9 +51,7 @@ class TokenBucketRateLimiter:
         if max_tokens <= 0:
             raise RuntimeError(f"max_tokens must be positive, got {max_tokens}")
         if refill_period <= 0:
-            raise RuntimeError(
-                f"refill_period must be positive, got {refill_period}"
-            )
+            raise RuntimeError(f"refill_period must be positive, got {refill_period}")
 
         self._max_tokens = max_tokens
         self._refill_rate = max_tokens / refill_period  # tokens per second

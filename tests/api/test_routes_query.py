@@ -285,7 +285,9 @@ class TestQueryEndpoint:
         assert "name" in data["data"][0]
         assert "vertical" in data["data"][0]
         # section should NOT be present (not in select)
-        assert "section" not in data["data"][0] or data["data"][0].get("section") is None
+        assert (
+            "section" not in data["data"][0] or data["data"][0].get("section") is None
+        )
 
     def test_pagination_limit(self, client: TestClient) -> None:
         """TC-004a: Limit parameter controls result count."""

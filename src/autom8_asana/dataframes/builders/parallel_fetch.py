@@ -117,7 +117,7 @@ class ParallelSectionFetcher:
 
     # TTL constants per PRD-CACHE-OPT-P3
     _SECTIONS_TTL: ClassVar[int] = 1800  # 30 minutes
-    _GID_ENUM_TTL: ClassVar[int] = 300   # 5 minutes
+    _GID_ENUM_TTL: ClassVar[int] = 300  # 5 minutes
 
     async def fetch_all(self) -> FetchResult:
         """Fetch all tasks via parallel section fetch.
@@ -310,12 +310,7 @@ class ParallelSectionFetcher:
             key = self._make_cache_key("sections")
             entry = CacheEntry(
                 key=key,
-                data={
-                    "sections": [
-                        {"gid": s.gid, "name": s.name}
-                        for s in sections
-                    ]
-                },
+                data={"sections": [{"gid": s.gid, "name": s.name} for s in sections]},
                 entry_type=EntryType.PROJECT_SECTIONS,
                 version=datetime.now(timezone.utc),
                 cached_at=datetime.now(timezone.utc),
@@ -380,10 +375,7 @@ class ParallelSectionFetcher:
 
         # Fetch GIDs from all sections concurrently
         results = await asyncio.gather(
-            *[
-                self._fetch_section_gids(section.gid, semaphore)
-                for section in sections
-            ],
+            *[self._fetch_section_gids(section.gid, semaphore) for section in sections],
             return_exceptions=True,
         )
 
@@ -551,7 +543,9 @@ class ParallelSectionFetcher:
             self._api_call_count += 1
             tasks: list[Task] = await self.tasks_client.list_async(
                 section=section_gid,
-                opt_fields=["gid"],  # Minimal fields for efficiency - NOT cached as task data
+                opt_fields=[
+                    "gid"
+                ],  # Minimal fields for efficiency - NOT cached as task data
             ).collect()
             return [task.gid for task in tasks if task.gid]
 
@@ -660,7 +654,10 @@ class ParallelSectionFetcher:
         semaphore = asyncio.Semaphore(self.max_concurrent)
 
         results = await asyncio.gather(
-            *[self._fetch_section(section_gid, semaphore) for section_gid in sections_to_fetch],
+            *[
+                self._fetch_section(section_gid, semaphore)
+                for section_gid in sections_to_fetch
+            ],
             return_exceptions=True,
         )
 

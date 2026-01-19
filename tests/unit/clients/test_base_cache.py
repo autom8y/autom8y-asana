@@ -136,7 +136,11 @@ class TestBaseClientCacheSet:
 
     def test_stores_entry_in_cache(self) -> None:
         """Stores entry in cache and can be retrieved."""
-        data = {"gid": "123", "name": "Test Task", "modified_at": "2025-01-01T00:00:00Z"}
+        data = {
+            "gid": "123",
+            "name": "Test Task",
+            "modified_at": "2025-01-01T00:00:00Z",
+        }
 
         self.client._cache_set("123", data, EntryType.TASK)
 

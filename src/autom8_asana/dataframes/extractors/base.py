@@ -112,7 +112,9 @@ class BaseExtractor(ABC):
                     "AsanaClient required for cascade: sources. "
                     "Pass client parameter to extractor constructor."
                 )
-            from autom8_asana.dataframes.resolver.cascading import CascadingFieldResolver
+            from autom8_asana.dataframes.resolver.cascading import (
+                CascadingFieldResolver,
+            )
 
             # Create cascade plugin if unified store available
             cascade_plugin = None

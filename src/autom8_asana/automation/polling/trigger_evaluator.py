@@ -80,7 +80,9 @@ class TriggerEvaluator:
             matching = evaluator.evaluate_conditions(rule, tasks)
         """
         if not rule.conditions:
-            logger.debug("Rule '%s' has no conditions, returning all tasks", rule.rule_id)
+            logger.debug(
+                "Rule '%s' has no conditions, returning all tasks", rule.rule_id
+            )
             return list(tasks)
 
         now = datetime.now(timezone.utc)

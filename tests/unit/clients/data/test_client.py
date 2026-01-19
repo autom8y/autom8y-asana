@@ -122,7 +122,9 @@ class TestDataServiceClientContextManager:
         client = DataServiceClient()
 
         # Force client creation
-        with patch.object(httpx.AsyncClient, "aclose", new_callable=AsyncMock) as mock_close:
+        with patch.object(
+            httpx.AsyncClient, "aclose", new_callable=AsyncMock
+        ) as mock_close:
             # Manually set a mock client to test close
             client._client = MagicMock()
             client._client.aclose = mock_close
@@ -521,11 +523,25 @@ class TestGetInsightsAsyncValidation:
     """Tests for get_insights_async input validation."""
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("factory_name", [
-        "account", "ads", "adsets", "campaigns", "spend",
-        "leads", "appts", "assets", "targeting", "payments",
-        "business_offers", "ad_questions", "ad_tests", "base",
-    ])
+    @pytest.mark.parametrize(
+        "factory_name",
+        [
+            "account",
+            "ads",
+            "adsets",
+            "campaigns",
+            "spend",
+            "leads",
+            "appts",
+            "assets",
+            "targeting",
+            "payments",
+            "business_offers",
+            "ad_questions",
+            "ad_tests",
+            "base",
+        ],
+    )
     async def test_all_14_factories_accepted(self, factory_name: str) -> None:
         """All 14 factory names are accepted by validation."""
         import respx
@@ -630,7 +646,9 @@ class TestGetInsightsAsyncHTTPContract:
         )
 
         with respx.mock:
-            route = respx.post("https://data.example.com/api/v1/factory/account").respond(
+            route = respx.post(
+                "https://data.example.com/api/v1/factory/account"
+            ).respond(
                 json={
                     "data": [],
                     "metadata": {
@@ -692,6 +710,7 @@ class TestGetInsightsAsyncHTTPContract:
         assert "x-request-id" in captured_headers
         # Should be a valid UUID
         import uuid
+
         uuid.UUID(captured_headers["x-request-id"])
 
     @pytest.mark.asyncio
@@ -705,6 +724,7 @@ class TestGetInsightsAsyncHTTPContract:
         def capture_request(request: httpx.Request) -> httpx.Response:
             nonlocal captured_body
             import json
+
             captured_body = json.loads(request.content)
             return httpx.Response(
                 200,
@@ -726,6 +746,7 @@ class TestGetInsightsAsyncHTTPContract:
 
             async with client:
                 from datetime import date
+
                 await client.get_insights_async(
                     factory="account",
                     office_phone="+17705753103",
@@ -754,6 +775,7 @@ class TestGetInsightsAsyncHTTPContract:
         def capture_request(request: httpx.Request) -> httpx.Response:
             nonlocal captured_body
             import json
+
             captured_body = json.loads(request.content)
             return httpx.Response(
                 200,
@@ -1148,6 +1170,7 @@ class TestGetInsightsAsyncSuccessResponse:
         assert response.request_id != server_request_id
         # Should be a valid UUID
         import uuid
+
         uuid.UUID(response.request_id)
 
 
@@ -1214,14 +1237,19 @@ class TestGetInsightsAsyncIntegration:
         assert "leads" in df.columns
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("input_case,expected", [
-        ("ACCOUNT", "account"),
-        ("Account", "account"),
-        ("aCcOuNt", "account"),
-        ("ADS", "ads"),
-        ("Campaigns", "campaigns"),
-    ])
-    async def test_factory_case_insensitive(self, input_case: str, expected: str) -> None:
+    @pytest.mark.parametrize(
+        "input_case,expected",
+        [
+            ("ACCOUNT", "account"),
+            ("Account", "account"),
+            ("aCcOuNt", "account"),
+            ("ADS", "ads"),
+            ("Campaigns", "campaigns"),
+        ],
+    )
+    async def test_factory_case_insensitive(
+        self, input_case: str, expected: str
+    ) -> None:
         """Factory name validation is case-insensitive (e.g., ACCOUNT, Account work)."""
         import respx
 
@@ -1264,6 +1292,7 @@ class TestGetInsightsAsyncIntegration:
         def capture_request(request: httpx.Request) -> httpx.Response:
             nonlocal captured_body
             import json
+
             captured_body = json.loads(request.content)
             return httpx.Response(
                 200,
@@ -2557,6 +2586,7 @@ class TestStaleResponseMetadata:
         assert response.request_id != "old-cached-request-id"
         # Should be a valid UUID
         import uuid
+
         uuid.UUID(response.request_id)
 
 
@@ -2728,6 +2758,7 @@ class TestMetricsHook:
 
     def test_emit_metric_catches_hook_errors(self) -> None:
         """_emit_metric catches and logs errors from hook."""
+
         def failing_hook(name: str, value: float, tags: dict[str, str]) -> None:
             raise RuntimeError("Hook failed")
 
@@ -2964,7 +2995,9 @@ class TestObservabilityMetrics:
         assert total_call[2]["status"] == "success"
 
         # Check insights_request_latency_ms has positive duration
-        latency_call = next(c for c in metrics_calls if c[0] == "insights_request_latency_ms")
+        latency_call = next(
+            c for c in metrics_calls if c[0] == "insights_request_latency_ms"
+        )
         assert latency_call[1] > 0
         assert latency_call[2]["factory"] == "account"
 
@@ -3004,7 +3037,9 @@ class TestObservabilityMetrics:
         assert "insights_request_latency_ms" in metric_names
 
         # Check error_total metric
-        error_call = next(c for c in metrics_calls if c[0] == "insights_request_error_total")
+        error_call = next(
+            c for c in metrics_calls if c[0] == "insights_request_error_total"
+        )
         assert error_call[1] == 1
         assert error_call[2]["factory"] == "account"
         assert error_call[2]["error_type"] == "server_error"
@@ -3039,7 +3074,9 @@ class TestObservabilityMetrics:
                         )
 
         # Should have emitted error metrics with timeout type
-        error_call = next(c for c in metrics_calls if c[0] == "insights_request_error_total")
+        error_call = next(
+            c for c in metrics_calls if c[0] == "insights_request_error_total"
+        )
         assert error_call[2]["error_type"] == "timeout"
 
     @pytest.mark.asyncio
@@ -3077,7 +3114,9 @@ class TestObservabilityMetrics:
                         vertical="chiropractic",
                     )
 
-        latency_call = next(c for c in metrics_calls if c[0] == "insights_request_latency_ms")
+        latency_call = next(
+            c for c in metrics_calls if c[0] == "insights_request_latency_ms"
+        )
         # Should be a positive number (request took some time)
         assert latency_call[1] > 0
         # Should be in milliseconds (unlikely to exceed 10 seconds in test)
@@ -3247,6 +3286,7 @@ class TestSyncWrapper:
         def capture_request(request: httpx.Request) -> httpx.Response:
             nonlocal captured_body
             import json
+
             captured_body = json.loads(request.content)
             return httpx.Response(
                 200,
@@ -3874,7 +3914,9 @@ class TestRetryHandler:
                 side_effect=[
                     Response(503, json={"error": "service unavailable"}),
                     Response(503, json={"error": "service unavailable"}),
-                    Response(503, json={"error": "service unavailable"}),  # 3rd call, retries exhausted
+                    Response(
+                        503, json={"error": "service unavailable"}
+                    ),  # 3rd call, retries exhausted
                 ]
             )
 
@@ -4355,9 +4397,7 @@ class TestGetInsightsBatchAsync:
                 call_count += 1
                 # Make one request fail
                 if call_count == 2:
-                    return httpx.Response(
-                        500, json={"error": "Internal server error"}
-                    )
+                    return httpx.Response(500, json={"error": "Internal server error"})
                 return httpx.Response(200, json=make_insights_response())
 
             with respx.mock:
@@ -4448,9 +4488,7 @@ class TestGetInsightsBatchAsync:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").respond(
-                json=make_insights_response()
-            )
+            respx.post("/api/v1/factory/account").respond(json=make_insights_response())
 
             async with client:
                 result = await client.get_insights_batch_async(
@@ -4473,9 +4511,7 @@ class TestGetInsightsBatchAsync:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").respond(
-                json=make_insights_response()
-            )
+            respx.post("/api/v1/factory/account").respond(json=make_insights_response())
 
             async with client:
                 result = await client.get_insights_batch_async(

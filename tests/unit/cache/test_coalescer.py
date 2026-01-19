@@ -55,7 +55,9 @@ class TestRequestCoalescer:
     ) -> None:
         """Test that single request waits for coalescing window."""
         entry = make_entry("123")
-        mock_checker.check_batch_async.return_value = {"123": "2025-12-23T10:30:00.000Z"}
+        mock_checker.check_batch_async.return_value = {
+            "123": "2025-12-23T10:30:00.000Z"
+        }
 
         result = await coalescer.request_check_async(entry)
 
@@ -69,7 +71,7 @@ class TestRequestCoalescer:
         """Test that concurrent requests are batched together."""
         entries = [make_entry(str(i)) for i in range(5)]
         mock_checker.check_batch_async.return_value = {
-            str(i): f"2025-12-23T{10+i}:00:00.000Z" for i in range(5)
+            str(i): f"2025-12-23T{10 + i}:00:00.000Z" for i in range(5)
         }
 
         # Submit all requests concurrently
@@ -121,9 +123,7 @@ class TestRequestCoalescer:
         assert stats["total_deduped"] == 1
 
     @pytest.mark.asyncio
-    async def test_max_batch_immediate_flush(
-        self, mock_checker: MagicMock
-    ) -> None:
+    async def test_max_batch_immediate_flush(self, mock_checker: MagicMock) -> None:
         """Test that reaching max batch triggers immediate flush (FR-BATCH-005)."""
         # Create coalescer with small max batch
         coalescer = RequestCoalescer(
@@ -150,9 +150,7 @@ class TestRequestCoalescer:
         mock_checker.check_batch_async.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_multiple_batches_sequential(
-        self, mock_checker: MagicMock
-    ) -> None:
+    async def test_multiple_batches_sequential(self, mock_checker: MagicMock) -> None:
         """Test that multiple batches are processed sequentially."""
         coalescer = RequestCoalescer(
             checker=mock_checker,
@@ -225,7 +223,9 @@ class TestRequestCoalescer:
     ) -> None:
         """Test that flush_pending forces immediate flush."""
         entry = make_entry("123")
-        mock_checker.check_batch_async.return_value = {"123": "2025-12-23T10:30:00.000Z"}
+        mock_checker.check_batch_async.return_value = {
+            "123": "2025-12-23T10:30:00.000Z"
+        }
 
         # Start a request but don't wait for it
         task = asyncio.create_task(coalescer.request_check_async(entry))
@@ -248,7 +248,9 @@ class TestRequestCoalescer:
         )
 
         entry = make_entry("123")
-        mock_checker.check_batch_async.return_value = {"123": "2025-12-23T10:30:00.000Z"}
+        mock_checker.check_batch_async.return_value = {
+            "123": "2025-12-23T10:30:00.000Z"
+        }
 
         start = asyncio.get_event_loop().time()
         await coalescer.request_check_async(entry)
@@ -264,7 +266,9 @@ class TestRequestCoalescer:
     ) -> None:
         """Test that concurrent callers for same GID share result."""
         entry = make_entry("123")
-        mock_checker.check_batch_async.return_value = {"123": "2025-12-23T10:30:00.000Z"}
+        mock_checker.check_batch_async.return_value = {
+            "123": "2025-12-23T10:30:00.000Z"
+        }
 
         # Many concurrent requests for same GID
         results = await asyncio.gather(

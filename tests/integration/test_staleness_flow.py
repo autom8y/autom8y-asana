@@ -88,7 +88,9 @@ class TestStalenessFlowUnchanged:
         batch_client.execute_async.return_value = [
             BatchResult(
                 status_code=200,
-                body={"data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}},
+                body={
+                    "data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}
+                },
             )
         ]
 
@@ -172,7 +174,9 @@ class TestStalenessFlowChanged:
         batch_client.execute_async.return_value = [
             BatchResult(
                 status_code=200,
-                body={"data": {"gid": "123", "modified_at": "2025-12-24T12:00:00.000Z"}},
+                body={
+                    "data": {"gid": "123", "modified_at": "2025-12-24T12:00:00.000Z"}
+                },
             )
         ]
 
@@ -217,7 +221,9 @@ class TestBatchCoalescing:
         batch_client.execute_async.return_value = [
             BatchResult(
                 status_code=200,
-                body={"data": {"gid": str(i), "modified_at": "2025-12-23T10:00:00.000Z"}},
+                body={
+                    "data": {"gid": str(i), "modified_at": "2025-12-23T10:00:00.000Z"}
+                },
             )
             for i in range(5)
         ]
@@ -254,7 +260,9 @@ class TestBatchCoalescing:
         batch_client.execute_async.return_value = [
             BatchResult(
                 status_code=200,
-                body={"data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}},
+                body={
+                    "data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}
+                },
             )
         ]
 
@@ -411,7 +419,9 @@ class TestCacheIntegration:
         batch_client.execute_async.return_value = [
             BatchResult(
                 status_code=200,
-                body={"data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}},
+                body={
+                    "data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}
+                },
             )
         ]
 
@@ -441,7 +451,12 @@ class TestCacheIntegration:
             batch_client.execute_async.return_value = [
                 BatchResult(
                     status_code=200,
-                    body={"data": {"gid": str(i), "modified_at": "2025-12-23T10:00:00.000Z"}},
+                    body={
+                        "data": {
+                            "gid": str(i),
+                            "modified_at": "2025-12-23T10:00:00.000Z",
+                        }
+                    },
                 )
             ]
             await coordinator.check_and_get_async(entry)

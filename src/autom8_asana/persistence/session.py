@@ -871,9 +871,7 @@ class SaveSession:
                 # Per NFR-003: Automation failures don't fail commit
                 from autom8y_log import get_logger
 
-                get_logger(__name__).warning(
-                    "Automation evaluation failed: %s", e
-                )
+                get_logger(__name__).warning("Automation evaluation failed: %s", e)
 
         # Emit post-commit hooks (TDD-AUTOMATION-LAYER/FR-002)
         await self._events.emit_post_commit(crud_result)

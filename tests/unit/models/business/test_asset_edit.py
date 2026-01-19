@@ -887,7 +887,6 @@ class TestAssetEditEdgeCases:
         )
         asset_edit._business = business
 
-
         result = await asset_edit.resolve_offer_async(
             mock_client,
             strategy=ResolutionStrategy.CUSTOM_FIELD_MAPPING,

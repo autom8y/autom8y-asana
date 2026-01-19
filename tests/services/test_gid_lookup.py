@@ -25,15 +25,19 @@ class TestGidLookupIndexFromDataframe:
 
     def test_empty_dataframe_creates_empty_index(self) -> None:
         """Empty DataFrame should create an index with zero entries."""
-        df = pl.DataFrame({
-            "office_phone": [],
-            "vertical": [],
-            "gid": [],
-        }).cast({
-            "office_phone": pl.Utf8,
-            "vertical": pl.Utf8,
-            "gid": pl.Utf8,
-        })
+        df = pl.DataFrame(
+            {
+                "office_phone": [],
+                "vertical": [],
+                "gid": [],
+            }
+        ).cast(
+            {
+                "office_phone": pl.Utf8,
+                "vertical": pl.Utf8,
+                "gid": pl.Utf8,
+            }
+        )
 
         index = GidLookupIndex.from_dataframe(df)
 
@@ -41,11 +45,13 @@ class TestGidLookupIndexFromDataframe:
 
     def test_single_row_dataframe(self) -> None:
         """Single row DataFrame should create index with one entry."""
-        df = pl.DataFrame({
-            "office_phone": ["+17705753103"],
-            "vertical": ["chiropractic"],
-            "gid": ["1234567890123456"],
-        })
+        df = pl.DataFrame(
+            {
+                "office_phone": ["+17705753103"],
+                "vertical": ["chiropractic"],
+                "gid": ["1234567890123456"],
+            }
+        )
 
         index = GidLookupIndex.from_dataframe(df)
 
@@ -53,11 +59,13 @@ class TestGidLookupIndexFromDataframe:
 
     def test_multiple_rows_dataframe(self) -> None:
         """Multiple rows should all be indexed."""
-        df = pl.DataFrame({
-            "office_phone": ["+17705753103", "+14045551234", "+12125559876"],
-            "vertical": ["chiropractic", "dental", "chiropractic"],
-            "gid": ["111", "222", "333"],
-        })
+        df = pl.DataFrame(
+            {
+                "office_phone": ["+17705753103", "+14045551234", "+12125559876"],
+                "vertical": ["chiropractic", "dental", "chiropractic"],
+                "gid": ["111", "222", "333"],
+            }
+        )
 
         index = GidLookupIndex.from_dataframe(df)
 
@@ -65,22 +73,26 @@ class TestGidLookupIndexFromDataframe:
 
     def test_missing_required_column_raises_keyerror(self) -> None:
         """Missing required columns should raise KeyError."""
-        df = pl.DataFrame({
-            "office_phone": ["+17705753103"],
-            "vertical": ["chiropractic"],
-            # Missing 'gid' column
-        })
+        df = pl.DataFrame(
+            {
+                "office_phone": ["+17705753103"],
+                "vertical": ["chiropractic"],
+                # Missing 'gid' column
+            }
+        )
 
         with pytest.raises(KeyError, match="Missing required columns.*gid"):
             GidLookupIndex.from_dataframe(df)
 
     def test_null_phone_rows_filtered(self) -> None:
         """Rows with null office_phone should be excluded."""
-        df = pl.DataFrame({
-            "office_phone": ["+17705753103", None, "+14045551234"],
-            "vertical": ["chiropractic", "dental", "dental"],
-            "gid": ["111", "222", "333"],
-        })
+        df = pl.DataFrame(
+            {
+                "office_phone": ["+17705753103", None, "+14045551234"],
+                "vertical": ["chiropractic", "dental", "dental"],
+                "gid": ["111", "222", "333"],
+            }
+        )
 
         index = GidLookupIndex.from_dataframe(df)
 
@@ -88,11 +100,13 @@ class TestGidLookupIndexFromDataframe:
 
     def test_null_vertical_rows_filtered(self) -> None:
         """Rows with null vertical should be excluded."""
-        df = pl.DataFrame({
-            "office_phone": ["+17705753103", "+14045551234"],
-            "vertical": ["chiropractic", None],
-            "gid": ["111", "222"],
-        })
+        df = pl.DataFrame(
+            {
+                "office_phone": ["+17705753103", "+14045551234"],
+                "vertical": ["chiropractic", None],
+                "gid": ["111", "222"],
+            }
+        )
 
         index = GidLookupIndex.from_dataframe(df)
 
@@ -100,11 +114,13 @@ class TestGidLookupIndexFromDataframe:
 
     def test_null_gid_rows_filtered(self) -> None:
         """Rows with null gid should be excluded."""
-        df = pl.DataFrame({
-            "office_phone": ["+17705753103", "+14045551234"],
-            "vertical": ["chiropractic", "dental"],
-            "gid": ["111", None],
-        })
+        df = pl.DataFrame(
+            {
+                "office_phone": ["+17705753103", "+14045551234"],
+                "vertical": ["chiropractic", "dental"],
+                "gid": ["111", None],
+            }
+        )
 
         index = GidLookupIndex.from_dataframe(df)
 
@@ -112,11 +128,13 @@ class TestGidLookupIndexFromDataframe:
 
     def test_created_at_timestamp_set(self) -> None:
         """created_at should be set to current UTC time."""
-        df = pl.DataFrame({
-            "office_phone": ["+17705753103"],
-            "vertical": ["chiropractic"],
-            "gid": ["111"],
-        })
+        df = pl.DataFrame(
+            {
+                "office_phone": ["+17705753103"],
+                "vertical": ["chiropractic"],
+                "gid": ["111"],
+            }
+        )
 
         before = datetime.now(timezone.utc)
         index = GidLookupIndex.from_dataframe(df)
@@ -126,13 +144,15 @@ class TestGidLookupIndexFromDataframe:
 
     def test_extra_columns_ignored(self) -> None:
         """Extra columns in DataFrame should be ignored."""
-        df = pl.DataFrame({
-            "office_phone": ["+17705753103"],
-            "vertical": ["chiropractic"],
-            "gid": ["111"],
-            "name": ["Test Business"],
-            "mrr": [1000.0],
-        })
+        df = pl.DataFrame(
+            {
+                "office_phone": ["+17705753103"],
+                "vertical": ["chiropractic"],
+                "gid": ["111"],
+                "name": ["Test Business"],
+                "mrr": [1000.0],
+            }
+        )
 
         index = GidLookupIndex.from_dataframe(df)
 
@@ -145,11 +165,13 @@ class TestGidLookupIndexGetGid:
     @pytest.fixture
     def sample_index(self) -> GidLookupIndex:
         """Create a sample index for testing."""
-        df = pl.DataFrame({
-            "office_phone": ["+17705753103", "+14045551234", "+12125559876"],
-            "vertical": ["chiropractic", "dental", "chiropractic"],
-            "gid": ["111", "222", "333"],
-        })
+        df = pl.DataFrame(
+            {
+                "office_phone": ["+17705753103", "+14045551234", "+12125559876"],
+                "vertical": ["chiropractic", "dental", "chiropractic"],
+                "gid": ["111", "222", "333"],
+            }
+        )
         return GidLookupIndex.from_dataframe(df)
 
     def test_get_gid_found(self, sample_index: GidLookupIndex) -> None:
@@ -163,9 +185,7 @@ class TestGidLookupIndexGetGid:
 
         assert result == "111"
 
-    def test_get_gid_not_found_returns_none(
-        self, sample_index: GidLookupIndex
-    ) -> None:
+    def test_get_gid_not_found_returns_none(self, sample_index: GidLookupIndex) -> None:
         """Should return None when pair not in index."""
         pair = PhoneVerticalPair(
             office_phone="+19995551111",
@@ -212,11 +232,13 @@ class TestGidLookupIndexGetGids:
     @pytest.fixture
     def sample_index(self) -> GidLookupIndex:
         """Create a sample index for testing."""
-        df = pl.DataFrame({
-            "office_phone": ["+17705753103", "+14045551234", "+12125559876"],
-            "vertical": ["chiropractic", "dental", "chiropractic"],
-            "gid": ["111", "222", "333"],
-        })
+        df = pl.DataFrame(
+            {
+                "office_phone": ["+17705753103", "+14045551234", "+12125559876"],
+                "vertical": ["chiropractic", "dental", "chiropractic"],
+                "gid": ["111", "222", "333"],
+            }
+        )
         return GidLookupIndex.from_dataframe(df)
 
     def test_get_gids_empty_list(self, sample_index: GidLookupIndex) -> None:
@@ -244,7 +266,9 @@ class TestGidLookupIndexGetGids:
         """Mix of found and not found should have None for missing."""
         pairs = [
             PhoneVerticalPair(office_phone="+17705753103", vertical="chiropractic"),
-            PhoneVerticalPair(office_phone="+19995551111", vertical="dental"),  # Not in index
+            PhoneVerticalPair(
+                office_phone="+19995551111", vertical="dental"
+            ),  # Not in index
         ]
 
         result = sample_index.get_gids(pairs)
@@ -268,9 +292,7 @@ class TestGidLookupIndexGetGids:
 
     def test_get_gids_duplicate_pairs(self, sample_index: GidLookupIndex) -> None:
         """Duplicate pairs in input should be handled correctly."""
-        pair = PhoneVerticalPair(
-            office_phone="+17705753103", vertical="chiropractic"
-        )
+        pair = PhoneVerticalPair(office_phone="+17705753103", vertical="chiropractic")
         pairs = [pair, pair, pair]
 
         result = sample_index.get_gids(pairs)
@@ -285,11 +307,13 @@ class TestGidLookupIndexStaleDetection:
 
     def test_fresh_index_not_stale(self) -> None:
         """Newly created index should not be stale."""
-        df = pl.DataFrame({
-            "office_phone": ["+17705753103"],
-            "vertical": ["chiropractic"],
-            "gid": ["111"],
-        })
+        df = pl.DataFrame(
+            {
+                "office_phone": ["+17705753103"],
+                "vertical": ["chiropractic"],
+                "gid": ["111"],
+            }
+        )
         index = GidLookupIndex.from_dataframe(df)
 
         assert not index.is_stale(ttl_seconds=3600)
@@ -317,11 +341,13 @@ class TestGidLookupIndexStaleDetection:
 
     def test_zero_ttl_always_stale(self) -> None:
         """Zero TTL should make any non-instantaneous index stale."""
-        df = pl.DataFrame({
-            "office_phone": ["+17705753103"],
-            "vertical": ["chiropractic"],
-            "gid": ["111"],
-        })
+        df = pl.DataFrame(
+            {
+                "office_phone": ["+17705753103"],
+                "vertical": ["chiropractic"],
+                "gid": ["111"],
+            }
+        )
         index = GidLookupIndex.from_dataframe(df)
 
         # Even freshly created index becomes stale with 0 TTL
@@ -335,16 +361,16 @@ class TestGidLookupIndexContains:
     @pytest.fixture
     def sample_index(self) -> GidLookupIndex:
         """Create a sample index for testing."""
-        df = pl.DataFrame({
-            "office_phone": ["+17705753103"],
-            "vertical": ["chiropractic"],
-            "gid": ["111"],
-        })
+        df = pl.DataFrame(
+            {
+                "office_phone": ["+17705753103"],
+                "vertical": ["chiropractic"],
+                "gid": ["111"],
+            }
+        )
         return GidLookupIndex.from_dataframe(df)
 
-    def test_contains_true_when_present(
-        self, sample_index: GidLookupIndex
-    ) -> None:
+    def test_contains_true_when_present(self, sample_index: GidLookupIndex) -> None:
         """'in' operator should return True for existing pair."""
         pair = PhoneVerticalPair(
             office_phone="+17705753103",
@@ -353,9 +379,7 @@ class TestGidLookupIndexContains:
 
         assert pair in sample_index
 
-    def test_contains_false_when_absent(
-        self, sample_index: GidLookupIndex
-    ) -> None:
+    def test_contains_false_when_absent(self, sample_index: GidLookupIndex) -> None:
         """'in' operator should return False for missing pair."""
         pair = PhoneVerticalPair(
             office_phone="+19995551111",
@@ -370,26 +394,32 @@ class TestGidLookupIndexLen:
 
     def test_len_empty(self) -> None:
         """Empty index should have length 0."""
-        df = pl.DataFrame({
-            "office_phone": [],
-            "vertical": [],
-            "gid": [],
-        }).cast({
-            "office_phone": pl.Utf8,
-            "vertical": pl.Utf8,
-            "gid": pl.Utf8,
-        })
+        df = pl.DataFrame(
+            {
+                "office_phone": [],
+                "vertical": [],
+                "gid": [],
+            }
+        ).cast(
+            {
+                "office_phone": pl.Utf8,
+                "vertical": pl.Utf8,
+                "gid": pl.Utf8,
+            }
+        )
         index = GidLookupIndex.from_dataframe(df)
 
         assert len(index) == 0
 
     def test_len_populated(self) -> None:
         """Populated index should report correct count."""
-        df = pl.DataFrame({
-            "office_phone": ["+17705753103", "+14045551234"],
-            "vertical": ["chiropractic", "dental"],
-            "gid": ["111", "222"],
-        })
+        df = pl.DataFrame(
+            {
+                "office_phone": ["+17705753103", "+14045551234"],
+                "vertical": ["chiropractic", "dental"],
+                "gid": ["111", "222"],
+            }
+        )
         index = GidLookupIndex.from_dataframe(df)
 
         assert len(index) == 2

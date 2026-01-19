@@ -102,7 +102,11 @@ class TestHierarchyContainsVsCache:
         store = UnifiedTaskStore(cache=cache)
 
         # Register a Unit - we know about the parent relationship
-        unit = {"gid": "unit-1", "parent": {"gid": "business-1"}, "modified_at": "2026-01-06T12:00:00Z"}
+        unit = {
+            "gid": "unit-1",
+            "parent": {"gid": "business-1"},
+            "modified_at": "2026-01-06T12:00:00Z",
+        }
         store._hierarchy.register(unit)
 
         # The hierarchy knows the parent relationship
@@ -110,7 +114,9 @@ class TestHierarchyContainsVsCache:
 
         # But business-1 is NOT cached (no task data fetched)
         cached = store.cache.get_versioned("business-1", EntryType.TASK)
-        assert cached is None, "Business task should not be cached - only relationship is known"
+        assert cached is None, (
+            "Business task should not be cached - only relationship is known"
+        )
 
         # The ancestor chain returns the parent GID (we know the relationship)
         chain = store._hierarchy.get_ancestor_chain("unit-1")
@@ -248,7 +254,9 @@ class TestCascadeResolution:
         vertical_nulls = df["vertical"].null_count()
         total_rows = len(df)
 
-        assert office_phone_nulls == 0, f"office_phone has {office_phone_nulls}/{total_rows} nulls"
+        assert office_phone_nulls == 0, (
+            f"office_phone has {office_phone_nulls}/{total_rows} nulls"
+        )
         assert vertical_nulls == 0, f"vertical has {vertical_nulls}/{total_rows} nulls"
 
         # Verify actual values
@@ -294,7 +302,9 @@ class TestWarmAncestorsAsync:
         )
 
         # Verify: Business was fetched
-        assert "business-001" in mock_client.fetched_gids, "Business should have been fetched"
+        assert "business-001" in mock_client.fetched_gids, (
+            "Business should have been fetched"
+        )
         assert warmed >= 1, "At least one ancestor should have been warmed"
 
         # Verify: Business is now cached

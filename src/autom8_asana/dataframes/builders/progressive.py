@@ -30,7 +30,6 @@ from autom8_asana.dataframes.builders.fields import (
     coerce_rows_to_schema,
 )
 from autom8_asana.dataframes.builders.incremental_filter import IncrementalFilter
-from autom8_asana.dataframes.builders.parallel_fetch import ParallelSectionFetcher
 from autom8_asana.dataframes.section_persistence import (
     SectionManifest,
     SectionPersistence,
@@ -46,7 +45,6 @@ if TYPE_CHECKING:
     from autom8_asana.dataframes.views.dataframe_view import DataFrameViewPlugin
     from autom8_asana.models.section import Section
     from autom8_asana.models.task import Task
-    from autom8_asana.services.gid_lookup import GidLookupIndex
 
 logger = get_logger(__name__)
 
@@ -410,7 +408,9 @@ class ProgressiveProjectBuilder:
 
             # Build section DataFrame with explicit schema to avoid type inference issues
             # Per TDD: polars schema must match extraction schema for date/datetime types
-            section_df = pl.DataFrame(coerced_rows, schema=self._schema.to_polars_schema())
+            section_df = pl.DataFrame(
+                coerced_rows, schema=self._schema.to_polars_schema()
+            )
 
             # Write to S3 (this also updates manifest to COMPLETE)
             success = await self._persistence.write_section_async(
@@ -623,7 +623,8 @@ class ProgressiveProjectBuilder:
                     extra={
                         "project_gid": project_gid,
                         "existing_rows": len(existing_df),
-                        "has_watermark_column": WATERMARK_COLUMN_NAME in existing_df.columns,
+                        "has_watermark_column": WATERMARK_COLUMN_NAME
+                        in existing_df.columns,
                     },
                 )
 
@@ -652,14 +653,16 @@ class ProgressiveProjectBuilder:
 
         # Report initial progress
         if on_progress:
-            on_progress(BuildProgress(
-                phase="fetching_sections",
-                sections_total=total_sections,
-                sections_complete=0,
-                tasks_processed=0,
-                tasks_skipped=0,
-                elapsed_ms=(time.perf_counter() - start_time) * 1000,
-            ))
+            on_progress(
+                BuildProgress(
+                    phase="fetching_sections",
+                    sections_total=total_sections,
+                    sections_complete=0,
+                    tasks_processed=0,
+                    tasks_skipped=0,
+                    elapsed_ms=(time.perf_counter() - start_time) * 1000,
+                )
+            )
 
         # Step 4: Fetch and filter tasks from all sections in parallel
         semaphore = asyncio.Semaphore(max_concurrent_sections)
@@ -668,7 +671,9 @@ class ProgressiveProjectBuilder:
         all_fetched_gids: set[str] = set()
         sections_complete = 0
 
-        async def process_section(section: "Section") -> tuple[list[dict[str, Any]], list[str], set[str]]:
+        async def process_section(
+            section: "Section",
+        ) -> tuple[list[dict[str, Any]], list[str], set[str]]:
             """Process a single section: fetch, filter, extract."""
             async with semaphore:
                 # Fetch tasks for section
@@ -711,7 +716,9 @@ class ProgressiveProjectBuilder:
                         if i < len(rows):
                             modified_at = task_dict.get("modified_at")
                             if modified_at:
-                                rows[i][WATERMARK_COLUMN_NAME] = self._parse_datetime(modified_at)
+                                rows[i][WATERMARK_COLUMN_NAME] = self._parse_datetime(
+                                    modified_at
+                                )
 
                 logger.debug(
                     "section_processed",
@@ -752,14 +759,16 @@ class ProgressiveProjectBuilder:
 
             # Report progress
             if on_progress:
-                on_progress(BuildProgress(
-                    phase="processing_sections",
-                    sections_total=total_sections,
-                    sections_complete=sections_complete,
-                    tasks_processed=len(all_new_rows),
-                    tasks_skipped=len(all_skipped_gids),
-                    elapsed_ms=(time.perf_counter() - start_time) * 1000,
-                ))
+                on_progress(
+                    BuildProgress(
+                        phase="processing_sections",
+                        sections_total=total_sections,
+                        sections_complete=sections_complete,
+                        tasks_processed=len(all_new_rows),
+                        tasks_skipped=len(all_skipped_gids),
+                        elapsed_ms=(time.perf_counter() - start_time) * 1000,
+                    )
+                )
 
         # Step 5: Compute deleted GIDs (in cache but not in any fetch)
         deleted_gids: list[str] = []
@@ -811,14 +820,16 @@ class ProgressiveProjectBuilder:
 
         # Final progress report
         if on_progress:
-            on_progress(BuildProgress(
-                phase="complete",
-                sections_total=total_sections,
-                sections_complete=sections_complete,
-                tasks_processed=len(all_new_rows),
-                tasks_skipped=len(all_skipped_gids),
-                elapsed_ms=total_time,
-            ))
+            on_progress(
+                BuildProgress(
+                    phase="complete",
+                    sections_total=total_sections,
+                    sections_complete=sections_complete,
+                    tasks_processed=len(all_new_rows),
+                    tasks_skipped=len(all_skipped_gids),
+                    elapsed_ms=total_time,
+                )
+            )
 
         logger.info(
             "incremental_build_complete",

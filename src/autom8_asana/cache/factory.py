@@ -87,7 +87,10 @@ class CacheProviderFactory:
         Raises:
             ConfigurationError: If provider requires missing configuration.
         """
-        from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvider
+        from autom8_asana._defaults.cache import (
+            InMemoryCacheProvider,
+            NullCacheProvider,
+        )
         from autom8_asana.exceptions import ConfigurationError
 
         provider_name = provider_name.lower()
@@ -273,7 +276,9 @@ def create_cache_provider(
         >>> provider = create_cache_provider(config)
     """
     if explicit_provider is not None:
-        logger.debug("Using explicit cache provider: %s", type(explicit_provider).__name__)
+        logger.debug(
+            "Using explicit cache provider: %s", type(explicit_provider).__name__
+        )
         return explicit_provider
 
     return CacheProviderFactory.create(config)

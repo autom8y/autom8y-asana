@@ -227,9 +227,7 @@ class TestActionExecutorChangeSection:
         mock_client: MagicMock,
     ) -> None:
         """change_section action wraps API error in ActionResult."""
-        mock_client.sections.add_task_async.side_effect = Exception(
-            "Section not found"
-        )
+        mock_client.sections.add_task_async.side_effect = Exception("Section not found")
         action = ActionConfig(
             type="change_section", params={"section_gid": "invalid-section"}
         )

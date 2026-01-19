@@ -120,7 +120,9 @@ class TestMatchingEngine:
         engine = MatchingEngine(config)
 
         query = BusinessData(name="Acme Corp", email="info@acme.com")
-        candidate = Candidate(gid="123", name="Acme Corporation", email="other@acme.com")
+        candidate = Candidate(
+            gid="123", name="Acme Corporation", email="other@acme.com"
+        )
 
         result = engine.compute_match(query, candidate)
 

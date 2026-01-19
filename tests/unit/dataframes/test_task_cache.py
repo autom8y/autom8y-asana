@@ -210,9 +210,7 @@ class TestTaskCacheCoordinatorLookup:
     """Tests for TaskCacheCoordinator.lookup_tasks_async()."""
 
     @pytest.mark.asyncio
-    async def test_lookup_cache_miss(
-        self, coordinator: TaskCacheCoordinator
-    ) -> None:
+    async def test_lookup_cache_miss(self, coordinator: TaskCacheCoordinator) -> None:
         """Test lookup returns None for cache misses."""
         result = await coordinator.lookup_tasks_async(["task123", "task456"])
 
@@ -298,9 +296,7 @@ class TestTaskCacheCoordinatorLookup:
         assert result["task123"] is None
 
     @pytest.mark.asyncio
-    async def test_lookup_empty_gids(
-        self, coordinator: TaskCacheCoordinator
-    ) -> None:
+    async def test_lookup_empty_gids(self, coordinator: TaskCacheCoordinator) -> None:
         """Test lookup with empty GID list."""
         result = await coordinator.lookup_tasks_async([])
 
@@ -378,9 +374,7 @@ class TestTaskCacheCoordinatorPopulate:
         assert result["task789"] is not None
 
     @pytest.mark.asyncio
-    async def test_populate_empty_list(
-        self, coordinator: TaskCacheCoordinator
-    ) -> None:
+    async def test_populate_empty_list(self, coordinator: TaskCacheCoordinator) -> None:
         """Test populating with empty task list."""
         count = await coordinator.populate_tasks_async([])
 
@@ -398,9 +392,7 @@ class TestTaskCacheCoordinatorPopulate:
         assert count == 0
 
     @pytest.mark.asyncio
-    async def test_populate_graceful_degradation(
-        self, sample_task: Task
-    ) -> None:
+    async def test_populate_graceful_degradation(self, sample_task: Task) -> None:
         """Test populate handles cache errors gracefully."""
         failing_cache = MagicMock()
         failing_cache.set_batch = MagicMock(side_effect=Exception("Redis down"))
@@ -576,9 +568,7 @@ class TestTaskCacheCoordinatorMerge:
         # task456 is neither hit nor miss - it's gone
         assert result.cache_misses == 0
 
-    def test_merge_empty_inputs(
-        self, coordinator: TaskCacheCoordinator
-    ) -> None:
+    def test_merge_empty_inputs(self, coordinator: TaskCacheCoordinator) -> None:
         """Test merge with empty inputs."""
         result = coordinator.merge_results([], {}, [])
 
@@ -632,9 +622,7 @@ class TestTaskCacheCoordinatorTTL:
 class TestTaskCacheCoordinatorEdgeCases:
     """Edge case tests for TaskCacheCoordinator."""
 
-    def test_cache_provider_property(
-        self, coordinator: TaskCacheCoordinator
-    ) -> None:
+    def test_cache_provider_property(self, coordinator: TaskCacheCoordinator) -> None:
         """Test cache_provider property returns provider."""
         assert coordinator.cache_provider is not None
 
@@ -664,9 +652,7 @@ class TestTaskCacheCoordinatorEdgeCases:
         assert result.tzinfo is not None
         assert result.year == 2025
 
-    def test_parse_modified_at_none(
-        self, coordinator: TaskCacheCoordinator
-    ) -> None:
+    def test_parse_modified_at_none(self, coordinator: TaskCacheCoordinator) -> None:
         """Test parsing None modified_at returns current time."""
         before = datetime.now(timezone.utc)
         result = coordinator._parse_modified_at(None)
@@ -709,9 +695,7 @@ class TestTaskCacheCoordinatorEdgeCases:
         assert cached_task.due_on == task.due_on
 
     @pytest.mark.asyncio
-    async def test_with_null_cache_provider(
-        self, sample_task: Task
-    ) -> None:
+    async def test_with_null_cache_provider(self, sample_task: Task) -> None:
         """Test coordinator with NullCacheProvider."""
         null_cache = NullCacheProvider()
         coordinator = TaskCacheCoordinator(cache_provider=null_cache)
@@ -726,9 +710,7 @@ class TestTaskCacheCoordinatorEdgeCases:
         assert result.get("task123") is None
 
     @pytest.mark.asyncio
-    async def test_large_batch_lookup(
-        self, coordinator: TaskCacheCoordinator
-    ) -> None:
+    async def test_large_batch_lookup(self, coordinator: TaskCacheCoordinator) -> None:
         """Test lookup with large batch of GIDs."""
         gids = [f"task{i}" for i in range(500)]
 

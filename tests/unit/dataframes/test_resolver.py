@@ -664,7 +664,9 @@ class TestSchemaAwareCoercion:
         )
 
         value = resolver.get_value(
-            task, "cf:Products", column_def=column_def  # type: ignore[arg-type]
+            task,
+            "cf:Products",
+            column_def=column_def,  # type: ignore[arg-type]
         )
         assert value == "Product A, Product B"
 
@@ -698,7 +700,9 @@ class TestSchemaAwareCoercion:
         )
 
         value = resolver.get_value(
-            task, "cf:Products", column_def=column_def  # type: ignore[arg-type]
+            task,
+            "cf:Products",
+            column_def=column_def,  # type: ignore[arg-type]
         )
         assert value == ["Product A", "Product B"]
 
@@ -728,7 +732,9 @@ class TestSchemaAwareCoercion:
         )
 
         value = resolver.get_value(
-            task, "cf:MRR", column_def=column_def  # type: ignore[arg-type]
+            task,
+            "cf:MRR",
+            column_def=column_def,  # type: ignore[arg-type]
         )
         assert value == Decimal("5000.5")
         assert isinstance(value, Decimal)
@@ -759,7 +765,9 @@ class TestSchemaAwareCoercion:
         )
 
         value = resolver.get_value(
-            task, "cf:Score", column_def=column_def  # type: ignore[arg-type]
+            task,
+            "cf:Score",
+            column_def=column_def,  # type: ignore[arg-type]
         )
         assert value == 95.5
         assert isinstance(value, float)
@@ -790,7 +798,9 @@ class TestSchemaAwareCoercion:
         )
 
         value = resolver.get_value(
-            task, "cf:Tags", column_def=column_def  # type: ignore[arg-type]
+            task,
+            "cf:Tags",
+            column_def=column_def,  # type: ignore[arg-type]
         )
         assert value is None
 
@@ -882,7 +892,9 @@ class TestSchemaAwareCoercion:
         )
 
         value = resolver.get_value(
-            task, "cf:MRR", column_def=column_def  # type: ignore[arg-type]
+            task,
+            "cf:MRR",
+            column_def=column_def,  # type: ignore[arg-type]
         )
         assert value is None
 
@@ -912,7 +924,9 @@ class TestSchemaAwareCoercion:
         )
 
         value = resolver.get_value(
-            task, "cf:Tag", column_def=column_def  # type: ignore[arg-type]
+            task,
+            "cf:Tag",
+            column_def=column_def,  # type: ignore[arg-type]
         )
         assert value == ["SingleTag"]
         assert isinstance(value, list)
@@ -1063,11 +1077,11 @@ class TestAdversarialMockResolverConsistency:
 
         # Both should produce the same result
         default_value = default_resolver.get_value(
-            task, "cf:Products", column_def=column_def  # type: ignore[arg-type]
+            task,
+            "cf:Products",
+            column_def=column_def,  # type: ignore[arg-type]
         )
-        mock_value = mock_resolver.get_value(
-            None, "cf:Products", column_def=column_def
-        )
+        mock_value = mock_resolver.get_value(None, "cf:Products", column_def=column_def)
 
         assert default_value == mock_value == "Product A, Product B"
 
@@ -1102,7 +1116,9 @@ class TestAdversarialMockResolverConsistency:
 
         # Both should produce None
         default_value = default_resolver.get_value(
-            task, "cf:Tags", column_def=column_def  # type: ignore[arg-type]
+            task,
+            "cf:Tags",
+            column_def=column_def,  # type: ignore[arg-type]
         )
         mock_value = mock_resolver.get_value(None, "cf:Tags", column_def=column_def)
 
@@ -1128,9 +1144,7 @@ class TestAdversarialMockResolverConsistency:
 
     def test_mock_handles_none_in_list_during_coercion(self) -> None:
         """Test MockCustomFieldResolver filters None during list-to-string coercion."""
-        resolver = MockCustomFieldResolver(
-            {"products": ["A", None, "B", None, "C"]}
-        )
+        resolver = MockCustomFieldResolver({"products": ["A", None, "B", None, "C"]})
 
         column_def = ColumnDef(
             name="products",

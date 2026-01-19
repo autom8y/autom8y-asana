@@ -127,6 +127,7 @@ def _register_schema_providers() -> None:
 
     register_asana_schemas()
 
+
 logger = get_logger(__name__)
 
 
@@ -337,6 +338,7 @@ async def _discover_entity_projects(app: FastAPI) -> None:
     """
     from autom8_asana import AsanaClient
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
+
     # Per TDD-registry-consolidation: Use package imports to ensure bootstrap runs.
     # Direct submodule imports bypass __init__.py and skip model registration.
     from autom8_asana.models.business import (
@@ -718,15 +720,17 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                     )
 
                     # Perform incremental catch-up
-                    updated_df, new_watermark, was_incremental = (
-                        await _do_incremental_catchup(
-                            project_gid=project_gid,
-                            entity_type=entity_type,
-                            existing_df=df,
-                            existing_index=index,
-                            watermark=watermark,
-                            persistence=persistence,
-                        )
+                    (
+                        updated_df,
+                        new_watermark,
+                        was_incremental,
+                    ) = await _do_incremental_catchup(
+                        project_gid=project_gid,
+                        entity_type=entity_type,
+                        existing_df=df,
+                        existing_index=index,
+                        watermark=watermark,
+                        persistence=persistence,
                     )
 
                     if was_incremental:
@@ -826,7 +830,9 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                             loaded_count += 1
                             total_rows += len(new_df)
 
-                            project_elapsed = (time.perf_counter() - project_start) * 1000
+                            project_elapsed = (
+                                time.perf_counter() - project_start
+                            ) * 1000
                             logger.info(
                                 "dataframe_preload_project_complete",
                                 extra={
@@ -1135,7 +1141,6 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
     from autom8_asana.dataframes.section_persistence import SectionPersistence
     from autom8_asana.dataframes.watermark import get_watermark_repo
-    from autom8_asana.services.gid_lookup import GidLookupIndex
     from autom8_asana.services.resolver import EntityProjectRegistry, to_pascal_case
 
     start_time = time.perf_counter()
@@ -1209,7 +1214,10 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
         if not project_configs:
             logger.info(
                 "progressive_preload_skipped",
-                extra={"reason": "no_registered_projects", "excluded_count": excluded_count},
+                extra={
+                    "reason": "no_registered_projects",
+                    "excluded_count": excluded_count,
+                },
             )
             set_cache_ready(True)
             return

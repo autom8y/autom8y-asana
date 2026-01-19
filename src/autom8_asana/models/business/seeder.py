@@ -408,9 +408,7 @@ class BusinessSeeder:
         )
         return None
 
-    async def _find_by_composite_match(
-        self, data: BusinessData
-    ) -> "Business | None":
+    async def _find_by_composite_match(self, data: BusinessData) -> "Business | None":
         """Find business using composite matching.
 
         Per TDD-BusinessSeeder-v2: Uses MatchingEngine for probabilistic matching.

@@ -27,7 +27,11 @@ ASSET_EDIT_HOLDER_SCHEMA = DataFrameSchema(
     task_type="AssetEditHolder",
     columns=[
         *BASE_COLUMNS,
-        *[c for c in ASSET_EDIT_HOLDER_COLUMNS if c.name not in {col.name for col in BASE_COLUMNS}],
+        *[
+            c
+            for c in ASSET_EDIT_HOLDER_COLUMNS
+            if c.name not in {col.name for col in BASE_COLUMNS}
+        ],
     ],
     version="1.0.0",
 )

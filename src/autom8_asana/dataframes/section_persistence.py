@@ -43,7 +43,7 @@ from __future__ import annotations
 import io
 import json
 from autom8y_log import get_logger
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from types import TracebackType

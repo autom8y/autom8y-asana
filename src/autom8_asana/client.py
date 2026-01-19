@@ -7,28 +7,11 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 from autom8_asana._defaults.auth import EnvAuthProvider
-from autom8_asana.settings import get_settings
-
-
-def _get_workspace_gid_from_env() -> str | None:
-    """Get workspace GID from ASANA_WORKSPACE_GID environment variable.
-
-    Returns:
-        Workspace GID if ASANA_WORKSPACE_GID is set, None otherwise.
-
-    Example:
-        # export ASANA_WORKSPACE_GID=1234567890123456
-        gid = _get_workspace_gid_from_env()  # Returns "1234567890123456"
-    """
-    settings = get_settings()
-    return settings.asana.workspace_gid
-
-
 from autom8_asana._defaults.log import DefaultLogProvider
-from autom8_asana.cache.factory import create_cache_provider
 from autom8_asana._defaults.observability import NullObservabilityHook
 from autom8_asana.batch.client import BatchClient
-from autom8_asana.persistence import SaveSession
+from autom8_asana.cache.entry import EntryType
+from autom8_asana.cache.factory import create_cache_provider
 from autom8_asana.clients.attachments import AttachmentsClient
 from autom8_asana.clients.custom_fields import CustomFieldsClient
 from autom8_asana.clients.goals import GoalsClient
@@ -43,9 +26,10 @@ from autom8_asana.clients.users import UsersClient
 from autom8_asana.clients.webhooks import WebhooksClient
 from autom8_asana.clients.workspaces import WorkspacesClient
 from autom8_asana.config import AsanaConfig
-from autom8_asana.cache.entry import EntryType
 from autom8_asana.exceptions import AuthenticationError, ConfigurationError
+from autom8_asana.persistence import SaveSession
 from autom8_asana.protocols.cache import WarmResult
+from autom8_asana.settings import get_settings
 from autom8_asana.transport.asana_http import AsanaHttpClient
 
 if TYPE_CHECKING:
@@ -57,6 +41,20 @@ if TYPE_CHECKING:
     from autom8_asana.protocols.log import LogProvider
     from autom8_asana.protocols.observability import ObservabilityHook
     from autom8_asana.search import SearchService
+
+
+def _get_workspace_gid_from_env() -> str | None:
+    """Get workspace GID from ASANA_WORKSPACE_GID environment variable.
+
+    Returns:
+        Workspace GID if ASANA_WORKSPACE_GID is set, None otherwise.
+
+    Example:
+        # export ASANA_WORKSPACE_GID=1234567890123456
+        gid = _get_workspace_gid_from_env()  # Returns "1234567890123456"
+    """
+    settings = get_settings()
+    return settings.asana.workspace_gid
 
 
 class AsanaClient:

@@ -87,7 +87,9 @@ def cascade_schema() -> DataFrameSchema:
         columns=[
             ColumnDef("gid", "Utf8", nullable=False, source=None),
             ColumnDef("name", "Utf8", nullable=False, source=None),
-            ColumnDef("office_phone", "Utf8", nullable=True, source="cascade:Office Phone"),
+            ColumnDef(
+                "office_phone", "Utf8", nullable=True, source="cascade:Office Phone"
+            ),
             ColumnDef("vertical", "Utf8", nullable=True, source="cascade:Vertical"),
         ],
         version="1.0.0",
@@ -327,7 +329,11 @@ class TestSC003CascadeReturnsCorrectParentValues:
 
         # Build hierarchy
         business = {"gid": "business-001", "name": "Acme Corp"}
-        unit = {"gid": "unit-001", "name": "Sales Unit", "parent": {"gid": "business-001"}}
+        unit = {
+            "gid": "unit-001",
+            "name": "Sales Unit",
+            "parent": {"gid": "business-001"},
+        }
 
         index.register(business)
         index.register(unit)
@@ -346,7 +352,11 @@ class TestSC003CascadeReturnsCorrectParentValues:
 
         # Build 3-level hierarchy
         grandparent = {"gid": "gp-001", "name": "Grandparent Corp"}
-        parent = {"gid": "p-001", "name": "Parent Division", "parent": {"gid": "gp-001"}}
+        parent = {
+            "gid": "p-001",
+            "name": "Parent Division",
+            "parent": {"gid": "gp-001"},
+        }
         child = {"gid": "c-001", "name": "Child Unit", "parent": {"gid": "p-001"}}
 
         index.register(grandparent)
@@ -362,9 +372,7 @@ class TestSC003CascadeReturnsCorrectParentValues:
         assert root == "gp-001"
 
     @pytest.mark.asyncio
-    async def test_cascade_local_override(
-        self, mock_cache_provider: MagicMock
-    ) -> None:
+    async def test_cascade_local_override(self, mock_cache_provider: MagicMock) -> None:
         """Test local value overrides parent when allow_override=True."""
         from autom8_asana.models.business.fields import CascadingFieldDef
 
@@ -504,7 +512,12 @@ class TestSC004WarmCacheReducedAPICalls:
             return_value=[
                 BatchResult(
                     status_code=200,
-                    body={"data": {"gid": f"task-{i:03d}", "modified_at": "2025-01-02T00:00:00.000Z"}},
+                    body={
+                        "data": {
+                            "gid": f"task-{i:03d}",
+                            "modified_at": "2025-01-02T00:00:00.000Z",
+                        }
+                    },
                     request_index=i,
                 )
                 for i in range(5)
@@ -633,7 +646,7 @@ class TestSC006ColdStartPerformance:
         # Build deep hierarchy (5 levels)
         tasks = [make_task("level-0", "Root")]
         for i in range(1, 5):
-            task = make_task(f"level-{i}", f"Level {i}", parent_gid=f"level-{i-1}")
+            task = make_task(f"level-{i}", f"Level {i}", parent_gid=f"level-{i - 1}")
             tasks.append(task)
 
         await store.put_batch_async(tasks)
@@ -646,7 +659,9 @@ class TestSC006ColdStartPerformance:
         elapsed = time.perf_counter() - start
 
         # 1000 lookups should complete in under 100ms
-        assert elapsed < 0.1, f"1000 lookups took {elapsed * 1000:.2f}ms, expected < 100ms"
+        assert elapsed < 0.1, (
+            f"1000 lookups took {elapsed * 1000:.2f}ms, expected < 100ms"
+        )
 
 
 # =============================================================================
@@ -765,7 +780,9 @@ class TestEdgeCases:
         mock_unit.memberships = None
 
         # Simulate cache miss during parent lookup by patching
-        with patch.object(store, 'get_parent_chain_async', new=AsyncMock(return_value=[])):
+        with patch.object(
+            store, "get_parent_chain_async", new=AsyncMock(return_value=[])
+        ):
             result = await cascade_plugin.resolve_async(mock_unit, "Office Phone")
 
         # Should return None gracefully, not error

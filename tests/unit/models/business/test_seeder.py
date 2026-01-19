@@ -511,7 +511,9 @@ class TestBusinessDeduplication:
         mock_business = MagicMock()
         mock_business.gid = "COMPANY_ID_MATCH"
 
-        with patch.object(seeder, "_load_business", new_callable=AsyncMock) as mock_load:
+        with patch.object(
+            seeder, "_load_business", new_callable=AsyncMock
+        ) as mock_load:
             mock_load.return_value = mock_business
 
             data = BusinessData(name="Some Name", company_id="ACME-001")
@@ -564,7 +566,9 @@ class TestBusinessDeduplication:
         mock_business = MagicMock()
         mock_business.gid = "COMPOSITE_MATCH"
 
-        with patch.object(seeder, "_load_business", new_callable=AsyncMock) as mock_load:
+        with patch.object(
+            seeder, "_load_business", new_callable=AsyncMock
+        ) as mock_load:
             mock_load.return_value = mock_business
 
             # Provide enough fields for composite matching to find a match
@@ -615,7 +619,9 @@ class TestBusinessDeduplication:
         mock_business = MagicMock()
         mock_business.gid = "COMPOSITE_ONLY_MATCH"
 
-        with patch.object(seeder, "_load_business", new_callable=AsyncMock) as mock_load:
+        with patch.object(
+            seeder, "_load_business", new_callable=AsyncMock
+        ) as mock_load:
             mock_load.return_value = mock_business
 
             # No company_id provided, but email and phone for composite matching
@@ -669,7 +675,5 @@ class TestBusinessDeduplication:
             result = asyncio.run(seeder._load_business("123456789"))
 
             # Verify from_gid_async was called with hydrate=False
-            mock_from_gid.assert_called_once_with(
-                client, "123456789", hydrate=False
-            )
+            mock_from_gid.assert_called_once_with(client, "123456789", hydrate=False)
             assert result.gid == "123456789"

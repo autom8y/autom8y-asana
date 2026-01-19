@@ -95,19 +95,6 @@ def create_dataframe_builder(
         ... )
         >>> # Builder is ready for use with build_with_parallel_fetch_async()
     """
-    # Import AsanaClient to get sections client
-    from autom8_asana.client import AsanaClient
-    from autom8_asana.dataframes.section_persistence import SectionPersistence
-
-    # Create persistence if enabled
-    persistence: SectionPersistence | None = None
-    if enable_persistence:
-        try:
-            persistence = SectionPersistence()
-        except Exception:
-            # Graceful fallback - continue without persistence
-            persistence = None
-
     # Note: This factory requires an AsanaClient to be constructed properly.
     # For now, we raise an error since we can't construct a full client from just tasks_client.
     # The caller should use ProgressiveProjectBuilder directly with full configuration.

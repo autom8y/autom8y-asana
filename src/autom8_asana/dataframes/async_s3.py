@@ -231,9 +231,7 @@ class AsyncS3Client:
                 client_kwargs["endpoint_url"] = self._config.endpoint_url
 
             # Create client in thread to avoid blocking event loop
-            self._client = await asyncio.to_thread(
-                boto3.client, "s3", **client_kwargs
-            )
+            self._client = await asyncio.to_thread(boto3.client, "s3", **client_kwargs)
             self._initialized = True
             logger.debug(
                 "AsyncS3Client initialized: bucket=%s region=%s",
@@ -323,9 +321,7 @@ class AsyncS3Client:
                     put_kwargs["Metadata"] = metadata
 
                 # Run S3 operation in thread pool
-                response = await asyncio.to_thread(
-                    client.put_object, **put_kwargs
-                )
+                response = await asyncio.to_thread(client.put_object, **put_kwargs)
 
                 duration_ms = (time.monotonic() - start_time) * 1000
                 etag = response.get("ETag", "").strip('"')
@@ -350,7 +346,10 @@ class AsyncS3Client:
                 return result
 
             except Exception as e:
-                if self._is_retryable_error(e) and attempt < self._config.max_retries - 1:
+                if (
+                    self._is_retryable_error(e)
+                    and attempt < self._config.max_retries - 1
+                ):
                     delay = self._config.base_retry_delay * (2**attempt)
                     logger.warning(
                         "S3 put_object retry %d/%d for key %s: %s (delay %.1fs)",
@@ -406,9 +405,7 @@ class AsyncS3Client:
                 )
 
                 # Read body in thread pool
-                data = await asyncio.to_thread(
-                    response["Body"].read
-                )
+                data = await asyncio.to_thread(response["Body"].read)
 
                 duration_ms = (time.monotonic() - start_time) * 1000
 
@@ -440,7 +437,10 @@ class AsyncS3Client:
                         error="Object not found",
                     )
 
-                if self._is_retryable_error(e) and attempt < self._config.max_retries - 1:
+                if (
+                    self._is_retryable_error(e)
+                    and attempt < self._config.max_retries - 1
+                ):
                     delay = self._config.base_retry_delay * (2**attempt)
                     logger.warning(
                         "S3 get_object retry %d/%d for key %s: %s (delay %.1fs)",

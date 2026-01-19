@@ -60,9 +60,7 @@ def _make_mock_strategy_resolve(
 ):
     """Create a mock resolve function using the universal strategy pattern."""
 
-    async def mock_resolve(
-        self, criteria, project_gid, client, requested_fields=None
-    ):
+    async def mock_resolve(self, criteria, project_gid, client, requested_fields=None):
         # Build index from mock DataFrame
         index = DynamicIndex.from_dataframe(mock_df, key_columns)
         results = []
@@ -100,6 +98,7 @@ def app():
         "autom8_asana.api.main._discover_entity_projects",
         new_callable=AsyncMock,
     ) as mock_discover:
+
         async def setup_registry(app):
             EntityProjectRegistry.reset()
             registry = EntityProjectRegistry.get_instance()
@@ -150,15 +149,19 @@ class TestResolveUnitEndpoint:
         jwt_token = "header.payload.signature"
 
         # Create mock DataFrame with matching data
-        mock_df = pl.DataFrame({
-            "gid": ["1234567890123456", "9876543210987654"],
-            "office_phone": ["+15551234567", "+15559876543"],
-            "vertical": ["dental", "medical"],
-            "name": ["Unit A", "Unit B"],
-        })
+        mock_df = pl.DataFrame(
+            {
+                "gid": ["1234567890123456", "9876543210987654"],
+                "office_phone": ["+15551234567", "+15559876543"],
+                "vertical": ["dental", "medical"],
+                "name": ["Unit A", "Unit B"],
+            }
+        )
 
         # Create mock strategy that uses DynamicIndex
-        mock_resolve = _make_mock_strategy_resolve(mock_df, ["office_phone", "vertical"])
+        mock_resolve = _make_mock_strategy_resolve(
+            mock_df, ["office_phone", "vertical"]
+        )
 
         with (
             patch(
@@ -206,14 +209,18 @@ class TestResolveUnitEndpoint:
         jwt_token = "header.payload.signature"
 
         # Create mock DataFrame without matching data
-        mock_df = pl.DataFrame({
-            "gid": ["1111111111111111"],
-            "office_phone": ["+11111111111"],
-            "vertical": ["other"],
-            "name": ["Other Unit"],
-        })
+        mock_df = pl.DataFrame(
+            {
+                "gid": ["1111111111111111"],
+                "office_phone": ["+11111111111"],
+                "vertical": ["other"],
+                "name": ["Other Unit"],
+            }
+        )
 
-        mock_resolve = _make_mock_strategy_resolve(mock_df, ["office_phone", "vertical"])
+        mock_resolve = _make_mock_strategy_resolve(
+            mock_df, ["office_phone", "vertical"]
+        )
 
         with (
             patch(
@@ -315,8 +322,7 @@ class TestResolveValidation:
         jwt_token = "header.payload.signature"
 
         criteria = [
-            {"phone": f"+1555{i:07d}", "vertical": "dental"}
-            for i in range(1001)
+            {"phone": f"+1555{i:07d}", "vertical": "dental"} for i in range(1001)
         ]
 
         with patch(
@@ -458,6 +464,7 @@ class TestResolveDiscoveryIncomplete:
             "autom8_asana.api.main._discover_entity_projects",
             new_callable=AsyncMock,
         ) as mock_discover:
+
             async def no_setup(app):
                 EntityProjectRegistry.reset()
                 registry = EntityProjectRegistry.get_instance()
@@ -495,14 +502,18 @@ class TestResolveInputOrder:
         """Response results preserve input order."""
         jwt_token = "header.payload.signature"
 
-        mock_df = pl.DataFrame({
-            "gid": ["1111111111111111", "2222222222222222", "3333333333333333"],
-            "office_phone": ["+11111111111", "+12222222222", "+13333333333"],
-            "vertical": ["a", "b", "c"],
-            "name": ["Unit A", "Unit B", "Unit C"],
-        })
+        mock_df = pl.DataFrame(
+            {
+                "gid": ["1111111111111111", "2222222222222222", "3333333333333333"],
+                "office_phone": ["+11111111111", "+12222222222", "+13333333333"],
+                "vertical": ["a", "b", "c"],
+                "name": ["Unit A", "Unit B", "Unit C"],
+            }
+        )
 
-        mock_resolve = _make_mock_strategy_resolve(mock_df, ["office_phone", "vertical"])
+        mock_resolve = _make_mock_strategy_resolve(
+            mock_df, ["office_phone", "vertical"]
+        )
 
         criteria = [
             {"phone": "+11111111111", "vertical": "a"},
@@ -716,6 +727,7 @@ class TestUniversalStrategyIntegration:
         strategy = get_strategy("unit")
 
         from autom8_asana.services.universal_strategy import UniversalResolutionStrategy
+
         assert isinstance(strategy, UniversalResolutionStrategy)
 
     def test_get_strategy_returns_none_for_unknown(self) -> None:

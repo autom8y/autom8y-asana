@@ -444,9 +444,7 @@ class TestPersistenceIntegration:
             repo.set_watermark("project-123", wm)
 
             # Verify schedule_persist was called
-            mock_schedule.assert_called_once_with(
-                "project-123", wm, mock_persistence
-            )
+            mock_schedule.assert_called_once_with("project-123", wm, mock_persistence)
 
     @pytest.mark.asyncio
     async def test_persist_watermark_calls_persistence(self) -> None:

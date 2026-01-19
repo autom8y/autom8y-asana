@@ -6,9 +6,11 @@ Use raw=True for backward-compatible dict returns.
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
+import logging
 import time
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Literal, overload
+
+from autom8y_log import get_logger
 
 from autom8_asana.clients.base import BaseClient
 from autom8_asana.models import PageIterator

@@ -29,13 +29,14 @@ import pytest
 from polars.exceptions import ComputeError
 
 # MIGRATION: Tests need update for ProgressiveProjectBuilder constructor signature
-pytestmark = pytest.mark.skip(reason="MIGRATION: Tests need update for ProgressiveProjectBuilder")
+pytestmark = pytest.mark.skip(
+    reason="MIGRATION: Tests need update for ProgressiveProjectBuilder"
+)
 
 from autom8_asana.dataframes.builders import (
     DataFrameBuilder,
     SectionDataFrameBuilder,
 )
-from autom8_asana.dataframes.builders.progressive import ProgressiveProjectBuilder
 from autom8_asana.dataframes.extractors.base import BaseExtractor
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.dataframes.resolver import MockCustomFieldResolver
@@ -318,7 +319,9 @@ class ConcreteTestBuilder(DataFrameBuilder):
 # =============================================================================
 
 
-@pytest.mark.xfail(reason="Phase 4 requires unified_store - tests need update to provide mock")
+@pytest.mark.xfail(
+    reason="Phase 4 requires unified_store - tests need update to provide mock"
+)
 class TestExportParquet:
     """Tests for to_parquet export method."""
 
@@ -734,7 +737,9 @@ class TestExportCSV:
 # =============================================================================
 
 
-@pytest.mark.xfail(reason="Phase 4 requires unified_store - tests need update to provide mock")
+@pytest.mark.xfail(
+    reason="Phase 4 requires unified_store - tests need update to provide mock"
+)
 class TestExportJSON:
     """Tests for to_json export method."""
 
@@ -936,7 +941,9 @@ class TestExportJSON:
 # =============================================================================
 
 
-@pytest.mark.xfail(reason="Phase 4 requires unified_store - tests need update to provide mock")
+@pytest.mark.xfail(
+    reason="Phase 4 requires unified_store - tests need update to provide mock"
+)
 class TestExportDataTypes:
     """Tests for export handling of various data types."""
 

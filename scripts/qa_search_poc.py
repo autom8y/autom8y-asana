@@ -51,19 +51,21 @@ TEST_VERTICAL = "chiropractic"
 
 def print_banner(title: str) -> None:
     """Print a formatted banner."""
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"  {title}")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
 
 
 def print_section(title: str) -> None:
     """Print a section header."""
-    print(f"\n{'-'*50}")
+    print(f"\n{'-' * 50}")
     print(f"  {title}")
-    print(f"{'-'*50}")
+    print(f"{'-' * 50}")
 
 
-async def load_offers_dataframe(client: AsanaClient, verbose: bool = False, max_tasks: int = 500) -> pl.DataFrame:
+async def load_offers_dataframe(
+    client: AsanaClient, verbose: bool = False, max_tasks: int = 500
+) -> pl.DataFrame:
     """Load and cache the Offers project DataFrame WITH custom fields.
 
     NOTE: The default DataFrame builder does NOT include custom fields.
@@ -82,8 +84,7 @@ async def load_offers_dataframe(client: AsanaClient, verbose: bool = False, max_
 
     # Get the project
     project = await client.projects.get_async(
-        OFFERS_PROJECT_GID,
-        opt_fields=["name", "gid"]
+        OFFERS_PROJECT_GID, opt_fields=["name", "gid"]
     )
     print(f"Project: {project.name} ({project.gid})")
 
@@ -103,13 +104,27 @@ async def load_offers_dataframe(client: AsanaClient, verbose: bool = False, max_
     count = 0
     async for task in client.tasks.list_async(
         project=OFFERS_PROJECT_GID,
-        opt_fields=["gid", "name", "custom_fields", "custom_fields.name", "custom_fields.display_value"],
+        opt_fields=[
+            "gid",
+            "name",
+            "custom_fields",
+            "custom_fields.name",
+            "custom_fields.display_value",
+        ],
     ):
         row = {"gid": task.gid, "name": task.name}
         if task.custom_fields:
             for cf in task.custom_fields:
-                cf_name = cf.get("name", "unknown") if isinstance(cf, dict) else getattr(cf, "name", "unknown")
-                cf_val = cf.get("display_value", "") if isinstance(cf, dict) else getattr(cf, "display_value", "")
+                cf_name = (
+                    cf.get("name", "unknown")
+                    if isinstance(cf, dict)
+                    else getattr(cf, "name", "unknown")
+                )
+                cf_val = (
+                    cf.get("display_value", "")
+                    if isinstance(cf, dict)
+                    else getattr(cf, "display_value", "")
+                )
                 # Convert all values to string for consistency
                 row[cf_name] = str(cf_val) if cf_val is not None else None
         tasks_data.append(row)
@@ -138,7 +153,9 @@ async def load_offers_dataframe(client: AsanaClient, verbose: bool = False, max_
     return df
 
 
-async def test_basic_search(client: AsanaClient, df: pl.DataFrame, verbose: bool = False) -> dict:
+async def test_basic_search(
+    client: AsanaClient, df: pl.DataFrame, verbose: bool = False
+) -> dict:
     """Test basic search functionality.
 
     Returns:
@@ -173,7 +190,9 @@ async def test_basic_search(client: AsanaClient, df: pl.DataFrame, verbose: bool
         for hit in result.hits[:3]:
             print(f"    - {hit.gid}: {hit.name}")
     else:
-        results["failed"].append(("search_by_phone_returns_results", "No results found"))
+        results["failed"].append(
+            ("search_by_phone_returns_results", "No results found")
+        )
         print(f"  FAIL: No matches found for phone '{TEST_OFFICE_PHONE}'")
 
     results["info"]["phone_search_time_ms"] = elapsed
@@ -196,7 +215,9 @@ async def test_basic_search(client: AsanaClient, df: pl.DataFrame, verbose: bool
         results["passed"].append("search_by_vertical_returns_results")
         print(f"  PASS: Found {result.total_count} offer(s)")
     else:
-        results["failed"].append(("search_by_vertical_returns_results", "No results found"))
+        results["failed"].append(
+            ("search_by_vertical_returns_results", "No results found")
+        )
         print(f"  FAIL: No matches found for vertical '{TEST_VERTICAL}'")
 
     results["info"]["vertical_search_time_ms"] = elapsed
@@ -204,7 +225,9 @@ async def test_basic_search(client: AsanaClient, df: pl.DataFrame, verbose: bool
 
     # Test 3: Compound AND search
     print("\n[Test 3] Compound AND Search")
-    print(f"  Criteria: office_phone = '{TEST_OFFICE_PHONE}' AND vertical = '{TEST_VERTICAL}'")
+    print(
+        f"  Criteria: office_phone = '{TEST_OFFICE_PHONE}' AND vertical = '{TEST_VERTICAL}'"
+    )
 
     start = time.perf_counter()
     result = await search.find_async(
@@ -250,7 +273,9 @@ async def test_basic_search(client: AsanaClient, df: pl.DataFrame, verbose: bool
         results["passed"].append("performance_under_10ms")
         print("  PASS: Warm cache queries under 10ms target")
     else:
-        results["failed"].append(("performance_under_10ms", f"Warm avg: {warm_avg:.2f}ms"))
+        results["failed"].append(
+            ("performance_under_10ms", f"Warm avg: {warm_avg:.2f}ms")
+        )
         print("  FAIL: Query time exceeds 10ms target")
 
     return results
@@ -318,7 +343,9 @@ async def test_convenience_methods(client: AsanaClient, verbose: bool = False) -
     return results
 
 
-async def test_edge_cases(client: AsanaClient, df: pl.DataFrame, verbose: bool = False) -> dict:
+async def test_edge_cases(
+    client: AsanaClient, df: pl.DataFrame, verbose: bool = False
+) -> dict:
     """Test edge cases per QA requirements."""
     results = {
         "passed": [],
@@ -340,7 +367,9 @@ async def test_edge_cases(client: AsanaClient, df: pl.DataFrame, verbose: bool =
         results["passed"].append("nonexistent_field_returns_empty")
         print("  PASS: Empty result for non-existent field")
     else:
-        results["failed"].append(("nonexistent_field_returns_empty", f"Got {result.total_count} results"))
+        results["failed"].append(
+            ("nonexistent_field_returns_empty", f"Got {result.total_count} results")
+        )
         print(f"  FAIL: Expected 0 results, got {result.total_count}")
 
     # Edge Case 2: Empty criteria returns empty
@@ -354,7 +383,9 @@ async def test_edge_cases(client: AsanaClient, df: pl.DataFrame, verbose: bool =
         results["passed"].append("empty_criteria_returns_empty")
         print("  PASS: Empty result for empty criteria")
     else:
-        results["failed"].append(("empty_criteria_returns_empty", f"Got {result.total_count} results"))
+        results["failed"].append(
+            ("empty_criteria_returns_empty", f"Got {result.total_count} results")
+        )
         print(f"  FAIL: Expected 0 results, got {result.total_count}")
 
     # Edge Case 3: Case-insensitive field name matching
@@ -377,9 +408,15 @@ async def test_edge_cases(client: AsanaClient, df: pl.DataFrame, verbose: bool =
         results["passed"].append("case_insensitive_field_names")
         print(f"  PASS: Both cases return {result_lower.total_count} results")
     else:
-        results["failed"].append(("case_insensitive_field_names",
-                                  f"lower={result_lower.total_count}, upper={result_upper.total_count}"))
-        print(f"  FAIL: Case mismatch - lower: {result_lower.total_count}, upper: {result_upper.total_count}")
+        results["failed"].append(
+            (
+                "case_insensitive_field_names",
+                f"lower={result_lower.total_count}, upper={result_upper.total_count}",
+            )
+        )
+        print(
+            f"  FAIL: Case mismatch - lower: {result_lower.total_count}, upper: {result_upper.total_count}"
+        )
 
     # Edge Case 4: Unicode in search value
     print("\n[Edge 4] Unicode characters in search value")
@@ -414,9 +451,13 @@ async def test_edge_cases(client: AsanaClient, df: pl.DataFrame, verbose: bool =
 
     if result.total_count <= 1:
         results["passed"].append("limit_respected")
-        print(f"  PASS: Limit respected ({result.total_count} result in {elapsed:.2f}ms)")
+        print(
+            f"  PASS: Limit respected ({result.total_count} result in {elapsed:.2f}ms)"
+        )
     else:
-        results["failed"].append(("limit_respected", f"Got {result.total_count} results"))
+        results["failed"].append(
+            ("limit_respected", f"Got {result.total_count} results")
+        )
         print(f"  FAIL: Limit not respected, got {result.total_count} results")
 
     # Edge Case 7: Uncached project returns empty
@@ -430,14 +471,20 @@ async def test_edge_cases(client: AsanaClient, df: pl.DataFrame, verbose: bool =
         results["passed"].append("uncached_project_returns_empty")
         print("  PASS: Empty result for uncached project")
     else:
-        results["failed"].append(("uncached_project_returns_empty",
-                                  f"count={result.total_count}, from_cache={result.from_cache}"))
+        results["failed"].append(
+            (
+                "uncached_project_returns_empty",
+                f"count={result.total_count}, from_cache={result.from_cache}",
+            )
+        )
         print("  FAIL: Unexpected result for uncached project")
 
     return results
 
 
-async def test_large_dataframe_performance(client: AsanaClient, df: pl.DataFrame, verbose: bool = False) -> dict:
+async def test_large_dataframe_performance(
+    client: AsanaClient, df: pl.DataFrame, verbose: bool = False
+) -> dict:
     """Test performance with the actual DataFrame size."""
     results = {
         "passed": [],
@@ -535,7 +582,9 @@ async def run_poc_tests(verbose: bool = False, edge_cases: bool = False) -> int:
             all_results["info"].update(edge_results["info"])
 
             # Run performance tests
-            perf_results = await test_large_dataframe_performance(client, df, verbose=verbose)
+            perf_results = await test_large_dataframe_performance(
+                client, df, verbose=verbose
+            )
             all_results["passed"].extend(perf_results["passed"])
             all_results["failed"].extend(perf_results["failed"])
             all_results["info"].update(perf_results["info"])
@@ -563,23 +612,28 @@ async def run_poc_tests(verbose: bool = False, edge_cases: bool = False) -> int:
 
         print("\nKey Metrics:")
         print(f"  DataFrame rows: {all_results['info'].get('dataframe_rows', 'N/A')}")
-        print(f"  Phone search time: {all_results['info'].get('phone_search_time_ms', 'N/A'):.2f}ms")
-        print(f"  Vertical search time: {all_results['info'].get('vertical_search_time_ms', 'N/A'):.2f}ms")
+        print(
+            f"  Phone search time: {all_results['info'].get('phone_search_time_ms', 'N/A'):.2f}ms"
+        )
+        print(
+            f"  Vertical search time: {all_results['info'].get('vertical_search_time_ms', 'N/A'):.2f}ms"
+        )
 
         if total_failed == 0:
-            print(f"\n{'='*70}")
+            print(f"\n{'=' * 70}")
             print("  POC VALIDATION: PASSED")
-            print(f"{'='*70}")
+            print(f"{'=' * 70}")
             return 0
         else:
-            print(f"\n{'='*70}")
+            print(f"\n{'=' * 70}")
             print(f"  POC VALIDATION: FAILED ({total_failed} failures)")
-            print(f"{'='*70}")
+            print(f"{'=' * 70}")
             return 1
 
     except Exception as e:
         print(f"\nERROR: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 
@@ -593,17 +647,21 @@ def main() -> int:
         description="QA Proof-of-Concept: Search Interface Validation",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("-v", "--verbose", action="store_true",
-                       help="Enable verbose output")
-    parser.add_argument("--edge-cases", action="store_true",
-                       help="Run edge case and performance tests")
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable verbose output"
+    )
+    parser.add_argument(
+        "--edge-cases", action="store_true", help="Run edge case and performance tests"
+    )
 
     args = parser.parse_args()
 
-    return asyncio.run(run_poc_tests(
-        verbose=args.verbose,
-        edge_cases=args.edge_cases,
-    ))
+    return asyncio.run(
+        run_poc_tests(
+            verbose=args.verbose,
+            edge_cases=args.edge_cases,
+        )
+    )
 
 
 if __name__ == "__main__":

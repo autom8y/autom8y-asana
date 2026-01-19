@@ -217,27 +217,21 @@ class TestCascadeViewPluginResolve:
         await plugin.resolve_async(mock_task, "Office Phone", max_depth=3)
 
         # Verify max_depth was passed to hierarchy index
-        mock_hierarchy.get_ancestor_chain.assert_called_with(
-            mock_task.gid, max_depth=3
-        )
+        mock_hierarchy.get_ancestor_chain.assert_called_with(mock_task.gid, max_depth=3)
 
 
 class TestCascadeViewPluginPrefetch:
     """Tests for CascadeViewPlugin.prefetch_parents_async()."""
 
     @pytest.mark.asyncio
-    async def test_prefetch_empty_list(
-        self, cascade_plugin: CascadeViewPlugin
-    ) -> None:
+    async def test_prefetch_empty_list(self, cascade_plugin: CascadeViewPlugin) -> None:
         """Test prefetch with empty task list."""
         await cascade_plugin.prefetch_parents_async([])
 
         assert cascade_plugin.get_stats()["prefetch_calls"] == 1
 
     @pytest.mark.asyncio
-    async def test_prefetch_triggers_cache_lookup(
-        self, mock_store: MagicMock
-    ) -> None:
+    async def test_prefetch_triggers_cache_lookup(self, mock_store: MagicMock) -> None:
         """Test prefetch triggers parent chain lookups."""
         mock_store.get_parent_chain_async = AsyncMock(return_value=[])
         plugin = CascadeViewPlugin(store=mock_store)
@@ -257,9 +251,7 @@ class TestCascadeViewPluginPrefetch:
         assert mock_store.get_parent_chain_async.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_prefetch_skips_orphan_tasks(
-        self, mock_store: MagicMock
-    ) -> None:
+    async def test_prefetch_skips_orphan_tasks(self, mock_store: MagicMock) -> None:
         """Test prefetch skips tasks without parents."""
         mock_store.get_parent_chain_async = AsyncMock(return_value=[])
         plugin = CascadeViewPlugin(store=mock_store)
@@ -278,9 +270,7 @@ class TestCascadeViewPluginPrefetch:
 class TestCascadeViewPluginFieldExtraction:
     """Tests for field value extraction methods."""
 
-    def test_extract_text_field(
-        self, cascade_plugin: CascadeViewPlugin
-    ) -> None:
+    def test_extract_text_field(self, cascade_plugin: CascadeViewPlugin) -> None:
         """Test text field extraction."""
         cf_data = {
             "gid": "cf-1",
@@ -293,9 +283,7 @@ class TestCascadeViewPluginFieldExtraction:
 
         assert result == "Hello World"
 
-    def test_extract_number_field(
-        self, cascade_plugin: CascadeViewPlugin
-    ) -> None:
+    def test_extract_number_field(self, cascade_plugin: CascadeViewPlugin) -> None:
         """Test number field extraction."""
         cf_data = {
             "gid": "cf-2",
@@ -308,9 +296,7 @@ class TestCascadeViewPluginFieldExtraction:
 
         assert result == 1234.56
 
-    def test_extract_enum_field(
-        self, cascade_plugin: CascadeViewPlugin
-    ) -> None:
+    def test_extract_enum_field(self, cascade_plugin: CascadeViewPlugin) -> None:
         """Test enum field extraction."""
         cf_data = {
             "gid": "cf-3",
@@ -338,9 +324,7 @@ class TestCascadeViewPluginFieldExtraction:
 
         assert result is None
 
-    def test_extract_multi_enum_field(
-        self, cascade_plugin: CascadeViewPlugin
-    ) -> None:
+    def test_extract_multi_enum_field(self, cascade_plugin: CascadeViewPlugin) -> None:
         """Test multi_enum field extraction."""
         cf_data = {
             "gid": "cf-4",
@@ -356,9 +340,7 @@ class TestCascadeViewPluginFieldExtraction:
 
         assert result == ["GBP", "LSA"]
 
-    def test_extract_date_field(
-        self, cascade_plugin: CascadeViewPlugin
-    ) -> None:
+    def test_extract_date_field(self, cascade_plugin: CascadeViewPlugin) -> None:
         """Test date field extraction."""
         cf_data = {
             "gid": "cf-5",
@@ -371,9 +353,7 @@ class TestCascadeViewPluginFieldExtraction:
 
         assert result == "2025-01-15"
 
-    def test_extract_people_field(
-        self, cascade_plugin: CascadeViewPlugin
-    ) -> None:
+    def test_extract_people_field(self, cascade_plugin: CascadeViewPlugin) -> None:
         """Test people field extraction."""
         cf_data = {
             "gid": "cf-6",
@@ -420,9 +400,7 @@ class TestCascadeViewPluginClassMapping:
 
         assert result == EntityType.BUSINESS
 
-    def test_class_to_entity_type_unit(
-        self, cascade_plugin: CascadeViewPlugin
-    ) -> None:
+    def test_class_to_entity_type_unit(self, cascade_plugin: CascadeViewPlugin) -> None:
         """Test Unit class maps correctly."""
 
         class Unit:
@@ -464,9 +442,7 @@ class TestCascadeViewPluginStats:
         stats = cascade_plugin.get_stats()
         assert stats["resolve_calls"] == 1
 
-    def test_reset_stats(
-        self, cascade_plugin: CascadeViewPlugin
-    ) -> None:
+    def test_reset_stats(self, cascade_plugin: CascadeViewPlugin) -> None:
         """Test that stats can be reset."""
         # Manually set a stat
         cascade_plugin._stats["resolve_calls"] = 10
@@ -546,9 +522,7 @@ class TestCascadeViewPluginEdgeCases:
         assert result == "555-1234"
 
     @pytest.mark.asyncio
-    async def test_resolve_from_root_fallback(
-        self, mock_store: MagicMock
-    ) -> None:
+    async def test_resolve_from_root_fallback(self, mock_store: MagicMock) -> None:
         """Test Business field found at root task (fallback behavior).
 
         Per TDD-CACHE-COMPLETENESS-001 Phase 3: Uses get_with_upgrade_async

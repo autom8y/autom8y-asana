@@ -48,9 +48,8 @@ class TestGetSection:
         assert "meta" in data
         assert "request_id" in data["meta"]
 
-        mock_sdk.sections.get_async.assert_called_once_with(
-            TEST_SECTION_GID, raw=True
-        )
+        mock_sdk.sections.get_async.assert_called_once_with(TEST_SECTION_GID, raw=True)
+
 
 class TestCreateSection:
     """Tests for POST /api/v1/sections endpoint."""
@@ -116,6 +115,7 @@ class TestCreateSection:
 
         assert response.status_code == 422
 
+
 class TestUpdateSection:
     """Tests for PUT /api/v1/sections/{gid} endpoint."""
 
@@ -159,6 +159,7 @@ class TestUpdateSection:
 
         assert response.status_code == 422
 
+
 class TestDeleteSection:
     """Tests for DELETE /api/v1/sections/{gid} endpoint."""
 
@@ -175,6 +176,7 @@ class TestDeleteSection:
 
         assert response.status_code == 204
         mock_sdk.sections.delete_async.assert_called_once_with(TEST_SECTION_GID)
+
 
 class TestAddTaskToSection:
     """Tests for POST /api/v1/sections/{gid}/tasks endpoint."""
@@ -209,6 +211,7 @@ class TestAddTaskToSection:
         )
 
         assert response.status_code == 422
+
 
 class TestReorderSection:
     """Tests for POST /api/v1/sections/{gid}/reorder endpoint."""
@@ -310,4 +313,3 @@ class TestReorderSection:
         )
 
         assert response.status_code == 422
-

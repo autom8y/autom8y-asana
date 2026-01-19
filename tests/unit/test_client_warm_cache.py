@@ -268,9 +268,7 @@ class TestWarmCacheEntryTypes:
             mock_get.assert_called_once_with("123")
             assert result.warmed == 1
 
-    async def test_warm_unsupported_entry_type_fails(
-        self, client: AsanaClient
-    ) -> None:
+    async def test_warm_unsupported_entry_type_fails(self, client: AsanaClient) -> None:
         """Unsupported entry types (e.g., SUBTASKS) increment failed count."""
         # SUBTASKS is not a directly warmable type
         result = await client.warm_cache_async(

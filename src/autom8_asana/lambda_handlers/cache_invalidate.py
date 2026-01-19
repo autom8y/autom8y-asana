@@ -60,7 +60,9 @@ class InvalidateResponse:
     tasks_cleared: dict[str, int] = field(default_factory=dict)
     dataframes_cleared: int = 0
     duration_ms: float = 0.0
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
     invocation_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -128,7 +130,6 @@ async def _invalidate_cache_async(
 
         duration_ms = (time.monotonic() - start_time) * 1000
 
-        total_cleared = tasks_cleared["redis"] + tasks_cleared["s3"] + dataframes_cleared
         message = f"Cache invalidation complete: {tasks_cleared['redis']} Redis keys, {tasks_cleared['s3']} S3 objects cleared"
 
         logger.info(
@@ -226,11 +227,13 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     # Run async invalidation
     try:
-        response = asyncio.run(_invalidate_cache_async(
-            clear_tasks=clear_tasks,
-            clear_dataframes=clear_dataframes,
-            context=context,
-        ))
+        response = asyncio.run(
+            _invalidate_cache_async(
+                clear_tasks=clear_tasks,
+                clear_dataframes=clear_dataframes,
+                context=context,
+            )
+        )
     except Exception as e:
         logger.error(
             "cache_invalidate_handler_exception",

@@ -18,8 +18,10 @@ Per FR-AUDIT-001, FR-AUDIT-002:
 from __future__ import annotations
 
 import json
-from autom8y_log import get_logger
+import logging
 import time
+
+from autom8y_log import get_logger
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
@@ -144,7 +146,11 @@ class S2SAuditLogger:
         Returns:
             ISO 8601 timestamp with UTC timezone (Z suffix).
         """
-        return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        return (
+            datetime.now(timezone.utc)
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z")
+        )
 
     def log_request(
         self,

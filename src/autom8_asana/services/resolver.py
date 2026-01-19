@@ -250,12 +250,12 @@ class EntityProjectRegistry:
 #   - offer + "phone" -> office_phone (via offer->business_offer->business->office)
 #   - contact + "email" -> contact_email (via prefix expansion)
 ENTITY_ALIASES: dict[str, list[str]] = {
-    "unit": ["business_unit"],      # unit is a business_unit
-    "offer": ["business_offer"],    # offer is a business_offer
-    "business": ["office"],         # business fields use office_ prefix
-    "contact": [],                  # contact uses its own prefix
-    "asset_edit": ["process"],      # asset_edit inherits Process field patterns
-    "asset_edit_holder": [],        # asset_edit_holder uses its own prefix
+    "unit": ["business_unit"],  # unit is a business_unit
+    "offer": ["business_offer"],  # offer is a business_offer
+    "business": ["office"],  # business fields use office_ prefix
+    "contact": [],  # contact uses its own prefix
+    "asset_edit": ["process"],  # asset_edit inherits Process field patterns
+    "asset_edit_holder": [],  # asset_edit_holder uses its own prefix
 }
 
 
@@ -492,7 +492,7 @@ def _normalize_field(
     # 4. Prefix removal: strip {entity}_
     prefix = f"{entity_type}_"
     if field_name.startswith(prefix):
-        stripped = field_name[len(prefix):]
+        stripped = field_name[len(prefix) :]
         if stripped in available_fields:
             return stripped
 
@@ -639,8 +639,7 @@ def filter_result_fields(
     invalid = set(requested_fields) - valid_fields - {"gid"}
     if invalid:
         raise ValueError(
-            f"Invalid fields: {sorted(invalid)}. "
-            f"Available: {sorted(valid_fields)}"
+            f"Invalid fields: {sorted(invalid)}. Available: {sorted(valid_fields)}"
         )
 
     # Always include gid

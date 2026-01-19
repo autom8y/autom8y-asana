@@ -172,7 +172,9 @@ class TestAC001StateTransitionsAtomic:
 
             if len(exceptions) > 0:
                 errors.append(f"Run {i}: Unexpected exceptions: {exceptions}")
-            if not ("exited" in results and ("tracked" in results or "closed" in results)):
+            if not (
+                "exited" in results and ("tracked" in results or "closed" in results)
+            ):
                 errors.append(f"Run {i}: Invalid results: {results}")
 
         assert len(errors) == 0, "\n".join(errors)
@@ -251,7 +253,10 @@ class TestAC002NoLostTracks:
 
         async def counting_execute(requests: list[Any]) -> list[BatchResult]:
             call_count[0] += 1
-            return [create_success_result(gid=f"gid_{call_count[0]}_{i}") for i in range(len(requests))]
+            return [
+                create_success_result(gid=f"gid_{call_count[0]}_{i}")
+                for i in range(len(requests))
+            ]
 
         mock_client.batch.execute_async = counting_execute
 
@@ -267,7 +272,9 @@ class TestAC002NoLostTracks:
         async def slow_execute(requests: list[Any]) -> list[BatchResult]:
             commit_started.set()
             await asyncio.sleep(0.05)
-            return [create_success_result(gid=f"real_gid_{i}") for i in range(len(requests))]
+            return [
+                create_success_result(gid=f"real_gid_{i}") for i in range(len(requests))
+            ]
 
         mock_client.batch.execute_async = slow_execute
 
@@ -284,8 +291,9 @@ class TestAC002NoLostTracks:
 
         # task2 should be NEW (dirty) for next commit
         dirty = session._tracker.get_dirty_entities()
-        assert task2 in dirty or any(e.gid == "temp_2" for e in dirty), \
+        assert task2 in dirty or any(e.gid == "temp_2" for e in dirty), (
             "Entity tracked during commit should be dirty for next commit"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -350,8 +358,9 @@ class TestAC003NoDoubleCommits:
         # 3. No data corruption
         total_entities_saved = sum(api_calls)
         # Current implementation may save up to 2 times (one per concurrent commit)
-        assert total_entities_saved >= 1 and total_entities_saved <= 2, \
+        assert total_entities_saved >= 1 and total_entities_saved <= 2, (
             f"Unexpected number of saves: {api_calls}"
+        )
 
     @pytest.mark.asyncio
     async def test_concurrent_commits_no_corruption(self) -> None:
@@ -594,7 +603,9 @@ class TestAC006PerformanceTolerance:
                 errors.append(e)
 
         # 5 concurrent threads
-        threads = [threading.Thread(target=contended_operations, args=(i,)) for i in range(5)]
+        threads = [
+            threading.Thread(target=contended_operations, args=(i,)) for i in range(5)
+        ]
         for t in threads:
             t.start()
         for t in threads:
@@ -605,7 +616,9 @@ class TestAC006PerformanceTolerance:
         # Even under contention, average should be < 1ms
         avg_ns = sum(times) / len(times)
         avg_ms = avg_ns / 1_000_000
-        assert avg_ms < 1.0, f"Average contended operation {avg_ms:.3f}ms exceeds 1ms budget"
+        assert avg_ms < 1.0, (
+            f"Average contended operation {avg_ms:.3f}ms exceeds 1ms budget"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -674,8 +687,11 @@ class TestActionMethodThreadSafety:
         action_result = [r for r in results if r != "exited"][0]
 
         # If action shows error containing "race", that's a bug
-        assert action_result in valid_action_results or action_result.startswith("action") or action_result == "closed", \
-            f"Unexpected result: {action_result}"
+        assert (
+            action_result in valid_action_results
+            or action_result.startswith("action")
+            or action_result == "closed"
+        ), f"Unexpected result: {action_result}"
 
 
 # ---------------------------------------------------------------------------
@@ -734,8 +750,9 @@ class TestRLockReentrance:
 
         # The entity tracked in hook should be pending for next commit
         # (not included in current commit, per ADR-DEBT-003-002)
-        assert session.is_tracked(hook_task_gid[0]), \
+        assert session.is_tracked(hook_task_gid[0]), (
             "Entity tracked in hook should be available for next commit"
+        )
 
 
 # ---------------------------------------------------------------------------

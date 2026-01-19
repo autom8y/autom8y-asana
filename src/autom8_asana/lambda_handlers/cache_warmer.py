@@ -63,6 +63,7 @@ def _ensure_bootstrap() -> None:
     if not _bootstrap_initialized:
         try:
             import autom8_asana.models.business  # noqa: F401 - side effect import
+
             _bootstrap_initialized = True
             logger.info("bootstrap_complete", detail="ProjectTypeRegistry populated")
         except ImportError as e:
@@ -71,6 +72,7 @@ def _ensure_bootstrap() -> None:
                 error=str(e),
                 impact="Detection may fall through to Tier 5 (unknown)",
             )
+
 
 # ============================================================================
 # Constants (per TDD-lambda-cache-warmer Section 3.2)
@@ -113,7 +115,9 @@ class WarmResponse:
     entity_results: list[dict[str, Any]] = field(default_factory=list)
     total_rows: int = 0
     duration_ms: float = 0.0
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
     checkpoint_cleared: bool = False
     invocation_id: str | None = None
 
@@ -255,6 +259,7 @@ async def _discover_entity_projects_for_lambda() -> None:
 
     from autom8_asana import AsanaClient
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
+
     # Per TDD-registry-consolidation: Import from package to ensure bootstrap runs
     from autom8_asana.models.business import get_workspace_registry
     from autom8_asana.services.resolver import EntityProjectRegistry
@@ -700,11 +705,13 @@ async def _warm_cache_async(
                         },
                     )
 
-                    entity_results.append({
-                        "entity_type": entity_type,
-                        "result": "failure",
-                        "error": str(e),
-                    })
+                    entity_results.append(
+                        {
+                            "entity_type": entity_type,
+                            "result": "failure",
+                            "error": str(e),
+                        }
+                    )
 
                     _emit_metric(
                         "WarmFailure",
@@ -714,9 +721,7 @@ async def _warm_cache_async(
 
                     if strict:
                         pending = [
-                            et
-                            for et in processing_list
-                            if et not in completed_entities
+                            et for et in processing_list if et not in completed_entities
                         ]
                         await checkpoint_mgr.save_async(
                             invocation_id=invocation_id,
@@ -737,15 +742,9 @@ async def _warm_cache_async(
         _emit_metric("TotalDuration", duration_ms, unit="Milliseconds")
 
         # Count successes/failures for message
-        success_count = sum(
-            1 for r in entity_results if r.get("result") == "success"
-        )
-        failure_count = sum(
-            1 for r in entity_results if r.get("result") == "failure"
-        )
-        skipped_count = sum(
-            1 for r in entity_results if r.get("result") == "skipped"
-        )
+        success_count = sum(1 for r in entity_results if r.get("result") == "success")
+        failure_count = sum(1 for r in entity_results if r.get("result") == "failure")
+        skipped_count = sum(1 for r in entity_results if r.get("result") == "skipped")
 
         all_success = failure_count == 0 and skipped_count == 0
 
@@ -863,12 +862,14 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     # Run async warming with context for timeout detection
     try:
-        response = asyncio.run(_warm_cache_async(
-            entity_types=entity_types,
-            strict=strict,
-            resume_from_checkpoint=resume_from_checkpoint,
-            context=context,
-        ))
+        response = asyncio.run(
+            _warm_cache_async(
+                entity_types=entity_types,
+                strict=strict,
+                resume_from_checkpoint=resume_from_checkpoint,
+                context=context,
+            )
+        )
     except Exception as e:
         logger.error(
             "cache_warmer_handler_exception",

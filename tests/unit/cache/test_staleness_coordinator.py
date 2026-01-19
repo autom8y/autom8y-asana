@@ -228,9 +228,7 @@ class TestStalenessCheckCoordinator:
         assert result.ttl == 600
 
     @pytest.mark.asyncio
-    async def test_stats_tracking(
-        self, coordinator: StalenessCheckCoordinator
-    ) -> None:
+    async def test_stats_tracking(self, coordinator: StalenessCheckCoordinator) -> None:
         """Test that stats are tracked correctly."""
         entry = make_entry("123", modified_at="2025-12-23T10:00:00.000Z")
 

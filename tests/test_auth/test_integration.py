@@ -64,9 +64,7 @@ class TestPATPassThrough:
         pat_token = "0/1234567890abcdef1234567890"
 
         # Act
-        response = client.get(
-            "/test", headers={"Authorization": f"Bearer {pat_token}"}
-        )
+        response = client.get("/test", headers={"Authorization": f"Bearer {pat_token}"})
 
         # Assert
         assert response.status_code == 200
@@ -82,9 +80,7 @@ class TestPATPassThrough:
         pat_token = "1/abcdef1234567890abcdef1234"
 
         # Act
-        response = client.get(
-            "/test", headers={"Authorization": f"Bearer {pat_token}"}
-        )
+        response = client.get("/test", headers={"Authorization": f"Bearer {pat_token}"})
 
         # Assert
         assert response.status_code == 200
@@ -231,9 +227,7 @@ class TestMissingAuth:
         client = TestClient(app)
 
         # Act
-        response = client.get(
-            "/test", headers={"Authorization": "Basic dXNlcjpwYXNz"}
-        )
+        response = client.get("/test", headers={"Authorization": "Basic dXNlcjpwYXNz"})
 
         # Assert
         assert response.status_code == 401

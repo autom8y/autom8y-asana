@@ -45,9 +45,7 @@ class MockCacheProviderWithDataFrame:
         """Store entry in cache."""
         pass
 
-    def invalidate(
-        self, key: str, entry_types: list[EntryType] | None = None
-    ) -> None:
+    def invalidate(self, key: str, entry_types: list[EntryType] | None = None) -> None:
         """Invalidate cache entry."""
         if self.fail_on_invalidate:
             raise ConnectionError("Cache invalidation failed")
@@ -306,7 +304,9 @@ class TestDataFrameInvalidation:
         mock_log.warning.assert_called()
         # Check that dataframe_cache_invalidation_failed was logged
         warning_calls = [str(call) for call in mock_log.warning.call_args_list]
-        assert any("dataframe_cache_invalidation_failed" in call for call in warning_calls)
+        assert any(
+            "dataframe_cache_invalidation_failed" in call for call in warning_calls
+        )
 
     @pytest.mark.asyncio
     async def test_invalidation_all_operation_types(self) -> None:

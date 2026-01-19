@@ -255,9 +255,7 @@ class SchedulerConfig(BaseModel):
         """Validate that time is in HH:MM format (24-hour)."""
         pattern = r"^([01]\d|2[0-3]):([0-5]\d)$"
         if not re.match(pattern, v):
-            raise ValueError(
-                f"time must be in HH:MM format (24-hour), got '{v}'"
-            )
+            raise ValueError(f"time must be in HH:MM format (24-hour), got '{v}'")
         return v
 
 

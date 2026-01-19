@@ -38,6 +38,7 @@ from autom8_asana.exceptions import (
     InsightsValidationError,
     SyncInAsyncContextError,
 )
+
 # Platform SDK resilience primitives (autom8y-http >= 0.3.0)
 from autom8y_http import (
     CircuitBreaker,
@@ -616,14 +617,14 @@ class DataServiceClient:
             cached_at = None
             if cached_at_str:
                 try:
-                    cached_at = datetime.fromisoformat(cached_at_str.replace("Z", "+00:00"))
+                    cached_at = datetime.fromisoformat(
+                        cached_at_str.replace("Z", "+00:00")
+                    )
                 except (ValueError, AttributeError):
                     cached_at = datetime.now(timezone.utc)
 
             # Rebuild column info
-            columns = [
-                ColumnInfo(**col) for col in metadata_dict.get("columns", [])
-            ]
+            columns = [ColumnInfo(**col) for col in metadata_dict.get("columns", [])]
 
             # Create metadata with staleness indicators
             metadata = InsightsMetadata(
@@ -644,9 +645,8 @@ class DataServiceClient:
                 data=cached_data.get("data", []),
                 metadata=metadata,
                 request_id=request_id,
-                warnings=cached_data.get("warnings", []) + [
-                    "Response served from stale cache due to service unavailability"
-                ],
+                warnings=cached_data.get("warnings", [])
+                + ["Response served from stale cache due to service unavailability"],
             )
 
             if self._log:
@@ -688,12 +688,24 @@ class DataServiceClient:
     #   ad_questions   -> AdQuestionsInsightsFrame (ad question responses)
     #   ad_tests       -> AdTestsInsightsFrame (A/B test results)
     #   base           -> BaseInsightsFrame (base/raw metrics)
-    VALID_FACTORIES = frozenset({
-        "account", "ads", "adsets", "campaigns", "spend",
-        "leads", "appts", "assets", "targeting", "payments",
-        "business_offers", "ad_questions", "ad_tests", "base",
-    })
-
+    VALID_FACTORIES = frozenset(
+        {
+            "account",
+            "ads",
+            "adsets",
+            "campaigns",
+            "spend",
+            "leads",
+            "appts",
+            "assets",
+            "targeting",
+            "payments",
+            "business_offers",
+            "ad_questions",
+            "ad_tests",
+            "base",
+        }
+    )
 
     async def get_insights_async(
         self,
@@ -1488,9 +1500,7 @@ class DataServiceClient:
         try:
             # Parse metadata
             metadata_dict = body.get("metadata", {})
-            columns = [
-                ColumnInfo(**col) for col in metadata_dict.get("columns", [])
-            ]
+            columns = [ColumnInfo(**col) for col in metadata_dict.get("columns", [])]
 
             metadata = InsightsMetadata(
                 factory=metadata_dict.get("factory", "unknown"),

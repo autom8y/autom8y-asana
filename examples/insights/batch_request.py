@@ -93,8 +93,7 @@ async def handle_partial_failures() -> None:
 
         # Process only successful results
         successful_results = [
-            result for result in batch_response.results.values()
-            if result.success
+            result for result in batch_response.results.values() if result.success
         ]
 
         print(f"\nProcessed {len(successful_results)} successful results")

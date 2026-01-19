@@ -97,7 +97,7 @@ async def demonstrate_service_error() -> None:
     # Note: This would normally occur when autom8_data is unavailable
     # We show the error handling pattern here
 
-    example_code = '''
+    example_code = """
     try:
         response = await client.get_insights_async(
             factory="account",
@@ -116,7 +116,7 @@ async def demonstrate_service_error() -> None:
             print("Request timed out - consider smaller query")
         else:
             print("Server error - retry with exponential backoff")
-    '''
+    """
     print("\nExample handling pattern:")
     print(example_code)
 
@@ -126,7 +126,7 @@ async def demonstrate_stale_cache_fallback() -> None:
     print("\n=== Stale Cache Fallback ===")
     print("When service fails, stale cached data may be returned")
 
-    example_code = '''
+    example_code = """
     # With cache provider configured, stale data is returned on failure
     response = await client.get_insights_async(
         factory="account",
@@ -143,7 +143,7 @@ async def demonstrate_stale_cache_fallback() -> None:
         # Data may be outdated but still useful for display
         df = response.to_dataframe()
         # ... use with appropriate staleness indication in UI
-    '''
+    """
     print("\nStale cache behavior:")
     print(example_code)
 
@@ -158,7 +158,7 @@ async def demonstrate_circuit_breaker() -> None:
         print(f"\nCircuit breaker state: {client.circuit_breaker.state}")
         print(f"Failure count: {client.circuit_breaker.failure_count}")
 
-        example_code = '''
+        example_code = """
         # When circuit is open, requests fail fast
         try:
             response = await client.get_insights_async(...)
@@ -168,7 +168,7 @@ async def demonstrate_circuit_breaker() -> None:
                 # Don't retry immediately, wait for recovery
                 print(f"Circuit breaker open: {e}")
                 # Consider using cached data or showing degraded state
-        '''
+        """
         print("\nCircuit breaker handling:")
         print(example_code)
 

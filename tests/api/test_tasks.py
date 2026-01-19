@@ -462,9 +462,7 @@ class TestDuplicateTask:
 class TestTaskTags:
     """Tests for task tag operations."""
 
-    def test_add_tag_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_add_tag_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully adds a tag to a task."""
         client, mock_sdk = authed_client
 
@@ -475,7 +473,9 @@ class TestTaskTags:
         )
 
         assert response.status_code == 200
-        mock_sdk.tasks.add_tag_async.assert_called_once_with(TEST_TASK_GID, TEST_TAG_GID)
+        mock_sdk.tasks.add_tag_async.assert_called_once_with(
+            TEST_TASK_GID, TEST_TAG_GID
+        )
 
     def test_remove_tag_success(
         self, authed_client: tuple[TestClient, MagicMock]

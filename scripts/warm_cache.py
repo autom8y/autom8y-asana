@@ -89,7 +89,9 @@ async def warm_all_projects() -> int:
                 # Get schema and client
                 from autom8_asana.client import get_client
                 from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
-                from autom8_asana.dataframes.section_persistence import SectionPersistence
+                from autom8_asana.dataframes.section_persistence import (
+                    SectionPersistence,
+                )
 
                 client = get_client()
 

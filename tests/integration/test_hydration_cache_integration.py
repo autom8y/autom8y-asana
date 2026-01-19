@@ -229,9 +229,10 @@ class TestParentGidFromCachedTasks:
         with pytest.raises(HydrationError) as exc_info:
             await _traverse_upward_async(orphan_task, mock_client)
 
-        assert "root" in str(exc_info.value).lower() or "parent" in str(
-            exc_info.value
-        ).lower()
+        assert (
+            "root" in str(exc_info.value).lower()
+            or "parent" in str(exc_info.value).lower()
+        )
 
 
 # =============================================================================
@@ -431,7 +432,11 @@ class TestHydrationWithCachedTasks:
             parent_gid="holder_001",
             memberships=[{"project": {"gid": "contact_project"}}],
             custom_fields=[
-                {"gid": "cf_001", "name": "Contact Email", "text_value": "john@example.com"}
+                {
+                    "gid": "cf_001",
+                    "name": "Contact Email",
+                    "text_value": "john@example.com",
+                }
             ],
         )
         holder_task = make_mock_task(

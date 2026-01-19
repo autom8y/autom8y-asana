@@ -20,14 +20,15 @@ import polars as pl
 import pytest
 
 # MIGRATION: Tests need update for ProgressiveProjectBuilder constructor signature
-pytestmark = pytest.mark.skip(reason="MIGRATION: Tests need update for ProgressiveProjectBuilder")
+pytestmark = pytest.mark.skip(
+    reason="MIGRATION: Tests need update for ProgressiveProjectBuilder"
+)
 
 from autom8_asana.dataframes.builders import (
     LAZY_THRESHOLD,
     DataFrameBuilder,
     SectionDataFrameBuilder,
 )
-from autom8_asana.dataframes.builders.progressive import ProgressiveProjectBuilder
 from autom8_asana.dataframes.extractors.base import BaseExtractor
 from autom8_asana.dataframes.models.schema import DataFrameSchema
 from autom8_asana.dataframes.resolver import MockCustomFieldResolver
@@ -180,7 +181,7 @@ class TestSmallProjectEagerEvaluation:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         # Track which build method is called
@@ -225,7 +226,7 @@ class TestSmallProjectEagerEvaluation:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -275,7 +276,7 @@ class TestLargeProjectLazyEvaluation:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         # Track which build method is called
@@ -320,7 +321,7 @@ class TestLargeProjectLazyEvaluation:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -344,7 +345,7 @@ class TestLargeProjectLazyEvaluation:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         # Build with eager
@@ -391,7 +392,7 @@ class TestMixedTaskTypes:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -418,7 +419,7 @@ class TestMixedTaskTypes:
             task_type="Contact",
             schema=CONTACT_SCHEMA,
             resolver=contact_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -446,7 +447,7 @@ class TestMixedTaskTypes:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         contact_builder = ProjectDataFrameBuilder(
@@ -454,7 +455,7 @@ class TestMixedTaskTypes:
             task_type="Contact",
             schema=CONTACT_SCHEMA,
             resolver=contact_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         unit_df = unit_builder.build()
@@ -490,7 +491,7 @@ class TestCustomFieldExtraction:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -515,7 +516,7 @@ class TestCustomFieldExtraction:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -540,7 +541,7 @@ class TestCustomFieldExtraction:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -549,8 +550,10 @@ class TestCustomFieldExtraction:
         assert df["vertical"][0] == "Healthcare"
         assert df["specialty"][0] == "Dental"
 
-    def test_null_custom_field_handling(self,
-        mock_unified_store: MagicMock,) -> None:
+    def test_null_custom_field_handling(
+        self,
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test null custom fields are handled correctly."""
         # Resolver returns None for missing fields
         resolver = MockCustomFieldResolver(
@@ -570,7 +573,7 @@ class TestCustomFieldExtraction:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -606,7 +609,7 @@ class TestSectionFiltering:
             schema=UNIT_SCHEMA,
             sections=["Active"],
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -636,7 +639,7 @@ class TestSectionFiltering:
             schema=UNIT_SCHEMA,
             sections=["Active", "Review"],
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -671,7 +674,7 @@ class TestSectionFiltering:
             schema=UNIT_SCHEMA,
             sections=None,  # No filter
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -695,7 +698,7 @@ class TestSectionFiltering:
             schema=UNIT_SCHEMA,
             sections=["Nonexistent"],
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -726,7 +729,7 @@ class TestEmptyStates:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -770,7 +773,7 @@ class TestEmptyStates:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -825,7 +828,7 @@ class TestSchemaCorrectness:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -849,7 +852,7 @@ class TestSchemaCorrectness:
             task_type="Contact",
             schema=CONTACT_SCHEMA,
             resolver=contact_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -889,7 +892,7 @@ class TestSchemaCorrectness:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -912,7 +915,7 @@ class TestSchemaCorrectness:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -937,7 +940,7 @@ class TestSchemaCorrectness:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = builder.build()
@@ -981,7 +984,7 @@ class TestBuilderIntegration:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         section_builder = SectionDataFrameBuilder(
@@ -1018,7 +1021,7 @@ class TestBuilderIntegration:
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
             lazy_threshold=50,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         # 60 tasks should use lazy with threshold of 50
@@ -1043,7 +1046,7 @@ class TestBuilderIntegration:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         # Force lazy even though below threshold
@@ -1078,7 +1081,7 @@ class TestBuilderIntegration:
             task_type="Unit",
             schema=UNIT_SCHEMA,
             resolver=unit_resolver,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         # Force eager even though above threshold

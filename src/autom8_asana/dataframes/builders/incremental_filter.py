@@ -106,12 +106,18 @@ class IncrementalFilter:
             IncrementalFilter with watermark index from DataFrame.
         """
         if df is None or df.is_empty() or WATERMARK_COLUMN_NAME not in df.columns:
-            reason = "none_df" if df is None else ("empty_df" if df.is_empty() else "missing_watermark_column")
+            reason = (
+                "none_df"
+                if df is None
+                else ("empty_df" if df.is_empty() else "missing_watermark_column")
+            )
             logger.debug(
                 "incremental_filter_empty_index",
                 extra={
                     "reason": reason,
-                    "columns": df.columns if df is not None and not df.is_empty() else [],
+                    "columns": df.columns
+                    if df is not None and not df.is_empty()
+                    else [],
                 },
             )
             return cls({})
@@ -196,7 +202,9 @@ class IncrementalFilter:
                 "process_count": len(to_process),
                 "skip_count": len(to_skip),
                 "delete_count": len(to_delete),
-                "skip_rate": len(to_skip) / len(fetched_tasks) if fetched_tasks else 0.0,
+                "skip_rate": len(to_skip) / len(fetched_tasks)
+                if fetched_tasks
+                else 0.0,
             },
         )
 

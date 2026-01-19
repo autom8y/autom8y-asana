@@ -757,8 +757,12 @@ class AutomationResult:
     execution_time_ms: float = 0.0
     skipped_reason: str | None = None
     enhancement_results: dict[str, bool] = field(default_factory=dict)
-    pre_validation: Any | None = None  # ValidationResult, using Any to avoid circular import
-    post_validation: Any | None = None  # ValidationResult, using Any to avoid circular import
+    pre_validation: Any | None = (
+        None  # ValidationResult, using Any to avoid circular import
+    )
+    post_validation: Any | None = (
+        None  # ValidationResult, using Any to avoid circular import
+    )
 
     def __repr__(self) -> str:
         """Return string representation."""

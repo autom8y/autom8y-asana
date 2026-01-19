@@ -65,9 +65,7 @@ class RequestCoalescer:
         default_factory=dict, init=False, repr=False
     )
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
-    _timer_task: asyncio.Task[None] | None = field(
-        default=None, init=False, repr=False
-    )
+    _timer_task: asyncio.Task[None] | None = field(default=None, init=False, repr=False)
     _batch_start_time: float | None = field(default=None, init=False, repr=False)
 
     # Statistics
@@ -179,9 +177,7 @@ class RequestCoalescer:
         # Calculate actual window utilization
         window_utilization_ms = 0.0
         if self._batch_start_time is not None:
-            window_utilization_ms = (
-                time.monotonic() - self._batch_start_time
-            ) * 1000.0
+            window_utilization_ms = (time.monotonic() - self._batch_start_time) * 1000.0
         self._batch_start_time = None
 
         # Extract entries for checker

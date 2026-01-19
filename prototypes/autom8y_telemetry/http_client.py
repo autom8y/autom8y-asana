@@ -165,7 +165,9 @@ class TelemetryHTTPClient:
 
                 # Record response attributes
                 span.set_attribute("http.status_code", response.status_code)
-                span.set_attribute("http.response_content_length", len(response.content))
+                span.set_attribute(
+                    "http.response_content_length", len(response.content)
+                )
 
                 # Calculate duration
                 duration_ms = (time.monotonic() - start_time) * 1000

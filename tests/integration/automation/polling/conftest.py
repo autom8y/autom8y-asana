@@ -71,7 +71,9 @@ def workspace_gid(asana_client: "AsanaClient") -> str:
 
     workspace_gid = os.environ.get("ASANA_WORKSPACE_GID")
     if not workspace_gid:
-        pytest.skip("No workspace GID available (auto-detect failed, no ASANA_WORKSPACE_GID)")
+        pytest.skip(
+            "No workspace GID available (auto-detect failed, no ASANA_WORKSPACE_GID)"
+        )
 
     return workspace_gid
 
@@ -137,7 +139,9 @@ async def test_task(
     """
     # Generate unique task name with timestamp and UUID
     unique_id = str(uuid.uuid4())[:8]
-    task_name = f"[Integration Test] {datetime.now(timezone.utc).isoformat()} - {unique_id}"
+    task_name = (
+        f"[Integration Test] {datetime.now(timezone.utc).isoformat()} - {unique_id}"
+    )
 
     # Create the task
     task = await asana_client.tasks.create_async(
@@ -177,7 +181,9 @@ async def stale_task(
         Task object that can be used for trigger testing.
     """
     unique_id = str(uuid.uuid4())[:8]
-    task_name = f"[Stale Test Task] {datetime.now(timezone.utc).isoformat()} - {unique_id}"
+    task_name = (
+        f"[Stale Test Task] {datetime.now(timezone.utc).isoformat()} - {unique_id}"
+    )
 
     task = await asana_client.tasks.create_async(
         name=task_name,

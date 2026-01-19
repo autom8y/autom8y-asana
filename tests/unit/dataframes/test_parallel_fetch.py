@@ -636,9 +636,7 @@ class TestFetchSectionTaskGidsAsync:
         ) -> MagicMock:
             mock_iterator = MagicMock()
             if section == "section_2":
-                mock_iterator.collect = AsyncMock(
-                    side_effect=Exception("API Error")
-                )
+                mock_iterator.collect = AsyncMock(side_effect=Exception("API Error"))
             else:
                 mock_iterator.collect = AsyncMock(return_value=[])
             return mock_iterator
@@ -1230,7 +1228,8 @@ class TestGidEnumerationCache:
         # Verify GID enumeration cache was populated
         # Find the call that set GID enumeration
         gid_set_calls = [
-            call for call in mock_cache.set_versioned.call_args_list
+            call
+            for call in mock_cache.set_versioned.call_args_list
             if "gid_enumeration" in str(call)
         ]
         assert len(gid_set_calls) == 1
@@ -1276,7 +1275,9 @@ class TestGidEnumerationCache:
         # Create mock cache provider that throws on all operations
         mock_cache = MagicMock()
         mock_cache.get_versioned = MagicMock(side_effect=Exception("Cache unavailable"))
-        mock_cache.set_versioned = MagicMock(side_effect=Exception("Cache write failed"))
+        mock_cache.set_versioned = MagicMock(
+            side_effect=Exception("Cache write failed")
+        )
 
         fetcher = ParallelSectionFetcher(
             sections_client=sections_client,
@@ -1350,7 +1351,9 @@ class TestGidEnumerationCache:
             await fetcher.fetch_section_task_gids_async()
 
         # Verify warning was logged
-        warning_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+        warning_messages = [
+            r.message for r in caplog.records if r.levelno == logging.WARNING
+        ]
         assert len(warning_messages) >= 1
         assert any("cache" in msg.lower() for msg in warning_messages)
 
@@ -1361,7 +1364,7 @@ class TestGidEnumerationCache:
     def test_ttl_constants_defined(self) -> None:
         """Test TTL constants are defined per PRD specification."""
         assert ParallelSectionFetcher._SECTIONS_TTL == 1800  # 30 minutes
-        assert ParallelSectionFetcher._GID_ENUM_TTL == 300   # 5 minutes
+        assert ParallelSectionFetcher._GID_ENUM_TTL == 300  # 5 minutes
 
     # -------------------------------------------------------------------------
     # Backward Compatibility Tests

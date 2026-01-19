@@ -227,9 +227,7 @@ class TestWarmAncestorsAsync:
         hierarchy_index.register({"gid": "unit-1", "parent": {"gid": "business-1"}})
 
         # Mock the tasks client to raise an error
-        mock_tasks_client.get_async = AsyncMock(
-            side_effect=Exception("Network error")
-        )
+        mock_tasks_client.get_async = AsyncMock(side_effect=Exception("Network error"))
 
         # Should not raise, just log warning and continue
         warmed = await warm_ancestors_async(

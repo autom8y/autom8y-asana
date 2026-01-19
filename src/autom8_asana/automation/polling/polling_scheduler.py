@@ -36,13 +36,15 @@ from __future__ import annotations
 
 import asyncio
 import fcntl
-from autom8y_log import get_logger
+import logging
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from autom8y_log import get_logger
 
 from autom8_asana.automation.polling.action_executor import ActionExecutor
 from autom8_asana.automation.polling.config_loader import ConfigurationLoader
@@ -286,7 +288,9 @@ class PollingScheduler:
             utc_end.isoformat(),
         )
 
-    def _evaluate_rules(self, tasks_by_project: dict[str, list[Any]] | None = None) -> None:
+    def _evaluate_rules(
+        self, tasks_by_project: dict[str, list[Any]] | None = None
+    ) -> None:
         """Internal: evaluate all enabled rules and execute actions on matches.
 
         Iterates through all rules in the configuration, evaluating each
@@ -351,7 +355,9 @@ class PollingScheduler:
             # Execute actions on matched tasks if executor is available
             if matched_tasks and self._action_executor:
                 # Run async action execution in sync context
-                asyncio.run(self._execute_actions_async(matched_tasks, rule, structured_log))
+                asyncio.run(
+                    self._execute_actions_async(matched_tasks, rule, structured_log)
+                )
             elif matched_tasks:
                 # Dry-run mode: log matches without executing actions
                 for task in matched_tasks:
@@ -448,7 +454,9 @@ class PollingScheduler:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
             # Write PID for debugging
-            lock_file.write(f"{datetime.now(timezone.utc).isoformat()}\npid={sys.executable}\n")
+            lock_file.write(
+                f"{datetime.now(timezone.utc).isoformat()}\npid={sys.executable}\n"
+            )
             lock_file.flush()
 
             logger.debug("Acquired lock at %s", self.lock_path)

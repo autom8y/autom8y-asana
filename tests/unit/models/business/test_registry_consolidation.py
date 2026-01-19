@@ -65,9 +65,7 @@ class TestBootstrapRegistration:
         # Contact should be registered
         assert registry.lookup("1200775689604552") == EntityType.CONTACT
 
-    def test_bootstrap_is_idempotent(
-        self, clean_registry_and_bootstrap: None
-    ) -> None:
+    def test_bootstrap_is_idempotent(self, clean_registry_and_bootstrap: None) -> None:
         """Bootstrap can be called multiple times without error."""
         register_all_models()
         register_all_models()  # Second call should be no-op
@@ -192,18 +190,14 @@ class TestHolderGIDs:
 
         assert registry.lookup("1203404998225231") == EntityType.RECONCILIATIONS_HOLDER
 
-    def test_asset_edit_holder_gid(
-        self, clean_registry_and_bootstrap: None
-    ) -> None:
+    def test_asset_edit_holder_gid(self, clean_registry_and_bootstrap: None) -> None:
         """AssetEditHolder maps to expected GID."""
         register_all_models()
         registry = get_registry()
 
         assert registry.lookup("1203992664400125") == EntityType.ASSET_EDIT_HOLDER
 
-    def test_videography_holder_gid(
-        self, clean_registry_and_bootstrap: None
-    ) -> None:
+    def test_videography_holder_gid(self, clean_registry_and_bootstrap: None) -> None:
         """VideographyHolder maps to expected GID."""
         register_all_models()
         registry = get_registry()

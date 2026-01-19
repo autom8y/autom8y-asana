@@ -150,9 +150,7 @@ class UniversalResolutionStrategy:
                 )
 
                 if index is None:
-                    results.append(
-                        ResolutionResult.error_result("INDEX_UNAVAILABLE")
-                    )
+                    results.append(ResolutionResult.error_result("INDEX_UNAVAILABLE"))
                     continue
 
                 # Perform lookup
@@ -187,7 +185,9 @@ class UniversalResolutionStrategy:
 
         # Log batch completion
         elapsed_ms = (time.monotonic() - start_time) * 1000
-        resolved_count = sum(1 for r in results if r.gid is not None and r.error is None)
+        resolved_count = sum(
+            1 for r in results if r.gid is not None and r.error is None
+        )
         multi_match_count = sum(1 for r in results if r.is_ambiguous)
 
         logger.info(
@@ -397,7 +397,9 @@ class UniversalResolutionStrategy:
 
         # Try to get from DataFrameCache
         try:
-            from autom8_asana.cache.dataframe.factory import get_dataframe_cache_provider
+            from autom8_asana.cache.dataframe.factory import (
+                get_dataframe_cache_provider,
+            )
 
             cache = get_dataframe_cache_provider()
             if cache is not None:

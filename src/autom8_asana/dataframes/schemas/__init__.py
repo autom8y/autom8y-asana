@@ -1,6 +1,9 @@
 """Schema definitions for the Structured Dataframe Layer."""
 
-from autom8_asana.dataframes.schemas.asset_edit import ASSET_EDIT_COLUMNS, ASSET_EDIT_SCHEMA
+from autom8_asana.dataframes.schemas.asset_edit import (
+    ASSET_EDIT_COLUMNS,
+    ASSET_EDIT_SCHEMA,
+)
 from autom8_asana.dataframes.schemas.asset_edit_holder import (
     ASSET_EDIT_HOLDER_COLUMNS,
     ASSET_EDIT_HOLDER_SCHEMA,

@@ -145,9 +145,7 @@ class TestSecretsManagerAuthProvider:
 
         assert provider.region == "eu-west-1"
 
-    def test_custom_region_from_env(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_custom_region_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Provider reads region from AWS_REGION environment variable."""
         monkeypatch.setenv("AWS_REGION", "ap-southeast-1")
         provider = SecretsManagerAuthProvider()
@@ -159,7 +157,10 @@ class TestSecretsManagerAuthProvider:
         provider = SecretsManagerAuthProvider(service_name="asana")
 
         assert provider._build_secret_path("bot_pat") == "autom8y/asana/bot_pat"
-        assert provider._build_secret_path("workspace_gid") == "autom8y/asana/workspace_gid"
+        assert (
+            provider._build_secret_path("workspace_gid")
+            == "autom8y/asana/workspace_gid"
+        )
 
     def test_build_secret_path_custom_pattern(self) -> None:
         """Custom pattern builds paths with custom format."""
@@ -186,9 +187,7 @@ class TestSecretsManagerAuthProvider:
     def test_get_secret_fetches_from_secrets_manager(self) -> None:
         """get_secret fetches from Secrets Manager and caches result."""
         mock_client = MagicMock()
-        mock_client.get_secret_value.return_value = {
-            "SecretString": "fetched_token"
-        }
+        mock_client.get_secret_value.return_value = {"SecretString": "fetched_token"}
         provider = SecretsManagerAuthProvider(
             service_name="asana",
             client=mock_client,
@@ -222,9 +221,7 @@ class TestSecretsManagerAuthProvider:
     def test_get_secret_handles_access_denied(self) -> None:
         """get_secret raises AuthenticationError for access denied."""
         mock_client = MagicMock()
-        error_response: dict[str, Any] = {
-            "Error": {"Code": "AccessDeniedException"}
-        }
+        error_response: dict[str, Any] = {"Error": {"Code": "AccessDeniedException"}}
         mock_client.get_secret_value.side_effect = Exception("Access denied")
         mock_client.get_secret_value.side_effect.response = error_response  # type: ignore[attr-defined]
 
@@ -238,9 +235,7 @@ class TestSecretsManagerAuthProvider:
     def test_get_secret_rejects_binary_secrets(self) -> None:
         """get_secret raises AuthenticationError for binary secrets."""
         mock_client = MagicMock()
-        mock_client.get_secret_value.return_value = {
-            "SecretBinary": b"binary_data"
-        }
+        mock_client.get_secret_value.return_value = {"SecretBinary": b"binary_data"}
         provider = SecretsManagerAuthProvider(client=mock_client)
 
         with pytest.raises(AuthenticationError) as exc_info:
@@ -269,6 +264,7 @@ class TestSecretsManagerAuthProvider:
 
         # Mock the import to fail
         import sys
+
         boto3_module = sys.modules.get("boto3")
         try:
             sys.modules["boto3"] = None  # type: ignore[assignment]

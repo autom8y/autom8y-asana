@@ -64,9 +64,13 @@ def make_custom_field(
         case "number":
             cf["number_value"] = value
         case "enum":
-            cf["enum_value"] = {"gid": f"enum_{value}", "name": value} if value else None
+            cf["enum_value"] = (
+                {"gid": f"enum_{value}", "name": value} if value else None
+            )
         case "multi_enum":
-            cf["multi_enum_values"] = [{"gid": f"me_{v}", "name": v} for v in (value or [])]
+            cf["multi_enum_values"] = [
+                {"gid": f"me_{v}", "name": v} for v in (value or [])
+            ]
 
     return cf
 
@@ -294,7 +298,9 @@ class TestMaxDepthLimit:
             mock_detect.return_value = MagicMock(entity_type=EntityType.UNIT)
 
             result = await resolver.resolve_async(
-                task1, "Office Phone", max_depth=3  # type: ignore[arg-type]
+                task1,
+                "Office Phone",
+                max_depth=3,  # type: ignore[arg-type]
             )
 
         # Should return None because max_depth exceeded

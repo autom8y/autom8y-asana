@@ -91,9 +91,13 @@ def make_custom_field(
         case "number":
             cf["number_value"] = value
         case "enum":
-            cf["enum_value"] = {"gid": f"enum_{value}", "name": value} if value else None
+            cf["enum_value"] = (
+                {"gid": f"enum_{value}", "name": value} if value else None
+            )
         case "multi_enum":
-            cf["multi_enum_values"] = [{"gid": f"me_{v}", "name": v} for v in (value or [])]
+            cf["multi_enum_values"] = [
+                {"gid": f"me_{v}", "name": v} for v in (value or [])
+            ]
 
     return cf
 
@@ -129,7 +133,9 @@ class TestUnitSchemaCascadeSource:
                 office_phone_col = col
                 break
 
-        assert office_phone_col is not None, "office_phone column not found in UNIT_SCHEMA"
+        assert office_phone_col is not None, (
+            "office_phone column not found in UNIT_SCHEMA"
+        )
         assert office_phone_col.source == "cascade:Office Phone", (
             f"Expected source='cascade:Office Phone', got source='{office_phone_col.source}'"
         )

@@ -9,9 +9,8 @@ The old ProjectDataFrameBuilder has been removed. Tests are skipped until migrat
 
 from __future__ import annotations
 
-import os
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock
 
 import polars as pl
 import pytest

@@ -60,7 +60,10 @@ async def _extract_bearer_token(request: Request) -> str:
     if auth_header is None:
         raise HTTPException(
             status_code=401,
-            detail={"error": "MISSING_AUTH", "message": "Authorization header required"},
+            detail={
+                "error": "MISSING_AUTH",
+                "message": "Authorization header required",
+            },
             headers={"WWW-Authenticate": "Bearer"},
         )
 

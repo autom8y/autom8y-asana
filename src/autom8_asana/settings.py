@@ -69,9 +69,7 @@ class AsanaSettings(BaseSettings):
     )
 
     pat: str | None = Field(default=None, description="Asana Personal Access Token")
-    workspace_gid: str | None = Field(
-        default=None, description="Default workspace GID"
-    )
+    workspace_gid: str | None = Field(default=None, description="Default workspace GID")
     base_url: str = Field(
         default="https://app.asana.com/api/1.0",
         description="Asana API base URL",

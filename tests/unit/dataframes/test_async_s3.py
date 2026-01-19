@@ -374,7 +374,9 @@ class TestAsyncS3ClientOperations:
         client = AsyncS3Client(bucket="test-bucket")
 
         mock_s3 = MagicMock()
-        mock_s3.get_object.side_effect = Exception("NoSuchKey: The specified key does not exist")
+        mock_s3.get_object.side_effect = Exception(
+            "NoSuchKey: The specified key does not exist"
+        )
 
         with patch("boto3.client", return_value=mock_s3):
             with patch("botocore.config.Config"):

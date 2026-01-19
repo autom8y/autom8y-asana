@@ -299,7 +299,9 @@ def sample_rules_list() -> list[Rule]:
             rule_id="stale-check",
             name="Stale Task Check",
             project_gid="1234567890123",
-            conditions=[RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))],
+            conditions=[
+                RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))
+            ],
             action=ActionConfig(type="add_tag", params={"tag": "stale"}),
             enabled=True,
         ),
@@ -427,7 +429,9 @@ def stale_tasks(sample_tasks: list[MockTask]) -> list[MockTask]:
 @pytest.fixture
 def fresh_tasks(sample_tasks: list[MockTask]) -> list[MockTask]:
     """Tasks that are not stale (modified within 3 days)."""
-    return [t for t in sample_tasks if t.gid in ("task-2", "task-3", "task-4", "task-6")]
+    return [
+        t for t in sample_tasks if t.gid in ("task-2", "task-3", "task-4", "task-6")
+    ]
 
 
 @pytest.fixture

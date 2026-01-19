@@ -36,12 +36,14 @@ def reset_cache_ready():
 @pytest.fixture
 def sample_dataframe() -> pl.DataFrame:
     """Create a sample DataFrame for testing."""
-    return pl.DataFrame({
-        "gid": ["123456", "789012"],
-        "name": ["Task 1", "Task 2"],
-        "office_phone": ["+17705551234", "+14045556789"],
-        "vertical": ["chiropractic", "dental"],
-    })
+    return pl.DataFrame(
+        {
+            "gid": ["123456", "789012"],
+            "name": ["Task 1", "Task 2"],
+            "office_phone": ["+17705551234", "+14045556789"],
+            "vertical": ["chiropractic", "dental"],
+        }
+    )
 
 
 @pytest.fixture
@@ -81,6 +83,7 @@ class TestPreloadDataframeCacheFunction:
 
         # Should set cache ready even when skipped
         from autom8_asana.api.routes.health import is_cache_ready
+
         assert is_cache_ready() is True
 
     @pytest.mark.asyncio
@@ -97,6 +100,7 @@ class TestPreloadDataframeCacheFunction:
         await _preload_dataframe_cache(mock_app)
 
         from autom8_asana.api.routes.health import is_cache_ready
+
         assert is_cache_ready() is True
 
     @pytest.mark.asyncio
@@ -119,6 +123,7 @@ class TestPreloadDataframeCacheFunction:
             await _preload_dataframe_cache(mock_app)
 
         from autom8_asana.api.routes.health import is_cache_ready
+
         assert is_cache_ready() is True
 
     @pytest.mark.asyncio
@@ -171,6 +176,7 @@ class TestPreloadDataframeCacheFunction:
                     mock_catchup.assert_called_once()
 
         from autom8_asana.api.routes.health import is_cache_ready
+
         assert is_cache_ready() is True
 
     @pytest.mark.asyncio
@@ -207,9 +213,7 @@ class TestPreloadDataframeCacheFunction:
                 mock_watermark_repo.set_persistence = MagicMock()
                 mock_watermark_repo_fn.return_value = mock_watermark_repo
 
-                with patch(
-                    "autom8_asana.api.main._do_full_rebuild"
-                ) as mock_rebuild:
+                with patch("autom8_asana.api.main._do_full_rebuild") as mock_rebuild:
                     new_watermark = datetime.now(timezone.utc)
                     mock_rebuild.return_value = (sample_dataframe, new_watermark)
 
@@ -219,6 +223,7 @@ class TestPreloadDataframeCacheFunction:
                     mock_rebuild.assert_called_once()
 
         from autom8_asana.api.routes.health import is_cache_ready
+
         assert is_cache_ready() is True
 
 
@@ -375,6 +380,7 @@ class TestGracefulDegradation:
 
         # Should set cache ready despite failures
         from autom8_asana.api.routes.health import is_cache_ready
+
         assert is_cache_ready() is True
 
     @pytest.mark.asyncio
@@ -395,6 +401,7 @@ class TestGracefulDegradation:
 
         # Should set cache ready despite exception
         from autom8_asana.api.routes.health import is_cache_ready
+
         assert is_cache_ready() is True
 
 
@@ -465,12 +472,14 @@ class TestCacheIntegration:
         watermark = datetime.now(timezone.utc)
 
         # Create a different DataFrame to simulate changes
-        updated_dataframe = pl.DataFrame({
-            "gid": ["123456", "789012", "345678"],  # Added one task
-            "name": ["Task 1", "Task 2", "Task 3"],
-            "office_phone": ["+17705551234", "+14045556789", "+13035557890"],
-            "vertical": ["chiropractic", "dental", "medical"],
-        })
+        updated_dataframe = pl.DataFrame(
+            {
+                "gid": ["123456", "789012", "345678"],  # Added one task
+                "name": ["Task 1", "Task 2", "Task 3"],
+                "office_phone": ["+17705551234", "+14045556789", "+13035557890"],
+                "vertical": ["chiropractic", "dental", "medical"],
+            }
+        )
 
         with patch(
             "autom8_asana.dataframes.persistence.DataFramePersistence"

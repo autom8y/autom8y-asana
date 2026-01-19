@@ -1,6 +1,5 @@
 """Tests for CacheSettings, TTLSettings, and OverflowSettings."""
 
-
 from autom8_asana.cache.entry import EntryType
 from autom8_asana.cache.settings import CacheSettings, OverflowSettings, TTLSettings
 

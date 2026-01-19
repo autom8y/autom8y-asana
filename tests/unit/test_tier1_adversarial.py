@@ -677,7 +677,9 @@ class TestRawModeAllClients:
         assert isinstance(result, dict)
 
         mock_http.post.return_value = {"gid": "1234567890124", "extra": "enum"}
-        result = await client.create_enum_option_async("1234567890123", name="Opt", raw=True)
+        result = await client.create_enum_option_async(
+            "1234567890123", name="Opt", raw=True
+        )
         assert isinstance(result, dict)
 
 
@@ -1676,7 +1678,9 @@ class TestOptFieldsParameter:
         )
         mock_http.get.return_value = {"gid": "1234567890123", "name": "Test"}
 
-        await client.get_async("1234567890123", opt_fields=["name", "email", "workspaces"])
+        await client.get_async(
+            "1234567890123", opt_fields=["name", "email", "workspaces"]
+        )
 
         call_args = mock_http.get.call_args
         assert "opt_fields" in call_args[1]["params"]

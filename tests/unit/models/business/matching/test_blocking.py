@@ -165,7 +165,8 @@ class TestCompositeBlockingRule:
         """Passes if any rule matches (OR logic)."""
         rule = CompositeBlockingRule()
         query = BusinessData(
-            name="Acme Corp", phone="+15551234567"  # Matches phone
+            name="Acme Corp",
+            phone="+15551234567",  # Matches phone
         )
         candidate = Candidate(
             gid="123",

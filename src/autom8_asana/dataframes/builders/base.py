@@ -23,6 +23,21 @@ from typing import TYPE_CHECKING, Any, Coroutine, TypeVar
 
 import polars as pl
 
+from autom8_asana.dataframes.builders.fields import coerce_rows_to_schema
+from autom8_asana.dataframes.extractors import (
+    BaseExtractor,
+    ContactExtractor,
+    DefaultExtractor,
+    UnitExtractor,
+)
+from autom8_asana.dataframes.models.schema import DataFrameSchema
+
+if TYPE_CHECKING:
+    from autom8_asana.client import AsanaClient
+    from autom8_asana.dataframes.cache_integration import DataFrameCacheIntegration
+    from autom8_asana.dataframes.resolver.protocol import CustomFieldResolver
+    from autom8_asana.models.task import Task
+
 # Inline concurrency control (ConcurrencyController not in installed autom8y-http 0.3.0)
 DEFAULT_MAX_CONCURRENT = 25
 
@@ -52,21 +67,6 @@ async def gather_with_limit(
             return await coro
 
     return await asyncio.gather(*[bounded_coro(c) for c in coros])
-
-from autom8_asana.dataframes.extractors import (
-    BaseExtractor,
-    ContactExtractor,
-    DefaultExtractor,
-    UnitExtractor,
-)
-from autom8_asana.dataframes.builders.fields import coerce_rows_to_schema
-from autom8_asana.dataframes.models.schema import DataFrameSchema
-
-if TYPE_CHECKING:
-    from autom8_asana.client import AsanaClient
-    from autom8_asana.dataframes.cache_integration import DataFrameCacheIntegration
-    from autom8_asana.dataframes.resolver.protocol import CustomFieldResolver
-    from autom8_asana.models.task import Task
 
 
 # Per ADR-0031: Threshold for automatic lazy evaluation selection
@@ -526,13 +526,19 @@ class DataFrameBuilder(ABC):
             case "Unit":
                 return UnitExtractor(self._schema, self._resolver, client=self._client)
             case "Contact":
-                return ContactExtractor(self._schema, self._resolver, client=self._client)
+                return ContactExtractor(
+                    self._schema, self._resolver, client=self._client
+                )
             case "*":
-                return DefaultExtractor(self._schema, self._resolver, client=self._client)
+                return DefaultExtractor(
+                    self._schema, self._resolver, client=self._client
+                )
             case _:
                 # For unknown types, fall back to DefaultExtractor
                 # This matches SchemaRegistry's fallback to BASE_SCHEMA
-                return DefaultExtractor(self._schema, self._resolver, client=self._client)
+                return DefaultExtractor(
+                    self._schema, self._resolver, client=self._client
+                )
 
     # =========================================================================
     # Cache Integration Methods
@@ -670,7 +676,9 @@ class DataFrameBuilder(ABC):
         use_lazy = self._should_use_lazy(len(rows), lazy)
         coerced_rows = coerce_rows_to_schema(rows, self._schema)
         if use_lazy:
-            lazy_frame = pl.LazyFrame(coerced_rows, schema=self._schema.to_polars_schema())
+            lazy_frame = pl.LazyFrame(
+                coerced_rows, schema=self._schema.to_polars_schema()
+            )
             return lazy_frame.collect()
         else:
             return pl.DataFrame(coerced_rows, schema=self._schema.to_polars_schema())

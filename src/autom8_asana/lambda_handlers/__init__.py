@@ -8,7 +8,9 @@ Handlers:
     - cache_invalidate: Lambda handler for cache invalidation
 """
 
-from autom8_asana.lambda_handlers.cache_invalidate import handler as cache_invalidate_handler
+from autom8_asana.lambda_handlers.cache_invalidate import (
+    handler as cache_invalidate_handler,
+)
 from autom8_asana.lambda_handlers.cache_warmer import handler as cache_warmer_handler
 
 __all__ = [

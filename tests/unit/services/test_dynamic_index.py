@@ -81,9 +81,7 @@ class TestDynamicIndexKey:
 
     def test_from_criterion_non_string_values(self) -> None:
         """from_criterion handles non-string values."""
-        key = DynamicIndexKey.from_criterion(
-            {"count": 42, "active": True}
-        )
+        key = DynamicIndexKey.from_criterion({"count": 42, "active": True})
 
         # Non-strings are converted to string but not lowercased
         assert key.values == ("True", "42")
@@ -104,10 +102,12 @@ class TestDynamicIndex:
 
     def test_from_dataframe_single_column(self) -> None:
         """Build index from single column."""
-        df = pl.DataFrame({
-            "email": ["a@test.com", "b@test.com"],
-            "gid": ["123", "456"],
-        })
+        df = pl.DataFrame(
+            {
+                "email": ["a@test.com", "b@test.com"],
+                "gid": ["123", "456"],
+            }
+        )
 
         index = DynamicIndex.from_dataframe(df, ["email"])
 
@@ -117,34 +117,42 @@ class TestDynamicIndex:
 
     def test_from_dataframe_multi_column(self) -> None:
         """Build index from multiple columns (composite key)."""
-        df = pl.DataFrame({
-            "office_phone": ["+15551234567", "+15559876543", "+15551234567"],
-            "vertical": ["dental", "medical", "chiropractic"],
-            "gid": ["123", "456", "789"],
-        })
+        df = pl.DataFrame(
+            {
+                "office_phone": ["+15551234567", "+15559876543", "+15551234567"],
+                "vertical": ["dental", "medical", "chiropractic"],
+                "gid": ["123", "456", "789"],
+            }
+        )
 
         index = DynamicIndex.from_dataframe(df, ["office_phone", "vertical"])
 
         # Lookup with composite key
-        result = index.lookup({
-            "office_phone": "+15551234567",
-            "vertical": "dental",
-        })
+        result = index.lookup(
+            {
+                "office_phone": "+15551234567",
+                "vertical": "dental",
+            }
+        )
         assert result == ["123"]
 
         # Different vertical, same phone
-        result = index.lookup({
-            "office_phone": "+15551234567",
-            "vertical": "chiropractic",
-        })
+        result = index.lookup(
+            {
+                "office_phone": "+15551234567",
+                "vertical": "chiropractic",
+            }
+        )
         assert result == ["789"]
 
     def test_case_insensitive_lookup(self) -> None:
         """Lookup is case-insensitive."""
-        df = pl.DataFrame({
-            "vertical": ["Dental", "MEDICAL"],
-            "gid": ["123", "456"],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["Dental", "MEDICAL"],
+                "gid": ["123", "456"],
+            }
+        )
 
         index = DynamicIndex.from_dataframe(df, ["vertical"])
 
@@ -157,10 +165,12 @@ class TestDynamicIndex:
 
     def test_multi_match_returns_all_gids(self) -> None:
         """Multiple matches return all GIDs."""
-        df = pl.DataFrame({
-            "email": ["same@test.com", "same@test.com", "other@test.com"],
-            "gid": ["123", "456", "789"],
-        })
+        df = pl.DataFrame(
+            {
+                "email": ["same@test.com", "same@test.com", "other@test.com"],
+                "gid": ["123", "456", "789"],
+            }
+        )
 
         index = DynamicIndex.from_dataframe(df, ["email"])
         result = index.lookup({"email": "same@test.com"})
@@ -170,10 +180,12 @@ class TestDynamicIndex:
 
     def test_lookup_not_found_returns_empty_list(self) -> None:
         """Lookup for non-existent key returns empty list."""
-        df = pl.DataFrame({
-            "email": ["exists@test.com"],
-            "gid": ["123"],
-        })
+        df = pl.DataFrame(
+            {
+                "email": ["exists@test.com"],
+                "gid": ["123"],
+            }
+        )
 
         index = DynamicIndex.from_dataframe(df, ["email"])
         result = index.lookup({"email": "notfound@test.com"})
@@ -182,10 +194,12 @@ class TestDynamicIndex:
 
     def test_lookup_single_returns_first(self) -> None:
         """lookup_single returns first match for backwards compatibility."""
-        df = pl.DataFrame({
-            "email": ["same@test.com", "same@test.com"],
-            "gid": ["123", "456"],
-        })
+        df = pl.DataFrame(
+            {
+                "email": ["same@test.com", "same@test.com"],
+                "gid": ["123", "456"],
+            }
+        )
 
         index = DynamicIndex.from_dataframe(df, ["email"])
 
@@ -195,10 +209,12 @@ class TestDynamicIndex:
 
     def test_lookup_single_not_found_returns_none(self) -> None:
         """lookup_single returns None when not found."""
-        df = pl.DataFrame({
-            "email": ["exists@test.com"],
-            "gid": ["123"],
-        })
+        df = pl.DataFrame(
+            {
+                "email": ["exists@test.com"],
+                "gid": ["123"],
+            }
+        )
 
         index = DynamicIndex.from_dataframe(df, ["email"])
         result = index.lookup_single({"email": "notfound@test.com"})
@@ -207,10 +223,12 @@ class TestDynamicIndex:
 
     def test_contains_returns_boolean(self) -> None:
         """contains() returns True/False for existence check."""
-        df = pl.DataFrame({
-            "email": ["exists@test.com"],
-            "gid": ["123"],
-        })
+        df = pl.DataFrame(
+            {
+                "email": ["exists@test.com"],
+                "gid": ["123"],
+            }
+        )
 
         index = DynamicIndex.from_dataframe(df, ["email"])
 
@@ -219,11 +237,13 @@ class TestDynamicIndex:
 
     def test_available_columns_returns_key_columns(self) -> None:
         """available_columns() returns the indexed columns."""
-        df = pl.DataFrame({
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-            "gid": ["123"],
-        })
+        df = pl.DataFrame(
+            {
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+                "gid": ["123"],
+            }
+        )
 
         index = DynamicIndex.from_dataframe(df, ["office_phone", "vertical"])
 
@@ -232,10 +252,12 @@ class TestDynamicIndex:
 
     def test_empty_dataframe_creates_empty_index(self) -> None:
         """Empty DataFrame creates valid but empty index."""
-        df = pl.DataFrame({
-            "email": [],
-            "gid": [],
-        })
+        df = pl.DataFrame(
+            {
+                "email": [],
+                "gid": [],
+            }
+        )
 
         index = DynamicIndex.from_dataframe(df, ["email"])
 
@@ -244,10 +266,12 @@ class TestDynamicIndex:
 
     def test_null_values_filtered_out(self) -> None:
         """Rows with null key or value columns are filtered out."""
-        df = pl.DataFrame({
-            "email": ["a@test.com", None, "c@test.com", "d@test.com"],
-            "gid": ["123", "456", None, "789"],
-        })
+        df = pl.DataFrame(
+            {
+                "email": ["a@test.com", None, "c@test.com", "d@test.com"],
+                "gid": ["123", "456", None, "789"],
+            }
+        )
 
         index = DynamicIndex.from_dataframe(df, ["email"])
 
@@ -260,44 +284,50 @@ class TestDynamicIndex:
 
     def test_missing_key_column_raises_keyerror(self) -> None:
         """Missing key columns raise KeyError with helpful message."""
-        df = pl.DataFrame({
-            "email": ["a@test.com"],
-            "gid": ["123"],
-        })
+        df = pl.DataFrame(
+            {
+                "email": ["a@test.com"],
+                "gid": ["123"],
+            }
+        )
 
         with pytest.raises(KeyError, match="Missing required columns"):
             DynamicIndex.from_dataframe(df, ["nonexistent_column"])
 
     def test_missing_value_column_raises_keyerror(self) -> None:
         """Missing value column raises KeyError."""
-        df = pl.DataFrame({
-            "email": ["a@test.com"],
-            "id": ["123"],  # Not "gid"
-        })
+        df = pl.DataFrame(
+            {
+                "email": ["a@test.com"],
+                "id": ["123"],  # Not "gid"
+            }
+        )
 
         with pytest.raises(KeyError, match="Missing required columns"):
             DynamicIndex.from_dataframe(df, ["email"], value_column="gid")
 
     def test_custom_value_column(self) -> None:
         """Can specify custom value column name."""
-        df = pl.DataFrame({
-            "email": ["a@test.com"],
-            "entity_id": ["123"],
-        })
-
-        index = DynamicIndex.from_dataframe(
-            df, ["email"], value_column="entity_id"
+        df = pl.DataFrame(
+            {
+                "email": ["a@test.com"],
+                "entity_id": ["123"],
+            }
         )
+
+        index = DynamicIndex.from_dataframe(df, ["email"], value_column="entity_id")
 
         assert index.lookup({"email": "a@test.com"}) == ["123"]
         assert index.value_column == "entity_id"
 
     def test_entry_count_property(self) -> None:
         """entry_count returns number of unique keys."""
-        df = pl.DataFrame({
-            "email": ["a@test.com", "a@test.com", "b@test.com"],
-            "gid": ["123", "456", "789"],
-        })
+        df = pl.DataFrame(
+            {
+                "email": ["a@test.com", "a@test.com", "b@test.com"],
+                "gid": ["123", "456", "789"],
+            }
+        )
 
         index = DynamicIndex.from_dataframe(df, ["email"])
 
@@ -307,10 +337,12 @@ class TestDynamicIndex:
 
     def test_created_at_timestamp(self) -> None:
         """Index has created_at timestamp."""
-        df = pl.DataFrame({
-            "email": ["a@test.com"],
-            "gid": ["123"],
-        })
+        df = pl.DataFrame(
+            {
+                "email": ["a@test.com"],
+                "gid": ["123"],
+            }
+        )
 
         before = datetime.now(timezone.utc)
         index = DynamicIndex.from_dataframe(df, ["email"])
@@ -450,9 +482,7 @@ class TestDynamicIndexCache:
 
         # Mock time to be past TTL
         expired_time = datetime.now(timezone.utc) + timedelta(seconds=61)
-        with patch(
-            "autom8_asana.services.dynamic_index.datetime"
-        ) as mock_datetime:
+        with patch("autom8_asana.services.dynamic_index.datetime") as mock_datetime:
             mock_datetime.now.return_value = expired_time
             mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
 

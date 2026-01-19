@@ -263,9 +263,7 @@ class TestCacheDetectionResult:
         entry = mock_cache.set.call_args[0][1]
         assert entry.version == expected_version
 
-    def test_uses_current_time_when_no_modified_at(
-        self, mock_cache: MagicMock
-    ) -> None:
+    def test_uses_current_time_when_no_modified_at(self, mock_cache: MagicMock) -> None:
         """FR-VERSION-002: Uses current time if modified_at is None."""
         before = datetime.now(timezone.utc)
         task = make_task(gid="task_123", modified_at=None)

@@ -329,10 +329,7 @@ class TestRoundTrip:
         """Round-trip works for large index."""
         created_at = datetime(2024, 6, 15, 12, 30, 45, tzinfo=timezone.utc)
         # Create 1000 entries
-        lookup = {
-            f"pv1:+1555555{i:04d}:vertical{i}": f"gid{i}"
-            for i in range(1000)
-        }
+        lookup = {f"pv1:+1555555{i:04d}:vertical{i}": f"gid{i}" for i in range(1000)}
         original = GidLookupIndex(lookup_dict=lookup, created_at=created_at)
 
         serialized = original.serialize()

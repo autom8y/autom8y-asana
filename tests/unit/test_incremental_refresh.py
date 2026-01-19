@@ -24,7 +24,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import polars as pl
 import pytest
 
-from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 
 # Skip marker for entire module - tests need migration to ProgressiveProjectBuilder
@@ -45,12 +44,20 @@ TEST_SCHEMA = DataFrameSchema(
         ColumnDef(name="name", dtype="Utf8", nullable=False, source="name"),
         ColumnDef(name="type", dtype="Utf8", nullable=False),
         ColumnDef(name="date", dtype="Date", nullable=True),
-        ColumnDef(name="created", dtype="Datetime", nullable=False, source="created_at"),
+        ColumnDef(
+            name="created", dtype="Datetime", nullable=False, source="created_at"
+        ),
         ColumnDef(name="due_on", dtype="Date", nullable=True, source="due_on"),
-        ColumnDef(name="is_completed", dtype="Boolean", nullable=False, source="completed"),
-        ColumnDef(name="completed_at", dtype="Datetime", nullable=True, source="completed_at"),
+        ColumnDef(
+            name="is_completed", dtype="Boolean", nullable=False, source="completed"
+        ),
+        ColumnDef(
+            name="completed_at", dtype="Datetime", nullable=True, source="completed_at"
+        ),
         ColumnDef(name="url", dtype="Utf8", nullable=False),
-        ColumnDef(name="last_modified", dtype="Datetime", nullable=False, source="modified_at"),
+        ColumnDef(
+            name="last_modified", dtype="Datetime", nullable=False, source="modified_at"
+        ),
         ColumnDef(name="section", dtype="Utf8", nullable=True),
         ColumnDef(name="tags", dtype="List[Utf8]", nullable=False, source="tags"),
     ],
@@ -132,15 +139,17 @@ class TestRefreshIncrementalNoWatermark:
     """Tests for refresh_incremental when no watermark exists (first sync)."""
 
     @pytest.mark.asyncio
-    async def test_no_watermark_triggers_full_fetch(self,
-        mock_unified_store: MagicMock,) -> None:
+    async def test_no_watermark_triggers_full_fetch(
+        self,
+        mock_unified_store: MagicMock,
+    ) -> None:
         """When watermark is None, refresh_incremental performs full fetch."""
         project = make_mock_project("project-123", [])
         builder = ProjectDataFrameBuilder(
             project=project,
             task_type="*",
             schema=TEST_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         # Mock the full fetch path
@@ -150,20 +159,25 @@ class TestRefreshIncrementalNoWatermark:
         with patch.object(
             builder, "build_with_parallel_fetch_async", new_callable=AsyncMock
         ) as mock_build:
-            mock_build.return_value = pl.DataFrame({
-                "gid": ["task-1", "task-2"],
-                "name": ["Task 1", "Task 2"],
-                "type": ["*", "*"],
-                "date": [None, None],
-                "created": [datetime(2024, 1, 1, tzinfo=timezone.utc)] * 2,
-                "due_on": [None, None],
-                "is_completed": [False, False],
-                "completed_at": [None, None],
-                "url": ["https://app.asana.com/0/0/task-1", "https://app.asana.com/0/0/task-2"],
-                "last_modified": [datetime(2024, 6, 15, tzinfo=timezone.utc)] * 2,
-                "section": [None, None],
-                "tags": [[], []],
-            })
+            mock_build.return_value = pl.DataFrame(
+                {
+                    "gid": ["task-1", "task-2"],
+                    "name": ["Task 1", "Task 2"],
+                    "type": ["*", "*"],
+                    "date": [None, None],
+                    "created": [datetime(2024, 1, 1, tzinfo=timezone.utc)] * 2,
+                    "due_on": [None, None],
+                    "is_completed": [False, False],
+                    "completed_at": [None, None],
+                    "url": [
+                        "https://app.asana.com/0/0/task-1",
+                        "https://app.asana.com/0/0/task-2",
+                    ],
+                    "last_modified": [datetime(2024, 6, 15, tzinfo=timezone.utc)] * 2,
+                    "section": [None, None],
+                    "tags": [[], []],
+                }
+            )
 
             df, new_watermark = await builder.refresh_incremental(
                 client=mock_client,
@@ -183,15 +197,17 @@ class TestRefreshIncrementalNoWatermark:
             assert new_watermark.tzinfo is not None
 
     @pytest.mark.asyncio
-    async def test_existing_df_none_with_watermark_triggers_full_fetch(self,
-        mock_unified_store: MagicMock,) -> None:
+    async def test_existing_df_none_with_watermark_triggers_full_fetch(
+        self,
+        mock_unified_store: MagicMock,
+    ) -> None:
         """When existing_df is None even with watermark, performs full fetch."""
         project = make_mock_project("project-123", [])
         builder = ProjectDataFrameBuilder(
             project=project,
             task_type="*",
             schema=TEST_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         mock_client = MagicMock()
@@ -200,20 +216,22 @@ class TestRefreshIncrementalNoWatermark:
         with patch.object(
             builder, "build_with_parallel_fetch_async", new_callable=AsyncMock
         ) as mock_build:
-            mock_build.return_value = pl.DataFrame({
-                "gid": ["task-1"],
-                "name": ["Task 1"],
-                "type": ["*"],
-                "date": [None],
-                "created": [datetime(2024, 1, 1, tzinfo=timezone.utc)],
-                "due_on": [None],
-                "is_completed": [False],
-                "completed_at": [None],
-                "url": ["https://app.asana.com/0/0/task-1"],
-                "last_modified": [datetime(2024, 6, 15, tzinfo=timezone.utc)],
-                "section": [None],
-                "tags": [[]],
-            })
+            mock_build.return_value = pl.DataFrame(
+                {
+                    "gid": ["task-1"],
+                    "name": ["Task 1"],
+                    "type": ["*"],
+                    "date": [None],
+                    "created": [datetime(2024, 1, 1, tzinfo=timezone.utc)],
+                    "due_on": [None],
+                    "is_completed": [False],
+                    "completed_at": [None],
+                    "url": ["https://app.asana.com/0/0/task-1"],
+                    "last_modified": [datetime(2024, 6, 15, tzinfo=timezone.utc)],
+                    "section": [None],
+                    "tags": [[]],
+                }
+            )
 
             df, new_watermark = await builder.refresh_incremental(
                 client=mock_client,
@@ -229,15 +247,17 @@ class TestRefreshIncrementalWithWatermark:
     """Tests for refresh_incremental with valid watermark (incremental sync)."""
 
     @pytest.mark.asyncio
-    async def test_with_watermark_fetches_modified_only(self,
-        mock_unified_store: MagicMock,) -> None:
+    async def test_with_watermark_fetches_modified_only(
+        self,
+        mock_unified_store: MagicMock,
+    ) -> None:
         """When watermark exists, only tasks modified since are fetched."""
         project = make_mock_project("project-123", [])
         builder = ProjectDataFrameBuilder(
             project=project,
             task_type="*",
             schema=TEST_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         # Create existing DataFrame with one task
@@ -274,15 +294,17 @@ class TestRefreshIncrementalWithWatermark:
             assert new_watermark is not None
 
     @pytest.mark.asyncio
-    async def test_no_changes_returns_existing_df(self,
-        mock_unified_store: MagicMock,) -> None:
+    async def test_no_changes_returns_existing_df(
+        self,
+        mock_unified_store: MagicMock,
+    ) -> None:
         """When no tasks are modified, returns existing DataFrame unchanged."""
         project = make_mock_project("project-123", [])
         builder = ProjectDataFrameBuilder(
             project=project,
             task_type="*",
             schema=TEST_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         existing_df = make_test_dataframe(
@@ -312,19 +334,23 @@ class TestRefreshIncrementalWithWatermark:
             assert new_watermark is not None
 
 
-@pytest.mark.skip(reason="_merge_deltas() method removed - only _merge_deltas_async() exists")
+@pytest.mark.skip(
+    reason="_merge_deltas() method removed - only _merge_deltas_async() exists"
+)
 class TestMergeDeltas:
     """Tests for _merge_deltas method (filter + concat logic)."""
 
-    def test_merge_deltas_replaces_existing_rows(self,
-        mock_unified_store: MagicMock,) -> None:
+    def test_merge_deltas_replaces_existing_rows(
+        self,
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Changed tasks replace existing rows with matching GIDs."""
         project = make_mock_project("project-123", [])
         builder = ProjectDataFrameBuilder(
             project=project,
             task_type="*",
             schema=TEST_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         existing_df = make_test_dataframe(
@@ -355,15 +381,17 @@ class TestMergeDeltas:
         assert len(task1_rows) == 1
         assert len(task3_rows) == 1
 
-    def test_merge_deltas_adds_new_tasks(self,
-        mock_unified_store: MagicMock,) -> None:
+    def test_merge_deltas_adds_new_tasks(
+        self,
+        mock_unified_store: MagicMock,
+    ) -> None:
         """New tasks (GIDs not in existing DataFrame) are appended."""
         project = make_mock_project("project-123", [])
         builder = ProjectDataFrameBuilder(
             project=project,
             task_type="*",
             schema=TEST_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         existing_df = make_test_dataframe(["task-1"], ["Task 1"])
@@ -385,15 +413,17 @@ class TestMergeDeltas:
         assert "task-1" in gids
         assert "task-new" in gids
 
-    def test_merge_deltas_empty_changes_returns_existing(self,
-        mock_unified_store: MagicMock,) -> None:
+    def test_merge_deltas_empty_changes_returns_existing(
+        self,
+        mock_unified_store: MagicMock,
+    ) -> None:
         """When no changes, returns existing DataFrame unchanged."""
         project = make_mock_project("project-123", [])
         builder = ProjectDataFrameBuilder(
             project=project,
             task_type="*",
             schema=TEST_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         existing_df = make_test_dataframe(
@@ -405,15 +435,17 @@ class TestMergeDeltas:
 
         assert result is existing_df
 
-    def test_merge_deltas_multiple_updates_and_new(self,
-        mock_unified_store: MagicMock,) -> None:
+    def test_merge_deltas_multiple_updates_and_new(
+        self,
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Multiple updates and new tasks are handled correctly."""
         project = make_mock_project("project-123", [])
         builder = ProjectDataFrameBuilder(
             project=project,
             task_type="*",
             schema=TEST_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         existing_df = make_test_dataframe(
@@ -436,15 +468,17 @@ class TestFallbackBehavior:
     """Tests for fallback behavior on errors."""
 
     @pytest.mark.asyncio
-    async def test_error_during_incremental_triggers_full_fetch(self,
-        mock_unified_store: MagicMock,) -> None:
+    async def test_error_during_incremental_triggers_full_fetch(
+        self,
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Errors during incremental fetch trigger fallback to full fetch."""
         project = make_mock_project("project-123", [])
         builder = ProjectDataFrameBuilder(
             project=project,
             task_type="*",
             schema=TEST_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         existing_df = make_test_dataframe(["task-1"], ["Task 1"])
@@ -478,15 +512,17 @@ class TestFallbackBehavior:
                 assert len(df) == 2
 
     @pytest.mark.asyncio
-    async def test_future_watermark_triggers_full_rebuild(self,
-        mock_unified_store: MagicMock,) -> None:
+    async def test_future_watermark_triggers_full_rebuild(
+        self,
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Watermark in future (clock skew) triggers full rebuild."""
         project = make_mock_project("project-123", [])
         builder = ProjectDataFrameBuilder(
             project=project,
             task_type="*",
             schema=TEST_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         existing_df = make_test_dataframe(["task-1"], ["Task 1"])
@@ -519,15 +555,17 @@ class TestWatermarkCalculation:
     """Tests for new watermark calculation."""
 
     @pytest.mark.asyncio
-    async def test_new_watermark_is_sync_start_time(self,
-        mock_unified_store: MagicMock,) -> None:
+    async def test_new_watermark_is_sync_start_time(
+        self,
+        mock_unified_store: MagicMock,
+    ) -> None:
         """New watermark should be the sync start time (not task modified_at)."""
         project = make_mock_project("project-123", [])
         builder = ProjectDataFrameBuilder(
             project=project,
             task_type="*",
             schema=TEST_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         mock_client = MagicMock()
@@ -554,15 +592,17 @@ class TestWatermarkCalculation:
         assert before_sync <= new_watermark <= after_sync
 
     @pytest.mark.asyncio
-    async def test_watermark_is_timezone_aware(self,
-        mock_unified_store: MagicMock,) -> None:
+    async def test_watermark_is_timezone_aware(
+        self,
+        mock_unified_store: MagicMock,
+    ) -> None:
         """New watermark must be timezone-aware (UTC)."""
         project = make_mock_project("project-123", [])
         builder = ProjectDataFrameBuilder(
             project=project,
             task_type="*",
             schema=TEST_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         mock_client = MagicMock()
@@ -591,8 +631,10 @@ class TestNoProjectGid:
     """Tests for edge case when project has no GID."""
 
     @pytest.mark.asyncio
-    async def test_no_project_gid_returns_empty_df(self,
-        mock_unified_store: MagicMock,) -> None:
+    async def test_no_project_gid_returns_empty_df(
+        self,
+        mock_unified_store: MagicMock,
+    ) -> None:
         """When project has no GID, returns empty DataFrame."""
         project = MagicMock()
         project.gid = None  # No GID
@@ -602,7 +644,7 @@ class TestNoProjectGid:
             project=project,
             task_type="*",
             schema=TEST_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         mock_client = MagicMock()
