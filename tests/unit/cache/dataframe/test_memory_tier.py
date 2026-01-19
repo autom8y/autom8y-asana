@@ -14,10 +14,12 @@ from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
 
 def make_entry(project_gid: str, rows: int = 10) -> CacheEntry:
     """Create a test CacheEntry."""
-    df = pl.DataFrame({
-        "gid": [f"gid-{i}" for i in range(rows)],
-        "name": [f"name-{i}" for i in range(rows)],
-    })
+    df = pl.DataFrame(
+        {
+            "gid": [f"gid-{i}" for i in range(rows)],
+            "name": [f"name-{i}" for i in range(rows)],
+        }
+    )
 
     return CacheEntry(
         project_gid=project_gid,

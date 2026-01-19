@@ -239,9 +239,7 @@ class CircuitBreaker:
                 1 for c in self._circuits.values() if c.state == CircuitState.OPEN
             ),
             "half_open_circuits": sum(
-                1
-                for c in self._circuits.values()
-                if c.state == CircuitState.HALF_OPEN
+                1 for c in self._circuits.values() if c.state == CircuitState.HALF_OPEN
             ),
         }
 

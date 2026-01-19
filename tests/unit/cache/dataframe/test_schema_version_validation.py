@@ -30,10 +30,12 @@ def make_entry(
     created_hours_ago: int = 0,
 ) -> CacheEntry:
     """Create a test CacheEntry."""
-    df = pl.DataFrame({
-        "gid": ["gid-1", "gid-2"],
-        "name": ["A", "B"],
-    })
+    df = pl.DataFrame(
+        {
+            "gid": ["gid-1", "gid-2"],
+            "name": ["A", "B"],
+        }
+    )
 
     return CacheEntry(
         project_gid=project_gid,
@@ -55,10 +57,16 @@ def make_cache(
 ) -> DataFrameCache:
     """Create a DataFrameCache with mocked dependencies."""
     return DataFrameCache(
-        memory_tier=memory_tier if memory_tier is not None else MemoryTier(max_entries=100),
-        progressive_tier=progressive_tier if progressive_tier is not None else MagicMock(),
+        memory_tier=memory_tier
+        if memory_tier is not None
+        else MemoryTier(max_entries=100),
+        progressive_tier=progressive_tier
+        if progressive_tier is not None
+        else MagicMock(),
         coalescer=coalescer if coalescer is not None else DataFrameCacheCoalescer(),
-        circuit_breaker=circuit_breaker if circuit_breaker is not None else CircuitBreaker(),
+        circuit_breaker=circuit_breaker
+        if circuit_breaker is not None
+        else CircuitBreaker(),
         ttl_hours=ttl_hours,
         schema_version=schema_version,
     )

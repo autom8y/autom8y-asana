@@ -119,10 +119,12 @@ class TestCacheWarmer:
     @pytest.fixture
     def sample_dataframe(self) -> pl.DataFrame:
         """Create a sample DataFrame for testing."""
-        return pl.DataFrame({
-            "gid": ["1", "2", "3"],
-            "name": ["Task A", "Task B", "Task C"],
-        })
+        return pl.DataFrame(
+            {
+                "gid": ["1", "2", "3"],
+                "name": ["Task A", "Task B", "Task C"],
+            }
+        )
 
     def test_default_priority(self, mock_cache: MagicMock) -> None:
         """Default priority is offer, unit, business, contact."""
