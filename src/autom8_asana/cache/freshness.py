@@ -17,7 +17,7 @@ try:
 except ImportError:
     # Fallback to local enum when SDK import fails
 
-    class Freshness(str, Enum):
+    class Freshness(str, Enum):  # type: ignore[no-redef]
         """Cache freshness modes - fallback when SDK unavailable."""
 
         STRICT = "strict"

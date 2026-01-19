@@ -105,10 +105,10 @@ class SubtaskWaiter:
             if current_count >= expected_count:
                 elapsed_ms = (time.monotonic() - start_time) * 1000
                 logger.debug(
-                    "Subtasks ready: task_gid=%s, count=%d, elapsed_ms=%.1f",
-                    task_gid,
-                    current_count,
-                    elapsed_ms,
+                    "subtasks_ready",
+                    task_gid=task_gid,
+                    count=current_count,
+                    elapsed_ms=round(elapsed_ms, 1),
                 )
                 return True
 
@@ -117,11 +117,11 @@ class SubtaskWaiter:
         # Timeout reached
         elapsed_ms = (time.monotonic() - start_time) * 1000
         logger.warning(
-            "Subtask wait timeout: task_gid=%s, expected=%d, actual=%d, elapsed_ms=%.1f",
-            task_gid,
-            expected_count,
-            current_count,
-            elapsed_ms,
+            "subtask_wait_timeout",
+            task_gid=task_gid,
+            expected=expected_count,
+            actual=current_count,
+            elapsed_ms=round(elapsed_ms, 1),
         )
         return False
 

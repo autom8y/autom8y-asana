@@ -211,9 +211,9 @@ class ParentRef(Generic[T]):
         ):
             # Don't re-invalidate the attr we just set
             logger.debug(
-                "Auto-invalidating refs for %s.%s change",
-                type(obj).__name__,
-                self.public_name,
+                "auto_invalidating_refs",
+                obj_type=type(obj).__name__,
+                attr=self.public_name,
             )
             obj._invalidate_refs(_exclude_attr=self.private_name)
 
@@ -294,9 +294,9 @@ class HolderRef(Generic[T]):
         # Holder change should invalidate other refs
         if old_value is not value and hasattr(obj, "_invalidate_refs"):
             logger.debug(
-                "Auto-invalidating refs for %s.%s change",
-                type(obj).__name__,
-                self.public_name,
+                "auto_invalidating_refs_holder_change",
+                obj_type=type(obj).__name__,
+                attr=self.public_name,
             )
             obj._invalidate_refs(_exclude_attr=self.private_name)
 
@@ -701,9 +701,9 @@ class DateField(CustomFieldDescriptor[Arrow | None]):
                 return arrow.get(value)
             except (ValueError, arrow.parser.ParserError):
                 logger.warning(
-                    "Invalid date value for field %s: %r",
-                    self.field_name,
-                    value,
+                    "invalid_date_value",
+                    field_name=self.field_name,
+                    value=repr(value),
                 )
                 return None
         return None

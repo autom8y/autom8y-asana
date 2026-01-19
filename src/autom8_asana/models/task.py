@@ -320,9 +320,9 @@ class Task(AsanaResource):
             # Both types of changes - accessor takes precedence
             # Log warning for user awareness
             logger.warning(
-                "Task %s has both accessor and direct custom_field modifications. "
-                "Accessor changes take precedence.",
-                self.gid,
+                "task_custom_field_conflict",
+                task_gid=self.gid,
+                message="accessor_changes_take_precedence",
             )
             # accessor is not None when accessor_changes is True
             assert self._custom_fields_accessor is not None

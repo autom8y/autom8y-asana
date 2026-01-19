@@ -480,7 +480,7 @@ def _estimate_hydration_calls(business: Business) -> int:
 
     # Count units and their nested holders
     if business._unit_holder is not None:
-        for unit in business._unit_holder.units:
+        for unit in business._unit_holder.units:  # type: ignore[attr-defined]
             calls += 1  # Unit subtasks call
             if unit._offer_holder is not None:
                 calls += 1
@@ -499,7 +499,7 @@ def _collect_success_branches(business: Business) -> list[HydrationBranch]:
             HydrationBranch(
                 holder_type="contact_holder",
                 holder_gid=business._contact_holder.gid,
-                child_count=len(business._contact_holder.contacts),
+                child_count=len(business._contact_holder.contacts),  # type: ignore[attr-defined]
             )
         )
 
@@ -508,11 +508,11 @@ def _collect_success_branches(business: Business) -> list[HydrationBranch]:
             HydrationBranch(
                 holder_type="unit_holder",
                 holder_gid=business._unit_holder.gid,
-                child_count=len(business._unit_holder.units),
+                child_count=len(business._unit_holder.units),  # type: ignore[attr-defined]
             )
         )
         # Also track nested holders
-        for unit in business._unit_holder.units:
+        for unit in business._unit_holder.units:  # type: ignore[attr-defined]
             if unit._offer_holder is not None:
                 branches.append(
                     HydrationBranch(
@@ -535,7 +535,7 @@ def _collect_success_branches(business: Business) -> list[HydrationBranch]:
             HydrationBranch(
                 holder_type="location_holder",
                 holder_gid=business._location_holder.gid,
-                child_count=len(business._location_holder.locations),
+                child_count=len(business._location_holder.locations),  # type: ignore[attr-defined]
             )
         )
 

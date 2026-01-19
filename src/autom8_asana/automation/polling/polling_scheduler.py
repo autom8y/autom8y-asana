@@ -130,10 +130,10 @@ class PollingScheduler:
         self._minute = int(time_parts[1])
 
         logger.info(
-            "PollingScheduler initialized: %d rules, scheduled at %s %s",
-            len(config.rules),
-            config.scheduler.time,
-            config.scheduler.timezone,
+            "polling_scheduler_initialized",
+            rule_count=len(config.rules),
+            scheduled_time=config.scheduler.time,
+            timezone=config.scheduler.timezone,
         )
 
     @classmethod
@@ -223,15 +223,15 @@ class PollingScheduler:
         )
 
         logger.info(
-            "Starting blocking scheduler. Next run at %s %s. Press Ctrl+C to stop.",
-            self.config.scheduler.time,
-            self.config.scheduler.timezone,
+            "blocking_scheduler_started",
+            next_run_time=self.config.scheduler.time,
+            timezone=self.config.scheduler.timezone,
         )
 
         try:
             scheduler.start()
         except (KeyboardInterrupt, SystemExit):
-            logger.info("Scheduler stopped by user.")
+            logger.info("scheduler_stopped_by_user")
             scheduler.shutdown()
 
     def run_once(self) -> None:
@@ -257,9 +257,9 @@ class PollingScheduler:
         local_now = utc_now.astimezone(self.timezone)
 
         logger.info(
-            "Starting single evaluation run at %s (UTC: %s)",
-            local_now.isoformat(),
-            utc_now.isoformat(),
+            "single_evaluation_run_started",
+            local_time=local_now.isoformat(),
+            utc_time=utc_now.isoformat(),
         )
 
         # Try to acquire lock
@@ -268,8 +268,9 @@ class PollingScheduler:
             lock_file = self._acquire_lock()
             if lock_file is None:
                 logger.warning(
-                    "Could not acquire lock at %s. Another instance may be running. Skipping.",
-                    self.lock_path,
+                    "lock_acquisition_failed",
+                    lock_path=self.lock_path,
+                    reason="another_instance_running",
                 )
                 return
 
@@ -283,9 +284,9 @@ class PollingScheduler:
         utc_end = datetime.now(UTC)
         duration = (utc_end - utc_now).total_seconds()
         logger.info(
-            "Evaluation completed in %.2f seconds (UTC: %s)",
-            duration,
-            utc_end.isoformat(),
+            "evaluation_completed",
+            duration_seconds=round(duration, 2),
+            utc_time=utc_end.isoformat(),
         )
 
     def _evaluate_rules(
@@ -457,12 +458,12 @@ class PollingScheduler:
             lock_file.write(f"{datetime.now(UTC).isoformat()}\npid={sys.executable}\n")
             lock_file.flush()
 
-            logger.debug("Acquired lock at %s", self.lock_path)
+            logger.debug("lock_acquired", lock_path=self.lock_path)
             return lock_file
 
         except OSError:
             # Lock is held by another process (EWOULDBLOCK/EAGAIN)
-            logger.debug("Lock at %s is held by another process", self.lock_path)
+            logger.debug("lock_held_by_other_process", lock_path=self.lock_path)
             if lock_file:
                 lock_file.close()
             return None
@@ -478,9 +479,9 @@ class PollingScheduler:
         try:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
             lock_file.close()
-            logger.debug("Released lock at %s", self.lock_path)
+            logger.debug("lock_released", lock_path=self.lock_path)
         except OSError as e:
-            logger.warning("Error releasing lock at %s: %s", self.lock_path, e)
+            logger.warning("lock_release_error", lock_path=self.lock_path, error=str(e))
 
 
 # Entry point for cron execution
@@ -536,8 +537,8 @@ Cron entry example:
             scheduler.run_once()
 
     except ConfigurationError as e:
-        logger.error("Configuration error: %s", e)
+        logger.error("configuration_error", error=str(e))
         sys.exit(1)
     except KeyboardInterrupt:
-        logger.info("Interrupted by user.")
+        logger.info("interrupted_by_user")
         sys.exit(0)

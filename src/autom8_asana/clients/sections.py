@@ -28,7 +28,7 @@ class SectionsClient(BaseClient):
     # Type overloads for get (required for IDE/mypy support with raw parameter)
     # Note: @async_method provides the implementation; mypy errors are expected
     # because mypy cannot see runtime-generated implementations.
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def get_async(
         self,
         section_gid: str,
@@ -64,7 +64,7 @@ class SectionsClient(BaseClient):
         opt_fields: list[str] | None = ...,
     ) -> dict[str, Any]: ...
 
-    @async_method
+    @async_method  # type: ignore[arg-type, operator, misc]
     @error_handler
     async def get(
         self,
@@ -117,7 +117,7 @@ class SectionsClient(BaseClient):
         return Section.model_validate(data)
 
     # Type overloads for create
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def create_async(
         self,
         *,
@@ -161,7 +161,7 @@ class SectionsClient(BaseClient):
         insert_after: str | None = ...,
     ) -> dict[str, Any]: ...
 
-    @async_method
+    @async_method  # type: ignore[arg-type, operator, misc]
     @error_handler
     async def create(
         self,
@@ -199,7 +199,7 @@ class SectionsClient(BaseClient):
         return Section.model_validate(result)
 
     # Type overloads for update
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def update_async(
         self,
         section_gid: str,
@@ -235,7 +235,7 @@ class SectionsClient(BaseClient):
         **kwargs: Any,
     ) -> dict[str, Any]: ...
 
-    @async_method
+    @async_method  # type: ignore[arg-type, operator, misc]
     @error_handler
     async def update(
         self,
@@ -259,7 +259,7 @@ class SectionsClient(BaseClient):
             return result
         return Section.model_validate(result)
 
-    @async_method
+    @async_method  # type: ignore[arg-type]
     @error_handler
     async def delete(self, section_gid: str) -> None:
         """Delete a section.
@@ -344,7 +344,7 @@ class SectionsClient(BaseClient):
 
     # --- Task Movement Operations ---
 
-    @async_method
+    @async_method  # type: ignore[arg-type]
     @error_handler
     async def add_task(
         self,
@@ -373,7 +373,7 @@ class SectionsClient(BaseClient):
 
         await self._http.post(f"/sections/{section_gid}/addTask", json={"data": data})
 
-    @async_method
+    @async_method  # type: ignore[arg-type]
     @error_handler
     async def insert_section(
         self,

@@ -164,6 +164,8 @@ class EntityQueryService:
             CacheNotWarmError: DataFrame unavailable after self-refresh attempt.
         """
         # Get strategy for entity type
+        # Note: strategy_factory is always set by __post_init__
+        assert self.strategy_factory is not None
         strategy = self.strategy_factory(entity_type)
 
         # Get DataFrame via strategy (full cache lifecycle)

@@ -65,7 +65,8 @@ class DomainBlockingRule:
             return True  # Pass through - let other rules decide
 
         # Normalize for comparison
-        return query_domain.lower().strip() == candidate_domain.lower().strip()
+        result: bool = query_domain.lower().strip() == candidate_domain.lower().strip()
+        return result
 
 
 class PhonePrefixBlockingRule:

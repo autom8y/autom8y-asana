@@ -236,4 +236,4 @@ class MemoryTier:
         Returns:
             Estimated size in bytes.
         """
-        return entry.dataframe.estimated_size()
+        return int(entry.dataframe.estimated_size())

@@ -11,7 +11,7 @@ Per ADR-VAULT-001: Platform Service Auth uses Secrets Manager, not custom vaults
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
@@ -242,10 +242,11 @@ class SecretsManagerAuthProvider:
             raise
         except Exception as e:
             # Handle boto3 exceptions
-            response = getattr(e, "response", None)
+            error_response: dict[str, Any] | None = getattr(e, "response", None)
             error_code = ""
-            if response is not None and isinstance(response, dict):
-                error_code = response.get("Error", {}).get("Code", "")
+            if error_response is not None:
+                error_dict: dict[str, Any] = error_response.get("Error", {})
+                error_code = error_dict.get("Code", "")
 
             if error_code == "ResourceNotFoundException":
                 raise AuthenticationError(

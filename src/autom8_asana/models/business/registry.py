@@ -494,7 +494,7 @@ class WorkspaceProjectRegistry:
 
         # Register with static registry if not already registered
         if not self._type_registry.is_registered(gid):
-            self._type_registry.register(gid, EntityType.PROCESS)
+            self._type_registry.register(gid, EntityType.PROCESS)  # type: ignore[attr-defined]
 
             logger.debug(
                 "Registered pipeline project",

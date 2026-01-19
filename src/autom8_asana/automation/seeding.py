@@ -357,34 +357,32 @@ class FieldSeeder:
             # Apply to new task via custom_fields update
         """
         logger.info(
-            "[SEEDING] seed_fields_async called - Business: %s, Unit: %s, Process: %s",
-            getattr(business, "name", None) if business else "None",
-            getattr(unit, "name", None) if unit else "None",
-            getattr(source_process, "name", None) if source_process else "None",
+            "seeding_fields_async",
+            business=getattr(business, "name", None) if business else None,
+            unit=getattr(unit, "name", None) if unit else None,
+            process=getattr(source_process, "name", None) if source_process else None,
         )
 
         fields: dict[str, Any] = {}
 
         # Layer 1 & 2: Cascade from hierarchy
         cascade_fields = await self.cascade_from_hierarchy_async(business, unit)
-        logger.info("[SEEDING] Cascade fields collected: %s", cascade_fields)
+        logger.info("seeding_cascade_fields_collected", fields=cascade_fields)
         fields.update(cascade_fields)
 
         # Layer 3: Carry-through from source process
         carry_through_fields = await self.carry_through_from_process_async(
             source_process
         )
-        logger.info(
-            "[SEEDING] Carry-through fields collected: %s", carry_through_fields
-        )
+        logger.info("seeding_carry_through_collected", fields=carry_through_fields)
         fields.update(carry_through_fields)
 
         # Layer 4: Computed fields (highest precedence)
         computed_fields = await self.compute_fields_async(source_process)
-        logger.info("[SEEDING] Computed fields: %s", computed_fields)
+        logger.info("seeding_computed_fields", fields=computed_fields)
         fields.update(computed_fields)
 
-        logger.info("[SEEDING] Final seeded fields: %s", fields)
+        logger.info("seeding_final_fields", fields=fields)
         return fields
 
     async def write_fields_async(
@@ -424,13 +422,13 @@ class FieldSeeder:
         from autom8_asana.models.custom_field_accessor import CustomFieldAccessor
 
         logger.info(
-            "[SEEDING] write_fields_async called - task: %s, fields to write: %s",
-            target_task_gid,
-            fields,
+            "seeding_write_fields_async",
+            task_gid=target_task_gid,
+            fields=fields,
         )
 
         if not fields:
-            logger.info("[SEEDING] No fields to write, returning early")
+            logger.info("seeding_no_fields_to_write")
             return WriteResult(
                 success=True,
                 fields_written=[],
@@ -465,8 +463,8 @@ class FieldSeeder:
             fields_to_write: list[str] = []
             fields_skipped: list[str] = []
             logger.info(
-                "[SEEDING] Target task custom fields available: %s",
-                [_get_field_attr(f, "name") for f in custom_fields_list],
+                "seeding_target_custom_fields",
+                field_names=[_get_field_attr(f, "name") for f in custom_fields_list],
             )
 
             # Apply field name mapping (source name -> target name)
@@ -476,9 +474,7 @@ class FieldSeeder:
                 target_name = mapping.get(source_name, source_name)
                 mapped_fields[target_name] = value
 
-            logger.info(
-                "[SEEDING] Mapped fields (after name mapping): %s", mapped_fields
-            )
+            logger.info("seeding_mapped_fields", mapped_fields=mapped_fields)
 
             for name, value in mapped_fields.items():
                 # Check if field exists on target (case-insensitive)
@@ -493,17 +489,17 @@ class FieldSeeder:
                         break
 
                 logger.info(
-                    "[SEEDING] Field '%s': matched=%s, value=%s",
-                    name,
-                    matched_field is not None,
-                    value,
+                    "seeding_field_match",
+                    field_name=name,
+                    matched=matched_field is not None,
+                    value=value,
                 )
 
                 if matched_field is None or field_def is None:
                     logger.warning(
-                        "Field '%s' not found on target task %s, skipping",
-                        name,
-                        target_task_gid,
+                        "seeding_field_not_found",
+                        field_name=name,
+                        task_gid=target_task_gid,
                     )
                     fields_skipped.append(name)
                     continue
@@ -520,10 +516,7 @@ class FieldSeeder:
                 # Skip empty/falsy values for people fields (they expect lists)
                 field_type = _get_field_attr(field_def, "resource_subtype", "")
                 if field_type == "people" and not resolved_value:
-                    logger.debug(
-                        "[SEEDING] Skipping empty people field '%s'",
-                        name,
-                    )
+                    logger.debug("seeding_skipping_empty_people_field", field_name=name)
                     fields_skipped.append(name)
                     continue
 
@@ -533,20 +526,18 @@ class FieldSeeder:
 
             # Step 4: Single API call with all fields (FR-SEED-002)
             if accessor.has_changes():
-                logger.info("[SEEDING] Sending to API: %s", accessor.to_api_dict())
+                logger.info("seeding_api_update", api_dict=accessor.to_api_dict())
                 await self._client.tasks.update_async(
                     target_task_gid,
                     custom_fields=accessor.to_api_dict(),
                 )
             else:
-                logger.info(
-                    "[SEEDING] No changes detected by accessor, skipping API call"
-                )
+                logger.info("seeding_no_changes_skipping_api")
 
             logger.info(
-                "[SEEDING] WriteResult: written=%s, skipped=%s",
-                fields_to_write,
-                fields_skipped,
+                "seeding_write_result",
+                fields_written=fields_to_write,
+                fields_skipped=fields_skipped,
             )
             return WriteResult(
                 success=True,
@@ -556,9 +547,9 @@ class FieldSeeder:
 
         except Exception as e:
             logger.error(
-                "Failed to write fields to task %s: %s",
-                target_task_gid,
-                str(e),
+                "seeding_write_failed",
+                task_gid=target_task_gid,
+                error=str(e),
             )
             return WriteResult(
                 success=False,
@@ -588,10 +579,10 @@ class FieldSeeder:
         # Convert display name to attribute name (snake_case)
         attr_name = self._to_attr_name(field_name)
         logger.debug(
-            "[SEEDING] _get_field_value: entity=%s, field='%s', attr='%s'",
-            entity_type,
-            field_name,
-            attr_name,
+            "seeding_get_field_value",
+            entity_type=entity_type,
+            field_name=field_name,
+            attr_name=attr_name,
         )
 
         # Try descriptor-based access first (for business entity models)
@@ -600,25 +591,20 @@ class FieldSeeder:
                 value = getattr(entity, attr_name)
                 normalized = self._normalize_value(value)
                 logger.debug(
-                    "[SEEDING] _get_field_value: descriptor access %s.%s = %r -> normalized: %r",
-                    entity_type,
-                    attr_name,
-                    value,
-                    normalized,
+                    "seeding_descriptor_access",
+                    entity_type=entity_type,
+                    attr_name=attr_name,
+                    raw_value=repr(value),
+                    normalized=repr(normalized),
                 )
                 # Only return if we got a meaningful value
                 # Empty lists from MultiEnumField mean "no value" - check raw field
                 if normalized is not None and normalized != []:
                     return normalized
                 # Fall through to try raw custom field access
-                logger.debug(
-                    "[SEEDING] _get_field_value: descriptor returned empty/None, trying raw access",
-                )
+                logger.debug("seeding_descriptor_empty_trying_raw")
             except Exception as e:
-                logger.debug(
-                    "[SEEDING] _get_field_value: descriptor access failed: %s",
-                    str(e),
-                )
+                logger.debug("seeding_descriptor_access_failed", error=str(e))
 
         # Try raw CustomFieldAccessor access (bypasses descriptors)
         # This handles cases where descriptor returns [] but raw field has data
@@ -629,17 +615,14 @@ class FieldSeeder:
                 if raw_value is not None:
                     normalized = self._normalize_value(raw_value)
                     logger.debug(
-                        "[SEEDING] _get_field_value: custom_fields_editor.get('%s') = %r -> normalized: %r",
-                        field_name,
-                        raw_value,
-                        normalized,
+                        "seeding_custom_fields_editor_get",
+                        field_name=field_name,
+                        raw_value=repr(raw_value),
+                        normalized=repr(normalized),
                     )
                     return normalized
             except Exception as e:
-                logger.debug(
-                    "[SEEDING] _get_field_value: custom_fields_editor access failed: %s",
-                    str(e),
-                )
+                logger.debug("seeding_custom_fields_editor_failed", error=str(e))
 
         # Try direct attribute access (for non-descriptor fields)
         if hasattr(entity, field_name):
@@ -647,32 +630,26 @@ class FieldSeeder:
                 value = getattr(entity, field_name)
                 normalized = self._normalize_value(value)
                 logger.debug(
-                    "[SEEDING] _get_field_value: direct attr %s.%s = %r -> normalized: %r",
-                    entity_type,
-                    field_name,
-                    value,
-                    normalized,
+                    "seeding_direct_attr_access",
+                    entity_type=entity_type,
+                    field_name=field_name,
+                    raw_value=repr(value),
+                    normalized=repr(normalized),
                 )
                 if normalized is not None:
                     return normalized
             except Exception as e:
-                logger.debug(
-                    "[SEEDING] _get_field_value: direct attr access failed: %s",
-                    str(e),
-                )
+                logger.debug("seeding_direct_attr_failed", error=str(e))
 
         # Special case: Business Name comes from task name
         if field_name == "Business Name" and hasattr(entity, "name"):
-            logger.debug(
-                "[SEEDING] _get_field_value: using entity.name for Business Name: %s",
-                entity.name,
-            )
+            logger.debug("seeding_using_entity_name", name=entity.name)
             return entity.name
 
         logger.debug(
-            "[SEEDING] _get_field_value: no value found for %s.%s",
-            entity_type,
-            field_name,
+            "seeding_no_value_found",
+            entity_type=entity_type,
+            field_name=field_name,
         )
         return None
 
@@ -791,9 +768,9 @@ class FieldSeeder:
             enum_options = _get_field_attr(field_def, "enum_options", [])
             if not enum_options:
                 logger.warning(
-                    "Multi-enum field '%s' has no enum_options on task %s, skipping",
-                    field_name,
-                    task_gid,
+                    "seeding_multi_enum_no_options",
+                    field_name=field_name,
+                    task_gid=task_gid,
                 )
                 return None
 
@@ -820,9 +797,9 @@ class FieldSeeder:
                         resolved_gids.append(item_str)
                     else:
                         logger.warning(
-                            "Multi-enum GID '%s' not found in options for field '%s'",
-                            item,
-                            field_name,
+                            "seeding_multi_enum_gid_not_found",
+                            gid=item,
+                            field_name=field_name,
                         )
                 elif item_str in name_to_gid:
                     resolved_gids.append(name_to_gid[item_str])
@@ -833,12 +810,11 @@ class FieldSeeder:
                         if _get_field_attr(opt, "enabled", True)
                     ]
                     logger.warning(
-                        "Multi-enum value '%s' not found for field '%s' on task %s. "
-                        "Available options: %s. Skipping this value.",
-                        item,
-                        field_name,
-                        task_gid,
-                        available_options,
+                        "seeding_multi_enum_value_not_found",
+                        value=item,
+                        field_name=field_name,
+                        task_gid=task_gid,
+                        available_options=available_options,
                     )
 
             return resolved_gids if resolved_gids else None
@@ -848,9 +824,9 @@ class FieldSeeder:
             enum_options = _get_field_attr(field_def, "enum_options", [])
             if not enum_options:
                 logger.warning(
-                    "Enum field '%s' has no enum_options on task %s, skipping",
-                    field_name,
-                    task_gid,
+                    "seeding_enum_no_options",
+                    field_name=field_name,
+                    task_gid=task_gid,
                 )
                 return None
 
@@ -860,10 +836,10 @@ class FieldSeeder:
                     if _get_field_attr(option, "gid") == value:
                         return value
                 logger.warning(
-                    "Enum GID '%s' not found in options for field '%s' on task %s, skipping",
-                    value,
-                    field_name,
-                    task_gid,
+                    "seeding_enum_gid_not_found",
+                    gid=value,
+                    field_name=field_name,
+                    task_gid=task_gid,
                 )
                 return None
 
@@ -874,10 +850,10 @@ class FieldSeeder:
                 if option_name.lower() == value_str:
                     resolved_gid = _get_field_attr(option, "gid")
                     logger.debug(
-                        "Resolved enum '%s' -> GID '%s' for field '%s'",
-                        value,
-                        resolved_gid,
-                        field_name,
+                        "seeding_enum_resolved",
+                        value=value,
+                        resolved_gid=resolved_gid,
+                        field_name=field_name,
                     )
                     return resolved_gid
 
@@ -888,12 +864,11 @@ class FieldSeeder:
                 if _get_field_attr(opt, "enabled", True)
             ]
             logger.warning(
-                "Enum value '%s' not found for field '%s' on task %s. "
-                "Available options: %s. Skipping field.",
-                value,
-                field_name,
-                task_gid,
-                available_options,
+                "seeding_enum_value_not_found",
+                value=value,
+                field_name=field_name,
+                task_gid=task_gid,
+                available_options=available_options,
             )
             return None
 

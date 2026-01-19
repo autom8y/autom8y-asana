@@ -73,9 +73,9 @@ class AutomationEngine:
                 raise ValueError(f"Rule with ID '{rule.id}' already registered")
         self._rules.append(rule)
         logger.info(
-            "Registered automation rule: %s",
-            rule.name,
-            extra={"rule_id": rule.id},
+            "automation_rule_registered",
+            rule_name=rule.name,
+            rule_id=rule.id,
         )
 
     def unregister(self, rule_id: str) -> bool:
@@ -90,10 +90,7 @@ class AutomationEngine:
         for i, rule in enumerate(self._rules):
             if rule.id == rule_id:
                 del self._rules[i]
-                logger.info(
-                    "Unregistered automation rule: %s",
-                    rule_id,
-                )
+                logger.info("automation_rule_unregistered", rule_id=rule_id)
                 return True
         return False
 
@@ -187,9 +184,10 @@ class AutomationEngine:
                         )
                     )
                     logger.debug(
-                        "Rule %s skipped: circular_reference_prevented",
-                        rule.name,
-                        extra={"rule_id": rule.id, "entity_gid": entity.gid},
+                        "rule_skipped_circular_reference",
+                        rule_name=rule.name,
+                        rule_id=rule.id,
+                        entity_gid=entity.gid,
                     )
                     continue
 
@@ -199,36 +197,30 @@ class AutomationEngine:
 
                 try:
                     logger.debug(
-                        "Rule %s triggered by %s",
-                        rule.name,
-                        entity.gid,
-                        extra={
-                            "rule_id": rule.id,
-                            "entity_type": type(entity).__name__,
-                        },
+                        "rule_triggered",
+                        rule_name=rule.name,
+                        entity_gid=entity.gid,
+                        rule_id=rule.id,
+                        entity_type=type(entity).__name__,
                     )
                     result = await rule.execute_async(entity, context)
                     results.append(result)
 
                     if result.success:
                         logger.info(
-                            "Rule %s executed successfully",
-                            rule.name,
-                            extra={
-                                "rule_id": rule.id,
-                                "entities_created": result.entities_created,
-                                "execution_time_ms": result.execution_time_ms,
-                            },
+                            "rule_executed_successfully",
+                            rule_name=rule.name,
+                            rule_id=rule.id,
+                            entities_created=result.entities_created,
+                            execution_time_ms=result.execution_time_ms,
                         )
                     else:
                         logger.warning(
-                            "Rule %s execution failed: %s",
-                            rule.name,
-                            result.error,
-                            extra={
-                                "rule_id": rule.id,
-                                "triggered_by": result.triggered_by_gid,
-                            },
+                            "rule_execution_failed",
+                            rule_name=rule.name,
+                            error=result.error,
+                            rule_id=rule.id,
+                            triggered_by=result.triggered_by_gid,
                         )
 
                 except Exception as e:
@@ -246,24 +238,19 @@ class AutomationEngine:
                         )
                     )
                     logger.warning(
-                        "Rule %s execution raised exception: %s",
-                        rule.name,
-                        str(e),
-                        extra={
-                            "rule_id": rule.id,
-                            "triggered_by": entity.gid,
-                        },
-                        exc_info=True,
+                        "rule_execution_exception",
+                        rule_name=rule.name,
+                        error=str(e),
+                        rule_id=rule.id,
+                        triggered_by=entity.gid,
                     )
 
         logger.debug(
-            "Automation evaluation complete: %d rules evaluated",
-            len(results),
-            extra={
-                "succeeded": sum(1 for r in results if r.success and not r.was_skipped),
-                "failed": sum(1 for r in results if not r.success),
-                "skipped": sum(1 for r in results if r.was_skipped),
-            },
+            "automation_evaluation_complete",
+            rules_evaluated=len(results),
+            succeeded=sum(1 for r in results if r.success and not r.was_skipped),
+            failed=sum(1 for r in results if not r.success),
+            skipped=sum(1 for r in results if r.was_skipped),
         )
 
         return results

@@ -607,16 +607,11 @@ def identify_holder_type(
     for key, (name_pattern, emoji) in holder_key_map.items():
         if _matches_holder_pattern(task, name_pattern, emoji):
             logger.warning(
-                "Detection fallback: identified %s via HOLDER_KEY_MAP for task '%s' (gid=%s)",
-                key,
-                task.name,
-                task.gid,
-                extra={
-                    "holder_key": key,
-                    "task_name": task.name,
-                    "task_gid": task.gid,
-                    "fallback": "HOLDER_KEY_MAP",
-                },
+                "detection_fallback_holder_key_map",
+                holder_key=key,
+                task_name=task.name,
+                task_gid=task.gid,
+                fallback="HOLDER_KEY_MAP",
             )
             return key
     return None

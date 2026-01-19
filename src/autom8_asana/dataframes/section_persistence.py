@@ -359,9 +359,9 @@ class SectionPersistence:
             if result.not_found:
                 return None
             logger.warning(
-                "Failed to get manifest for %s: %s",
-                project_gid,
-                result.error,
+                "manifest_get_failed",
+                project_gid=project_gid,
+                error=result.error,
             )
             return None
 
@@ -369,7 +369,7 @@ class SectionPersistence:
             data = json.loads(result.data.decode("utf-8"))
             return SectionManifest.model_validate(data)
         except Exception as e:
-            logger.error("Failed to parse manifest for %s: %s", project_gid, e)
+            logger.error("manifest_parse_failed", project_gid=project_gid, error=str(e))
             return None
 
     async def _save_manifest_async(self, manifest: SectionManifest) -> bool:
@@ -385,9 +385,9 @@ class SectionPersistence:
 
         if not result.success:
             logger.error(
-                "Failed to save manifest for %s: %s",
-                manifest.project_gid,
-                result.error,
+                "manifest_save_failed",
+                project_gid=manifest.project_gid,
+                error=result.error,
             )
         return result.success
 
@@ -413,7 +413,7 @@ class SectionPersistence:
         """
         manifest = await self.get_manifest_async(project_gid)
         if manifest is None:
-            logger.warning("No manifest found for %s", project_gid)
+            logger.warning("manifest_not_found", project_gid=project_gid)
             return None
 
         if status == SectionStatus.COMPLETE:
@@ -560,22 +560,23 @@ class SectionPersistence:
             if result.not_found:
                 return None
             logger.warning(
-                "Failed to read section %s/%s: %s",
-                project_gid,
-                section_gid,
-                result.error,
+                "section_read_failed",
+                project_gid=project_gid,
+                section_gid=section_gid,
+                error=result.error,
             )
             return None
 
         try:
             buffer = io.BytesIO(result.data)
-            return self._polars_module.read_parquet(buffer)
+            df: pl.DataFrame = self._polars_module.read_parquet(buffer)
+            return df
         except Exception as e:
             logger.error(
-                "Failed to parse section parquet %s/%s: %s",
-                project_gid,
-                section_gid,
-                e,
+                "section_parquet_parse_failed",
+                project_gid=project_gid,
+                section_gid=section_gid,
+                error=str(e),
             )
             return None
 
@@ -639,13 +640,15 @@ class SectionPersistence:
 
         section_dfs = await self.read_all_sections_async(project_gid)
         if not section_dfs:
-            logger.warning("No sections to merge for %s", project_gid)
+            logger.warning("no_sections_to_merge", project_gid=project_gid)
             return None
 
         try:
             # Use how="diagonal_relaxed" to handle type mismatches between sections
             # (e.g., Null vs String when one section has empty values for a column)
-            merged = self._polars_module.concat(section_dfs, how="diagonal_relaxed")
+            merged: pl.DataFrame = self._polars_module.concat(
+                section_dfs, how="diagonal_relaxed"
+            )
 
             logger.info(
                 "sections_merged",
@@ -658,7 +661,7 @@ class SectionPersistence:
 
             return merged
         except Exception as e:
-            logger.error("Failed to merge sections for %s: %s", project_gid, e)
+            logger.error("sections_merge_failed", project_gid=project_gid, error=str(e))
             return None
 
     # ========== Final Atomic Write Operations ==========

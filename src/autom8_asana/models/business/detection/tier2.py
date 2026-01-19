@@ -152,16 +152,12 @@ def _detect_by_name_pattern(task: Task) -> DetectionResult | None:
                 expected_gid = get_registry().get_primary_gid(entity_type)
 
                 logger.debug(
-                    "Detected %s via name pattern '%s' (Tier 2, word_boundary=%s)",
-                    entity_type.name,
-                    matched_pattern,
-                    spec.word_boundary,
-                    extra={
-                        "task_gid": task.gid,
-                        "pattern": matched_pattern,
-                        "tier": 2,
-                        "word_boundary": spec.word_boundary,
-                    },
+                    "detected_via_name_pattern",
+                    entity_type=entity_type.name,
+                    matched_pattern=matched_pattern,
+                    word_boundary=spec.word_boundary,
+                    task_gid=task.gid,
+                    tier=2,
                 )
 
                 return DetectionResult(

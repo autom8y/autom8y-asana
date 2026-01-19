@@ -137,7 +137,9 @@ class CacheSettings(BaseSettings):
                 return int(v)
             except ValueError:
                 get_logger(__name__).warning(
-                    "Invalid ASANA_CACHE_TTL_DEFAULT '%s', using default 300", v
+                    "invalid_cache_ttl_default",
+                    invalid_value=str(v),
+                    default_used=300,
                 )
                 return 300
         return 300

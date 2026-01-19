@@ -90,6 +90,7 @@ def _get_schema_mapping() -> tuple[dict[str, str], list[str]]:
         _schema_mapping = mapping
         _valid_schemas = sorted(mapping.keys())
 
+    assert _valid_schemas is not None  # Set together with _schema_mapping
     return _schema_mapping, _valid_schemas
 
 

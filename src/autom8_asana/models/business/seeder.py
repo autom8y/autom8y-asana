@@ -219,13 +219,13 @@ class BusinessSeeder:
             if business.vertical:
                 biz.vertical = business.vertical
             if business.business_address_line_1:
-                biz.business_address_line_1 = business.business_address_line_1
+                biz.business_address_line_1 = business.business_address_line_1  # type: ignore[attr-defined]
             if business.business_city:
-                biz.business_city = business.business_city
+                biz.business_city = business.business_city  # type: ignore[attr-defined]
             if business.business_state:
-                biz.business_state = business.business_state
+                biz.business_state = business.business_state  # type: ignore[attr-defined]
             if business.business_zip:
-                biz.business_zip = business.business_zip
+                biz.business_zip = business.business_zip  # type: ignore[attr-defined]
             created_business = True
             logger.info("Creating new Business", extra={"name": business.name})
 
@@ -447,6 +447,7 @@ class BusinessSeeder:
                 "Business match found by composite matching",
                 extra=match_result.to_log_dict(),
             )
+            assert match_result.candidate_gid is not None  # Guaranteed by is_match
             return await self._load_business(match_result.candidate_gid)
 
         return None
@@ -470,6 +471,7 @@ class BusinessSeeder:
         try:
             # Search for businesses with similar name tokens
             # Use name search as the primary candidate source
+            assert Business.PRIMARY_PROJECT_GID is not None  # Required for search
             result = await self._client.search.find_async(
                 Business.PRIMARY_PROJECT_GID,
                 {"name": data.name},  # Fuzzy matching handled by engine
@@ -515,6 +517,7 @@ class BusinessSeeder:
         try:
             # Use SearchService to find by Company ID custom field
             # Note: Business.PRIMARY_PROJECT_GID is the Business project
+            assert Business.PRIMARY_PROJECT_GID is not None  # Required for search
             hit = await self._client.search.find_one_async(
                 Business.PRIMARY_PROJECT_GID,
                 {"Company ID": company_id},
@@ -527,6 +530,7 @@ class BusinessSeeder:
                 "Multiple businesses found with same company_id",
                 extra={"company_id": company_id},
             )
+            assert Business.PRIMARY_PROJECT_GID is not None  # Required for search
             result = await self._client.search.find_async(
                 Business.PRIMARY_PROJECT_GID,
                 {"Company ID": company_id},
@@ -557,6 +561,7 @@ class BusinessSeeder:
 
         try:
             # Use SearchService to find by name field
+            assert Business.PRIMARY_PROJECT_GID is not None  # Required for search
             hit = await self._client.search.find_one_async(
                 Business.PRIMARY_PROJECT_GID,
                 {"name": name},
@@ -569,6 +574,7 @@ class BusinessSeeder:
                 "Multiple businesses found with same name",
                 extra={"business_name": name},
             )
+            assert Business.PRIMARY_PROJECT_GID is not None  # Required for search
             result = await self._client.search.find_async(
                 Business.PRIMARY_PROJECT_GID,
                 {"name": name},

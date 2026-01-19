@@ -181,7 +181,7 @@ class AsanaHttpClient:
                 rate_limiter=None,  # We manage rate limiting ourselves
                 retry_policy=None,  # We manage retry ourselves
                 circuit_breaker=None,  # We manage circuit breaker ourselves
-                logger=self._logger,
+                logger=self._logger,  # type: ignore[arg-type]
             )
 
             # Store the underlying httpx client for direct header configuration

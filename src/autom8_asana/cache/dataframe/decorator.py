@@ -69,7 +69,7 @@ def dataframe_cache(
     """
 
     def decorator(cls: type[T]) -> type[T]:
-        original_resolve = cls.resolve
+        original_resolve = cls.resolve  # type: ignore[attr-defined]
 
         @wraps(original_resolve)
         async def cached_resolve(
@@ -87,7 +87,10 @@ def dataframe_cache(
                         "project_gid": project_gid,
                     },
                 )
-                return await original_resolve(self, criteria, project_gid, client)
+                result: list[Any] = await original_resolve(
+                    self, criteria, project_gid, client
+                )
+                return result
 
             cache = cache_provider()
 
@@ -100,15 +103,17 @@ def dataframe_cache(
                         "project_gid": project_gid,
                     },
                 )
-                return await original_resolve(self, criteria, project_gid, client)
+                result = await original_resolve(self, criteria, project_gid, client)
+                return result
 
             # Try to get cached DataFrame
             entry = await cache.get_async(project_gid, entity_type)
 
             if entry is not None:
                 # Cache hit - inject DataFrame and resolve
-                self._cached_dataframe = entry.dataframe
-                return await original_resolve(self, criteria, project_gid, client)
+                self._cached_dataframe = entry.dataframe  # type: ignore[attr-defined]
+                result = await original_resolve(self, criteria, project_gid, client)
+                return result
 
             # Cache miss - check if build is in progress
             acquired = await cache.acquire_build_lock_async(project_gid, entity_type)
@@ -122,8 +127,9 @@ def dataframe_cache(
                 )
 
                 if entry is not None:
-                    self._cached_dataframe = entry.dataframe
-                    return await original_resolve(self, criteria, project_gid, client)
+                    self._cached_dataframe = entry.dataframe  # type: ignore[attr-defined]
+                    result = await original_resolve(self, criteria, project_gid, client)
+                    return result
 
                 # Timeout or failure
                 logger.warning(
@@ -170,16 +176,19 @@ def dataframe_cache(
                     )
 
                 # Build returns (dataframe, watermark)
-                result = await build_func(project_gid, client)
+                import polars as pl
+
+                build_result = await build_func(project_gid, client)
 
                 # Handle both tuple and single return value
-                if isinstance(result, tuple) and len(result) == 2:
-                    df, watermark = result
+                df: pl.DataFrame | None
+                if isinstance(build_result, tuple) and len(build_result) == 2:
+                    df, watermark = build_result
                 else:
                     # Assume it's just the DataFrame, use current time as watermark
                     from datetime import datetime
 
-                    df = result
+                    df = build_result
                     watermark = datetime.now(UTC)
 
                 if df is None:
@@ -204,8 +213,9 @@ def dataframe_cache(
                 )
 
                 # Resolve with fresh DataFrame
-                self._cached_dataframe = df
-                return await original_resolve(self, criteria, project_gid, client)
+                self._cached_dataframe = df  # type: ignore[attr-defined]
+                result = await original_resolve(self, criteria, project_gid, client)
+                return result
 
             except HTTPException:
                 # Re-raise HTTP exceptions as-is
@@ -235,7 +245,7 @@ def dataframe_cache(
                     },
                 )
 
-        cls.resolve = cached_resolve
+        cls.resolve = cached_resolve  # type: ignore[attr-defined]
         return cls
 
     return decorator

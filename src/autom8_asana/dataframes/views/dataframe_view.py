@@ -117,7 +117,7 @@ class DataFrameViewPlugin:
         return self._resolver
 
     @property
-    def cascade_plugin(self) -> CascadeViewPlugin:
+    def cascade_plugin(self) -> CascadeViewPlugin | None:
         """Get the cascade view plugin."""
         return self._cascade_plugin
 
@@ -154,6 +154,7 @@ class DataFrameViewPlugin:
             return self._build_empty()
 
         # Fetch tasks from unified store
+        assert self._store is not None  # Required for materialization
         task_data_map = await self._store.get_batch_async(
             task_gids, freshness=freshness
         )
@@ -450,6 +451,8 @@ class DataFrameViewPlugin:
             return None
 
         # Search parent chain for field value
+        if self._cascade_plugin is None:
+            return None
         for parent_data in parent_chain:
             value = self._cascade_plugin._get_custom_field_value_from_dict(
                 parent_data, field_name

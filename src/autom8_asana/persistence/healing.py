@@ -236,10 +236,10 @@ class HealingManager:
                 report.results.append(result)
 
                 logger.info(
-                    "Healed entity %s (%s): added to project %s",
-                    entity.gid,
-                    entity_type,
-                    project_gid,
+                    "entity_healed",
+                    entity_gid=entity.gid,
+                    entity_type=entity_type,
+                    project_gid=project_gid,
                 )
 
             except Exception as e:
@@ -256,10 +256,10 @@ class HealingManager:
 
                 # Non-blocking: log warning and continue
                 logger.warning(
-                    "Healing failed for entity %s (%s): %s",
-                    entity.gid,
-                    entity_type,
-                    error_msg,
+                    "healing_failed",
+                    entity_gid=entity.gid,
+                    entity_type=entity_type,
+                    error=error_msg,
                 )
 
         # Clear the healing queue after execution

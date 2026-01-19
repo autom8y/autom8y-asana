@@ -569,11 +569,17 @@ class GoalsClient(BaseClient):
         self, goal_gid: str, **kwargs: Any
     ) -> Goal | dict[str, Any]:
         """Add a subgoal. Delegates to relationships."""
-        return await self.relationships.add_subgoal_async(goal_gid, **kwargs)
+        result: Goal | dict[str, Any] = await self.relationships.add_subgoal_async(
+            goal_gid, **kwargs
+        )
+        return result
 
     def add_subgoal(self, goal_gid: str, **kwargs: Any) -> Goal | dict[str, Any]:
         """Add a subgoal (sync). Delegates to relationships."""
-        return self.relationships.add_subgoal(goal_gid, **kwargs)
+        result: Goal | dict[str, Any] = self.relationships.add_subgoal(
+            goal_gid, **kwargs
+        )
+        return result
 
     async def remove_subgoal_async(self, goal_gid: str, *, subgoal: str) -> None:
         """Remove a subgoal. Delegates to relationships."""
@@ -587,13 +593,19 @@ class GoalsClient(BaseClient):
         self, goal_gid: str, **kwargs: Any
     ) -> Goal | dict[str, Any]:
         """Add supporting work. Delegates to relationships."""
-        return await self.relationships.add_supporting_work_async(goal_gid, **kwargs)
+        result: (
+            Goal | dict[str, Any]
+        ) = await self.relationships.add_supporting_work_async(goal_gid, **kwargs)
+        return result
 
     def add_supporting_work(
         self, goal_gid: str, **kwargs: Any
     ) -> Goal | dict[str, Any]:
         """Add supporting work (sync). Delegates to relationships."""
-        return self.relationships.add_supporting_work(goal_gid, **kwargs)
+        result: Goal | dict[str, Any] = self.relationships.add_supporting_work(
+            goal_gid, **kwargs
+        )
+        return result
 
     async def remove_supporting_work_async(
         self, goal_gid: str, *, supporting_resource: str
@@ -615,18 +627,28 @@ class GoalsClient(BaseClient):
         self, goal_gid: str, **kwargs: Any
     ) -> Goal | dict[str, Any]:
         """Add followers. Delegates to followers."""
-        return await self.followers.add_followers_async(goal_gid, **kwargs)
+        result: Goal | dict[str, Any] = await self.followers.add_followers_async(
+            goal_gid, **kwargs
+        )
+        return result
 
     def add_followers(self, goal_gid: str, **kwargs: Any) -> Goal | dict[str, Any]:
         """Add followers (sync). Delegates to followers."""
-        return self.followers.add_followers(goal_gid, **kwargs)
+        result: Goal | dict[str, Any] = self.followers.add_followers(goal_gid, **kwargs)
+        return result
 
     async def remove_followers_async(
         self, goal_gid: str, **kwargs: Any
     ) -> Goal | dict[str, Any]:
         """Remove followers. Delegates to followers."""
-        return await self.followers.remove_followers_async(goal_gid, **kwargs)
+        result: Goal | dict[str, Any] = await self.followers.remove_followers_async(
+            goal_gid, **kwargs
+        )
+        return result
 
     def remove_followers(self, goal_gid: str, **kwargs: Any) -> Goal | dict[str, Any]:
         """Remove followers (sync). Delegates to followers."""
-        return self.followers.remove_followers(goal_gid, **kwargs)
+        result: Goal | dict[str, Any] = self.followers.remove_followers(
+            goal_gid, **kwargs
+        )
+        return result

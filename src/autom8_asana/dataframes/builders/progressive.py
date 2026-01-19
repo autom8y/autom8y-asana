@@ -730,7 +730,7 @@ class ProgressiveProjectBuilder:
                     },
                 )
 
-                return rows, skipped, fetched_gids
+                return rows, skipped, fetched_gids  # type: ignore[return-value]
 
         # Process all sections in parallel
         results = await asyncio.gather(
@@ -751,7 +751,7 @@ class ProgressiveProjectBuilder:
                 )
                 continue
 
-            rows, skipped, fetched_gids = result
+            rows, skipped, fetched_gids = result  # type: ignore[misc]
             all_new_rows.extend(rows)
             all_skipped_gids.extend(skipped)
             all_fetched_gids.update(fetched_gids)

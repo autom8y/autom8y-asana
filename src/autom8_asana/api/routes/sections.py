@@ -134,7 +134,7 @@ async def delete_section(
     Returns:
         No content on success.
     """
-    await client.sections.delete_async(gid)
+    await client.sections.delete_async(gid)  # type: ignore[attr-defined]
 
 
 # --- Task Operations ---
@@ -164,7 +164,7 @@ async def add_task_to_section(
     Returns:
         No content on success.
     """
-    await client.sections.add_task_async(gid, task=body.task_gid)
+    await client.sections.add_task_async(gid, task=body.task_gid)  # type: ignore[attr-defined]
 
 
 # --- Reorder Operations ---
@@ -209,7 +209,7 @@ async def reorder_section(
             detail="Only one of 'before_section' or 'after_section' may be specified",
         )
 
-    await client.sections.insert_section_async(
+    await client.sections.insert_section_async(  # type: ignore[attr-defined]
         body.project_gid,
         section=gid,
         before_section=body.before_section,

@@ -96,15 +96,15 @@ class CacheProviderFactory:
         provider_name = provider_name.lower()
 
         if provider_name in ("none", "null"):
-            logger.debug("Using NullCacheProvider (explicit: %s)", provider_name)
+            logger.debug("using_null_cache_provider", provider_name=provider_name)
             return NullCacheProvider()
 
         if provider_name == "memory":
             settings = get_settings()
             logger.debug(
-                "Using InMemoryCacheProvider (explicit, default_ttl=%d, max_size=%d)",
-                config.ttl.default_ttl,
-                settings.cache.memory_max_size,
+                "using_inmemory_cache_provider",
+                default_ttl=config.ttl.default_ttl,
+                max_size=settings.cache.memory_max_size,
             )
             return InMemoryCacheProvider(
                 default_ttl=config.ttl.default_ttl,
@@ -171,9 +171,9 @@ class CacheProviderFactory:
         else:
             # Development/test: use in-memory
             logger.debug(
-                "Development environment, using InMemoryCacheProvider (default_ttl=%d, max_size=%d)",
-                config.ttl.default_ttl,
-                max_size,
+                "dev_using_inmemory_cache_provider",
+                default_ttl=config.ttl.default_ttl,
+                max_size=max_size,
             )
             return InMemoryCacheProvider(
                 default_ttl=config.ttl.default_ttl,
@@ -277,7 +277,8 @@ def create_cache_provider(
     """
     if explicit_provider is not None:
         logger.debug(
-            "Using explicit cache provider: %s", type(explicit_provider).__name__
+            "using_explicit_cache_provider",
+            provider_type=type(explicit_provider).__name__,
         )
         return explicit_provider
 

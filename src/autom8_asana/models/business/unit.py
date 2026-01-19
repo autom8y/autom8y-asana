@@ -228,7 +228,8 @@ class Unit(
         """
         if self._offer_holder is None:
             return []
-        return self._offer_holder.offers
+        offers: list[Offer] = self._offer_holder.offers  # type: ignore[attr-defined]
+        return offers
 
     @property
     def active_offers(self) -> list[Offer]:
@@ -239,7 +240,8 @@ class Unit(
         """
         if self._offer_holder is None:
             return []
-        return [o for o in self._offer_holder.offers if o.has_active_ads]
+        offers: list[Offer] = self._offer_holder.offers  # type: ignore[attr-defined]
+        return [o for o in offers if o.has_active_ads]
 
     @property
     def processes(self) -> list[Process]:
@@ -250,7 +252,8 @@ class Unit(
         """
         if self._process_holder is None:
             return []
-        return self._process_holder.processes
+        procs: list[Process] = self._process_holder.processes  # type: ignore[attr-defined]
+        return procs
 
     # --- Upward Traversal (TDD-HYDRATION Phase 2, TDD-SPRINT-1 Phase 2) ---
     # to_business_async inherited from UpwardTraversalMixin

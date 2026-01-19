@@ -22,6 +22,8 @@ Per PRD-ASANA-SATELLITE (FR-ERR-009):
 - Generic 500 responses hide implementation details
 """
 
+from typing import Any
+
 from autom8y_log import get_logger
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -47,8 +49,8 @@ def _build_error_response(
     request: Request,
     code: str,
     message: str,
-    details: dict | None = None,
-) -> dict:
+    details: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Build error response dict from components.
 
     Args:

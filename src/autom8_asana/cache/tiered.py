@@ -455,14 +455,20 @@ class TieredCacheProvider:
 
         # Clear hot tier (Redis)
         try:
-            result["redis"] = self._hot.clear_all_tasks()
+            # Hot tier is Redis which implements clear_all_tasks
+            clear_func = getattr(self._hot, "clear_all_tasks", None)
+            if clear_func is not None:
+                result["redis"] = clear_func()
         except Exception as e:
             logger.warning(f"Redis clear_all_tasks failed: {e}")
 
         # Clear cold tier (S3) if enabled
         if self.s3_enabled and self._cold is not None:
             try:
-                result["s3"] = self._cold.clear_all_tasks()
+                # Cold tier is S3 which implements clear_all_tasks
+                clear_func = getattr(self._cold, "clear_all_tasks", None)
+                if clear_func is not None:
+                    result["s3"] = clear_func()
             except Exception as e:
                 logger.warning(f"S3 clear_all_tasks failed: {e}")
 

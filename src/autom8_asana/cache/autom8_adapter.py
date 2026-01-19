@@ -233,15 +233,17 @@ async def migrate_task_collection_loading(
         )
 
     # Fetch current versions (uses 25s TTL cache internally per ADR-0018)
+    # Filter out None values from gids for type safety
+    valid_gids: list[str] = [g for g in gids if g is not None]
     current_versions = await fetch_task_modifications(
-        gids=gids,
+        gids=valid_gids,
         batch_api=batch_api,
     )
 
     # Check staleness against cache
     staleness = check_batch_staleness(
         cache=cache,
-        task_gids=gids,
+        task_gids=valid_gids,
         entry_type=EntryType.TASK,
         current_versions=current_versions,
     )
@@ -424,10 +426,10 @@ def check_redis_health(cache: RedisCacheProvider) -> dict[str, Any]:
         if healthy:
             metrics = cache.get_metrics()
             result["metrics"] = {
-                "total_hits": metrics.total_hits,
-                "total_misses": metrics.total_misses,
-                "total_writes": metrics.total_writes,
-                "total_errors": metrics.total_errors,
+                "total_hits": metrics.hits,
+                "total_misses": metrics.misses,
+                "total_writes": metrics.writes,
+                "total_errors": metrics.errors,
                 "hit_rate": metrics.hit_rate,
             }
         else:

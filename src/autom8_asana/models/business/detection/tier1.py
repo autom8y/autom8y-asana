@@ -139,9 +139,11 @@ def _detect_tier1_project_membership(task: Task) -> DetectionResult | None:
         return None
 
     logger.debug(
-        "Detected %s via project membership (Tier 1)",
-        entity_type.name,
-        extra={"task_gid": task.gid, "project_gid": project_gid, "tier": 1},
+        "detected_via_project_membership",
+        entity_type=entity_type.name,
+        task_gid=task.gid,
+        project_gid=project_gid,
+        tier=1,
     )
 
     return DetectionResult(
@@ -227,9 +229,11 @@ async def _detect_tier1_project_membership_async(
         return None
 
     logger.debug(
-        "Detected %s via async project membership with lazy discovery (Tier 1)",
-        entity_type.name,
-        extra={"task_gid": task.gid, "project_gid": project_gid, "tier": 1},
+        "detected_via_async_project_membership",
+        entity_type=entity_type.name,
+        task_gid=task.gid,
+        project_gid=project_gid,
+        tier=1,
     )
 
     return DetectionResult(

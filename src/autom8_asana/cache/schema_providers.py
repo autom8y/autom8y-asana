@@ -44,7 +44,7 @@ except ImportError:
     # SDK version doesn't have schema versioning yet
     CompatibilityMode = None  # type: ignore[misc, assignment]
     SchemaVersion = None  # type: ignore[misc, assignment]
-    register_schema_provider = None  # type: ignore[misc, assignment]
+    register_schema_provider = None  # type: ignore[assignment]
 
 if TYPE_CHECKING:
     from autom8y_cache import CompatibilityMode, SchemaVersion

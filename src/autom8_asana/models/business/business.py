@@ -457,7 +457,8 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
         """
         if self._contact_holder is None:
             return []
-        return self._contact_holder.contacts
+        contacts: list[Contact] = self._contact_holder.contacts  # type: ignore[attr-defined]
+        return contacts
 
     @property
     def units(self) -> list[Unit]:
@@ -468,7 +469,8 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
         """
         if self._unit_holder is None:
             return []
-        return self._unit_holder.units
+        units: list[Unit] = self._unit_holder.units  # type: ignore[attr-defined]
+        return units
 
     @property
     def address(self) -> Location | None:
@@ -492,7 +494,8 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
         """
         if self._location_holder is None:
             return []
-        return self._location_holder.locations
+        locs: list[Location] = self._location_holder.locations  # type: ignore[attr-defined]
+        return locs
 
     @property
     def hours(self) -> Hours | None:
@@ -691,7 +694,7 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
         # Recursively fetch each Unit's holders (OfferHolder, ProcessHolder)
         unit_fetch_tasks = [
             asyncio.create_task(unit._fetch_holders_async(client))
-            for unit in self._unit_holder.units
+            for unit in self._unit_holder.units  # type: ignore[attr-defined]
         ]
 
         if unit_fetch_tasks:

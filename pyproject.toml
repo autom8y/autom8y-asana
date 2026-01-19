@@ -86,6 +86,35 @@ strict = true
 warn_return_any = true
 warn_unused_ignores = true
 
+# Ignore missing stubs for optional dependencies
+[[tool.mypy.overrides]]
+module = "phonenumbers.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "awslambdaric.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "yaml.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "pandas.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "mypy_boto3_s3.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "apscheduler.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "autom8_asana.models.core"
+ignore_missing_imports = true
+
 [tool.ruff]
 line-length = 88
 target-version = "py311"

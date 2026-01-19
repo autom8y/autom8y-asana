@@ -232,15 +232,15 @@ class AsyncS3Client:
                 client_kwargs["endpoint_url"] = self._config.endpoint_url
 
             # Create client in thread to avoid blocking event loop
-            self._client = await asyncio.to_thread(boto3.client, "s3", **client_kwargs)
+            self._client = await asyncio.to_thread(boto3.client, "s3", **client_kwargs)  # type: ignore[arg-type]
             self._initialized = True
             logger.debug(
-                "AsyncS3Client initialized: bucket=%s region=%s",
-                self._config.bucket,
-                self._config.region,
+                "async_s3_client_initialized",
+                bucket=self._config.bucket,
+                region=self._config.region,
             )
         except Exception as e:
-            logger.error("Failed to create boto3 S3 client: %s", e)
+            logger.error("s3_client_creation_failed", error=str(e))
             self._degraded = True
 
     def _get_client(self) -> S3Client:
@@ -337,12 +337,10 @@ class AsyncS3Client:
 
                 logger.debug(
                     "s3_write_completed",
-                    extra={
-                        "key": key,
-                        "size_bytes": size_bytes,
-                        "duration_ms": round(duration_ms, 2),
-                        "throughput_mbps": round(result.throughput_mbps, 2),
-                    },
+                    key=key,
+                    size_bytes=size_bytes,
+                    duration_ms=round(duration_ms, 2),
+                    throughput_mbps=round(result.throughput_mbps, 2),
                 )
                 return result
 
@@ -353,12 +351,12 @@ class AsyncS3Client:
                 ):
                     delay = self._config.base_retry_delay * (2**attempt)
                     logger.warning(
-                        "S3 put_object retry %d/%d for key %s: %s (delay %.1fs)",
-                        attempt + 1,
-                        self._config.max_retries,
-                        key,
-                        e,
-                        delay,
+                        "s3_put_object_retry",
+                        attempt=attempt + 1,
+                        max_retries=self._config.max_retries,
+                        key=key,
+                        error=str(e),
+                        delay_seconds=round(delay, 1),
                     )
                     await asyncio.sleep(delay)
                 else:
@@ -412,11 +410,9 @@ class AsyncS3Client:
 
                 logger.debug(
                     "s3_read_completed",
-                    extra={
-                        "key": key,
-                        "size_bytes": len(data),
-                        "duration_ms": round(duration_ms, 2),
-                    },
+                    key=key,
+                    size_bytes=len(data),
+                    duration_ms=round(duration_ms, 2),
                 )
 
                 return S3ReadResult(
@@ -444,12 +440,12 @@ class AsyncS3Client:
                 ):
                     delay = self._config.base_retry_delay * (2**attempt)
                     logger.warning(
-                        "S3 get_object retry %d/%d for key %s: %s (delay %.1fs)",
-                        attempt + 1,
-                        self._config.max_retries,
-                        key,
-                        e,
-                        delay,
+                        "s3_get_object_retry",
+                        attempt=attempt + 1,
+                        max_retries=self._config.max_retries,
+                        key=key,
+                        error=str(e),
+                        delay_seconds=round(delay, 1),
                     )
                     await asyncio.sleep(delay)
                 else:
@@ -602,7 +598,7 @@ class AsyncS3Client:
 
         # Check botocore ClientError
         if hasattr(error, "response"):
-            error_code = error.response.get("Error", {}).get("Code", "")  # type: ignore[attr-defined]
+            error_code = error.response.get("Error", {}).get("Code", "")
             return error_code in ("NoSuchKey", "404", "NotFound")
 
         return False
@@ -637,7 +633,7 @@ class AsyncS3Client:
 
         # Check botocore error codes
         if hasattr(error, "response"):
-            error_code = error.response.get("Error", {}).get("Code", "")  # type: ignore[attr-defined]
+            error_code = error.response.get("Error", {}).get("Code", "")
             return error_code in (
                 "SlowDown",
                 "ServiceUnavailable",
@@ -651,14 +647,14 @@ class AsyncS3Client:
         """Handle S3 errors and potentially enter degraded mode."""
         # Check for access denied or bucket not found
         if hasattr(error, "response"):
-            error_code = error.response.get("Error", {}).get("Code", "")  # type: ignore[attr-defined]
+            error_code = error.response.get("Error", {}).get("Code", "")
             if error_code in ("AccessDenied", "NoSuchBucket"):
                 if not self._degraded:
                     logger.warning(
-                        "S3 access error during %s for %s, entering degraded mode: %s",
-                        operation,
-                        key,
-                        error,
+                        "s3_access_error_degraded_mode",
+                        operation=operation,
+                        key=key,
+                        error=str(error),
                     )
                     self._degraded = True
                     self._last_error_time = time.time()
@@ -668,17 +664,17 @@ class AsyncS3Client:
         if isinstance(error, (ConnectionError, TimeoutError, asyncio.TimeoutError)):
             if not self._degraded:
                 logger.warning(
-                    "S3 connectivity error during %s for %s, entering degraded mode: %s",
-                    operation,
-                    key,
-                    error,
+                    "s3_connectivity_error_degraded_mode",
+                    operation=operation,
+                    key=key,
+                    error=str(error),
                 )
                 self._degraded = True
                 self._last_error_time = time.time()
         else:
             logger.error(
-                "S3 error during %s for %s: %s",
-                operation,
-                key,
-                error,
+                "s3_error",
+                operation=operation,
+                key=key,
+                error=str(error),
             )
