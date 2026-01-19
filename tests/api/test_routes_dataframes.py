@@ -255,10 +255,11 @@ class TestGetProjectDataframe:
         detail = response.json()["detail"]
         assert detail["error"] == "INVALID_SCHEMA"
         assert "valid_schemas" in detail
-        assert len(detail["valid_schemas"]) == 7
+        # Core schemas must be present (don't hardcode count - grows with new entity types)
         assert "base" in detail["valid_schemas"]
         assert "unit" in detail["valid_schemas"]
         assert "offer" in detail["valid_schemas"]
+        assert len(detail["valid_schemas"]) >= 4  # At minimum: base + core types
 
     def test_get_project_dataframe_limit_validation_min(
         self, authed_client: tuple[TestClient, MagicMock]
@@ -542,7 +543,8 @@ class TestGetSectionDataframe:
         detail = response.json()["detail"]
         assert detail["error"] == "INVALID_SCHEMA"
         assert "valid_schemas" in detail
-        assert len(detail["valid_schemas"]) == 7
+        # Don't hardcode count - grows with new entity types
+        assert len(detail["valid_schemas"]) >= 4
 
     def test_get_section_dataframe_limit_validation_min(
         self, authed_client: tuple[TestClient, MagicMock]
