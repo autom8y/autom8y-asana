@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import polars as pl
 import pytest
+from pytest_mock import MockerFixture
 
 from autom8_asana.dataframes import (
     SchemaRegistry,
@@ -139,7 +140,7 @@ class TestProjectToDataFrame:
         project_with_tasks: Project,
         mock_client: MagicMock,
         sample_dataframe: pl.DataFrame,
-        mocker: pytest.MonkeyPatch,
+        mocker: MockerFixture,
     ) -> None:
         """to_dataframe() should return a Polars DataFrame."""
         mock_builder = mocker.patch(
@@ -157,7 +158,7 @@ class TestProjectToDataFrame:
         project_with_tasks: Project,
         mock_client: MagicMock,
         sample_dataframe: pl.DataFrame,
-        mocker: pytest.MonkeyPatch,
+        mocker: MockerFixture,
     ) -> None:
         """to_dataframe() should have base schema columns."""
         mock_builder = mocker.patch(
@@ -179,7 +180,7 @@ class TestProjectToDataFrame:
         project_with_tasks: Project,
         mock_client: MagicMock,
         sample_dataframe: pl.DataFrame,
-        mocker: pytest.MonkeyPatch,
+        mocker: MockerFixture,
     ) -> None:
         """to_dataframe() should extract task data correctly."""
         mock_builder = mocker.patch(
@@ -199,7 +200,7 @@ class TestProjectToDataFrame:
         self,
         mock_client: MagicMock,
         empty_dataframe: pl.DataFrame,
-        mocker: pytest.MonkeyPatch,
+        mocker: MockerFixture,
     ) -> None:
         """to_dataframe() should handle empty project."""
         mock_builder = mocker.patch(
@@ -224,7 +225,7 @@ class TestProjectToDataFrame:
         project_with_tasks: Project,
         mock_client: MagicMock,
         sample_dataframe: pl.DataFrame,
-        mocker: pytest.MonkeyPatch,
+        mocker: MockerFixture,
     ) -> None:
         """to_dataframe() should work with use_cache=False."""
         mock_builder = mocker.patch(
@@ -250,7 +251,7 @@ class TestProjectToDataFrameAsync:
         project_with_tasks: Project,
         mock_client: MagicMock,
         sample_dataframe: pl.DataFrame,
-        mocker: pytest.MonkeyPatch,
+        mocker: MockerFixture,
     ) -> None:
         """to_dataframe_async() should return a Polars DataFrame."""
         mock_builder = mocker.patch(
@@ -271,7 +272,7 @@ class TestProjectToDataFrameAsync:
         project_with_tasks: Project,
         mock_client: MagicMock,
         sample_dataframe: pl.DataFrame,
-        mocker: pytest.MonkeyPatch,
+        mocker: MockerFixture,
     ) -> None:
         """to_dataframe_async() should extract task data."""
         mock_builder = mocker.patch(
@@ -346,7 +347,7 @@ class TestPublicAPIIntegration:
     """Integration tests for public API methods."""
 
     def test_project_dataframe_section_filtering(
-        self, mock_client: MagicMock, mocker: pytest.MonkeyPatch
+        self, mock_client: MagicMock, mocker: MockerFixture
     ) -> None:
         """to_dataframe() should filter by sections when specified."""
         # Create filtered DataFrame that simulates section filtering
@@ -400,7 +401,7 @@ class TestPublicAPIIntegration:
         project_with_tasks: Project,
         mock_client: MagicMock,
         sample_dataframe: pl.DataFrame,
-        mocker: pytest.MonkeyPatch,
+        mocker: MockerFixture,
     ) -> None:
         """Async method should produce same data as would sync version."""
         mock_builder = mocker.patch(
@@ -423,7 +424,7 @@ class TestPublicAPIIntegration:
         project_with_tasks: Project,
         mock_client: MagicMock,
         sample_dataframe: pl.DataFrame,
-        mocker: pytest.MonkeyPatch,
+        mocker: MockerFixture,
     ) -> None:
         """Unit schema should include type-specific columns."""
         mock_builder = mocker.patch(
@@ -450,7 +451,7 @@ class TestEdgeCases:
         self,
         mock_client: MagicMock,
         empty_dataframe: pl.DataFrame,
-        mocker: pytest.MonkeyPatch,
+        mocker: MockerFixture,
     ) -> None:
         """to_dataframe() should handle tasks=None."""
         mock_builder = mocker.patch(
