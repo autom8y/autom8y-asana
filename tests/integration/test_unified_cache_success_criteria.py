@@ -121,7 +121,9 @@ def make_task(
 
 
 def make_cache_entry(task_data: dict[str, Any]) -> CacheEntry:
-    """Create a cache entry from task data."""
+    """Create a cache entry from task data with proper completeness metadata."""
+    from autom8_asana.cache.completeness import CompletenessLevel
+
     modified_at = task_data.get("modified_at", "2025-01-02T00:00:00.000Z")
     version = datetime.fromisoformat(modified_at.replace("Z", "+00:00"))
     return CacheEntry(
@@ -131,6 +133,10 @@ def make_cache_entry(task_data: dict[str, Any]) -> CacheEntry:
         version=version,
         cached_at=datetime.now(UTC),
         ttl=300,
+        metadata={
+            "completeness_level": CompletenessLevel.STANDARD.value,
+            "opt_fields_used": [],
+        },
     )
 
 

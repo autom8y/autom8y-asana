@@ -352,9 +352,9 @@ class TestContactRowCreation:
         assert row.position is None
 
     def test_field_count(self) -> None:
-        """Verify ContactRow has 21 fields (12 base + 9 Contact)."""
+        """Verify ContactRow has 25 fields (12 base + 13 Contact)."""
         fields = ContactRow.model_fields
-        assert len(fields) == 21
+        assert len(fields) == 25
 
     def test_inherits_from_task_row(self) -> None:
         """Test that ContactRow inherits from TaskRow."""

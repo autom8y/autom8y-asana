@@ -282,12 +282,9 @@ class TestCascadingFieldResolverIntegration:
 
         mock_client.tasks.get_async = mock_get
 
-        resolver = CascadingFieldResolver(
-            client=mock_client,
-            concurrency_controller=ConcurrencyController(
-                ConcurrencyConfig(max_concurrent=10)
-            ),
-        )
+        # CascadingFieldResolver no longer accepts concurrency_controller
+        # Concurrency is handled internally or via hierarchy_resolver
+        resolver = CascadingFieldResolver(client=mock_client)
 
         # Get tasks (all parent to unit-1)
         tasks = [parent_hierarchy[f"task-{i}"] for i in range(1, 11)]

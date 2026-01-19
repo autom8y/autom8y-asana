@@ -59,14 +59,18 @@ class S2SAuditEntry:
     response_status: int
     duration_ms: float
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, *, include_event: bool = True) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization.
+
+        Args:
+            include_event: Whether to include the event field. Set to False
+                when unpacking as **kwargs to a logger method that takes
+                event as a positional argument.
 
         Returns:
             Dictionary with all non-None fields.
         """
-        result = {
-            "event": self.event,
+        result: dict[str, Any] = {
             "timestamp": self.timestamp,
             "request_id": self.request_id,
             "auth_mode": self.auth_mode,
@@ -75,6 +79,8 @@ class S2SAuditEntry:
             "response_status": self.response_status,
             "duration_ms": round(self.duration_ms, 2),
         }
+        if include_event:
+            result["event"] = self.event
         if self.caller_service is not None:
             result["caller_service"] = self.caller_service
         return result
@@ -194,10 +200,11 @@ class S2SAuditLogger:
         )
 
         # Emit structured log using appropriate level
+        # Use include_event=False since event is passed as positional arg
         if status >= 400:
-            self._logger.warning("s2s_request", **entry.to_dict())
+            self._logger.warning("s2s_request", **entry.to_dict(include_event=False))
         else:
-            self._logger.info("s2s_request", **entry.to_dict())
+            self._logger.info("s2s_request", **entry.to_dict(include_event=False))
 
         return entry
 

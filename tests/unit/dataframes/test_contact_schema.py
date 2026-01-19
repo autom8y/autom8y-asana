@@ -1,7 +1,6 @@
 """Tests for CONTACT_SCHEMA definition.
 
-Verifies the Contact schema has exactly 12 base columns.
-Custom fields can be added when verified on the Contacts project.
+Verifies the Contact schema has base columns plus contact-specific columns.
 """
 
 from __future__ import annotations
@@ -25,18 +24,18 @@ class TestContactSchemaStructure:
 
     def test_version_is_semver(self) -> None:
         """Verify version follows semver format."""
-        assert CONTACT_SCHEMA.version == "2.0.0"
+        assert CONTACT_SCHEMA.version == "1.2.0"
 
-    def test_column_count_is_12(self) -> None:
-        """Verify CONTACT_SCHEMA has exactly 12 base columns."""
-        assert len(CONTACT_SCHEMA) == 12
+    def test_column_count_is_25(self) -> None:
+        """Verify CONTACT_SCHEMA has 25 columns (12 base + 13 contact-specific)."""
+        assert len(CONTACT_SCHEMA) == 25
         assert len(BASE_COLUMNS) == 12
 
     def test_includes_all_base_columns(self) -> None:
         """Verify all base columns are present."""
-        base_names = [col.name for col in BASE_COLUMNS]
-        contact_names = CONTACT_SCHEMA.column_names()
-        assert contact_names == base_names
+        base_names = {col.name for col in BASE_COLUMNS}
+        contact_names = set(CONTACT_SCHEMA.column_names())
+        assert base_names.issubset(contact_names)
 
 
 class TestContactSchemaPolarsConversion:
@@ -62,5 +61,5 @@ class TestContactSchemaToDict:
 
         assert result["name"] == "contact"
         assert result["task_type"] == "Contact"
-        assert result["version"] == "2.0.0"
-        assert len(result["columns"]) == 12
+        assert result["version"] == "1.2.0"
+        assert len(result["columns"]) == 25

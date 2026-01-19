@@ -184,8 +184,9 @@ class TestPlaceInHierarchyAsync:
 
         assert result is False
         mock_logger.warning.assert_called()
+        # Implementation uses structured logging: logger.warning("pipeline_no_process_holder", ...)
         warning_call = str(mock_logger.warning.call_args)
-        assert "ProcessHolder not found" in warning_call
+        assert "pipeline_no_process_holder" in warning_call
 
     @pytest.mark.asyncio
     async def test_graceful_degradation_commit_fails(self) -> None:

@@ -496,11 +496,12 @@ class TestCheckRedisHealth:
         """Test health check with healthy cache."""
         mock_cache = MagicMock()
         mock_cache.is_healthy.return_value = True
+        # Implementation uses metrics.hits, not metrics.total_hits
         mock_cache.get_metrics.return_value = MagicMock(
-            total_hits=100,
-            total_misses=25,
-            total_writes=125,
-            total_errors=0,
+            hits=100,
+            misses=25,
+            writes=125,
+            errors=0,
             hit_rate=80.0,
         )
 

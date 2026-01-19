@@ -102,7 +102,8 @@ class TestBaseClientCacheGet:
 
         assert result is None
         mock_logger.warning.assert_called_once()
-        assert "Cache get failed" in str(mock_logger.warning.call_args)
+        # Verify event name (first positional arg)
+        assert mock_logger.warning.call_args[0][0] == "cache_get_failed"
 
 
 class TestBaseClientCacheSet:
@@ -220,7 +221,8 @@ class TestBaseClientCacheSet:
             client._cache_set("123", {"gid": "123"}, EntryType.TASK)
 
         mock_logger.warning.assert_called_once()
-        assert "Cache set failed" in str(mock_logger.warning.call_args)
+        # Verify event name (first positional arg)
+        assert mock_logger.warning.call_args[0][0] == "cache_set_failed"
 
 
 class TestBaseClientCacheInvalidate:
@@ -313,7 +315,8 @@ class TestBaseClientCacheInvalidate:
             client._cache_invalidate("123")
 
         mock_logger.warning.assert_called_once()
-        assert "Cache invalidate failed" in str(mock_logger.warning.call_args)
+        # Verify event name (first positional arg)
+        assert mock_logger.warning.call_args[0][0] == "cache_invalidate_failed"
 
 
 class TestBaseClientParseModifiedAt:

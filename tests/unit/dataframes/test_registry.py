@@ -92,7 +92,7 @@ class TestSchemaRegistryGetSchema:
 
         assert schema.name == "contact"
         assert schema.task_type == "Contact"
-        assert len(schema) == 21
+        assert len(schema) == 25
 
     def test_get_base_schema(self) -> None:
         """Verify get_schema with '*' returns base schema."""

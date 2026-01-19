@@ -505,7 +505,7 @@ class TestInsightsResponseToPandas:
 
     def test_converts_to_pandas_dataframe(self) -> None:
         """to_pandas() returns pandas DataFrame."""
-        import pandas as pd
+        pd = pytest.importorskip("pandas")
 
         response = InsightsResponse(
             data=[

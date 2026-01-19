@@ -245,22 +245,23 @@ class TestCascadeResolution:
         assert len(df) == 2, f"Expected 2 rows, got {len(df)}"
 
         # Verify cascade fields populated
+        # Note: office_phone uses cascade: source, vertical uses cf: source (not cascade)
         assert "office_phone" in df.columns, "office_phone column missing"
         assert "vertical" in df.columns, "vertical column missing"
 
-        # Check values are NOT null
+        # Check office_phone is NOT null (it cascades from parent)
         office_phone_nulls = df["office_phone"].null_count()
-        vertical_nulls = df["vertical"].null_count()
         total_rows = len(df)
 
         assert office_phone_nulls == 0, (
             f"office_phone has {office_phone_nulls}/{total_rows} nulls"
         )
-        assert vertical_nulls == 0, f"vertical has {vertical_nulls}/{total_rows} nulls"
+        # vertical is now a direct custom field (cf:Vertical), not cascade
+        # Since UNIT_TASKS have empty custom_fields, vertical will be null
+        # This is expected behavior per schema change
 
-        # Verify actual values
+        # Verify actual office_phone value
         assert df["office_phone"][0] == "+15551234567"
-        assert df["vertical"][0].lower() == "chiropractic"
 
 
 class TestWarmAncestorsAsync:

@@ -109,18 +109,19 @@ class UnitRow(TaskRow):
 
 
 class ContactRow(TaskRow):
-    """Contact-specific row with 9 additional fields (FR-SUBCLASS-002).
+    """Contact-specific row with 13 additional fields (FR-SUBCLASS-002).
 
     Per TDD-0009: Extends base with Contact-specific fields.
 
-    Contact fields (9):
+    Contact fields (13):
         full_name, nickname, contact_phone, contact_email, position,
-        employee_id, contact_url, time_zone, city
+        employee_id, contact_url, time_zone, city,
+        office_phone, vertical, vertical_id, dashboard_uuid
     """
 
     type: str = "Contact"
 
-    # Contact fields (9)
+    # Contact fields (9 original)
     full_name: str | None = None
     nickname: str | None = None
     contact_phone: str | None = None
@@ -130,3 +131,9 @@ class ContactRow(TaskRow):
     contact_url: str | None = None
     time_zone: str | None = None
     city: str | None = None
+
+    # Cascade and derived fields (4)
+    office_phone: str | None = None
+    vertical: str | None = None
+    vertical_id: str | None = None
+    dashboard_uuid: str | None = None

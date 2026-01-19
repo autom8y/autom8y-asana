@@ -116,6 +116,7 @@ class Project(AsanaResource):
         cache_integration: DataFrameCacheIntegration | None = None,
         use_cache: bool = True,
         lazy: bool | None = None,
+        client: AsanaClient | None = None,
     ) -> pl.DataFrame:
         """Generate typed DataFrame from project tasks.
 
@@ -129,6 +130,7 @@ class Project(AsanaResource):
             use_cache: Whether to use caching (default True, requires cache_integration).
             lazy: If True, force lazy evaluation. If False, force eager.
                   If None, auto-select based on task count threshold.
+            client: AsanaClient for API calls (required for progressive builder).
 
         Returns:
             Polars DataFrame with extracted task data.
@@ -136,9 +138,10 @@ class Project(AsanaResource):
         Raises:
             SchemaNotFoundError: If task_type has no registered schema.
             ExtractionError: If extraction fails for any task.
+            ValueError: If client is None.
 
         Example:
-            >>> df = project.to_dataframe(task_type="Unit")
+            >>> df = project.to_dataframe(task_type="Unit", client=client)
             >>> df.columns
             ['gid', 'name', 'type', 'mrr', ...]
         """
@@ -150,6 +153,7 @@ class Project(AsanaResource):
                 cache_integration=cache_integration,
                 use_cache=use_cache,
                 lazy=lazy,
+                client=client,
             )
         )
 
