@@ -831,7 +831,9 @@ class TestListAsyncFilterParameters:
         await iterator.collect()
 
         params = mock_http.get_paginated.call_args[1]["params"]
-        assert params.get("opt_fields") == "name,completed,due_on"
+        # opt_fields now includes parent.gid automatically and may be reordered
+        opt_fields = set(params.get("opt_fields", "").split(","))
+        assert {"name", "completed", "due_on"}.issubset(opt_fields)
 
     async def test_limit_capped_at_100(
         self, tasks_client: Any, mock_http: AsyncMock
@@ -883,7 +885,8 @@ class TestListAsyncFilterParameters:
         assert params["workspace"] == "ws1"
         assert params["completed_since"] == "2024-01-01T00:00:00Z"
         assert params["modified_since"] == "2024-06-01T00:00:00Z"
-        assert params["opt_fields"] == "name"
+        # opt_fields now includes parent.gid automatically
+        assert "name" in params["opt_fields"]
         assert params["limit"] == 50
 
 

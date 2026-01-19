@@ -933,12 +933,8 @@ class AsanaClient:
         if running_loop is not None:
             # There's a running loop - fail fast per ADR-0002
             raise SyncInAsyncContextError(
-                sync_method="warm_cache",
-                async_method="warm_cache_async",
-                message=(
-                    "Cannot call sync method 'warm_cache' from async context. "
-                    "Use 'warm_cache_async' instead."
-                ),
+                method_name="warm_cache",
+                async_method_name="warm_cache_async",
             )
 
         return asyncio.run(self.warm_cache_async(gids, entry_type))
