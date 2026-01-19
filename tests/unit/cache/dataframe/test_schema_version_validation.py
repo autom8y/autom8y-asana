@@ -47,7 +47,7 @@ def make_entry(
 
 def make_cache(
     memory_tier: MemoryTier | None = None,
-    s3_tier: MagicMock | None = None,
+    progressive_tier: MagicMock | None = None,
     coalescer: DataFrameCacheCoalescer | None = None,
     circuit_breaker: CircuitBreaker | None = None,
     ttl_hours: int = 12,
@@ -56,7 +56,7 @@ def make_cache(
     """Create a DataFrameCache with mocked dependencies."""
     return DataFrameCache(
         memory_tier=memory_tier if memory_tier is not None else MemoryTier(max_entries=100),
-        s3_tier=s3_tier if s3_tier is not None else MagicMock(),
+        progressive_tier=progressive_tier if progressive_tier is not None else MagicMock(),
         coalescer=coalescer if coalescer is not None else DataFrameCacheCoalescer(),
         circuit_breaker=circuit_breaker if circuit_breaker is not None else CircuitBreaker(),
         ttl_hours=ttl_hours,
@@ -139,10 +139,10 @@ class TestSchemaVersionValidation:
         entry = make_entry(entity_type="unit", schema_version="1.0.0")
         memory.put("unit:proj-1", entry)
 
-        s3_tier = AsyncMock()
-        s3_tier.get_async.return_value = None
+        progressive_tier = AsyncMock()
+        progressive_tier.get_async.return_value = None
 
-        cache = make_cache(memory_tier=memory, s3_tier=s3_tier)
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
         result = await cache.get_async("proj-1", "unit")
 
@@ -156,10 +156,10 @@ class TestSchemaVersionValidation:
         entry = make_entry(entity_type="unit", schema_version="1.1.0")
         memory.put("unit:proj-1", entry)
 
-        s3_tier = AsyncMock()
-        s3_tier.get_async.return_value = None
+        progressive_tier = AsyncMock()
+        progressive_tier.get_async.return_value = None
 
-        cache = make_cache(memory_tier=memory, s3_tier=s3_tier)
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
         with patch(
             "autom8_asana.cache.dataframe_cache._get_schema_version_for_entity"
@@ -179,9 +179,9 @@ class TestPutAsyncSchemaVersion:
     async def test_put_stamps_entry_with_registry_version(self) -> None:
         """put_async stamps entry with version from SchemaRegistry."""
         memory = MemoryTier(max_entries=100)
-        s3_tier = AsyncMock()
+        progressive_tier = AsyncMock()
 
-        cache = make_cache(memory_tier=memory, s3_tier=s3_tier)
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
         df = pl.DataFrame({"gid": ["1"], "name": ["A"]})
         watermark = datetime.now(timezone.utc)
@@ -197,11 +197,11 @@ class TestPutAsyncSchemaVersion:
     async def test_put_uses_fallback_on_registry_failure(self) -> None:
         """put_async uses cache default when registry lookup fails."""
         memory = MemoryTier(max_entries=100)
-        s3_tier = AsyncMock()
+        progressive_tier = AsyncMock()
 
         cache = make_cache(
             memory_tier=memory,
-            s3_tier=s3_tier,
+            progressive_tier=progressive_tier,
             schema_version="1.0.0",  # Fallback version
         )
 
@@ -224,9 +224,9 @@ class TestPutAsyncSchemaVersion:
     async def test_put_contact_uses_contact_schema_version(self) -> None:
         """put_async for contact entity uses CONTACT_SCHEMA version."""
         memory = MemoryTier(max_entries=100)
-        s3_tier = AsyncMock()
+        progressive_tier = AsyncMock()
 
-        cache = make_cache(memory_tier=memory, s3_tier=s3_tier)
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
         df = pl.DataFrame({"gid": ["1"], "name": ["A"]})
         watermark = datetime.now(timezone.utc)
@@ -254,13 +254,13 @@ class TestRegressionPrevention:
         instead of comparing against self.schema_version.
         """
         memory = MemoryTier(max_entries=100)
-        s3_tier = AsyncMock()
-        s3_tier.get_async.return_value = None
+        progressive_tier = AsyncMock()
+        progressive_tier.get_async.return_value = None
 
         # This simulates the old bug: cache initialized with 1.0.0
         cache = make_cache(
             memory_tier=memory,
-            s3_tier=s3_tier,
+            progressive_tier=progressive_tier,
             schema_version="1.0.0",
         )
 
@@ -280,12 +280,12 @@ class TestRegressionPrevention:
         using self.schema_version.
         """
         memory = MemoryTier(max_entries=100)
-        s3_tier = AsyncMock()
+        progressive_tier = AsyncMock()
 
         # Even with hardcoded 1.0.0, entries should get 1.1.0 from registry
         cache = make_cache(
             memory_tier=memory,
-            s3_tier=s3_tier,
+            progressive_tier=progressive_tier,
             schema_version="1.0.0",  # Old hardcoded value
         )
 

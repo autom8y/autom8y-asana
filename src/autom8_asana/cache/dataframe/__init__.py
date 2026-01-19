@@ -1,7 +1,8 @@
 """DataFrame caching module for entity resolution.
 
-Per TDD-DATAFRAME-CACHE-001: Provides tiered caching infrastructure
-for DataFrame-backed entity resolution with Memory + S3 storage.
+Per TDD-DATAFRAME-CACHE-001 and TDD-UNIFIED-PROGRESSIVE-CACHE-001:
+Provides tiered caching infrastructure for DataFrame-backed entity
+resolution with Memory + Progressive (SectionPersistence) storage.
 
 Components:
     - DataFrameCacheCoalescer: Build request coalescing (thundering herd prevention)
@@ -11,7 +12,7 @@ Components:
 
 Tiers:
     - MemoryTier: Hot cache with LRU eviction and heap-based limits
-    - S3Tier: Cold storage with Parquet serialization
+    - ProgressiveTier: Cold storage via SectionPersistence (uses same location as builder)
 
 Example:
     >>> from autom8_asana.cache.dataframe import (
@@ -22,7 +23,7 @@ Example:
     ...     WarmResult,
     ...     WarmStatus,
     ... )
-    >>> from autom8_asana.cache.dataframe.tiers import MemoryTier, S3Tier
+    >>> from autom8_asana.cache.dataframe.tiers import MemoryTier, ProgressiveTier
 """
 
 from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer

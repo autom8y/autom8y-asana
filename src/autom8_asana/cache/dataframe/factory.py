@@ -1,7 +1,12 @@
 """Factory for DataFrameCache singleton initialization.
 
-Per TDD-DATAFRAME-CACHE-001: Provides singleton access to the DataFrameCache
-instance with proper configuration from settings.
+Per TDD-DATAFRAME-CACHE-001 and TDD-UNIFIED-PROGRESSIVE-CACHE-001:
+Provides singleton access to the DataFrameCache instance with proper
+configuration from settings.
+
+Uses ProgressiveTier to read/write DataFrames from the same location
+as SectionPersistence (ProgressiveProjectBuilder), eliminating the
+dual-location bug where S3Tier and SectionPersistence used different paths.
 
 Usage:
     >>> from autom8_asana.cache.dataframe.factory import (
@@ -33,13 +38,13 @@ def initialize_dataframe_cache() -> "DataFrameCache | None":
 
     Creates a DataFrameCache instance configured with:
     - MemoryTier: 30% heap limit, 100 max entries
-    - S3Tier: From ASANA_CACHE_S3_BUCKET and ASANA_CACHE_S3_PREFIX settings
+    - ProgressiveTier: Uses SectionPersistence storage location
     - DataFrameCacheCoalescer: For thundering herd prevention
     - CircuitBreaker: Per-project failure isolation
 
-    Per TDD-DATAFRAME-CACHE-001:
+    Per TDD-DATAFRAME-CACHE-001 and TDD-UNIFIED-PROGRESSIVE-CACHE-001:
     - Memory tier is hot cache with LRU eviction
-    - S3 tier is cold storage (source of truth)
+    - Progressive tier reads/writes to SectionPersistence location
     - 12-hour default TTL
 
     Returns:
@@ -55,12 +60,13 @@ def initialize_dataframe_cache() -> "DataFrameCache | None":
     from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker
     from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
     from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
-    from autom8_asana.cache.dataframe.tiers.s3 import S3Tier
+    from autom8_asana.cache.dataframe.tiers.progressive import ProgressiveTier
     from autom8_asana.cache.dataframe_cache import (
         DataFrameCache,
         get_dataframe_cache as _get_cache,
         set_dataframe_cache,
     )
+    from autom8_asana.dataframes.section_persistence import SectionPersistence
     from autom8_asana.settings import get_settings
 
     # Check if already initialized
@@ -91,12 +97,17 @@ def initialize_dataframe_cache() -> "DataFrameCache | None":
         max_entries=100,
     )
 
-    # Build S3 prefix for DataFrame cache (separate from general cache)
-    s3_prefix = f"{settings.s3.prefix}/dataframes/"
-
-    s3_tier = S3Tier(
+    # Create SectionPersistence for ProgressiveTier
+    # Uses the standard "dataframes/" prefix to match ProgressiveProjectBuilder
+    persistence = SectionPersistence(
         bucket=settings.s3.bucket,
-        prefix=s3_prefix,
+        prefix="dataframes/",
+        region=settings.s3.region,
+        endpoint_url=settings.s3.endpoint_url,
+    )
+
+    progressive_tier = ProgressiveTier(
+        persistence=persistence,
     )
 
     # Create coalescer and circuit breaker
@@ -117,7 +128,7 @@ def initialize_dataframe_cache() -> "DataFrameCache | None":
     # lookup fails during put_async().
     cache = DataFrameCache(
         memory_tier=memory_tier,
-        s3_tier=s3_tier,
+        progressive_tier=progressive_tier,
         coalescer=coalescer,
         circuit_breaker=circuit_breaker,
         ttl_hours=12,
@@ -129,8 +140,8 @@ def initialize_dataframe_cache() -> "DataFrameCache | None":
     logger.info(
         "dataframe_cache_initialized",
         extra={
+            "tier_type": "progressive",
             "s3_bucket": settings.s3.bucket,
-            "s3_prefix": s3_prefix,
             "ttl_hours": 12,
             "memory_max_entries": 100,
             "memory_heap_percent": 0.3,
