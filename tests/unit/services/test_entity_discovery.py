@@ -32,6 +32,14 @@ class TestGetResolvableEntities:
         mock_schema_registry = MagicMock()
         mock_schema_registry.list_task_types.return_value = ["Unit", "Contact", "Offer"]
 
+        # Mock get_schema to return schemas with lowercase names
+        def mock_get_schema(task_type: str) -> MagicMock:
+            schema = MagicMock()
+            schema.name = task_type.lower()
+            return schema
+
+        mock_schema_registry.get_schema.side_effect = mock_get_schema
+
         # Mock EntityProjectRegistry with only unit and contact registered
         mock_project_registry = MagicMock()
         mock_project_registry.get_project_gid.side_effect = lambda x: {
@@ -82,6 +90,14 @@ class TestGetResolvableEntities:
         """Discovery lowercases task types from SchemaRegistry."""
         mock_schema_registry = MagicMock()
         mock_schema_registry.list_task_types.return_value = ["Unit", "CONTACT", "Offer"]
+
+        # Mock get_schema to return schemas with lowercase names
+        def mock_get_schema(task_type: str) -> MagicMock:
+            schema = MagicMock()
+            schema.name = task_type.lower()  # Schema names are lowercase
+            return schema
+
+        mock_schema_registry.get_schema.side_effect = mock_get_schema
 
         mock_project_registry = MagicMock()
         mock_project_registry.get_project_gid.side_effect = lambda x: {
