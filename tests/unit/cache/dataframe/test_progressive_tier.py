@@ -8,23 +8,25 @@ and statistics tracking.
 import io
 import json
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import polars as pl
 import pytest
 
 from autom8_asana.cache.dataframe_cache import CacheEntry
 from autom8_asana.cache.dataframe.tiers.progressive import ProgressiveTier
-from autom8_asana.dataframes.async_s3 import S3ReadResult, S3WriteResult
+from autom8_asana.dataframes.async_s3 import S3ReadResult
 
 
 def make_entry(project_gid: str = "proj-1") -> CacheEntry:
     """Create a test CacheEntry."""
-    df = pl.DataFrame({
-        "gid": ["gid-1", "gid-2"],
-        "name": ["A", "B"],
-        "value": [1, 2],
-    })
+    df = pl.DataFrame(
+        {
+            "gid": ["gid-1", "gid-2"],
+            "name": ["A", "B"],
+            "value": [1, 2],
+        }
+    )
 
     return CacheEntry(
         project_gid=project_gid,
@@ -47,14 +49,16 @@ def make_parquet_bytes(df: pl.DataFrame | None = None) -> bytes:
 
 def make_watermark_json(watermark: str = "2024-01-15T12:00:00+00:00") -> bytes:
     """Create watermark JSON bytes."""
-    return json.dumps({
-        "project_gid": "proj-1",
-        "watermark": watermark,
-        "row_count": 2,
-        "columns": ["gid", "name"],
-        "saved_at": "2024-01-15T12:00:00+00:00",
-        "schema_version": "1.0.0",
-    }).encode("utf-8")
+    return json.dumps(
+        {
+            "project_gid": "proj-1",
+            "watermark": watermark,
+            "row_count": 2,
+            "columns": ["gid", "name"],
+            "saved_at": "2024-01-15T12:00:00+00:00",
+            "schema_version": "1.0.0",
+        }
+    ).encode("utf-8")
 
 
 def make_mock_persistence(

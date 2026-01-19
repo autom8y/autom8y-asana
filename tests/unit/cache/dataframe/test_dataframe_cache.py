@@ -35,10 +35,12 @@ def make_entry(
     If schema_version is not provided, looks up the correct version from
     SchemaRegistry to ensure test entries are valid by default.
     """
-    df = pl.DataFrame({
-        "gid": ["gid-1", "gid-2"],
-        "name": ["A", "B"],
-    })
+    df = pl.DataFrame(
+        {
+            "gid": ["gid-1", "gid-2"],
+            "name": ["A", "B"],
+        }
+    )
 
     # Default to registry version if not explicitly provided
     if schema_version is None:
@@ -68,10 +70,16 @@ def make_cache(
     for empty cache, making it falsy in boolean context.
     """
     return DataFrameCache(
-        memory_tier=memory_tier if memory_tier is not None else MemoryTier(max_entries=100),
-        progressive_tier=progressive_tier if progressive_tier is not None else MagicMock(),
+        memory_tier=memory_tier
+        if memory_tier is not None
+        else MemoryTier(max_entries=100),
+        progressive_tier=progressive_tier
+        if progressive_tier is not None
+        else MagicMock(),
         coalescer=coalescer if coalescer is not None else DataFrameCacheCoalescer(),
-        circuit_breaker=circuit_breaker if circuit_breaker is not None else CircuitBreaker(),
+        circuit_breaker=circuit_breaker
+        if circuit_breaker is not None
+        else CircuitBreaker(),
         ttl_hours=ttl_hours,
         schema_version=schema_version,
     )
@@ -161,7 +169,9 @@ class TestDataFrameCache:
         progressive_tier = AsyncMock()
         progressive_tier.get_async.return_value = None
 
-        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier, ttl_hours=12)
+        cache = make_cache(
+            memory_tier=memory, progressive_tier=progressive_tier, ttl_hours=12
+        )
 
         result = await cache.get_async("proj-1", "unit")
 
@@ -179,7 +189,11 @@ class TestDataFrameCache:
         progressive_tier = AsyncMock()
         progressive_tier.get_async.return_value = None
 
-        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier, schema_version="1.0.0")
+        cache = make_cache(
+            memory_tier=memory,
+            progressive_tier=progressive_tier,
+            schema_version="1.0.0",
+        )
 
         result = await cache.get_async("proj-1", "unit")
 
@@ -230,9 +244,9 @@ class TestDataFrameCache:
         circuit.record_failure("proj-1")
 
         # Simulate timeout so circuit is half-open
-        circuit._circuits["proj-1"].last_failure = (
-            datetime.now(timezone.utc) - timedelta(seconds=120)
-        )
+        circuit._circuits["proj-1"].last_failure = datetime.now(
+            timezone.utc
+        ) - timedelta(seconds=120)
         circuit.is_open("proj-1")  # Triggers half-open
 
         progressive_tier = AsyncMock()

@@ -146,9 +146,7 @@ def dataframe_cache(
                 build_func = getattr(self, build_method, None)
                 if build_func is None:
                     # Try entity-specific build method
-                    build_func = getattr(
-                        self, f"_build_{entity_type}_dataframe", None
-                    )
+                    build_func = getattr(self, f"_build_{entity_type}_dataframe", None)
 
                 if build_func is None:
                     logger.error(
