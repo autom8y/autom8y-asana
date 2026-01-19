@@ -87,39 +87,43 @@ def mock_client() -> MagicMock:
 @pytest.fixture
 def sample_dataframe() -> pl.DataFrame:
     """Create a sample DataFrame that matches Unit schema."""
-    return pl.DataFrame({
-        "gid": ["unit-001"],
-        "name": ["Test Unit"],
-        "type": ["Unit"],
-        "date": [None],
-        "created": ["2025-01-01T00:00:00Z"],
-        "due_on": [None],
-        "is_completed": [False],
-        "completed_at": [None],
-        "url": ["https://app.asana.com/0/proj-001/unit-001"],
-        "last_modified": ["2025-01-15T12:00:00Z"],
-        "section": ["Active"],
-        "tags": [[]],
-    })
+    return pl.DataFrame(
+        {
+            "gid": ["unit-001"],
+            "name": ["Test Unit"],
+            "type": ["Unit"],
+            "date": [None],
+            "created": ["2025-01-01T00:00:00Z"],
+            "due_on": [None],
+            "is_completed": [False],
+            "completed_at": [None],
+            "url": ["https://app.asana.com/0/proj-001/unit-001"],
+            "last_modified": ["2025-01-15T12:00:00Z"],
+            "section": ["Active"],
+            "tags": [[]],
+        }
+    )
 
 
 @pytest.fixture
 def empty_dataframe() -> pl.DataFrame:
     """Create an empty DataFrame that matches Unit schema."""
-    return pl.DataFrame({
-        "gid": pl.Series([], dtype=pl.Utf8),
-        "name": pl.Series([], dtype=pl.Utf8),
-        "type": pl.Series([], dtype=pl.Utf8),
-        "date": pl.Series([], dtype=pl.Date),
-        "created": pl.Series([], dtype=pl.Utf8),
-        "due_on": pl.Series([], dtype=pl.Date),
-        "is_completed": pl.Series([], dtype=pl.Boolean),
-        "completed_at": pl.Series([], dtype=pl.Utf8),
-        "url": pl.Series([], dtype=pl.Utf8),
-        "last_modified": pl.Series([], dtype=pl.Utf8),
-        "section": pl.Series([], dtype=pl.Utf8),
-        "tags": pl.Series([], dtype=pl.List(pl.Utf8)),
-    })
+    return pl.DataFrame(
+        {
+            "gid": pl.Series([], dtype=pl.Utf8),
+            "name": pl.Series([], dtype=pl.Utf8),
+            "type": pl.Series([], dtype=pl.Utf8),
+            "date": pl.Series([], dtype=pl.Date),
+            "created": pl.Series([], dtype=pl.Utf8),
+            "due_on": pl.Series([], dtype=pl.Date),
+            "is_completed": pl.Series([], dtype=pl.Boolean),
+            "completed_at": pl.Series([], dtype=pl.Utf8),
+            "url": pl.Series([], dtype=pl.Utf8),
+            "last_modified": pl.Series([], dtype=pl.Utf8),
+            "section": pl.Series([], dtype=pl.Utf8),
+            "tags": pl.Series([], dtype=pl.List(pl.Utf8)),
+        }
+    )
 
 
 # ============================================================================
@@ -131,21 +135,37 @@ class TestProjectToDataFrame:
     """Test Project.to_dataframe() method."""
 
     def test_to_dataframe_returns_polars(
-        self, project_with_tasks: Project, mock_client: MagicMock, sample_dataframe: pl.DataFrame, mocker: pytest.MonkeyPatch
+        self,
+        project_with_tasks: Project,
+        mock_client: MagicMock,
+        sample_dataframe: pl.DataFrame,
+        mocker: pytest.MonkeyPatch,
     ) -> None:
         """to_dataframe() should return a Polars DataFrame."""
-        mock_builder = mocker.patch("autom8_asana.dataframes.builders.ProgressiveProjectBuilder")
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(return_value=sample_dataframe)
+        mock_builder = mocker.patch(
+            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
+        )
+        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
+            return_value=sample_dataframe
+        )
 
         df = project_with_tasks.to_dataframe(task_type="Unit", client=mock_client)
         assert isinstance(df, pl.DataFrame)
 
     def test_to_dataframe_has_base_columns(
-        self, project_with_tasks: Project, mock_client: MagicMock, sample_dataframe: pl.DataFrame, mocker: pytest.MonkeyPatch
+        self,
+        project_with_tasks: Project,
+        mock_client: MagicMock,
+        sample_dataframe: pl.DataFrame,
+        mocker: pytest.MonkeyPatch,
     ) -> None:
         """to_dataframe() should have base schema columns."""
-        mock_builder = mocker.patch("autom8_asana.dataframes.builders.ProgressiveProjectBuilder")
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(return_value=sample_dataframe)
+        mock_builder = mocker.patch(
+            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
+        )
+        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
+            return_value=sample_dataframe
+        )
 
         df = project_with_tasks.to_dataframe(task_type="Unit", client=mock_client)
 
@@ -155,11 +175,19 @@ class TestProjectToDataFrame:
         assert "created" in df.columns
 
     def test_to_dataframe_extracts_task_data(
-        self, project_with_tasks: Project, mock_client: MagicMock, sample_dataframe: pl.DataFrame, mocker: pytest.MonkeyPatch
+        self,
+        project_with_tasks: Project,
+        mock_client: MagicMock,
+        sample_dataframe: pl.DataFrame,
+        mocker: pytest.MonkeyPatch,
     ) -> None:
         """to_dataframe() should extract task data correctly."""
-        mock_builder = mocker.patch("autom8_asana.dataframes.builders.ProgressiveProjectBuilder")
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(return_value=sample_dataframe)
+        mock_builder = mocker.patch(
+            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
+        )
+        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
+            return_value=sample_dataframe
+        )
 
         df = project_with_tasks.to_dataframe(task_type="Unit", client=mock_client)
 
@@ -168,11 +196,18 @@ class TestProjectToDataFrame:
         assert df["name"][0] == "Test Unit"
 
     def test_to_dataframe_empty_project(
-        self, mock_client: MagicMock, empty_dataframe: pl.DataFrame, mocker: pytest.MonkeyPatch
+        self,
+        mock_client: MagicMock,
+        empty_dataframe: pl.DataFrame,
+        mocker: pytest.MonkeyPatch,
     ) -> None:
         """to_dataframe() should handle empty project."""
-        mock_builder = mocker.patch("autom8_asana.dataframes.builders.ProgressiveProjectBuilder")
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(return_value=empty_dataframe)
+        mock_builder = mocker.patch(
+            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
+        )
+        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
+            return_value=empty_dataframe
+        )
 
         project = Project(gid="proj-empty", name="Empty")
         project.tasks = []
@@ -185,13 +220,23 @@ class TestProjectToDataFrame:
         assert "gid" in df.columns
 
     def test_to_dataframe_with_use_cache_false(
-        self, project_with_tasks: Project, mock_client: MagicMock, sample_dataframe: pl.DataFrame, mocker: pytest.MonkeyPatch
+        self,
+        project_with_tasks: Project,
+        mock_client: MagicMock,
+        sample_dataframe: pl.DataFrame,
+        mocker: pytest.MonkeyPatch,
     ) -> None:
         """to_dataframe() should work with use_cache=False."""
-        mock_builder = mocker.patch("autom8_asana.dataframes.builders.ProgressiveProjectBuilder")
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(return_value=sample_dataframe)
+        mock_builder = mocker.patch(
+            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
+        )
+        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
+            return_value=sample_dataframe
+        )
 
-        df = project_with_tasks.to_dataframe(task_type="Unit", use_cache=False, client=mock_client)
+        df = project_with_tasks.to_dataframe(
+            task_type="Unit", use_cache=False, client=mock_client
+        )
         assert isinstance(df, pl.DataFrame)
         assert len(df) == 1
 
@@ -201,24 +246,44 @@ class TestProjectToDataFrameAsync:
 
     @pytest.mark.asyncio
     async def test_to_dataframe_async_returns_polars(
-        self, project_with_tasks: Project, mock_client: MagicMock, sample_dataframe: pl.DataFrame, mocker: pytest.MonkeyPatch
+        self,
+        project_with_tasks: Project,
+        mock_client: MagicMock,
+        sample_dataframe: pl.DataFrame,
+        mocker: pytest.MonkeyPatch,
     ) -> None:
         """to_dataframe_async() should return a Polars DataFrame."""
-        mock_builder = mocker.patch("autom8_asana.dataframes.builders.ProgressiveProjectBuilder")
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(return_value=sample_dataframe)
+        mock_builder = mocker.patch(
+            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
+        )
+        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
+            return_value=sample_dataframe
+        )
 
-        df = await project_with_tasks.to_dataframe_async(task_type="Unit", client=mock_client)
+        df = await project_with_tasks.to_dataframe_async(
+            task_type="Unit", client=mock_client
+        )
         assert isinstance(df, pl.DataFrame)
 
     @pytest.mark.asyncio
     async def test_to_dataframe_async_extracts_data(
-        self, project_with_tasks: Project, mock_client: MagicMock, sample_dataframe: pl.DataFrame, mocker: pytest.MonkeyPatch
+        self,
+        project_with_tasks: Project,
+        mock_client: MagicMock,
+        sample_dataframe: pl.DataFrame,
+        mocker: pytest.MonkeyPatch,
     ) -> None:
         """to_dataframe_async() should extract task data."""
-        mock_builder = mocker.patch("autom8_asana.dataframes.builders.ProgressiveProjectBuilder")
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(return_value=sample_dataframe)
+        mock_builder = mocker.patch(
+            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
+        )
+        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
+            return_value=sample_dataframe
+        )
 
-        df = await project_with_tasks.to_dataframe_async(task_type="Unit", client=mock_client)
+        df = await project_with_tasks.to_dataframe_async(
+            task_type="Unit", client=mock_client
+        )
 
         assert len(df) == 1
         assert df["gid"][0] == "unit-001"
@@ -285,29 +350,37 @@ class TestPublicAPIIntegration:
     ) -> None:
         """to_dataframe() should filter by sections when specified."""
         # Create filtered DataFrame that simulates section filtering
-        filtered_df = pl.DataFrame({
-            "gid": ["unit-001"],
-            "name": ["Task in Active"],
-            "type": ["Unit"],
-            "date": [None],
-            "created": ["2025-01-01T00:00:00Z"],
-            "due_on": [None],
-            "is_completed": [False],
-            "completed_at": [None],
-            "url": ["https://app.asana.com/0/proj-001/unit-001"],
-            "last_modified": ["2025-01-15T12:00:00Z"],
-            "section": ["Active"],
-            "tags": [[]],
-        })
+        filtered_df = pl.DataFrame(
+            {
+                "gid": ["unit-001"],
+                "name": ["Task in Active"],
+                "type": ["Unit"],
+                "date": [None],
+                "created": ["2025-01-01T00:00:00Z"],
+                "due_on": [None],
+                "is_completed": [False],
+                "completed_at": [None],
+                "url": ["https://app.asana.com/0/proj-001/unit-001"],
+                "last_modified": ["2025-01-15T12:00:00Z"],
+                "section": ["Active"],
+                "tags": [[]],
+            }
+        )
 
-        mock_builder = mocker.patch("autom8_asana.dataframes.builders.ProgressiveProjectBuilder")
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(return_value=filtered_df)
+        mock_builder = mocker.patch(
+            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
+        )
+        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
+            return_value=filtered_df
+        )
 
         project = Project(gid="proj-001", name="Test Project")
         project.tasks = []  # Tasks aren't used since we mock the builder
 
         # Filter to only Active section
-        df = project.to_dataframe(task_type="Unit", sections=["Active"], client=mock_client)
+        df = project.to_dataframe(
+            task_type="Unit", sections=["Active"], client=mock_client
+        )
 
         assert len(df) == 1
         assert df["gid"][0] == "unit-001"
@@ -323,24 +396,42 @@ class TestPublicAPIIntegration:
 
     @pytest.mark.asyncio
     async def test_async_produces_same_data(
-        self, project_with_tasks: Project, mock_client: MagicMock, sample_dataframe: pl.DataFrame, mocker: pytest.MonkeyPatch
+        self,
+        project_with_tasks: Project,
+        mock_client: MagicMock,
+        sample_dataframe: pl.DataFrame,
+        mocker: pytest.MonkeyPatch,
     ) -> None:
         """Async method should produce same data as would sync version."""
-        mock_builder = mocker.patch("autom8_asana.dataframes.builders.ProgressiveProjectBuilder")
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(return_value=sample_dataframe)
+        mock_builder = mocker.patch(
+            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
+        )
+        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
+            return_value=sample_dataframe
+        )
 
-        df_async = await project_with_tasks.to_dataframe_async(task_type="Unit", client=mock_client)
+        df_async = await project_with_tasks.to_dataframe_async(
+            task_type="Unit", client=mock_client
+        )
 
         assert isinstance(df_async, pl.DataFrame)
         assert len(df_async) == 1
         assert df_async["gid"][0] == "unit-001"
 
     def test_unit_schema_columns_present(
-        self, project_with_tasks: Project, mock_client: MagicMock, sample_dataframe: pl.DataFrame, mocker: pytest.MonkeyPatch
+        self,
+        project_with_tasks: Project,
+        mock_client: MagicMock,
+        sample_dataframe: pl.DataFrame,
+        mocker: pytest.MonkeyPatch,
     ) -> None:
         """Unit schema should include type-specific columns."""
-        mock_builder = mocker.patch("autom8_asana.dataframes.builders.ProgressiveProjectBuilder")
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(return_value=sample_dataframe)
+        mock_builder = mocker.patch(
+            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
+        )
+        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
+            return_value=sample_dataframe
+        )
 
         df = project_with_tasks.to_dataframe(task_type="Unit", client=mock_client)
 
@@ -356,11 +447,18 @@ class TestEdgeCases:
     """Test edge cases for public API methods."""
 
     def test_project_with_none_tasks(
-        self, mock_client: MagicMock, empty_dataframe: pl.DataFrame, mocker: pytest.MonkeyPatch
+        self,
+        mock_client: MagicMock,
+        empty_dataframe: pl.DataFrame,
+        mocker: pytest.MonkeyPatch,
     ) -> None:
         """to_dataframe() should handle tasks=None."""
-        mock_builder = mocker.patch("autom8_asana.dataframes.builders.ProgressiveProjectBuilder")
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(return_value=empty_dataframe)
+        mock_builder = mocker.patch(
+            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
+        )
+        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
+            return_value=empty_dataframe
+        )
 
         project = Project(gid="proj-none", name="None Tasks")
         # tasks is None by default

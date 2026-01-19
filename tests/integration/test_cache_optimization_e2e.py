@@ -545,9 +545,7 @@ class TestCacheLoggingObservability:
         from unittest.mock import MagicMock
 
         mock_logger = MagicMock()
-        mocker.patch(
-            "autom8_asana.dataframes.builders.task_cache.logger", mock_logger
-        )
+        mocker.patch("autom8_asana.dataframes.builders.task_cache.logger", mock_logger)
 
         coordinator = TaskCacheCoordinator(cache_provider)
         task_gids = [t["gid"] for t in sample_tasks]
@@ -573,9 +571,7 @@ class TestCacheLoggingObservability:
         from unittest.mock import MagicMock
 
         mock_logger = MagicMock()
-        mocker.patch(
-            "autom8_asana.dataframes.builders.task_cache.logger", mock_logger
-        )
+        mocker.patch("autom8_asana.dataframes.builders.task_cache.logger", mock_logger)
 
         coordinator = TaskCacheCoordinator(cache_provider)
         task_models = [make_task_model(t) for t in sample_tasks]
