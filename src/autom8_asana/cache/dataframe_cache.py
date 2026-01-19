@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
     from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker
     from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
-    from autom8_asana.cache.dataframe.tiers.s3 import S3Tier
+    from autom8_asana.cache.dataframe.tiers.progressive import ProgressiveTier
     from autom8_asana.dataframes.models.registry import SchemaRegistry
 
 logger = get_logger(__name__)
@@ -125,24 +125,24 @@ class CacheEntry:
 class DataFrameCache:
     """Unified DataFrame cache with tiered storage.
 
-    Per TDD-DATAFRAME-CACHE-001:
+    Per TDD-DATAFRAME-CACHE-001 and TDD-UNIFIED-PROGRESSIVE-CACHE-001:
     - Memory tier for hot cache (sub-millisecond access)
-    - S3 tier for cold storage (source of truth, Parquet format)
+    - Progressive tier for cold storage (uses SectionPersistence location)
     - Request coalescing to prevent thundering herd
     - Circuit breaker for failure isolation
 
     Lookup order for GET:
     1. Memory tier (hot cache)
-    2. S3 tier (cold storage)
+    2. Progressive tier (cold storage via SectionPersistence)
     3. Return None (caller should trigger build)
 
     Write order for PUT:
-    1. S3 tier (source of truth)
+    1. Progressive tier (source of truth)
     2. Memory tier (hot cache)
 
     Attributes:
         memory_tier: Hot cache with dynamic heap-based limits.
-        s3_tier: Cold storage with Parquet serialization.
+        progressive_tier: Cold storage using SectionPersistence location.
         coalescer: Request coalescing for build deduplication.
         circuit_breaker: Per-project failure isolation.
         ttl_hours: Default TTL in hours (12-24 configurable).
@@ -151,13 +151,13 @@ class DataFrameCache:
     Example:
         >>> cache = DataFrameCache(
         ...     memory_tier=MemoryTier(max_heap_percent=0.3),
-        ...     s3_tier=S3Tier(bucket="cache-bucket", prefix="dataframes/"),
+        ...     progressive_tier=ProgressiveTier(persistence=persistence),
         ...     coalescer=DataFrameCacheCoalescer(),
         ...     circuit_breaker=CircuitBreaker(),
         ...     ttl_hours=12,
         ... )
         >>>
-        >>> # Get DataFrame (tries memory, then S3, then returns None)
+        >>> # Get DataFrame (tries memory, then progressive tier, then returns None)
         >>> entry = await cache.get_async("project-123", "unit")
         >>>
         >>> # Store after build
@@ -165,7 +165,7 @@ class DataFrameCache:
     """
 
     memory_tier: "MemoryTier"
-    s3_tier: "S3Tier"
+    progressive_tier: "ProgressiveTier"
     coalescer: "DataFrameCacheCoalescer"
     circuit_breaker: "CircuitBreaker"
     ttl_hours: int = 12
@@ -200,7 +200,7 @@ class DataFrameCache:
 
         Lookup order:
         1. Memory tier (hot cache)
-        2. S3 tier (cold storage)
+        2. Progressive tier (cold storage via SectionPersistence)
         3. Return None (caller should trigger build)
 
         Args:
@@ -246,8 +246,8 @@ class DataFrameCache:
 
         self._stats[entity_type]["memory_misses"] += 1
 
-        # Try S3 tier
-        entry = await self.s3_tier.get_async(cache_key)
+        # Try progressive tier (S3 via SectionPersistence)
+        entry = await self.progressive_tier.get_async(cache_key)
         if entry is not None:
             if self._is_valid(entry, current_watermark):
                 self._stats[entity_type]["s3_hits"] += 1
@@ -310,8 +310,8 @@ class DataFrameCache:
             schema_version=schema_version,
         )
 
-        # Write to S3 first (source of truth)
-        await self.s3_tier.put_async(cache_key, entry)
+        # Write to progressive tier first (source of truth)
+        await self.progressive_tier.put_async(cache_key, entry)
 
         # Then memory tier
         self.memory_tier.put(cache_key, entry)

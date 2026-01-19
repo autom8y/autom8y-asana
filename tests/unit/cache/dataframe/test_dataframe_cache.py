@@ -1,7 +1,8 @@
 """Unit tests for DataFrameCache orchestrator.
 
-Per TDD-DATAFRAME-CACHE-001: Tests for tiered caching, cache validation,
-build lock management, and statistics.
+Per TDD-DATAFRAME-CACHE-001 and TDD-UNIFIED-PROGRESSIVE-CACHE-001:
+Tests for tiered caching, cache validation, build lock management,
+and statistics.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -55,7 +56,7 @@ def make_entry(
 
 def make_cache(
     memory_tier: MemoryTier | None = None,
-    s3_tier: MagicMock | None = None,
+    progressive_tier: MagicMock | None = None,
     coalescer: DataFrameCacheCoalescer | None = None,
     circuit_breaker: CircuitBreaker | None = None,
     ttl_hours: int = 12,
@@ -68,7 +69,7 @@ def make_cache(
     """
     return DataFrameCache(
         memory_tier=memory_tier if memory_tier is not None else MemoryTier(max_entries=100),
-        s3_tier=s3_tier if s3_tier is not None else MagicMock(),
+        progressive_tier=progressive_tier if progressive_tier is not None else MagicMock(),
         coalescer=coalescer if coalescer is not None else DataFrameCacheCoalescer(),
         circuit_breaker=circuit_breaker if circuit_breaker is not None else CircuitBreaker(),
         ttl_hours=ttl_hours,
@@ -97,14 +98,14 @@ class TestDataFrameCache:
         assert stats["unit"]["memory_hits"] == 1
 
     @pytest.mark.asyncio
-    async def test_get_memory_miss_s3_hit(self) -> None:
-        """Get falls back to S3 on memory miss."""
+    async def test_get_memory_miss_progressive_hit(self) -> None:
+        """Get falls back to progressive tier on memory miss."""
         memory = MemoryTier(max_entries=100)
-        s3_tier = AsyncMock()
+        progressive_tier = AsyncMock()
         entry = make_entry()
-        s3_tier.get_async.return_value = entry
+        progressive_tier.get_async.return_value = entry
 
-        cache = make_cache(memory_tier=memory, s3_tier=s3_tier)
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
         result = await cache.get_async("proj-1", "unit")
 
@@ -122,10 +123,10 @@ class TestDataFrameCache:
     async def test_get_both_miss(self) -> None:
         """Get returns None when both tiers miss."""
         memory = MemoryTier(max_entries=100)
-        s3_tier = AsyncMock()
-        s3_tier.get_async.return_value = None
+        progressive_tier = AsyncMock()
+        progressive_tier.get_async.return_value = None
 
-        cache = make_cache(memory_tier=memory, s3_tier=s3_tier)
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
         result = await cache.get_async("proj-1", "unit")
 
@@ -157,10 +158,10 @@ class TestDataFrameCache:
         old_entry = make_entry(created_hours_ago=24)
         memory.put("unit:proj-1", old_entry)
 
-        s3_tier = AsyncMock()
-        s3_tier.get_async.return_value = None
+        progressive_tier = AsyncMock()
+        progressive_tier.get_async.return_value = None
 
-        cache = make_cache(memory_tier=memory, s3_tier=s3_tier, ttl_hours=12)
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier, ttl_hours=12)
 
         result = await cache.get_async("proj-1", "unit")
 
@@ -175,10 +176,10 @@ class TestDataFrameCache:
         entry = make_entry(schema_version="0.9.0")
         memory.put("unit:proj-1", entry)
 
-        s3_tier = AsyncMock()
-        s3_tier.get_async.return_value = None
+        progressive_tier = AsyncMock()
+        progressive_tier.get_async.return_value = None
 
-        cache = make_cache(memory_tier=memory, s3_tier=s3_tier, schema_version="1.0.0")
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier, schema_version="1.0.0")
 
         result = await cache.get_async("proj-1", "unit")
 
@@ -191,10 +192,10 @@ class TestDataFrameCache:
         entry = make_entry()
         memory.put("unit:proj-1", entry)
 
-        s3_tier = AsyncMock()
-        s3_tier.get_async.return_value = None
+        progressive_tier = AsyncMock()
+        progressive_tier.get_async.return_value = None
 
-        cache = make_cache(memory_tier=memory, s3_tier=s3_tier)
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
         # Pass a newer watermark
         current_watermark = datetime.now(timezone.utc) + timedelta(minutes=5)
@@ -204,19 +205,19 @@ class TestDataFrameCache:
 
     @pytest.mark.asyncio
     async def test_put_writes_to_both_tiers(self) -> None:
-        """Put writes to S3 first, then memory."""
+        """Put writes to progressive tier first, then memory."""
         memory = MemoryTier(max_entries=100)
-        s3_tier = AsyncMock()
+        progressive_tier = AsyncMock()
 
-        cache = make_cache(memory_tier=memory, s3_tier=s3_tier)
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
         df = pl.DataFrame({"gid": ["1"], "name": ["A"]})
         watermark = datetime.now(timezone.utc)
 
         await cache.put_async("proj-1", "unit", df, watermark)
 
-        # S3 should be called first
-        s3_tier.put_async.assert_called_once()
+        # Progressive tier should be called first
+        progressive_tier.put_async.assert_called_once()
 
         # Memory should also have entry
         assert memory.get("unit:proj-1") is not None
@@ -234,8 +235,8 @@ class TestDataFrameCache:
         )
         circuit.is_open("proj-1")  # Triggers half-open
 
-        s3_tier = AsyncMock()
-        cache = make_cache(s3_tier=s3_tier, circuit_breaker=circuit)
+        progressive_tier = AsyncMock()
+        cache = make_cache(progressive_tier=progressive_tier, circuit_breaker=circuit)
 
         df = pl.DataFrame({"gid": ["1"]})
         await cache.put_async("proj-1", "unit", df, datetime.now(timezone.utc))
