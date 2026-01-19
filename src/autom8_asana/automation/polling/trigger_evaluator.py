@@ -81,9 +81,7 @@ class TriggerEvaluator:
             matching = evaluator.evaluate_conditions(rule, tasks)
         """
         if not rule.conditions:
-            logger.debug(
-                "Rule '%s' has no conditions, returning all tasks", rule.rule_id
-            )
+            logger.debug("rule_no_conditions_returning_all_tasks", rule_id=rule.rule_id)
             return list(tasks)
 
         now = datetime.now(UTC)
@@ -94,10 +92,10 @@ class TriggerEvaluator:
                 matching_tasks.append(task)
 
         logger.debug(
-            "Rule '%s': %d/%d tasks matched all conditions",
-            rule.rule_id,
-            len(matching_tasks),
-            len(tasks),
+            "rule_evaluation_complete",
+            rule_id=rule.rule_id,
+            matched_count=len(matching_tasks),
+            total_count=len(tasks),
         )
         return matching_tasks
 
@@ -178,17 +176,17 @@ class TriggerEvaluator:
         modified_at_str = getattr(task, "modified_at", None)
         if modified_at_str is None:
             logger.debug(
-                "Task %s has no modified_at, skipping stale check",
-                getattr(task, "gid", "unknown"),
+                "task_missing_modified_at_skipping_stale_check",
+                task_gid=getattr(task, "gid", "unknown"),
             )
             return False
 
         modified_at = self._parse_iso_datetime(modified_at_str)
         if modified_at is None:
             logger.warning(
-                "Task %s has invalid modified_at format: %s",
-                getattr(task, "gid", "unknown"),
-                modified_at_str,
+                "task_invalid_modified_at_format",
+                task_gid=getattr(task, "gid", "unknown"),
+                modified_at_value=modified_at_str,
             )
             return False
 
@@ -227,8 +225,8 @@ class TriggerEvaluator:
 
         if due_datetime is None:
             logger.debug(
-                "Task %s has no due date, skipping deadline check",
-                getattr(task, "gid", "unknown"),
+                "task_no_due_date_skipping_deadline_check",
+                task_gid=getattr(task, "gid", "unknown"),
             )
             return False
 
@@ -257,25 +255,25 @@ class TriggerEvaluator:
         completed = getattr(task, "completed", None)
         if completed is True:
             logger.debug(
-                "Task %s is completed, skipping age check",
-                getattr(task, "gid", "unknown"),
+                "task_completed_skipping_age_check",
+                task_gid=getattr(task, "gid", "unknown"),
             )
             return False
 
         created_at_str = getattr(task, "created_at", None)
         if created_at_str is None:
             logger.debug(
-                "Task %s has no created_at, skipping age check",
-                getattr(task, "gid", "unknown"),
+                "task_missing_created_at_skipping_age_check",
+                task_gid=getattr(task, "gid", "unknown"),
             )
             return False
 
         created_at = self._parse_iso_datetime(created_at_str)
         if created_at is None:
             logger.warning(
-                "Task %s has invalid created_at format: %s",
-                getattr(task, "gid", "unknown"),
-                created_at_str,
+                "task_invalid_created_at_format",
+                task_gid=getattr(task, "gid", "unknown"),
+                created_at_value=created_at_str,
             )
             return False
 

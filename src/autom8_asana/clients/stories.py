@@ -6,7 +6,6 @@ Use raw=True for backward-compatible dict returns.
 
 from __future__ import annotations
 
-import logging
 import time
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Literal, overload
@@ -508,12 +507,9 @@ class StoriesClient(BaseClient):
 
         # NFR-OBS-002: Log fetch attempt entry point
         logger.debug(
-            "Starting stories fetch for task %s",
-            task_gid,
-            extra={
-                "task_gid": task_gid,
-                "cache_available": self._cache is not None,
-            },
+            "stories_fetch_started",
+            task_gid=task_gid,
+            cache_available=self._cache is not None,
         )
 
         # FR-DEGRADE-001: Fallback without cache
@@ -521,17 +517,12 @@ class StoriesClient(BaseClient):
             stories = await self._fetch_all_stories_uncached(task_gid, opt_fields)
             duration_ms = (time.perf_counter() - start_time) * 1000
             logger.debug(
-                "Stories fetch completed (no cache) for task %s: %d stories in %.2fms",
-                task_gid,
-                len(stories),
-                duration_ms,
-                extra={
-                    "task_gid": task_gid,
-                    "story_count": len(stories),
-                    "duration_ms": duration_ms,
-                    "cache_available": False,
-                    "was_incremental": False,
-                },
+                "stories_fetch_completed_no_cache",
+                task_gid=task_gid,
+                story_count=len(stories),
+                duration_ms=duration_ms,
+                cache_available=False,
+                was_incremental=False,
             )
             return stories
 
@@ -565,18 +556,12 @@ class StoriesClient(BaseClient):
 
             # NFR-OBS-001, NFR-OBS-002, NFR-OBS-003: Enhanced structured logging
             logger.debug(
-                "Stories loaded for task %s: %d stories, incremental=%s in %.2fms",
-                task_gid,
-                len(stories_dicts),
-                was_incremental,
-                duration_ms,
-                extra={
-                    "task_gid": task_gid,
-                    "story_count": len(stories_dicts),
-                    "was_incremental": was_incremental,
-                    "cache_hit": was_incremental,
-                    "duration_ms": duration_ms,
-                },
+                "stories_loaded",
+                task_gid=task_gid,
+                story_count=len(stories_dicts),
+                was_incremental=was_incremental,
+                cache_hit=was_incremental,
+                duration_ms=duration_ms,
             )
 
             # Convert dicts to Story models
@@ -586,18 +571,11 @@ class StoriesClient(BaseClient):
             duration_ms = (time.perf_counter() - start_time) * 1000
             # FR-DEGRADE-002, FR-DEGRADE-003: Enhanced fallback logging
             logger.warning(
-                "Cache operation failed for stories (task=%s): %s, "
-                "falling back to full fetch after %.2fms",
-                task_gid,
-                exc,
-                duration_ms,
-                extra={
-                    "task_gid": task_gid,
-                    "error": str(exc),
-                    "error_type": type(exc).__name__,
-                    "duration_ms": duration_ms,
-                },
-                exc_info=logger.isEnabledFor(logging.DEBUG),
+                "stories_cache_operation_failed",
+                task_gid=task_gid,
+                error=str(exc),
+                error_type=type(exc).__name__,
+                duration_ms=duration_ms,
             )
             return await self._fetch_all_stories_uncached(task_gid, opt_fields)
 
@@ -776,7 +754,7 @@ class StoriesClient(BaseClient):
         except Exception as exc:
             # Metrics recording should never fail the operation
             logger.debug(
-                "Failed to record stories cache metrics: %s",
-                exc,
-                extra={"task_gid": task_gid, "error": str(exc)},
+                "stories_cache_metrics_recording_failed",
+                task_gid=task_gid,
+                error=str(exc),
             )

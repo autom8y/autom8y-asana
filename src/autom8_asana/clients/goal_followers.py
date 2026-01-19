@@ -86,13 +86,14 @@ class GoalFollowers:
             Updated goal
         """
         self._log_operation("add_followers_async", goal_gid)
-        result = await self._http.post(
+        result: dict[str, Any] = await self._http.post(
             f"/goals/{goal_gid}/addFollowers",
             json={"data": {"followers": ",".join(followers)}},
         )
         if raw:
             return result
-        return Goal.model_validate(result)
+        goal: Goal = Goal.model_validate(result)
+        return goal
 
     @overload
     def add_followers(
@@ -190,13 +191,14 @@ class GoalFollowers:
             Updated goal
         """
         self._log_operation("remove_followers_async", goal_gid)
-        result = await self._http.post(
+        result: dict[str, Any] = await self._http.post(
             f"/goals/{goal_gid}/removeFollowers",
             json={"data": {"followers": ",".join(followers)}},
         )
         if raw:
             return result
-        return Goal.model_validate(result)
+        goal: Goal = Goal.model_validate(result)
+        return goal
 
     @overload
     def remove_followers(

@@ -49,7 +49,8 @@ def _asana_parent_gid_extractor(entity: Any) -> str | None:
     if isinstance(entity, dict):
         parent = entity.get("parent")
         if parent and isinstance(parent, dict):
-            return parent.get("gid")
+            gid: str | None = parent.get("gid")
+            return gid
     return None
 
 

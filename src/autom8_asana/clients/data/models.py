@@ -290,18 +290,18 @@ class InsightsResponse(BaseModel):
         return self.to_dataframe().to_pandas()
 
     @staticmethod
-    def _polars_dtype(dtype_str: str) -> pl.DataType | None:
+    def _polars_dtype(dtype_str: str) -> type[pl.DataType] | None:
         """Map dtype string to Polars dtype.
 
         Args:
             dtype_str: String representation of dtype (e.g., "int64", "float64").
 
         Returns:
-            Corresponding Polars DataType, or None if unknown.
+            Corresponding Polars DataType class, or None if unknown.
         """
         import polars as pl
 
-        dtype_map: dict[str, pl.DataType] = {
+        dtype_map: dict[str, type[pl.DataType]] = {
             "int64": pl.Int64,
             "int32": pl.Int32,
             "int16": pl.Int16,
@@ -352,7 +352,7 @@ class BatchInsightsResult(BaseModel):
     response: InsightsResponse | None = None
     error: str | None = None
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def success(self) -> bool:
         """Whether this PVP succeeded.

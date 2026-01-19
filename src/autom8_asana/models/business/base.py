@@ -386,9 +386,9 @@ class BusinessEntity(Task):
                 except AttributeError:
                     # Some attrs may be read-only or not settable
                     logger.debug(
-                        "Could not invalidate %s.%s (may be read-only)",
-                        type(self).__name__,
-                        attr,
+                        "invalidation_failed_readonly",
+                        entity_type=type(self).__name__,
+                        attr=attr,
                     )
 
     def get_cascading_fields(self) -> list[CascadingFieldDef]:

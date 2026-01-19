@@ -18,11 +18,10 @@ Per FR-AUDIT-001, FR-AUDIT-002:
 from __future__ import annotations
 
 import json
-import logging
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
@@ -60,7 +59,7 @@ class S2SAuditEntry:
     response_status: int
     duration_ms: float
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization.
 
         Returns:
@@ -194,20 +193,11 @@ class S2SAuditLogger:
             duration_ms=duration_ms,
         )
 
-        # Determine log level based on status
-        if status >= 500:
-            log_level = logging.WARNING
-        elif status >= 400:
-            log_level = logging.WARNING
+        # Emit structured log using appropriate level
+        if status >= 400:
+            self._logger.warning("s2s_request", **entry.to_dict())
         else:
-            log_level = logging.INFO
-
-        # Emit structured log
-        self._logger.log(
-            log_level,
-            entry.to_json(),
-            extra=entry.to_dict(),
-        )
+            self._logger.info("s2s_request", **entry.to_dict())
 
         return entry
 

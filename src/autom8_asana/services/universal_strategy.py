@@ -393,7 +393,8 @@ class UniversalResolutionStrategy:
                     "row_count": len(self._cached_dataframe),
                 },
             )
-            return self._cached_dataframe
+            df: pl.DataFrame | None = self._cached_dataframe
+            return df
 
         # Try to get from DataFrameCache
         try:

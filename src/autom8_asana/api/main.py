@@ -465,21 +465,21 @@ async def _discover_entity_projects(app: FastAPI) -> None:
             if project_gid in model_gids_used:
                 continue
 
-            entity_type = _match_entity_type(project_name, ENTITY_TYPES)
-            if entity_type:
-                if entity_type in registered_from_model:
+            matched_type = _match_entity_type(project_name, ENTITY_TYPES)
+            if matched_type:
+                if matched_type in registered_from_model:
                     # Collision: discovered project normalizes to model-registered type
-                    existing_gid = entity_registry.get_project_gid(entity_type)
+                    existing_gid = entity_registry.get_project_gid(matched_type)
                     error_msg = (
                         f"Entity collision detected: '{project_name}' (GID {project_gid}) "
-                        f"normalizes to entity_type '{entity_type}' which is already "
+                        f"normalizes to entity_type '{matched_type}' which is already "
                         f"registered from model with GID {existing_gid}. "
                         f"Fix: Update _normalize_project_name() to handle this case."
                     )
                     logger.error(
                         "entity_collision_fail_fast",
                         extra={
-                            "entity_type": entity_type,
+                            "entity_type": matched_type,
                             "discovered_project": project_name,
                             "discovered_gid": project_gid,
                             "model_gid": existing_gid,
@@ -489,14 +489,14 @@ async def _discover_entity_projects(app: FastAPI) -> None:
                 else:
                     # Not registered from model - discovery fills gap
                     entity_registry.register(
-                        entity_type=entity_type,
+                        entity_type=matched_type,
                         project_gid=project_gid,
                         project_name=project_name,
                     )
                     logger.info(
                         "entity_project_registered_from_discovery",
                         extra={
-                            "entity_type": entity_type,
+                            "entity_type": matched_type,
                             "project_gid": project_gid,
                             "project_name": project_name,
                             "source": "discovery_fallback",
@@ -579,7 +579,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
 
     try:
         # Get registered projects from entity resolver
-        entity_registry: EntityProjectRegistry = getattr(
+        entity_registry: EntityProjectRegistry | None = getattr(
             app.state, "entity_project_registry", None
         )
 
@@ -1151,7 +1151,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
     projects_completed: set[str] = set()
 
     # Heartbeat state
-    heartbeat_task: asyncio.Task | None = None
+    heartbeat_task: asyncio.Task[None] | None = None
 
     async def heartbeat_loop() -> None:
         """Log progress heartbeat every 30 seconds."""
@@ -1175,7 +1175,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
 
     try:
         # Get registered projects from entity resolver
-        entity_registry: EntityProjectRegistry = getattr(
+        entity_registry: EntityProjectRegistry | None = getattr(
             app.state, "entity_project_registry", None
         )
 
@@ -1482,7 +1482,7 @@ def create_app() -> FastAPI:
 
     # Rate limiting
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
     app.add_middleware(SlowAPIMiddleware)
 
     # Request logging (before RequestID so it has access to request_id)

@@ -239,7 +239,8 @@ class InMemoryCacheProvider:
                 del self._versioned_cache[internal_key]
                 return None
 
-            return cached.entry
+            entry: CacheEntry = cached.entry
+            return entry
 
     def set_versioned(
         self,

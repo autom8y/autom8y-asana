@@ -68,10 +68,11 @@ def detect_by_parent_inference(
     expected_gid = get_registry().get_primary_gid(inferred_type)
 
     logger.debug(
-        "Detected %s via parent inference from %s (Tier 3)",
-        inferred_type.name,
-        parent_type.name,
-        extra={"task_gid": task.gid, "parent_type": parent_type.name, "tier": 3},
+        "detected_via_parent_inference",
+        entity_type=inferred_type.name,
+        parent_type=parent_type.name,
+        task_gid=task.gid,
+        tier=3,
     )
 
     return DetectionResult(

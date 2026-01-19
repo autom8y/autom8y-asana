@@ -141,7 +141,7 @@ class GoalRelationships:
         if insert_after is not None:
             data["insert_after"] = insert_after
 
-        result = await self._http.post(
+        result: dict[str, Any] = await self._http.post(
             f"/goals/{goal_gid}/addSubgoal", json={"data": data}
         )
         if raw:
@@ -323,7 +323,7 @@ class GoalRelationships:
         if contribution_weight is not None:
             data["contribution_weight"] = contribution_weight
 
-        result = await self._http.post(
+        result: dict[str, Any] = await self._http.post(
             f"/goals/{goal_gid}/addSupportingRelationship", json={"data": data}
         )
         if raw:

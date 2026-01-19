@@ -104,19 +104,19 @@ class BaseClient:
             entry = self._cache.get_versioned(key, entry_type)
             if entry is not None and not entry.is_expired():
                 logger.debug(
-                    "Cache hit for %s (key=%s)",
-                    entry_type.value,
-                    key,
+                    "cache_hit",
+                    entry_type=entry_type.value,
+                    key=key,
                 )
                 return entry
             return None
         except Exception as exc:
             # NFR-DEGRADE-001: Log and continue
             logger.warning(
-                "Cache get failed for %s (key=%s): %s",
-                entry_type.value,
-                key,
-                exc,
+                "cache_get_failed",
+                entry_type=entry_type.value,
+                key=key,
+                error=str(exc),
             )
             return None
 
@@ -165,18 +165,18 @@ class BaseClient:
             self._cache.set_versioned(key, entry)
 
             logger.debug(
-                "Cache set for %s (key=%s, ttl=%d)",
-                entry_type.value,
-                key,
-                ttl,
+                "cache_set",
+                entry_type=entry_type.value,
+                key=key,
+                ttl=ttl,
             )
         except Exception as exc:
             # NFR-DEGRADE-004: Log and continue
             logger.warning(
-                "Cache set failed for %s (key=%s): %s",
-                entry_type.value,
-                key,
-                exc,
+                "cache_set_failed",
+                entry_type=entry_type.value,
+                key=key,
+                error=str(exc),
             )
 
     def _cache_invalidate(
@@ -198,15 +198,15 @@ class BaseClient:
         try:
             self._cache.invalidate(key, entry_types)
             logger.debug(
-                "Cache invalidated (key=%s, types=%s)",
-                key,
-                [t.value for t in entry_types] if entry_types else "all",
+                "cache_invalidated",
+                key=key,
+                types=[t.value for t in entry_types] if entry_types else "all",
             )
         except Exception as exc:
             logger.warning(
-                "Cache invalidate failed (key=%s): %s",
-                key,
-                exc,
+                "cache_invalidate_failed",
+                key=key,
+                error=str(exc),
             )
 
     @staticmethod

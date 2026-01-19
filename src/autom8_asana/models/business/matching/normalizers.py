@@ -65,9 +65,10 @@ class PhoneNormalizer:
 
             parsed = phonenumbers.parse(value, "US")
             if phonenumbers.is_valid_number(parsed):
-                return phonenumbers.format_number(
+                formatted: str = phonenumbers.format_number(
                     parsed, phonenumbers.PhoneNumberFormat.E164
                 )
+                return formatted
             # Invalid number - fall through to digits-only
         except ImportError:
             pass  # phonenumbers not installed

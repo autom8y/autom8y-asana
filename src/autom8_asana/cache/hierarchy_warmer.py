@@ -209,7 +209,7 @@ async def warm_ancestors_async(
 
         # Register fetched parents and collect next level
         fetched_count = 0
-        next_level_gids: list[str] = []
+        next_level_gids = []  # Reset from previous loop iteration
         tasks_to_cache: list[dict[str, Any]] = []
 
         for result in fetched_results:

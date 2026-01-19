@@ -585,7 +585,7 @@ class UnifiedTaskStore:
             )
 
             # Then warm deeper ancestors (grandparents and beyond)
-            task_gids = [t.get("gid") for t in tasks if t.get("gid")]
+            task_gids = [gid for t in tasks if (gid := t.get("gid")) is not None]
             if task_gids:
                 ancestors_warmed = await warm_ancestors_async(
                     gids=task_gids,

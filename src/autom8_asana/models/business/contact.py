@@ -231,5 +231,6 @@ class ContactHolder(
         """
         for contact in self.children:
             if contact.is_owner:
-                return contact
+                result: Contact = contact
+                return result
         return None

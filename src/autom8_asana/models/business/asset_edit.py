@@ -71,7 +71,7 @@ class AssetEdit(Process):
     # IMPORTANT: Declared WITHOUT type annotations to avoid Pydantic field creation
     # Note: AssetEdit is direct child of Business (not under Unit hierarchy)
     asset_edit_holder = HolderRef["AssetEditHolder"]()
-    business = ParentRef["Business"](holder_attr="_asset_edit_holder")
+    business = ParentRef["Business"](holder_attr="_asset_edit_holder")  # type: ignore[name-defined]
 
     def _invalidate_refs(self, _exclude_attr: str | None = None) -> None:
         """Invalidate cached references on hierarchy change.
@@ -86,7 +86,7 @@ class AssetEdit(Process):
         super()._invalidate_refs(_exclude_attr)
         self._asset_edit_holder = None
 
-    class Fields(Process.Fields):
+    class Fields(Process.Fields):  # type: ignore[name-defined, misc]
         """Custom field name constants for IDE discoverability.
 
         Per FR-PREREQ-001: Inner Fields class with 11 custom field names.
@@ -190,7 +190,7 @@ class AssetEdit(Process):
                 self.Fields.REVIEW_ALL_ADS, "Yes" if value else "No"
             )
 
-    @property
+    @property  # type: ignore[override]
     def score(self) -> Decimal | None:
         """Score value (number custom field)."""
         return self._get_number_field(self.Fields.SCORE)
@@ -202,7 +202,7 @@ class AssetEdit(Process):
             float(value) if value is not None else None,
         )
 
-    @property
+    @property  # type: ignore[override]
     def specialty(self) -> list[str]:
         """Specialty types (multi-enum custom field).
 
@@ -210,7 +210,7 @@ class AssetEdit(Process):
         """
         return self._get_multi_enum_field(self.Fields.SPECIALTY)
 
-    @specialty.setter
+    @specialty.setter  # type: ignore[override]
     def specialty(self, value: list[str] | None) -> None:
         self.get_custom_fields().set(self.Fields.SPECIALTY, value)
 

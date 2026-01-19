@@ -19,6 +19,7 @@ Per NFR-OBS-001:
 import logging
 import time
 import uuid
+from typing import Any
 
 import structlog
 from fastapi import Request, Response
@@ -36,8 +37,8 @@ SENSITIVE_FIELDS = frozenset({"authorization", "token", "pat", "password", "secr
 def _filter_sensitive_data(
     _logger: logging.Logger,
     _method_name: str,
-    event_dict: dict,
-) -> dict:
+    event_dict: dict[str, Any],
+) -> dict[str, Any]:
     """Structlog processor to filter sensitive fields.
 
     Per PRD-ASANA-SATELLITE (FR-AUTH-004): PAT values must never appear in logs.
@@ -86,7 +87,7 @@ def configure_structlog() -> None:
         processors.append(structlog.processors.JSONRenderer())
 
     structlog.configure(
-        processors=processors,
+        processors=processors,  # type: ignore[arg-type]
         wrapper_class=structlog.stdlib.BoundLogger,
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),

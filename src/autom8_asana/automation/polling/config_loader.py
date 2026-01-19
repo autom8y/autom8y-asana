@@ -158,7 +158,10 @@ class ConfigurationLoader:
             substituted = ConfigurationLoader.substitute_env_vars(raw)
             # substituted = {"api_key": "actual_token_value"}
         """
-        return ConfigurationLoader._substitute_recursive(raw_yaml, _path)
+        result: dict[str, Any] = ConfigurationLoader._substitute_recursive(
+            raw_yaml, _path
+        )
+        return result
 
     @staticmethod
     def _substitute_recursive(

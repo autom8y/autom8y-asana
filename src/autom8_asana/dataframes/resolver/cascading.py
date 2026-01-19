@@ -439,6 +439,7 @@ class CascadingFieldResolver:
             },
         )
 
+        assert hierarchy_resolver is not None  # Already checked above
         resolved = await hierarchy_resolver.resolve_with_ancestors(
             keys=parent_gids,
             max_depth=max_depth,
@@ -520,6 +521,8 @@ class CascadingFieldResolver:
 
         # No cascade_plugin - use hierarchy resolver for on-demand fetch
         hierarchy_resolver = self._get_hierarchy_resolver()
+        if hierarchy_resolver is None:
+            return None
         try:
             logger.debug(
                 "cascade_parent_fetch_via_resolver",

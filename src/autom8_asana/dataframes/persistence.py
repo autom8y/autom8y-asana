@@ -231,12 +231,12 @@ class DataFramePersistence:
             self._client = self._boto3_module.client("s3", **client_kwargs)
             self._degraded = False
             logger.debug(
-                "DataFramePersistence initialized with bucket=%s prefix=%s",
-                self._config.bucket,
-                self._config.prefix,
+                "persistence_initialized",
+                bucket=self._config.bucket,
+                prefix=self._config.prefix,
             )
         except Exception as e:
-            logger.error("Failed to initialize S3 client for persistence: %s", e)
+            logger.error("persistence_init_failed", error=str(e))
             self._degraded = True
 
     def _get_client(self) -> Any:
@@ -275,7 +275,7 @@ class DataFramePersistence:
                     self._degraded = False
                     logger.info("S3 persistence connection restored")
             except Exception as e:
-                logger.warning("S3 persistence reconnect failed: %s", e)
+                logger.warning("persistence_reconnect_failed", error=str(e))
 
     def _make_dataframe_key(self, project_gid: str) -> str:
         """Generate S3 object key for DataFrame.
@@ -365,7 +365,7 @@ class DataFramePersistence:
             raise ValueError("Watermark timestamp must be timezone-aware")
 
         if self._degraded:
-            logger.debug("Persistence unavailable, skipping save for %s", project_gid)
+            logger.debug("persistence_unavailable_skip_save", project_gid=project_gid)
             return False
 
         if self._polars_module is None:
@@ -412,10 +412,10 @@ class DataFramePersistence:
             )
 
             logger.info(
-                "Persisted DataFrame for project %s: %d rows, watermark=%s",
-                project_gid,
-                len(df),
-                watermark.isoformat(),
+                "persistence_dataframe_saved",
+                project_gid=project_gid,
+                row_count=len(df),
+                watermark=watermark.isoformat(),
             )
             return True
 
@@ -447,7 +447,7 @@ class DataFramePersistence:
             ...     print("No persisted state, doing full fetch")
         """
         if self._degraded:
-            logger.debug("Persistence unavailable, skipping load for %s", project_gid)
+            logger.debug("persistence_unavailable_skip_load", project_gid=project_gid)
             return None, None
 
         if self._polars_module is None:
@@ -470,7 +470,7 @@ class DataFramePersistence:
                 watermark = datetime.fromisoformat(wm_data["watermark"])
             except Exception as e:
                 if self._is_not_found_error(e):
-                    logger.debug("No persisted watermark for project %s", project_gid)
+                    logger.debug("persistence_no_watermark", project_gid=project_gid)
                     return None, None
                 raise
 
@@ -487,17 +487,17 @@ class DataFramePersistence:
             except Exception as e:
                 if self._is_not_found_error(e):
                     logger.warning(
-                        "Watermark exists but DataFrame missing for project %s",
-                        project_gid,
+                        "persistence_watermark_without_dataframe",
+                        project_gid=project_gid,
                     )
                     return None, None
                 raise
 
             logger.info(
-                "Loaded persisted DataFrame for project %s: %d rows, watermark=%s",
-                project_gid,
-                len(df),
-                watermark.isoformat(),
+                "persistence_dataframe_loaded",
+                project_gid=project_gid,
+                row_count=len(df),
+                watermark=watermark.isoformat(),
             )
             return df, watermark
 
@@ -521,7 +521,7 @@ class DataFramePersistence:
             >>> success = await persistence.delete_dataframe("proj_123")
         """
         if self._degraded:
-            logger.debug("Persistence unavailable, skipping delete for %s", project_gid)
+            logger.debug("persistence_unavailable_skip_delete", project_gid=project_gid)
             return False
 
         try:
@@ -541,7 +541,7 @@ class DataFramePersistence:
                     if not self._is_not_found_error(e):
                         raise
 
-            logger.info("Deleted persisted DataFrame for project %s", project_gid)
+            logger.info("persistence_dataframe_deleted", project_gid=project_gid)
             return True
 
         except Exception as e:
@@ -697,10 +697,10 @@ class DataFramePersistence:
                 if error_code in ("AccessDenied", "NoSuchBucket"):
                     if not self._degraded:
                         logger.warning(
-                            "S3 persistence access error during %s for %s, entering degraded mode: %s",
-                            operation,
-                            project_gid,
-                            error,
+                            "persistence_access_error_degraded",
+                            operation=operation,
+                            project_gid=project_gid,
+                            error=str(error),
                         )
                         self._degraded = True
                     return
@@ -708,18 +708,18 @@ class DataFramePersistence:
         if isinstance(error, error_types):
             if not self._degraded:
                 logger.warning(
-                    "S3 persistence error during %s for %s, entering degraded mode: %s",
-                    operation,
-                    project_gid,
-                    error,
+                    "persistence_error_degraded",
+                    operation=operation,
+                    project_gid=project_gid,
+                    error=str(error),
                 )
                 self._degraded = True
         else:
             logger.error(
-                "S3 persistence error during %s for %s: %s",
-                operation,
-                project_gid,
-                error,
+                "persistence_error",
+                operation=operation,
+                project_gid=project_gid,
+                error=str(error),
             )
 
     async def save_watermark(self, project_gid: str, watermark: datetime) -> bool:
@@ -749,7 +749,7 @@ class DataFramePersistence:
 
         if self._degraded:
             logger.debug(
-                "Persistence unavailable, skipping watermark save for %s", project_gid
+                "persistence_unavailable_skip_watermark_save", project_gid=project_gid
             )
             return False
 
@@ -770,9 +770,9 @@ class DataFramePersistence:
             )
 
             logger.debug(
-                "Persisted watermark for project %s: %s",
-                project_gid,
-                watermark.isoformat(),
+                "persistence_watermark_saved",
+                project_gid=project_gid,
+                watermark=watermark.isoformat(),
             )
             return True
 
@@ -816,15 +816,12 @@ class DataFramePersistence:
                 except Exception as e:
                     # Log but continue with other projects
                     logger.warning(
-                        "Failed to load watermark for project %s: %s",
-                        project_gid,
-                        e,
+                        "persistence_load_watermark_failed",
+                        project_gid=project_gid,
+                        error=str(e),
                     )
 
-            logger.info(
-                "Loaded %d watermarks from S3",
-                len(watermarks),
-            )
+            logger.info("persistence_watermarks_loaded", count=len(watermarks))
             return watermarks
 
         except Exception as e:
@@ -855,7 +852,7 @@ class DataFramePersistence:
         """
         if self._degraded:
             logger.debug(
-                "Persistence unavailable, skipping index save for %s", project_gid
+                "persistence_unavailable_skip_index_save", project_gid=project_gid
             )
             return False
 
@@ -881,9 +878,9 @@ class DataFramePersistence:
             )
 
             logger.info(
-                "Persisted GidLookupIndex for project %s: %d entries",
-                project_gid,
-                len(index),
+                "persistence_index_saved",
+                project_gid=project_gid,
+                entry_count=len(index),
             )
             return True
 
@@ -915,7 +912,7 @@ class DataFramePersistence:
         """
         if self._degraded:
             logger.debug(
-                "Persistence unavailable, skipping index load for %s", project_gid
+                "persistence_unavailable_skip_index_load", project_gid=project_gid
             )
             return None
 
@@ -932,7 +929,7 @@ class DataFramePersistence:
                 data = json.loads(body.decode("utf-8"))
             except Exception as e:
                 if self._is_not_found_error(e):
-                    logger.debug("No persisted index for project %s", project_gid)
+                    logger.debug("persistence_no_index", project_gid=project_gid)
                     return None
                 raise
 
@@ -942,9 +939,9 @@ class DataFramePersistence:
             index = GidLookupIndex.deserialize(data)
 
             logger.info(
-                "Loaded persisted GidLookupIndex for project %s: %d entries",
-                project_gid,
-                len(index),
+                "persistence_index_loaded",
+                project_gid=project_gid,
+                entry_count=len(index),
             )
             return index
 
@@ -969,7 +966,7 @@ class DataFramePersistence:
         """
         if self._degraded:
             logger.debug(
-                "Persistence unavailable, skipping index delete for %s", project_gid
+                "persistence_unavailable_skip_index_delete", project_gid=project_gid
             )
             return False
 
@@ -986,7 +983,7 @@ class DataFramePersistence:
                 if not self._is_not_found_error(e):
                     raise
 
-            logger.info("Deleted persisted GidLookupIndex for project %s", project_gid)
+            logger.info("persistence_index_deleted", project_gid=project_gid)
             return True
 
         except Exception as e:

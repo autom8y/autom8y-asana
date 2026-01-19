@@ -168,10 +168,7 @@ class SearchService:
 
             if filter_expr is None:
                 # No valid conditions - return empty
-                logger.debug(
-                    "No valid filter conditions for project %s",
-                    project_gid,
-                )
+                logger.debug("no_valid_filter_conditions", project_gid=project_gid)
                 return SearchResult(
                     hits=[],
                     total_count=0,
@@ -200,14 +197,12 @@ class SearchService:
             query_time_ms = (time.perf_counter() - start) * 1000
 
             logger.debug(
-                "Search completed",
-                extra={
-                    "project_gid": project_gid,
-                    "conditions": len(search_criteria.conditions),
-                    "hits": len(hits),
-                    "query_time_ms": round(query_time_ms, 2),
-                    "from_cache": from_cache,
-                },
+                "search_completed",
+                project_gid=project_gid,
+                conditions=len(search_criteria.conditions),
+                hits=len(hits),
+                query_time_ms=round(query_time_ms, 2),
+                from_cache=from_cache,
             )
 
             return SearchResult(
@@ -220,10 +215,9 @@ class SearchService:
         except Exception as e:
             # Graceful degradation - return empty results on error
             logger.warning(
-                "Search error for project %s: %s",
-                project_gid,
-                str(e),
-                exc_info=True,
+                "search_error",
+                project_gid=project_gid,
+                error=str(e),
             )
             return SearchResult(
                 hits=[],
@@ -490,10 +484,10 @@ class SearchService:
         """
         if project_gid is not None:
             self._project_df_cache.pop(project_gid, None)
-            logger.debug("Cleared project cache for %s", project_gid)
+            logger.debug("project_cache_cleared", project_gid=project_gid)
         else:
             self._project_df_cache.clear()
-            logger.debug("Cleared all project caches")
+            logger.debug("all_project_caches_cleared")
 
     # =========================================================================
     # Internal Methods
@@ -526,20 +520,14 @@ class SearchService:
 
         # No DataFrame integration - return empty
         if self._df_integration is None:
-            logger.debug(
-                "No DataFrame integration available for project %s",
-                project_gid,
-            )
+            logger.debug("no_dataframe_integration_available", project_gid=project_gid)
             return None, False
 
         # Note: Full DataFrame build would require ProjectDataFrameBuilder,
         # which requires project object, schema, etc. For search, we expect
         # the DataFrame to be pre-cached via set_project_dataframe() after
         # being built elsewhere in the application flow.
-        logger.debug(
-            "No cached DataFrame for project %s (set via set_project_dataframe)",
-            project_gid,
-        )
+        logger.debug("no_cached_dataframe", project_gid=project_gid)
         return None, False
 
     def _build_filter_expr(
@@ -596,9 +584,9 @@ class SearchService:
 
         if col_name is None:
             logger.debug(
-                "Field not found in DataFrame: %s (normalized: %s)",
-                condition.field,
-                normalized,
+                "field_not_found_in_dataframe",
+                field=condition.field,
+                normalized=normalized,
             )
             return None
 
@@ -627,7 +615,7 @@ class SearchService:
                 return col.is_in(values)
 
             case _:
-                logger.warning("Unknown operator: %s", condition.operator)
+                logger.warning("unknown_operator", operator=condition.operator)
                 return None
 
     def _build_entity_type_filter(
@@ -653,10 +641,7 @@ class SearchService:
             if col_name in df.columns:
                 return pl.col(col_name) == entity_type
 
-        logger.debug(
-            "No entity type column found (tried: %s)",
-            type_cols,
-        )
+        logger.debug("no_entity_type_column_found", tried_columns=type_cols)
         return None
 
     def _build_column_index(self, df: pl.DataFrame) -> dict[str, str]:

@@ -206,7 +206,8 @@ class TypeCoercer:
             )
             return None
 
-        return value
+        result: Decimal | float | int = value
+        return result
 
 
 # Module-level singleton for convenience

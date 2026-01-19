@@ -366,8 +366,8 @@ class PipelineConversionRule:
                 else:
                     # Timeout is non-fatal - log and continue
                     logger.warning(
-                        "Subtask wait timeout for task %s, proceeding",
-                        new_task.gid,
+                        "pipeline_subtask_timeout",
+                        task_gid=new_task.gid,
                     )
 
             # Step 4: Seed fields from hierarchy and source process
@@ -400,9 +400,9 @@ class PipelineConversionRule:
                 else:
                     # Log warning but continue - field seeding failure is non-fatal
                     logger.warning(
-                        "Field seeding failed for task %s: %s",
-                        new_task.gid,
-                        write_result.error,
+                        "pipeline_field_seeding_failed",
+                        task_gid=new_task.gid,
+                        error=write_result.error,
                     )
 
             # Step 5: Hierarchy placement (FR-HIER-001, FR-HIER-002, FR-HIER-003)
@@ -610,17 +610,16 @@ class PipelineConversionRule:
                         process_holder = getattr(unit, "_process_holder", None)
                 except Exception as e:
                     logger.warning(
-                        "Failed to fetch ProcessHolder for unit %s: %s",
-                        getattr(unit, "gid", "unknown"),
-                        str(e),
+                        "pipeline_fetch_process_holder_failed",
+                        unit_gid=getattr(unit, "gid", "unknown"),
+                        error=str(e),
                     )
 
         # FR-HIER-003: Graceful degradation - no ProcessHolder available
         if process_holder is None:
             logger.warning(
-                "ProcessHolder not found for hierarchy placement, "
-                "new task %s will be top-level",
-                new_task.gid,
+                "pipeline_no_process_holder",
+                task_gid=new_task.gid,
             )
             return False
 
@@ -636,26 +635,26 @@ class PipelineConversionRule:
 
             if result.success:
                 logger.info(
-                    "Placed task %s under ProcessHolder %s (after %s)",
-                    new_task.gid,
-                    process_holder.gid,
-                    source_process.gid,
+                    "pipeline_hierarchy_placed",
+                    task_gid=new_task.gid,
+                    process_holder_gid=process_holder.gid,
+                    after_gid=source_process.gid,
                 )
                 return True
             else:
                 logger.warning(
-                    "Hierarchy placement failed for task %s: %d failures",
-                    new_task.gid,
-                    len(result.failed),
+                    "pipeline_hierarchy_placement_failed",
+                    task_gid=new_task.gid,
+                    failure_count=len(result.failed),
                 )
                 return False
 
         except Exception as e:
             # FR-HIER-003: Graceful degradation - log and continue
             logger.warning(
-                "Hierarchy placement error for task %s: %s",
-                new_task.gid,
-                str(e),
+                "pipeline_hierarchy_error",
+                task_gid=new_task.gid,
+                error=str(e),
             )
             return False
 
@@ -700,11 +699,10 @@ class PipelineConversionRule:
 
             if target_section is None:
                 logger.warning(
-                    "Target section '%s' not found in project %s, "
-                    "task %s will remain in default section",
-                    target_section_name,
-                    target_project_gid,
-                    new_task.gid,
+                    "pipeline_section_not_found",
+                    section_name=target_section_name,
+                    project_gid=target_project_gid,
+                    task_gid=new_task.gid,
                 )
                 return False
 
@@ -715,20 +713,20 @@ class PipelineConversionRule:
             )
 
             logger.info(
-                "Moved task %s to section '%s' (%s)",
-                new_task.gid,
-                target_section_name,
-                target_section.gid,
+                "pipeline_task_moved_to_section",
+                task_gid=new_task.gid,
+                section_name=target_section_name,
+                section_gid=target_section.gid,
             )
             return True
 
         except Exception as e:
             # Graceful degradation - log and continue
             logger.warning(
-                "Failed to move task %s to section '%s': %s",
-                new_task.gid,
-                target_section_name,
-                str(e),
+                "pipeline_move_to_section_failed",
+                task_gid=new_task.gid,
+                section_name=target_section_name,
+                error=str(e),
             )
             return False
 
@@ -762,19 +760,19 @@ class PipelineConversionRule:
             )
 
             logger.info(
-                "Set due date %s on task %s (offset: %d days)",
-                due_on,
-                new_task.gid,
-                offset_days,
+                "pipeline_due_date_set",
+                due_on=due_on,
+                task_gid=new_task.gid,
+                offset_days=offset_days,
             )
             return True
 
         except Exception as e:
             # Graceful degradation - log and continue
             logger.warning(
-                "Failed to set due date on task %s: %s",
-                new_task.gid,
-                str(e),
+                "pipeline_set_due_date_failed",
+                task_gid=new_task.gid,
+                error=str(e),
             )
             return False
 
@@ -814,10 +812,7 @@ class PipelineConversionRule:
         # Priority 0: Fixed assignee from PipelineStage (highest priority)
         if fixed_assignee_gid:
             assignee_gid = fixed_assignee_gid
-            logger.info(
-                "Using fixed assignee_gid %s from PipelineStage",
-                assignee_gid,
-            )
+            logger.info("pipeline_using_fixed_assignee", assignee_gid=assignee_gid)
         else:
             # Priority 1: Unit.rep (FR-ASSIGN-002)
             if unit is not None:
@@ -829,7 +824,7 @@ class PipelineConversionRule:
                         if isinstance(first_rep, dict):
                             assignee_gid = first_rep.get("gid")
                 except Exception as e:
-                    logger.warning("Failed to access Unit.rep: %s", str(e))
+                    logger.warning("pipeline_unit_rep_access_failed", error=str(e))
 
             # Priority 2: Business.rep fallback (FR-ASSIGN-003)
             if assignee_gid is None and business is not None:
@@ -840,31 +835,28 @@ class PipelineConversionRule:
                         if isinstance(first_rep, dict):
                             assignee_gid = first_rep.get("gid")
                 except Exception as e:
-                    logger.warning("Failed to access Business.rep: %s", str(e))
+                    logger.warning("pipeline_business_rep_access_failed", error=str(e))
 
         # FR-ASSIGN-005: No rep found, log warning
         if assignee_gid is None:
-            logger.warning(
-                "No rep found for assignee on task %s, skipping assignment",
-                new_task.gid,
-            )
+            logger.warning("pipeline_no_rep_for_assignee", task_gid=new_task.gid)
             return False
 
         # Set assignee via API (FR-ASSIGN-001)
         try:
             await client.tasks.set_assignee_async(new_task.gid, assignee_gid)
             logger.info(
-                "Set assignee %s on task %s",
-                assignee_gid,
-                new_task.gid,
+                "pipeline_assignee_set",
+                assignee_gid=assignee_gid,
+                task_gid=new_task.gid,
             )
             return True
         except Exception as e:
             # FR-ASSIGN-006: Graceful degradation
             logger.warning(
-                "Failed to set assignee on task %s: %s",
-                new_task.gid,
-                str(e),
+                "pipeline_set_assignee_failed",
+                task_gid=new_task.gid,
+                error=str(e),
             )
             return False
 
@@ -909,18 +901,15 @@ class PipelineConversionRule:
                 task=new_task.gid,
                 text=comment_text,
             )
-            logger.info(
-                "Created onboarding comment on task %s",
-                new_task.gid,
-            )
+            logger.info("pipeline_comment_created", task_gid=new_task.gid)
             return True
 
         except Exception as e:
             # FR-COMMENT-005: Graceful degradation
             logger.warning(
-                "Failed to create onboarding comment on task %s: %s",
-                new_task.gid,
-                str(e),
+                "pipeline_create_comment_failed",
+                task_gid=new_task.gid,
+                error=str(e),
             )
             return False
 
@@ -1026,9 +1015,9 @@ Business: {business_name}"""
 
         if errors:
             logger.warning(
-                "Pre-transition validation failed for %s: %s",
-                source_process.gid,
-                errors,
+                "pre_transition_validation_failed",
+                process_gid=source_process.gid,
+                errors=errors,
             )
             return ValidationResult.failure(errors)
 
@@ -1075,10 +1064,12 @@ Business: {business_name}"""
 
         if warnings:
             logger.info(
-                "Post-transition validation warnings for %s -> %s: %s",
-                source_process.gid,
-                target_task.gid if hasattr(target_task, "gid") else "unknown",
-                warnings,
+                "pipeline_post_validation_warnings",
+                source_gid=source_process.gid,
+                target_gid=target_task.gid
+                if hasattr(target_task, "gid")
+                else "unknown",
+                warnings=warnings,
             )
 
         return ValidationResult(valid=True, warnings=warnings)

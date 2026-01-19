@@ -194,8 +194,8 @@ class WatermarkRepository:
         except RuntimeError:
             # No running event loop - log and skip
             logger.debug(
-                "No event loop for watermark persist, skipping S3 write for %s",
-                project_gid,
+                "no_event_loop_for_watermark_persist",
+                project_gid=project_gid,
             )
 
     async def _persist_watermark(
@@ -213,14 +213,14 @@ class WatermarkRepository:
             success = await persistence.save_watermark(project_gid, timestamp)
             if not success:
                 logger.debug(
-                    "Watermark persist returned False for %s (S3 may be degraded)",
-                    project_gid,
+                    "watermark_persist_returned_false",
+                    project_gid=project_gid,
                 )
         except Exception as e:
             logger.warning(
-                "Failed to persist watermark for %s: %s",
-                project_gid,
-                e,
+                "watermark_persist_failed",
+                project_gid=project_gid,
+                error=str(e),
             )
 
     def get_all_watermarks(self) -> dict[str, datetime]:
@@ -279,15 +279,15 @@ class WatermarkRepository:
                 self._watermarks.update(watermarks)
 
             logger.info(
-                "Loaded %d watermarks from S3 persistence",
-                len(watermarks),
+                "watermarks_loaded_from_s3",
+                count=len(watermarks),
             )
             return len(watermarks)
 
         except Exception as e:
             logger.warning(
-                "Failed to load watermarks from persistence: %s",
-                e,
+                "watermarks_load_failed",
+                error=str(e),
             )
             return 0
 
