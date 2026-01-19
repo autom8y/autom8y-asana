@@ -19,8 +19,16 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-from autom8y_cache import HierarchyAwareResolver
-from autom8y_http import ConcurrencyConfig, ConcurrencyController
+
+# Skip entire module if platform primitives not available
+try:
+    from autom8y_cache import HierarchyAwareResolver
+    from autom8y_http import ConcurrencyConfig, ConcurrencyController
+except ImportError:
+    pytest.skip(
+        "Platform primitives (ConcurrencyConfig, ConcurrencyController) not available",
+        allow_module_level=True,
+    )
 
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.dataframes.resolver.cascading import (
