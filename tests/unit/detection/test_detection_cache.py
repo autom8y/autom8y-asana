@@ -15,7 +15,7 @@ Test cases:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
@@ -112,7 +112,7 @@ def make_cache_entry(
 ) -> CacheEntry:
     """Create a CacheEntry for a DetectionResult."""
     if cached_at is None:
-        cached_at = datetime.now(timezone.utc)
+        cached_at = datetime.now(UTC)
 
     return CacheEntry(
         key=task_gid,
@@ -191,7 +191,7 @@ class TestGetCachedDetection:
     def test_expired_entry_returns_none(self, mock_cache: MagicMock) -> None:
         """FR-VERSION-003: Expired cache entry returns None."""
         # Create an expired entry (cached 10 minutes ago with 5 minute TTL)
-        past = datetime.now(timezone.utc) - timedelta(minutes=10)
+        past = datetime.now(UTC) - timedelta(minutes=10)
         expected_result = make_detection_result()
         cache_entry = make_cache_entry(
             "task_123", expected_result, cached_at=past, ttl=300
@@ -254,7 +254,7 @@ class TestCacheDetectionResult:
     def test_uses_task_modified_at_as_version(self, mock_cache: MagicMock) -> None:
         """FR-VERSION-001: Uses task.modified_at as version."""
         modified_at_str = "2025-01-15T12:00:00+00:00"
-        expected_version = datetime(2025, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        expected_version = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
         task = make_task(gid="task_123", modified_at=modified_at_str)
         result = make_detection_result()
 
@@ -265,12 +265,12 @@ class TestCacheDetectionResult:
 
     def test_uses_current_time_when_no_modified_at(self, mock_cache: MagicMock) -> None:
         """FR-VERSION-002: Uses current time if modified_at is None."""
-        before = datetime.now(timezone.utc)
+        before = datetime.now(UTC)
         task = make_task(gid="task_123", modified_at=None)
         result = make_detection_result()
 
         _cache_detection_result(task, result, mock_cache)
-        after = datetime.now(timezone.utc)
+        after = datetime.now(UTC)
 
         entry = mock_cache.set.call_args[0][1]
         assert before <= entry.version <= after

@@ -8,8 +8,9 @@ entry types and batch operations.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from autom8_asana.cache.entry import CacheEntry, EntryType
 from autom8_asana.cache.freshness import Freshness
@@ -90,7 +91,7 @@ async def load_task_entry(
     if version_str:
         version = _parse_version(version_str)
     else:
-        version = datetime.now(timezone.utc)
+        version = datetime.now(UTC)
 
     # Create new cache entry
     entry = CacheEntry(
@@ -98,7 +99,7 @@ async def load_task_entry(
         data=data,
         entry_type=entry_type,
         version=version,
-        cached_at=datetime.now(timezone.utc),
+        cached_at=datetime.now(UTC),
         ttl=ttl,
         project_gid=project_gid,
     )
@@ -284,14 +285,14 @@ async def load_batch_entries(
             if version_str:
                 version = _parse_version(version_str)
             else:
-                version = datetime.now(timezone.utc)
+                version = datetime.now(UTC)
 
             entry = CacheEntry(
                 key=gid,
                 data=data,
                 entry_type=entry_type,
                 version=version,
-                cached_at=datetime.now(timezone.utc),
+                cached_at=datetime.now(UTC),
                 ttl=ttl,
             )
 
@@ -323,8 +324,8 @@ def _parse_version(version_str: str) -> datetime:
     try:
         dt = datetime.fromisoformat(version_str)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
         return dt
     except ValueError:
         # Fallback to current time if parsing fails
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)

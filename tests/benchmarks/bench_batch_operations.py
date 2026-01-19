@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 import statistics
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import NamedTuple
 
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
@@ -50,7 +50,7 @@ def benchmark_batch_get(
     iterations: int = 100,
 ) -> BatchBenchmarkResult:
     """Benchmark batch get operations."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Pre-populate cache
     for i in range(batch_size):
@@ -94,7 +94,7 @@ def benchmark_batch_set(
     iterations: int = 100,
 ) -> BatchBenchmarkResult:
     """Benchmark batch set operations."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     latencies_ms: list[float] = []
 
@@ -174,7 +174,7 @@ def benchmark_staleness_check(
     iterations: int = 100,
 ) -> BatchBenchmarkResult:
     """Benchmark batch staleness checking."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Pre-populate cache
     for i in range(batch_size):

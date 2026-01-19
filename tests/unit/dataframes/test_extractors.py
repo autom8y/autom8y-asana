@@ -24,7 +24,6 @@ from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
 from autom8_asana.models.common import NameGid
 from autom8_asana.models.task import Task
 
-
 # =============================================================================
 # Test Fixtures
 # =============================================================================
@@ -206,7 +205,7 @@ class TestBaseExtractor:
         extractor = ConcreteExtractor(BASE_SCHEMA)
 
         created = extractor._extract_created(task)
-        assert created == dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
+        assert created == dt.datetime(1970, 1, 1, tzinfo=dt.UTC)
 
     def test_extract_due_on(self, full_task: Task) -> None:
         """Test due date extraction."""
@@ -285,7 +284,7 @@ class TestBaseExtractor:
         extractor = ConcreteExtractor(BASE_SCHEMA)
 
         last_modified = extractor._extract_last_modified(task)
-        assert last_modified == dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
+        assert last_modified == dt.datetime(1970, 1, 1, tzinfo=dt.UTC)
 
     def test_extract_section(self, full_task: Task) -> None:
         """Test section extraction from memberships."""
@@ -359,7 +358,7 @@ class TestBaseExtractor:
         """Test parsing invalid datetime returns epoch."""
         result = BaseExtractor._parse_datetime("invalid")
 
-        assert result == dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
+        assert result == dt.datetime(1970, 1, 1, tzinfo=dt.UTC)
 
     def test_parse_date_valid(self) -> None:
         """Test parsing valid date string."""

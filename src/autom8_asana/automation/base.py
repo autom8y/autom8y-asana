@@ -9,7 +9,7 @@ Per FR-010: Action types include create_process, add_to_project, set_field.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol, TYPE_CHECKING, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from autom8_asana.automation.context import AutomationContext

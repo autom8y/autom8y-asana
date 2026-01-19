@@ -23,18 +23,17 @@ import pytest
 from autom8_asana.batch.models import BatchResult
 from autom8_asana.models import Task
 from autom8_asana.persistence import (
-    SaveSession,
     EntityState,
     OperationType,
     PlannedOperation,
+    SaveSession,
 )
 
 from .conftest import (
+    create_failure_result,
     create_mock_client,
     create_success_result,
-    create_failure_result,
 )
-
 
 # ---------------------------------------------------------------------------
 # Basic Save Scenarios

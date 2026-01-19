@@ -15,7 +15,7 @@ Per TDD-custom-field-type-coercion:
 
 from __future__ import annotations
 
-from typing import Generator
+from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -30,9 +30,10 @@ from autom8_asana.services.dynamic_index import DynamicIndex
 from autom8_asana.services.resolution_result import ResolutionResult
 from autom8_asana.services.resolver import (
     EntityProjectRegistry,
+)
+from autom8_asana.services.resolver import (
     _apply_legacy_mapping as resolver_apply_legacy_mapping,
 )
-
 
 # --- Helpers ---
 

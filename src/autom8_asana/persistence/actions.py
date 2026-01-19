@@ -12,14 +12,15 @@ definition time based on configuration in ACTION_REGISTRY.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, overload
+from typing import TYPE_CHECKING, Any, overload
 
-from autom8_asana.persistence.models import ActionType, ActionOperation
-from autom8_asana.persistence.exceptions import PositioningConflictError
-from autom8_asana.persistence.validation import validate_gid
 from autom8_asana.models.common import NameGid
+from autom8_asana.persistence.exceptions import PositioningConflictError
+from autom8_asana.persistence.models import ActionOperation, ActionType
+from autom8_asana.persistence.validation import validate_gid
 
 if TYPE_CHECKING:
     from autom8_asana.models.base import AsanaResource

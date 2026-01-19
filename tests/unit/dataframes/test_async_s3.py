@@ -6,7 +6,6 @@ Uses mocking for boto3 operations.
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -193,7 +192,7 @@ class TestAsyncS3ClientErrors:
         client = AsyncS3Client(bucket="test")
 
         assert client._is_retryable_error(TimeoutError()) is True
-        assert client._is_retryable_error(asyncio.TimeoutError()) is True
+        assert client._is_retryable_error(TimeoutError()) is True
 
     def test_is_retryable_error_connection(self) -> None:
         """Connection errors are retryable."""

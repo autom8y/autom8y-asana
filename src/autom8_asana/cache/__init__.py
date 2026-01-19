@@ -65,6 +65,15 @@ Example:
     300
 """
 
+# autom8 integration adapter (ADR-0025)
+from autom8_asana.cache.autom8_adapter import (
+    MigrationResult,
+    MissingConfigurationError,
+    check_redis_health,
+    create_autom8_cache_provider,
+    migrate_task_collection_loading,
+    warm_project_tasks,
+)
 from autom8_asana.cache.batch import (
     DEFAULT_MODIFICATION_CHECK_TTL,
     ModificationCheck,
@@ -73,6 +82,22 @@ from autom8_asana.cache.batch import (
     get_modification_cache,
     reset_modification_cache,
     ttl_cached_modifications,
+)
+
+# Lightweight staleness detection (TDD-CACHE-LIGHTWEIGHT-STALENESS)
+from autom8_asana.cache.coalescer import RequestCoalescer
+
+# Completeness tracking (TDD-CACHE-COMPLETENESS-001)
+from autom8_asana.cache.completeness import (
+    FULL_FIELDS,
+    MINIMAL_FIELDS,
+    STANDARD_FIELDS,
+    CompletenessLevel,
+    create_completeness_metadata,
+    get_entry_completeness,
+    get_fields_for_level,
+    infer_completeness_level,
+    is_entry_sufficient,
 )
 from autom8_asana.cache.dataframes import (
     invalidate_dataframe,
@@ -89,6 +114,11 @@ from autom8_asana.cache.events import (
     setup_cache_logging,
 )
 from autom8_asana.cache.freshness import Freshness
+
+# Unified cache (TDD-UNIFIED-CACHE-001, MIGRATION-PLAN-legacy-cache-elimination RF-003)
+from autom8_asana.cache.freshness_coordinator import FreshnessMode
+from autom8_asana.cache.hierarchy import HierarchyIndex
+from autom8_asana.cache.lightweight_checker import LightweightChecker
 from autom8_asana.cache.loader import (
     load_batch_entries,
     load_task_entries,
@@ -101,54 +131,23 @@ from autom8_asana.cache.staleness import (
     check_entry_staleness,
     partition_by_staleness,
 )
+from autom8_asana.cache.staleness_settings import StalenessCheckSettings
 from autom8_asana.cache.stories import (
     DEFAULT_STORY_TYPES,
     filter_relevant_stories,
     get_latest_story_timestamp,
     load_stories_incremental,
 )
+
+# Two-tier caching (ADR-0026)
+from autom8_asana.cache.tiered import TieredCacheProvider, TieredConfig
+from autom8_asana.cache.unified import UnifiedTaskStore
 from autom8_asana.cache.versioning import (
     compare_versions,
     format_version,
     is_current,
     is_stale,
     parse_version,
-)
-
-# autom8 integration adapter (ADR-0025)
-from autom8_asana.cache.autom8_adapter import (
-    MigrationResult,
-    MissingConfigurationError,
-    check_redis_health,
-    create_autom8_cache_provider,
-    migrate_task_collection_loading,
-    warm_project_tasks,
-)
-
-# Two-tier caching (ADR-0026)
-from autom8_asana.cache.tiered import TieredCacheProvider, TieredConfig
-
-# Lightweight staleness detection (TDD-CACHE-LIGHTWEIGHT-STALENESS)
-from autom8_asana.cache.coalescer import RequestCoalescer
-from autom8_asana.cache.lightweight_checker import LightweightChecker
-from autom8_asana.cache.staleness_settings import StalenessCheckSettings
-
-# Unified cache (TDD-UNIFIED-CACHE-001, MIGRATION-PLAN-legacy-cache-elimination RF-003)
-from autom8_asana.cache.freshness_coordinator import FreshnessMode
-from autom8_asana.cache.hierarchy import HierarchyIndex
-from autom8_asana.cache.unified import UnifiedTaskStore
-
-# Completeness tracking (TDD-CACHE-COMPLETENESS-001)
-from autom8_asana.cache.completeness import (
-    CompletenessLevel,
-    MINIMAL_FIELDS,
-    STANDARD_FIELDS,
-    FULL_FIELDS,
-    infer_completeness_level,
-    get_entry_completeness,
-    is_entry_sufficient,
-    create_completeness_metadata,
-    get_fields_for_level,
 )
 
 # SDK Primitives (TDD-CACHE-SDK-PRIMITIVES-001)

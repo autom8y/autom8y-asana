@@ -8,7 +8,7 @@ Per TDD-S2S-001 Section 12.1:
 
 from __future__ import annotations
 
-from typing import Generator
+from collections.abc import Generator
 
 import pytest
 

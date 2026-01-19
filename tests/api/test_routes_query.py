@@ -27,7 +27,7 @@ Test Matrix (per TDD):
 
 from __future__ import annotations
 
-from typing import Generator
+from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -979,16 +979,18 @@ class TestQueryModels:
 
     def test_query_request_negative_offset_rejected(self) -> None:
         """QueryRequest rejects negative offset."""
-        from autom8_asana.api.routes.query import QueryRequest
         import pydantic
+
+        from autom8_asana.api.routes.query import QueryRequest
 
         with pytest.raises(pydantic.ValidationError):
             QueryRequest(offset=-1)
 
     def test_query_request_zero_limit_rejected(self) -> None:
         """QueryRequest rejects limit < 1."""
-        from autom8_asana.api.routes.query import QueryRequest
         import pydantic
+
+        from autom8_asana.api.routes.query import QueryRequest
 
         with pytest.raises(pydantic.ValidationError):
             QueryRequest(limit=0)

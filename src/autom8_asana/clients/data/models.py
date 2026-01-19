@@ -11,7 +11,7 @@ import re
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -230,7 +230,7 @@ class InsightsResponse(BaseModel):
     request_id: str
     warnings: list[str] = Field(default_factory=list)
 
-    def to_dataframe(self) -> "pl.DataFrame":
+    def to_dataframe(self) -> pl.DataFrame:
         """Convert response to Polars DataFrame.
 
         Per ADR-0028: autom8_asana uses Polars as primary DataFrame library.
@@ -272,7 +272,7 @@ class InsightsResponse(BaseModel):
 
         return df
 
-    def to_pandas(self) -> "pd.DataFrame":
+    def to_pandas(self) -> pd.DataFrame:
         """Convert response to pandas DataFrame.
 
         Per TDD-INSIGHTS-001 FR-005.5: Backward compatibility with pandas consumers.
@@ -290,7 +290,7 @@ class InsightsResponse(BaseModel):
         return self.to_dataframe().to_pandas()
 
     @staticmethod
-    def _polars_dtype(dtype_str: str) -> "pl.DataType | None":
+    def _polars_dtype(dtype_str: str) -> pl.DataType | None:
         """Map dtype string to Polars dtype.
 
         Args:
@@ -393,7 +393,7 @@ class BatchInsightsResponse(BaseModel):
     success_count: int
     failure_count: int
 
-    def to_dataframe(self) -> "pl.DataFrame":
+    def to_dataframe(self) -> pl.DataFrame:
         """Concatenate all successful results into single DataFrame.
 
         Per TDD-INSIGHTS-001 FR-006.5: Combines all successful responses
@@ -422,7 +422,7 @@ class BatchInsightsResponse(BaseModel):
 
         return pl.concat(dfs)
 
-    def to_pandas(self) -> "pd.DataFrame":
+    def to_pandas(self) -> pd.DataFrame:
         """Convert combined results to pandas DataFrame.
 
         Returns:

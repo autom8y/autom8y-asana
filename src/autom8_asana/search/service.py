@@ -18,12 +18,12 @@ Integration points:
 from __future__ import annotations
 
 import asyncio
-from autom8y_log import get_logger
 import time
 from functools import reduce
 from typing import TYPE_CHECKING
 
 import polars as pl
+from autom8y_log import get_logger
 
 from autom8_asana.dataframes.resolver.normalizer import NameNormalizer
 from autom8_asana.search.models import (

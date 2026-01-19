@@ -1,10 +1,10 @@
 """Tests for S3CacheProvider."""
 
-from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
 import gzip
 import json
 import os
+from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -13,9 +13,9 @@ from autom8_asana.protocols.cache import WarmResult
 
 # Try to import moto, skip integration tests if not available
 try:
-    from moto import mock_aws
     import boto3
     from botocore.exceptions import ClientError
+    from moto import mock_aws
 
     MOTO_AVAILABLE = True
 except ImportError:
@@ -211,7 +211,7 @@ class TestS3CacheProviderDegraded:
             provider = S3CacheProvider(config=config)
             provider._degraded = True
 
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             entries = {
                 "1": CacheEntry(
                     key="1", data={}, entry_type=EntryType.TASK, version=now
@@ -231,9 +231,7 @@ class TestS3CacheProviderDegraded:
             provider._degraded = True
 
             assert (
-                provider.check_freshness(
-                    "key", EntryType.TASK, datetime.now(timezone.utc)
-                )
+                provider.check_freshness("key", EntryType.TASK, datetime.now(UTC))
                 is False
             )
 
@@ -301,8 +299,8 @@ class TestS3CacheProviderSerialization:
                 key="123",
                 data={"name": "Test Task"},
                 entry_type=EntryType.TASK,
-                version=datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
-                cached_at=datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+                version=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),
+                cached_at=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),
                 ttl=300,
                 project_gid="project_456",
                 metadata={"source": "api"},
@@ -527,7 +525,7 @@ class TestS3CacheProviderCompression:
                 key="123",
                 data={"name": "Small"},
                 entry_type=EntryType.TASK,
-                version=datetime.now(timezone.utc),
+                version=datetime.now(UTC),
             )
 
             body, metadata, is_compressed = provider._serialize_entry(entry)
@@ -552,7 +550,7 @@ class TestS3CacheProviderCompression:
                 key="123",
                 data=large_data,
                 entry_type=EntryType.TASK,
-                version=datetime.now(timezone.utc),
+                version=datetime.now(UTC),
             )
 
             body, metadata, is_compressed = provider._serialize_entry(entry)
@@ -763,7 +761,7 @@ class TestS3CacheProviderIntegration:
 
     def test_versioned_set_and_get(self, s3_provider) -> None:
         """Test versioned get/set operations."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         entry = CacheEntry(
             key="123",
             data={"name": "Test Task"},
@@ -781,7 +779,7 @@ class TestS3CacheProviderIntegration:
 
     def test_check_freshness_current(self, s3_provider) -> None:
         """Test check_freshness returns True for current version."""
-        cached_time = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        cached_time = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         entry = CacheEntry(
             key="123",
             data={},
@@ -795,7 +793,7 @@ class TestS3CacheProviderIntegration:
 
     def test_check_freshness_stale(self, s3_provider) -> None:
         """Test check_freshness returns False for stale version."""
-        cached_time = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        cached_time = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         entry = CacheEntry(
             key="123",
             data={},
@@ -805,7 +803,7 @@ class TestS3CacheProviderIntegration:
         s3_provider.set_versioned("123", entry)
 
         # Newer version should be stale
-        newer = datetime(2025, 1, 1, 14, 0, 0, tzinfo=timezone.utc)
+        newer = datetime(2025, 1, 1, 14, 0, 0, tzinfo=UTC)
         assert s3_provider.check_freshness("123", EntryType.TASK, newer) is False
 
     def test_check_freshness_missing(self, s3_provider) -> None:
@@ -814,14 +812,14 @@ class TestS3CacheProviderIntegration:
             s3_provider.check_freshness(
                 "nonexistent",
                 EntryType.TASK,
-                datetime.now(timezone.utc),
+                datetime.now(UTC),
             )
             is False
         )
 
     def test_invalidate_single_type(self, s3_provider) -> None:
         """Test invalidate removes specified entry types."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         s3_provider.set_versioned(
             "123",
@@ -849,7 +847,7 @@ class TestS3CacheProviderIntegration:
 
     def test_invalidate_all_types(self, s3_provider) -> None:
         """Test invalidate removes all entry types when None specified."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         s3_provider.set_versioned(
             "123",
@@ -877,7 +875,7 @@ class TestS3CacheProviderIntegration:
 
     def test_get_batch(self, s3_provider) -> None:
         """Test get_batch operation."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         s3_provider.set_versioned(
             "1",
@@ -913,7 +911,7 @@ class TestS3CacheProviderIntegration:
 
     def test_set_batch(self, s3_provider) -> None:
         """Test set_batch operation."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         entries = {
             "1": CacheEntry(
@@ -937,7 +935,7 @@ class TestS3CacheProviderIntegration:
     def test_ttl_expiration(self, s3_provider) -> None:
         """Test TTL expiration handling (S3 stores TTL in metadata)."""
         # Create an entry that's already expired
-        old_time = datetime.now(timezone.utc) - timedelta(hours=1)
+        old_time = datetime.now(UTC) - timedelta(hours=1)
         entry = CacheEntry(
             key="123",
             data={"name": "Expired Task"},
@@ -965,7 +963,7 @@ class TestS3CacheProviderIntegration:
             key="large",
             data=large_data,
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
         )
 
         s3_provider.set_versioned("large", entry)
@@ -976,7 +974,7 @@ class TestS3CacheProviderIntegration:
 
     def test_dataframe_entry_type(self, s3_provider) -> None:
         """Test DATAFRAME entry type uses correct key structure."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         entry = CacheEntry(
             key="task:project",
             data={"structure": "data"},
@@ -992,7 +990,7 @@ class TestS3CacheProviderIntegration:
 
     def test_metadata_preserved(self, s3_provider) -> None:
         """Test entry metadata is preserved through round-trip."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         entry = CacheEntry(
             key="123",
             data={"name": "Test"},

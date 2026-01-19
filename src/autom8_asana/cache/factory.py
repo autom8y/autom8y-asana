@@ -217,10 +217,10 @@ class CacheProviderFactory:
 
     @staticmethod
     def create_unified_store(
-        config: "CacheConfig",
-        batch_client: "BatchClient | None" = None,
-        freshness_mode: "FreshnessMode | None" = None,
-    ) -> "UnifiedTaskStore":
+        config: CacheConfig,
+        batch_client: BatchClient | None = None,
+        freshness_mode: FreshnessMode | None = None,
+    ) -> UnifiedTaskStore:
         """Create unified task store with environment-aware provider selection.
 
         Per MIGRATION-PLAN-legacy-cache-elimination RF-001:

@@ -21,16 +21,15 @@ from autom8_asana.persistence.exceptions import (
 )
 from autom8_asana.persistence.graph import DependencyGraph
 from autom8_asana.persistence.models import (
+    ActionOperation,
+    ActionResult,
+    ActionType,
     OperationType,
     PlannedOperation,
     SaveResult,
-    ActionType,
-    ActionOperation,
-    ActionResult,
 )
-from autom8_asana.persistence.pipeline import SavePipeline, UNSUPPORTED_FIELDS
+from autom8_asana.persistence.pipeline import UNSUPPORTED_FIELDS, SavePipeline
 from autom8_asana.persistence.tracker import ChangeTracker
-
 
 # ---------------------------------------------------------------------------
 # Test Fixtures

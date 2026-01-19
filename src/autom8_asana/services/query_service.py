@@ -20,8 +20,9 @@ Components:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 from autom8y_log import get_logger
@@ -108,7 +109,7 @@ class EntityQueryService:
         47
     """
 
-    strategy_factory: Callable[[str], "UniversalResolutionStrategy"] | None = field(
+    strategy_factory: Callable[[str], UniversalResolutionStrategy] | None = field(
         default=None
     )
 
@@ -123,7 +124,7 @@ class EntityQueryService:
         self,
         entity_type: str,
         project_gid: str,
-        client: "AsanaClient",
+        client: AsanaClient,
         where: dict[str, Any],
         select: list[str] | None,
         limit: int,

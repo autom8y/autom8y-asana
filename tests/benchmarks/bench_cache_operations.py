@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import statistics
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import NamedTuple
 
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
@@ -41,7 +41,7 @@ def benchmark_cache_hit(
 
     Pre-populates cache, then measures read latency.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Pre-populate
     entry = CacheEntry(
@@ -111,7 +111,7 @@ def benchmark_cache_write(
 
     Measures write latency for new entries.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     latencies_us: list[float] = []
 
     for i in range(iterations):
@@ -149,7 +149,7 @@ def benchmark_cache_overwrite(
 
     Measures write latency when overwriting existing entries.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Pre-populate
     entry = CacheEntry(
@@ -195,7 +195,7 @@ def benchmark_invalidation(
     cache: EnhancedInMemoryCacheProvider, iterations: int = 10000
 ) -> BenchmarkResult:
     """Benchmark cache invalidation latency."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Pre-populate
     for i in range(iterations):

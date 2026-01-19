@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def compare_versions(
@@ -94,7 +94,7 @@ def parse_version(version: datetime | str) -> datetime:
     """
     if isinstance(version, datetime):
         if version.tzinfo is None:
-            return version.replace(tzinfo=timezone.utc)
+            return version.replace(tzinfo=UTC)
         return version
 
     # Parse string version
@@ -117,7 +117,7 @@ def format_version(version: datetime) -> str:
         '2025-01-15T10:30:00+00:00'
     """
     if version.tzinfo is None:
-        version = version.replace(tzinfo=timezone.utc)
+        version = version.replace(tzinfo=UTC)
     return version.isoformat()
 
 
@@ -143,7 +143,7 @@ def _parse_iso_datetime(value: str) -> datetime:
     try:
         dt = datetime.fromisoformat(value)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
         return dt
     except ValueError:
         pass
@@ -159,7 +159,7 @@ def _parse_iso_datetime(value: str) -> datetime:
         try:
             parsed = datetime.strptime(value, fmt)
             if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
+                parsed = parsed.replace(tzinfo=UTC)
             return parsed
         except ValueError:
             continue

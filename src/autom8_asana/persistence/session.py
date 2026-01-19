@@ -10,33 +10,34 @@ Per TDD-DEBT-003: Thread-safe state transitions via RLock.
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable, Coroutine, Generator
 from contextlib import contextmanager
-from typing import Any, Callable, Generator, TypeVar, TYPE_CHECKING, Coroutine
+from typing import TYPE_CHECKING, Any, TypeVar
 
-from autom8_asana.persistence.tracker import ChangeTracker
-from autom8_asana.persistence.graph import DependencyGraph
-from autom8_asana.persistence.pipeline import SavePipeline
-from autom8_asana.persistence.events import EventSystem
+from autom8_asana.clients.name_resolver import NameResolver
 from autom8_asana.persistence.action_executor import ActionExecutor
 from autom8_asana.persistence.actions import ActionBuilder
 from autom8_asana.persistence.cache_invalidator import CacheInvalidator
+from autom8_asana.persistence.events import EventSystem
+from autom8_asana.persistence.exceptions import (
+    PositioningConflictError,
+    SessionClosedError,
+)
+from autom8_asana.persistence.graph import DependencyGraph
+from autom8_asana.persistence.healing import HealingManager
 from autom8_asana.persistence.models import (
+    ActionOperation,
+    ActionResult,
+    ActionType,
     EntityState,
+    HealingReport,
     OperationType,
     PlannedOperation,
     SaveResult,
-    ActionType,
-    ActionOperation,
-    ActionResult,
-    HealingReport,
 )
-from autom8_asana.persistence.exceptions import (
-    SessionClosedError,
-    PositioningConflictError,
-)
-from autom8_asana.persistence.healing import HealingManager
+from autom8_asana.persistence.pipeline import SavePipeline
+from autom8_asana.persistence.tracker import ChangeTracker
 from autom8_asana.transport.sync import sync_wrapper
-from autom8_asana.clients.name_resolver import NameResolver
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient

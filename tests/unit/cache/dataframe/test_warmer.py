@@ -6,7 +6,7 @@ for Lambda deployment.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -214,7 +214,7 @@ class TestCacheWarmer:
         # Mock the strategy
         mock_strategy = MagicMock()
         mock_strategy._build_dataframe = AsyncMock(
-            return_value=(sample_dataframe, datetime.now(timezone.utc))
+            return_value=(sample_dataframe, datetime.now(UTC))
         )
 
         with patch.object(
@@ -290,7 +290,7 @@ class TestCacheWarmer:
                 raise Exception("Build failed")
             return (
                 pl.DataFrame({"gid": ["1"], "name": ["Task"]}),
-                datetime.now(timezone.utc),
+                datetime.now(UTC),
             )
 
         mock_strategy = MagicMock()
@@ -322,7 +322,7 @@ class TestCacheWarmer:
 
         mock_strategy = MagicMock()
         mock_strategy._build_dataframe = AsyncMock(
-            return_value=(sample_dataframe, datetime.now(timezone.utc))
+            return_value=(sample_dataframe, datetime.now(UTC))
         )
 
         with patch.object(
@@ -454,7 +454,7 @@ class TestCacheWarmer:
 
         mock_strategy = MagicMock()
         mock_strategy._build_dataframe = AsyncMock(
-            return_value=(None, datetime.now(timezone.utc))
+            return_value=(None, datetime.now(UTC))
         )
 
         with patch.object(
@@ -507,7 +507,7 @@ class TestCacheWarmer:
             call_count += 1
             if call_count == 2:
                 raise Exception("Build failed")
-            return (sample_dataframe, datetime.now(timezone.utc))
+            return (sample_dataframe, datetime.now(UTC))
 
         mock_strategy = MagicMock()
         mock_strategy._build_dataframe = AsyncMock(side_effect=build_side_effect)

@@ -23,7 +23,6 @@ Per PRD-ASANA-SATELLITE (FR-ERR-009):
 """
 
 from autom8y_log import get_logger
-
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from httpx import RequestError

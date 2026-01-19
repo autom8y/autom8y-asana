@@ -42,11 +42,10 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable, Coroutine
 from functools import wraps
 from typing import (
     Any,
-    Callable,
-    Coroutine,
     Generic,
     TypeVar,
     overload,
@@ -146,7 +145,7 @@ class AsyncMethodPair(Generic[R]):
         setattr(owner, sync_name, sync_wrapper)
 
     @overload
-    def __get__(self, obj: None, objtype: type) -> "AsyncMethodPair[R]": ...
+    def __get__(self, obj: None, objtype: type) -> AsyncMethodPair[R]: ...
 
     @overload
     def __get__(self, obj: object, objtype: type | None) -> Any: ...

@@ -7,11 +7,11 @@ Per TDD-entity-creation: Business deduplication via SearchService.
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
 import uuid
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from autom8y_log import get_logger
 from pydantic import BaseModel
 
 from autom8_asana.models.business.process import ProcessType
@@ -99,10 +99,10 @@ class SeederResult:
     Per ADR-0101: added_to_pipeline removed (canonical project IS the pipeline).
     """
 
-    business: "Business"
-    unit: "Unit"
-    process: "Process"
-    contact: "Contact | None" = None
+    business: Business
+    unit: Unit
+    process: Process
+    contact: Contact | None = None
     created_business: bool = False
     created_unit: bool = False
     created_contact: bool = False
@@ -142,9 +142,9 @@ class BusinessSeeder:
 
     def __init__(
         self,
-        client: "AsanaClient",
+        client: AsanaClient,
         *,
-        matching_config: "MatchingConfig | None" = None,
+        matching_config: MatchingConfig | None = None,
     ) -> None:
         """Initialize seeder with Asana client.
 
@@ -345,7 +345,7 @@ class BusinessSeeder:
 
         return _seed_sync()
 
-    async def _find_business_async(self, data: BusinessData) -> "Business | None":
+    async def _find_business_async(self, data: BusinessData) -> Business | None:
         """Find existing Business by company_id, name, or composite matching.
 
         Per TDD-entity-creation: Multi-tier matching strategy.
@@ -408,7 +408,7 @@ class BusinessSeeder:
         )
         return None
 
-    async def _find_by_composite_match(self, data: BusinessData) -> "Business | None":
+    async def _find_by_composite_match(self, data: BusinessData) -> Business | None:
         """Find business using composite matching.
 
         Per TDD-BusinessSeeder-v2: Uses MatchingEngine for probabilistic matching.
@@ -451,7 +451,7 @@ class BusinessSeeder:
 
         return None
 
-    async def _get_match_candidates(self, data: BusinessData) -> list["Candidate"]:
+    async def _get_match_candidates(self, data: BusinessData) -> list[Candidate]:
         """Get candidate businesses for matching.
 
         Retrieves potential matches from SearchService and converts to Candidates.
@@ -499,7 +499,7 @@ class BusinessSeeder:
 
         return candidates
 
-    async def _search_by_company_id(self, company_id: str) -> "SearchHit | None":
+    async def _search_by_company_id(self, company_id: str) -> SearchHit | None:
         """Search for Business by company_id.
 
         Per TDD-entity-creation: Tier 1 exact match on company_id field.
@@ -542,7 +542,7 @@ class BusinessSeeder:
             )
             return None
 
-    async def _search_by_name(self, name: str) -> "SearchHit | None":
+    async def _search_by_name(self, name: str) -> SearchHit | None:
         """Search for Business by exact name match.
 
         Per TDD-entity-creation: Tier 2 exact match on name field.
@@ -584,7 +584,7 @@ class BusinessSeeder:
             )
             return None
 
-    async def _load_business(self, gid: str) -> "Business":
+    async def _load_business(self, gid: str) -> Business:
         """Load Business entity by GID.
 
         Per TDD-entity-creation: Loads full Business for matched GID.

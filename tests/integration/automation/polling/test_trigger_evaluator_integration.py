@@ -46,8 +46,8 @@ if TYPE_CHECKING:
 
 @pytest.mark.integration
 def test_stale_trigger_matches_old_tasks(
-    mock_stale_task: "MockTask",
-    mock_fresh_task: "MockTask",
+    mock_stale_task: MockTask,
+    mock_fresh_task: MockTask,
 ) -> None:
     """Test stale trigger matches tasks not modified recently.
 
@@ -141,8 +141,8 @@ def test_stale_trigger_missing_modified_at(now: datetime) -> None:
 
 @pytest.mark.integration
 def test_deadline_trigger_matches_due_soon_tasks(
-    mock_due_soon_task: "MockTask",
-    mock_fresh_task: "MockTask",
+    mock_due_soon_task: MockTask,
+    mock_fresh_task: MockTask,
     now: datetime,
 ) -> None:
     """Test deadline trigger matches tasks due within threshold.
@@ -272,9 +272,9 @@ def test_deadline_trigger_due_at_preferred_over_due_on(now: datetime) -> None:
 
 @pytest.mark.integration
 def test_age_trigger_matches_old_open_tasks(
-    mock_old_open_task: "MockTask",
-    mock_old_completed_task: "MockTask",
-    mock_fresh_task: "MockTask",
+    mock_old_open_task: MockTask,
+    mock_old_completed_task: MockTask,
+    mock_fresh_task: MockTask,
 ) -> None:
     """Test age trigger matches old open tasks but not completed ones.
 
@@ -301,7 +301,7 @@ def test_age_trigger_matches_old_open_tasks(
 
 @pytest.mark.integration
 def test_age_trigger_completed_tasks_excluded(
-    mock_old_completed_task: "MockTask",
+    mock_old_completed_task: MockTask,
 ) -> None:
     """Test that completed tasks are always excluded from age trigger."""
     evaluator = TriggerEvaluator()
@@ -459,8 +459,8 @@ def test_single_condition_with_multiple_triggers(now: datetime) -> None:
 
 @pytest.mark.integration
 def test_no_conditions_returns_all_tasks(
-    mock_stale_task: "MockTask",
-    mock_fresh_task: "MockTask",
+    mock_stale_task: MockTask,
+    mock_fresh_task: MockTask,
 ) -> None:
     """Test that a rule with no conditions returns all tasks."""
     evaluator = TriggerEvaluator()

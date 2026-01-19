@@ -18,9 +18,10 @@ Example:
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
+
+from autom8y_log import get_logger
 
 from autom8_asana.automation.polling.config_schema import (
     Rule,
@@ -85,7 +86,7 @@ class TriggerEvaluator:
             )
             return list(tasks)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         matching_tasks: list[Any] = []
 
         for task in tasks:
@@ -325,6 +326,6 @@ class TriggerEvaluator:
 
         try:
             date = datetime.strptime(value, "%Y-%m-%d")
-            return date.replace(tzinfo=timezone.utc)
+            return date.replace(tzinfo=UTC)
         except (ValueError, TypeError):
             return None

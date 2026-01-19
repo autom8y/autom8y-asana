@@ -42,14 +42,14 @@ class LightweightChecker:
         chunk_size: Maximum actions per batch request (default 10, Asana limit).
     """
 
-    batch_client: "BatchClient"
+    batch_client: BatchClient
     chunk_size: int = ASANA_BATCH_LIMIT
     _total_checks: int = field(default=0, init=False, repr=False)
     _total_api_calls: int = field(default=0, init=False, repr=False)
 
     async def check_batch_async(
         self,
-        entries: list["CacheEntry"],
+        entries: list[CacheEntry],
     ) -> dict[str, str | None]:
         """Check modified_at for multiple entries via batch API.
 

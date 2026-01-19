@@ -88,9 +88,9 @@ def mock_logger():
 @pytest.fixture
 def client_fixture(mock_http, mock_auth, mock_logger):
     """Create a mock AsanaClient for testing."""
-    from autom8_asana.config import AsanaConfig
     from autom8_asana.client import AsanaClient
     from autom8_asana.clients.tasks import TasksClient
+    from autom8_asana.config import AsanaConfig
 
     config = AsanaConfig()
 

@@ -16,11 +16,11 @@ After computation, write_fields_async() persists these values to the API.
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import arrow
+from autom8y_log import get_logger
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient

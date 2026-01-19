@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import Mock
 
 import pytest
@@ -11,7 +11,6 @@ from autom8_asana.cache.entry import CacheEntry, EntryType
 from autom8_asana.cache.freshness import Freshness
 from autom8_asana.cache.metrics import CacheMetrics
 from autom8_asana.protocols.cache import CacheProvider, WarmResult
-
 
 # ============================================================================
 # Fixtures
@@ -47,8 +46,8 @@ def sample_entry() -> CacheEntry:
         key="123456",
         data={"gid": "123456", "name": "Test Task"},
         entry_type=EntryType.TASK,
-        version=datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
-        cached_at=datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+        version=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),
+        cached_at=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),
         ttl=300,
     )
 
@@ -60,8 +59,8 @@ def sample_subtasks_entry() -> CacheEntry:
         key="123456",
         data=[{"gid": "sub1"}, {"gid": "sub2"}],
         entry_type=EntryType.SUBTASKS,
-        version=datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
-        cached_at=datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+        version=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),
+        cached_at=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),
         ttl=300,
     )
 
@@ -348,7 +347,7 @@ class TestBatchOperations:
         """Test get_batch returns entries from hot, cold, or None for each key."""
         from autom8_asana.cache.tiered import TieredCacheProvider, TieredConfig
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         hot_entry = CacheEntry(
             key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now, ttl=300
         )
@@ -384,7 +383,7 @@ class TestBatchOperations:
         """Test set_batch writes to both tiers when S3 is enabled."""
         from autom8_asana.cache.tiered import TieredCacheProvider, TieredConfig
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         entries = {
             "1": CacheEntry(
                 key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now
@@ -653,7 +652,7 @@ class TestGracefulDegradation:
         """Test batch operations continue despite S3 errors."""
         from autom8_asana.cache.tiered import TieredCacheProvider, TieredConfig
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         hot_entry = CacheEntry(
             key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now
         )
@@ -758,7 +757,7 @@ class TestCheckFreshness:
         config = TieredConfig(s3_enabled=False)
         provider = TieredCacheProvider(hot_tier=mock_hot_tier, config=config)
 
-        version = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        version = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         result = provider.check_freshness("123456", EntryType.TASK, version)
 
         assert result is True

@@ -56,12 +56,12 @@ class RequestCoalescer:
         ... )
     """
 
-    checker: "LightweightChecker" = field(repr=False)
+    checker: LightweightChecker = field(repr=False)
     window_ms: int = 50
     max_batch: int = 100
 
     # Internal state
-    _pending: dict[str, tuple["CacheEntry", "asyncio.Future[str | None]"]] = field(
+    _pending: dict[str, tuple[CacheEntry, asyncio.Future[str | None]]] = field(
         default_factory=dict, init=False, repr=False
     )
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
@@ -73,7 +73,7 @@ class RequestCoalescer:
     _total_batches: int = field(default=0, init=False, repr=False)
     _total_deduped: int = field(default=0, init=False, repr=False)
 
-    async def request_check_async(self, entry: "CacheEntry") -> str | None:
+    async def request_check_async(self, entry: CacheEntry) -> str | None:
         """Queue entry for batch staleness check.
 
         Per FR-BATCH-001 through FR-BATCH-006:
@@ -222,7 +222,7 @@ class RequestCoalescer:
 
     def _distribute_results(
         self,
-        batch: dict[str, tuple["CacheEntry", "asyncio.Future[str | None]"]],
+        batch: dict[str, tuple[CacheEntry, asyncio.Future[str | None]]],
         results: dict[str, str | None],
     ) -> None:
         """Set results on waiting futures.

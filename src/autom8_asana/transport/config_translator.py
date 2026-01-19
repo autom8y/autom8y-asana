@@ -14,8 +14,14 @@ from typing import TYPE_CHECKING
 
 from autom8y_http import (
     CircuitBreakerConfig as PlatformCircuitBreakerConfig,
+)
+from autom8y_http import (
     HttpClientConfig,
+)
+from autom8y_http import (
     RateLimiterConfig as PlatformRateLimiterConfig,
+)
+from autom8y_http import (
     RetryConfig as PlatformRetryConfig,
 )
 

@@ -11,7 +11,7 @@ Coverage targets:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
@@ -24,7 +24,6 @@ from autom8_asana.dataframes.builders.task_cache import (
 )
 from autom8_asana.models import Task
 
-
 # =============================================================================
 # Test Fixtures
 # =============================================================================
@@ -33,7 +32,7 @@ from autom8_asana.models import Task
 @pytest.fixture
 def now() -> datetime:
     """Current UTC datetime."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @pytest.fixture
@@ -278,7 +277,7 @@ class TestTaskCacheCoordinatorLookup:
     ) -> None:
         """Test lookup returns None for expired cache entries."""
         # Pre-populate cache with expired entry
-        past = datetime.now(timezone.utc) - timedelta(hours=2)
+        past = datetime.now(UTC) - timedelta(hours=2)
         entry = CacheEntry(
             key="task123",
             data=sample_task.model_dump(exclude_none=True),
@@ -654,9 +653,9 @@ class TestTaskCacheCoordinatorEdgeCases:
 
     def test_parse_modified_at_none(self, coordinator: TaskCacheCoordinator) -> None:
         """Test parsing None modified_at returns current time."""
-        before = datetime.now(timezone.utc)
+        before = datetime.now(UTC)
         result = coordinator._parse_modified_at(None)
-        after = datetime.now(timezone.utc)
+        after = datetime.now(UTC)
 
         assert before <= result <= after
 

@@ -9,16 +9,16 @@ The old ProjectDataFrameBuilder has been removed. Tests are skipped until migrat
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, AsyncMock
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock
 
 import polars as pl
 import pytest
 
 # Try to import moto, skip tests if not available
 try:
-    from moto import mock_aws
     import boto3
+    from moto import mock_aws
 
     MOTO_AVAILABLE = True
 except ImportError:
@@ -106,14 +106,14 @@ class TestDataFrameBuilderPersistence:
                 "name": ["Task A", "Task B", "Task C"],
                 "completed": [True, False, True],
                 "created_at": [
-                    datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc),
-                    datetime(2025, 1, 2, 12, 0, tzinfo=timezone.utc),
-                    datetime(2025, 1, 3, 12, 0, tzinfo=timezone.utc),
+                    datetime(2025, 1, 1, 12, 0, tzinfo=UTC),
+                    datetime(2025, 1, 2, 12, 0, tzinfo=UTC),
+                    datetime(2025, 1, 3, 12, 0, tzinfo=UTC),
                 ],
             }
         )
 
-        watermark = datetime(2025, 1, 5, 12, 0, tzinfo=timezone.utc)
+        watermark = datetime(2025, 1, 5, 12, 0, tzinfo=UTC)
 
         # Save
         success = await persistence.save_dataframe(
@@ -166,7 +166,7 @@ class TestCreateWithAutoPersistence:
     @pytest.fixture
     def minimal_schema(self):
         """Create a minimal schema for testing."""
-        from autom8_asana.dataframes.models.schema import DataFrameSchema, ColumnDef
+        from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 
         return DataFrameSchema(
             name="test",

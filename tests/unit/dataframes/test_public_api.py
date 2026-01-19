@@ -7,7 +7,6 @@ Per TDD-0009 Phase 5: Validates the public API methods:
 
 from __future__ import annotations
 
-
 import polars as pl
 import pytest
 
@@ -18,7 +17,6 @@ from autom8_asana.models.common import NameGid
 from autom8_asana.models.project import Project
 from autom8_asana.models.section import Section
 from autom8_asana.models.task import Task
-
 
 # ============================================================================
 # Test Fixtures

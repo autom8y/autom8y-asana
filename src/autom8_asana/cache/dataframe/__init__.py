@@ -26,8 +26,8 @@ Example:
     >>> from autom8_asana.cache.dataframe.tiers import MemoryTier, ProgressiveTier
 """
 
-from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
 from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker, CircuitState
+from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
 from autom8_asana.cache.dataframe.decorator import dataframe_cache
 from autom8_asana.cache.dataframe.warmer import CacheWarmer, WarmResult, WarmStatus
 

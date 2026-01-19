@@ -58,7 +58,7 @@ class DeltaMerger:
         new_rows: list[dict[str, Any]],
         skipped_gids: list[str],
         deleted_gids: list[str],
-        schema: "DataFrameSchema",
+        schema: DataFrameSchema,
     ) -> pl.DataFrame:
         """Merge incremental extraction with existing cache.
 
@@ -160,7 +160,7 @@ class DeltaMerger:
 
 def handle_schema_migration(
     existing_df: pl.DataFrame,
-    current_schema: "DataFrameSchema",
+    current_schema: DataFrameSchema,
 ) -> pl.DataFrame | None:
     """Check schema compatibility and migrate if possible.
 
@@ -234,7 +234,7 @@ def handle_schema_migration(
 
 def validate_schema_compatibility(
     existing_df: pl.DataFrame,
-    current_schema: "DataFrameSchema",
+    current_schema: DataFrameSchema,
 ) -> tuple[bool, list[str]]:
     """Validate if existing DataFrame is compatible with current schema.
 

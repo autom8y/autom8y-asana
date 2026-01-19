@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
 from autom8_asana.exceptions import (
     AsanaError,
     AuthenticationError,
@@ -17,7 +16,6 @@ from autom8_asana.exceptions import (
     ServerError,
 )
 from autom8_asana.patterns import HasError, RetryableErrorMixin
-
 
 # ---------------------------------------------------------------------------
 # Test fixtures: Classes using the mixin

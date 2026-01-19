@@ -17,10 +17,10 @@ This replaces ~70 lines of boilerplate per holder with 3-5 lines.
 from __future__ import annotations
 
 import importlib
-from autom8y_log import get_logger
 import re
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from autom8y_log import get_logger
 from pydantic import PrivateAttr
 
 from autom8_asana.models.business.base import HolderMixin

@@ -20,7 +20,6 @@ from autom8_asana.models.common import NameGid
 from autom8_asana.persistence.exceptions import CyclicDependencyError
 from autom8_asana.persistence.graph import DependencyGraph
 
-
 # ---------------------------------------------------------------------------
 # Parent-Child Ordering Tests
 # ---------------------------------------------------------------------------

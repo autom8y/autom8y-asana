@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from autom8_asana.models import Task, Project, Workspace
+from autom8_asana.models import Project, Task, Workspace
 
 
 def create_mock_client_for_workspace() -> MagicMock:

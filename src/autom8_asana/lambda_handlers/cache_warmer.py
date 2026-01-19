@@ -38,7 +38,7 @@ import os
 import time
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
@@ -115,9 +115,7 @@ class WarmResponse:
     entity_results: list[dict[str, Any]] = field(default_factory=list)
     total_rows: int = 0
     duration_ms: float = 0.0
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     checkpoint_cleared: bool = False
     invocation_id: str | None = None
 

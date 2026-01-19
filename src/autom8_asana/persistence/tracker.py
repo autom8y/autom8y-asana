@@ -6,7 +6,7 @@ Per ADR-0078: GID-based entity identity for deduplication.
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from autom8_asana.persistence.models import EntityState
 

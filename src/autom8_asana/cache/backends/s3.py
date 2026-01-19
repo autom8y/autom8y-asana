@@ -6,7 +6,7 @@ import gzip
 import json
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from threading import Lock
 from types import ModuleType
 from typing import Any, cast
@@ -314,15 +314,9 @@ class S3CacheProvider:
             entry_metadata = data.get("metadata", {})
             entry_data = data.get("data", {})
 
-            version = (
-                parse_version(version_str)
-                if version_str
-                else datetime.now(timezone.utc)
-            )
+            version = parse_version(version_str) if version_str else datetime.now(UTC)
             cached_at = (
-                parse_version(cached_at_str)
-                if cached_at_str
-                else datetime.now(timezone.utc)
+                parse_version(cached_at_str) if cached_at_str else datetime.now(UTC)
             )
 
             return CacheEntry(

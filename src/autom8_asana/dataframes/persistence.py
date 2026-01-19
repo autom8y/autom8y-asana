@@ -44,13 +44,14 @@ from __future__ import annotations
 
 import io
 import json
-from autom8y_log import get_logger
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
+
+from autom8y_log import get_logger
 
 if TYPE_CHECKING:
     import polars as pl
@@ -332,7 +333,7 @@ class DataFramePersistence:
     async def save_dataframe(
         self,
         project_gid: str,
-        df: "pl.DataFrame",
+        df: pl.DataFrame,
         watermark: datetime,
     ) -> bool:
         """Persist DataFrame and associated watermark to S3.
@@ -400,7 +401,7 @@ class DataFramePersistence:
                 "watermark": watermark.isoformat(),
                 "row_count": len(df),
                 "columns": df.columns,
-                "saved_at": datetime.now(timezone.utc).isoformat(),
+                "saved_at": datetime.now(UTC).isoformat(),
             }
             wm_key = self._make_watermark_key(project_gid)
             client.put_object(
@@ -425,7 +426,7 @@ class DataFramePersistence:
     async def load_dataframe(
         self,
         project_gid: str,
-    ) -> tuple["pl.DataFrame | None", datetime | None]:
+    ) -> tuple[pl.DataFrame | None, datetime | None]:
         """Load DataFrame and watermark from S3.
 
         Retrieves a previously persisted DataFrame and its associated watermark.
@@ -758,7 +759,7 @@ class DataFramePersistence:
             watermark_data = {
                 "project_gid": project_gid,
                 "watermark": watermark.isoformat(),
-                "saved_at": datetime.now(timezone.utc).isoformat(),
+                "saved_at": datetime.now(UTC).isoformat(),
             }
             wm_key = self._make_watermark_key(project_gid)
             client.put_object(
@@ -833,7 +834,7 @@ class DataFramePersistence:
     async def save_index(
         self,
         project_gid: str,
-        index: "GidLookupIndex",
+        index: GidLookupIndex,
     ) -> bool:
         """Persist GidLookupIndex to S3 as JSON.
 
@@ -893,7 +894,7 @@ class DataFramePersistence:
     async def load_index(
         self,
         project_gid: str,
-    ) -> "GidLookupIndex | None":
+    ) -> GidLookupIndex | None:
         """Load GidLookupIndex from S3.
 
         Retrieves a previously persisted GidLookupIndex. Returns None

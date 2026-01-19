@@ -23,7 +23,7 @@ class Comparator(Protocol):
         self,
         left: str,
         right: str,
-        config: "MatchingConfig",
+        config: MatchingConfig,
     ) -> tuple[float, float]:
         """Compare two normalized values.
 
@@ -57,7 +57,7 @@ class ExactComparator:
         self,
         left: str,
         right: str,
-        config: "MatchingConfig",
+        config: MatchingConfig,
     ) -> tuple[float, float]:
         """Compare two strings for exact equality.
 
@@ -96,7 +96,7 @@ class FuzzyComparator:
         self,
         left: str,
         right: str,
-        config: "MatchingConfig",
+        config: MatchingConfig,
     ) -> tuple[float, float]:
         """Compare strings using Jaro-Winkler similarity.
 
@@ -221,7 +221,7 @@ class TermFrequencyAdjuster:
         field_name: str,
         value: str,
         base_weight: float,
-        config: "MatchingConfig",
+        config: MatchingConfig,
     ) -> float:
         """Adjust weight based on term frequency.
 

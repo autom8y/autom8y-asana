@@ -1283,8 +1283,9 @@ class TestGetInsightsAsyncIntegration:
     @pytest.mark.asyncio
     async def test_with_all_optional_parameters(self) -> None:
         """Call with all optional parameters."""
-        import respx
         from datetime import date
+
+        import respx
 
         client = DataServiceClient()
         captured_body: dict[str, Any] = {}
@@ -3277,8 +3278,9 @@ class TestSyncWrapper:
 
     def test_sync_wrapper_passes_all_parameters(self) -> None:
         """Sync method passes all parameters to async method."""
-        import respx
         from datetime import date
+
+        import respx
 
         client = DataServiceClient()
         captured_body: dict[str, Any] = {}
@@ -3420,7 +3422,6 @@ class TestCircuitBreaker:
     async def test_circuit_stays_closed_on_success(self) -> None:
         """Circuit stays closed when requests succeed."""
         import respx
-
         from autom8y_http.protocols import CircuitState
 
         client = DataServiceClient()
@@ -3457,10 +3458,10 @@ class TestCircuitBreaker:
     async def test_circuit_opens_after_threshold(self) -> None:
         """Circuit opens after 5 consecutive failures (503 responses)."""
         import respx
+        from autom8y_http.protocols import CircuitState
 
         from autom8_asana.clients.data.config import CircuitBreakerConfig
         from autom8_asana.exceptions import InsightsServiceError
-        from autom8y_http.protocols import CircuitState
 
         # Use config with default failure_threshold=5
         config = DataServiceConfig(
@@ -3497,10 +3498,10 @@ class TestCircuitBreaker:
     async def test_circuit_open_raises_immediately(self) -> None:
         """When circuit is open, raises InsightsServiceError with reason='circuit_breaker'."""
         import respx
+        from autom8y_http.protocols import CircuitState
 
         from autom8_asana.clients.data.config import CircuitBreakerConfig
         from autom8_asana.exceptions import InsightsServiceError
-        from autom8y_http.protocols import CircuitState
 
         config = DataServiceConfig(
             circuit_breaker=CircuitBreakerConfig(
@@ -3548,12 +3549,10 @@ class TestCircuitBreaker:
     async def test_half_open_allows_probe_request(self) -> None:
         """Half-open state allows 1 probe request through."""
         import respx
-
-        from autom8_asana.clients.data.config import CircuitBreakerConfig
-        from autom8_asana.exceptions import InsightsServiceError
         from autom8y_http.protocols import CircuitState
 
-        from autom8_asana.clients.data.config import RetryConfig
+        from autom8_asana.clients.data.config import CircuitBreakerConfig, RetryConfig
+        from autom8_asana.exceptions import InsightsServiceError
 
         # Very short recovery timeout so we can test half-open
         # Disable retries to isolate circuit breaker behavior
@@ -3605,10 +3604,10 @@ class TestCircuitBreaker:
     async def test_successful_probe_closes_circuit(self) -> None:
         """Successful probe in half-open state closes the circuit."""
         import respx
+        from autom8y_http.protocols import CircuitState
 
         from autom8_asana.clients.data.config import CircuitBreakerConfig, RetryConfig
         from autom8_asana.exceptions import InsightsServiceError
-        from autom8y_http.protocols import CircuitState
 
         # Disable retries to isolate circuit breaker behavior
         config = DataServiceConfig(
@@ -3680,10 +3679,10 @@ class TestCircuitBreaker:
     async def test_failed_probe_reopens_circuit(self) -> None:
         """Failed probe in half-open state reopens the circuit."""
         import respx
+        from autom8y_http.protocols import CircuitState
 
         from autom8_asana.clients.data.config import CircuitBreakerConfig, RetryConfig
         from autom8_asana.exceptions import InsightsServiceError
-        from autom8y_http.protocols import CircuitState
 
         # Disable retries to isolate circuit breaker behavior
         config = DataServiceConfig(
@@ -3935,9 +3934,10 @@ class TestRetryHandler:
     @pytest.mark.asyncio
     async def test_429_respects_retry_after_header(self) -> None:
         """429 with Retry-After header respects the delay."""
+        from unittest.mock import AsyncMock, patch
+
         import respx
         from httpx import Response
-        from unittest.mock import AsyncMock, patch
 
         from autom8_asana.clients.data.config import RetryConfig
 

@@ -18,10 +18,12 @@ Design per ADR-0119:
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Callable
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
+
+from autom8y_log import get_logger
 
 from autom8_asana.cache.entry import CacheEntry, EntryType
 
@@ -52,11 +54,11 @@ class TaskCacheResult:
         >>> print(f"Hit rate: {result.hit_rate:.1%}")
     """
 
-    cached_tasks: list["Task"] = field(default_factory=list)
-    fetched_tasks: list["Task"] = field(default_factory=list)
+    cached_tasks: list[Task] = field(default_factory=list)
+    fetched_tasks: list[Task] = field(default_factory=list)
     cache_hits: int = 0
     cache_misses: int = 0
-    all_tasks: list["Task"] = field(default_factory=list)
+    all_tasks: list[Task] = field(default_factory=list)
 
     @property
     def hit_rate(self) -> float:
@@ -105,7 +107,7 @@ class TaskCacheCoordinator:
 
     def __init__(
         self,
-        cache_provider: "CacheProvider | None",
+        cache_provider: CacheProvider | None,
         default_ttl: int = 300,
     ) -> None:
         """Initialize TaskCacheCoordinator.
@@ -116,12 +118,12 @@ class TaskCacheCoordinator:
         """
         self._cache = cache_provider
         self._default_ttl = default_ttl
-        self._unified_store: "UnifiedTaskStore | None" = None
+        self._unified_store: UnifiedTaskStore | None = None
 
     @classmethod
     def from_unified_store(
-        cls, unified_store: "UnifiedTaskStore"
-    ) -> "TaskCacheCoordinator":
+        cls, unified_store: UnifiedTaskStore
+    ) -> TaskCacheCoordinator:
         """Create coordinator that delegates to UnifiedTaskStore.
 
         Per TDD-UNIFIED-CACHE-001: Provides adapter for unified cache integration.
@@ -142,14 +144,14 @@ class TaskCacheCoordinator:
         return coordinator
 
     @property
-    def cache_provider(self) -> "CacheProvider | None":
+    def cache_provider(self) -> CacheProvider | None:
         """Get the underlying cache provider."""
         return self._cache
 
     async def lookup_tasks_async(
         self,
         task_gids: list[str],
-    ) -> dict[str, "Task | None"]:
+    ) -> dict[str, Task | None]:
         """Batch lookup tasks from cache.
 
         Per FR-LOOKUP-001/002: Uses CacheProvider.get_batch() for efficiency.
@@ -183,7 +185,7 @@ class TaskCacheCoordinator:
             entries = self._cache.get_batch(task_gids, EntryType.TASK)
 
             # Convert cache entries to Task objects
-            result: dict[str, "Task | None"] = {}
+            result: dict[str, Task | None] = {}
             hits = 0
             misses = 0
 
@@ -223,8 +225,8 @@ class TaskCacheCoordinator:
 
     async def populate_tasks_async(
         self,
-        tasks: list["Task"],
-        ttl_resolver: Callable[["Task"], int] | None = None,
+        tasks: list[Task],
+        ttl_resolver: Callable[[Task], int] | None = None,
         *,
         opt_fields: list[str] | None = None,
     ) -> int:
@@ -282,7 +284,7 @@ class TaskCacheCoordinator:
                     data=data,
                     entry_type=EntryType.TASK,
                     version=version,
-                    cached_at=datetime.now(timezone.utc),
+                    cached_at=datetime.now(UTC),
                     ttl=ttl,
                 )
                 entries[task.gid] = entry
@@ -312,8 +314,8 @@ class TaskCacheCoordinator:
     def merge_results(
         self,
         task_gids_ordered: list[str],
-        cached: dict[str, "Task"],
-        fetched: list["Task"],
+        cached: dict[str, Task],
+        fetched: list[Task],
     ) -> TaskCacheResult:
         """Merge cached and fetched tasks preserving original order.
 
@@ -329,14 +331,14 @@ class TaskCacheCoordinator:
             TaskCacheResult with merged list and statistics.
         """
         # Build lookup for fetched tasks
-        fetched_by_gid: dict[str, "Task"] = {
+        fetched_by_gid: dict[str, Task] = {
             t.gid: t for t in fetched if t.gid is not None
         }
 
         # Merge in order
-        all_tasks: list["Task"] = []
-        cached_tasks: list["Task"] = []
-        fetched_tasks_list: list["Task"] = []
+        all_tasks: list[Task] = []
+        cached_tasks: list[Task] = []
+        fetched_tasks_list: list[Task] = []
 
         for gid in task_gids_ordered:
             if gid in cached:
@@ -357,7 +359,7 @@ class TaskCacheCoordinator:
             all_tasks=all_tasks,
         )
 
-    def _entry_to_task(self, entry: CacheEntry) -> "Task":
+    def _entry_to_task(self, entry: CacheEntry) -> Task:
         """Convert CacheEntry to Task model.
 
         Args:
@@ -370,7 +372,7 @@ class TaskCacheCoordinator:
 
         return Task.model_validate(entry.data)
 
-    def _task_to_data(self, task: "Task") -> dict[str, Any]:
+    def _task_to_data(self, task: Task) -> dict[str, Any]:
         """Convert Task model to cacheable dict.
 
         Args:
@@ -392,7 +394,7 @@ class TaskCacheCoordinator:
             Timezone-aware datetime (UTC). Now if value is None.
         """
         if value is None:
-            return datetime.now(timezone.utc)
+            return datetime.now(UTC)
 
         # Handle ISO format with Z suffix
         if value.endswith("Z"):
@@ -400,7 +402,7 @@ class TaskCacheCoordinator:
 
         dt = datetime.fromisoformat(value)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
         return dt
 
     def _resolve_entity_ttl(self, data: dict[str, Any]) -> int:

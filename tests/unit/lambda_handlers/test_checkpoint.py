@@ -11,7 +11,7 @@ Per TDD-lambda-cache-warmer Section 9.1:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
@@ -34,7 +34,7 @@ class TestCheckpointRecord:
 
     def test_create_checkpoint_record(self) -> None:
         """Create a CheckpointRecord with all fields."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         expires = now + timedelta(hours=1)
 
         record = CheckpointRecord(
@@ -57,7 +57,7 @@ class TestCheckpointRecord:
 
     def test_is_stale_fresh_checkpoint(self) -> None:
         """Fresh checkpoint is not stale."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         record = CheckpointRecord(
             invocation_id="test-123",
@@ -72,7 +72,7 @@ class TestCheckpointRecord:
 
     def test_is_stale_expired_checkpoint(self) -> None:
         """Expired checkpoint is stale."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         record = CheckpointRecord(
             invocation_id="test-123",
@@ -87,7 +87,7 @@ class TestCheckpointRecord:
 
     def test_to_json(self) -> None:
         """Serialize CheckpointRecord to JSON."""
-        now = datetime(2026, 1, 6, 12, 0, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 1, 6, 12, 0, 0, tzinfo=UTC)
         expires = now + timedelta(hours=1)
 
         record = CheckpointRecord(
@@ -133,8 +133,8 @@ class TestCheckpointRecord:
         assert record.pending_entities == ["offer"]
         assert len(record.entity_results) == 1
         assert record.entity_results[0]["row_count"] == 500
-        assert record.created_at == datetime(2026, 1, 6, 12, 0, 0, tzinfo=timezone.utc)
-        assert record.expires_at == datetime(2026, 1, 6, 13, 0, 0, tzinfo=timezone.utc)
+        assert record.created_at == datetime(2026, 1, 6, 12, 0, 0, tzinfo=UTC)
+        assert record.expires_at == datetime(2026, 1, 6, 13, 0, 0, tzinfo=UTC)
 
     def test_from_json_adds_timezone_if_missing(self) -> None:
         """Timezone is added if missing from JSON datetime strings."""
@@ -152,12 +152,12 @@ class TestCheckpointRecord:
 
         record = CheckpointRecord.from_json(json_str)
 
-        assert record.created_at.tzinfo == timezone.utc
-        assert record.expires_at.tzinfo == timezone.utc
+        assert record.created_at.tzinfo == UTC
+        assert record.expires_at.tzinfo == UTC
 
     def test_roundtrip_serialization(self) -> None:
         """Serialize and deserialize produces equivalent record."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         original = CheckpointRecord(
             invocation_id="roundtrip-test",
             completed_entities=["unit", "business"],
@@ -386,7 +386,7 @@ class TestCheckpointManager:
     ) -> None:
         """Stale checkpoints are not loaded."""
         # Create a stale checkpoint directly in mock storage
-        past = datetime.now(timezone.utc) - timedelta(hours=2)
+        past = datetime.now(UTC) - timedelta(hours=2)
         stale_record = CheckpointRecord(
             invocation_id="stale-123",
             completed_entities=["unit"],

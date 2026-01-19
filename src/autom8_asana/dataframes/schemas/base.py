@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 
-
 # Base column definitions (12 columns) - FR-MODEL-002
 BASE_COLUMNS: list[ColumnDef] = [
     ColumnDef(

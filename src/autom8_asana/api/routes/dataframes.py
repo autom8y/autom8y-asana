@@ -32,6 +32,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Header, HTTPException, Query
 from fastapi.responses import JSONResponse, Response
 
+from autom8_asana._defaults.cache import InMemoryCacheProvider
 from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
 from autom8_asana.api.models import (
     PaginationMeta,
@@ -46,7 +47,6 @@ from autom8_asana.dataframes import (
 from autom8_asana.dataframes.models.registry import SchemaRegistry
 from autom8_asana.dataframes.models.schema import DataFrameSchema
 from autom8_asana.dataframes.views.dataframe_view import DataFrameViewPlugin
-from autom8_asana._defaults.cache import InMemoryCacheProvider
 from autom8_asana.models.task import Task
 
 router = APIRouter(prefix="/api/v1/dataframes", tags=["dataframes"])

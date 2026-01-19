@@ -13,7 +13,7 @@ from __future__ import annotations
 import gc
 import threading
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -46,7 +46,7 @@ class TestMalformedDataEntry:
             key="123",
             data={},
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
         )
         assert entry.data == {}
         assert not entry.is_expired()
@@ -57,7 +57,7 @@ class TestMalformedDataEntry:
             key="123",
             data={"name": None, "gid": "123", "nested": {"value": None}},
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
         )
         assert entry.data["name"] is None
         assert entry.data["nested"]["value"] is None
@@ -75,7 +75,7 @@ class TestMalformedDataEntry:
             key="123",
             data=deep_data,
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
         )
         assert "level0" in entry.data
 
@@ -90,7 +90,7 @@ class TestMalformedDataEntry:
                 "special": 'Tab\tNewline\nQuote"Backslash\\',
             },
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
         )
         assert "emoji" in entry.data["emoji"]
         assert "\\n" not in entry.data["special"]  # Actual newline, not escaped
@@ -103,7 +103,7 @@ class TestMalformedDataEntry:
             key="123",
             data={"large_field": large_string},
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
         )
         assert len(entry.data["large_field"]) == 1024 * 1024
 
@@ -113,7 +113,7 @@ class TestMalformedDataEntry:
             key="123",
             data={"items": list(range(10000))},
             entry_type=EntryType.SUBTASKS,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
         )
         assert len(entry.data["items"]) == 10000
 
@@ -130,7 +130,7 @@ class TestMalformedVersions:
     def test_version_string_without_timezone(self) -> None:
         """Test parsing version without timezone assumes UTC."""
         result = parse_version("2025-01-15T10:30:00")
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
 
     def test_version_string_with_microseconds(self) -> None:
         """Test parsing version with microseconds."""
@@ -156,14 +156,14 @@ class TestMalformedVersions:
 
     def test_compare_mixed_types(self) -> None:
         """Test comparing datetime with string version."""
-        dt = datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+        dt = datetime(2025, 1, 15, 10, 30, 0, tzinfo=UTC)
         result = compare_versions(dt, "2025-01-15T10:30:00+00:00")
         assert result == 0  # Equal
 
     def test_compare_naive_datetime(self) -> None:
         """Test comparing naive datetime (no timezone)."""
         naive_dt = datetime(2025, 1, 15, 10, 30, 0)
-        aware_dt = datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+        aware_dt = datetime(2025, 1, 15, 10, 30, 0, tzinfo=UTC)
         result = compare_versions(naive_dt, aware_dt)
         assert result == 0  # Should be equal after UTC assumption
 
@@ -173,7 +173,7 @@ class TestTTLEdgeCases:
 
     def test_ttl_exactly_at_boundary(self) -> None:
         """Test entry at exact TTL boundary."""
-        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         entry = CacheEntry(
             key="123",
             data={},
@@ -189,7 +189,7 @@ class TestTTLEdgeCases:
 
     def test_ttl_one_millisecond_before(self) -> None:
         """Test entry one millisecond before TTL."""
-        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         entry = CacheEntry(
             key="123",
             data={},
@@ -205,7 +205,7 @@ class TestTTLEdgeCases:
 
     def test_ttl_one_millisecond_after(self) -> None:
         """Test entry one millisecond after TTL."""
-        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         entry = CacheEntry(
             key="123",
             data={},
@@ -221,7 +221,7 @@ class TestTTLEdgeCases:
 
     def test_ttl_zero(self) -> None:
         """Test entry with TTL=0 expires immediately."""
-        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         entry = CacheEntry(
             key="123",
             data={},
@@ -237,7 +237,7 @@ class TestTTLEdgeCases:
 
     def test_ttl_none_never_expires(self) -> None:
         """Test entry with TTL=None never expires."""
-        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         entry = CacheEntry(
             key="123",
             data={},
@@ -254,7 +254,7 @@ class TestTTLEdgeCases:
     def test_negative_ttl_treated_as_expired(self) -> None:
         """Test behavior with negative TTL (shouldn't happen, but test anyway)."""
         # Note: Real implementation should validate this
-        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         entry = CacheEntry(
             key="123",
             data={},
@@ -276,7 +276,7 @@ class TestCacheThrashing:
     def test_rapid_set_get_cycles(self) -> None:
         """Test rapid set/get cycles don't cause issues."""
         cache = EnhancedInMemoryCacheProvider(max_size=100)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         for i in range(1000):
             entry = CacheEntry(
@@ -294,7 +294,7 @@ class TestCacheThrashing:
     def test_rapid_set_delete_cycles(self) -> None:
         """Test rapid set/delete cycles don't cause memory leak."""
         cache = EnhancedInMemoryCacheProvider(max_size=100)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         for i in range(1000):
             key = f"key_{i}"
@@ -314,7 +314,7 @@ class TestCacheThrashing:
     def test_eviction_under_pressure(self) -> None:
         """Test that eviction works under memory pressure."""
         cache = EnhancedInMemoryCacheProvider(max_size=50)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Add more entries than max_size
         for i in range(100):
@@ -583,7 +583,7 @@ class TestVersionComparisonEdgeCases:
     def test_same_instant_different_timezones(self) -> None:
         """Test comparing same instant in different timezones."""
         # These represent the same instant
-        utc_time = datetime(2025, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+        utc_time = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
         offset_time_str = "2025-01-15T17:30:00+05:30"  # Same instant
 
         # Parse the offset time
@@ -595,16 +595,16 @@ class TestVersionComparisonEdgeCases:
 
     def test_microsecond_precision(self) -> None:
         """Test version comparison at microsecond precision."""
-        v1 = datetime(2025, 1, 15, 12, 0, 0, 123456, tzinfo=timezone.utc)
-        v2 = datetime(2025, 1, 15, 12, 0, 0, 123457, tzinfo=timezone.utc)
+        v1 = datetime(2025, 1, 15, 12, 0, 0, 123456, tzinfo=UTC)
+        v2 = datetime(2025, 1, 15, 12, 0, 0, 123457, tzinfo=UTC)
 
         assert is_stale(v1, v2)  # v1 is 1 microsecond older
         assert is_current(v2, v1)  # v2 is newer
 
     def test_is_current_with_future_cached(self) -> None:
         """Test is_current when cached version is in future (edge case)."""
-        cached = datetime(2025, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
-        current = datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        cached = datetime(2025, 12, 31, 23, 59, 59, tzinfo=UTC)
+        current = datetime(2025, 1, 1, 0, 0, 0, tzinfo=UTC)
 
         # Cached is "from the future" - should be considered current
         assert is_current(cached, current)
@@ -619,7 +619,7 @@ class TestStalenessEdgeCases:
             key="123",
             data={},
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
             ttl=300,
         )
 
@@ -633,7 +633,7 @@ class TestStalenessEdgeCases:
             key="123",
             data={},
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
             ttl=300,
         )
 
@@ -674,7 +674,7 @@ class TestInMemoryCacheAdversarial:
     def test_get_versioned_wrong_type(self) -> None:
         """Test get_versioned with wrong entry type."""
         cache = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         entry = CacheEntry(
             key="123",
@@ -707,7 +707,7 @@ class TestInMemoryCacheAdversarial:
     def test_size_after_expiration(self) -> None:
         """Test size includes expired entries until cleaned."""
         cache = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Add entry with very short TTL
         entry = CacheEntry(
@@ -744,7 +744,7 @@ class TestInMemoryCacheAdversarial:
     def test_special_characters_in_key(self) -> None:
         """Test handling of special characters in cache keys."""
         cache = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         special_keys = [
             "key with spaces",
@@ -857,7 +857,7 @@ class TestMemoryManagement:
     def test_no_memory_leak_on_repeated_clear(self) -> None:
         """Test that repeated clear doesn't leak memory."""
         cache = EnhancedInMemoryCacheProvider(max_size=1000)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Get initial memory
         gc.collect()

@@ -28,15 +28,15 @@ class MockClientBuilder:
         self._client = MagicMock()
         self._client._log = None
 
-    def with_workspace_gid(self, gid: str = "workspace_123") -> "MockClientBuilder":
+    def with_workspace_gid(self, gid: str = "workspace_123") -> MockClientBuilder:
         """Set default workspace GID."""
         self._client.default_workspace_gid = gid
         return self
 
     def with_batch(
         self,
-        results: "list[Any] | None" = None,
-    ) -> "MockClientBuilder":
+        results: list[Any] | None = None,
+    ) -> MockClientBuilder:
         """Add mock batch client with execute_async."""
         batch_mock = MagicMock()
         batch_mock.execute_async = AsyncMock(return_value=results or [])
@@ -45,23 +45,23 @@ class MockClientBuilder:
 
     def with_http(
         self,
-        response: "dict[str, Any] | None" = None,
-    ) -> "MockClientBuilder":
+        response: dict[str, Any] | None = None,
+    ) -> MockClientBuilder:
         """Add mock HTTP client."""
         http_mock = AsyncMock()
         http_mock.request = AsyncMock(return_value=response or {"data": {}})
         self._client._http = http_mock
         return self
 
-    def with_cache(self, cache_provider: "Any" = None) -> "MockClientBuilder":
+    def with_cache(self, cache_provider: Any = None) -> MockClientBuilder:
         """Add cache provider to client."""
         self._client._cache = cache_provider
         return self
 
     def with_projects_list(
         self,
-        projects: "list[Any] | None" = None,
-    ) -> "MockClientBuilder":
+        projects: list[Any] | None = None,
+    ) -> MockClientBuilder:
         """Add mock projects.list_async with collect() support."""
         mock_iterator = MagicMock()
         mock_iterator.collect = AsyncMock(return_value=projects or [])
@@ -69,7 +69,7 @@ class MockClientBuilder:
         self._client.projects.list_async = MagicMock(return_value=mock_iterator)
         return self
 
-    def with_tasks(self) -> "MockClientBuilder":
+    def with_tasks(self) -> MockClientBuilder:
         """Add mock tasks client."""
         self._client.tasks = MagicMock()
         self._client.tasks.update_async = AsyncMock(return_value=MagicMock())

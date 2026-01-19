@@ -7,8 +7,9 @@ Per FR-INHERIT-001 through FR-INHERIT-004: Inherited field requirements.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from autom8_asana.models.task import Task

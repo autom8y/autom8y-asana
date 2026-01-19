@@ -7,7 +7,7 @@ stored data.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
@@ -63,10 +63,10 @@ class DataFrameViewPlugin:
 
     def __init__(
         self,
-        schema: "DataFrameSchema",
-        store: "UnifiedTaskStore | None" = None,
-        resolver: "CustomFieldResolver | None" = None,
-        row_cache: "DataFrameCacheIntegration | None" = None,
+        schema: DataFrameSchema,
+        store: UnifiedTaskStore | None = None,
+        resolver: CustomFieldResolver | None = None,
+        row_cache: DataFrameCacheIntegration | None = None,
     ) -> None:
         """Initialize view plugin.
 
@@ -102,17 +102,17 @@ class DataFrameViewPlugin:
         }
 
     @property
-    def store(self) -> "UnifiedTaskStore | None":
+    def store(self) -> UnifiedTaskStore | None:
         """Get the unified task store (may be None for extraction-only mode)."""
         return self._store
 
     @property
-    def schema(self) -> "DataFrameSchema":
+    def schema(self) -> DataFrameSchema:
         """Get the extraction schema."""
         return self._schema
 
     @property
-    def resolver(self) -> "CustomFieldResolver | None":
+    def resolver(self) -> CustomFieldResolver | None:
         """Get the custom field resolver."""
         return self._resolver
 
@@ -213,7 +213,7 @@ class DataFrameViewPlugin:
             requires integration with the Asana modified_since API parameter
             which is handled at the ProjectDataFrameBuilder level.
         """
-        new_watermark = datetime.now(timezone.utc)
+        new_watermark = datetime.now(UTC)
 
         # For now, this method delegates to the full materialization
         # The real incremental logic involves:
@@ -319,7 +319,7 @@ class DataFrameViewPlugin:
     async def _extract_column_async(
         self,
         task_data: dict[str, Any],
-        col: "ColumnDef",
+        col: ColumnDef,
         project_gid: str | None = None,
     ) -> Any:
         """Extract a single column value from task data.
@@ -555,7 +555,7 @@ class DataFrameViewPlugin:
         self,
         task_data: dict[str, Any],
         source: str,
-        col: "ColumnDef",
+        col: ColumnDef,
     ) -> Any:
         """Extract custom field value.
 
@@ -681,7 +681,7 @@ class DataFrameViewPlugin:
         self,
         task_data: dict[str, Any],
         source: str,
-        col: "ColumnDef",
+        col: ColumnDef,
     ) -> Any:
         """Extract direct attribute from task data.
 
@@ -796,7 +796,7 @@ class DataFrameViewPlugin:
         try:
             dt = datetime.fromisoformat(value)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=UTC)
             return dt
         except ValueError:
             return None

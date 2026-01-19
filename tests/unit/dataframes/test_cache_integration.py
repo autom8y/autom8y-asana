@@ -11,7 +11,7 @@ Coverage targets:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import polars as pl
@@ -24,16 +24,15 @@ pytestmark = pytest.mark.skip(
 
 from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvider
 from autom8_asana.dataframes import (
+    UNIT_SCHEMA,
     CachedRow,
     DataFrameCacheIntegration,
     SectionDataFrameBuilder,
-    UNIT_SCHEMA,
 )
 from autom8_asana.dataframes.cache_integration import make_dataframe_key
 from autom8_asana.dataframes.resolver import MockCustomFieldResolver
 from autom8_asana.models.common import NameGid
 from autom8_asana.models.task import Task
-
 
 # =============================================================================
 # Test Fixtures
@@ -43,7 +42,7 @@ from autom8_asana.models.task import Task
 @pytest.fixture
 def now() -> datetime:
     """Current UTC datetime."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @pytest.fixture
@@ -1099,12 +1098,12 @@ class TestCacheIntegrationTimezoneHandling:
             project_gid="proj456",
             data={},
             schema_version="1.0.0",
-            cached_at=datetime.now(timezone.utc),
+            cached_at=datetime.now(UTC),
             version=naive_dt,
         )
 
         # Check against timezone-aware datetime
-        aware_dt = datetime(2025, 1, 15, 10, 0, 0, tzinfo=timezone.utc)  # Earlier
+        aware_dt = datetime(2025, 1, 15, 10, 0, 0, tzinfo=UTC)  # Earlier
         assert row.is_version_current(aware_dt) is True
 
     @pytest.mark.asyncio

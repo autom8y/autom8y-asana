@@ -77,9 +77,9 @@ WATERMARK_COLUMN_NAME: str = "_modified_at"
 
 
 def coerce_rows_to_schema(
-    rows: list[dict[str, "Any"]],
-    schema: "DataFrameSchema",
-) -> list[dict[str, "Any"]]:
+    rows: list[dict[str, Any]],
+    schema: DataFrameSchema,
+) -> list[dict[str, Any]]:
     """Coerce row values to match schema types before DataFrame creation.
 
     Per TDD-DATAFRAME-BUILDER-WATERMARK-001: Ensures row data types are
@@ -114,7 +114,7 @@ def coerce_rows_to_schema(
     return coerced_rows
 
 
-def _coerce_value(value: "Any", dtype: str | None) -> "Any":
+def _coerce_value(value: Any, dtype: str | None) -> Any:
     """Coerce a single value to match the expected dtype.
 
     Args:

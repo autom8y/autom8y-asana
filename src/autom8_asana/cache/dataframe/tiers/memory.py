@@ -8,7 +8,7 @@ from __future__ import annotations
 import threading
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from autom8y_log import get_logger
@@ -46,7 +46,7 @@ class MemoryTier:
     max_entries: int = 100
 
     # Internal state
-    _cache: OrderedDict[str, "CacheEntry"] = field(
+    _cache: OrderedDict[str, CacheEntry] = field(
         default_factory=OrderedDict, init=False
     )
     _lock: threading.RLock = field(default_factory=threading.RLock, init=False)
@@ -65,7 +65,7 @@ class MemoryTier:
             "evictions_memory": 0,
         }
 
-    def get(self, key: str) -> "CacheEntry | None":
+    def get(self, key: str) -> CacheEntry | None:
         """Get entry and move to front of LRU.
 
         Args:
@@ -84,7 +84,7 @@ class MemoryTier:
             self._cache.move_to_end(key)
             return self._cache[key]
 
-    def put(self, key: str, entry: "CacheEntry") -> None:
+    def put(self, key: str, entry: CacheEntry) -> None:
         """Store entry with LRU tracking.
 
         Args:
@@ -146,7 +146,7 @@ class MemoryTier:
             Number of entries evicted.
         """
         with self._lock:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             cutoff = now.timestamp() - max_age_seconds
 
             stale_keys = [
@@ -225,7 +225,7 @@ class MemoryTier:
 
         return int(total_memory * self.max_heap_percent)
 
-    def _estimate_size(self, entry: "CacheEntry") -> int:
+    def _estimate_size(self, entry: CacheEntry) -> int:
         """Estimate entry size in bytes.
 
         Uses Polars' estimated_size() for DataFrame memory usage.

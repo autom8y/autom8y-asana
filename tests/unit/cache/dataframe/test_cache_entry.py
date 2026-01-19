@@ -4,7 +4,7 @@ Per TDD-DATAFRAME-CACHE-001: Tests for cache entry creation, staleness
 detection, and watermark-based freshness checks.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import polars as pl
 
@@ -22,8 +22,8 @@ class TestCacheEntry:
             project_gid="proj-1",
             entity_type="unit",
             dataframe=df,
-            watermark=datetime.now(timezone.utc),
-            created_at=datetime.now(timezone.utc),
+            watermark=datetime.now(UTC),
+            created_at=datetime.now(UTC),
             schema_version="1.0.0",
         )
 
@@ -37,8 +37,8 @@ class TestCacheEntry:
             project_gid="proj-1",
             entity_type="unit",
             dataframe=df,
-            watermark=datetime.now(timezone.utc),
-            created_at=datetime.now(timezone.utc),
+            watermark=datetime.now(UTC),
+            created_at=datetime.now(UTC),
             schema_version="1.0.0",
         )
 
@@ -50,8 +50,8 @@ class TestCacheEntry:
             project_gid="proj-1",
             entity_type="unit",
             dataframe=pl.DataFrame({"gid": ["1", "2"]}),
-            watermark=datetime.now(timezone.utc),
-            created_at=datetime.now(timezone.utc),
+            watermark=datetime.now(UTC),
+            created_at=datetime.now(UTC),
             schema_version="1.0.0",
         )
 
@@ -63,8 +63,8 @@ class TestCacheEntry:
             project_gid="proj-1",
             entity_type="unit",
             dataframe=pl.DataFrame({"gid": ["1", "2"]}),
-            watermark=datetime.now(timezone.utc),
-            created_at=datetime.now(timezone.utc) - timedelta(hours=2),
+            watermark=datetime.now(UTC),
+            created_at=datetime.now(UTC) - timedelta(hours=2),
             schema_version="1.0.0",
         )
 
@@ -72,13 +72,13 @@ class TestCacheEntry:
 
     def test_is_stale_at_boundary(self) -> None:
         """Entry at TTL boundary is stale."""
-        created = datetime.now(timezone.utc) - timedelta(seconds=3601)
+        created = datetime.now(UTC) - timedelta(seconds=3601)
 
         entry = CacheEntry(
             project_gid="proj-1",
             entity_type="unit",
             dataframe=pl.DataFrame({"gid": ["1"]}),
-            watermark=datetime.now(timezone.utc),
+            watermark=datetime.now(UTC),
             created_at=created,
             schema_version="1.0.0",
         )
@@ -87,7 +87,7 @@ class TestCacheEntry:
 
     def test_is_fresh_by_watermark_newer(self) -> None:
         """Entry is fresh when watermark >= current."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         entry = CacheEntry(
             project_gid="proj-1",
@@ -107,7 +107,7 @@ class TestCacheEntry:
 
     def test_is_not_fresh_by_watermark_older(self) -> None:
         """Entry is stale when watermark < current."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         entry_watermark = now - timedelta(minutes=10)
 
         entry = CacheEntry(
@@ -125,8 +125,8 @@ class TestCacheEntry:
     def test_attributes_accessible(self) -> None:
         """All attributes are accessible after creation."""
         df = pl.DataFrame({"gid": ["1"], "name": ["Test"]})
-        watermark = datetime.now(timezone.utc)
-        created = datetime.now(timezone.utc) - timedelta(minutes=5)
+        watermark = datetime.now(UTC)
+        created = datetime.now(UTC) - timedelta(minutes=5)
 
         entry = CacheEntry(
             project_gid="proj-123",

@@ -6,7 +6,7 @@ awareness, freshness coordination, and parent chain resolution.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -84,7 +84,7 @@ def make_entry(
             Set to None to create legacy entries without completeness.
     """
     version = datetime.fromisoformat(modified_at.replace("Z", "+00:00"))
-    cached_at = datetime.now(timezone.utc) - timedelta(seconds=cached_ago_seconds)
+    cached_at = datetime.now(UTC) - timedelta(seconds=cached_ago_seconds)
     metadata = {}
     if completeness_level is not None:
         metadata["completeness_level"] = completeness_level

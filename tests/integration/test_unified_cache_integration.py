@@ -15,7 +15,7 @@ NOTE: Tests using ProjectDataFrameBuilder require migration to ProgressiveProjec
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -365,8 +365,8 @@ class TestTaskCacheCoordinatorUnifiedAdapter:
             key="task-001",
             data=sample_task_dict,
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
-            cached_at=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
+            cached_at=datetime.now(UTC),
         )
         mock_cache_provider.get_batch.return_value = {"task-001": cache_entry}
 
@@ -462,8 +462,8 @@ class TestWarmCachePathSharedCache:
             key="task-001",
             data=sample_task_dict,
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
-            cached_at=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
+            cached_at=datetime.now(UTC),
         )
 
         # Configure cache behavior
@@ -572,8 +572,8 @@ class TestPerformanceTiming:
             key="task-001",
             data=sample_task_dict,
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
-            cached_at=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
+            cached_at=datetime.now(UTC),
         )
         mock_cache_provider.get_batch.return_value = {"task-001": cache_entry}
 
@@ -606,8 +606,8 @@ class TestPerformanceTiming:
             key="task-001",
             data=sample_task_dict,
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
-            cached_at=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
+            cached_at=datetime.now(UTC),
         )
         mock_cache_provider.get_batch.return_value = {"task-001": cache_entry}
 

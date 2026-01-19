@@ -45,7 +45,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -281,7 +281,7 @@ class StructuredLogger:
     @classmethod
     def log_action_result(
         cls,
-        result: "ActionResult",
+        result: ActionResult,
         *,
         rule_id: str | None = None,
     ) -> None:
@@ -462,7 +462,7 @@ class _StdlibLoggerAdapter:
         self._logger = logger
         self._bound_context = bound_context.copy()
 
-    def bind(self, **new_context: Any) -> "_StdlibLoggerAdapter":
+    def bind(self, **new_context: Any) -> _StdlibLoggerAdapter:
         """Return new adapter with additional bound context.
 
         Args:
@@ -501,7 +501,7 @@ class _StdlibLoggerAdapter:
                 parts.append(f'"{key}": {value}')
 
         # Add timestamp
-        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         parts.insert(0, f'"timestamp": "{timestamp}"')
 
         return "{" + ", ".join(parts) + "}"

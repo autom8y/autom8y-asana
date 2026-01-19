@@ -8,7 +8,7 @@ hierarchy relationships and Asana Batch API.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -88,7 +88,7 @@ class FreshnessCoordinator:
         ...         # Fetch fresh data
     """
 
-    batch_client: "BatchClient | None"
+    batch_client: BatchClient | None
     coalesce_window_ms: int = 50
     max_batch_size: int = 100
 
@@ -108,7 +108,7 @@ class FreshnessCoordinator:
 
     async def check_batch_async(
         self,
-        entries: list["CacheEntry"],
+        entries: list[CacheEntry],
         mode: FreshnessMode = FreshnessMode.EVENTUAL,
     ) -> list[FreshnessResult]:
         """Check freshness for batch of cache entries.
@@ -155,7 +155,7 @@ class FreshnessCoordinator:
 
         # For EVENTUAL mode, filter to only expired entries
         if mode == FreshnessMode.EVENTUAL:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             expired_entries = [e for e in entries if e.is_expired(now)]
             non_expired_entries = [e for e in entries if not e.is_expired(now)]
 
@@ -184,7 +184,7 @@ class FreshnessCoordinator:
 
     async def _check_via_api(
         self,
-        entries: list["CacheEntry"],
+        entries: list[CacheEntry],
     ) -> list[FreshnessResult]:
         """Check freshness via Asana Batch API.
 
@@ -211,7 +211,7 @@ class FreshnessCoordinator:
             ]
 
         # Build GID to entry mapping
-        gid_to_entry: dict[str, "CacheEntry"] = {e.key: e for e in entries}
+        gid_to_entry: dict[str, CacheEntry] = {e.key: e for e in entries}
         gids = list(gid_to_entry.keys())
 
         # Chunk and execute
@@ -226,7 +226,7 @@ class FreshnessCoordinator:
     async def _check_chunk(
         self,
         gids: list[str],
-        gid_to_entry: dict[str, "CacheEntry"],
+        gid_to_entry: dict[str, CacheEntry],
     ) -> list[FreshnessResult]:
         """Execute a single chunk of modified_at checks.
 
@@ -385,7 +385,7 @@ class FreshnessCoordinator:
     async def check_hierarchy_async(
         self,
         root_gid: str,
-        root_entry: "CacheEntry | None" = None,
+        root_entry: CacheEntry | None = None,
         mode: FreshnessMode = FreshnessMode.EVENTUAL,
     ) -> FreshnessResult:
         """Check freshness using root entity's modified_at.
@@ -539,5 +539,5 @@ def _parse_datetime(value: str) -> datetime:
 
     dt = datetime.fromisoformat(value)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt

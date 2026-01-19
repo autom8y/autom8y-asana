@@ -651,7 +651,7 @@ def filter_result_fields(
 # --- Strategy Factory ---
 
 
-def get_strategy(entity_type: str) -> "UniversalResolutionStrategy | None":
+def get_strategy(entity_type: str) -> UniversalResolutionStrategy | None:
     """Get resolution strategy for entity type.
 
     Returns a UniversalResolutionStrategy for any resolvable entity type.

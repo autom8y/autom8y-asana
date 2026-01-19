@@ -16,7 +16,6 @@ from autom8_asana.cache.entry import EntryType
 from autom8_asana.cache.unified import UnifiedTaskStore
 from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
 
-
 # Test data: Simulated Business -> Unit hierarchy
 BUSINESS_TASK = {
     "gid": "business-001",

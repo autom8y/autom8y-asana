@@ -17,9 +17,10 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
+from collections.abc import Coroutine
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Coroutine, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import polars as pl
 

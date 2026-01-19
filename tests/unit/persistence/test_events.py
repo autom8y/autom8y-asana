@@ -11,7 +11,6 @@ from autom8_asana.models import Task
 from autom8_asana.persistence.events import EventSystem
 from autom8_asana.persistence.models import OperationType
 
-
 # ---------------------------------------------------------------------------
 # Hook Registration Tests
 # ---------------------------------------------------------------------------

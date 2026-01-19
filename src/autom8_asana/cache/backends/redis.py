@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from threading import Lock
 from types import ModuleType
 from typing import Any, cast
@@ -196,7 +196,7 @@ class RedisCacheProvider:
             try:
                 self._initialize_pool()
                 if self._pool is not None and self._redis_module is not None:
-                    redis_cls = getattr(self._redis_module, "Redis")
+                    redis_cls = self._redis_module.Redis
                     conn = redis_cls(connection_pool=self._pool)
                     conn.ping()
                     self._degraded = False
@@ -273,15 +273,9 @@ class RedisCacheProvider:
             metadata_str = data.get("metadata", "{}")
 
             entry_type = EntryType(entry_type_str)
-            version = (
-                parse_version(version_str)
-                if version_str
-                else datetime.now(timezone.utc)
-            )
+            version = parse_version(version_str) if version_str else datetime.now(UTC)
             cached_at = (
-                parse_version(cached_at_str)
-                if cached_at_str
-                else datetime.now(timezone.utc)
+                parse_version(cached_at_str) if cached_at_str else datetime.now(UTC)
             )
             ttl = int(ttl_str) if ttl_str else None
             metadata = json.loads(metadata_str) if metadata_str else {}

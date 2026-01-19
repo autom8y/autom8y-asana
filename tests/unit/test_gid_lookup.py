@@ -17,7 +17,7 @@ GidLookupIndex serialization enables S3 persistence for warm starts.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -29,7 +29,7 @@ class TestSerialize:
 
     def test_serialize_returns_dict_with_required_keys(self) -> None:
         """serialize() returns dict with version, created_at, entry_count, lookup."""
-        created_at = datetime(2024, 6, 15, 12, 30, 45, tzinfo=timezone.utc)
+        created_at = datetime(2024, 6, 15, 12, 30, 45, tzinfo=UTC)
         lookup = {"pv1:+17705753103:chiropractic": "123456789"}
         index = GidLookupIndex(lookup_dict=lookup, created_at=created_at)
 
@@ -44,7 +44,7 @@ class TestSerialize:
         """serialize() sets version to '1.0'."""
         index = GidLookupIndex(
             lookup_dict={},
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
 
         result = index.serialize()
@@ -53,7 +53,7 @@ class TestSerialize:
 
     def test_serialize_created_at_is_iso_format(self) -> None:
         """serialize() converts created_at to ISO 8601 string."""
-        created_at = datetime(2024, 6, 15, 12, 30, 45, 123456, tzinfo=timezone.utc)
+        created_at = datetime(2024, 6, 15, 12, 30, 45, 123456, tzinfo=UTC)
         index = GidLookupIndex(lookup_dict={}, created_at=created_at)
 
         result = index.serialize()
@@ -69,7 +69,7 @@ class TestSerialize:
         }
         index = GidLookupIndex(
             lookup_dict=lookup,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
 
         result = index.serialize()
@@ -84,7 +84,7 @@ class TestSerialize:
         }
         index = GidLookupIndex(
             lookup_dict=lookup,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
 
         result = index.serialize()
@@ -95,7 +95,7 @@ class TestSerialize:
         """serialize() handles empty lookup dict correctly."""
         index = GidLookupIndex(
             lookup_dict={},
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
 
         result = index.serialize()
@@ -108,7 +108,7 @@ class TestSerialize:
         lookup = {"pv1:+17705753103:chiropractic": "123456789"}
         index = GidLookupIndex(
             lookup_dict=lookup,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
 
         result = index.serialize()
@@ -167,7 +167,7 @@ class TestDeserialize:
 
         index = GidLookupIndex.deserialize(data)
 
-        expected = datetime(2024, 6, 15, 12, 30, 45, 123456, tzinfo=timezone.utc)
+        expected = datetime(2024, 6, 15, 12, 30, 45, 123456, tzinfo=UTC)
         assert index.created_at == expected
 
     def test_deserialize_raises_key_error_missing_version(self) -> None:
@@ -293,7 +293,7 @@ class TestDeserialize:
 
         index = GidLookupIndex.deserialize(data)
 
-        expected = datetime(2024, 6, 15, 12, 30, 45, tzinfo=timezone.utc)
+        expected = datetime(2024, 6, 15, 12, 30, 45, tzinfo=UTC)
         assert index.created_at == expected
 
 
@@ -302,7 +302,7 @@ class TestRoundTrip:
 
     def test_round_trip_preserves_equality(self) -> None:
         """deserialize(serialize(index)) == index."""
-        created_at = datetime(2024, 6, 15, 12, 30, 45, 123456, tzinfo=timezone.utc)
+        created_at = datetime(2024, 6, 15, 12, 30, 45, 123456, tzinfo=UTC)
         lookup = {
             "pv1:+17705753103:chiropractic": "123456789",
             "pv1:+14045551234:dental": "987654321",
@@ -316,7 +316,7 @@ class TestRoundTrip:
 
     def test_round_trip_empty_index(self) -> None:
         """Round-trip works for empty index."""
-        created_at = datetime(2024, 6, 15, 12, 30, 45, tzinfo=timezone.utc)
+        created_at = datetime(2024, 6, 15, 12, 30, 45, tzinfo=UTC)
         original = GidLookupIndex(lookup_dict={}, created_at=created_at)
 
         serialized = original.serialize()
@@ -327,7 +327,7 @@ class TestRoundTrip:
 
     def test_round_trip_large_index(self) -> None:
         """Round-trip works for large index."""
-        created_at = datetime(2024, 6, 15, 12, 30, 45, tzinfo=timezone.utc)
+        created_at = datetime(2024, 6, 15, 12, 30, 45, tzinfo=UTC)
         # Create 1000 entries
         lookup = {f"pv1:+1555555{i:04d}:vertical{i}": f"gid{i}" for i in range(1000)}
         original = GidLookupIndex(lookup_dict=lookup, created_at=created_at)
@@ -340,7 +340,7 @@ class TestRoundTrip:
 
     def test_round_trip_through_json(self) -> None:
         """Round-trip through JSON serialization works."""
-        created_at = datetime(2024, 6, 15, 12, 30, 45, 123456, tzinfo=timezone.utc)
+        created_at = datetime(2024, 6, 15, 12, 30, 45, 123456, tzinfo=UTC)
         lookup = {"pv1:+17705753103:chiropractic": "123456789"}
         original = GidLookupIndex(lookup_dict=lookup, created_at=created_at)
 
@@ -354,7 +354,7 @@ class TestRoundTrip:
 
     def test_round_trip_preserves_lookup_access(self) -> None:
         """Round-trip preserves ability to look up values."""
-        created_at = datetime(2024, 6, 15, 12, 30, 45, tzinfo=timezone.utc)
+        created_at = datetime(2024, 6, 15, 12, 30, 45, tzinfo=UTC)
         lookup = {"pv1:+17705753103:chiropractic": "expected_gid"}
         original = GidLookupIndex(lookup_dict=lookup, created_at=created_at)
 
@@ -370,7 +370,7 @@ class TestEquality:
 
     def test_equal_indices_are_equal(self) -> None:
         """Two indices with same data are equal."""
-        created_at = datetime(2024, 6, 15, 12, 30, 45, tzinfo=timezone.utc)
+        created_at = datetime(2024, 6, 15, 12, 30, 45, tzinfo=UTC)
         lookup = {"key": "value"}
 
         index1 = GidLookupIndex(lookup_dict=lookup, created_at=created_at)
@@ -380,7 +380,7 @@ class TestEquality:
 
     def test_different_lookup_not_equal(self) -> None:
         """Indices with different lookup are not equal."""
-        created_at = datetime(2024, 6, 15, 12, 30, 45, tzinfo=timezone.utc)
+        created_at = datetime(2024, 6, 15, 12, 30, 45, tzinfo=UTC)
 
         index1 = GidLookupIndex(lookup_dict={"key1": "val1"}, created_at=created_at)
         index2 = GidLookupIndex(lookup_dict={"key2": "val2"}, created_at=created_at)
@@ -393,11 +393,11 @@ class TestEquality:
 
         index1 = GidLookupIndex(
             lookup_dict=lookup,
-            created_at=datetime(2024, 6, 15, 12, 30, 45, tzinfo=timezone.utc),
+            created_at=datetime(2024, 6, 15, 12, 30, 45, tzinfo=UTC),
         )
         index2 = GidLookupIndex(
             lookup_dict=lookup,
-            created_at=datetime(2024, 6, 16, 12, 30, 45, tzinfo=timezone.utc),
+            created_at=datetime(2024, 6, 16, 12, 30, 45, tzinfo=UTC),
         )
 
         assert index1 != index2
@@ -406,7 +406,7 @@ class TestEquality:
         """Index is not equal to non-GidLookupIndex objects."""
         index = GidLookupIndex(
             lookup_dict={"key": "value"},
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
 
         assert index != "not an index"
@@ -415,7 +415,7 @@ class TestEquality:
 
     def test_equal_empty_indices(self) -> None:
         """Two empty indices with same created_at are equal."""
-        created_at = datetime(2024, 6, 15, 12, 30, 45, tzinfo=timezone.utc)
+        created_at = datetime(2024, 6, 15, 12, 30, 45, tzinfo=UTC)
 
         index1 = GidLookupIndex(lookup_dict={}, created_at=created_at)
         index2 = GidLookupIndex(lookup_dict={}, created_at=created_at)

@@ -6,7 +6,6 @@ that maps field names to their CascadingFieldDef instances.
 
 from __future__ import annotations
 
-
 from autom8_asana.models.business.business import Business
 from autom8_asana.models.business.fields import (
     CascadingFieldDef,

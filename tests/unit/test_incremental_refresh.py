@@ -17,7 +17,7 @@ The old ProjectDataFrameBuilder has been removed. Tests are skipped until migrat
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -113,7 +113,7 @@ def make_test_dataframe(
     Uses TEST_SCHEMA to ensure type compatibility for merge operations.
     """
     if last_modified is None:
-        last_modified = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        last_modified = datetime(2024, 1, 1, tzinfo=UTC)
 
     n = len(gids)
     return pl.DataFrame(
@@ -122,7 +122,7 @@ def make_test_dataframe(
             "name": names,
             "type": ["*"] * n,
             "date": [None] * n,
-            "created": [datetime(2024, 1, 1, tzinfo=timezone.utc)] * n,
+            "created": [datetime(2024, 1, 1, tzinfo=UTC)] * n,
             "due_on": [None] * n,
             "is_completed": [False] * n,
             "completed_at": [None] * n,
@@ -165,7 +165,7 @@ class TestRefreshIncrementalNoWatermark:
                     "name": ["Task 1", "Task 2"],
                     "type": ["*", "*"],
                     "date": [None, None],
-                    "created": [datetime(2024, 1, 1, tzinfo=timezone.utc)] * 2,
+                    "created": [datetime(2024, 1, 1, tzinfo=UTC)] * 2,
                     "due_on": [None, None],
                     "is_completed": [False, False],
                     "completed_at": [None, None],
@@ -173,7 +173,7 @@ class TestRefreshIncrementalNoWatermark:
                         "https://app.asana.com/0/0/task-1",
                         "https://app.asana.com/0/0/task-2",
                     ],
-                    "last_modified": [datetime(2024, 6, 15, tzinfo=timezone.utc)] * 2,
+                    "last_modified": [datetime(2024, 6, 15, tzinfo=UTC)] * 2,
                     "section": [None, None],
                     "tags": [[], []],
                 }
@@ -211,7 +211,7 @@ class TestRefreshIncrementalNoWatermark:
         )
 
         mock_client = MagicMock()
-        watermark = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        watermark = datetime(2024, 1, 1, tzinfo=UTC)
 
         with patch.object(
             builder, "build_with_parallel_fetch_async", new_callable=AsyncMock
@@ -222,12 +222,12 @@ class TestRefreshIncrementalNoWatermark:
                     "name": ["Task 1"],
                     "type": ["*"],
                     "date": [None],
-                    "created": [datetime(2024, 1, 1, tzinfo=timezone.utc)],
+                    "created": [datetime(2024, 1, 1, tzinfo=UTC)],
                     "due_on": [None],
                     "is_completed": [False],
                     "completed_at": [None],
                     "url": ["https://app.asana.com/0/0/task-1"],
-                    "last_modified": [datetime(2024, 6, 15, tzinfo=timezone.utc)],
+                    "last_modified": [datetime(2024, 6, 15, tzinfo=UTC)],
                     "section": [None],
                     "tags": [[]],
                 }
@@ -263,7 +263,7 @@ class TestRefreshIncrementalWithWatermark:
         # Create existing DataFrame with one task
         existing_df = make_test_dataframe(["task-1"], ["Task 1"])
 
-        watermark = datetime(2024, 1, 15, tzinfo=timezone.utc)
+        watermark = datetime(2024, 1, 15, tzinfo=UTC)
         mock_client = MagicMock()
 
         # Mock the _fetch_modified_tasks to return one modified task
@@ -312,7 +312,7 @@ class TestRefreshIncrementalWithWatermark:
             ["Task 1", "Task 2"],
         )
 
-        watermark = datetime(2024, 1, 15, tzinfo=timezone.utc)
+        watermark = datetime(2024, 1, 15, tzinfo=UTC)
         mock_client = MagicMock()
 
         with patch.object(
@@ -483,7 +483,7 @@ class TestFallbackBehavior:
 
         existing_df = make_test_dataframe(["task-1"], ["Task 1"])
 
-        watermark = datetime(2024, 1, 15, tzinfo=timezone.utc)
+        watermark = datetime(2024, 1, 15, tzinfo=UTC)
         mock_client = MagicMock()
 
         with patch.object(
@@ -498,7 +498,7 @@ class TestFallbackBehavior:
                 mock_full.return_value = make_test_dataframe(
                     ["task-1", "task-2"],
                     ["Task 1", "Task 2"],
-                    last_modified=datetime(2024, 6, 15, tzinfo=timezone.utc),
+                    last_modified=datetime(2024, 6, 15, tzinfo=UTC),
                 )
 
                 df, new_watermark = await builder.refresh_incremental(
@@ -528,7 +528,7 @@ class TestFallbackBehavior:
         existing_df = make_test_dataframe(["task-1"], ["Task 1"])
 
         # Future watermark (clock skew scenario)
-        future_watermark = datetime.now(timezone.utc) + timedelta(days=365)
+        future_watermark = datetime.now(UTC) + timedelta(days=365)
         mock_client = MagicMock()
 
         with patch.object(
@@ -537,7 +537,7 @@ class TestFallbackBehavior:
             mock_full.return_value = make_test_dataframe(
                 ["task-1"],
                 ["Task 1"],
-                last_modified=datetime(2024, 6, 15, tzinfo=timezone.utc),
+                last_modified=datetime(2024, 6, 15, tzinfo=UTC),
             )
 
             # Future watermark should trigger fallback to full fetch
@@ -569,7 +569,7 @@ class TestWatermarkCalculation:
         )
 
         mock_client = MagicMock()
-        before_sync = datetime.now(timezone.utc)
+        before_sync = datetime.now(UTC)
 
         with patch.object(
             builder, "build_with_parallel_fetch_async", new_callable=AsyncMock
@@ -577,7 +577,7 @@ class TestWatermarkCalculation:
             mock_build.return_value = make_test_dataframe(
                 ["task-1"],
                 ["Task 1"],
-                last_modified=datetime(2024, 6, 15, tzinfo=timezone.utc),
+                last_modified=datetime(2024, 6, 15, tzinfo=UTC),
             )
 
             _, new_watermark = await builder.refresh_incremental(
@@ -586,7 +586,7 @@ class TestWatermarkCalculation:
                 watermark=None,
             )
 
-        after_sync = datetime.now(timezone.utc)
+        after_sync = datetime.now(UTC)
 
         # New watermark should be between before and after sync time
         assert before_sync <= new_watermark <= after_sync
@@ -613,7 +613,7 @@ class TestWatermarkCalculation:
             mock_build.return_value = make_test_dataframe(
                 ["task-1"],
                 ["Task 1"],
-                last_modified=datetime(2024, 6, 15, tzinfo=timezone.utc),
+                last_modified=datetime(2024, 6, 15, tzinfo=UTC),
             )
 
             _, new_watermark = await builder.refresh_incremental(
@@ -624,7 +624,7 @@ class TestWatermarkCalculation:
 
         # Must have timezone info
         assert new_watermark.tzinfo is not None
-        assert new_watermark.tzinfo == timezone.utc
+        assert new_watermark.tzinfo == UTC
 
 
 class TestNoProjectGid:

@@ -34,11 +34,11 @@ Example (Custom Fields):
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, overload
 
 import arrow
+from autom8y_log import get_logger
 
 logger = get_logger(__name__)
 

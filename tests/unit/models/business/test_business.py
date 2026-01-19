@@ -5,7 +5,6 @@ Per TDD-BIZMODEL: Tests for Business model with holders and typed fields.
 
 from __future__ import annotations
 
-
 from autom8_asana.models.business.business import Business
 from autom8_asana.models.business.contact import Contact, ContactHolder
 from autom8_asana.models.business.fields import CascadingFieldDef

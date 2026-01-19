@@ -11,7 +11,6 @@ from autom8_asana.models import Task
 from autom8_asana.persistence.models import EntityState
 from autom8_asana.persistence.tracker import ChangeTracker
 
-
 # ---------------------------------------------------------------------------
 # Tracking Tests
 # ---------------------------------------------------------------------------

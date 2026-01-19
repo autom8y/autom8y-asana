@@ -1,6 +1,6 @@
 """Tests for multi-entry loading helpers."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
 
 import pytest
@@ -46,7 +46,7 @@ class TestLoadTaskEntry:
     async def test_cache_hit_returns_cached(self) -> None:
         """Test that cache hit returns cached entry without fetch."""
         cache = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Pre-populate cache
         cached_entry = CacheEntry(
@@ -76,8 +76,8 @@ class TestLoadTaskEntry:
     async def test_stale_entry_refetches_strict_mode(self) -> None:
         """Test that stale entry triggers refetch in STRICT mode."""
         cache = EnhancedInMemoryCacheProvider()
-        old_time = datetime.now(timezone.utc) - timedelta(hours=1)
-        new_time = datetime.now(timezone.utc)
+        old_time = datetime.now(UTC) - timedelta(hours=1)
+        new_time = datetime.now(UTC)
 
         # Pre-populate cache with old version
         cached_entry = CacheEntry(
@@ -115,8 +115,8 @@ class TestLoadTaskEntry:
     async def test_eventual_mode_ignores_version(self) -> None:
         """Test that EVENTUAL mode ignores version staleness."""
         cache = EnhancedInMemoryCacheProvider()
-        old_time = datetime.now(timezone.utc) - timedelta(hours=1)
-        new_time = datetime.now(timezone.utc)
+        old_time = datetime.now(UTC) - timedelta(hours=1)
+        new_time = datetime.now(UTC)
 
         # Pre-populate cache with old version
         cached_entry = CacheEntry(
@@ -124,7 +124,7 @@ class TestLoadTaskEntry:
             data={"gid": "123", "name": "Cached Task"},
             entry_type=EntryType.TASK,
             version=old_time,
-            cached_at=datetime.now(timezone.utc),  # Recently cached
+            cached_at=datetime.now(UTC),  # Recently cached
             ttl=300,
         )
         cache.set_versioned("123", cached_entry)
@@ -267,13 +267,13 @@ class TestLoadTaskEntry:
         )
 
         assert entry is not None
-        assert entry.version == datetime(2025, 6, 15, 12, 30, 0, tzinfo=timezone.utc)
+        assert entry.version == datetime(2025, 6, 15, 12, 30, 0, tzinfo=UTC)
 
     @pytest.mark.asyncio
     async def test_missing_modified_at_uses_now(self) -> None:
         """Test missing modified_at uses current time as version."""
         cache = EnhancedInMemoryCacheProvider()
-        before = datetime.now(timezone.utc)
+        before = datetime.now(UTC)
 
         fetcher = AsyncMock(
             return_value={
@@ -290,7 +290,7 @@ class TestLoadTaskEntry:
             fetcher=fetcher,
         )
 
-        after = datetime.now(timezone.utc)
+        after = datetime.now(UTC)
 
         assert entry is not None
         assert before <= entry.version <= after
@@ -344,7 +344,7 @@ class TestLoadTaskEntries:
     async def test_partial_cache_hit(self) -> None:
         """Test mix of cache hits and misses."""
         cache = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Pre-cache TASK entry
         cache.set_versioned(
@@ -507,7 +507,7 @@ class TestLoadBatchEntries:
     async def test_uses_cache_for_cached_gids(self) -> None:
         """Test cached GIDs are not refetched."""
         cache = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Pre-cache one entry
         cache.set_versioned(
@@ -555,7 +555,7 @@ class TestLoadBatchEntries:
     async def test_no_api_call_when_all_cached(self) -> None:
         """Test no API call when all GIDs are cached."""
         cache = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Pre-cache all entries
         for gid in ["123", "456"]:
@@ -589,8 +589,8 @@ class TestLoadBatchEntries:
     async def test_strict_mode_refetches_stale(self) -> None:
         """Test STRICT mode refetches stale entries."""
         cache = EnhancedInMemoryCacheProvider()
-        old_time = datetime.now(timezone.utc) - timedelta(hours=1)
-        new_time = datetime.now(timezone.utc)
+        old_time = datetime.now(UTC) - timedelta(hours=1)
+        new_time = datetime.now(UTC)
 
         # Pre-cache with old version
         cache.set_versioned(
@@ -763,7 +763,7 @@ class TestLoadBatchEntries:
     async def test_partial_cache_with_large_batch(self) -> None:
         """Test partial cache hit with large batch."""
         cache = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Pre-cache first 50
         for i in range(50):

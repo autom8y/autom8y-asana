@@ -8,7 +8,7 @@ a unified cache layer.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
@@ -66,8 +66,8 @@ class UnifiedTaskStore:
         >>> parents = await store.get_parent_chain_async("child-gid")
     """
 
-    cache: "CacheProvider"
-    batch_client: "BatchClient | None" = None
+    cache: CacheProvider
+    batch_client: BatchClient | None = None
     freshness_mode: FreshnessMode = FreshnessMode.EVENTUAL
 
     # Internal components
@@ -241,7 +241,7 @@ class UnifiedTaskStore:
         self,
         gid: str,
         target_level: CompletenessLevel,
-        tasks_client: "TasksClient | None" = None,
+        tasks_client: TasksClient | None = None,
     ) -> dict[str, Any] | None:
         """Upgrade cache entry to target completeness level.
 
@@ -291,7 +291,7 @@ class UnifiedTaskStore:
         gid: str,
         required_level: CompletenessLevel = CompletenessLevel.STANDARD,
         freshness: FreshnessMode | None = None,
-        tasks_client: "TasksClient | None" = None,
+        tasks_client: TasksClient | None = None,
     ) -> dict[str, Any] | None:
         """Get task with automatic upgrade if insufficient.
 
@@ -326,7 +326,7 @@ class UnifiedTaskStore:
         self,
         gids: list[str],
         required_level: CompletenessLevel = CompletenessLevel.STANDARD,
-        tasks_client: "TasksClient | None" = None,
+        tasks_client: TasksClient | None = None,
     ) -> dict[str, dict[str, Any] | None]:
         """Get batch with automatic upgrade for insufficient entries.
 
@@ -422,7 +422,7 @@ class UnifiedTaskStore:
             data=task,
             entry_type=EntryType.TASK,
             version=version,
-            cached_at=datetime.now(timezone.utc),
+            cached_at=datetime.now(UTC),
             ttl=ttl,
             metadata={**base_metadata, **completeness_metadata},
         )
@@ -450,7 +450,7 @@ class UnifiedTaskStore:
         tasks: list[dict[str, Any]],
         ttl: int | None = None,
         opt_fields: list[str] | None = None,
-        tasks_client: "TasksClient | None" = None,
+        tasks_client: TasksClient | None = None,
         warm_hierarchy: bool = False,
     ) -> int:
         """Store multiple tasks with batch write and completeness tracking.
@@ -494,7 +494,7 @@ class UnifiedTaskStore:
                 data=task,
                 entry_type=EntryType.TASK,
                 version=version,
-                cached_at=datetime.now(timezone.utc),
+                cached_at=datetime.now(UTC),
                 ttl=ttl,
                 metadata={**base_metadata, **completeness_metadata},
             )
@@ -776,7 +776,7 @@ class UnifiedTaskStore:
             Parsed datetime, or current time if None.
         """
         if not modified_at:
-            return datetime.now(timezone.utc)
+            return datetime.now(UTC)
 
         # Handle Z suffix
         if modified_at.endswith("Z"):
@@ -785,14 +785,14 @@ class UnifiedTaskStore:
         try:
             dt = datetime.fromisoformat(modified_at)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=UTC)
             return dt
         except ValueError:
             logger.warning(
                 "version_parse_failed",
                 extra={"modified_at": modified_at},
             )
-            return datetime.now(timezone.utc)
+            return datetime.now(UTC)
 
     def _extract_metadata(self, task: dict[str, Any]) -> dict[str, Any]:
         """Extract metadata from task for cache entry.

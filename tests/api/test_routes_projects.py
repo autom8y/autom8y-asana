@@ -25,7 +25,6 @@ from tests.api.conftest import (
     TEST_WORKSPACE_GID,
 )
 
-
 # Sample project data matching Asana API response structure
 SAMPLE_PROJECT = {
     "gid": TEST_PROJECT_GID,

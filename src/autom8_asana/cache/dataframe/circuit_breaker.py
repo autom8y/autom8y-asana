@@ -11,9 +11,8 @@ States:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Dict
 
 from autom8y_log import get_logger
 
@@ -82,7 +81,7 @@ class CircuitBreaker:
     success_threshold: int = 1
 
     # Internal state
-    _circuits: Dict[str, ProjectCircuit] = field(default_factory=dict, init=False)
+    _circuits: dict[str, ProjectCircuit] = field(default_factory=dict, init=False)
 
     # Statistics
     _stats: dict[str, int] = field(default_factory=dict, init=False)
@@ -122,7 +121,7 @@ class CircuitBreaker:
 
         # OPEN state - check if reset timeout elapsed
         if circuit.last_failure is not None:
-            elapsed = datetime.now(timezone.utc) - circuit.last_failure
+            elapsed = datetime.now(UTC) - circuit.last_failure
             if elapsed.total_seconds() >= self.reset_timeout_seconds:
                 # Transition to half-open
                 circuit.state = CircuitState.HALF_OPEN
@@ -151,7 +150,7 @@ class CircuitBreaker:
 
         circuit = self._circuits[project_gid]
         circuit.failure_count += 1
-        circuit.last_failure = datetime.now(timezone.utc)
+        circuit.last_failure = datetime.now(UTC)
 
         # Check if should open circuit
         if (
@@ -190,7 +189,7 @@ class CircuitBreaker:
             return
 
         circuit = self._circuits[project_gid]
-        circuit.last_success = datetime.now(timezone.utc)
+        circuit.last_success = datetime.now(UTC)
 
         if circuit.state == CircuitState.HALF_OPEN:
             circuit.state = CircuitState.CLOSED

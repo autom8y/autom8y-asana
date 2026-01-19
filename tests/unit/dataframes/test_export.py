@@ -44,7 +44,6 @@ from autom8_asana.dataframes.schemas import UNIT_SCHEMA
 from autom8_asana.models.common import NameGid
 from autom8_asana.models.task import Task
 
-
 # =============================================================================
 # Simple Schema Without Nested Types (for CSV testing)
 # =============================================================================

@@ -54,7 +54,7 @@ class TasksClient(BaseClient):
         auth_provider: Any,
         cache_provider: Any | None = None,
         log_provider: Any | None = None,
-        client: "AsanaClient | None" = None,
+        client: AsanaClient | None = None,
     ) -> None:
         """Initialize TasksClient.
 
@@ -75,13 +75,13 @@ class TasksClient(BaseClient):
         )
         self._client = client
         # Lazy initialization to avoid circular imports (per ADR-0059)
-        self._operations: "TaskOperations | None" = None
-        self._ttl_resolver: "TaskTTLResolver | None" = None
+        self._operations: TaskOperations | None = None
+        self._ttl_resolver: TaskTTLResolver | None = None
 
     # --- Lazy Properties for Extracted Components (per ADR-0059) ---
 
     @property
-    def operations(self) -> "TaskOperations":
+    def operations(self) -> TaskOperations:
         """Access task operations helper (lazy-loaded).
 
         Returns:
@@ -94,7 +94,7 @@ class TasksClient(BaseClient):
         return self._operations
 
     @property
-    def ttl_resolver(self) -> "TaskTTLResolver":
+    def ttl_resolver(self) -> TaskTTLResolver:
         """Access TTL resolver (lazy-loaded).
 
         Returns:

@@ -41,9 +41,6 @@ def register_all_models() -> None:
 
     # Import registry and detection types INSIDE the function
     # to avoid circular imports at module load time
-    from autom8_asana.models.business.detection.types import EntityType
-    from autom8_asana.models.business.registry import get_registry
-
     # Import all entity model classes INSIDE the function
     # to avoid circular imports at module load time
     from autom8_asana.models.business.business import (
@@ -54,11 +51,13 @@ def register_all_models() -> None:
         VideographyHolder,
     )
     from autom8_asana.models.business.contact import Contact, ContactHolder
-    from autom8_asana.models.business.unit import Unit, UnitHolder
-    from autom8_asana.models.business.offer import Offer, OfferHolder
-    from autom8_asana.models.business.location import Location, LocationHolder
+    from autom8_asana.models.business.detection.types import EntityType
     from autom8_asana.models.business.hours import Hours
+    from autom8_asana.models.business.location import Location, LocationHolder
+    from autom8_asana.models.business.offer import Offer, OfferHolder
     from autom8_asana.models.business.process import Process, ProcessHolder
+    from autom8_asana.models.business.registry import get_registry
+    from autom8_asana.models.business.unit import Unit, UnitHolder
 
     # Entity type -> Model class mapping
     # Order matters: more specific types first (holders before parents)

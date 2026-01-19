@@ -8,7 +8,8 @@ Per TDD-AUTOMATION-LAYER/FR-002: Post-commit hooks for automation.
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Callable, Coroutine, TYPE_CHECKING
+from collections.abc import Callable, Coroutine
+from typing import TYPE_CHECKING, Any
 
 from autom8_asana.persistence.models import OperationType
 

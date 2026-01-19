@@ -23,7 +23,6 @@ from autom8_asana.models import Task
 from autom8_asana.persistence.models import OperationType
 from autom8_asana.persistence.session import SaveSession
 
-
 # ---------------------------------------------------------------------------
 # Test Fixtures
 # ---------------------------------------------------------------------------

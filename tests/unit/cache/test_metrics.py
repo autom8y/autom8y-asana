@@ -1,8 +1,7 @@
 """Tests for CacheMetrics and CacheEvent."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
-
 
 from autom8_asana.cache.metrics import CacheEvent, CacheMetrics
 
@@ -26,14 +25,14 @@ class TestCacheEvent:
 
     def test_event_timestamp_default(self) -> None:
         """Test event timestamp defaults to now."""
-        before = datetime.now(timezone.utc)
+        before = datetime.now(UTC)
         event = CacheEvent(
             event_type="hit",
             key="key",
             entry_type=None,
             latency_ms=1.0,
         )
-        after = datetime.now(timezone.utc)
+        after = datetime.now(UTC)
 
         assert before <= event.timestamp <= after
 

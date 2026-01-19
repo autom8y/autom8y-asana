@@ -5,7 +5,8 @@ Provides set/get/remove methods with automatic name->GID resolution.
 
 from __future__ import annotations
 
-from typing import Any, Iterator, TYPE_CHECKING
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from autom8_asana.dataframes.resolver.default import DefaultCustomFieldResolver
@@ -411,8 +412,9 @@ class CustomFieldAccessor:
         Raises:
             GidValidationError: If value type doesn't match field type.
         """
-        from autom8_asana.persistence.exceptions import GidValidationError
         from decimal import Decimal
+
+        from autom8_asana.persistence.exceptions import GidValidationError
 
         if value is None:
             return  # None is always valid (clears the field)

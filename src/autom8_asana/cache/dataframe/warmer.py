@@ -15,9 +15,10 @@ This module provides:
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
@@ -124,7 +125,7 @@ class CacheWarmer:
         ...     print("Cache warm complete")
     """
 
-    cache: "DataFrameCache"
+    cache: DataFrameCache
     priority: list[str] = field(
         default_factory=lambda: [
             "offer",
@@ -152,7 +153,7 @@ class CacheWarmer:
 
     async def warm_all_async(
         self,
-        client: "AsanaClient",
+        client: AsanaClient,
         project_gid_provider: Callable[[str], str | None],
     ) -> list[WarmStatus]:
         """Warm all entity types in priority order.
@@ -294,7 +295,7 @@ class CacheWarmer:
         self,
         entity_type: str,
         project_gid: str,
-        client: "AsanaClient",
+        client: AsanaClient,
     ) -> WarmStatus:
         """Warm a single entity type.
 
@@ -415,7 +416,7 @@ class CacheWarmer:
     async def warm_entity_async(
         self,
         entity_type: str,
-        client: "AsanaClient",
+        client: AsanaClient,
         project_gid_provider: Callable[[str], str | None],
     ) -> WarmStatus:
         """Warm a single entity type.

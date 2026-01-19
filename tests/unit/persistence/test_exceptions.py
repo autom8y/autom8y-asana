@@ -29,7 +29,6 @@ from autom8_asana.persistence.models import (
     SaveResult,
 )
 
-
 # ---------------------------------------------------------------------------
 # SaveOrchestrationError Tests
 # ---------------------------------------------------------------------------
@@ -177,7 +176,7 @@ class TestDependencyResolutionError:
         """DependencyResolutionError chains cause exception."""
         entity = Task(gid="123")
         dependency = Task(gid="456")
-        cause = IOError("Network error")
+        cause = OSError("Network error")
 
         error = DependencyResolutionError(entity, dependency, cause)
 

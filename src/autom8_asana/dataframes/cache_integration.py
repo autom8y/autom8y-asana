@@ -19,10 +19,11 @@ Design decisions per user requirements:
 from __future__ import annotations
 
 import asyncio
-from autom8y_log import get_logger
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
+
+from autom8y_log import get_logger
 
 from autom8_asana.cache.dataframes import make_dataframe_key
 from autom8_asana.cache.entry import CacheEntry, EntryType
@@ -108,9 +109,9 @@ class CachedRow:
         # Normalize timezones
         cached_version = self.version
         if cached_version.tzinfo is None:
-            cached_version = cached_version.replace(tzinfo=timezone.utc)
+            cached_version = cached_version.replace(tzinfo=UTC)
         if current.tzinfo is None:
-            current = current.replace(tzinfo=timezone.utc)
+            current = current.replace(tzinfo=UTC)
 
         return cached_version >= current
 
@@ -323,7 +324,7 @@ class DataFrameCacheIntegration:
         # Normalize version to datetime
         version_dt = parse_version(version) if isinstance(version, str) else version
         if version_dt.tzinfo is None:
-            version_dt = version_dt.replace(tzinfo=timezone.utc)
+            version_dt = version_dt.replace(tzinfo=UTC)
 
         try:
             entry = CacheEntry(
@@ -331,7 +332,7 @@ class DataFrameCacheIntegration:
                 data=data,
                 entry_type=EntryType.DATAFRAME,
                 version=version_dt,
-                cached_at=datetime.now(timezone.utc),
+                cached_at=datetime.now(UTC),
                 ttl=effective_ttl,
                 project_gid=project_gid,
                 metadata={"schema_version": schema_version},
@@ -382,14 +383,14 @@ class DataFrameCacheIntegration:
                     parse_version(version) if isinstance(version, str) else version
                 )
                 if version_dt.tzinfo is None:
-                    version_dt = version_dt.replace(tzinfo=timezone.utc)
+                    version_dt = version_dt.replace(tzinfo=UTC)
 
                 entry = CacheEntry(
                     key=key,
                     data=data,
                     entry_type=EntryType.DATAFRAME,
                     version=version_dt,
-                    cached_at=datetime.now(timezone.utc),
+                    cached_at=datetime.now(UTC),
                     ttl=effective_ttl,
                     project_gid=project_gid,
                     metadata={"schema_version": schema_version},
@@ -617,9 +618,9 @@ class DataFrameCacheIntegration:
 
         # Normalize timezones
         if cached_version.tzinfo is None:
-            cached_version = cached_version.replace(tzinfo=timezone.utc)
+            cached_version = cached_version.replace(tzinfo=UTC)
         if current.tzinfo is None:
-            current = current.replace(tzinfo=timezone.utc)
+            current = current.replace(tzinfo=UTC)
 
         return cached_version >= current
 

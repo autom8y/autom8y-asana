@@ -7,8 +7,7 @@ Per ADR-0053: Optional recursive=True for composite SaveSession.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, AsyncMock
-
+from unittest.mock import AsyncMock, MagicMock
 
 from autom8_asana.models import Task
 from autom8_asana.persistence.session import SaveSession
@@ -82,7 +81,7 @@ class TestRecursiveTracking:
 
     def test_recursive_tracks_holder_children(self) -> None:
         """recursive=True tracks entities in holder children lists."""
-        from autom8_asana.models.business import Business, ContactHolder, Contact
+        from autom8_asana.models.business import Business, Contact, ContactHolder
 
         mock_client = create_mock_client()
         session = SaveSession(mock_client)
@@ -109,12 +108,12 @@ class TestRecursiveTracking:
         """recursive=True tracks full Unit -> Offer -> Process hierarchy."""
         from autom8_asana.models.business import (
             Business,
-            Unit,
-            UnitHolder,
             Offer,
             OfferHolder,
             Process,
             ProcessHolder,
+            Unit,
+            UnitHolder,
         )
 
         mock_client = create_mock_client()
@@ -196,7 +195,7 @@ class TestRecursiveTracking:
 
     def test_non_recursive_does_not_track_children(self) -> None:
         """Without recursive, children are not tracked."""
-        from autom8_asana.models.business import Business, ContactHolder, Contact
+        from autom8_asana.models.business import Business, Contact, ContactHolder
 
         mock_client = create_mock_client()
         session = SaveSession(mock_client)

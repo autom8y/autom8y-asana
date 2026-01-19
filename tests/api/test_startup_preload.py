@@ -15,7 +15,7 @@ Tests cover:
 - Graceful degradation scenarios
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -139,7 +139,7 @@ class TestPreloadDataframeCacheFunction:
         mock_app = MagicMock()
         mock_app.state.entity_project_registry = mock_entity_registry
 
-        watermark = datetime.now(timezone.utc)
+        watermark = datetime.now(UTC)
 
         with patch(
             "autom8_asana.dataframes.persistence.DataFramePersistence"
@@ -214,7 +214,7 @@ class TestPreloadDataframeCacheFunction:
                 mock_watermark_repo_fn.return_value = mock_watermark_repo
 
                 with patch("autom8_asana.api.main._do_full_rebuild") as mock_rebuild:
-                    new_watermark = datetime.now(timezone.utc)
+                    new_watermark = datetime.now(UTC)
                     mock_rebuild.return_value = (sample_dataframe, new_watermark)
 
                     await _preload_dataframe_cache(mock_app)
@@ -240,7 +240,7 @@ class TestDoIncrementalCatchup:
         from autom8_asana.api.main import _do_incremental_catchup
         from autom8_asana.auth.bot_pat import BotPATError
 
-        watermark = datetime.now(timezone.utc)
+        watermark = datetime.now(UTC)
 
         with patch("autom8_asana.auth.bot_pat.get_bot_pat") as mock_get_pat:
             mock_get_pat.side_effect = BotPATError("No PAT")
@@ -266,7 +266,7 @@ class TestDoIncrementalCatchup:
         """Incremental catch-up returns existing state when workspace not configured."""
         from autom8_asana.api.main import _do_incremental_catchup
 
-        watermark = datetime.now(timezone.utc)
+        watermark = datetime.now(UTC)
 
         with patch("autom8_asana.auth.bot_pat.get_bot_pat") as mock_get_pat:
             mock_get_pat.return_value = "test_pat"
@@ -421,7 +421,7 @@ class TestCacheIntegration:
         mock_app = MagicMock()
         mock_app.state.entity_project_registry = mock_entity_registry
 
-        watermark = datetime.now(timezone.utc)
+        watermark = datetime.now(UTC)
 
         with patch(
             "autom8_asana.dataframes.persistence.DataFramePersistence"
@@ -469,7 +469,7 @@ class TestCacheIntegration:
         mock_app = MagicMock()
         mock_app.state.entity_project_registry = mock_entity_registry
 
-        watermark = datetime.now(timezone.utc)
+        watermark = datetime.now(UTC)
 
         # Create a different DataFrame to simulate changes
         updated_dataframe = pl.DataFrame(
@@ -507,7 +507,7 @@ class TestCacheIntegration:
                 with patch(
                     "autom8_asana.api.main._do_incremental_catchup"
                 ) as mock_catchup:
-                    new_watermark = datetime.now(timezone.utc)
+                    new_watermark = datetime.now(UTC)
                     # Return different DataFrame to indicate changes
                     mock_catchup.return_value = (updated_dataframe, new_watermark, True)
 

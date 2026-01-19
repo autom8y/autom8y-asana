@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -252,7 +252,7 @@ class TestMigrateTaskCollectionLoading:
         mock_task_fetcher: AsyncMock,
     ) -> None:
         """Test with warm cache - all tasks should be cache hits."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Pre-populate cache
         for gid in ["123", "456"]:
@@ -296,7 +296,7 @@ class TestMigrateTaskCollectionLoading:
         mock_task_fetcher: AsyncMock,
     ) -> None:
         """Test with mix of cache hits and misses."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Only cache "123"
         mock_cache.set_versioned(
@@ -554,11 +554,11 @@ class TestParseVersion:
     def test_naive_datetime(self) -> None:
         """Test parsing naive datetime string."""
         result = _parse_version("2025-01-15T10:30:00")
-        assert result.tzinfo == timezone.utc  # Should be made UTC
+        assert result.tzinfo == UTC  # Should be made UTC
 
     def test_invalid_format_returns_now(self) -> None:
         """Test that invalid format returns current time."""
         result = _parse_version("not-a-date")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         # Should be within 1 second of now
         assert abs((result - now).total_seconds()) < 1

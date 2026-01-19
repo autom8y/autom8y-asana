@@ -23,9 +23,10 @@ Security:
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
 import os
 from functools import lru_cache
+
+from autom8y_log import get_logger
 
 logger = get_logger("autom8_asana.auth")
 

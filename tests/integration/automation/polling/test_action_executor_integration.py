@@ -36,8 +36,8 @@ if TYPE_CHECKING:
 
 @pytest.mark.integration
 async def test_add_tag_real_api(
-    asana_client: "AsanaClient",
-    test_task: "Task",
+    asana_client: AsanaClient,
+    test_task: Task,
     test_tag_gid: str,
 ) -> None:
     """Test add_tag action with real Asana API.
@@ -70,8 +70,8 @@ async def test_add_tag_real_api(
 
 @pytest.mark.integration
 async def test_add_tag_idempotent(
-    asana_client: "AsanaClient",
-    test_task: "Task",
+    asana_client: AsanaClient,
+    test_task: Task,
     test_tag_gid: str,
 ) -> None:
     """Test that adding the same tag twice is idempotent.
@@ -92,8 +92,8 @@ async def test_add_tag_idempotent(
 
 @pytest.mark.integration
 async def test_add_tag_invalid_tag_gid(
-    asana_client: "AsanaClient",
-    test_task: "Task",
+    asana_client: AsanaClient,
+    test_task: Task,
 ) -> None:
     """Test add_tag with invalid tag GID returns error result.
 
@@ -117,8 +117,8 @@ async def test_add_tag_invalid_tag_gid(
 
 @pytest.mark.integration
 async def test_add_comment_real_api(
-    asana_client: "AsanaClient",
-    test_task: "Task",
+    asana_client: AsanaClient,
+    test_task: Task,
 ) -> None:
     """Test add_comment action with real Asana API.
 
@@ -155,8 +155,8 @@ async def test_add_comment_real_api(
 
 @pytest.mark.integration
 async def test_add_comment_with_special_characters(
-    asana_client: "AsanaClient",
-    test_task: "Task",
+    asana_client: AsanaClient,
+    test_task: Task,
 ) -> None:
     """Test add_comment with special characters in text.
 
@@ -174,8 +174,8 @@ async def test_add_comment_with_special_characters(
 
 @pytest.mark.integration
 async def test_add_comment_empty_text_fails(
-    asana_client: "AsanaClient",
-    test_task: "Task",
+    asana_client: AsanaClient,
+    test_task: Task,
 ) -> None:
     """Test that empty comment text is handled.
 
@@ -200,8 +200,8 @@ async def test_add_comment_empty_text_fails(
 
 @pytest.mark.integration
 async def test_change_section_real_api(
-    asana_client: "AsanaClient",
-    test_task: "Task",
+    asana_client: AsanaClient,
+    test_task: Task,
     test_section_gid: str,
 ) -> None:
     """Test change_section action with real Asana API.
@@ -242,8 +242,8 @@ async def test_change_section_real_api(
 
 @pytest.mark.integration
 async def test_change_section_invalid_section_gid(
-    asana_client: "AsanaClient",
-    test_task: "Task",
+    asana_client: AsanaClient,
+    test_task: Task,
 ) -> None:
     """Test change_section with invalid section GID returns error result.
 
@@ -269,7 +269,7 @@ async def test_change_section_invalid_section_gid(
 
 @pytest.mark.integration
 async def test_action_on_invalid_task_gid(
-    asana_client: "AsanaClient",
+    asana_client: AsanaClient,
     test_tag_gid: str,
 ) -> None:
     """Test action execution on non-existent task.
@@ -287,8 +287,8 @@ async def test_action_on_invalid_task_gid(
 
 @pytest.mark.integration
 async def test_unsupported_action_type_raises(
-    asana_client: "AsanaClient",
-    test_task: "Task",
+    asana_client: AsanaClient,
+    test_task: Task,
 ) -> None:
     """Test that unsupported action types raise ValueError.
 
@@ -306,8 +306,8 @@ async def test_unsupported_action_type_raises(
 
 @pytest.mark.integration
 async def test_missing_required_params_raises(
-    asana_client: "AsanaClient",
-    test_task: "Task",
+    asana_client: AsanaClient,
+    test_task: Task,
 ) -> None:
     """Test that missing required params raise ValueError.
 
@@ -341,8 +341,8 @@ async def test_missing_required_params_raises(
 
 @pytest.mark.integration
 async def test_action_result_contains_all_fields(
-    asana_client: "AsanaClient",
-    test_task: "Task",
+    asana_client: AsanaClient,
+    test_task: Task,
     test_tag_gid: str,
 ) -> None:
     """Test that ActionResult contains all expected fields.

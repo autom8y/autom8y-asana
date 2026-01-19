@@ -58,15 +58,14 @@ from autom8_asana.dataframes.builders.progressive import (
 )
 from autom8_asana.dataframes.builders.section import SectionDataFrameBuilder
 
-
 if TYPE_CHECKING:
     from autom8_asana.cache.unified import UnifiedTaskStore
     from autom8_asana.clients.tasks import TasksClient
 
 
 def create_dataframe_builder(
-    tasks_client: "TasksClient",
-    unified_store: "UnifiedTaskStore",
+    tasks_client: TasksClient,
+    unified_store: UnifiedTaskStore,
     *,
     enable_persistence: bool = True,
 ) -> ProgressiveProjectBuilder:

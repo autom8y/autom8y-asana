@@ -11,11 +11,10 @@ from decimal import Decimal
 from typing import Any
 from unittest.mock import MagicMock
 
+import arrow
 import pytest
 
 from autom8_asana.models.business.base import BusinessEntity
-import arrow
-
 from autom8_asana.models.business.descriptors import (
     CustomFieldDescriptor,
     DateField,
@@ -26,7 +25,6 @@ from autom8_asana.models.business.descriptors import (
     PeopleField,
     TextField,
 )
-
 
 # =============================================================================
 # Test Fixtures: Mock CustomFieldAccessor

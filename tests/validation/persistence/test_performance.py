@@ -21,12 +21,11 @@ import pytest
 
 from autom8_asana.models import Task
 from autom8_asana.models.common import NameGid
-from autom8_asana.persistence.tracker import ChangeTracker
-from autom8_asana.persistence.graph import DependencyGraph
 from autom8_asana.persistence import SaveSession
+from autom8_asana.persistence.graph import DependencyGraph
+from autom8_asana.persistence.tracker import ChangeTracker
 
 from .conftest import create_mock_client
-
 
 # ---------------------------------------------------------------------------
 # Performance Thresholds

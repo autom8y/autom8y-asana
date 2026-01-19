@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from autom8_asana.models.business.detection.types import EntityType, EntityTypeInfo
 
-
 __all__ = [
     "ENTITY_TYPE_INFO",
     "NAME_PATTERNS",

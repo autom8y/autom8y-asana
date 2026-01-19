@@ -12,23 +12,22 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from autom8_asana.batch.models import BatchResult
-from autom8_asana.models import Task, Tag, Project, Section
+from autom8_asana.models import Project, Section, Tag, Task
 from autom8_asana.models.common import NameGid
 from autom8_asana.models.user import User
 from autom8_asana.persistence.exceptions import (
+    PositioningConflictError,
     SessionClosedError,
     UnsupportedOperationError,
-    PositioningConflictError,
 )
 from autom8_asana.persistence.models import (
+    ActionType,
     EntityState,
     OperationType,
     PlannedOperation,
     SaveResult,
-    ActionType,
 )
 from autom8_asana.persistence.session import SaveSession, SessionState
-
 
 # ---------------------------------------------------------------------------
 # Test Fixtures

@@ -13,17 +13,16 @@ import pytest
 from autom8_asana.models import Task
 from autom8_asana.models.common import NameGid
 from autom8_asana.persistence.models import (
+    ActionOperation,
+    ActionResult,
+    # TDD-0011: Action types
+    ActionType,
     EntityState,
     OperationType,
     PlannedOperation,
     SaveError,
     SaveResult,
-    # TDD-0011: Action types
-    ActionType,
-    ActionOperation,
-    ActionResult,
 )
-
 
 # ---------------------------------------------------------------------------
 # EntityState Tests
@@ -197,7 +196,7 @@ class TestSaveError:
     def test_save_error_with_nested_exception(self) -> None:
         """SaveError handles nested exceptions."""
         task = Task(gid="123")
-        cause = IOError("Network failed")
+        cause = OSError("Network failed")
         error = RuntimeError("Request failed")
         error.__cause__ = cause
 
@@ -1532,7 +1531,7 @@ class TestSaveResultRetryableHelpers:
 
     def test_retryable_failures_filters_correctly(self) -> None:
         """retryable_failures returns only retryable errors."""
-        from autom8_asana.exceptions import RateLimitError, NotFoundError
+        from autom8_asana.exceptions import NotFoundError, RateLimitError
 
         task1 = Task(gid="123")
         task2 = Task(gid="456")
@@ -1557,7 +1556,7 @@ class TestSaveResultRetryableHelpers:
 
     def test_non_retryable_failures_filters_correctly(self) -> None:
         """non_retryable_failures returns only non-retryable errors."""
-        from autom8_asana.exceptions import RateLimitError, NotFoundError
+        from autom8_asana.exceptions import NotFoundError, RateLimitError
 
         task1 = Task(gid="123")
         task2 = Task(gid="456")
@@ -1642,7 +1641,7 @@ class TestSaveResultRetryableHelpers:
 
     def test_get_recovery_summary_with_failures(self) -> None:
         """get_recovery_summary includes retryable and non-retryable sections."""
-        from autom8_asana.exceptions import RateLimitError, NotFoundError
+        from autom8_asana.exceptions import NotFoundError, RateLimitError
 
         task1 = Task(gid="123")
         task2 = Task(gid="456")
@@ -1675,7 +1674,7 @@ class TestPartialSaveErrorEnhanced:
 
     def test_partial_save_error_message_includes_retryable_counts(self) -> None:
         """PartialSaveError message includes retryable/non-retryable counts."""
-        from autom8_asana.exceptions import RateLimitError, NotFoundError
+        from autom8_asana.exceptions import NotFoundError, RateLimitError
         from autom8_asana.persistence.exceptions import PartialSaveError
 
         task1 = Task(gid="123")
@@ -1774,7 +1773,7 @@ class TestPartialSaveErrorEnhanced:
 
     def test_partial_save_error_non_retryable_count(self) -> None:
         """PartialSaveError.non_retryable_count returns correct count."""
-        from autom8_asana.exceptions import NotFoundError, ForbiddenError
+        from autom8_asana.exceptions import ForbiddenError, NotFoundError
         from autom8_asana.persistence.exceptions import PartialSaveError
 
         task1 = Task(gid="123")

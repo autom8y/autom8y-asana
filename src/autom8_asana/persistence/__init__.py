@@ -82,43 +82,43 @@ Example - With Hooks:
         await session.commit_async()
 """
 
+from autom8_asana.persistence.cascade import (
+    CascadeExecutor,
+    CascadeOperation,
+    CascadeResult,
+    cascade_field,
+)
+from autom8_asana.persistence.exceptions import (
+    CyclicDependencyError,
+    DependencyResolutionError,
+    # TDD-HARDENING-A: Exception hierarchy cleanup (FR-EXC-003, FR-EXC-004)
+    GidValidationError,
+    PartialSaveError,
+    PositioningConflictError,
+    SaveOrchestrationError,
+    # TDD-TRIAGE-FIXES: P1 method error propagation
+    SaveSessionError,
+    SessionClosedError,
+    # TDD-0011: Unsupported operation
+    UnsupportedOperationError,
+    ValidationError,  # Deprecated alias for backward compatibility
+)
+from autom8_asana.persistence.healing import HealingManager
 from autom8_asana.persistence.models import (
+    ActionOperation,
+    ActionResult,
+    # TDD-0011: Action types
+    ActionType,
     EntityState,
+    HealingReport,
+    # TDD-DETECTION/ADR-0095: Self-healing models
+    HealingResult,
     OperationType,
     PlannedOperation,
     SaveError,
     SaveResult,
-    # TDD-0011: Action types
-    ActionType,
-    ActionOperation,
-    ActionResult,
-    # TDD-DETECTION/ADR-0095: Self-healing models
-    HealingResult,
-    HealingReport,
-)
-from autom8_asana.persistence.exceptions import (
-    SaveOrchestrationError,
-    SessionClosedError,
-    CyclicDependencyError,
-    DependencyResolutionError,
-    PartialSaveError,
-    # TDD-0011: Unsupported operation
-    UnsupportedOperationError,
-    # TDD-TRIAGE-FIXES: P1 method error propagation
-    SaveSessionError,
-    # TDD-HARDENING-A: Exception hierarchy cleanup (FR-EXC-003, FR-EXC-004)
-    GidValidationError,
-    PositioningConflictError,
-    ValidationError,  # Deprecated alias for backward compatibility
 )
 from autom8_asana.persistence.session import SaveSession
-from autom8_asana.persistence.cascade import (
-    CascadeOperation,
-    CascadeResult,
-    CascadeExecutor,
-    cascade_field,
-)
-from autom8_asana.persistence.healing import HealingManager
 
 __all__ = [
     # Main API

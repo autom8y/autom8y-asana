@@ -8,7 +8,7 @@ Per TDD-S2S-001 Section 12.2:
 
 from __future__ import annotations
 
-from typing import Generator
+from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

@@ -38,7 +38,7 @@ class PatternSpec:
     strip_decorations: bool = True
 
 
-def _get_pattern_config() -> dict["EntityType", PatternSpec]:
+def _get_pattern_config() -> dict[EntityType, PatternSpec]:
     """Build pattern configuration dictionary.
 
     Deferred import to avoid circular dependency with detection module.
@@ -76,7 +76,7 @@ def _get_pattern_config() -> dict["EntityType", PatternSpec]:
     }
 
 
-def _get_pattern_priority() -> list["EntityType"]:
+def _get_pattern_priority() -> list[EntityType]:
     """Build pattern priority list (most specific first).
 
     Deferred import to avoid circular dependency with detection module.
@@ -109,11 +109,11 @@ STRIP_PATTERNS: list[str] = [
 
 
 # Lazy-initialized at first access
-_PATTERN_CONFIG: dict["EntityType", PatternSpec] | None = None
-_PATTERN_PRIORITY: list["EntityType"] | None = None
+_PATTERN_CONFIG: dict[EntityType, PatternSpec] | None = None
+_PATTERN_PRIORITY: list[EntityType] | None = None
 
 
-def get_pattern_config() -> dict["EntityType", PatternSpec]:
+def get_pattern_config() -> dict[EntityType, PatternSpec]:
     """Get pattern configuration (lazy initialization)."""
     global _PATTERN_CONFIG
     if _PATTERN_CONFIG is None:
@@ -121,7 +121,7 @@ def get_pattern_config() -> dict["EntityType", PatternSpec]:
     return _PATTERN_CONFIG
 
 
-def get_pattern_priority() -> list["EntityType"]:
+def get_pattern_priority() -> list[EntityType]:
     """Get pattern priority list (lazy initialization)."""
     global _PATTERN_PRIORITY
     if _PATTERN_PRIORITY is None:
@@ -131,5 +131,5 @@ def get_pattern_priority() -> list["EntityType"]:
 
 # For backward compatibility, expose as module-level constants
 # These will be populated on first import
-PATTERN_CONFIG: dict["EntityType", PatternSpec] = {}  # Populated lazily
-PATTERN_PRIORITY: list["EntityType"] = []  # Populated lazily
+PATTERN_CONFIG: dict[EntityType, PatternSpec] = {}  # Populated lazily
+PATTERN_PRIORITY: list[EntityType] = []  # Populated lazily

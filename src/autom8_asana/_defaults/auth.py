@@ -10,9 +10,10 @@ Per ADR-VAULT-001: Platform Service Auth uses Secrets Manager, not custom vaults
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
 import os
 from typing import TYPE_CHECKING
+
+from autom8y_log import get_logger
 
 from autom8_asana.exceptions import AuthenticationError
 from autom8_asana.settings import get_settings
@@ -132,7 +133,7 @@ class SecretsManagerAuthProvider:
         *,
         secret_path_pattern: str = "autom8y/{service}/{key}",
         region: str | None = None,
-        client: "SecretsManagerClient | None" = None,
+        client: SecretsManagerClient | None = None,
     ) -> None:
         """Initialize SecretsManagerAuthProvider.
 
@@ -152,7 +153,7 @@ class SecretsManagerAuthProvider:
         self._client = client
         self._cache: dict[str, str] = {}
 
-    def _get_client(self) -> "SecretsManagerClient":
+    def _get_client(self) -> SecretsManagerClient:
         """Get or create boto3 Secrets Manager client.
 
         Returns:

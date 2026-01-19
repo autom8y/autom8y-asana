@@ -7,9 +7,10 @@ Per NFR-003: Failures do not propagate (isolated execution).
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
 import time
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+from autom8y_log import get_logger
 
 from autom8_asana.automation.base import AutomationRule
 from autom8_asana.automation.config import AutomationConfig

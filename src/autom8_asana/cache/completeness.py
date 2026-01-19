@@ -101,7 +101,7 @@ See Also
 from __future__ import annotations
 
 from enum import IntEnum
-from typing import TYPE_CHECKING, Any, FrozenSet
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from autom8_asana.cache.entry import CacheEntry
@@ -126,9 +126,9 @@ class CompletenessLevel(IntEnum):
 
 # Fields included at each completeness level
 # These sets are cumulative: STANDARD includes MINIMAL, FULL includes all
-MINIMAL_FIELDS: FrozenSet[str] = frozenset(["gid"])
+MINIMAL_FIELDS: frozenset[str] = frozenset(["gid"])
 
-STANDARD_FIELDS: FrozenSet[str] = frozenset(
+STANDARD_FIELDS: frozenset[str] = frozenset(
     [
         "gid",
         "name",
@@ -159,7 +159,7 @@ STANDARD_FIELDS: FrozenSet[str] = frozenset(
     ]
 )
 
-FULL_FIELDS: FrozenSet[str] = frozenset(
+FULL_FIELDS: frozenset[str] = frozenset(
     [
         *STANDARD_FIELDS,
         "created_at",

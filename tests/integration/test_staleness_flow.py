@@ -7,7 +7,7 @@ changed path, batch coalescing, and graceful degradation.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -46,9 +46,9 @@ def make_entry(
 
     if expired:
         # Set cached_at to past so entry is expired
-        cached_at = datetime.now(timezone.utc) - timedelta(seconds=ttl + 60)
+        cached_at = datetime.now(UTC) - timedelta(seconds=ttl + 60)
     else:
-        cached_at = datetime.now(timezone.utc)
+        cached_at = datetime.now(UTC)
 
     return CacheEntry(
         key=gid,

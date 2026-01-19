@@ -14,7 +14,6 @@ import pytest
 from autom8_asana.dataframes.resolver.cascading import CascadingFieldResolver
 from autom8_asana.models.business.detection import EntityType
 
-
 # ============================================================================
 # Test Fixtures
 # ============================================================================

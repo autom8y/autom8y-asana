@@ -14,7 +14,8 @@ Per TDD-SPRINT-5-CLEANUP/INH-005: Deprecated aliases consolidated via decorator.
 from __future__ import annotations
 
 import warnings
-from typing import TYPE_CHECKING, Any, Callable, ClassVar
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import PrivateAttr
 

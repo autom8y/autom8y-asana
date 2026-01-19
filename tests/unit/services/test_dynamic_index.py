@@ -13,7 +13,7 @@ Coverage:
 - Cache hit/miss/eviction
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import polars as pl
@@ -344,9 +344,9 @@ class TestDynamicIndex:
             }
         )
 
-        before = datetime.now(timezone.utc)
+        before = datetime.now(UTC)
         index = DynamicIndex.from_dataframe(df, ["email"])
-        after = datetime.now(timezone.utc)
+        after = datetime.now(UTC)
 
         assert before <= index.created_at <= after
 
@@ -481,7 +481,7 @@ class TestDynamicIndexCache:
         cache.put("unit", ["col"], index)
 
         # Mock time to be past TTL
-        expired_time = datetime.now(timezone.utc) + timedelta(seconds=61)
+        expired_time = datetime.now(UTC) + timedelta(seconds=61)
         with patch("autom8_asana.services.dynamic_index.datetime") as mock_datetime:
             mock_datetime.now.return_value = expired_time
             mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)

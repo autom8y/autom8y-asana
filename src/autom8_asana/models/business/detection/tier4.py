@@ -13,8 +13,9 @@ Dependencies: types.py, config.py
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
 from typing import TYPE_CHECKING
+
+from autom8y_log import get_logger
 
 from autom8_asana.models.business.detection.types import (
     CONFIDENCE_TIER_4,

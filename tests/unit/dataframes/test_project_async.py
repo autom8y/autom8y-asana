@@ -18,11 +18,12 @@ pytestmark = pytest.mark.skip(
     reason="MIGRATION: Tests need update for ProgressiveProjectBuilder"
 )
 
+from datetime import UTC
+
 from autom8_asana.dataframes.resolver import MockCustomFieldResolver
 from autom8_asana.dataframes.schemas import BASE_SCHEMA
 from autom8_asana.models.section import Section
 from autom8_asana.models.task import Task
-
 
 # =============================================================================
 # Test Fixtures
@@ -689,9 +690,10 @@ class TestCacheIntegration:
 
         When all tasks are in cache, no extraction should occur.
         """
-        from autom8_asana.dataframes.cache_integration import CachedRow
+        from datetime import datetime
+
         from autom8_asana.cache.dataframes import make_dataframe_key
-        from datetime import datetime, timezone
+        from autom8_asana.dataframes.cache_integration import CachedRow
 
         # Setup sections and tasks
         sections = [Section(gid="section_1", name="Section 1")]
@@ -720,8 +722,8 @@ class TestCacheIntegration:
             project_gid="proj123",
             data={"gid": "task_1", "name": "Cached Task 1"},
             schema_version="1.0.0",
-            cached_at=datetime.now(timezone.utc),
-            version=datetime(2024, 1, 16, 15, 45, 30, tzinfo=timezone.utc),
+            cached_at=datetime.now(UTC),
+            version=datetime(2024, 1, 16, 15, 45, 30, tzinfo=UTC),
         )
         mock_cache_integration.get_cached_batch_async = AsyncMock(
             return_value={cache_key: cached_row}
@@ -814,9 +816,10 @@ class TestCacheIntegration:
         mock_unified_store: MagicMock,
     ) -> None:
         """Test partial cache hit only extracts missing tasks (FR-CACHE-004)."""
-        from autom8_asana.dataframes.cache_integration import CachedRow
+        from datetime import datetime
+
         from autom8_asana.cache.dataframes import make_dataframe_key
-        from datetime import datetime, timezone
+        from autom8_asana.dataframes.cache_integration import CachedRow
 
         sections = [Section(gid="section_1", name="Section 1")]
         mock_client.sections.list_for_project_async = MagicMock(
@@ -852,8 +855,8 @@ class TestCacheIntegration:
             project_gid="proj123",
             data={"gid": "task_1", "name": "Cached Task 1"},
             schema_version="1.0.0",
-            cached_at=datetime.now(timezone.utc),
-            version=datetime(2024, 1, 16, 15, 45, 30, tzinfo=timezone.utc),
+            cached_at=datetime.now(UTC),
+            version=datetime(2024, 1, 16, 15, 45, 30, tzinfo=UTC),
         )
         mock_cache_integration.get_cached_batch_async = AsyncMock(
             return_value={cache_key_1: cached_row}
@@ -1344,8 +1347,9 @@ class TestTaskCacheBuildIntegration:
         mock_unified_store: MagicMock,
     ) -> None:
         """Test warm cache path returns cached tasks without full API fetch."""
+        from datetime import datetime
+
         from autom8_asana.cache.entry import CacheEntry, EntryType
-        from datetime import datetime, timezone
 
         sections = [Section(gid="section_1", name="Section 1")]
         mock_client_with_task_cache.sections.list_for_project_async = MagicMock(
@@ -1363,7 +1367,7 @@ class TestTaskCacheBuildIntegration:
 
         # Pre-populate cache
         cache_provider = mock_client_with_task_cache.tasks._cache
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         entry = CacheEntry(
             key="task_1",
             data=task1.model_dump(exclude_none=True),
@@ -1416,8 +1420,9 @@ class TestTaskCacheBuildIntegration:
         mock_unified_store: MagicMock,
     ) -> None:
         """Test partial cache hit fetches only missing tasks."""
+        from datetime import datetime
+
         from autom8_asana.cache.entry import CacheEntry, EntryType
-        from datetime import datetime, timezone
 
         sections = [Section(gid="section_1", name="Section 1")]
         mock_client_with_task_cache.sections.list_for_project_async = MagicMock(
@@ -1444,7 +1449,7 @@ class TestTaskCacheBuildIntegration:
 
         # Pre-populate cache with only task_1
         cache_provider = mock_client_with_task_cache.tasks._cache
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         entry = CacheEntry(
             key="task_1",
             data=cached_task.model_dump(exclude_none=True),
@@ -1492,8 +1497,9 @@ class TestTaskCacheBuildIntegration:
         mock_unified_store: MagicMock,
     ) -> None:
         """Test use_cache=False bypasses task cache entirely."""
+        from datetime import datetime
+
         from autom8_asana.cache.entry import CacheEntry, EntryType
-        from datetime import datetime, timezone
 
         sections = [Section(gid="section_1", name="Section 1")]
         mock_client_with_task_cache.sections.list_for_project_async = MagicMock(
@@ -1511,7 +1517,7 @@ class TestTaskCacheBuildIntegration:
 
         # Pre-populate cache with different data
         cache_provider = mock_client_with_task_cache.tasks._cache
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         cached_data = task1.model_dump(exclude_none=True)
         cached_data["name"] = "Stale Cached Task"
         entry = CacheEntry(
@@ -1775,8 +1781,9 @@ class TestCacheOptimizationP2:
         mock_unified_store: MagicMock,
     ) -> None:
         """Test 100% cache hit skips fetch entirely (FR-MISS-004)."""
+        from datetime import datetime
+
         from autom8_asana.cache.entry import CacheEntry, EntryType
-        from datetime import datetime, timezone
 
         sections = [Section(gid="section_1", name="Section 1")]
         mock_client_with_task_cache.sections.list_for_project_async = MagicMock(
@@ -1794,7 +1801,7 @@ class TestCacheOptimizationP2:
 
         # Pre-populate cache
         cache_provider = mock_client_with_task_cache.tasks._cache
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         entry = CacheEntry(
             key="task_1",
             data=task1.model_dump(exclude_none=True),
@@ -1846,8 +1853,9 @@ class TestCacheOptimizationP2:
         mock_unified_store: MagicMock,
     ) -> None:
         """Test partial cache hit fetches only missing GIDs (FR-MISS-001/002)."""
+        from datetime import datetime
+
         from autom8_asana.cache.entry import CacheEntry, EntryType
-        from datetime import datetime, timezone
 
         sections = [Section(gid="section_1", name="Section 1")]
         mock_client_with_task_cache.sections.list_for_project_async = MagicMock(
@@ -1873,7 +1881,7 @@ class TestCacheOptimizationP2:
 
         # Pre-populate cache with only task_1
         cache_provider = mock_client_with_task_cache.tasks._cache
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         entry = CacheEntry(
             key="task_1",
             data=cached_task.model_dump(exclude_none=True),

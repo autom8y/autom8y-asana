@@ -14,7 +14,6 @@ from autom8_asana.models import Task
 from autom8_asana.persistence.executor import BatchExecutor
 from autom8_asana.persistence.models import OperationType
 
-
 # ---------------------------------------------------------------------------
 # Test Fixtures
 # ---------------------------------------------------------------------------

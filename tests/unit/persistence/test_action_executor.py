@@ -13,10 +13,9 @@ from autom8_asana.models import Task
 from autom8_asana.models.common import NameGid
 from autom8_asana.persistence.action_executor import ActionExecutor
 from autom8_asana.persistence.models import (
-    ActionType,
     ActionOperation,
+    ActionType,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

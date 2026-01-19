@@ -4,12 +4,12 @@ Per TDD-DATAFRAME-CACHE-001: Tests for LRU eviction, heap-based limits,
 and thread-safe access.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import polars as pl
 
-from autom8_asana.cache.dataframe_cache import CacheEntry
 from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
+from autom8_asana.cache.dataframe_cache import CacheEntry
 
 
 def make_entry(project_gid: str, rows: int = 10) -> CacheEntry:
@@ -25,8 +25,8 @@ def make_entry(project_gid: str, rows: int = 10) -> CacheEntry:
         project_gid=project_gid,
         entity_type="unit",
         dataframe=df,
-        watermark=datetime.now(timezone.utc),
-        created_at=datetime.now(timezone.utc),
+        watermark=datetime.now(UTC),
+        created_at=datetime.now(UTC),
         schema_version="1.0.0",
     )
 
@@ -152,8 +152,8 @@ class TestMemoryTier:
             project_gid="proj-old",
             entity_type="unit",
             dataframe=old_df,
-            watermark=datetime.now(timezone.utc),
-            created_at=datetime.now(timezone.utc) - timedelta(hours=2),
+            watermark=datetime.now(UTC),
+            created_at=datetime.now(UTC) - timedelta(hours=2),
             schema_version="1.0.0",
         )
 

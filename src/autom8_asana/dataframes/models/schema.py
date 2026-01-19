@@ -6,8 +6,9 @@ for type-safe column definitions with Polars dtype support.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import polars as pl
@@ -40,7 +41,7 @@ class ColumnDef:
     extractor: Callable[[Any], Any] | None = field(default=None, compare=False)
     description: str | None = None
 
-    def get_polars_dtype(self) -> "pl.DataType":
+    def get_polars_dtype(self) -> pl.DataType:
         """Convert dtype string to actual Polars DataType.
 
         Returns:
@@ -114,7 +115,7 @@ class DataFrameSchema:
         """
         return next((c for c in self.columns if c.name == name), None)
 
-    def to_polars_schema(self) -> dict[str, "pl.DataType"]:
+    def to_polars_schema(self) -> dict[str, pl.DataType]:
         """Convert to Polars schema dict for DataFrame construction.
 
         Returns:

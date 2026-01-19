@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -77,7 +77,7 @@ class CacheEntry:
     data: dict[str, Any]
     entry_type: EntryType
     version: datetime
-    cached_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    cached_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     ttl: int | None = 300
     project_gid: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -93,13 +93,13 @@ class CacheEntry:
         """
         if self.ttl is None:
             return False
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(UTC)
         # Ensure both datetimes are timezone-aware for comparison
         cached_at = self.cached_at
         if cached_at.tzinfo is None:
-            cached_at = cached_at.replace(tzinfo=timezone.utc)
+            cached_at = cached_at.replace(tzinfo=UTC)
         if now.tzinfo is None:
-            now = now.replace(tzinfo=timezone.utc)
+            now = now.replace(tzinfo=UTC)
         elapsed = (now - cached_at).total_seconds()
         return elapsed > self.ttl
 
@@ -125,9 +125,9 @@ class CacheEntry:
 
         # Normalize to UTC for comparison
         if cached_version.tzinfo is None:
-            cached_version = cached_version.replace(tzinfo=timezone.utc)
+            cached_version = cached_version.replace(tzinfo=UTC)
         if current_version.tzinfo is None:
-            current_version = current_version.replace(tzinfo=timezone.utc)
+            current_version = current_version.replace(tzinfo=UTC)
 
         return cached_version >= current_version
 
@@ -165,7 +165,7 @@ def _parse_datetime(value: str) -> datetime:
             value = value[:-1] + "+00:00"
         dt = datetime.fromisoformat(value)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
         return dt
     except ValueError:
         # Fallback for edge cases
@@ -181,7 +181,7 @@ def _parse_datetime(value: str) -> datetime:
             try:
                 parsed = dt_module.strptime(value, fmt)
                 if parsed.tzinfo is None:
-                    parsed = parsed.replace(tzinfo=timezone.utc)
+                    parsed = parsed.replace(tzinfo=UTC)
                 return parsed
             except ValueError:
                 continue

@@ -6,7 +6,7 @@ and fetcher adapter behavior.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -153,8 +153,8 @@ def make_stories_cache_entry(
         key=task_gid,
         data={"stories": stories},
         entry_type=EntryType.STORIES,
-        version=datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
-        cached_at=datetime.now(timezone.utc),
+        version=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),
+        cached_at=datetime.now(UTC),
         metadata={"last_fetched": last_fetched},
     )
 

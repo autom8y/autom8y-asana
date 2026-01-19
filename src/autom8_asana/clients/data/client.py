@@ -12,15 +12,31 @@ Per Story 1.9: Full observability with structured logging, PII redaction, and me
 from __future__ import annotations
 
 import asyncio
-from autom8y_log import get_logger
 import os
 import re
 import time
 import uuid
-from datetime import date, datetime, timezone
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from datetime import UTC, date, datetime
+from typing import TYPE_CHECKING, Any
 
 import httpx
+
+# Platform SDK resilience primitives (autom8y-http >= 0.3.0)
+from autom8y_http import (
+    CircuitBreaker,
+    ExponentialBackoffRetry,
+)
+from autom8y_http import (
+    CircuitBreakerConfig as SdkCircuitBreakerConfig,
+)
+from autom8y_http import (
+    CircuitBreakerOpenError as SdkCircuitBreakerOpenError,
+)
+from autom8y_http import (
+    RetryConfig as SdkRetryConfig,
+)
+from autom8y_log import get_logger
 
 from autom8_asana.clients.data.config import DataServiceConfig
 from autom8_asana.clients.data.models import (
@@ -37,15 +53,6 @@ from autom8_asana.exceptions import (
     InsightsServiceError,
     InsightsValidationError,
     SyncInAsyncContextError,
-)
-
-# Platform SDK resilience primitives (autom8y-http >= 0.3.0)
-from autom8y_http import (
-    CircuitBreaker,
-    CircuitBreakerConfig as SdkCircuitBreakerConfig,
-    CircuitBreakerOpenError as SdkCircuitBreakerOpenError,
-    ExponentialBackoffRetry,
-    RetryConfig as SdkRetryConfig,
 )
 from autom8_asana.models.contracts import PhoneVerticalPair
 
@@ -565,7 +572,7 @@ class DataServiceClient:
                 "metadata": response.metadata.model_dump(mode="json"),
                 "request_id": response.request_id,
                 "warnings": response.warnings,
-                "cached_at": datetime.now(timezone.utc).isoformat(),
+                "cached_at": datetime.now(UTC).isoformat(),
             }
 
             # Use simple set method for cache storage
@@ -621,7 +628,7 @@ class DataServiceClient:
                         cached_at_str.replace("Z", "+00:00")
                     )
                 except (ValueError, AttributeError):
-                    cached_at = datetime.now(timezone.utc)
+                    cached_at = datetime.now(UTC)
 
             # Rebuild column info
             columns = [ColumnInfo(**col) for col in metadata_dict.get("columns", [])]

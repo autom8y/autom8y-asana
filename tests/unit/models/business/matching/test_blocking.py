@@ -5,7 +5,6 @@ Per TDD-BusinessSeeder-v2 ADR-SEEDER-004: Tests for blocking rules.
 
 from __future__ import annotations
 
-
 from autom8_asana.models.business.matching.blocking import (
     CompositeBlockingRule,
     DomainBlockingRule,

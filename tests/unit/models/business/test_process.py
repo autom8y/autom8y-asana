@@ -5,7 +5,6 @@ Per TDD-BIZMODEL: Tests for Process base model (forward-compatible for Phase 2).
 
 from __future__ import annotations
 
-
 from autom8_asana.models.business.process import (
     Process,
     ProcessHolder,

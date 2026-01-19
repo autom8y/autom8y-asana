@@ -1,6 +1,6 @@
 """Tests for CacheEntry and EntryType."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -48,7 +48,7 @@ class TestCacheEntry:
 
     def test_create_entry(self) -> None:
         """Test creating a basic cache entry."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         entry = CacheEntry(
             key="1234567890",
             data={"gid": "1234567890", "name": "Test Task"},
@@ -70,7 +70,7 @@ class TestCacheEntry:
             key="123",
             data={},
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
         )
 
         with pytest.raises(AttributeError):
@@ -78,14 +78,14 @@ class TestCacheEntry:
 
     def test_default_cached_at(self) -> None:
         """Test that cached_at defaults to current time."""
-        before = datetime.now(timezone.utc)
+        before = datetime.now(UTC)
         entry = CacheEntry(
             key="123",
             data={},
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
         )
-        after = datetime.now(timezone.utc)
+        after = datetime.now(UTC)
 
         assert before <= entry.cached_at <= after
 
@@ -95,7 +95,7 @@ class TestCacheEntry:
             key="123",
             data={},
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
         )
 
         assert entry.ttl == 300
@@ -106,8 +106,8 @@ class TestCacheEntry:
             key="123",
             data={},
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
-            cached_at=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
+            cached_at=datetime.now(UTC),
             ttl=300,
         )
 
@@ -115,7 +115,7 @@ class TestCacheEntry:
 
     def test_is_expired_after_ttl(self) -> None:
         """Test entry is expired after TTL."""
-        past = datetime.now(timezone.utc) - timedelta(seconds=400)
+        past = datetime.now(UTC) - timedelta(seconds=400)
         entry = CacheEntry(
             key="123",
             data={},
@@ -129,7 +129,7 @@ class TestCacheEntry:
 
     def test_is_expired_no_ttl(self) -> None:
         """Test entry with no TTL never expires."""
-        past = datetime.now(timezone.utc) - timedelta(days=365)
+        past = datetime.now(UTC) - timedelta(days=365)
         entry = CacheEntry(
             key="123",
             data={},
@@ -143,7 +143,7 @@ class TestCacheEntry:
 
     def test_is_expired_with_custom_now(self) -> None:
         """Test is_expired with custom now time."""
-        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         entry = CacheEntry(
             key="123",
             data={},
@@ -154,16 +154,16 @@ class TestCacheEntry:
         )
 
         # 200 seconds later - not expired
-        now1 = datetime(2025, 1, 1, 12, 3, 20, tzinfo=timezone.utc)
+        now1 = datetime(2025, 1, 1, 12, 3, 20, tzinfo=UTC)
         assert not entry.is_expired(now1)
 
         # 400 seconds later - expired
-        now2 = datetime(2025, 1, 1, 12, 6, 40, tzinfo=timezone.utc)
+        now2 = datetime(2025, 1, 1, 12, 6, 40, tzinfo=UTC)
         assert entry.is_expired(now2)
 
     def test_is_current_same_version(self) -> None:
         """Test entry is current when versions match."""
-        version = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        version = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         entry = CacheEntry(
             key="123",
             data={},
@@ -175,8 +175,8 @@ class TestCacheEntry:
 
     def test_is_current_newer_version(self) -> None:
         """Test entry is current when cached version is newer."""
-        cached_version = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-        current_version = datetime(2025, 1, 1, 11, 0, 0, tzinfo=timezone.utc)
+        cached_version = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
+        current_version = datetime(2025, 1, 1, 11, 0, 0, tzinfo=UTC)
         entry = CacheEntry(
             key="123",
             data={},
@@ -188,8 +188,8 @@ class TestCacheEntry:
 
     def test_is_current_stale(self) -> None:
         """Test entry is not current when source is newer."""
-        cached_version = datetime(2025, 1, 1, 11, 0, 0, tzinfo=timezone.utc)
-        current_version = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        cached_version = datetime(2025, 1, 1, 11, 0, 0, tzinfo=UTC)
+        current_version = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         entry = CacheEntry(
             key="123",
             data={},
@@ -201,7 +201,7 @@ class TestCacheEntry:
 
     def test_is_current_with_string_version(self) -> None:
         """Test is_current handles string versions."""
-        cached_version = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        cached_version = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         entry = CacheEntry(
             key="123",
             data={},
@@ -214,8 +214,8 @@ class TestCacheEntry:
 
     def test_is_stale_inverse_of_is_current(self) -> None:
         """Test is_stale is inverse of is_current."""
-        cached_version = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-        current_version = datetime(2025, 1, 1, 13, 0, 0, tzinfo=timezone.utc)
+        cached_version = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
+        current_version = datetime(2025, 1, 1, 13, 0, 0, tzinfo=UTC)
         entry = CacheEntry(
             key="123",
             data={},
@@ -231,7 +231,7 @@ class TestCacheEntry:
             key="123",
             data={},
             entry_type=EntryType.DATAFRAME,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
             project_gid="project_456",
         )
 
@@ -243,7 +243,7 @@ class TestCacheEntry:
             key="123",
             data={},
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
         )
 
         assert entry.metadata == {}
@@ -254,7 +254,7 @@ class TestCacheEntry:
             key="123",
             data={},
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
             metadata={"source": "api", "count": 5},
         )
 
@@ -268,17 +268,17 @@ class TestParseDatetime:
     def test_parse_iso_with_timezone(self) -> None:
         """Test parsing ISO format with timezone."""
         result = _parse_datetime("2025-01-15T10:30:00+00:00")
-        assert result == datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+        assert result == datetime(2025, 1, 15, 10, 30, 0, tzinfo=UTC)
 
     def test_parse_iso_with_z_suffix(self) -> None:
         """Test parsing ISO format with Z suffix."""
         result = _parse_datetime("2025-01-15T10:30:00Z")
-        assert result == datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+        assert result == datetime(2025, 1, 15, 10, 30, 0, tzinfo=UTC)
 
     def test_parse_iso_without_timezone(self) -> None:
         """Test parsing ISO format without timezone (assumes UTC)."""
         result = _parse_datetime("2025-01-15T10:30:00")
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
         assert result.year == 2025
         assert result.month == 1
         assert result.day == 15

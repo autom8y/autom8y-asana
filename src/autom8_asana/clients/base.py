@@ -5,7 +5,7 @@ Per TDD-CACHE-INTEGRATION Section 4.4: Includes cache helper methods.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
@@ -83,8 +83,8 @@ class BaseClient:
     def _cache_get(
         self,
         key: str,
-        entry_type: "EntryType",
-    ) -> "CacheEntry | None":
+        entry_type: EntryType,
+    ) -> CacheEntry | None:
         """Check cache for an entry (graceful degradation).
 
         Per NFR-DEGRADE-001: Cache failures log warnings without raising.
@@ -124,7 +124,7 @@ class BaseClient:
         self,
         key: str,
         data: dict[str, Any],
-        entry_type: "EntryType",
+        entry_type: EntryType,
         ttl: int | None = None,
     ) -> None:
         """Store data in cache (graceful degradation).
@@ -149,7 +149,7 @@ class BaseClient:
             if modified_at:
                 version = self._parse_modified_at(modified_at)
             else:
-                version = datetime.now(timezone.utc)
+                version = datetime.now(UTC)
 
             # Resolve TTL from config if not provided
             if ttl is None:
@@ -182,7 +182,7 @@ class BaseClient:
     def _cache_invalidate(
         self,
         key: str,
-        entry_types: list["EntryType"] | None = None,
+        entry_types: list[EntryType] | None = None,
     ) -> None:
         """Invalidate cache entries for a key (graceful degradation).
 
@@ -221,7 +221,7 @@ class BaseClient:
         """
         if isinstance(value, datetime):
             if value.tzinfo is None:
-                return value.replace(tzinfo=timezone.utc)
+                return value.replace(tzinfo=UTC)
             return value
 
         # Handle ISO format with Z suffix
@@ -230,5 +230,5 @@ class BaseClient:
 
         dt = datetime.fromisoformat(value)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
         return dt

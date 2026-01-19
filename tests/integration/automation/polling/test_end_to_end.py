@@ -27,8 +27,9 @@ import os
 import tempfile
 import textwrap
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, AsyncGenerator
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -53,9 +54,9 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 async def e2e_test_task(
-    asana_client: "AsanaClient",
+    asana_client: AsanaClient,
     test_project_gid: str,
-) -> AsyncGenerator["Task", None]:
+) -> AsyncGenerator[Task, None]:
     """Create a temporary task specifically for E2E testing, cleanup after.
 
     Creates a new task in the test project with a unique name.
@@ -65,7 +66,7 @@ async def e2e_test_task(
         Task object with gid, name, and other fields.
     """
     unique_id = str(uuid.uuid4())[:8]
-    task_name = f"[E2E Test] {datetime.now(timezone.utc).isoformat()} - {unique_id}"
+    task_name = f"[E2E Test] {datetime.now(UTC).isoformat()} - {unique_id}"
 
     task = await asana_client.tasks.create_async(
         name=task_name,
@@ -85,9 +86,9 @@ async def e2e_test_task(
 
 @pytest.fixture
 async def multiple_e2e_tasks(
-    asana_client: "AsanaClient",
+    asana_client: AsanaClient,
     test_project_gid: str,
-) -> AsyncGenerator[list["Task"], None]:
+) -> AsyncGenerator[list[Task], None]:
     """Create multiple temporary tasks for E2E testing.
 
     Creates 3 tasks with different characteristics for rule evaluation testing.
@@ -97,7 +98,7 @@ async def multiple_e2e_tasks(
         List of Task objects.
     """
     unique_id = str(uuid.uuid4())[:8]
-    tasks: list["Task"] = []
+    tasks: list[Task] = []
 
     for i in range(3):
         task_name = f"[E2E Multi Task {i + 1}] {unique_id}"
@@ -125,10 +126,10 @@ async def multiple_e2e_tasks(
 
 @pytest.mark.integration
 async def test_full_polling_flow_with_real_api(
-    asana_client: "AsanaClient",
+    asana_client: AsanaClient,
     test_project_gid: str,
     test_tag_gid: str,
-    e2e_test_task: "Task",
+    e2e_test_task: Task,
 ) -> None:
     """End-to-end test of the complete polling automation flow.
 
@@ -218,9 +219,9 @@ async def test_full_polling_flow_with_real_api(
 
 @pytest.mark.integration
 async def test_full_flow_config_to_verify_with_comment(
-    asana_client: "AsanaClient",
+    asana_client: AsanaClient,
     test_project_gid: str,
-    e2e_test_task: "Task",
+    e2e_test_task: Task,
 ) -> None:
     """E2E test using add_comment action to verify full flow.
 
@@ -230,9 +231,7 @@ async def test_full_flow_config_to_verify_with_comment(
     3. Comment action execution
     4. Comment verification via stories API
     """
-    comment_text = (
-        f"[E2E Test] Automated comment at {datetime.now(timezone.utc).isoformat()}"
-    )
+    comment_text = f"[E2E Test] Automated comment at {datetime.now(UTC).isoformat()}"
 
     config_yaml = textwrap.dedent(f"""\
         scheduler:
@@ -296,10 +295,10 @@ async def test_full_flow_config_to_verify_with_comment(
 
 @pytest.mark.integration
 async def test_multiple_rules_evaluated_and_executed(
-    asana_client: "AsanaClient",
+    asana_client: AsanaClient,
     test_project_gid: str,
     test_tag_gid: str,
-    e2e_test_task: "Task",
+    e2e_test_task: Task,
 ) -> None:
     """Test that multiple rules are evaluated and their actions executed.
 
@@ -387,10 +386,10 @@ async def test_multiple_rules_evaluated_and_executed(
 
 @pytest.mark.integration
 async def test_disabled_rules_are_skipped(
-    asana_client: "AsanaClient",
+    asana_client: AsanaClient,
     test_project_gid: str,
     test_tag_gid: str,
-    e2e_test_task: "Task",
+    e2e_test_task: Task,
 ) -> None:
     """Test that disabled rules are not executed.
 
@@ -475,9 +474,9 @@ async def test_disabled_rules_are_skipped(
 
 @pytest.mark.integration
 async def test_no_matches_no_actions_executed(
-    asana_client: "AsanaClient",
+    asana_client: AsanaClient,
     test_project_gid: str,
-    e2e_test_task: "Task",
+    e2e_test_task: Task,
 ) -> None:
     """Test that when no tasks match conditions, no actions are executed.
 
@@ -549,7 +548,7 @@ async def test_no_matches_no_actions_executed(
 
 @pytest.mark.integration
 async def test_empty_task_list_no_errors(
-    asana_client: "AsanaClient",
+    asana_client: AsanaClient,
     test_project_gid: str,
     test_tag_gid: str,
 ) -> None:
@@ -605,9 +604,9 @@ async def test_empty_task_list_no_errors(
 
 @pytest.mark.integration
 async def test_action_failure_does_not_block_other_rules(
-    asana_client: "AsanaClient",
+    asana_client: AsanaClient,
     test_project_gid: str,
-    e2e_test_task: "Task",
+    e2e_test_task: Task,
 ) -> None:
     """Test that one rule's action failure doesn't prevent other rules from executing.
 
@@ -686,9 +685,9 @@ async def test_action_failure_does_not_block_other_rules(
 
 @pytest.mark.integration
 async def test_action_failure_on_one_task_continues_to_others(
-    asana_client: "AsanaClient",
+    asana_client: AsanaClient,
     test_project_gid: str,
-    multiple_e2e_tasks: list["Task"],
+    multiple_e2e_tasks: list[Task],
 ) -> None:
     """Test that action failure on one task doesn't prevent actions on other tasks.
 
@@ -834,9 +833,9 @@ async def test_config_from_file_integration(
 
 @pytest.mark.integration
 async def test_dry_run_mode_no_actions_executed(
-    asana_client: "AsanaClient",
+    asana_client: AsanaClient,
     test_project_gid: str,
-    e2e_test_task: "Task",
+    e2e_test_task: Task,
 ) -> None:
     """Test that scheduler without client runs in dry-run mode (no actions).
 
@@ -908,10 +907,10 @@ async def test_dry_run_mode_no_actions_executed(
 
 @pytest.mark.integration
 async def test_change_section_full_flow(
-    asana_client: "AsanaClient",
+    asana_client: AsanaClient,
     test_project_gid: str,
     test_section_gid: str,
-    e2e_test_task: "Task",
+    e2e_test_task: Task,
 ) -> None:
     """Test change_section action in full E2E flow.
 

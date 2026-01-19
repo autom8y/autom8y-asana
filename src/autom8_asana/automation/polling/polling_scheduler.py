@@ -39,7 +39,7 @@ import fcntl
 import logging
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -143,7 +143,7 @@ class PollingScheduler:
         *,
         lock_path: str = DEFAULT_LOCK_PATH,
         client: Any = None,
-    ) -> "PollingScheduler":
+    ) -> PollingScheduler:
         """Create a PollingScheduler from a YAML configuration file.
 
         Loads and validates the configuration file, then creates a scheduler
@@ -253,7 +253,7 @@ class PollingScheduler:
             scheduler = PollingScheduler.from_config_file(sys.argv[1])
             scheduler.run_once()
         """
-        utc_now = datetime.now(timezone.utc)
+        utc_now = datetime.now(UTC)
         local_now = utc_now.astimezone(self.timezone)
 
         logger.info(
@@ -280,7 +280,7 @@ class PollingScheduler:
             if lock_file is not None:
                 self._release_lock(lock_file)
 
-        utc_end = datetime.now(timezone.utc)
+        utc_end = datetime.now(UTC)
         duration = (utc_end - utc_now).total_seconds()
         logger.info(
             "Evaluation completed in %.2f seconds (UTC: %s)",
@@ -308,7 +308,7 @@ class PollingScheduler:
                 If not provided, rules are evaluated but no tasks will match
                 (placeholder for future task fetching integration).
         """
-        utc_now = datetime.now(timezone.utc)
+        utc_now = datetime.now(UTC)
 
         # Get structured logger with bound context for this evaluation cycle
         structured_log = StructuredLogger.get_logger(
@@ -381,7 +381,7 @@ class PollingScheduler:
                 duration_ms=duration_ms,
             )
 
-        utc_end = datetime.now(timezone.utc)
+        utc_end = datetime.now(UTC)
         cycle_duration_ms = (utc_end - utc_now).total_seconds() * 1000
 
         structured_log.info(
@@ -454,9 +454,7 @@ class PollingScheduler:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
             # Write PID for debugging
-            lock_file.write(
-                f"{datetime.now(timezone.utc).isoformat()}\npid={sys.executable}\n"
-            )
+            lock_file.write(f"{datetime.now(UTC).isoformat()}\npid={sys.executable}\n")
             lock_file.flush()
 
             logger.debug("Acquired lock at %s", self.lock_path)

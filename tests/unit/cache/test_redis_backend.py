@@ -1,6 +1,6 @@
 """Tests for RedisCacheProvider."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -50,7 +50,7 @@ class TestRedisCacheProviderInit:
 
     def test_init_with_config(self) -> None:
         """Test initialization with RedisConfig."""
-        from autom8_asana.cache.backends.redis import RedisConfig, RedisCacheProvider
+        from autom8_asana.cache.backends.redis import RedisCacheProvider, RedisConfig
 
         config = RedisConfig(host="redis.example.com", port=6380, password="secret")
 
@@ -186,8 +186,8 @@ class TestRedisCacheProviderSerialization:
                 key="123",
                 data={"name": "Test Task"},
                 entry_type=EntryType.TASK,
-                version=datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
-                cached_at=datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+                version=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),
+                cached_at=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),
                 ttl=300,
                 project_gid="project_456",
                 metadata={"source": "api"},
@@ -409,7 +409,7 @@ class TestRedisCacheProviderIntegration:
             key="123",
             data={"name": "Test Task"},
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
             ttl=300,
         )
 
@@ -428,7 +428,7 @@ class TestRedisCacheProviderIntegration:
 
     def test_check_freshness(self, redis_provider) -> None:
         """Test check_freshness operation."""
-        cached_time = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        cached_time = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         entry = CacheEntry(
             key="123",
             data={},
@@ -443,12 +443,12 @@ class TestRedisCacheProviderIntegration:
         )
 
         # Newer version should be stale
-        newer = datetime(2025, 1, 1, 14, 0, 0, tzinfo=timezone.utc)
+        newer = datetime(2025, 1, 1, 14, 0, 0, tzinfo=UTC)
         assert redis_provider.check_freshness("123", EntryType.TASK, newer) is False
 
     def test_invalidate(self, redis_provider) -> None:
         """Test invalidate operation."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         redis_provider.set_versioned(
             "123",
@@ -476,7 +476,7 @@ class TestRedisCacheProviderIntegration:
 
     def test_get_batch(self, redis_provider) -> None:
         """Test get_batch operation."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         redis_provider.set_versioned(
             "1",
@@ -506,7 +506,7 @@ class TestRedisCacheProviderIntegration:
 
     def test_set_batch(self, redis_provider) -> None:
         """Test set_batch operation."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         entries = {
             "1": CacheEntry(

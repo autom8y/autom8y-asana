@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Literal, overload
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 from autom8y_log import get_logger
 

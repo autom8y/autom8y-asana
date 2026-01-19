@@ -13,9 +13,8 @@ import random
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
-
 
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
 from autom8_asana.cache.batch import ModificationCheckCache, reset_modification_cache
@@ -29,7 +28,7 @@ class TestInMemoryCacheConcurrency:
     def test_concurrent_reads_same_key(self) -> None:
         """Test multiple threads reading the same key simultaneously."""
         cache = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Pre-populate
         entry = CacheEntry(
@@ -68,7 +67,7 @@ class TestInMemoryCacheConcurrency:
     def test_concurrent_writes_same_key(self) -> None:
         """Test multiple threads writing to the same key."""
         cache = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         errors: list[Exception] = []
 
@@ -105,7 +104,7 @@ class TestInMemoryCacheConcurrency:
     def test_concurrent_reads_and_writes(self) -> None:
         """Test mixed read and write operations."""
         cache = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         errors: list[Exception] = []
 
@@ -147,7 +146,7 @@ class TestInMemoryCacheConcurrency:
     def test_concurrent_different_keys(self) -> None:
         """Test threads operating on different keys simultaneously."""
         cache = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         errors: list[Exception] = []
         successful_ops: list[int] = []
@@ -191,7 +190,7 @@ class TestInMemoryCacheConcurrency:
     def test_concurrent_batch_operations(self) -> None:
         """Test concurrent batch get/set operations."""
         cache = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         errors: list[Exception] = []
 
@@ -234,7 +233,7 @@ class TestInMemoryCacheConcurrency:
     def test_concurrent_invalidation(self) -> None:
         """Test concurrent invalidate operations."""
         cache = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         # Pre-populate
         for i in range(100):
@@ -278,7 +277,7 @@ class TestInMemoryCacheConcurrency:
     def test_concurrent_clear(self) -> None:
         """Test concurrent clear with other operations."""
         cache = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         errors: list[Exception] = []
 
@@ -319,7 +318,7 @@ class TestInMemoryCacheConcurrency:
     def test_high_contention_single_key(self) -> None:
         """Test very high contention on a single key."""
         cache = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         errors: list[Exception] = []
         ops_count = 0
@@ -363,7 +362,7 @@ class TestInMemoryCacheConcurrency:
     def test_eviction_during_access(self) -> None:
         """Test that eviction during access doesn't cause issues."""
         cache = EnhancedInMemoryCacheProvider(max_size=50)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         errors: list[Exception] = []
 
@@ -703,7 +702,7 @@ class TestDeadlockPrevention:
         """
         cache = EnhancedInMemoryCacheProvider()
         metrics = cache.get_metrics()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         callback_errors: list[Exception] = []
         spawned_threads: list[threading.Thread] = []
@@ -756,7 +755,7 @@ class TestDeadlockPrevention:
         """Test operations across multiple cache instances don't deadlock."""
         cache1 = EnhancedInMemoryCacheProvider()
         cache2 = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         errors: list[Exception] = []
 
@@ -797,7 +796,7 @@ class TestThreadPoolConcurrency:
     def test_thread_pool_cache_operations(self) -> None:
         """Test cache operations with ThreadPoolExecutor."""
         cache = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         def cache_operation(key: str) -> bool:
             entry = CacheEntry(
@@ -841,7 +840,7 @@ class TestRaceConditionScenarios:
     def test_read_during_write_consistency(self) -> None:
         """Ensure read during write returns consistent data."""
         cache = EnhancedInMemoryCacheProvider()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         inconsistencies: list[str] = []
         inconsistencies_lock = threading.Lock()

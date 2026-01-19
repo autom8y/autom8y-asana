@@ -10,7 +10,7 @@ insufficient completeness for the requested operation.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from autom8y_cache import CacheEntry
@@ -64,7 +64,7 @@ class AsanaTaskUpgrader:
         >>> fields = upgrader.get_fields_for_level(CompletenessLevel.FULL)
     """
 
-    def __init__(self, tasks_client: "TasksClient") -> None:
+    def __init__(self, tasks_client: TasksClient) -> None:
         """Initialize upgrader with tasks client.
 
         Args:
@@ -129,7 +129,7 @@ class AsanaTaskUpgrader:
                 data=task,
                 entry_type=EntryType.TASK.value,
                 version=version,
-                cached_at=datetime.now(timezone.utc),
+                cached_at=datetime.now(UTC),
                 metadata=completeness_metadata,
             )
 
@@ -193,7 +193,7 @@ class AsanaTaskUpgrader:
             Parsed datetime, or current time if None.
         """
         if not modified_at:
-            return datetime.now(timezone.utc)
+            return datetime.now(UTC)
 
         # Handle Z suffix
         if modified_at.endswith("Z"):
@@ -202,14 +202,14 @@ class AsanaTaskUpgrader:
         try:
             dt = datetime.fromisoformat(modified_at)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=UTC)
             return dt
         except ValueError:
             logger.warning(
                 "version_parse_failed",
                 extra={"modified_at": modified_at},
             )
-            return datetime.now(timezone.utc)
+            return datetime.now(UTC)
 
 
 # Verify protocol compliance at import time

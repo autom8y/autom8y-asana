@@ -26,18 +26,6 @@ are re-exported for test compatibility. They are internal APIs subject to change
 
 from __future__ import annotations
 
-# Layer 0: Pure types (no dependencies)
-from autom8_asana.models.business.detection.types import (
-    CONFIDENCE_TIER_1,
-    CONFIDENCE_TIER_2,
-    CONFIDENCE_TIER_3,
-    CONFIDENCE_TIER_4,
-    CONFIDENCE_TIER_5,
-    DetectionResult,
-    EntityType,
-    EntityTypeInfo,
-)
-
 # Layer 1: Configuration (depends on types only)
 from autom8_asana.models.business.detection.config import (
     ENTITY_TYPE_INFO,
@@ -46,6 +34,19 @@ from autom8_asana.models.business.detection.config import (
     PARENT_CHILD_MAP,
     entity_type_to_holder_attr,
     get_holder_attr,
+)
+
+# Layer 3: Facade - orchestration functions
+from autom8_asana.models.business.detection.facade import (
+    _matches_holder_pattern,
+    detect_by_name,
+    detect_by_parent,
+    detect_by_project,
+    detect_by_structure_async,
+    detect_entity_type,
+    detect_entity_type_async,
+    detect_entity_type_from_dict,
+    identify_holder_type,
 )
 
 # Layer 2: Tier modules (depend on types and config)
@@ -69,19 +70,17 @@ from autom8_asana.models.business.detection.tier4 import (
     detect_by_structure_inspection,
 )
 
-# Layer 3: Facade - orchestration functions
-from autom8_asana.models.business.detection.facade import (
-    _matches_holder_pattern,
-    detect_by_name,
-    detect_by_parent,
-    detect_by_project,
-    detect_by_structure_async,
-    detect_entity_type,
-    detect_entity_type_async,
-    detect_entity_type_from_dict,
-    identify_holder_type,
+# Layer 0: Pure types (no dependencies)
+from autom8_asana.models.business.detection.types import (
+    CONFIDENCE_TIER_1,
+    CONFIDENCE_TIER_2,
+    CONFIDENCE_TIER_3,
+    CONFIDENCE_TIER_4,
+    CONFIDENCE_TIER_5,
+    DetectionResult,
+    EntityType,
+    EntityTypeInfo,
 )
-
 
 __all__ = [
     # Types

@@ -7,6 +7,7 @@ covering success paths, error handling, and deduplication.
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -19,7 +20,6 @@ from autom8_asana.dataframes.builders.parallel_fetch import (
 )
 from autom8_asana.models.section import Section
 from autom8_asana.models.task import Task
-
 
 # =============================================================================
 # Test Fixtures
@@ -1005,7 +1005,7 @@ class TestGidEnumerationCache:
         mock_tasks_by_section: dict[str, list[Task]],
     ) -> None:
         """Test section list is returned from cache on hit (FR-SECTION-001/002)."""
-        from datetime import datetime, timezone
+        from datetime import datetime
         from unittest.mock import MagicMock
 
         from autom8_asana.cache.entry import CacheEntry, EntryType
@@ -1024,8 +1024,8 @@ class TestGidEnumerationCache:
                 ]
             },
             entry_type=EntryType.PROJECT_SECTIONS,
-            version=datetime.now(timezone.utc),
-            cached_at=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
+            cached_at=datetime.now(UTC),
             ttl=1800,
         )
         mock_cache.get_versioned = MagicMock(return_value=cached_entry)
@@ -1122,7 +1122,7 @@ class TestGidEnumerationCache:
         mock_tasks_by_section: dict[str, list[Task]],
     ) -> None:
         """Test GID enumeration is returned from cache on hit (FR-GID-001/002)."""
-        from datetime import datetime, timezone
+        from datetime import datetime
         from unittest.mock import MagicMock
 
         from autom8_asana.cache.entry import CacheEntry, EntryType
@@ -1142,8 +1142,8 @@ class TestGidEnumerationCache:
                 }
             },
             entry_type=EntryType.GID_ENUMERATION,
-            version=datetime.now(timezone.utc),
-            cached_at=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
+            cached_at=datetime.now(UTC),
             ttl=300,
         )
         mock_cache.get_versioned = MagicMock(return_value=cached_entry)
@@ -1180,7 +1180,7 @@ class TestGidEnumerationCache:
         mock_tasks_by_section: dict[str, list[Task]],
     ) -> None:
         """Test GID enumeration cache is populated on miss (FR-GID-003)."""
-        from datetime import datetime, timezone
+        from datetime import datetime
         from unittest.mock import MagicMock
 
         from autom8_asana.cache.entry import CacheEntry, EntryType
@@ -1200,8 +1200,8 @@ class TestGidEnumerationCache:
                 ]
             },
             entry_type=EntryType.PROJECT_SECTIONS,
-            version=datetime.now(timezone.utc),
-            cached_at=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
+            cached_at=datetime.now(UTC),
             ttl=1800,
         )
 

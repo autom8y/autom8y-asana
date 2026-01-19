@@ -15,13 +15,13 @@ Dependencies: types.py, config.py, tier1.py, tier2.py, tier3.py, tier4.py
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
 import warnings
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8y_log import get_logger
 
+from autom8_asana.cache.entry import CacheEntry, EntryType
 from autom8_asana.models.business.detection.config import (
     HOLDER_NAME_MAP,
     get_holder_attr,
@@ -150,9 +150,9 @@ def _cache_detection_result(
             modified_str = modified_str[:-1] + "+00:00"
         version = datetime.fromisoformat(modified_str)
         if version.tzinfo is None:
-            version = version.replace(tzinfo=timezone.utc)
+            version = version.replace(tzinfo=UTC)
     else:
-        version = datetime.now(timezone.utc)
+        version = datetime.now(UTC)
 
     entry = CacheEntry(
         key=task.gid,

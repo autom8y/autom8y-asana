@@ -14,11 +14,12 @@ Sales process moves to the "Converted" section.
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
 import re
 import time
 from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any, Literal, cast
+
+from autom8y_log import get_logger
 
 from autom8_asana.automation.base import TriggerCondition
 from autom8_asana.automation.seeding import FieldSeeder

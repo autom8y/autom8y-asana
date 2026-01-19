@@ -16,10 +16,10 @@ field that doesn't exist on the underlying Asana task returns None.
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
 from enum import Enum
 from typing import TYPE_CHECKING, ClassVar
 
+from autom8y_log import get_logger
 from pydantic import PrivateAttr
 
 from autom8_asana.models.business.base import BusinessEntity

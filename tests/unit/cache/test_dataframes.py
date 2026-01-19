@@ -1,6 +1,6 @@
 """Tests for dataframe caching."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -143,7 +143,7 @@ class TestLoadDataframeCached:
             key="task123:project456",
             data=cached_dataframe,
             entry_type=EntryType.DATAFRAME,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
             project_gid="project456",
         )
         cache._cache["dataframe:task123:project456"] = entry
@@ -165,7 +165,7 @@ class TestLoadDataframeCached:
     ) -> None:
         """Test that stale cache triggers recompute."""
         # Pre-populate cache with old version
-        old_version = datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+        old_version = datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC)
         entry = CacheEntry(
             key="task123:project456",
             data={"cached": True},
@@ -202,7 +202,7 @@ class TestLoadDataframeCached:
             key="task123:project456",
             data={"cached": True},
             entry_type=EntryType.DATAFRAME,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
             project_gid="project456",
         )
         cache._cache["dataframe:task123:project456"] = entry
@@ -273,7 +273,7 @@ class TestInvalidateDataframe:
             key="task123:project456",
             data={"field": "value"},
             entry_type=EntryType.DATAFRAME,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
         )
         cache._cache["dataframe:task123:project456"] = entry
 
@@ -302,7 +302,7 @@ class TestInvalidateTaskDataframes:
                 key=f"task123:{project_gid}",
                 data={"project": project_gid},
                 entry_type=EntryType.DATAFRAME,
-                version=datetime.now(timezone.utc),
+                version=datetime.now(UTC),
             )
             cache._cache[f"dataframe:task123:{project_gid}"] = entry
 
@@ -322,7 +322,7 @@ class TestInvalidateTaskDataframes:
                 key=f"task123:{project_gid}",
                 data={"project": project_gid},
                 entry_type=EntryType.DATAFRAME,
-                version=datetime.now(timezone.utc),
+                version=datetime.now(UTC),
             )
             cache._cache[f"dataframe:task123:{project_gid}"] = entry
 
@@ -385,7 +385,7 @@ class TestLoadBatchDataframesCached:
             key="task1:project1",
             data={"cached": True},
             entry_type=EntryType.DATAFRAME,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
         )
         cache._cache["dataframe:task1:project1"] = entry
 
@@ -412,7 +412,7 @@ class TestLoadBatchDataframesCached:
     ) -> None:
         """Test batch load with modification timestamps."""
         # Pre-populate cache with old version
-        old_version = datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+        old_version = datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC)
         entry = CacheEntry(
             key="task1:project1",
             data={"old": True},
@@ -444,7 +444,7 @@ class TestLoadBatchDataframesCached:
             key="task1:project1",
             data={"cached": True},
             entry_type=EntryType.DATAFRAME,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
         )
         cache._cache["dataframe:task1:project1"] = entry
 

@@ -13,7 +13,6 @@ for backward compatibility. Transport wrappers handle translation.
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
 import os
 import re
 from dataclasses import dataclass, field
@@ -23,9 +22,14 @@ from typing import TYPE_CHECKING
 # Per TDD-PRIMITIVE-MIGRATION-001 Phase 2
 from autom8y_http import (
     CircuitBreakerConfig as PlatformCircuitBreakerConfig,
+)
+from autom8y_http import (
     RateLimiterConfig as PlatformRateLimiterConfig,
+)
+from autom8y_http import (
     RetryConfig as PlatformRetryConfig,
 )
+from autom8y_log import get_logger
 
 from autom8_asana.automation.config import AutomationConfig
 from autom8_asana.exceptions import ConfigurationError
@@ -345,12 +349,12 @@ class CacheConfig:
 
     # These use factory functions to avoid circular imports at module load
     # The actual TTLSettings/OverflowSettings/Freshness are created lazily
-    _ttl: "TTLSettings | None" = field(default=None, repr=False)
-    _overflow: "OverflowSettings | None" = field(default=None, repr=False)
-    _freshness: "Freshness | None" = field(default=None, repr=False)
+    _ttl: TTLSettings | None = field(default=None, repr=False)
+    _overflow: OverflowSettings | None = field(default=None, repr=False)
+    _freshness: Freshness | None = field(default=None, repr=False)
 
     @property
-    def ttl(self) -> "TTLSettings":
+    def ttl(self) -> TTLSettings:
         """TTL configuration settings (lazy-loaded)."""
         if self._ttl is None:
             from autom8_asana.cache.settings import TTLSettings
@@ -359,12 +363,12 @@ class CacheConfig:
         return self._ttl  # type: ignore[return-value]
 
     @ttl.setter
-    def ttl(self, value: "TTLSettings") -> None:
+    def ttl(self, value: TTLSettings) -> None:
         """Set TTL configuration."""
         object.__setattr__(self, "_ttl", value)
 
     @property
-    def overflow(self) -> "OverflowSettings":
+    def overflow(self) -> OverflowSettings:
         """Overflow threshold settings (lazy-loaded)."""
         if self._overflow is None:
             from autom8_asana.cache.settings import OverflowSettings
@@ -373,12 +377,12 @@ class CacheConfig:
         return self._overflow  # type: ignore[return-value]
 
     @overflow.setter
-    def overflow(self, value: "OverflowSettings") -> None:
+    def overflow(self, value: OverflowSettings) -> None:
         """Set overflow configuration."""
         object.__setattr__(self, "_overflow", value)
 
     @property
-    def freshness(self) -> "Freshness":
+    def freshness(self) -> Freshness:
         """Default freshness mode for cache reads (lazy-loaded)."""
         if self._freshness is None:
             from autom8_asana.cache.freshness import Freshness
@@ -387,7 +391,7 @@ class CacheConfig:
         return self._freshness  # type: ignore[return-value]
 
     @freshness.setter
-    def freshness(self, value: "Freshness") -> None:
+    def freshness(self, value: Freshness) -> None:
         """Set freshness mode."""
         object.__setattr__(self, "_freshness", value)
 
@@ -432,7 +436,7 @@ class CacheConfig:
         return DEFAULT_TTL
 
     @classmethod
-    def from_env(cls) -> "CacheConfig":
+    def from_env(cls) -> CacheConfig:
         """Create configuration from environment variables.
 
         Per FR-ENV-001 through FR-ENV-005: Reads ASANA_CACHE_* environment

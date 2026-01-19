@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -60,7 +60,7 @@ class TestWatermarkRepositorySingleton:
     def test_reset_clears_singleton(self) -> None:
         """reset() clears the singleton so next access creates fresh instance."""
         repo1 = WatermarkRepository.get_instance()
-        repo1.set_watermark("project-123", datetime.now(timezone.utc))
+        repo1.set_watermark("project-123", datetime.now(UTC))
 
         WatermarkRepository.reset()
 
@@ -93,7 +93,7 @@ class TestWatermarkOperations:
     def test_set_and_get_watermark(self) -> None:
         """set_watermark() stores value retrievable via get_watermark()."""
         repo = get_watermark_repo()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         repo.set_watermark("project-123", now)
 
@@ -102,8 +102,8 @@ class TestWatermarkOperations:
     def test_set_watermark_updates_existing(self) -> None:
         """set_watermark() updates existing watermark for project."""
         repo = get_watermark_repo()
-        first = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-        second = datetime(2024, 6, 15, 18, 30, 0, tzinfo=timezone.utc)
+        first = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
+        second = datetime(2024, 6, 15, 18, 30, 0, tzinfo=UTC)
 
         repo.set_watermark("project-123", first)
         repo.set_watermark("project-123", second)
@@ -121,9 +121,9 @@ class TestWatermarkOperations:
     def test_multiple_projects_independent(self) -> None:
         """Watermarks for different projects are stored independently."""
         repo = get_watermark_repo()
-        wm1 = datetime(2024, 1, 1, tzinfo=timezone.utc)
-        wm2 = datetime(2024, 6, 1, tzinfo=timezone.utc)
-        wm3 = datetime(2024, 12, 1, tzinfo=timezone.utc)
+        wm1 = datetime(2024, 1, 1, tzinfo=UTC)
+        wm2 = datetime(2024, 6, 1, tzinfo=UTC)
+        wm3 = datetime(2024, 12, 1, tzinfo=UTC)
 
         repo.set_watermark("project-a", wm1)
         repo.set_watermark("project-b", wm2)
@@ -156,8 +156,8 @@ class TestGetAllWatermarks:
     def test_get_all_watermarks_returns_all(self) -> None:
         """get_all_watermarks() returns all stored watermarks."""
         repo = get_watermark_repo()
-        wm1 = datetime(2024, 1, 1, tzinfo=timezone.utc)
-        wm2 = datetime(2024, 6, 1, tzinfo=timezone.utc)
+        wm1 = datetime(2024, 1, 1, tzinfo=UTC)
+        wm2 = datetime(2024, 6, 1, tzinfo=UTC)
 
         repo.set_watermark("project-a", wm1)
         repo.set_watermark("project-b", wm2)
@@ -169,13 +169,13 @@ class TestGetAllWatermarks:
     def test_get_all_watermarks_returns_copy(self) -> None:
         """get_all_watermarks() returns a copy to prevent external modification."""
         repo = get_watermark_repo()
-        wm = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        wm = datetime(2024, 1, 1, tzinfo=UTC)
         repo.set_watermark("project-123", wm)
 
         result = repo.get_all_watermarks()
 
         # Modify the returned dict
-        result["project-456"] = datetime(2024, 12, 1, tzinfo=timezone.utc)
+        result["project-456"] = datetime(2024, 12, 1, tzinfo=UTC)
         result.pop("project-123")
 
         # Original should be unchanged
@@ -197,7 +197,7 @@ class TestClearWatermark:
     def test_clear_watermark_removes_existing(self) -> None:
         """clear_watermark() removes watermark for specified project."""
         repo = get_watermark_repo()
-        wm = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        wm = datetime(2024, 1, 1, tzinfo=UTC)
         repo.set_watermark("project-123", wm)
 
         repo.clear_watermark("project-123")
@@ -216,8 +216,8 @@ class TestClearWatermark:
     def test_clear_watermark_only_affects_target(self) -> None:
         """clear_watermark() only removes watermark for specified project."""
         repo = get_watermark_repo()
-        wm1 = datetime(2024, 1, 1, tzinfo=timezone.utc)
-        wm2 = datetime(2024, 6, 1, tzinfo=timezone.utc)
+        wm1 = datetime(2024, 1, 1, tzinfo=UTC)
+        wm2 = datetime(2024, 6, 1, tzinfo=UTC)
         repo.set_watermark("project-a", wm1)
         repo.set_watermark("project-b", wm2)
 
@@ -263,7 +263,7 @@ class TestThreadSafety:
         repo = get_watermark_repo()
 
         def set_watermark(project_id: int) -> None:
-            wm = datetime(2024, 1, project_id % 28 + 1, tzinfo=timezone.utc)
+            wm = datetime(2024, 1, project_id % 28 + 1, tzinfo=UTC)
             repo.set_watermark(f"project-{project_id}", wm)
 
         with ThreadPoolExecutor(max_workers=10) as executor:
@@ -283,7 +283,7 @@ class TestThreadSafety:
             try:
                 for i in range(50):
                     project = f"project-{thread_id}-{i}"
-                    wm = datetime(2024, 1, 1, tzinfo=timezone.utc)
+                    wm = datetime(2024, 1, 1, tzinfo=UTC)
                     repo.set_watermark(project, wm)
                     result = repo.get_watermark(project)
                     assert result == wm
@@ -314,7 +314,7 @@ class TestEdgeCases:
     def test_empty_project_gid(self) -> None:
         """Empty string project GID is valid (though unusual)."""
         repo = get_watermark_repo()
-        wm = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        wm = datetime(2024, 1, 1, tzinfo=UTC)
 
         repo.set_watermark("", wm)
 
@@ -323,7 +323,7 @@ class TestEdgeCases:
     def test_special_characters_in_project_gid(self) -> None:
         """Project GID with special characters works correctly."""
         repo = get_watermark_repo()
-        wm = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        wm = datetime(2024, 1, 1, tzinfo=UTC)
         special_gid = "project-123_test/foo:bar"
 
         repo.set_watermark(special_gid, wm)
@@ -333,7 +333,7 @@ class TestEdgeCases:
     def test_watermark_with_microseconds(self) -> None:
         """Watermark with microsecond precision is preserved."""
         repo = get_watermark_repo()
-        wm = datetime(2024, 1, 15, 12, 30, 45, 123456, tzinfo=timezone.utc)
+        wm = datetime(2024, 1, 15, 12, 30, 45, 123456, tzinfo=UTC)
 
         repo.set_watermark("project-123", wm)
 
@@ -343,7 +343,7 @@ class TestEdgeCases:
     def test_min_datetime_value(self) -> None:
         """Minimum datetime value is handled correctly."""
         repo = get_watermark_repo()
-        wm = datetime.min.replace(tzinfo=timezone.utc)
+        wm = datetime.min.replace(tzinfo=UTC)
 
         repo.set_watermark("project-123", wm)
 
@@ -352,7 +352,7 @@ class TestEdgeCases:
     def test_max_datetime_value(self) -> None:
         """Maximum datetime value is handled correctly."""
         repo = get_watermark_repo()
-        wm = datetime.max.replace(tzinfo=timezone.utc)
+        wm = datetime.max.replace(tzinfo=UTC)
 
         repo.set_watermark("project-123", wm)
 
@@ -420,7 +420,7 @@ class TestPersistenceIntegration:
     def test_set_watermark_without_persistence_does_not_error(self) -> None:
         """set_watermark() works normally without persistence configured."""
         repo = get_watermark_repo()
-        wm = datetime(2024, 6, 15, tzinfo=timezone.utc)
+        wm = datetime(2024, 6, 15, tzinfo=UTC)
 
         # Should not raise
         repo.set_watermark("project-123", wm)
@@ -437,7 +437,7 @@ class TestPersistenceIntegration:
         mock_persistence.save_watermark = AsyncMock(return_value=True)
         repo.set_persistence(mock_persistence)
 
-        wm = datetime(2024, 6, 15, tzinfo=timezone.utc)
+        wm = datetime(2024, 6, 15, tzinfo=UTC)
 
         # Create a mock loop.create_task to capture the coroutine
         with patch.object(repo, "_schedule_persist") as mock_schedule:
@@ -455,7 +455,7 @@ class TestPersistenceIntegration:
         mock_persistence = MagicMock()
         mock_persistence.save_watermark = AsyncMock(return_value=True)
 
-        wm = datetime(2024, 6, 15, tzinfo=timezone.utc)
+        wm = datetime(2024, 6, 15, tzinfo=UTC)
 
         await repo._persist_watermark("project-123", wm, mock_persistence)
 
@@ -472,7 +472,7 @@ class TestPersistenceIntegration:
             side_effect=RuntimeError("S3 error")
         )
 
-        wm = datetime(2024, 6, 15, tzinfo=timezone.utc)
+        wm = datetime(2024, 6, 15, tzinfo=UTC)
 
         # Should not raise
         await repo._persist_watermark("project-123", wm, mock_persistence)
@@ -485,8 +485,8 @@ class TestPersistenceIntegration:
         repo = get_watermark_repo()
         mock_persistence = MagicMock()
 
-        wm1 = datetime(2024, 1, 1, tzinfo=timezone.utc)
-        wm2 = datetime(2024, 6, 1, tzinfo=timezone.utc)
+        wm1 = datetime(2024, 1, 1, tzinfo=UTC)
+        wm2 = datetime(2024, 6, 1, tzinfo=UTC)
         mock_persistence.load_all_watermarks = AsyncMock(
             return_value={"proj-1": wm1, "proj-2": wm2}
         )
@@ -556,12 +556,12 @@ class TestPersistenceIntegration:
         repo = get_watermark_repo()
 
         # Set existing watermark
-        existing_wm = datetime(2024, 3, 15, tzinfo=timezone.utc)
+        existing_wm = datetime(2024, 3, 15, tzinfo=UTC)
         repo.set_watermark("existing-proj", existing_wm)
 
         # Load from persistence
         mock_persistence = MagicMock()
-        new_wm = datetime(2024, 6, 1, tzinfo=timezone.utc)
+        new_wm = datetime(2024, 6, 1, tzinfo=UTC)
         mock_persistence.load_all_watermarks = AsyncMock(
             return_value={"new-proj": new_wm}
         )

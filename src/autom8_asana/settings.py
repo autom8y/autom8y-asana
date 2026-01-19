@@ -41,7 +41,6 @@ from __future__ import annotations
 import os
 from typing import Literal
 
-
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -286,7 +285,7 @@ class ProjectOverrideSettings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
 
     @model_validator(mode="after")
-    def validate_project_overrides(self) -> "ProjectOverrideSettings":
+    def validate_project_overrides(self) -> ProjectOverrideSettings:
         """Validate all ASANA_PROJECT_* env vars at startup.
 
         Scans environment for ASANA_PROJECT_* variables and validates

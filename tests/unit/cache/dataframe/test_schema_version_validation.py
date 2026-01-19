@@ -7,20 +7,20 @@ This prevents stale cache hits when entity schemas are bumped independently
 (e.g., UNIT_SCHEMA at 1.1.0 while cache was initialized with 1.0.0).
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
 import pytest
 
+from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker
+from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
+from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
 from autom8_asana.cache.dataframe_cache import (
     CacheEntry,
     DataFrameCache,
     _get_schema_version_for_entity,
 )
-from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker
-from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
-from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
 
 
 def make_entry(
@@ -41,8 +41,8 @@ def make_entry(
         project_gid=project_gid,
         entity_type=entity_type,
         dataframe=df,
-        watermark=datetime.now(timezone.utc),
-        created_at=datetime.now(timezone.utc) - timedelta(hours=created_hours_ago),
+        watermark=datetime.now(UTC),
+        created_at=datetime.now(UTC) - timedelta(hours=created_hours_ago),
         schema_version=schema_version,
     )
 
@@ -192,7 +192,7 @@ class TestPutAsyncSchemaVersion:
         cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
         df = pl.DataFrame({"gid": ["1"], "name": ["A"]})
-        watermark = datetime.now(timezone.utc)
+        watermark = datetime.now(UTC)
 
         await cache.put_async("proj-1", "unit", df, watermark)
 
@@ -214,7 +214,7 @@ class TestPutAsyncSchemaVersion:
         )
 
         df = pl.DataFrame({"gid": ["1"], "name": ["A"]})
-        watermark = datetime.now(timezone.utc)
+        watermark = datetime.now(UTC)
 
         with patch(
             "autom8_asana.cache.dataframe_cache._get_schema_version_for_entity"
@@ -237,7 +237,7 @@ class TestPutAsyncSchemaVersion:
         cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
         df = pl.DataFrame({"gid": ["1"], "name": ["A"]})
-        watermark = datetime.now(timezone.utc)
+        watermark = datetime.now(UTC)
 
         await cache.put_async("proj-1", "contact", df, watermark)
 
@@ -298,7 +298,7 @@ class TestRegressionPrevention:
         )
 
         df = pl.DataFrame({"gid": ["1"], "name": ["A"]})
-        await cache.put_async("proj-1", "unit", df, datetime.now(timezone.utc))
+        await cache.put_async("proj-1", "unit", df, datetime.now(UTC))
 
         entry = memory.get("unit:proj-1")
         assert entry is not None

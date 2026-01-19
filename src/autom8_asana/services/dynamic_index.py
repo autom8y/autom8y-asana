@@ -14,7 +14,7 @@ from __future__ import annotations
 import threading
 from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
@@ -186,7 +186,7 @@ class DynamicIndex:
     @classmethod
     def from_dataframe(
         cls,
-        df: "pl.DataFrame",
+        df: pl.DataFrame,
         key_columns: list[str],
         value_column: str = "gid",
     ) -> DynamicIndex:
@@ -247,7 +247,7 @@ class DynamicIndex:
         index = cls(
             key_columns=sorted_key_columns,
             value_column=value_column,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             _lookup=dict(lookup),
         )
 
@@ -363,7 +363,7 @@ class DynamicIndexCache:
             index, cached_at = self._cache[key]
 
             # Check TTL
-            age = (datetime.now(timezone.utc) - cached_at).total_seconds()
+            age = (datetime.now(UTC) - cached_at).total_seconds()
             if age > self.ttl_seconds:
                 self._evict_key(key)
                 self._stats["evictions_ttl"] += 1
@@ -406,7 +406,7 @@ class DynamicIndexCache:
                 count = self._entity_counts.get(entity_type, 0)
 
             # Add entry
-            self._cache[key] = (index, datetime.now(timezone.utc))
+            self._cache[key] = (index, datetime.now(UTC))
             self._entity_counts[entity_type] = count + 1
 
             logger.debug(
@@ -422,7 +422,7 @@ class DynamicIndexCache:
         self,
         entity_type: str,
         key_columns: list[str],
-        df: "pl.DataFrame",
+        df: pl.DataFrame,
     ) -> DynamicIndex:
         """Get cached index or build new one.
 

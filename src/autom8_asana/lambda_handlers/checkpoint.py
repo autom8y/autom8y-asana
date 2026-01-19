@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
@@ -64,7 +64,7 @@ class CheckpointRecord:
         Returns:
             True if current time exceeds expires_at, False otherwise.
         """
-        return datetime.now(timezone.utc) > self.expires_at
+        return datetime.now(UTC) > self.expires_at
 
     def to_json(self) -> str:
         """Serialize to JSON for S3 storage.
@@ -106,9 +106,9 @@ class CheckpointRecord:
 
         # Ensure timezone awareness
         if created_at.tzinfo is None:
-            created_at = created_at.replace(tzinfo=timezone.utc)
+            created_at = created_at.replace(tzinfo=UTC)
         if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
+            expires_at = expires_at.replace(tzinfo=UTC)
 
         return cls(
             invocation_id=obj["invocation_id"],
@@ -155,10 +155,10 @@ class CheckpointManager:
         default_factory=lambda: os.environ.get("ASANA_CACHE_S3_BUCKET", DEFAULT_BUCKET)
     )
     prefix: str = DEFAULT_PREFIX
-    s3_client: "S3Client | None" = None
+    s3_client: S3Client | None = None
     staleness_hours: float = DEFAULT_STALENESS_HOURS
 
-    def _ensure_client(self) -> "S3Client":
+    def _ensure_client(self) -> S3Client:
         """Lazily initialize S3 client if not provided.
 
         Returns:
@@ -264,7 +264,7 @@ class CheckpointManager:
         client = self._ensure_client()
         key = self._checkpoint_key()
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         checkpoint = CheckpointRecord(
             invocation_id=invocation_id,
             completed_entities=completed_entities,

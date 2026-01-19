@@ -30,13 +30,13 @@ class TaskOperations:
     Thread Safety: Stateless - safe for concurrent use.
     """
 
-    def __init__(self, tasks_client: "TasksClient") -> None:
+    def __init__(self, tasks_client: TasksClient) -> None:
         """Initialize with parent TasksClient.
 
         Args:
             tasks_client: Parent client providing HTTP and client references.
         """
-        self._client: "AsanaClient | None" = tasks_client._client
+        self._client: AsanaClient | None = tasks_client._client
         self._tasks = tasks_client
         self._http = tasks_client._http
 

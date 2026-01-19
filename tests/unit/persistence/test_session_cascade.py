@@ -14,7 +14,6 @@ from autom8_asana.persistence.cascade import CascadeResult
 from autom8_asana.persistence.models import SaveResult
 from autom8_asana.persistence.session import SaveSession
 
-
 # ---------------------------------------------------------------------------
 # Test Fixtures
 # ---------------------------------------------------------------------------

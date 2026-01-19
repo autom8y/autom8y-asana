@@ -17,11 +17,11 @@ while the platform client handles generic HTTP concerns.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any, AsyncIterator
+from typing import TYPE_CHECKING, Any
 
 import httpx
-
 from autom8y_http import (
     Autom8yHttpClient,
     CircuitBreaker,

@@ -6,7 +6,7 @@ conversion, and Decimal handling for Polars compatibility.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -14,7 +14,6 @@ import pytest
 from pydantic import ValidationError
 
 from autom8_asana.dataframes.models.task_row import ContactRow, TaskRow, UnitRow
-
 
 # ---------------------------------------------------------------------------
 # Test Fixtures
@@ -28,10 +27,10 @@ def base_task_data() -> dict[str, Any]:
         "gid": "1234567890",
         "name": "Test Task",
         "type": "default_task",
-        "created": datetime(2024, 12, 1, 10, 0, 0, tzinfo=timezone.utc),
+        "created": datetime(2024, 12, 1, 10, 0, 0, tzinfo=UTC),
         "is_completed": False,
         "url": "https://app.asana.com/0/0/1234567890",
-        "last_modified": datetime(2024, 12, 8, 15, 30, 0, tzinfo=timezone.utc),
+        "last_modified": datetime(2024, 12, 8, 15, 30, 0, tzinfo=UTC),
     }
 
 
@@ -97,7 +96,7 @@ class TestTaskRowCreation:
             **base_task_data,
             "date": date(2024, 12, 15),
             "due_on": date(2024, 12, 31),
-            "completed_at": datetime(2024, 12, 10, 12, 0, 0, tzinfo=timezone.utc),
+            "completed_at": datetime(2024, 12, 10, 12, 0, 0, tzinfo=UTC),
             "section": "In Progress",
             "tags": ["urgent", "backend"],
         }
@@ -413,7 +412,7 @@ class TestDateTimeHandling:
 
     def test_datetime_with_timezone(self, base_task_data: dict[str, Any]) -> None:
         """Test datetime fields with timezone."""
-        dt = datetime(2024, 12, 1, 10, 0, 0, tzinfo=timezone.utc)
+        dt = datetime(2024, 12, 1, 10, 0, 0, tzinfo=UTC)
         data = {**base_task_data, "created": dt}
         row = TaskRow(**data)
         assert row.created == dt

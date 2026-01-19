@@ -16,7 +16,7 @@ extraction of unchanged tasks.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
@@ -93,7 +93,7 @@ class IncrementalFilter:
         self._index = watermark_index
 
     @classmethod
-    def from_dataframe(cls, df: "pl.DataFrame") -> "IncrementalFilter":
+    def from_dataframe(cls, df: pl.DataFrame) -> IncrementalFilter:
         """Build filter from existing DataFrame.
 
         Extracts gid and _modified_at columns to build watermark index.
@@ -234,7 +234,7 @@ class IncrementalFilter:
         # Already a datetime
         if isinstance(value, datetime):
             if value.tzinfo is None:
-                return value.replace(tzinfo=timezone.utc)
+                return value.replace(tzinfo=UTC)
             return value
 
         # Parse string
@@ -252,7 +252,7 @@ class IncrementalFilter:
         try:
             dt = datetime.fromisoformat(value)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=UTC)
             return dt
         except ValueError as e:
             logger.warning(

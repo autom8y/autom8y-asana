@@ -5,18 +5,19 @@ Per ADR-0054: Tests for CascadeOperation, CascadeResult, and CascadeExecutor.
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
+
+from autom8_asana.models.business.business import Business
+from autom8_asana.models.business.contact import Contact
+from autom8_asana.models.business.unit import Unit
 from autom8_asana.persistence.cascade import (
+    CascadeExecutor,
     CascadeOperation,
     CascadeResult,
-    CascadeExecutor,
     cascade_field,
 )
-from autom8_asana.models.business.business import Business
-from autom8_asana.models.business.unit import Unit
-from autom8_asana.models.business.contact import Contact
 
 
 class TestCascadeOperation:

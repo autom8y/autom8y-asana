@@ -5,7 +5,6 @@ Per TDD-BusinessSeeder-v2: Tests for field normalization.
 
 from __future__ import annotations
 
-
 from autom8_asana.models.business.matching.normalizers import (
     AddressNormalizer,
     BusinessNameNormalizer,

@@ -20,7 +20,6 @@ from autom8_asana.services.universal_strategy import (
     reset_shared_index_cache,
 )
 
-
 # --- Test Fixtures ---
 
 

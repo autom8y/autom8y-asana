@@ -18,7 +18,7 @@ Test Categories:
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -45,7 +45,7 @@ def make_entry(
         data={"gid": gid, "name": f"Task {gid}"},
         entry_type=EntryType.TASK,
         version=version,
-        cached_at=datetime.now(timezone.utc),
+        cached_at=datetime.now(UTC),
         ttl=ttl,
         metadata={"extension_count": extension_count} if extension_count > 0 else {},
     )
