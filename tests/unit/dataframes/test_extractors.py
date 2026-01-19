@@ -1075,8 +1075,8 @@ class TestExtractorIntegration:
         # UNIT_SCHEMA should have 23 columns (12 base + 11 unit)
         assert len(UNIT_SCHEMA.columns) == 23
 
-        # CONTACT_SCHEMA should have 21 columns (12 base + 9 contact)
-        assert len(CONTACT_SCHEMA.columns) == 21
+        # CONTACT_SCHEMA should have 25 columns (12 base + 13 contact)
+        assert len(CONTACT_SCHEMA.columns) == 25
 
         # BASE_SCHEMA should have 12 columns
         assert len(BASE_SCHEMA.columns) == 12

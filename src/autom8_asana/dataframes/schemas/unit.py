@@ -59,7 +59,7 @@ UNIT_COLUMNS: list[ColumnDef] = [
         name="vertical",
         dtype="Utf8",
         nullable=True,
-        source="cascade:Vertical",  # Cascades from Unit or Business ancestor
+        source="cf:Vertical",  # Custom field on task (vertical waterfalls down, no cascade)
         description="Business vertical",
     ),
     ColumnDef(

@@ -478,10 +478,9 @@ class TestLogLevelSelection:
                 start_time=logger.start_timer(),
             )
 
-            # Assert
-            mock_logger.log.assert_called_once()
-            call_args = mock_logger.log.call_args
-            assert call_args[0][0] == logging.INFO
+            # Assert - implementation uses .info() for successful requests
+            mock_logger.info.assert_called_once()
+            mock_logger.warning.assert_not_called()
 
     def test_client_error_logs_at_warning(self) -> None:
         """4xx responses log at WARNING level."""
@@ -500,10 +499,9 @@ class TestLogLevelSelection:
                 start_time=logger.start_timer(),
             )
 
-            # Assert
-            mock_logger.log.assert_called_once()
-            call_args = mock_logger.log.call_args
-            assert call_args[0][0] == logging.WARNING
+            # Assert - implementation uses .warning() for 4xx errors
+            mock_logger.warning.assert_called_once()
+            mock_logger.info.assert_not_called()
 
     def test_server_error_logs_at_warning(self) -> None:
         """5xx responses log at WARNING level."""
@@ -522,7 +520,6 @@ class TestLogLevelSelection:
                 start_time=logger.start_timer(),
             )
 
-            # Assert
-            mock_logger.log.assert_called_once()
-            call_args = mock_logger.log.call_args
-            assert call_args[0][0] == logging.WARNING
+            # Assert - implementation uses .warning() for 5xx errors
+            mock_logger.warning.assert_called_once()
+            mock_logger.info.assert_not_called()

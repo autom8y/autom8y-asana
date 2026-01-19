@@ -351,7 +351,8 @@ class TestTaskCacheCoordinatorUnifiedAdapter:
 
         # Verify adapter state
         assert coordinator._unified_store is mock_unified_store
-        assert coordinator._cache is None
+        # Cache is set to the unified store's cache backend
+        assert coordinator._cache is mock_unified_store.cache
 
     @pytest.mark.asyncio
     async def test_adapter_lookup_delegates_to_store(

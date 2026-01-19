@@ -7,7 +7,6 @@ Per Initiative B Phase 2: Custom Field Unification naming conventions.
 
 from __future__ import annotations
 
-import logging
 import warnings
 
 import pytest
@@ -565,11 +564,13 @@ class TestDirectCustomFieldModificationDetection:
         data = task.model_dump()
         assert data["custom_fields"]["456"] == "AccessorValue"
 
-    def test_warning_logged_on_conflict(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_warning_logged_on_conflict(self) -> None:
         """Warning is logged when both accessor and direct changes exist.
 
         Per ADR-0067: Log warning for user awareness.
         """
+        from unittest.mock import patch
+
         task = Task(
             gid="123",
             custom_fields=[{"gid": "456", "name": "Priority", "text_value": "High"}],
@@ -580,12 +581,14 @@ class TestDirectCustomFieldModificationDetection:
         accessor = task.custom_fields_editor()
         accessor.set("Priority", "AccessorValue")
 
-        # Trigger model_dump with warning capture
-        with caplog.at_level(logging.WARNING):
+        # Trigger model_dump with logger mocking
+        with patch("autom8_asana.models.task.logger") as mock_logger:
             task.model_dump()
 
-        # Check warning was logged
-        assert "accessor and direct custom_field modifications" in caplog.text.lower()
+            # Check warning was logged with correct event name
+            mock_logger.warning.assert_called_once()
+            call_args = mock_logger.warning.call_args
+            assert call_args[0][0] == "task_custom_field_conflict"
 
     def test_snapshot_is_deep_copy(self) -> None:
         """Snapshot is a deep copy, not affected by later modifications.

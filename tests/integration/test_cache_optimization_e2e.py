@@ -535,47 +535,54 @@ class TestCacheLoggingObservability:
         self,
         cache_provider: EnhancedInMemoryCacheProvider,
         sample_tasks: list[dict[str, Any]],
-        caplog: pytest.LogCaptureFixture,
+        mocker: pytest.MonkeyPatch,
     ) -> None:
         """Cache lookup produces debug log events.
 
         Verifies that task_cache_lookup_started and task_cache_lookup_completed
         events are logged with appropriate data.
         """
-        import logging
+        from unittest.mock import MagicMock
 
-        caplog.set_level(logging.DEBUG)
+        mock_logger = MagicMock()
+        mocker.patch(
+            "autom8_asana.dataframes.builders.task_cache.logger", mock_logger
+        )
 
         coordinator = TaskCacheCoordinator(cache_provider)
         task_gids = [t["gid"] for t in sample_tasks]
 
         await coordinator.lookup_tasks_async(task_gids)
 
-        # Check log messages contain expected events
-        log_messages = [r.message for r in caplog.records]
-        assert any("task_cache_lookup_started" in msg for msg in log_messages)
-        assert any("task_cache_lookup_completed" in msg for msg in log_messages)
+        # Check debug was called with expected event names
+        debug_calls = [str(call) for call in mock_logger.debug.call_args_list]
+        assert any("task_cache_lookup_started" in call for call in debug_calls)
+        assert any("task_cache_lookup_completed" in call for call in debug_calls)
 
     async def test_population_logs_debug_events(
         self,
         cache_provider: EnhancedInMemoryCacheProvider,
         sample_tasks: list[dict[str, Any]],
-        caplog: pytest.LogCaptureFixture,
+        mocker: pytest.MonkeyPatch,
     ) -> None:
         """Cache population produces debug log events.
 
         Verifies that task_cache_population_started and
         task_cache_population_completed events are logged.
         """
-        import logging
+        from unittest.mock import MagicMock
 
-        caplog.set_level(logging.DEBUG)
+        mock_logger = MagicMock()
+        mocker.patch(
+            "autom8_asana.dataframes.builders.task_cache.logger", mock_logger
+        )
 
         coordinator = TaskCacheCoordinator(cache_provider)
         task_models = [make_task_model(t) for t in sample_tasks]
 
         await coordinator.populate_tasks_async(task_models)
 
-        log_messages = [r.message for r in caplog.records]
-        assert any("task_cache_population_started" in msg for msg in log_messages)
-        assert any("task_cache_population_completed" in msg for msg in log_messages)
+        # Check debug was called with expected event names
+        debug_calls = [str(call) for call in mock_logger.debug.call_args_list]
+        assert any("task_cache_population_started" in call for call in debug_calls)
+        assert any("task_cache_population_completed" in call for call in debug_calls)
