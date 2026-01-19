@@ -72,14 +72,16 @@ class CheckpointRecord:
         Returns:
             JSON string representation of the checkpoint.
         """
-        return json.dumps({
-            "invocation_id": self.invocation_id,
-            "completed_entities": self.completed_entities,
-            "pending_entities": self.pending_entities,
-            "entity_results": self.entity_results,
-            "created_at": self.created_at.isoformat(),
-            "expires_at": self.expires_at.isoformat(),
-        })
+        return json.dumps(
+            {
+                "invocation_id": self.invocation_id,
+                "completed_entities": self.completed_entities,
+                "pending_entities": self.pending_entities,
+                "entity_results": self.entity_results,
+                "created_at": self.created_at.isoformat(),
+                "expires_at": self.expires_at.isoformat(),
+            }
+        )
 
     @classmethod
     def from_json(cls, data: str) -> CheckpointRecord:
@@ -149,9 +151,9 @@ class CheckpointManager:
         ...     print(f"Resuming from: {checkpoint.completed_entities}")
     """
 
-    bucket: str = field(default_factory=lambda: os.environ.get(
-        "ASANA_CACHE_S3_BUCKET", DEFAULT_BUCKET
-    ))
+    bucket: str = field(
+        default_factory=lambda: os.environ.get("ASANA_CACHE_S3_BUCKET", DEFAULT_BUCKET)
+    )
     prefix: str = DEFAULT_PREFIX
     s3_client: "S3Client | None" = None
     staleness_hours: float = DEFAULT_STALENESS_HOURS

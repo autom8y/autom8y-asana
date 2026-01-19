@@ -255,9 +255,7 @@ class TestDataFrameViewPluginMaterialize:
 
         plugin = DataFrameViewPlugin(store=mock_store, schema=simple_schema)
 
-        await plugin.materialize_async(
-            ["task-1"], freshness=FreshnessMode.STRICT
-        )
+        await plugin.materialize_async(["task-1"], freshness=FreshnessMode.STRICT)
 
         mock_store.get_batch_async.assert_called_with(
             ["task-1"], freshness=FreshnessMode.STRICT
@@ -279,9 +277,7 @@ class TestDataFrameViewPluginMaterialize:
         plugin = DataFrameViewPlugin(store=mock_store, schema=simple_schema)
 
         # Should complete without error
-        result = await plugin.materialize_async(
-            ["task-123"], project_gid="proj-1"
-        )
+        result = await plugin.materialize_async(["task-123"], project_gid="proj-1")
 
         assert len(result) == 1
 
@@ -728,9 +724,7 @@ class TestDataFrameViewPluginStats:
         assert stats["tasks_fetched"] == 1
         assert stats["rows_extracted"] == 1
 
-    def test_reset_stats(
-        self, dataframe_plugin: DataFrameViewPlugin
-    ) -> None:
+    def test_reset_stats(self, dataframe_plugin: DataFrameViewPlugin) -> None:
         """Test that stats can be reset."""
         # Manually set stats
         dataframe_plugin._stats["materialize_calls"] = 10
@@ -808,7 +802,9 @@ class TestDataFrameViewPluginEdgeCases:
             "tags": [],
             "custom_fields": [],
         }
-        mock_store.get_batch_async = AsyncMock(return_value={"12345678901234567": task_data})
+        mock_store.get_batch_async = AsyncMock(
+            return_value={"12345678901234567": task_data}
+        )
         mock_store.get_parent_chain_async = AsyncMock(return_value=[])
 
         plugin = DataFrameViewPlugin(store=mock_store, schema=full_schema)
@@ -837,7 +833,9 @@ class TestDataFrameViewPluginMixedTypes:
                 ColumnDef("gid", "Utf8", nullable=False, source=None),
                 ColumnDef("name", "Utf8", nullable=False, source=None),
                 ColumnDef("discount", "Float64", nullable=True, source="cf:Discount"),
-                ColumnDef("commission", "Float64", nullable=True, source="cf:Commission"),
+                ColumnDef(
+                    "commission", "Float64", nullable=True, source="cf:Commission"
+                ),
             ],
             version="1.0.0",
         )

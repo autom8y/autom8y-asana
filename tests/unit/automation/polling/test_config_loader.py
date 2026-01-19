@@ -291,7 +291,9 @@ class TestConfigurationLoaderSubstituteEnvVars:
         """Environment variable names are case-sensitive."""
         raw = {"key": "${UPPER_CASE}"}
 
-        with patch.dict(os.environ, {"UPPER_CASE": "correct", "upper_case": "wrong"}, clear=False):
+        with patch.dict(
+            os.environ, {"UPPER_CASE": "correct", "upper_case": "wrong"}, clear=False
+        ):
             result = ConfigurationLoader.substitute_env_vars(raw)
 
         assert result["key"] == "correct"

@@ -111,9 +111,7 @@ class ConfigurationLoader:
         try:
             raw_yaml = yaml.safe_load(content)
         except yaml.YAMLError as e:
-            raise ConfigurationError(
-                f"Invalid YAML syntax in config file: {e}"
-            ) from e
+            raise ConfigurationError(f"Invalid YAML syntax in config file: {e}") from e
 
         # Handle empty file
         if raw_yaml is None:
@@ -133,9 +131,7 @@ class ConfigurationLoader:
                 msg = error["msg"]
                 error_messages.append(f"{loc}: {msg}")
             error_detail = "; ".join(error_messages)
-            raise ConfigurationError(
-                f"Config validation failed: {error_detail}"
-            ) from e
+            raise ConfigurationError(f"Config validation failed: {error_detail}") from e
 
     @staticmethod
     def substitute_env_vars(
@@ -198,9 +194,7 @@ class ConfigurationLoader:
             }
         elif isinstance(value, list):
             return [
-                ConfigurationLoader._substitute_recursive(
-                    item, f"{path}[{i}]"
-                )
+                ConfigurationLoader._substitute_recursive(item, f"{path}[{i}]")
                 for i, item in enumerate(value)
             ]
         else:
@@ -231,6 +225,7 @@ class ConfigurationLoader:
             )
             # result = "Bearer actual_token_value"
         """
+
         def replace_match(match: re.Match[str]) -> str:
             var_name = match.group(1)
             env_value = os.environ.get(var_name)

@@ -120,8 +120,7 @@ class InsightsRequest(BaseModel):
             return v_lower
 
         raise ValueError(
-            f"Invalid period format: {v}. "
-            f"Expected: lifetime, t30, l7, etc."
+            f"Invalid period format: {v}. Expected: lifetime, t30, l7, etc."
         )
 
 
@@ -265,9 +264,7 @@ class InsightsResponse(BaseModel):
                 target_dtype = self._polars_dtype(col_info.dtype)
                 if target_dtype is not None:
                     try:
-                        df = df.with_columns(
-                            pl.col(col_info.name).cast(target_dtype)
-                        )
+                        df = df.with_columns(pl.col(col_info.name).cast(target_dtype))
                     except Exception:
                         # Log warning and continue with original dtype
                         # This handles cases where the data cannot be cast
@@ -417,9 +414,7 @@ class BatchInsightsResponse(BaseModel):
             if result.success and result.response:
                 df = result.response.to_dataframe()
                 # Add canonical_key column for grouping
-                df = df.with_columns(
-                    pl.lit(result.pvp.canonical_key).alias("_pvp_key")
-                )
+                df = df.with_columns(pl.lit(result.pvp.canonical_key).alias("_pvp_key"))
                 dfs.append(df)
 
         if not dfs:

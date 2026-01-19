@@ -533,7 +533,11 @@ class TestUpdateProject:
         assert response.status_code == 200
 
         mock_sdk.projects.update_async.assert_called_once_with(
-            TEST_PROJECT_GID, raw=True, name="New Name", notes="New notes", archived=True
+            TEST_PROJECT_GID,
+            raw=True,
+            name="New Name",
+            notes="New notes",
+            archived=True,
         )
 
     def test_update_project_no_fields_returns_400(

@@ -207,9 +207,9 @@ class TestCascadingFieldEntryType:
         for field_name, entry in registry.items():
             owner_class, field_def = entry
             assert isinstance(owner_class, type), f"Invalid owner for {field_name}"
-            assert isinstance(
-                field_def, CascadingFieldDef
-            ), f"Invalid field_def for {field_name}"
+            assert isinstance(field_def, CascadingFieldDef), (
+                f"Invalid field_def for {field_name}"
+            )
 
 
 class TestModuleExports:

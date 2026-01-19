@@ -49,9 +49,7 @@ class MockCacheProviderWithDetection:
         """Store entry in cache."""
         pass
 
-    def invalidate(
-        self, key: str, entry_types: list[EntryType] | None = None
-    ) -> None:
+    def invalidate(self, key: str, entry_types: list[EntryType] | None = None) -> None:
         """Invalidate cache entry."""
         if self.fail_on_invalidate:
             raise ConnectionError("Cache invalidation failed")

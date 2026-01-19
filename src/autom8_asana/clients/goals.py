@@ -47,6 +47,7 @@ class GoalsClient(BaseClient):
         """
         if self._relationships is None:
             from autom8_asana.clients.goal_relationships import GoalRelationships
+
             self._relationships = GoalRelationships(self)
         return self._relationships
 
@@ -59,6 +60,7 @@ class GoalsClient(BaseClient):
         """
         if self._followers is None:
             from autom8_asana.clients.goal_followers import GoalFollowers
+
             self._followers = GoalFollowers(self)
         return self._followers
 
@@ -559,9 +561,7 @@ class GoalsClient(BaseClient):
     # --- Delegation Methods (Backward Compatibility) ---
     # Note: For type-safe overloaded versions, use .relationships and .followers properties
 
-    def list_subgoals_async(
-        self, goal_gid: str, **kwargs: Any
-    ) -> PageIterator[Goal]:
+    def list_subgoals_async(self, goal_gid: str, **kwargs: Any) -> PageIterator[Goal]:
         """List subgoals. Delegates to relationships."""
         return self.relationships.list_subgoals_async(goal_gid, **kwargs)
 
@@ -627,8 +627,6 @@ class GoalsClient(BaseClient):
         """Remove followers. Delegates to followers."""
         return await self.followers.remove_followers_async(goal_gid, **kwargs)
 
-    def remove_followers(
-        self, goal_gid: str, **kwargs: Any
-    ) -> Goal | dict[str, Any]:
+    def remove_followers(self, goal_gid: str, **kwargs: Any) -> Goal | dict[str, Any]:
         """Remove followers (sync). Delegates to followers."""
         return self.followers.remove_followers(goal_gid, **kwargs)

@@ -337,7 +337,11 @@ def _make_unknown_result(task: Task) -> DetectionResult:
     first_project_gid = None
     if task.memberships:
         first_membership = task.memberships[0]
-        project_data = first_membership.get("project") if isinstance(first_membership, dict) else None
+        project_data = (
+            first_membership.get("project")
+            if isinstance(first_membership, dict)
+            else None
+        )
         first_project_gid = project_data.get("gid") if project_data else None
 
     logger.warning(

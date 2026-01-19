@@ -352,7 +352,8 @@ class TestMainCLI:
     ) -> None:
         """main() dispatches to validate_command correctly."""
         monkeypatch.setattr(
-            sys, "argv",
+            sys,
+            "argv",
             ["cli", "validate", str(temp_config_file)],
         )
 
@@ -367,7 +368,8 @@ class TestMainCLI:
     ) -> None:
         """main() dispatches to status_command correctly."""
         monkeypatch.setattr(
-            sys, "argv",
+            sys,
+            "argv",
             ["cli", "status", str(temp_config_file)],
         )
 
@@ -382,7 +384,8 @@ class TestMainCLI:
     ) -> None:
         """main() dispatches to evaluate_command correctly."""
         monkeypatch.setattr(
-            sys, "argv",
+            sys,
+            "argv",
             ["cli", "evaluate", str(temp_config_file)],
         )
 
@@ -398,7 +401,8 @@ class TestMainCLI:
     ) -> None:
         """main() passes --dry-run flag to evaluate_command."""
         monkeypatch.setattr(
-            sys, "argv",
+            sys,
+            "argv",
             ["cli", "evaluate", str(temp_config_file), "--dry-run"],
         )
 

@@ -58,12 +58,18 @@ async def main():
         tasks = await client.tasks.list_async(
             section=first_section.gid,
             opt_fields=[
-                "gid", "name", "parent", "parent.gid", "parent.name",
-                "custom_fields", "custom_fields.name",
-                "custom_fields.display_value", "custom_fields.enum_value",
-                "custom_fields.enum_value.name"
+                "gid",
+                "name",
+                "parent",
+                "parent.gid",
+                "parent.name",
+                "custom_fields",
+                "custom_fields.name",
+                "custom_fields.display_value",
+                "custom_fields.enum_value",
+                "custom_fields.enum_value.name",
             ],
-            limit=5
+            limit=5,
         ).collect()
 
         print(f"\nChecking {len(tasks)} tasks for Vertical field:")
@@ -75,24 +81,52 @@ async def main():
             # Check custom_fields on task
             if task.custom_fields:
                 for cf in task.custom_fields:
-                    cf_name = cf.get("name") if isinstance(cf, dict) else getattr(cf, "name", None)
+                    cf_name = (
+                        cf.get("name")
+                        if isinstance(cf, dict)
+                        else getattr(cf, "name", None)
+                    )
                     if cf_name and "vertical" in cf_name.lower():
-                        cf_display = cf.get("display_value") if isinstance(cf, dict) else getattr(cf, "display_value", None)
-                        cf_enum = cf.get("enum_value") if isinstance(cf, dict) else getattr(cf, "enum_value", None)
+                        cf_display = (
+                            cf.get("display_value")
+                            if isinstance(cf, dict)
+                            else getattr(cf, "display_value", None)
+                        )
+                        cf_enum = (
+                            cf.get("enum_value")
+                            if isinstance(cf, dict)
+                            else getattr(cf, "enum_value", None)
+                        )
                         enum_name = None
                         if cf_enum:
-                            enum_name = cf_enum.get("name") if isinstance(cf_enum, dict) else getattr(cf_enum, "name", None)
-                        print(f"    Found Vertical: enum={enum_name}, display={cf_display}")
+                            enum_name = (
+                                cf_enum.get("name")
+                                if isinstance(cf_enum, dict)
+                                else getattr(cf_enum, "name", None)
+                            )
+                        print(
+                            f"    Found Vertical: enum={enum_name}, display={cf_display}"
+                        )
                         vertical_found += 1
 
             # Check parent for cascade
             if task.parent:
-                parent_name = task.parent.get("name") if isinstance(task.parent, dict) else getattr(task.parent, "name", None)
-                parent_gid = task.parent.get("gid") if isinstance(task.parent, dict) else getattr(task.parent, "gid", None)
+                parent_name = (
+                    task.parent.get("name")
+                    if isinstance(task.parent, dict)
+                    else getattr(task.parent, "name", None)
+                )
+                parent_gid = (
+                    task.parent.get("gid")
+                    if isinstance(task.parent, dict)
+                    else getattr(task.parent, "gid", None)
+                )
                 print(f"    Parent: {parent_name} ({parent_gid})")
 
         print(f"\n{'=' * 60}")
-        print(f"Summary: {vertical_found}/{len(tasks)} tasks have Vertical on task itself")
+        print(
+            f"Summary: {vertical_found}/{len(tasks)} tasks have Vertical on task itself"
+        )
         print("Cascade resolution will find Vertical on parent chain")
         print("=" * 60)
 

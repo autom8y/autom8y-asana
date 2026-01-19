@@ -132,7 +132,11 @@ class TestCanonicalKey:
         assert pvp_lower.canonical_key == expected_key
 
         # All three canonical keys should be equal
-        assert pvp_mixed.canonical_key == pvp_upper.canonical_key == pvp_lower.canonical_key
+        assert (
+            pvp_mixed.canonical_key
+            == pvp_upper.canonical_key
+            == pvp_lower.canonical_key
+        )
 
 
 class TestTupleUnpacking:

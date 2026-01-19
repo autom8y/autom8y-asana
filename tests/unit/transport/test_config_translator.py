@@ -150,9 +150,7 @@ class TestToCircuitBreakerConfig:
 
     def test_translates_failure_threshold(self):
         """Failure threshold is preserved."""
-        config = AsanaConfig(
-            circuit_breaker=CircuitBreakerConfig(failure_threshold=10)
-        )
+        config = AsanaConfig(circuit_breaker=CircuitBreakerConfig(failure_threshold=10))
         result = ConfigTranslator.to_circuit_breaker_config(config)
         assert result.failure_threshold == 10
 

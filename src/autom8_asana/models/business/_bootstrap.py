@@ -59,7 +59,6 @@ def register_all_models() -> None:
     from autom8_asana.models.business.location import Location, LocationHolder
     from autom8_asana.models.business.hours import Hours
     from autom8_asana.models.business.process import Process, ProcessHolder
-    from autom8_asana.models.business.asset_edit import AssetEdit
 
     # Entity type -> Model class mapping
     # Order matters: more specific types first (holders before parents)

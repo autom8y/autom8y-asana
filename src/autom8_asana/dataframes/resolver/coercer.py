@@ -50,24 +50,30 @@ class TypeCoercer:
     LIST_SEPARATOR: ClassVar[str] = ", "
 
     # dtypes that represent list types
-    LIST_DTYPES: ClassVar[frozenset[str]] = frozenset({
-        "List[Utf8]",
-        "List[String]",
-    })
+    LIST_DTYPES: ClassVar[frozenset[str]] = frozenset(
+        {
+            "List[Utf8]",
+            "List[String]",
+        }
+    )
 
     # dtypes that represent string types
-    STRING_DTYPES: ClassVar[frozenset[str]] = frozenset({
-        "Utf8",
-        "String",
-    })
+    STRING_DTYPES: ClassVar[frozenset[str]] = frozenset(
+        {
+            "Utf8",
+            "String",
+        }
+    )
 
     # dtypes that represent numeric types
-    NUMERIC_DTYPES: ClassVar[frozenset[str]] = frozenset({
-        "Decimal",
-        "Float64",
-        "Int64",
-        "Int32",
-    })
+    NUMERIC_DTYPES: ClassVar[frozenset[str]] = frozenset(
+        {
+            "Decimal",
+            "Float64",
+            "Int64",
+            "Int32",
+        }
+    )
 
     def coerce(
         self,
@@ -154,7 +160,9 @@ class TypeCoercer:
         """
         return [value]
 
-    def _to_numeric(self, value: Any, target_dtype: str) -> Decimal | float | int | None:
+    def _to_numeric(
+        self, value: Any, target_dtype: str
+    ) -> Decimal | float | int | None:
         """Convert value to numeric type.
 
         Args:

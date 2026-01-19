@@ -185,7 +185,15 @@ async def test_full_polling_flow_with_real_api(
         # 3. Fetch task with required fields for evaluation
         task = await asana_client.tasks.get_async(
             e2e_test_task.gid,
-            opt_fields=["gid", "name", "modified_at", "created_at", "due_on", "due_at", "completed"],
+            opt_fields=[
+                "gid",
+                "name",
+                "modified_at",
+                "created_at",
+                "due_on",
+                "due_at",
+                "completed",
+            ],
         )
 
         # 4. Evaluate rules against the task
@@ -222,7 +230,9 @@ async def test_full_flow_config_to_verify_with_comment(
     3. Comment action execution
     4. Comment verification via stories API
     """
-    comment_text = f"[E2E Test] Automated comment at {datetime.now(timezone.utc).isoformat()}"
+    comment_text = (
+        f"[E2E Test] Automated comment at {datetime.now(timezone.utc).isoformat()}"
+    )
 
     config_yaml = textwrap.dedent(f"""\
         scheduler:

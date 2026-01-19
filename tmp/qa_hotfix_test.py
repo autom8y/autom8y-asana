@@ -38,11 +38,11 @@ def test_entity_resolution(token: str, entity_type: str, criteria: dict) -> dict
     }
     payload = {"criteria": [criteria]}
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Testing: {entity_type.upper()} endpoint")
     print(f"URL: {url}")
     print(f"Payload: {json.dumps(payload)}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     start = time.time()
     try:
@@ -162,12 +162,19 @@ def main():
     print("=" * 70)
 
     criteria = [
-        ("All 4 entity types respond (no 503 PROJECT_NOT_CONFIGURED)",
-         all(r["error"] != "PROJECT_NOT_CONFIGURED" for r in results)),
-        ("Contact endpoint responds WITHOUT timeout",
-         next((r for r in results if r["entity_type"] == "contact"), {}).get("error") != "TIMEOUT"),
-        ("Response times under 5 seconds",
-         all(r["elapsed_seconds"] < 5 for r in results if r["success"])),
+        (
+            "All 4 entity types respond (no 503 PROJECT_NOT_CONFIGURED)",
+            all(r["error"] != "PROJECT_NOT_CONFIGURED" for r in results),
+        ),
+        (
+            "Contact endpoint responds WITHOUT timeout",
+            next((r for r in results if r["entity_type"] == "contact"), {}).get("error")
+            != "TIMEOUT",
+        ),
+        (
+            "Response times under 5 seconds",
+            all(r["elapsed_seconds"] < 5 for r in results if r["success"]),
+        ),
     ]
 
     print()

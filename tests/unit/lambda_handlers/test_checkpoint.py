@@ -105,20 +105,26 @@ class TestCheckpointRecord:
         assert parsed["invocation_id"] == "test-123"
         assert parsed["completed_entities"] == ["unit"]
         assert parsed["pending_entities"] == ["business", "offer"]
-        assert parsed["entity_results"] == [{"entity_type": "unit", "result": "success"}]
+        assert parsed["entity_results"] == [
+            {"entity_type": "unit", "result": "success"}
+        ]
         assert parsed["created_at"] == "2026-01-06T12:00:00+00:00"
         assert parsed["expires_at"] == "2026-01-06T13:00:00+00:00"
 
     def test_from_json(self) -> None:
         """Deserialize CheckpointRecord from JSON."""
-        json_str = json.dumps({
-            "invocation_id": "test-456",
-            "completed_entities": ["unit", "business"],
-            "pending_entities": ["offer"],
-            "entity_results": [{"entity_type": "unit", "result": "success", "row_count": 500}],
-            "created_at": "2026-01-06T12:00:00+00:00",
-            "expires_at": "2026-01-06T13:00:00+00:00",
-        })
+        json_str = json.dumps(
+            {
+                "invocation_id": "test-456",
+                "completed_entities": ["unit", "business"],
+                "pending_entities": ["offer"],
+                "entity_results": [
+                    {"entity_type": "unit", "result": "success", "row_count": 500}
+                ],
+                "created_at": "2026-01-06T12:00:00+00:00",
+                "expires_at": "2026-01-06T13:00:00+00:00",
+            }
+        )
 
         record = CheckpointRecord.from_json(json_str)
 
@@ -133,14 +139,16 @@ class TestCheckpointRecord:
     def test_from_json_adds_timezone_if_missing(self) -> None:
         """Timezone is added if missing from JSON datetime strings."""
         # Note: datetimes without timezone info are treated as UTC
-        json_str = json.dumps({
-            "invocation_id": "test-789",
-            "completed_entities": [],
-            "pending_entities": ["unit"],
-            "entity_results": [],
-            "created_at": "2026-01-06T12:00:00",
-            "expires_at": "2026-01-06T13:00:00",
-        })
+        json_str = json.dumps(
+            {
+                "invocation_id": "test-789",
+                "completed_entities": [],
+                "pending_entities": ["unit"],
+                "entity_results": [],
+                "created_at": "2026-01-06T12:00:00",
+                "expires_at": "2026-01-06T13:00:00",
+            }
+        )
 
         record = CheckpointRecord.from_json(json_str)
 
@@ -187,52 +195,60 @@ class TestCheckpointRecord:
     def test_from_json_raises_on_missing_required_field(self) -> None:
         """from_json raises KeyError when required field is missing (GAP-002)."""
         # Missing invocation_id field
-        incomplete_json = json.dumps({
-            "completed_entities": ["unit"],
-            "pending_entities": ["business"],
-            "entity_results": [],
-            "created_at": "2026-01-06T12:00:00+00:00",
-            "expires_at": "2026-01-06T13:00:00+00:00",
-        })
+        incomplete_json = json.dumps(
+            {
+                "completed_entities": ["unit"],
+                "pending_entities": ["business"],
+                "entity_results": [],
+                "created_at": "2026-01-06T12:00:00+00:00",
+                "expires_at": "2026-01-06T13:00:00+00:00",
+            }
+        )
         with pytest.raises(KeyError):
             CheckpointRecord.from_json(incomplete_json)
 
     def test_from_json_raises_on_missing_created_at(self) -> None:
         """from_json raises KeyError when created_at is missing (GAP-002)."""
-        incomplete_json = json.dumps({
-            "invocation_id": "test-123",
-            "completed_entities": ["unit"],
-            "pending_entities": ["business"],
-            "entity_results": [],
-            # Missing created_at
-            "expires_at": "2026-01-06T13:00:00+00:00",
-        })
+        incomplete_json = json.dumps(
+            {
+                "invocation_id": "test-123",
+                "completed_entities": ["unit"],
+                "pending_entities": ["business"],
+                "entity_results": [],
+                # Missing created_at
+                "expires_at": "2026-01-06T13:00:00+00:00",
+            }
+        )
         with pytest.raises(KeyError):
             CheckpointRecord.from_json(incomplete_json)
 
     def test_from_json_raises_on_invalid_datetime_format(self) -> None:
         """from_json raises ValueError on invalid datetime format (GAP-002)."""
-        invalid_datetime_json = json.dumps({
-            "invocation_id": "test-123",
-            "completed_entities": ["unit"],
-            "pending_entities": ["business"],
-            "entity_results": [],
-            "created_at": "not-a-datetime",
-            "expires_at": "2026-01-06T13:00:00+00:00",
-        })
+        invalid_datetime_json = json.dumps(
+            {
+                "invocation_id": "test-123",
+                "completed_entities": ["unit"],
+                "pending_entities": ["business"],
+                "entity_results": [],
+                "created_at": "not-a-datetime",
+                "expires_at": "2026-01-06T13:00:00+00:00",
+            }
+        )
         with pytest.raises(ValueError):
             CheckpointRecord.from_json(invalid_datetime_json)
 
     def test_from_json_handles_null_entity_lists(self) -> None:
         """from_json accepts null/empty entity lists gracefully (GAP-002)."""
-        json_str = json.dumps({
-            "invocation_id": "test-null",
-            "completed_entities": [],
-            "pending_entities": [],
-            "entity_results": [],
-            "created_at": "2026-01-06T12:00:00+00:00",
-            "expires_at": "2026-01-06T13:00:00+00:00",
-        })
+        json_str = json.dumps(
+            {
+                "invocation_id": "test-null",
+                "completed_entities": [],
+                "pending_entities": [],
+                "entity_results": [],
+                "created_at": "2026-01-06T12:00:00+00:00",
+                "expires_at": "2026-01-06T13:00:00+00:00",
+            }
+        )
         record = CheckpointRecord.from_json(json_str)
         assert record.completed_entities == []
         assert record.pending_entities == []
@@ -349,7 +365,9 @@ class TestCheckpointManager:
         assert checkpoint.invocation_id == "test-123"
         assert checkpoint.completed_entities == ["unit"]
         assert checkpoint.pending_entities == ["business", "offer"]
-        assert checkpoint.entity_results == [{"entity_type": "unit", "result": "success"}]
+        assert checkpoint.entity_results == [
+            {"entity_type": "unit", "result": "success"}
+        ]
 
     @pytest.mark.asyncio
     async def test_load_missing_checkpoint_returns_none(
@@ -427,6 +445,7 @@ class TestCheckpointManager:
         mock_s3: MockS3Client,
     ) -> None:
         """S3 errors during load are logged as warnings and return None."""
+
         # Override get_object to raise an error
         def raise_error(*args: Any, **kwargs: Any) -> None:
             raise Exception("S3 connection error")
@@ -434,9 +453,7 @@ class TestCheckpointManager:
         mock_s3.get_object = raise_error
 
         # Should return None gracefully
-        with patch(
-            "autom8_asana.lambda_handlers.checkpoint.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.lambda_handlers.checkpoint.logger") as mock_logger:
             checkpoint = await manager.load_async()
 
             assert checkpoint is None
@@ -451,15 +468,14 @@ class TestCheckpointManager:
         mock_s3: MockS3Client,
     ) -> None:
         """S3 errors during save are logged and return False."""
+
         # Override put_object to raise an error
         def raise_error(*args: Any, **kwargs: Any) -> None:
             raise Exception("S3 write error")
 
         mock_s3.put_object = raise_error
 
-        with patch(
-            "autom8_asana.lambda_handlers.checkpoint.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.lambda_handlers.checkpoint.logger") as mock_logger:
             success = await manager.save_async(
                 invocation_id="test-123",
                 completed_entities=["unit"],
@@ -479,15 +495,14 @@ class TestCheckpointManager:
         mock_s3: MockS3Client,
     ) -> None:
         """S3 errors during clear are logged as warnings and return False."""
+
         # Override delete_object to raise an error
         def raise_error(*args: Any, **kwargs: Any) -> None:
             raise Exception("S3 delete error")
 
         mock_s3.delete_object = raise_error
 
-        with patch(
-            "autom8_asana.lambda_handlers.checkpoint.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.lambda_handlers.checkpoint.logger") as mock_logger:
             success = await manager.clear_async()
 
             assert success is False
@@ -528,9 +543,7 @@ class TestCheckpointManager:
         manager: CheckpointManager,
     ) -> None:
         """Save logs checkpoint information."""
-        with patch(
-            "autom8_asana.lambda_handlers.checkpoint.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.lambda_handlers.checkpoint.logger") as mock_logger:
             await manager.save_async(
                 invocation_id="log-test-123",
                 completed_entities=["unit", "business"],
@@ -540,8 +553,11 @@ class TestCheckpointManager:
 
             mock_logger.info.assert_called()
             # Find the checkpoint_saved call
-            calls = [c for c in mock_logger.info.call_args_list
-                     if c[0][0] == "checkpoint_saved"]
+            calls = [
+                c
+                for c in mock_logger.info.call_args_list
+                if c[0][0] == "checkpoint_saved"
+            ]
             assert len(calls) == 1
             extra = calls[0][1]["extra"]
             assert extra["invocation_id"] == "log-test-123"
@@ -561,14 +577,15 @@ class TestCheckpointManager:
             entity_results=[],
         )
 
-        with patch(
-            "autom8_asana.lambda_handlers.checkpoint.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.lambda_handlers.checkpoint.logger") as mock_logger:
             await manager.load_async()
 
             mock_logger.info.assert_called()
-            calls = [c for c in mock_logger.info.call_args_list
-                     if c[0][0] == "checkpoint_loaded"]
+            calls = [
+                c
+                for c in mock_logger.info.call_args_list
+                if c[0][0] == "checkpoint_loaded"
+            ]
             assert len(calls) == 1
             extra = calls[0][1]["extra"]
             assert extra["invocation_id"] == "log-test-456"

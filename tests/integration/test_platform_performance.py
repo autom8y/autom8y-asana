@@ -165,9 +165,7 @@ class TestConcurrencyController:
     @pytest.mark.asyncio
     async def test_gather_with_limit_preserves_order(self) -> None:
         """Test that results are returned in input order."""
-        controller = ConcurrencyController(
-            config=ConcurrencyConfig(max_concurrent=10)
-        )
+        controller = ConcurrencyController(config=ConcurrencyConfig(max_concurrent=10))
 
         async def delayed_return(idx: int) -> int:
             # Different delays to test ordering
@@ -184,9 +182,7 @@ class TestConcurrencyController:
     @pytest.mark.asyncio
     async def test_controller_stats_tracking(self) -> None:
         """Test that controller tracks statistics correctly."""
-        controller = ConcurrencyController(
-            config=ConcurrencyConfig(max_concurrent=5)
-        )
+        controller = ConcurrencyController(config=ConcurrencyConfig(max_concurrent=5))
 
         stats = controller.get_stats()
         assert stats["max_concurrent"] == 5
@@ -371,9 +367,7 @@ class TestPerformanceBoundaries:
     @pytest.mark.asyncio
     async def test_large_batch_completes_within_timeout(self) -> None:
         """Test that large batches complete within reasonable time."""
-        controller = ConcurrencyController(
-            config=ConcurrencyConfig(max_concurrent=25)
-        )
+        controller = ConcurrencyController(config=ConcurrencyConfig(max_concurrent=25))
 
         async def simulate_api_call(idx: int) -> dict[str, Any]:
             await asyncio.sleep(0.01)  # 10ms simulated latency

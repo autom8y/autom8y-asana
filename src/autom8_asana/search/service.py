@@ -426,9 +426,7 @@ class SearchService:
 
         See find_offers_async for full documentation.
         """
-        return asyncio.run(
-            self.find_offers_async(project_gid, **field_values)
-        )
+        return asyncio.run(self.find_offers_async(project_gid, **field_values))
 
     def find_units(
         self,
@@ -439,9 +437,7 @@ class SearchService:
 
         See find_units_async for full documentation.
         """
-        return asyncio.run(
-            self.find_units_async(project_gid, **field_values)
-        )
+        return asyncio.run(self.find_units_async(project_gid, **field_values))
 
     def find_businesses(
         self,
@@ -452,9 +448,7 @@ class SearchService:
 
         See find_businesses_async for full documentation.
         """
-        return asyncio.run(
-            self.find_businesses_async(project_gid, **field_values)
-        )
+        return asyncio.run(self.find_businesses_async(project_gid, **field_values))
 
     # =========================================================================
     # DataFrame Cache Management

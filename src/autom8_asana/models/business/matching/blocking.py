@@ -116,15 +116,12 @@ class PhonePrefixBlockingRule:
         # to handle +1 prefix variations
         query_suffix = query_digits[-10:] if len(query_digits) >= 10 else query_digits
         candidate_suffix = (
-            candidate_digits[-10:]
-            if len(candidate_digits) >= 10
-            else candidate_digits
+            candidate_digits[-10:] if len(candidate_digits) >= 10 else candidate_digits
         )
 
         # Compare prefixes of the 10-digit numbers
         return (
-            query_suffix[: self.PREFIX_LENGTH]
-            == candidate_suffix[: self.PREFIX_LENGTH]
+            query_suffix[: self.PREFIX_LENGTH] == candidate_suffix[: self.PREFIX_LENGTH]
         )
 
 

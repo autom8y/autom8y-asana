@@ -80,7 +80,9 @@ class TestAsanaHttpClientInit:
         """Creates read/write semaphores from config."""
         from autom8_asana.config import ConcurrencyConfig
 
-        config = AsanaConfig(concurrency=ConcurrencyConfig(read_limit=10, write_limit=5))
+        config = AsanaConfig(
+            concurrency=ConcurrencyConfig(read_limit=10, write_limit=5)
+        )
         auth = MockAuthProvider()
         client = AsanaHttpClient(config, auth)
 
@@ -236,7 +238,11 @@ class TestAsanaHttpClientErrors:
         """Raises RateLimitError on 429."""
         mock_response = MagicMock()
         mock_response.status_code = 429
-        mock_response.headers = {"Retry-After": "30", "X-Request-Id": "abc", "retry-after": "30"}
+        mock_response.headers = {
+            "Retry-After": "30",
+            "X-Request-Id": "abc",
+            "retry-after": "30",
+        }
         mock_response.json.return_value = {"errors": [{"message": "Rate limited"}]}
         mock_response.text = '{"errors": [{"message": "Rate limited"}]}'
 
@@ -269,7 +275,9 @@ class TestAsanaHttpClientErrors:
     async def test_raises_timeout_error(self, client):
         """Raises TimeoutError on httpx.TimeoutException."""
         mock_httpx_client = AsyncMock()
-        mock_httpx_client.request = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
+        mock_httpx_client.request = AsyncMock(
+            side_effect=httpx.TimeoutException("timeout")
+        )
 
         mock_platform = AsyncMock()
         mock_platform._client = mock_httpx_client

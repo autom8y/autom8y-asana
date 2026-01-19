@@ -61,7 +61,11 @@ async def main():
 
             # Show sample vertical values
             if vert_count > 0:
-                sample_verts = df.filter(df["vertical"].is_not_null())["vertical"].unique().to_list()
+                sample_verts = (
+                    df.filter(df["vertical"].is_not_null())["vertical"]
+                    .unique()
+                    .to_list()
+                )
                 print(f"   vertical values: {sample_verts[:10]}")
 
         # Export to clipboard

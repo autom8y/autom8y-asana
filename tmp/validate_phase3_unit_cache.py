@@ -10,6 +10,7 @@ import polars as pl
 # Import the strategy
 from autom8_asana.services.resolver import UnitResolutionStrategy
 
+
 def main():
     print("=" * 70)
     print("PHASE 3 VALIDATION: Unit DataFrame Cache")
@@ -44,7 +45,7 @@ def main():
     build_sig = inspect.signature(strategy._build_dataframe)
     params = list(build_sig.parameters.keys())
     print(f"   ✓ _build_dataframe params: {params}")
-    expected = ['project_gid', 'client']
+    expected = ["project_gid", "client"]
     if params == expected:
         print(f"   ✓ Signature matches expected: {expected}")
     else:
@@ -54,22 +55,27 @@ def main():
     print("\n4. Simulating decorator behavior...")
 
     # Create a mock DataFrame
-    mock_df = pl.DataFrame({
-        "gid": ["1234567890", "2345678901"],
-        "name": ["Test Unit 1", "Test Unit 2"],
-        "phone": ["5551234567", "5559876543"],
-        "vertical": ["solar", "roofing"],
-    })
+    mock_df = pl.DataFrame(
+        {
+            "gid": ["1234567890", "2345678901"],
+            "name": ["Test Unit 1", "Test Unit 2"],
+            "phone": ["5551234567", "5559876543"],
+            "vertical": ["solar", "roofing"],
+        }
+    )
 
     # Simulate decorator injection
     strategy._cached_dataframe = mock_df
     print(f"   ✓ Injected mock DataFrame with {len(mock_df)} rows")
-    print(f"   ✓ _cached_dataframe is DataFrame: {isinstance(strategy._cached_dataframe, pl.DataFrame)}")
+    print(
+        f"   ✓ _cached_dataframe is DataFrame: {isinstance(strategy._cached_dataframe, pl.DataFrame)}"
+    )
 
     # Validation 5: Check legacy cache removal
     print("\n5. Verifying legacy cache removal...")
     try:
         from src.autom8_asana.services.resolver import _gid_index_cache
+
         print("   ✗ FAIL: _gid_index_cache still exists!")
         return 1
     except ImportError:
@@ -77,6 +83,7 @@ def main():
 
     try:
         from src.autom8_asana.services.resolver import _INDEX_TTL_SECONDS
+
         print("   ✗ FAIL: _INDEX_TTL_SECONDS still exists!")
         return 1
     except ImportError:
@@ -100,6 +107,7 @@ def main():
     print("\n" + "=" * 70)
 
     return 0
+
 
 if __name__ == "__main__":
     exit(main())

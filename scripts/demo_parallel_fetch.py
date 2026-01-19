@@ -35,7 +35,9 @@ if TYPE_CHECKING:
 from autom8_asana.client import AsanaClient
 
 
-async def resolve_project_gid(client: AsanaClient, name: str, workspace_gid: str) -> str | None:
+async def resolve_project_gid(
+    client: AsanaClient, name: str, workspace_gid: str
+) -> str | None:
     """Resolve project name to GID (case-insensitive)."""
     name_lower = name.lower()
     async for project in client.projects.list_async(
@@ -61,9 +63,9 @@ def print_cache_metrics(
         task_count: Number of tasks fetched.
         show_metrics: If True, show detailed metrics breakdown.
     """
-    print(f"\n{'-'*60}")
+    print(f"\n{'-' * 60}")
     print("CACHE METRICS SUMMARY")
-    print(f"{'-'*60}")
+    print(f"{'-' * 60}")
 
     # Calculate hit rate (approximation: warm time << cold time means high hit rate)
     if cold_time > 0:
@@ -82,14 +84,16 @@ def print_cache_metrics(
     # Performance target validation
     print("\n  Performance Targets:")
     warm_target_met = warm_time < 1.0
-    print(f"    Warm fetch < 1.0s: {'PASS' if warm_target_met else 'FAIL'} ({warm_time:.2f}s)")
+    print(
+        f"    Warm fetch < 1.0s: {'PASS' if warm_target_met else 'FAIL'} ({warm_time:.2f}s)"
+    )
 
     if show_metrics:
         print("\n  Timing Breakdown (estimated):")
         lookup_time = warm_time * 0.1  # ~10% for cache lookup
         extract_time = warm_time * 0.9  # ~90% for extraction
-        print(f"    Cache lookup: ~{lookup_time*1000:.0f}ms")
-        print(f"    DataFrame extraction: ~{extract_time*1000:.0f}ms")
+        print(f"    Cache lookup: ~{lookup_time * 1000:.0f}ms")
+        print(f"    DataFrame extraction: ~{extract_time * 1000:.0f}ms")
 
         print("\n  Cache Efficiency:")
         api_time_saved = cold_time - warm_time
@@ -117,13 +121,12 @@ async def demo_parallel_fetch(
 
     try:
         # Get project
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("  Parallel Section Fetch Demo")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         project = await client.projects.get_async(
-            project_gid,
-            opt_fields=["name", "gid"]
+            project_gid, opt_fields=["name", "gid"]
         )
         display_name = project_name or project.name
         print(f"\nProject: {display_name} ({project_gid})")
@@ -138,9 +141,9 @@ async def demo_parallel_fetch(
         if len(sections) > 5:
             print(f"  ... and {len(sections) - 5} more")
 
-        print(f"\n{'-'*60}")
+        print(f"\n{'-' * 60}")
         print("PARALLEL FETCH (new method)")
-        print(f"{'-'*60}")
+        print(f"{'-' * 60}")
 
         # Parallel fetch (cold)
         start = time.perf_counter()
@@ -153,16 +156,20 @@ async def demo_parallel_fetch(
 
         print(f"Tasks fetched: {len(df_parallel)}")
         print(f"Time (cold): {parallel_time:.2f}s")
-        print(f"Columns: {df_parallel.columns[:5]}..." if len(df_parallel.columns) > 5 else f"Columns: {df_parallel.columns}")
+        print(
+            f"Columns: {df_parallel.columns[:5]}..."
+            if len(df_parallel.columns) > 5
+            else f"Columns: {df_parallel.columns}"
+        )
 
         if verbose and len(df_parallel) > 0:
             print("\nFirst 3 tasks:")
             print(df_parallel.select(["gid", "name"]).head(3))
 
         if compare:
-            print(f"\n{'-'*60}")
+            print(f"\n{'-' * 60}")
             print("SERIAL FETCH (original method)")
-            print(f"{'-'*60}")
+            print(f"{'-' * 60}")
 
             # Serial fetch using original method
             start = time.perf_counter()
@@ -178,9 +185,9 @@ async def demo_parallel_fetch(
             print(f"Time (serial): {serial_time:.2f}s")
 
             # Comparison
-            print(f"\n{'-'*60}")
+            print(f"\n{'-' * 60}")
             print("COMPARISON")
-            print(f"{'-'*60}")
+            print(f"{'-' * 60}")
             print(f"Parallel: {parallel_time:.2f}s")
             print(f"Serial:   {serial_time:.2f}s")
             if serial_time > 0:
@@ -188,9 +195,9 @@ async def demo_parallel_fetch(
                 print(f"Speedup:  {speedup:.1f}x faster")
 
         # Demonstrate cache (warm fetch)
-        print(f"\n{'-'*60}")
+        print(f"\n{'-' * 60}")
         print("CACHE DEMONSTRATION")
-        print(f"{'-'*60}")
+        print(f"{'-' * 60}")
 
         print("\nFirst fetch (cache miss - populates cache):")
         start = time.perf_counter()
@@ -213,7 +220,7 @@ async def demo_parallel_fetch(
         print(f"  Tasks: {len(df2)}, Time: {warm_time:.2f}s")
 
         if cold_time > 0:
-            print(f"\n  Cache speedup: {cold_time/warm_time:.1f}x faster")
+            print(f"\n  Cache speedup: {cold_time / warm_time:.1f}x faster")
 
         # Print detailed cache metrics
         print_cache_metrics(
@@ -223,9 +230,9 @@ async def demo_parallel_fetch(
             show_metrics=show_metrics,
         )
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("  Demo Complete")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
     finally:
         await client.close()
@@ -252,21 +259,34 @@ Examples:
 
     # Show detailed cache metrics
     python scripts/demo_parallel_fetch.py --name "Business Offers" --metrics
-"""
+""",
     )
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--name", "-n", help="Project name to fetch (case-insensitive)")
     group.add_argument("--gid", "-g", help="Project GID to fetch")
 
-    parser.add_argument("--compare", "-c", action="store_true",
-                       help="Compare serial vs parallel fetch times")
-    parser.add_argument("--verbose", "-v", action="store_true",
-                       help="Show verbose output")
-    parser.add_argument("--metrics", "-m", action="store_true",
-                       help="Show detailed cache metrics and timing breakdown")
-    parser.add_argument("--workspace", "-w", default="1143357799778608",
-                       help="Workspace GID (default: 1143357799778608)")
+    parser.add_argument(
+        "--compare",
+        "-c",
+        action="store_true",
+        help="Compare serial vs parallel fetch times",
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Show verbose output"
+    )
+    parser.add_argument(
+        "--metrics",
+        "-m",
+        action="store_true",
+        help="Show detailed cache metrics and timing breakdown",
+    )
+    parser.add_argument(
+        "--workspace",
+        "-w",
+        default="1143357799778608",
+        help="Workspace GID (default: 1143357799778608)",
+    )
 
     args = parser.parse_args()
 

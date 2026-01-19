@@ -80,10 +80,7 @@ class TestRaceConditionsCoalescer:
         )
 
         # Submit 100 concurrent requests for same GID
-        tasks = [
-            coalescer.request_check_async(make_entry("123"))
-            for _ in range(100)
-        ]
+        tasks = [coalescer.request_check_async(make_entry("123")) for _ in range(100)]
         results = await asyncio.gather(*tasks)
 
         # All should get same result
@@ -112,10 +109,7 @@ class TestRaceConditionsCoalescer:
         )
 
         # Submit 50 concurrent requests for different GIDs
-        tasks = [
-            coalescer.request_check_async(make_entry(str(i)))
-            for i in range(50)
-        ]
+        tasks = [coalescer.request_check_async(make_entry(str(i))) for i in range(50)]
         results = await asyncio.gather(*tasks)
 
         # All should succeed
@@ -148,17 +142,13 @@ class TestTimerEdgeCases:
         )
 
         # First request starts the timer
-        task1 = asyncio.create_task(
-            coalescer.request_check_async(make_entry("1"))
-        )
+        task1 = asyncio.create_task(coalescer.request_check_async(make_entry("1")))
 
         # Wait just under the window
         await asyncio.sleep(0.045)
 
         # Second request arrives just before window expires
-        task2 = asyncio.create_task(
-            coalescer.request_check_async(make_entry("2"))
-        )
+        task2 = asyncio.create_task(coalescer.request_check_async(make_entry("2")))
 
         results = await asyncio.gather(task1, task2)
 
@@ -182,6 +172,7 @@ class TestTimerEdgeCases:
         )
 
         import time
+
         start = time.monotonic()
         result = await coalescer.request_check_async(make_entry("123"))
         elapsed = time.monotonic() - start
@@ -213,10 +204,7 @@ class TestBatchOverflow:
         )
 
         # Submit 200 requests
-        tasks = [
-            coalescer.request_check_async(make_entry(str(i)))
-            for i in range(200)
-        ]
+        tasks = [coalescer.request_check_async(make_entry(str(i))) for i in range(200)]
 
         # Run them all
         results = await asyncio.gather(*tasks)
@@ -240,7 +228,12 @@ class TestBatchOverflow:
             return [
                 BatchResult(
                     status_code=200,
-                    body={"data": {"gid": r.relative_path.split("/")[-1], "modified_at": "2025-12-23T10:00:00.000Z"}},
+                    body={
+                        "data": {
+                            "gid": r.relative_path.split("/")[-1],
+                            "modified_at": "2025-12-23T10:00:00.000Z",
+                        }
+                    },
                 )
                 for r in requests
             ]
@@ -298,7 +291,12 @@ class TestAPITimeoutHandling:
             return [
                 BatchResult(
                     status_code=200,
-                    body={"data": {"gid": r.relative_path.split("/")[-1], "modified_at": "2025-12-23T10:00:00.000Z"}},
+                    body={
+                        "data": {
+                            "gid": r.relative_path.split("/")[-1],
+                            "modified_at": "2025-12-23T10:00:00.000Z",
+                        }
+                    },
                 )
                 for r in requests
             ]
@@ -346,12 +344,14 @@ class TestMalformedModifiedAt:
     async def test_missing_modified_at_in_response(self) -> None:
         """Test that missing modified_at in response returns None."""
         mock_batch_client = MagicMock()
-        mock_batch_client.execute_async = AsyncMock(return_value=[
-            BatchResult(
-                status_code=200,
-                body={"data": {"gid": "123"}},  # No modified_at field
-            )
-        ])
+        mock_batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=200,
+                    body={"data": {"gid": "123"}},  # No modified_at field
+                )
+            ]
+        )
 
         checker = LightweightChecker(batch_client=mock_batch_client)
         entries = [make_entry("123")]
@@ -365,12 +365,14 @@ class TestMalformedModifiedAt:
     async def test_null_modified_at_in_response(self) -> None:
         """Test that null modified_at in response returns None."""
         mock_batch_client = MagicMock()
-        mock_batch_client.execute_async = AsyncMock(return_value=[
-            BatchResult(
-                status_code=200,
-                body={"data": {"gid": "123", "modified_at": None}},
-            )
-        ])
+        mock_batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=200,
+                    body={"data": {"gid": "123", "modified_at": None}},
+                )
+            ]
+        )
 
         checker = LightweightChecker(batch_client=mock_batch_client)
         entries = [make_entry("123")]
@@ -383,12 +385,16 @@ class TestMalformedModifiedAt:
     async def test_non_string_modified_at_in_response(self) -> None:
         """Test that non-string modified_at returns None."""
         mock_batch_client = MagicMock()
-        mock_batch_client.execute_async = AsyncMock(return_value=[
-            BatchResult(
-                status_code=200,
-                body={"data": {"gid": "123", "modified_at": 12345}},  # Number instead of string
-            )
-        ])
+        mock_batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=200,
+                    body={
+                        "data": {"gid": "123", "modified_at": 12345}
+                    },  # Number instead of string
+                )
+            ]
+        )
 
         checker = LightweightChecker(batch_client=mock_batch_client)
         entries = [make_entry("123")]
@@ -407,12 +413,14 @@ class TestDeletedEntityHandling:
         cache = EnhancedInMemoryCacheProvider()
         batch_client = MagicMock()
 
-        batch_client.execute_async = AsyncMock(return_value=[
-            BatchResult(
-                status_code=404,
-                body={"errors": [{"message": "Not found"}]},
-            )
-        ])
+        batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=404,
+                    body={"errors": [{"message": "Not found"}]},
+                )
+            ]
+        )
 
         coordinator = StalenessCheckCoordinator(
             cache_provider=cache,
@@ -459,12 +467,19 @@ class TestTTLCeilingBoundary:
         cache = EnhancedInMemoryCacheProvider()
         batch_client = MagicMock()
 
-        batch_client.execute_async = AsyncMock(return_value=[
-            BatchResult(
-                status_code=200,
-                body={"data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}},
-            )
-        ])
+        batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=200,
+                    body={
+                        "data": {
+                            "gid": "123",
+                            "modified_at": "2025-12-23T10:00:00.000Z",
+                        }
+                    },
+                )
+            ]
+        )
 
         coordinator = StalenessCheckCoordinator(
             cache_provider=cache,
@@ -518,12 +533,19 @@ class TestExtensionCountOverflow:
         cache = EnhancedInMemoryCacheProvider()
         batch_client = MagicMock()
 
-        batch_client.execute_async = AsyncMock(return_value=[
-            BatchResult(
-                status_code=200,
-                body={"data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}},
-            )
-        ])
+        batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=200,
+                    body={
+                        "data": {
+                            "gid": "123",
+                            "modified_at": "2025-12-23T10:00:00.000Z",
+                        }
+                    },
+                )
+            ]
+        )
 
         coordinator = StalenessCheckCoordinator(
             cache_provider=cache,
@@ -570,12 +592,19 @@ class TestEdgeCaseBatches:
     async def test_single_entry_batch(self) -> None:
         """Test single entry batch works correctly."""
         mock_batch_client = MagicMock()
-        mock_batch_client.execute_async = AsyncMock(return_value=[
-            BatchResult(
-                status_code=200,
-                body={"data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}},
-            )
-        ])
+        mock_batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=200,
+                    body={
+                        "data": {
+                            "gid": "123",
+                            "modified_at": "2025-12-23T10:00:00.000Z",
+                        }
+                    },
+                )
+            ]
+        )
 
         checker = LightweightChecker(batch_client=mock_batch_client)
         entries = [make_entry("123")]
@@ -593,24 +622,30 @@ class TestMixedSuccessFailure:
     async def test_mixed_200_404_500_responses(self) -> None:
         """Test handling mix of success, deleted, and error responses."""
         mock_batch_client = MagicMock()
-        mock_batch_client.execute_async = AsyncMock(return_value=[
-            BatchResult(
-                status_code=200,
-                body={"data": {"gid": "1", "modified_at": "2025-12-23T10:00:00.000Z"}},
-            ),
-            BatchResult(
-                status_code=404,
-                body={"errors": [{"message": "Not found"}]},
-            ),
-            BatchResult(
-                status_code=500,
-                body={"errors": [{"message": "Internal error"}]},
-            ),
-            BatchResult(
-                status_code=200,
-                body={"data": {"gid": "4", "modified_at": "2025-12-23T11:00:00.000Z"}},
-            ),
-        ])
+        mock_batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=200,
+                    body={
+                        "data": {"gid": "1", "modified_at": "2025-12-23T10:00:00.000Z"}
+                    },
+                ),
+                BatchResult(
+                    status_code=404,
+                    body={"errors": [{"message": "Not found"}]},
+                ),
+                BatchResult(
+                    status_code=500,
+                    body={"errors": [{"message": "Internal error"}]},
+                ),
+                BatchResult(
+                    status_code=200,
+                    body={
+                        "data": {"gid": "4", "modified_at": "2025-12-23T11:00:00.000Z"}
+                    },
+                ),
+            ]
+        )
 
         checker = LightweightChecker(batch_client=mock_batch_client)
         entries = [make_entry(str(i)) for i in range(1, 5)]
@@ -637,12 +672,19 @@ class TestCoordinatorGracefulDegradation:
         mock_cache.invalidate = MagicMock()
 
         batch_client = MagicMock()
-        batch_client.execute_async = AsyncMock(return_value=[
-            BatchResult(
-                status_code=200,
-                body={"data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}},
-            )
-        ])
+        batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=200,
+                    body={
+                        "data": {
+                            "gid": "123",
+                            "modified_at": "2025-12-23T10:00:00.000Z",
+                        }
+                    },
+                )
+            ]
+        )
 
         coordinator = StalenessCheckCoordinator(
             cache_provider=mock_cache,
@@ -666,12 +708,14 @@ class TestCoordinatorGracefulDegradation:
         mock_cache.invalidate = MagicMock(side_effect=Exception("Redis down"))
 
         batch_client = MagicMock()
-        batch_client.execute_async = AsyncMock(return_value=[
-            BatchResult(
-                status_code=404,
-                body={"errors": [{"message": "Not found"}]},
-            )
-        ])
+        batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=404,
+                    body={"errors": [{"message": "Not found"}]},
+                )
+            ]
+        )
 
         coordinator = StalenessCheckCoordinator(
             cache_provider=mock_cache,

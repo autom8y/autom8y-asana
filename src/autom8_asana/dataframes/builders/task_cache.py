@@ -119,7 +119,9 @@ class TaskCacheCoordinator:
         self._unified_store: "UnifiedTaskStore | None" = None
 
     @classmethod
-    def from_unified_store(cls, unified_store: "UnifiedTaskStore") -> "TaskCacheCoordinator":
+    def from_unified_store(
+        cls, unified_store: "UnifiedTaskStore"
+    ) -> "TaskCacheCoordinator":
         """Create coordinator that delegates to UnifiedTaskStore.
 
         Per TDD-UNIFIED-CACHE-001: Provides adapter for unified cache integration.

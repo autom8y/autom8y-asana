@@ -18,7 +18,9 @@ import polars as pl
 import pytest
 
 # MIGRATION: Tests need update for ProgressiveProjectBuilder constructor signature
-pytestmark = pytest.mark.skip(reason="MIGRATION: Tests need update for ProgressiveProjectBuilder")
+pytestmark = pytest.mark.skip(
+    reason="MIGRATION: Tests need update for ProgressiveProjectBuilder"
+)
 
 from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvider
 from autom8_asana.dataframes import (
@@ -27,7 +29,6 @@ from autom8_asana.dataframes import (
     SectionDataFrameBuilder,
     UNIT_SCHEMA,
 )
-from autom8_asana.dataframes.builders.progressive import ProgressiveProjectBuilder
 from autom8_asana.dataframes.cache_integration import make_dataframe_key
 from autom8_asana.dataframes.resolver import MockCustomFieldResolver
 from autom8_asana.models.common import NameGid
@@ -706,7 +707,9 @@ class TestDataFrameCacheIntegration:
 # =============================================================================
 
 
-@pytest.mark.xfail(reason="Phase 4 requires unified_store - tests need update to provide mock")
+@pytest.mark.xfail(
+    reason="Phase 4 requires unified_store - tests need update to provide mock"
+)
 class TestBuilderWithCache:
     """Tests for builder cache integration."""
 
@@ -939,7 +942,9 @@ class TestCacheIntegrationEdgeCases:
         )
         assert cached is None
 
-    @pytest.mark.xfail(reason="Phase 4 requires unified_store - test needs update to provide mock")
+    @pytest.mark.xfail(
+        reason="Phase 4 requires unified_store - test needs update to provide mock"
+    )
     def test_builder_with_task_no_project_context(
         self,
         minimal_task: Task,

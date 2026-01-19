@@ -11,10 +11,10 @@ import asyncio
 from unittest.mock import MagicMock
 
 
-
 # =============================================================================
 # Test 1: Orphan Task (no parent) - should return None gracefully
 # =============================================================================
+
 
 async def test_orphan_task_cascade_returns_none():
     """Orphan task with no parent should return None for cascade fields.
@@ -60,7 +60,12 @@ async def test_orphan_task_cascade_returns_none():
         task_type="*",
         columns=[
             ColumnDef(name="gid", dtype="Utf8", nullable=False),
-            ColumnDef(name="office_phone", dtype="Utf8", nullable=True, source="cascade:Office Phone"),
+            ColumnDef(
+                name="office_phone",
+                dtype="Utf8",
+                nullable=True,
+                source="cascade:Office Phone",
+            ),
         ],
         version="1.0.0",
     )
@@ -69,7 +74,10 @@ async def test_orphan_task_cascade_returns_none():
 
     # Materialize should return None for cascade field (no parent to cascade from)
     from autom8_asana.cache.freshness_coordinator import FreshnessMode
-    df = await plugin.materialize_async(task_gids=["orphan_123"], freshness=FreshnessMode.IMMEDIATE)
+
+    df = await plugin.materialize_async(
+        task_gids=["orphan_123"], freshness=FreshnessMode.IMMEDIATE
+    )
 
     assert len(df) == 1
     assert df["gid"][0] == "orphan_123"
@@ -81,6 +89,7 @@ async def test_orphan_task_cascade_returns_none():
 # =============================================================================
 # Test 2: Parent exists but missing custom_fields - should handle gracefully
 # =============================================================================
+
 
 async def test_parent_missing_custom_fields():
     """Parent task exists but has no custom_fields array.
@@ -138,7 +147,10 @@ async def test_parent_missing_custom_fields():
         "child_123": child_entry,
         "parent_456": parent_entry,
     }.get(gid)
-    mock_cache.get_batch.return_value = {"child_123": child_entry, "parent_456": parent_entry}
+    mock_cache.get_batch.return_value = {
+        "child_123": child_entry,
+        "parent_456": parent_entry,
+    }
 
     store = UnifiedTaskStore(cache=mock_cache)
     # Register parent-child relationship
@@ -150,7 +162,12 @@ async def test_parent_missing_custom_fields():
         task_type="*",
         columns=[
             ColumnDef(name="gid", dtype="Utf8", nullable=False),
-            ColumnDef(name="office_phone", dtype="Utf8", nullable=True, source="cascade:Office Phone"),
+            ColumnDef(
+                name="office_phone",
+                dtype="Utf8",
+                nullable=True,
+                source="cascade:Office Phone",
+            ),
         ],
         version="1.0.0",
     )
@@ -158,7 +175,9 @@ async def test_parent_missing_custom_fields():
     plugin = DataFrameViewPlugin(store=store, schema=schema)
 
     # Should not error, just return None for cascade field
-    df = await plugin.materialize_async(task_gids=["child_123"], freshness=FreshnessMode.IMMEDIATE)
+    df = await plugin.materialize_async(
+        task_gids=["child_123"], freshness=FreshnessMode.IMMEDIATE
+    )
 
     assert len(df) == 1
     assert df["gid"][0] == "child_123"
@@ -170,6 +189,7 @@ async def test_parent_missing_custom_fields():
 # =============================================================================
 # Test 3: Parent has custom_fields but field not present - should return None
 # =============================================================================
+
 
 async def test_parent_field_not_present():
     """Parent has custom_fields but not the specific field we're looking for.
@@ -198,8 +218,18 @@ async def test_parent_field_not_present():
         "name": "Parent Task",
         "custom_fields": [
             # Has custom fields, but NOT "Office Phone"
-            {"gid": "cf_1", "name": "Company ID", "resource_subtype": "text", "text_value": "ACME001"},
-            {"gid": "cf_2", "name": "Industry", "resource_subtype": "enum", "enum_value": {"name": "Healthcare"}},
+            {
+                "gid": "cf_1",
+                "name": "Company ID",
+                "resource_subtype": "text",
+                "text_value": "ACME001",
+            },
+            {
+                "gid": "cf_2",
+                "name": "Industry",
+                "resource_subtype": "enum",
+                "enum_value": {"name": "Healthcare"},
+            },
         ],
         "parent": None,
         "modified_at": "2024-01-01T00:00:00Z",
@@ -227,7 +257,10 @@ async def test_parent_field_not_present():
         "child_123": child_entry,
         "parent_456": parent_entry,
     }.get(gid)
-    mock_cache.get_batch.return_value = {"child_123": child_entry, "parent_456": parent_entry}
+    mock_cache.get_batch.return_value = {
+        "child_123": child_entry,
+        "parent_456": parent_entry,
+    }
 
     store = UnifiedTaskStore(cache=mock_cache)
     store.get_hierarchy_index().register(child_task)
@@ -238,13 +271,20 @@ async def test_parent_field_not_present():
         task_type="*",
         columns=[
             ColumnDef(name="gid", dtype="Utf8", nullable=False),
-            ColumnDef(name="office_phone", dtype="Utf8", nullable=True, source="cascade:Office Phone"),
+            ColumnDef(
+                name="office_phone",
+                dtype="Utf8",
+                nullable=True,
+                source="cascade:Office Phone",
+            ),
         ],
         version="1.0.0",
     )
 
     plugin = DataFrameViewPlugin(store=store, schema=schema)
-    df = await plugin.materialize_async(task_gids=["child_123"], freshness=FreshnessMode.IMMEDIATE)
+    df = await plugin.materialize_async(
+        task_gids=["child_123"], freshness=FreshnessMode.IMMEDIATE
+    )
 
     assert len(df) == 1
     assert df["office_phone"][0] is None  # Field not found in parent chain
@@ -255,6 +295,7 @@ async def test_parent_field_not_present():
 # =============================================================================
 # Test 4: max_depth limit - should stop traversal at depth limit
 # =============================================================================
+
 
 async def test_max_depth_limit():
     """Test that hierarchy traversal respects max_depth setting.
@@ -273,7 +314,7 @@ async def test_max_depth_limit():
         task = {
             "gid": f"task_{i}",
             "name": f"Task Level {i}",
-            "parent": {"gid": f"task_{i-1}"} if i > 0 else None,
+            "parent": {"gid": f"task_{i - 1}"} if i > 0 else None,
         }
         tasks.append(task)
         hierarchy.register(task)
@@ -298,6 +339,7 @@ async def test_max_depth_limit():
 # =============================================================================
 # Test 5: Circular parent reference - should not infinite loop
 # =============================================================================
+
 
 async def test_circular_reference_protection():
     """Test protection against circular parent references.
@@ -329,7 +371,9 @@ async def test_circular_reference_protection():
     try:
         ancestors = await asyncio.wait_for(test_with_timeout(), timeout=2.0)
         # Should have stopped at max_depth
-        assert len(ancestors) <= 5, f"Got more ancestors than max_depth: {len(ancestors)}"
+        assert len(ancestors) <= 5, (
+            f"Got more ancestors than max_depth: {len(ancestors)}"
+        )
         print("[PASS] test_circular_reference_protection - stopped at max_depth")
     except asyncio.TimeoutError:
         print("[FAIL] test_circular_reference_protection - infinite loop detected!")
@@ -339,6 +383,7 @@ async def test_circular_reference_protection():
 # =============================================================================
 # Test 6: Enum field cascade - should extract enum name correctly
 # =============================================================================
+
 
 async def test_enum_field_cascade():
     """Test cascade resolution for enum custom fields (like Vertical).
@@ -395,6 +440,7 @@ async def test_enum_field_cascade():
 # Test 7: Case-insensitive field name matching
 # =============================================================================
 
+
 async def test_case_insensitive_field_matching():
     """Test that field name matching is case-insensitive.
 
@@ -423,9 +469,15 @@ async def test_case_insensitive_field_matching():
     cascade_plugin = CascadeViewPlugin(store=store)
 
     # Try to find with different cases
-    value1 = cascade_plugin._get_custom_field_value_from_dict(task, "office phone")  # lowercase
-    value2 = cascade_plugin._get_custom_field_value_from_dict(task, "Office Phone")  # title case
-    value3 = cascade_plugin._get_custom_field_value_from_dict(task, "OFFICE PHONE")  # uppercase
+    value1 = cascade_plugin._get_custom_field_value_from_dict(
+        task, "office phone"
+    )  # lowercase
+    value2 = cascade_plugin._get_custom_field_value_from_dict(
+        task, "Office Phone"
+    )  # title case
+    value3 = cascade_plugin._get_custom_field_value_from_dict(
+        task, "OFFICE PHONE"
+    )  # uppercase
 
     assert value1 == "+15551234567", f"Lowercase lookup failed: {value1}"
     assert value2 == "+15551234567", f"Title case lookup failed: {value2}"
@@ -437,6 +489,7 @@ async def test_case_insensitive_field_matching():
 # =============================================================================
 # Test 8: Empty custom_fields array - should return None gracefully
 # =============================================================================
+
 
 async def test_empty_custom_fields_array():
     """Test handling of empty custom_fields array.
@@ -467,6 +520,7 @@ async def test_empty_custom_fields_array():
 # =============================================================================
 # Run all tests
 # =============================================================================
+
 
 async def run_all_tests():
     """Run all adversarial tests."""

@@ -18,7 +18,6 @@ if TYPE_CHECKING:
     from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker
     from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
     from autom8_asana.cache.dataframe.tiers.progressive import ProgressiveTier
-    from autom8_asana.dataframes.models.registry import SchemaRegistry
 
 logger = get_logger(__name__)
 
@@ -341,9 +340,7 @@ class DataFrameCache:
             entity_type: Optional specific entity type. If None, all types.
         """
         entity_types = (
-            [entity_type]
-            if entity_type
-            else ["unit", "business", "offer", "contact"]
+            [entity_type] if entity_type else ["unit", "business", "offer", "contact"]
         )
 
         for et in entity_types:

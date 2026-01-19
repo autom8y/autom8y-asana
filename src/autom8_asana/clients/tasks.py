@@ -13,13 +13,12 @@ from typing import TYPE_CHECKING, Any, Literal, overload
 from autom8y_log import get_logger
 
 from autom8_asana.clients.base import BaseClient
-
-logger = get_logger(__name__)
 from autom8_asana.models import PageIterator, Task
-# Per TDD-registry-consolidation: Import from package to ensure bootstrap runs
 from autom8_asana.models.business import STANDARD_TASK_OPT_FIELDS
 from autom8_asana.observability import error_handler
 from autom8_asana.transport import sync_wrapper
+
+logger = get_logger(__name__)
 
 # Minimum fields required for cascade resolution (per TDD-sdk-cascade-resolution).
 # parent.gid is always needed to traverse the hierarchy and resolve cascading fields.
@@ -852,9 +851,7 @@ class TasksClient(BaseClient):
             task_gid, tag_gid, refresh=refresh
         )
 
-    def remove_tag(
-        self, task_gid: str, tag_gid: str, *, refresh: bool = False
-    ) -> Task:
+    def remove_tag(self, task_gid: str, tag_gid: str, *, refresh: bool = False) -> Task:
         """Remove tag from task without explicit SaveSession (sync).
 
         Delegates to TaskOperations.remove_tag per ADR-0059.

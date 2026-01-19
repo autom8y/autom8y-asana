@@ -157,21 +157,27 @@ class TestWarmCacheAsync:
     @pytest.fixture
     def sample_dataframe(self) -> pl.DataFrame:
         """Create a sample DataFrame for testing."""
-        return pl.DataFrame({
-            "gid": ["1", "2", "3"],
-            "name": ["Task A", "Task B", "Task C"],
-        })
+        return pl.DataFrame(
+            {
+                "gid": ["1", "2", "3"],
+                "name": ["Task A", "Task B", "Task C"],
+            }
+        )
 
     @pytest.mark.asyncio
     async def test_no_cache_available(self) -> None:
         """Return failure when cache cannot be initialized."""
         # Need to patch where the imports happen (inside the function)
-        with patch.dict("os.environ", {}, clear=True), patch(
-            "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
-            return_value=None,
-        ), patch(
-            "autom8_asana.cache.dataframe.factory.initialize_dataframe_cache",
-            return_value=None,
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=None,
+            ),
+            patch(
+                "autom8_asana.cache.dataframe.factory.initialize_dataframe_cache",
+                return_value=None,
+            ),
         ):
             response = await _warm_cache_async()
 
@@ -184,16 +190,21 @@ class TestWarmCacheAsync:
         mock_registry = MagicMock()
         mock_registry.is_ready.return_value = False
 
-        with patch.dict("os.environ", {}, clear=True), patch(
-            "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
-            return_value=mock_cache,
-        ), patch(
-            "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
-            return_value=mock_registry,
-        ), patch(
-            "autom8_asana.lambda_handlers.cache_warmer._discover_entity_projects_for_lambda",
-            new_callable=AsyncMock,
-            side_effect=RuntimeError("Discovery failed"),
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=mock_cache,
+            ),
+            patch(
+                "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
+                return_value=mock_registry,
+            ),
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer._discover_entity_projects_for_lambda",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("Discovery failed"),
+            ),
         ):
             response = await _warm_cache_async()
 
@@ -206,12 +217,16 @@ class TestWarmCacheAsync:
         mock_registry = MagicMock()
         mock_registry.is_ready.return_value = True
 
-        with patch.dict("os.environ", {}, clear=True), patch(
-            "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
-            return_value=mock_cache,
-        ), patch(
-            "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
-            return_value=mock_registry,
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=mock_cache,
+            ),
+            patch(
+                "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
+                return_value=mock_registry,
+            ),
         ):
             response = await _warm_cache_async(entity_types=["invalid_type"])
 
@@ -227,15 +242,20 @@ class TestWarmCacheAsync:
 
         from autom8_asana.auth.bot_pat import BotPATError
 
-        with patch.dict("os.environ", {}, clear=True), patch(
-            "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
-            return_value=mock_cache,
-        ), patch(
-            "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
-            return_value=mock_registry,
-        ), patch(
-            "autom8_asana.auth.bot_pat.get_bot_pat",
-            side_effect=BotPATError("No PAT"),
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=mock_cache,
+            ),
+            patch(
+                "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
+                return_value=mock_registry,
+            ),
+            patch(
+                "autom8_asana.auth.bot_pat.get_bot_pat",
+                side_effect=BotPATError("No PAT"),
+            ),
         ):
             response = await _warm_cache_async(entity_types=["unit"])
 
@@ -250,15 +270,20 @@ class TestWarmCacheAsync:
         mock_registry.get_project_gid.return_value = "project-123"
 
         # Set up environment without ASANA_WORKSPACE_GID
-        with patch.dict("os.environ", {"ASANA_BOT_PAT": "test-pat"}, clear=True), patch(
-            "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
-            return_value=mock_cache,
-        ), patch(
-            "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
-            return_value=mock_registry,
-        ), patch(
-            "autom8_asana.auth.bot_pat.get_bot_pat",
-            return_value="test-pat",
+        with (
+            patch.dict("os.environ", {"ASANA_BOT_PAT": "test-pat"}, clear=True),
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=mock_cache,
+            ),
+            patch(
+                "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
+                return_value=mock_registry,
+            ),
+            patch(
+                "autom8_asana.auth.bot_pat.get_bot_pat",
+                return_value="test-pat",
+            ),
         ):
             response = await _warm_cache_async(entity_types=["unit"])
 
@@ -501,12 +526,15 @@ class TestEmitMetric:
         """Metric is emitted with environment and custom dimensions."""
         mock_client = MagicMock()
 
-        with patch(
-            "autom8_asana.lambda_handlers.cache_warmer._get_cloudwatch_client",
-            return_value=mock_client,
-        ), patch(
-            "autom8_asana.lambda_handlers.cache_warmer.ENVIRONMENT",
-            "test-env",
+        with (
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer._get_cloudwatch_client",
+                return_value=mock_client,
+            ),
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer.ENVIRONMENT",
+                "test-env",
+            ),
         ):
             _emit_metric(
                 metric_name="WarmSuccess",
@@ -604,11 +632,13 @@ class TestCheckpointIntegration:
             invocation_id="prior-123",
             completed_entities=["unit"],
             pending_entities=["business", "offer", "contact"],
-            entity_results=[{
-                "entity_type": "unit",
-                "result": "success",
-                "row_count": 100,
-            }],
+            entity_results=[
+                {
+                    "entity_type": "unit",
+                    "result": "success",
+                    "row_count": 100,
+                }
+            ],
             created_at=now,
             expires_at=now + timedelta(hours=1),
         )
@@ -629,28 +659,40 @@ class TestCheckpointIntegration:
         }
         mock_warmer.warm_entity_async = AsyncMock(return_value=mock_warm_status)
 
-        with patch.dict("os.environ", {
-            "ASANA_WORKSPACE_GID": "workspace-123",
-            "ASANA_CACHE_S3_BUCKET": "test-bucket",
-        }), patch(
-            "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
-            return_value=mock_cache,
-        ), patch(
-            "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
-            return_value=mock_registry,
-        ), patch(
-            "autom8_asana.lambda_handlers.checkpoint.CheckpointManager",
-            return_value=mock_checkpoint_manager,
-        ), patch(
-            "autom8_asana.auth.bot_pat.get_bot_pat",
-            return_value="test-pat",
-        ), patch(
-            "autom8_asana.cache.dataframe.warmer.CacheWarmer",
-            return_value=mock_warmer,
-        ), patch(
-            "autom8_asana.AsanaClient",
-        ), patch(
-            "autom8_asana.lambda_handlers.cache_warmer._emit_metric",
+        with (
+            patch.dict(
+                "os.environ",
+                {
+                    "ASANA_WORKSPACE_GID": "workspace-123",
+                    "ASANA_CACHE_S3_BUCKET": "test-bucket",
+                },
+            ),
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=mock_cache,
+            ),
+            patch(
+                "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
+                return_value=mock_registry,
+            ),
+            patch(
+                "autom8_asana.lambda_handlers.checkpoint.CheckpointManager",
+                return_value=mock_checkpoint_manager,
+            ),
+            patch(
+                "autom8_asana.auth.bot_pat.get_bot_pat",
+                return_value="test-pat",
+            ),
+            patch(
+                "autom8_asana.cache.dataframe.warmer.CacheWarmer",
+                return_value=mock_warmer,
+            ),
+            patch(
+                "autom8_asana.AsanaClient",
+            ),
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer._emit_metric",
+            ),
         ):
             await _warm_cache_async(
                 resume_from_checkpoint=True,
@@ -693,25 +735,36 @@ class TestCheckpointIntegration:
         # Context that will trigger early exit
         context = MockLambdaContext(remaining_time_ms=60_000)  # 1 minute
 
-        with patch.dict("os.environ", {
-            "ASANA_WORKSPACE_GID": "workspace-123",
-            "ASANA_CACHE_S3_BUCKET": "test-bucket",
-        }), patch(
-            "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
-            return_value=mock_cache,
-        ), patch(
-            "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
-            return_value=mock_registry,
-        ), patch(
-            "autom8_asana.lambda_handlers.checkpoint.CheckpointManager",
-            return_value=mock_checkpoint_manager,
-        ), patch(
-            "autom8_asana.auth.bot_pat.get_bot_pat",
-            return_value="test-pat",
-        ), patch(
-            "autom8_asana.AsanaClient",
-        ), patch(
-            "autom8_asana.lambda_handlers.cache_warmer._emit_metric",
+        with (
+            patch.dict(
+                "os.environ",
+                {
+                    "ASANA_WORKSPACE_GID": "workspace-123",
+                    "ASANA_CACHE_S3_BUCKET": "test-bucket",
+                },
+            ),
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=mock_cache,
+            ),
+            patch(
+                "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
+                return_value=mock_registry,
+            ),
+            patch(
+                "autom8_asana.lambda_handlers.checkpoint.CheckpointManager",
+                return_value=mock_checkpoint_manager,
+            ),
+            patch(
+                "autom8_asana.auth.bot_pat.get_bot_pat",
+                return_value="test-pat",
+            ),
+            patch(
+                "autom8_asana.AsanaClient",
+            ),
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer._emit_metric",
+            ),
         ):
             response = await _warm_cache_async(
                 resume_from_checkpoint=False,  # Start fresh
@@ -751,30 +804,43 @@ class TestCheckpointIntegration:
         # Sufficient time context
         context = MockLambdaContext(remaining_time_ms=600_000)
 
-        with patch.dict("os.environ", {
-            "ASANA_WORKSPACE_GID": "workspace-123",
-            "ASANA_CACHE_S3_BUCKET": "test-bucket",
-        }), patch(
-            "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
-            return_value=mock_cache,
-        ), patch(
-            "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
-            return_value=mock_registry,
-        ), patch(
-            "autom8_asana.lambda_handlers.checkpoint.CheckpointManager",
-            return_value=mock_checkpoint_manager,
-        ), patch(
-            "autom8_asana.auth.bot_pat.get_bot_pat",
-            return_value="test-pat",
-        ), patch(
-            "autom8_asana.cache.dataframe.warmer.CacheWarmer",
-            return_value=mock_warmer,
-        ), patch(
-            "autom8_asana.cache.dataframe.warmer.WarmResult",
-        ) as mock_warm_result, patch(
-            "autom8_asana.AsanaClient",
-        ), patch(
-            "autom8_asana.lambda_handlers.cache_warmer._emit_metric",
+        with (
+            patch.dict(
+                "os.environ",
+                {
+                    "ASANA_WORKSPACE_GID": "workspace-123",
+                    "ASANA_CACHE_S3_BUCKET": "test-bucket",
+                },
+            ),
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=mock_cache,
+            ),
+            patch(
+                "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
+                return_value=mock_registry,
+            ),
+            patch(
+                "autom8_asana.lambda_handlers.checkpoint.CheckpointManager",
+                return_value=mock_checkpoint_manager,
+            ),
+            patch(
+                "autom8_asana.auth.bot_pat.get_bot_pat",
+                return_value="test-pat",
+            ),
+            patch(
+                "autom8_asana.cache.dataframe.warmer.CacheWarmer",
+                return_value=mock_warmer,
+            ),
+            patch(
+                "autom8_asana.cache.dataframe.warmer.WarmResult",
+            ) as mock_warm_result,
+            patch(
+                "autom8_asana.AsanaClient",
+            ),
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer._emit_metric",
+            ),
         ):
             # Make WarmResult.SUCCESS comparison work
             mock_warm_result.SUCCESS = mock_warm_status.result

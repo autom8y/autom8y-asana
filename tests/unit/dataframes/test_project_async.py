@@ -14,9 +14,10 @@ import polars as pl
 import pytest
 
 # MIGRATION: Tests need update for ProgressiveProjectBuilder constructor signature
-pytestmark = pytest.mark.skip(reason="MIGRATION: Tests need update for ProgressiveProjectBuilder")
+pytestmark = pytest.mark.skip(
+    reason="MIGRATION: Tests need update for ProgressiveProjectBuilder"
+)
 
-from autom8_asana.dataframes.builders.progressive import ProgressiveProjectBuilder
 from autom8_asana.dataframes.resolver import MockCustomFieldResolver
 from autom8_asana.dataframes.schemas import BASE_SCHEMA
 from autom8_asana.models.section import Section
@@ -148,7 +149,8 @@ class TestBuildWithParallelFetchAsync:
         mock_project: MagicMock,
         mock_client: MagicMock,
         minimal_task: Task,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test successful parallel fetch returns DataFrame."""
         # Setup mock sections client
         sections = [Section(gid="section_1", name="Section 1")]
@@ -168,7 +170,7 @@ class TestBuildWithParallelFetchAsync:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(mock_client)
@@ -183,7 +185,8 @@ class TestBuildWithParallelFetchAsync:
         self,
         mock_project: MagicMock,
         mock_client: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test parallel fetch with empty project returns empty DataFrame."""
         # No sections
         mock_client.sections.list_for_project_async = MagicMock(
@@ -199,7 +202,7 @@ class TestBuildWithParallelFetchAsync:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(mock_client)
@@ -213,7 +216,8 @@ class TestBuildWithParallelFetchAsync:
         self,
         mock_project: MagicMock,
         mock_client: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test parallel fetch from multiple sections."""
         sections = [
             Section(gid="section_1", name="Section 1"),
@@ -253,7 +257,7 @@ class TestBuildWithParallelFetchAsync:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(mock_client)
@@ -272,7 +276,8 @@ class TestBuildWithParallelFetchAsync:
         mock_project: MagicMock,
         mock_client: MagicMock,
         minimal_task: Task,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test fallback to serial fetch on parallel fetch error."""
         # Setup sections client to fail
         mock_iterator = MagicMock()
@@ -292,7 +297,7 @@ class TestBuildWithParallelFetchAsync:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         # Should not raise - falls back to serial
@@ -307,7 +312,8 @@ class TestBuildWithParallelFetchAsync:
         mock_project: MagicMock,
         mock_client: MagicMock,
         minimal_task: Task,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test fallback when individual section fetch fails."""
         sections = [Section(gid="section_1", name="Section 1")]
         mock_client.sections.list_for_project_async = MagicMock(
@@ -331,7 +337,7 @@ class TestBuildWithParallelFetchAsync:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         # Should fall back to serial
@@ -350,7 +356,8 @@ class TestBuildWithParallelFetchAsync:
         mock_project: MagicMock,
         mock_client: MagicMock,
         minimal_task: Task,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test use_parallel_fetch=False uses serial fetch."""
         # Setup serial fetch
         mock_client.tasks.list_async = MagicMock(
@@ -361,7 +368,7 @@ class TestBuildWithParallelFetchAsync:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(
@@ -390,7 +397,8 @@ class TestBuildWithParallelFetchAsync:
         mock_client: MagicMock,
         task_in_active_section: Task,
         task_in_done_section: Task,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test parallel fetch respects section filter."""
         sections = [
             Section(gid="section_active", name="Active"),
@@ -415,7 +423,7 @@ class TestBuildWithParallelFetchAsync:
             task_type="*",
             schema=BASE_SCHEMA,
             sections=["Active"],
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(mock_client)
@@ -433,7 +441,8 @@ class TestBuildWithParallelFetchAsync:
         mock_project: MagicMock,
         mock_client: MagicMock,
         minimal_task: Task,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test parallel fetch DataFrame matches build() schema."""
         sections = [Section(gid="section_1", name="Section 1")]
         mock_client.sections.list_for_project_async = MagicMock(
@@ -450,7 +459,7 @@ class TestBuildWithParallelFetchAsync:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         # Build with parallel fetch
@@ -473,7 +482,8 @@ class TestBuildWithParallelFetchAsync:
         mock_project: MagicMock,
         mock_client: MagicMock,
         minimal_task: Task,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test max_concurrent_sections parameter is passed to fetcher.
 
         This test verifies the default max_concurrent of 8 is overridden.
@@ -494,7 +504,7 @@ class TestBuildWithParallelFetchAsync:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         # Test with custom max_concurrent_sections
@@ -516,9 +526,8 @@ class TestBuildWithParallelFetchAsync:
 
     @pytest.mark.asyncio
     async def test_build_async_no_project_gid(
-        self,
-        mock_client: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        self, mock_client: MagicMock, mock_unified_store: MagicMock
+    ) -> None:
         """Test handling when project has no GID."""
         project = MagicMock(spec=[])  # No gid attribute
         project.tasks = []
@@ -527,7 +536,7 @@ class TestBuildWithParallelFetchAsync:
             project=project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(mock_client)
@@ -540,7 +549,8 @@ class TestBuildWithParallelFetchAsync:
         self,
         mock_project: MagicMock,
         mock_client: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test parallel fetch deduplicates multi-homed tasks."""
         sections = [
             Section(gid="section_1", name="Section 1"),
@@ -570,7 +580,7 @@ class TestBuildWithParallelFetchAsync:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(mock_client)
@@ -594,7 +604,8 @@ class TestBuildSerialAsync:
         mock_project: MagicMock,
         mock_client: MagicMock,
         minimal_task: Task,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test serial async build."""
         mock_client.tasks.list_async = MagicMock(
             return_value=create_mock_page_iterator([minimal_task])
@@ -604,7 +615,7 @@ class TestBuildSerialAsync:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder._build_serial_async(mock_client)
@@ -619,7 +630,8 @@ class TestBuildSerialAsync:
         mock_client: MagicMock,
         task_in_active_section: Task,
         task_in_done_section: Task,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test serial fetch respects section filter."""
         mock_client.tasks.list_async = MagicMock(
             return_value=create_mock_page_iterator(
@@ -632,7 +644,7 @@ class TestBuildSerialAsync:
             task_type="*",
             schema=BASE_SCHEMA,
             sections=["Active"],
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder._build_serial_async(mock_client)
@@ -671,7 +683,8 @@ class TestCacheIntegration:
         mock_project: MagicMock,
         mock_client: MagicMock,
         mock_cache_integration: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test full cache hit skips extraction (FR-CACHE-001).
 
         When all tasks are in cache, no extraction should occur.
@@ -719,7 +732,7 @@ class TestCacheIntegration:
             task_type="*",
             schema=BASE_SCHEMA,
             cache_integration=mock_cache_integration,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(mock_client)
@@ -744,7 +757,8 @@ class TestCacheIntegration:
         mock_project: MagicMock,
         mock_client: MagicMock,
         mock_cache_integration: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test full cache miss triggers extraction and cache population (FR-CACHE-005)."""
         sections = [Section(gid="section_1", name="Section 1")]
         mock_client.sections.list_for_project_async = MagicMock(
@@ -773,7 +787,7 @@ class TestCacheIntegration:
             task_type="*",
             schema=BASE_SCHEMA,
             cache_integration=mock_cache_integration,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(mock_client)
@@ -797,7 +811,8 @@ class TestCacheIntegration:
         mock_project: MagicMock,
         mock_client: MagicMock,
         mock_cache_integration: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test partial cache hit only extracts missing tasks (FR-CACHE-004)."""
         from autom8_asana.dataframes.cache_integration import CachedRow
         from autom8_asana.cache.dataframes import make_dataframe_key
@@ -849,7 +864,7 @@ class TestCacheIntegration:
             task_type="*",
             schema=BASE_SCHEMA,
             cache_integration=mock_cache_integration,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(mock_client)
@@ -869,7 +884,9 @@ class TestCacheIntegration:
         # Cache population should only include task_2 (the miss)
         mock_cache_integration.cache_batch_async.assert_called_once()
         call_args = mock_cache_integration.cache_batch_async.call_args
-        rows_to_cache = call_args.kwargs.get("rows", call_args.args[0] if call_args.args else [])
+        rows_to_cache = call_args.kwargs.get(
+            "rows", call_args.args[0] if call_args.args else []
+        )
         cached_gids = [r[0] for r in rows_to_cache]
         assert cached_gids == ["task_2"]
 
@@ -883,7 +900,8 @@ class TestCacheIntegration:
         mock_project: MagicMock,
         mock_client: MagicMock,
         mock_cache_integration: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test use_cache=False bypasses cache entirely (FR-CONFIG-004)."""
         sections = [Section(gid="section_1", name="Section 1")]
         mock_client.sections.list_for_project_async = MagicMock(
@@ -909,12 +927,10 @@ class TestCacheIntegration:
             task_type="*",
             schema=BASE_SCHEMA,
             cache_integration=mock_cache_integration,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
-        df = await builder.build_with_parallel_fetch_async(
-            mock_client, use_cache=False
-        )
+        df = await builder.build_with_parallel_fetch_async(mock_client, use_cache=False)
 
         assert len(df) == 1
         assert df["gid"][0] == "task_1"
@@ -933,7 +949,8 @@ class TestCacheIntegration:
         mock_project: MagicMock,
         mock_client: MagicMock,
         mock_cache_integration: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test cache exception doesn't fail build (FR-CACHE-008)."""
         sections = [Section(gid="section_1", name="Section 1")]
         mock_client.sections.list_for_project_async = MagicMock(
@@ -964,7 +981,7 @@ class TestCacheIntegration:
             task_type="*",
             schema=BASE_SCHEMA,
             cache_integration=mock_cache_integration,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         # Should NOT raise - should degrade gracefully
@@ -980,7 +997,8 @@ class TestCacheIntegration:
         mock_project: MagicMock,
         mock_client: MagicMock,
         mock_cache_integration: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test cache write failure doesn't fail build (FR-CACHE-008)."""
         sections = [Section(gid="section_1", name="Section 1")]
         mock_client.sections.list_for_project_async = MagicMock(
@@ -1014,7 +1032,7 @@ class TestCacheIntegration:
             task_type="*",
             schema=BASE_SCHEMA,
             cache_integration=mock_cache_integration,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         # Should NOT raise - should degrade gracefully
@@ -1033,7 +1051,8 @@ class TestCacheIntegration:
         mock_project: MagicMock,
         mock_client: MagicMock,
         mock_cache_integration: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test cache keys use format {task_gid}:{project_gid} (FR-CACHE-003)."""
         from autom8_asana.cache.dataframes import make_dataframe_key
 
@@ -1061,7 +1080,7 @@ class TestCacheIntegration:
             task_type="*",
             schema=BASE_SCHEMA,
             cache_integration=mock_cache_integration,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         await builder.build_with_parallel_fetch_async(mock_client)
@@ -1087,7 +1106,8 @@ class TestCacheIntegration:
         mock_project: MagicMock,
         mock_client: MagicMock,
         mock_cache_integration: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test cached entries use task.modified_at as version (FR-CACHE-006)."""
         sections = [Section(gid="section_1", name="Section 1")]
         mock_client.sections.list_for_project_async = MagicMock(
@@ -1116,7 +1136,7 @@ class TestCacheIntegration:
             task_type="*",
             schema=BASE_SCHEMA,
             cache_integration=mock_cache_integration,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         await builder.build_with_parallel_fetch_async(mock_client)
@@ -1141,7 +1161,8 @@ class TestCacheIntegration:
         self,
         mock_project: MagicMock,
         mock_client: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test build works when no cache_integration is configured."""
         sections = [Section(gid="section_1", name="Section 1")]
         mock_client.sections.list_for_project_async = MagicMock(
@@ -1168,7 +1189,7 @@ class TestCacheIntegration:
             task_type="*",
             schema=BASE_SCHEMA,
             cache_integration=None,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(mock_client)
@@ -1186,7 +1207,8 @@ class TestCacheIntegration:
         mock_project: MagicMock,
         mock_client: MagicMock,
         mock_cache_integration: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test cache integration works during serial fallback."""
         # Section listing fails - triggers serial fallback
         mock_iterator = MagicMock()
@@ -1216,7 +1238,7 @@ class TestCacheIntegration:
             task_type="*",
             schema=BASE_SCHEMA,
             cache_integration=mock_cache_integration,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(mock_client)
@@ -1266,7 +1288,8 @@ class TestTaskCacheBuildIntegration:
         self,
         mock_project: MagicMock,
         mock_client_with_task_cache: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test cold cache path fetches from API and populates cache."""
         sections = [Section(gid="section_1", name="Section 1")]
         mock_client_with_task_cache.sections.list_for_project_async = MagicMock(
@@ -1293,7 +1316,7 @@ class TestTaskCacheBuildIntegration:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(mock_client_with_task_cache)
@@ -1318,7 +1341,8 @@ class TestTaskCacheBuildIntegration:
         self,
         mock_project: MagicMock,
         mock_client_with_task_cache: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test warm cache path returns cached tasks without full API fetch."""
         from autom8_asana.cache.entry import CacheEntry, EntryType
         from datetime import datetime, timezone
@@ -1369,7 +1393,7 @@ class TestTaskCacheBuildIntegration:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(mock_client_with_task_cache)
@@ -1389,7 +1413,8 @@ class TestTaskCacheBuildIntegration:
         self,
         mock_project: MagicMock,
         mock_client_with_task_cache: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test partial cache hit fetches only missing tasks."""
         from autom8_asana.cache.entry import CacheEntry, EntryType
         from datetime import datetime, timezone
@@ -1441,7 +1466,7 @@ class TestTaskCacheBuildIntegration:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(mock_client_with_task_cache)
@@ -1464,7 +1489,8 @@ class TestTaskCacheBuildIntegration:
         self,
         mock_project: MagicMock,
         mock_client_with_task_cache: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test use_cache=False bypasses task cache entirely."""
         from autom8_asana.cache.entry import CacheEntry, EntryType
         from datetime import datetime, timezone
@@ -1509,7 +1535,7 @@ class TestTaskCacheBuildIntegration:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         # Disable cache
@@ -1530,7 +1556,8 @@ class TestTaskCacheBuildIntegration:
         self,
         mock_project: MagicMock,
         mock_client: MagicMock,  # No _cache attribute
-        mock_unified_store: MagicMock,) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test graceful fallback when cache provider is unavailable."""
         sections = [Section(gid="section_1", name="Section 1")]
         mock_client.sections.list_for_project_async = MagicMock(
@@ -1555,7 +1582,7 @@ class TestTaskCacheBuildIntegration:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         # Should work without cache
@@ -1569,15 +1596,14 @@ class TestTaskCacheBuildIntegration:
     # -------------------------------------------------------------------------
 
     def test_flatten_section_gids_deduplication(
-        self,
-        mock_project: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        self, mock_project: MagicMock, mock_unified_store: MagicMock
+    ) -> None:
         """Test _flatten_section_gids deduplicates multi-homed tasks."""
         builder = ProjectDataFrameBuilder(
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         section_gids_map = {
@@ -1592,15 +1618,14 @@ class TestTaskCacheBuildIntegration:
         assert result == ["task_1", "task_2", "shared", "task_3", "task_4"]
 
     def test_flatten_section_gids_empty(
-        self,
-        mock_project: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        self, mock_project: MagicMock, mock_unified_store: MagicMock
+    ) -> None:
         """Test _flatten_section_gids with empty input."""
         builder = ProjectDataFrameBuilder(
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         result = builder._flatten_section_gids({})
@@ -1610,22 +1635,22 @@ class TestTaskCacheBuildIntegration:
         self,
         mock_project: MagicMock,
         mock_client_with_task_cache: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test _get_task_cache_provider returns provider when available."""
         builder = ProjectDataFrameBuilder(
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         provider = builder._get_task_cache_provider(mock_client_with_task_cache)
         assert provider is not None
 
     def test_get_task_cache_provider_missing(
-        self,
-        mock_project: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        self, mock_project: MagicMock, mock_unified_store: MagicMock
+    ) -> None:
         """Test _get_task_cache_provider returns None when unavailable."""
         # Create a client without _cache attribute
         mock_client_no_cache = MagicMock()
@@ -1635,7 +1660,7 @@ class TestTaskCacheBuildIntegration:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         provider = builder._get_task_cache_provider(mock_client_no_cache)
@@ -1684,7 +1709,8 @@ class TestCacheOptimizationP2:
         self,
         mock_project: MagicMock,
         mock_client_with_task_cache: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test cold cache path populates cache after fetch_all() (ADR-0130)."""
         from autom8_asana.cache.entry import EntryType
 
@@ -1721,7 +1747,7 @@ class TestCacheOptimizationP2:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(mock_client_with_task_cache)
@@ -1746,7 +1772,8 @@ class TestCacheOptimizationP2:
         self,
         mock_project: MagicMock,
         mock_client_with_task_cache: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test 100% cache hit skips fetch entirely (FR-MISS-004)."""
         from autom8_asana.cache.entry import CacheEntry, EntryType
         from datetime import datetime, timezone
@@ -1796,7 +1823,7 @@ class TestCacheOptimizationP2:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(mock_client_with_task_cache)
@@ -1816,7 +1843,8 @@ class TestCacheOptimizationP2:
         self,
         mock_project: MagicMock,
         mock_client_with_task_cache: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test partial cache hit fetches only missing GIDs (FR-MISS-001/002)."""
         from autom8_asana.cache.entry import CacheEntry, EntryType
         from datetime import datetime, timezone
@@ -1867,7 +1895,7 @@ class TestCacheOptimizationP2:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(mock_client_with_task_cache)
@@ -1889,7 +1917,8 @@ class TestCacheOptimizationP2:
         self,
         mock_project: MagicMock,
         mock_client: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test cache population failure does not break fetch (NFR-DEGRADE-001)."""
 
         sections = [Section(gid="section_1", name="Section 1")]
@@ -1914,16 +1943,14 @@ class TestCacheOptimizationP2:
         # Create a failing cache provider
         failing_cache = MagicMock()
         failing_cache.get_batch = MagicMock(return_value={})  # All misses
-        failing_cache.set_batch = MagicMock(
-            side_effect=Exception("Cache write failed")
-        )
+        failing_cache.set_batch = MagicMock(side_effect=Exception("Cache write failed"))
         mock_client.tasks._cache = failing_cache
 
         builder = ProjectDataFrameBuilder(
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         # Should NOT raise - graceful degradation
@@ -1937,7 +1964,8 @@ class TestCacheOptimizationP2:
         self,
         mock_project: MagicMock,
         mock_client: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test cache lookup failure does not break fetch (NFR-DEGRADE-001)."""
         sections = [Section(gid="section_1", name="Section 1")]
         mock_client.sections.list_for_project_async = MagicMock(
@@ -1960,16 +1988,14 @@ class TestCacheOptimizationP2:
 
         # Create a failing cache provider
         failing_cache = MagicMock()
-        failing_cache.get_batch = MagicMock(
-            side_effect=Exception("Cache read failed")
-        )
+        failing_cache.get_batch = MagicMock(side_effect=Exception("Cache read failed"))
         mock_client.tasks._cache = failing_cache
 
         builder = ProjectDataFrameBuilder(
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         # Should NOT raise - graceful degradation
@@ -1987,7 +2013,8 @@ class TestCacheOptimizationP2:
         self,
         mock_project: MagicMock,
         mock_client_with_task_cache: MagicMock,
-        mock_unified_store: MagicMock) -> None:
+        mock_unified_store: MagicMock,
+    ) -> None:
         """Test cold cache (0% hit) uses fetch_all() for efficiency (FR-MISS-005)."""
         sections = [
             Section(gid="section_1", name="Section 1"),
@@ -2034,7 +2061,7 @@ class TestCacheOptimizationP2:
             project=mock_project,
             task_type="*",
             schema=BASE_SCHEMA,
-        unified_store=mock_unified_store,
+            unified_store=mock_unified_store,
         )
 
         df = await builder.build_with_parallel_fetch_async(mock_client_with_task_cache)
@@ -2044,6 +2071,8 @@ class TestCacheOptimizationP2:
         # Cold cache should fetch all sections (2 for GID enumeration + 2 for full fetch)
         # OR directly use fetch_all() which fetches all sections
         # Key point: both sections should be fetched for cold cache
-        full_fetch_sections = [s for s in sections_fetched if s in ["section_1", "section_2"]]
+        full_fetch_sections = [
+            s for s in sections_fetched if s in ["section_1", "section_2"]
+        ]
         # At minimum, we should have fetched both sections for full data
         assert len(full_fetch_sections) >= 2

@@ -134,7 +134,9 @@ class TestFindAsync:
             {"Vertical": "Medical"},
         )
         assert result.total_count == 4
-        assert all(hit.matched_fields.get("Vertical") == "Medical" for hit in result.hits)
+        assert all(
+            hit.matched_fields.get("Vertical") == "Medical" for hit in result.hits
+        )
 
     @pytest.mark.asyncio
     async def test_find_compound_and(

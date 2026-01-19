@@ -184,7 +184,11 @@ ASSET_EDIT_SCHEMA = DataFrameSchema(
     task_type="AssetEdit",
     columns=[
         *BASE_COLUMNS,
-        *[c for c in ASSET_EDIT_COLUMNS if c.name not in {col.name for col in BASE_COLUMNS}],
+        *[
+            c
+            for c in ASSET_EDIT_COLUMNS
+            if c.name not in {col.name for col in BASE_COLUMNS}
+        ],
     ],
     version="1.1.0",
 )

@@ -118,69 +118,73 @@ class CompletenessLevel(IntEnum):
         ...     # Need to re-fetch with more fields
     """
 
-    UNKNOWN = 0   # Legacy entries without tracking
+    UNKNOWN = 0  # Legacy entries without tracking
     MINIMAL = 10  # gid only (enumeration)
     STANDARD = 20  # gid + core fields (name, custom_fields, parent)
-    FULL = 30     # All available fields
+    FULL = 30  # All available fields
 
 
 # Fields included at each completeness level
 # These sets are cumulative: STANDARD includes MINIMAL, FULL includes all
 MINIMAL_FIELDS: FrozenSet[str] = frozenset(["gid"])
 
-STANDARD_FIELDS: FrozenSet[str] = frozenset([
-    "gid",
-    "name",
-    "resource_subtype",
-    "parent",
-    "parent.gid",
-    "parent.name",
-    "custom_fields",
-    "custom_fields.gid",
-    "custom_fields.name",
-    "custom_fields.resource_subtype",
-    "custom_fields.display_value",
-    "custom_fields.text_value",
-    "custom_fields.number_value",
-    "custom_fields.enum_value",
-    "custom_fields.enum_value.gid",
-    "custom_fields.enum_value.name",
-    "custom_fields.multi_enum_values",
-    "custom_fields.multi_enum_values.gid",
-    "custom_fields.multi_enum_values.name",
-    "memberships",
-    "memberships.section",
-    "memberships.section.gid",
-    "memberships.section.name",
-    "modified_at",
-    "completed",
-    "completed_at",
-])
+STANDARD_FIELDS: FrozenSet[str] = frozenset(
+    [
+        "gid",
+        "name",
+        "resource_subtype",
+        "parent",
+        "parent.gid",
+        "parent.name",
+        "custom_fields",
+        "custom_fields.gid",
+        "custom_fields.name",
+        "custom_fields.resource_subtype",
+        "custom_fields.display_value",
+        "custom_fields.text_value",
+        "custom_fields.number_value",
+        "custom_fields.enum_value",
+        "custom_fields.enum_value.gid",
+        "custom_fields.enum_value.name",
+        "custom_fields.multi_enum_values",
+        "custom_fields.multi_enum_values.gid",
+        "custom_fields.multi_enum_values.name",
+        "memberships",
+        "memberships.section",
+        "memberships.section.gid",
+        "memberships.section.name",
+        "modified_at",
+        "completed",
+        "completed_at",
+    ]
+)
 
-FULL_FIELDS: FrozenSet[str] = frozenset([
-    *STANDARD_FIELDS,
-    "created_at",
-    "due_on",
-    "due_at",
-    "start_on",
-    "start_at",
-    "notes",
-    "html_notes",
-    "assignee",
-    "assignee.gid",
-    "assignee.name",
-    "projects",
-    "projects.gid",
-    "projects.name",
-    "tags",
-    "tags.gid",
-    "tags.name",
-    "followers",
-    "permalink_url",
-    "workspace",
-    "approval_status",
-    "resource_type",
-])
+FULL_FIELDS: FrozenSet[str] = frozenset(
+    [
+        *STANDARD_FIELDS,
+        "created_at",
+        "due_on",
+        "due_at",
+        "start_on",
+        "start_at",
+        "notes",
+        "html_notes",
+        "assignee",
+        "assignee.gid",
+        "assignee.name",
+        "projects",
+        "projects.gid",
+        "projects.name",
+        "tags",
+        "tags.gid",
+        "tags.name",
+        "followers",
+        "permalink_url",
+        "workspace",
+        "approval_status",
+        "resource_type",
+    ]
+)
 
 
 def infer_completeness_level(opt_fields: list[str] | None) -> CompletenessLevel:

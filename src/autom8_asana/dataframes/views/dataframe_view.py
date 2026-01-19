@@ -300,9 +300,7 @@ class DataFrameViewPlugin:
 
         for col in self._schema.columns:
             try:
-                value = await self._extract_column_async(
-                    task_data, col, project_gid
-                )
+                value = await self._extract_column_async(task_data, col, project_gid)
                 row[col.name] = value
             except Exception as e:
                 # Log and continue with None
@@ -414,7 +412,9 @@ class DataFrameViewPlugin:
         if not parent_chain:
             # INFO-level logging when cascade resolution gets empty chain
             parent = task_data.get("parent")
-            parent_gid_for_log = parent.get("gid") if parent and isinstance(parent, dict) else None
+            parent_gid_for_log = (
+                parent.get("gid") if parent and isinstance(parent, dict) else None
+            )
             logger.info(
                 "cascade_resolution_empty_chain",
                 extra={
@@ -437,6 +437,7 @@ class DataFrameViewPlugin:
                     )
                     # Try to get parent directly from cache with upgrade
                     from autom8_asana.cache.completeness import CompletenessLevel
+
                     parent_data = await self._store.get_with_upgrade_async(
                         parent_gid,
                         required_level=CompletenessLevel.STANDARD,
@@ -701,7 +702,11 @@ class DataFrameViewPlugin:
         # Handle tags
         if source == "tags" and value is not None:
             if isinstance(value, list):
-                return [t.get("name") for t in value if isinstance(t, dict) and t.get("name")]
+                return [
+                    t.get("name")
+                    for t in value
+                    if isinstance(t, dict) and t.get("name")
+                ]
             return []
 
         # Parse datetime/date based on column dtype
@@ -810,6 +815,7 @@ class DataFrameViewPlugin:
 
         try:
             from datetime import date
+
             return date.fromisoformat(value)
         except ValueError:
             return None

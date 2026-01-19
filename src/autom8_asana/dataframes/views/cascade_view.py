@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from autom8y_log import get_logger
 
 from autom8_asana.cache.completeness import CompletenessLevel
+
 # Per TDD-registry-consolidation: Import from package to ensure bootstrap runs
 from autom8_asana.models.business import (
     CascadingFieldDef,
@@ -429,7 +430,9 @@ class CascadeViewPlugin:
         normalized_name = field_name.lower().strip()
 
         for cf in task.custom_fields:
-            cf_name = cf.get("name") if isinstance(cf, dict) else getattr(cf, "name", None)
+            cf_name = (
+                cf.get("name") if isinstance(cf, dict) else getattr(cf, "name", None)
+            )
             if cf_name and cf_name.lower().strip() == normalized_name:
                 return self._extract_field_value(cf)
 

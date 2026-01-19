@@ -119,7 +119,9 @@ class TestS2SHealthEndpoint:
         # Should not return 401
         assert response.status_code in (200, 503)
 
-    def test_s2s_health_reports_bot_pat_not_configured(self, client: TestClient) -> None:
+    def test_s2s_health_reports_bot_pat_not_configured(
+        self, client: TestClient
+    ) -> None:
         """S2S health reports when bot PAT is not configured."""
         # Clear ASANA_PAT if set
         with patch.dict(os.environ, {"ASANA_PAT": ""}, clear=False):
@@ -131,7 +133,9 @@ class TestS2SHealthEndpoint:
 
     def test_s2s_health_reports_bot_pat_configured(self, client: TestClient) -> None:
         """S2S health reports when bot PAT is configured."""
-        with patch.dict(os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False):
+        with patch.dict(
+            os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False
+        ):
             response = client.get("/health/s2s")
             data = response.json()
 
@@ -148,7 +152,9 @@ class TestS2SHealthEndpoint:
             json={"keys": [{"kid": "test-key", "kty": "RSA"}]},
         )
 
-        with patch.dict(os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False):
+        with patch.dict(
+            os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False
+        ):
             with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
                 mock_get.return_value = mock_response
                 response = client.get("/health/s2s")
@@ -162,7 +168,9 @@ class TestS2SHealthEndpoint:
         self, client: TestClient
     ) -> None:
         """S2S health returns 503 when JWKS is unreachable."""
-        with patch.dict(os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False):
+        with patch.dict(
+            os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False
+        ):
             with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
                 mock_get.side_effect = httpx.TimeoutException("timeout")
                 response = client.get("/health/s2s")
@@ -195,13 +203,13 @@ class TestS2SHealthEndpoint:
                 assert data["bot_pat_configured"] is False
                 assert data["s2s_connectivity"] is False
 
-    def test_s2s_health_handles_invalid_jwks_response(
-        self, client: TestClient
-    ) -> None:
+    def test_s2s_health_handles_invalid_jwks_response(self, client: TestClient) -> None:
         """S2S health handles JWKS response without keys array."""
         mock_response = httpx.Response(200, json={"error": "not a jwks"})
 
-        with patch.dict(os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False):
+        with patch.dict(
+            os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False
+        ):
             with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
                 mock_get.return_value = mock_response
                 response = client.get("/health/s2s")
@@ -210,11 +218,11 @@ class TestS2SHealthEndpoint:
                 assert data["jwks_reachable"] is False
                 assert data["details"]["jwks_status"] == "invalid_response"
 
-    def test_s2s_health_handles_jwks_connection_error(
-        self, client: TestClient
-    ) -> None:
+    def test_s2s_health_handles_jwks_connection_error(self, client: TestClient) -> None:
         """S2S health handles JWKS connection errors."""
-        with patch.dict(os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False):
+        with patch.dict(
+            os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False
+        ):
             with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
                 mock_get.side_effect = httpx.ConnectError("connection failed")
                 response = client.get("/health/s2s")
@@ -285,9 +293,7 @@ class TestCacheReadiness:
         assert "message" in data
         assert "preload" in data["message"].lower()
 
-    def test_readiness_returns_200_when_cache_ready(
-        self, client: TestClient
-    ) -> None:
+    def test_readiness_returns_200_when_cache_ready(self, client: TestClient) -> None:
         """Readiness check returns 200 when cache is ready.
 
         Per FR-004: After cache preload completes, readiness returns 200.
@@ -391,9 +397,7 @@ class TestCacheReadiness:
         assert response.status_code == 503
         assert response.json()["status"] == "warming"
 
-    def test_liveness_stable_during_state_transitions(
-        self, client: TestClient
-    ) -> None:
+    def test_liveness_stable_during_state_transitions(self, client: TestClient) -> None:
         """Liveness probe (/health) always returns 200 during transitions."""
         # Initially not ready
         set_cache_ready(False)

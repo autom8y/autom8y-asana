@@ -24,12 +24,11 @@ The naming reflects Greek mythology (see `docs/philosophy/knossos-doctrine.md` f
 | Myth | Component | Function |
 |------|-----------|----------|
 | **Knossos** | The platform | The labyrinth itself |
-| **Ariadne** | CLI binary (`ari`) | The thread ensuring return |
+| **Ariadne** | CLI binary (`ari`) | The clew ensuring return |
 | **Theseus** | Claude Code agent | The navigator with amnesia |
 | **Moirai** | Session lifecycle agent | The Fates who spin, measure, and cut |
 | **White Sails** | Confidence signal | Honest return indicator |
 | **Rites** | Practice bundles | Invokable ceremonies |
-| **Pantheon** | Agent collection | The specialist agents within a rite |
 
 For full details: `docs/guides/knossos-integration.md` and `docs/decisions/ADR-0009-knossos-roster-identity.md`
 <!-- KNOSSOS:END knossos-identity -->
@@ -91,127 +90,26 @@ Commands use `!` prefix for live context: `!`cat .claude/ACTIVE_RITE``. Prefer h
 <!-- KNOSSOS:START ariadne-cli -->
 ## Ariadne CLI
 
-The `ari` binary provides session lifecycle, rite management, and workflow operations.
-
-### Session Management
+The `ari` binary provides session and hook operations:
 
 ```bash
-ari session create "initiative" COMPLEXITY    # Create new session (PATCH|MODULE|SYSTEM|INITIATIVE|MIGRATION)
-ari session status                            # Show current session state
-ari session list                              # List all sessions
-ari session park --reason "taking break"      # Park session with reason
-ari session resume                            # Resume parked session
-ari session wrap                              # Complete session with sails
-ari session transition <phase>                # Transition to workflow phase
-ari session audit                             # Show session audit log
-```
+# Session management
+ari session create "initiative" COMPLEXITY
+ari session status
+ari session park "reason"
 
-### Rite Management
+# Hook operations
+ari hook clew
+ari hook context
 
-```bash
-ari rite list                                 # List available rites
-ari rite info <name>                          # Show rite details
-ari rite status                               # Show active rite status
-ari rite current                              # Show current active rite
-ari rite swap <name>                          # Switch to different rite
-ari rite invoke <name>                        # Invoke rite entry point
-ari rite validate <name>                      # Validate rite manifest
-```
+# Quality gates
+ari sails check
 
-### Sync Operations
-
-```bash
-ari sync materialize --rite <name>            # Materialize rite to .claude/
-ari sync materialize --force                  # Force overwrite existing
-ari sync status                               # Show sync status
-ari sync diff                                 # Show pending changes
-ari sync pull                                 # Pull from source
-ari sync push                                 # Push to destination
-ari sync history                              # Show sync history
-```
-
-### Hook Operations
-
-```bash
-ari hook clew                                 # Emit session clew (breadcrumb)
-ari hook context                              # Emit full context injection
-ari hook validate                             # Validate hook configuration
-ari hook route                                # Route to appropriate handler
-ari hook writeguard                           # Check write permissions
-ari hook autopark                             # Check autopark conditions
-```
-
-### Quality Gates
-
-```bash
-ari sails check                               # Check White Sails confidence
-ari validate artifact <file>                  # Validate PRD/TDD/ADR artifact
-ari validate handoff --phase=<phase>          # Validate handoff criteria
-ari validate schema <name> <file>             # Validate against schema
-```
-
-### Agent Handoffs
-
-```bash
-ari handoff prepare --from <agent> --to <agent>   # Prepare handoff package
-ari handoff execute --from <agent> --to <agent>   # Execute handoff
-ari handoff status                                # Show handoff status
-ari handoff history                               # Show handoff history
-```
-
-### Manifest Operations
-
-```bash
-ari manifest show                             # Show current manifest
-ari manifest diff                             # Show manifest differences
-ari manifest merge                            # Merge manifest sources
-ari manifest validate                         # Validate manifest structure
-```
-
-### Inscription (CLAUDE.md)
-
-```bash
-ari inscription sync                          # Sync CLAUDE.md with templates
-ari inscription sync --dry-run                # Preview changes
-ari inscription validate                      # Check manifest and CLAUDE.md
-ari inscription diff                          # Show pending changes
-ari inscription backups                       # List available backups
-ari inscription rollback                      # Restore from backup
-```
-
-### Artifact Registry
-
-```bash
-ari artifact list                             # List registered artifacts
-ari artifact register <path>                  # Register new artifact
-ari artifact query <type>                     # Query artifacts by type
-ari artifact rebuild                          # Rebuild artifact index
-```
-
-### Session Cleanup (Naxos)
-
-```bash
-ari naxos scan                                # Scan for orphaned sessions
-ari naxos scan --inactive-threshold=12h       # Custom inactivity threshold
-ari naxos scan --include-archived             # Include archived sessions
-```
-
-### Worktree Management
-
-```bash
-ari worktree create <name>                    # Create isolated worktree
-ari worktree list                             # List worktrees
-ari worktree status                           # Show worktree status
-ari worktree switch <name>                    # Switch to worktree
-ari worktree sync                             # Sync worktree state
-ari worktree remove <name>                    # Remove worktree
-ari worktree cleanup                          # Clean up stale worktrees
-```
-
-### Tribute Generation
-
-```bash
-ari tribute generate                          # Generate session tribute/summary
+# Agent handoffs
+ari handoff prepare --from <agent> --to <agent>
+ari handoff execute --from <agent> --to <agent>
+ari handoff status
+ari handoff history
 ```
 
 ### Cognitive Budget
@@ -221,25 +119,21 @@ Tool usage tracking with configurable thresholds:
 - `ARIADNE_MSG_PARK` - Park suggestion threshold
 - `ARIADNE_BUDGET_DISABLE=1` - Disable tracking
 
-Build: `just build` (from repo root)
+Build: `cd ariadne && just build`
 
-Full reference: `docs/guides/ariadne-cli.md`
+Full reference: `docs/guides/knossos-integration.md`
 <!-- KNOSSOS:END ariadne-cli -->
 
 <!-- KNOSSOS:START getting-help -->
 ## Getting Help
 
-| Question | Skill |
-|----------|-------|
+| Question | Command |
+|----------|---------|
 | Invoke agents | `prompting` |
-| Templates | `documentation` or `doc-ecosystem` |
 | Conventions | `standards` |
 | Workflow coordination | `orchestration` |
-| Roster ecosystem | `ecosystem-ref` |
-| User preferences | See `docs/guides/user-preferences.md` |
-| Knossos integration | `docs/guides/knossos-integration.md` |
-| Migration path | `docs/guides/knossos-migration.md` |
 | Unsure where to start | `/consult` |
+
 <!-- KNOSSOS:END getting-help -->
 
 <!-- KNOSSOS:START state-management -->

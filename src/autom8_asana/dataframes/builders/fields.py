@@ -10,6 +10,13 @@ provides a single source of truth for the fields required during task fetching.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any
+
+    from autom8_asana.dataframes.models.schema import DataFrameSchema
+
 # Base opt_fields required for DataFrame extraction.
 #
 # These fields are needed to populate the 12 base TaskRow fields plus
@@ -91,7 +98,6 @@ def coerce_rows_to_schema(
     Returns:
         List of coerced row dicts ready for DataFrame construction.
     """
-    from typing import Any
 
     # Build column type lookup
     dtype_map: dict[str, str] = {col.name: col.dtype for col in schema.columns}
@@ -180,12 +186,3 @@ def _coerce_value(value: "Any", dtype: str | None) -> "Any":
 
     # Date/Datetime - pass through (extraction should handle)
     return value
-
-
-# Type hint imports for coercion
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from typing import Any
-
-    from autom8_asana.dataframes.models.schema import DataFrameSchema

@@ -67,11 +67,15 @@ class TestLightweightChecker:
         mock_batch_client.execute_async.return_value = [
             BatchResult(
                 status_code=200,
-                body={"data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}},
+                body={
+                    "data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}
+                },
             ),
             BatchResult(
                 status_code=200,
-                body={"data": {"gid": "456", "modified_at": "2025-12-23T11:00:00.000Z"}},
+                body={
+                    "data": {"gid": "456", "modified_at": "2025-12-23T11:00:00.000Z"}
+                },
             ),
         ]
 
@@ -99,11 +103,15 @@ class TestLightweightChecker:
         mock_batch_client.execute_async.return_value = [
             BatchResult(
                 status_code=200,
-                body={"data": {"gid": "123", "modified_at": "2025-12-23T10:30:00.000Z"}},
+                body={
+                    "data": {"gid": "123", "modified_at": "2025-12-23T10:30:00.000Z"}
+                },
             ),
             BatchResult(
                 status_code=200,
-                body={"data": {"gid": "456", "modified_at": "2025-12-24T08:15:00.000Z"}},
+                body={
+                    "data": {"gid": "456", "modified_at": "2025-12-24T08:15:00.000Z"}
+                },
             ),
         ]
 
@@ -124,7 +132,9 @@ class TestLightweightChecker:
         mock_batch_client.execute_async.return_value = [
             BatchResult(
                 status_code=200,
-                body={"data": {"gid": "123", "modified_at": "2025-12-23T10:30:00.000Z"}},
+                body={
+                    "data": {"gid": "123", "modified_at": "2025-12-23T10:30:00.000Z"}
+                },
             ),
             BatchResult(
                 status_code=404,
@@ -147,7 +157,9 @@ class TestLightweightChecker:
         mock_batch_client.execute_async.return_value = [
             BatchResult(
                 status_code=200,
-                body={"data": {"gid": "123", "modified_at": "2025-12-23T10:30:00.000Z"}},
+                body={
+                    "data": {"gid": "123", "modified_at": "2025-12-23T10:30:00.000Z"}
+                },
             ),
             BatchResult(
                 status_code=500,
@@ -155,7 +167,9 @@ class TestLightweightChecker:
             ),
             BatchResult(
                 status_code=200,
-                body={"data": {"gid": "789", "modified_at": "2025-12-24T09:00:00.000Z"}},
+                body={
+                    "data": {"gid": "789", "modified_at": "2025-12-24T09:00:00.000Z"}
+                },
             ),
         ]
 
@@ -238,7 +252,12 @@ class TestLightweightChecker:
             [
                 BatchResult(
                     status_code=200,
-                    body={"data": {"gid": str(i), "modified_at": "2025-12-23T10:00:00.000Z"}},
+                    body={
+                        "data": {
+                            "gid": str(i),
+                            "modified_at": "2025-12-23T10:00:00.000Z",
+                        }
+                    },
                 )
                 for i in range(10)
             ],
@@ -265,7 +284,9 @@ class TestLightweightChecker:
         mock_batch_client.execute_async.return_value = [
             BatchResult(
                 status_code=200,
-                body={"data": {"gid": str(i), "modified_at": "2025-12-23T10:00:00.000Z"}},
+                body={
+                    "data": {"gid": str(i), "modified_at": "2025-12-23T10:00:00.000Z"}
+                },
             )
             for i in range(5)
         ]

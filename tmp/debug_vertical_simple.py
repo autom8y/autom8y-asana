@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Simple debug script to check Vertical field presence."""
+
 import os
 import sys
 import requests
@@ -11,10 +12,7 @@ if not pat:
 
 project_gid = "1201081073731555"
 
-headers = {
-    "Authorization": f"Bearer {pat}",
-    "Content-Type": "application/json"
-}
+headers = {"Authorization": f"Bearer {pat}", "Content-Type": "application/json"}
 
 # Get sections
 url = f"https://app.asana.com/api/1.0/projects/{project_gid}/sections"
@@ -33,7 +31,7 @@ for section in sections:
     url = f"https://app.asana.com/api/1.0/sections/{section['gid']}/tasks"
     params = {
         "opt_fields": "name,parent.gid,parent.name,custom_fields,custom_fields.name,custom_fields.display_value,custom_fields.enum_value.name,custom_fields.resource_subtype",
-        "limit": 5
+        "limit": 5,
     }
     resp = requests.get(url, headers=headers, params=params)
     tasks = resp.json()["data"]

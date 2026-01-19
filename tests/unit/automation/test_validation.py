@@ -100,7 +100,10 @@ class TestValidationResultRepr:
     def test_repr_invalid(self) -> None:
         """Test repr for invalid result."""
         result = ValidationResult.failure(["Error 1", "Error 2"])
-        assert repr(result) == "ValidationResult(valid=False, errors=['Error 1', 'Error 2'])"
+        assert (
+            repr(result)
+            == "ValidationResult(valid=False, errors=['Error 1', 'Error 2'])"
+        )
 
 
 class TestValidationResultEdgeCases:

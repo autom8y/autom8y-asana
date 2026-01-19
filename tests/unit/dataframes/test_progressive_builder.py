@@ -6,7 +6,6 @@ Tests progressive project building with section-level S3 persistence.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -158,11 +157,13 @@ class TestBuildIndexData:
         )
 
         # DataFrame with required columns for index
-        df = pl.DataFrame({
-            "gid": ["1", "2"],
-            "office_phone": ["555-1234", "555-5678"],
-            "vertical": ["sales", "marketing"],
-        })
+        df = pl.DataFrame(
+            {
+                "gid": ["1", "2"],
+                "office_phone": ["555-1234", "555-5678"],
+                "vertical": ["sales", "marketing"],
+            }
+        )
 
         with patch(
             "autom8_asana.services.gid_lookup.GidLookupIndex"
@@ -298,7 +299,9 @@ class TestProgressiveBuild:
         mock_task = MagicMock()
         mock_task.gid = "task_1"
         mock_task.name = "Test Task"
-        mock_task.model_dump = MagicMock(return_value={"gid": "task_1", "name": "Test Task"})
+        mock_task.model_dump = MagicMock(
+            return_value={"gid": "task_1", "name": "Test Task"}
+        )
         mock_client.tasks.list_async.return_value.collect = AsyncMock(
             return_value=[mock_task]
         )
@@ -316,7 +319,9 @@ class TestProgressiveBuild:
             sections={"sec_1": SectionInfo()},
         )
         mock_persistence.create_manifest_async = AsyncMock(return_value=new_manifest)
-        mock_persistence.update_manifest_section_async = AsyncMock(return_value=new_manifest)
+        mock_persistence.update_manifest_section_async = AsyncMock(
+            return_value=new_manifest
+        )
         mock_persistence.write_section_async = AsyncMock(return_value=True)
         mock_persistence.merge_sections_to_dataframe_async = AsyncMock(
             return_value=pl.DataFrame({"gid": ["task_1"]})

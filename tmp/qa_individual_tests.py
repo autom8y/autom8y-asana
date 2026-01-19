@@ -34,9 +34,9 @@ def test_endpoint(token: str, entity_type: str, criteria: dict, timeout: int = 6
     }
     payload = {"criteria": [criteria]}
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"  TESTING: {entity_type.upper()}")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
     print(f"URL: {url}")
     print(f"Payload: {json.dumps(payload)}")
     print(f"Timeout: {timeout}s")
@@ -85,23 +85,20 @@ def main():
 
     # Test 1: Unit (should work)
     results["unit"] = test_endpoint(
-        token, "unit",
-        {"phone": "+12604442080", "vertical": "chiropractic"},
-        timeout=30
+        token, "unit", {"phone": "+12604442080", "vertical": "chiropractic"}, timeout=30
     )
 
     # Test 2: Business (should work)
     results["business"] = test_endpoint(
-        token, "business",
+        token,
+        "business",
         {"phone": "+12604442080", "vertical": "chiropractic"},
-        timeout=30
+        timeout=30,
     )
 
     # Test 3: Offer (testing with offer_id)
     results["offer"] = test_endpoint(
-        token, "offer",
-        {"offer_id": "OFF-12345"},
-        timeout=30
+        token, "offer", {"offer_id": "OFF-12345"}, timeout=30
     )
 
     # Test 4: Contact (was timing out - critical test)
@@ -109,9 +106,10 @@ def main():
     print("  CRITICAL TEST: Contact endpoint (was timing out before hotfix)")
     print("!" * 70)
     results["contact"] = test_endpoint(
-        token, "contact",
+        token,
+        "contact",
         {"contact_phone": "+15551234567"},
-        timeout=90  # Give extra time to see if it completes
+        timeout=90,  # Give extra time to see if it completes
     )
 
     # Summary

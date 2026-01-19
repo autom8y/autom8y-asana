@@ -30,11 +30,13 @@ from autom8_asana.dataframes.persistence import (
 @pytest.fixture
 def sample_dataframe() -> pl.DataFrame:
     """Create a sample DataFrame for testing."""
-    return pl.DataFrame({
-        "gid": ["task-1", "task-2", "task-3"],
-        "name": ["Task 1", "Task 2", "Task 3"],
-        "completed": [False, True, False],
-    })
+    return pl.DataFrame(
+        {
+            "gid": ["task-1", "task-2", "task-3"],
+            "name": ["Task 1", "Task 2", "Task 3"],
+            "completed": [False, True, False],
+        }
+    )
 
 
 @pytest.fixture
@@ -1015,9 +1017,9 @@ class TestLoadAllWatermarks:
 
         def mock_get_object(Bucket, Key):  # noqa: N803
             mock_body = MagicMock()
-            mock_body.read.return_value = json.dumps(
-                watermark_responses[Key]
-            ).encode("utf-8")
+            mock_body.read.return_value = json.dumps(watermark_responses[Key]).encode(
+                "utf-8"
+            )
             return {"Body": mock_body}
 
         # Mock S3 client
@@ -1063,10 +1065,12 @@ class TestLoadAllWatermarks:
         def mock_get_object(Bucket, Key):  # noqa: N803
             if Key == "dataframes/proj-1/watermark.json":
                 mock_body = MagicMock()
-                mock_body.read.return_value = json.dumps({
-                    "watermark": wm1.isoformat(),
-                    "project_gid": "proj-1",
-                }).encode("utf-8")
+                mock_body.read.return_value = json.dumps(
+                    {
+                        "watermark": wm1.isoformat(),
+                        "project_gid": "proj-1",
+                    }
+                ).encode("utf-8")
                 return {"Body": mock_body}
             else:
                 error_response = {

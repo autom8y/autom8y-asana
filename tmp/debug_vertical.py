@@ -25,7 +25,8 @@ async def main():
         tasks = await client.tasks.get_tasks_for_project_async(
             project_gid,
             opt_fields=[
-                "gid", "name",
+                "gid",
+                "name",
                 "custom_fields",
                 "custom_fields.gid",
                 "custom_fields.name",
@@ -35,7 +36,7 @@ async def main():
                 "custom_fields.enum_value.name",
                 "custom_fields.enum_value.gid",
             ],
-            limit=10
+            limit=10,
         )
 
         print("=" * 60)
@@ -61,15 +62,21 @@ async def main():
                     cf_type = cf.get("resource_subtype", "?")
                     cf_display = cf.get("display_value", None)
                     cf_enum = cf.get("enum_value")
-                    enum_name = cf_enum.get("name") if isinstance(cf_enum, dict) else None
+                    enum_name = (
+                        cf_enum.get("name") if isinstance(cf_enum, dict) else None
+                    )
                 else:
                     cf_name = getattr(cf, "name", "?")
                     cf_gid = getattr(cf, "gid", "?")
                     cf_type = getattr(cf, "resource_subtype", "?")
                     cf_display = getattr(cf, "display_value", None)
                     cf_enum = getattr(cf, "enum_value", None)
-                    enum_name = cf_enum.name if cf_enum and hasattr(cf_enum, "name") else (
-                        cf_enum.get("name") if isinstance(cf_enum, dict) else None
+                    enum_name = (
+                        cf_enum.name
+                        if cf_enum and hasattr(cf_enum, "name")
+                        else (
+                            cf_enum.get("name") if isinstance(cf_enum, dict) else None
+                        )
                     )
 
                 all_cf_names.add(cf_name)
@@ -77,7 +84,9 @@ async def main():
                 # Check if this is the Vertical field
                 if cf_name and "vertical" in cf_name.lower():
                     vertical_found = True
-                    print(f"  *** {cf_name} ({cf_type}): enum_name={enum_name}, display={cf_display}")
+                    print(
+                        f"  *** {cf_name} ({cf_type}): enum_name={enum_name}, display={cf_display}"
+                    )
                 else:
                     print(f"  - {cf_name} ({cf_type}): display={cf_display}")
 

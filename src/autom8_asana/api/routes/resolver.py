@@ -461,7 +461,9 @@ async def resolve_entities(
         )
 
     # Convert criteria to dicts for universal strategy
-    criteria_dicts = [criterion.model_dump(exclude_none=True) for criterion in request_body.criteria]
+    criteria_dicts = [
+        criterion.model_dump(exclude_none=True) for criterion in request_body.criteria
+    ]
 
     # Validate criteria for entity type
     for i, criterion_dict in enumerate(criteria_dicts):

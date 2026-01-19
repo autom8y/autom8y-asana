@@ -45,9 +45,11 @@ def init_telemetry(service_name: str = "autom8y-telemetry-poc") -> trace.Tracer:
     global _tracer
 
     # Create resource with service name
-    resource = Resource(attributes={
-        "service.name": service_name,
-    })
+    resource = Resource(
+        attributes={
+            "service.name": service_name,
+        }
+    )
 
     # Create tracer provider with resource
     provider = TracerProvider(resource=resource)

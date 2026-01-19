@@ -225,7 +225,11 @@ async def warm_ancestors_async(
                 # Add to next level if has parent
                 parent = result.get("parent")
                 if parent:
-                    parent_gid = parent.get("gid") if isinstance(parent, dict) else getattr(parent, "gid", None)
+                    parent_gid = (
+                        parent.get("gid")
+                        if isinstance(parent, dict)
+                        else getattr(parent, "gid", None)
+                    )
                     if parent_gid:
                         next_level_gids.append(parent_gid)
 
@@ -234,7 +238,9 @@ async def warm_ancestors_async(
         if unified_store and tasks_to_cache:
             # Use the store's internal cache directly (skip warming recursion)
             for task_dict in tasks_to_cache:
-                await unified_store.put_async(task_dict, opt_fields=_HIERARCHY_OPT_FIELDS)
+                await unified_store.put_async(
+                    task_dict, opt_fields=_HIERARCHY_OPT_FIELDS
+                )
 
         # Add already-known parents that might have grandparents we need
         for parent_gid in already_known:

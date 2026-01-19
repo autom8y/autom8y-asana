@@ -160,7 +160,7 @@ class TestHierarchyIndexAncestorChain:
         # Create a 5-level hierarchy
         index.register({"gid": "level-0"})
         for i in range(1, 6):
-            index.register({"gid": f"level-{i}", "parent": {"gid": f"level-{i-1}"}})
+            index.register({"gid": f"level-{i}", "parent": {"gid": f"level-{i - 1}"}})
 
         # Get chain with max_depth=2
         chain = index.get_ancestor_chain("level-5", max_depth=2)
@@ -370,7 +370,9 @@ class TestHierarchyIndexThreadSafety:
         def write_operation() -> None:
             try:
                 for i in range(num_operations):
-                    index.register({"gid": f"new-{threading.current_thread().name}-{i}"})
+                    index.register(
+                        {"gid": f"new-{threading.current_thread().name}-{i}"}
+                    )
             except Exception as e:
                 errors.append(e)
 
@@ -428,16 +430,16 @@ class TestHierarchyIndexEdgeCases:
         # Build deep chain
         index.register({"gid": "level-0"})
         for i in range(1, depth):
-            index.register({"gid": f"level-{i}", "parent": {"gid": f"level-{i-1}"}})
+            index.register({"gid": f"level-{i}", "parent": {"gid": f"level-{i - 1}"}})
 
         # Test ancestor chain
-        chain = index.get_ancestor_chain(f"level-{depth-1}", max_depth=20)
+        chain = index.get_ancestor_chain(f"level-{depth - 1}", max_depth=20)
         assert len(chain) == depth - 1
-        assert chain[0] == f"level-{depth-2}"
+        assert chain[0] == f"level-{depth - 2}"
         assert chain[-1] == "level-0"
 
         # Test root
-        assert index.get_root_gid(f"level-{depth-1}") == "level-0"
+        assert index.get_root_gid(f"level-{depth - 1}") == "level-0"
 
         # Test descendants
         descendants = index.get_descendant_gids("level-0")

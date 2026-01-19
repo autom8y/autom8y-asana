@@ -70,12 +70,12 @@ DEFAULT_TTL: int = 300  # 5 minutes - fallback for unknown entity types
 
 DEFAULT_ENTITY_TTLS: dict[str, int] = {
     "business": 3600,  # 1 hour - rarely changes
-    "contact": 900,    # 15 minutes
-    "unit": 900,       # 15 minutes
-    "offer": 180,      # 3 minutes - frequently updated
-    "process": 60,     # 1 minute - pipeline state changes often
-    "address": 3600,   # 1 hour - rarely changes
-    "hours": 3600,     # 1 hour - rarely changes
+    "contact": 900,  # 15 minutes
+    "unit": 900,  # 15 minutes
+    "offer": 180,  # 3 minutes - frequently updated
+    "process": 60,  # 1 minute - pipeline state changes often
+    "address": 3600,  # 1 hour - rarely changes
+    "hours": 3600,  # 1 hour - rarely changes
 }
 
 
@@ -468,8 +468,6 @@ class CacheConfig:
         )
         config._ttl = TTLSettings(default_ttl=cache_settings.ttl_default)
         return config
-
-
 
 
 @dataclass

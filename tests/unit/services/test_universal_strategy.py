@@ -223,9 +223,7 @@ class TestUniversalResolutionStrategy:
         assert results[0].match_count == 0
 
     @pytest.mark.asyncio
-    async def test_resolve_empty_criteria(
-        self, index_cache: DynamicIndexCache
-    ) -> None:
+    async def test_resolve_empty_criteria(self, index_cache: DynamicIndexCache) -> None:
         """Test resolution with empty criteria list."""
         strategy = UniversalResolutionStrategy(
             entity_type="unit",

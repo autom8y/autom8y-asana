@@ -575,7 +575,9 @@ class CascadingFieldResolver:
         normalized_name = field_name.lower().strip()
 
         for cf in task.custom_fields:
-            cf_name = cf.get("name") if isinstance(cf, dict) else getattr(cf, "name", None)
+            cf_name = (
+                cf.get("name") if isinstance(cf, dict) else getattr(cf, "name", None)
+            )
             if cf_name and cf_name.lower().strip() == normalized_name:
                 return self._extract_field_value(cf)
 

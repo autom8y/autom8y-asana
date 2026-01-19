@@ -73,7 +73,10 @@ async def get_auth_mode(
     if authorization is None:
         raise HTTPException(
             status_code=401,
-            detail={"error": "MISSING_AUTH", "message": "Authorization header required"},
+            detail={
+                "error": "MISSING_AUTH",
+                "message": "Authorization header required",
+            },
             headers={"WWW-Authenticate": "Bearer"},
         )
 

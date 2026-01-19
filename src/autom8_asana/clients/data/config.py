@@ -47,17 +47,13 @@ class TimeoutConfig:
                 f"connect timeout must be positive, got {self.connect}"
             )
         if self.read <= 0:
-            raise ConfigurationError(
-                f"read timeout must be positive, got {self.read}"
-            )
+            raise ConfigurationError(f"read timeout must be positive, got {self.read}")
         if self.write <= 0:
             raise ConfigurationError(
                 f"write timeout must be positive, got {self.write}"
             )
         if self.pool <= 0:
-            raise ConfigurationError(
-                f"pool timeout must be positive, got {self.pool}"
-            )
+            raise ConfigurationError(f"pool timeout must be positive, got {self.pool}")
 
 
 @dataclass(frozen=True)

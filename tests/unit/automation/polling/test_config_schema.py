@@ -133,9 +133,7 @@ class TestRuleCondition:
 
     def test_stale_trigger_only(self) -> None:
         """Condition with only stale trigger is valid."""
-        condition = RuleCondition(
-            stale=TriggerStaleConfig(field="Section", days=3)
-        )
+        condition = RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))
 
         assert condition.stale is not None
         assert condition.deadline is None
@@ -143,9 +141,7 @@ class TestRuleCondition:
 
     def test_deadline_trigger_only(self) -> None:
         """Condition with only deadline trigger is valid."""
-        condition = RuleCondition(
-            deadline=TriggerDeadlineConfig(days=7)
-        )
+        condition = RuleCondition(deadline=TriggerDeadlineConfig(days=7))
 
         assert condition.stale is None
         assert condition.deadline is not None
@@ -153,9 +149,7 @@ class TestRuleCondition:
 
     def test_age_trigger_only(self) -> None:
         """Condition with only age trigger is valid."""
-        condition = RuleCondition(
-            age=TriggerAgeConfig(days=90)
-        )
+        condition = RuleCondition(age=TriggerAgeConfig(days=90))
 
         assert condition.stale is None
         assert condition.deadline is None
@@ -457,7 +451,9 @@ class TestAutomationRulesConfig:
                         name="Test Rule",
                         project_gid="123",
                         conditions=[
-                            RuleCondition(stale=TriggerStaleConfig(field="Section", days=1))
+                            RuleCondition(
+                                stale=TriggerStaleConfig(field="Section", days=1)
+                            )
                         ],
                         action=ActionConfig(type="add_tag", params={"tag": "test"}),
                     )

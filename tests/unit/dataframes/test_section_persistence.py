@@ -7,8 +7,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import polars as pl
 import pytest
@@ -453,8 +452,12 @@ class TestSectionPersistenceOperations:
         )
 
         persistence._s3_client = MagicMock()
-        persistence._s3_client.put_object_async = AsyncMock(return_value=mock_write_result)
-        persistence._s3_client.get_object_async = AsyncMock(return_value=mock_read_result)
+        persistence._s3_client.put_object_async = AsyncMock(
+            return_value=mock_write_result
+        )
+        persistence._s3_client.get_object_async = AsyncMock(
+            return_value=mock_read_result
+        )
 
         success = await persistence.write_section_async("proj_123", "sec_1", df)
 

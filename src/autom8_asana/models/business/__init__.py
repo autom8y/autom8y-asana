@@ -62,6 +62,7 @@ from autom8_asana.models.business._bootstrap import register_all_models
 register_all_models()
 
 # Then export all entity classes (unchanged)
+# ruff: noqa: E402
 from autom8_asana.models.business.asset_edit import AssetEdit
 from autom8_asana.models.business.base import BusinessEntity, HolderMixin
 from autom8_asana.models.business.business import (
@@ -74,17 +75,6 @@ from autom8_asana.models.business.business import (
 )
 
 # TDD-HARDENING-A/FR-STUB-009: Export new stub models
-from autom8_asana.models.business.dna import DNA
-from autom8_asana.models.business.reconciliation import Reconciliation
-from autom8_asana.models.business.videography import Videography
-from autom8_asana.models.business.resolution import (
-    ResolutionResult,
-    ResolutionStrategy,
-    resolve_offers,
-    resolve_offers_async,
-    resolve_units,
-    resolve_units_async,
-)
 from autom8_asana.models.business.contact import Contact, ContactHolder
 from autom8_asana.models.business.detection import (
     HOLDER_NAME_MAP,
@@ -94,43 +84,49 @@ from autom8_asana.models.business.detection import (
     detect_entity_type_async,
     detect_entity_type_from_dict,
 )
-from autom8_asana.models.business.registry import (
-    ProjectTypeRegistry,
-    WorkspaceProjectRegistry,
-    get_registry,
-    get_workspace_registry,
+from autom8_asana.models.business.dna import DNA
+from autom8_asana.models.business.fields import (
+    DETECTION_OPT_FIELDS,
+    STANDARD_TASK_OPT_FIELDS,
+    CascadingFieldDef,
+    CascadingFieldEntry,
+    InheritedFieldDef,
+    get_cascading_field,
+    get_cascading_field_registry,
 )
+from autom8_asana.models.business.hours import Hours
 from autom8_asana.models.business.hydration import (
     HydrationBranch,
     HydrationFailure,
     HydrationResult,
     hydrate_from_gid_async,
-    # Private functions still available via module, not exported in __all__
-    # _convert_to_typed_entity, _is_recoverable, _traverse_upward_async
 )
-from autom8_asana.models.business.fields import (
-    CascadingFieldDef,
-    InheritedFieldDef,
-    # Task opt_fields constants (per PRD-CACHE-PERF-HYDRATION)
-    STANDARD_TASK_OPT_FIELDS,
-    DETECTION_OPT_FIELDS,
-    # Cascading field registry (TDD-CASCADING-FIELD-RESOLUTION-001)
-    CascadingFieldEntry,
-    get_cascading_field,
-    get_cascading_field_registry,
-)
+from autom8_asana.models.business.location import Location, LocationHolder
 from autom8_asana.models.business.mixins import (
     FinancialFieldsMixin,
     SharedCascadingFieldsMixin,
 )
-from autom8_asana.models.business.hours import Hours
-from autom8_asana.models.business.location import Location, LocationHolder
 from autom8_asana.models.business.offer import Offer, OfferHolder
 from autom8_asana.models.business.process import (
     Process,
     ProcessHolder,
     ProcessSection,
     ProcessType,
+)
+from autom8_asana.models.business.reconciliation import Reconciliation
+from autom8_asana.models.business.registry import (
+    ProjectTypeRegistry,
+    WorkspaceProjectRegistry,
+    get_registry,
+    get_workspace_registry,
+)
+from autom8_asana.models.business.resolution import (
+    ResolutionResult,
+    ResolutionStrategy,
+    resolve_offers,
+    resolve_offers_async,
+    resolve_units,
+    resolve_units_async,
 )
 from autom8_asana.models.business.seeder import (
     BusinessData,
@@ -140,6 +136,7 @@ from autom8_asana.models.business.seeder import (
     SeederResult,
 )
 from autom8_asana.models.business.unit import Unit, UnitHolder
+from autom8_asana.models.business.videography import Videography
 
 __all__ = [
     # Models

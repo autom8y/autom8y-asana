@@ -363,7 +363,9 @@ class UnifiedTaskStore:
 
         for gid in insufficient_gids:
             try:
-                task = await tasks_client.get_async(gid, opt_fields=opt_fields, raw=True)
+                task = await tasks_client.get_async(
+                    gid, opt_fields=opt_fields, raw=True
+                )
                 if task:
                     await self.put_async(task, opt_fields=opt_fields)
                     upgraded[gid] = task
@@ -544,7 +546,9 @@ class UnifiedTaskStore:
                     parent_gid = parent.get("gid")
                     if parent_gid:
                         # Check cache, not hierarchy - we need the parent's FULL TASK DATA
-                        cached_entry = self.cache.get_versioned(parent_gid, EntryType.TASK)
+                        cached_entry = self.cache.get_versioned(
+                            parent_gid, EntryType.TASK
+                        )
                         if cached_entry is None:
                             parent_gids_needed.add(parent_gid)
 

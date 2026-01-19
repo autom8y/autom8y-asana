@@ -179,9 +179,7 @@ class TestTriggerEvaluatorDeadlineTrigger:
             rule_id="deadline-check",
             name="Deadline Check",
             project_gid="123",
-            conditions=[
-                RuleCondition(deadline=TriggerDeadlineConfig(days=7))
-            ],
+            conditions=[RuleCondition(deadline=TriggerDeadlineConfig(days=7))],
             action=ActionConfig(type="add_comment", params={"text": "Due soon!"}),
         )
 
@@ -317,9 +315,7 @@ class TestTriggerEvaluatorAgeTrigger:
             rule_id="age-check",
             name="Age Check",
             project_gid="123",
-            conditions=[
-                RuleCondition(age=TriggerAgeConfig(days=90))
-            ],
+            conditions=[RuleCondition(age=TriggerAgeConfig(days=90))],
             action=ActionConfig(type="change_section", params={"section": "Archive"}),
         )
 

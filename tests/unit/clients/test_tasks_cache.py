@@ -56,9 +56,7 @@ class MockCacheProvider:
         self.set_versioned_calls.append((key, entry))
         self._cache[f"{key}:{entry.entry_type.value}"] = entry
 
-    def invalidate(
-        self, key: str, entry_types: list[EntryType] | None = None
-    ) -> None:
+    def invalidate(self, key: str, entry_types: list[EntryType] | None = None) -> None:
         """Invalidate cache entry."""
         self.invalidate_calls.append((key, entry_types))
         if entry_types:
@@ -80,9 +78,7 @@ class FailingCacheProvider:
     def set_versioned(self, key: str, entry: CacheEntry) -> None:
         raise ConnectionError("Cache connection failed")
 
-    def invalidate(
-        self, key: str, entry_types: list[EntryType] | None = None
-    ) -> None:
+    def invalidate(self, key: str, entry_types: list[EntryType] | None = None) -> None:
         raise ConnectionError("Cache connection failed")
 
 

@@ -246,7 +246,9 @@ def test_deadline_trigger_due_at_preferred_over_due_on(now: datetime) -> None:
         gid="both-dates",
         name="Has both dates",
         due_at=(now + timedelta(days=2)).isoformat(),
-        due_on=(now + timedelta(days=10)).strftime("%Y-%m-%d"),  # Would be outside threshold
+        due_on=(now + timedelta(days=10)).strftime(
+            "%Y-%m-%d"
+        ),  # Would be outside threshold
     )
 
     rule = Rule(
@@ -501,7 +503,15 @@ async def test_evaluate_real_project_tasks(
     # Fetch tasks from the test project
     tasks_iter = asana_client.tasks.list_for_project_async(
         test_project_gid,
-        opt_fields=["gid", "name", "modified_at", "created_at", "due_on", "due_at", "completed"],
+        opt_fields=[
+            "gid",
+            "name",
+            "modified_at",
+            "created_at",
+            "due_on",
+            "due_at",
+            "completed",
+        ],
     )
     tasks = await tasks_iter.collect_all_async()
 
@@ -546,7 +556,15 @@ async def test_evaluate_task_with_real_dates(
     # Fetch the fresh task with all required fields
     task = await asana_client.tasks.get_async(
         test_task.gid,
-        opt_fields=["gid", "name", "modified_at", "created_at", "due_on", "due_at", "completed"],
+        opt_fields=[
+            "gid",
+            "name",
+            "modified_at",
+            "created_at",
+            "due_on",
+            "due_at",
+            "completed",
+        ],
     )
 
     # Test stale trigger - fresh task should NOT match

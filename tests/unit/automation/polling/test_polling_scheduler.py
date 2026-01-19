@@ -197,8 +197,12 @@ class TestPollingSchedulerRunOnce:
         )
 
         # Spy on lock methods
-        with patch.object(scheduler, "_acquire_lock", wraps=scheduler._acquire_lock) as mock_acquire:
-            with patch.object(scheduler, "_release_lock", wraps=scheduler._release_lock) as mock_release:
+        with patch.object(
+            scheduler, "_acquire_lock", wraps=scheduler._acquire_lock
+        ) as mock_acquire:
+            with patch.object(
+                scheduler, "_release_lock", wraps=scheduler._release_lock
+            ) as mock_release:
                 scheduler.run_once()
 
                 mock_acquire.assert_called_once()
@@ -237,7 +241,9 @@ class TestPollingSchedulerRunOnce:
         )
 
         # Mock evaluate to raise error
-        with patch.object(scheduler, "_evaluate_rules", side_effect=RuntimeError("Test error")):
+        with patch.object(
+            scheduler, "_evaluate_rules", side_effect=RuntimeError("Test error")
+        ):
             with patch.object(scheduler, "_release_lock") as mock_release:
                 with pytest.raises(RuntimeError):
                     scheduler.run_once()
@@ -365,7 +371,9 @@ class TestPollingSchedulerEvaluateRules:
         enabled_count = sum(1 for r in sample_automation_config.rules if r.enabled)
 
         # Mock structured logging to capture calls
-        with patch("autom8_asana.automation.polling.polling_scheduler.StructuredLogger") as mock_logger:
+        with patch(
+            "autom8_asana.automation.polling.polling_scheduler.StructuredLogger"
+        ) as mock_logger:
             mock_log = MagicMock()
             mock_logger.get_logger.return_value = mock_log
             mock_logger.log_rule_evaluation = MagicMock()
@@ -387,7 +395,9 @@ class TestPollingSchedulerEvaluateRules:
             lock_path=lock_path,
         )
 
-        with patch("autom8_asana.automation.polling.polling_scheduler.StructuredLogger") as mock_logger:
+        with patch(
+            "autom8_asana.automation.polling.polling_scheduler.StructuredLogger"
+        ) as mock_logger:
             mock_log = MagicMock()
             mock_logger.get_logger.return_value = mock_log
 
@@ -416,6 +426,7 @@ class TestPollingSchedulerRun:
 
         # Mock APScheduler import to fail by patching the import within the module
         import builtins
+
         original_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -449,14 +460,23 @@ class TestPollingSchedulerRun:
         # Simulate KeyboardInterrupt to exit the blocking scheduler
         mock_scheduler_instance.start.side_effect = KeyboardInterrupt()
 
-        with patch.dict("sys.modules", {
-            "apscheduler": MagicMock(),
-            "apscheduler.schedulers": MagicMock(),
-            "apscheduler.schedulers.blocking": MagicMock(BlockingScheduler=mock_blocking_scheduler),
-            "apscheduler.triggers": MagicMock(),
-            "apscheduler.triggers.cron": MagicMock(),
-        }):
-            with patch("autom8_asana.automation.polling.polling_scheduler.BlockingScheduler", mock_blocking_scheduler, create=True):
+        with patch.dict(
+            "sys.modules",
+            {
+                "apscheduler": MagicMock(),
+                "apscheduler.schedulers": MagicMock(),
+                "apscheduler.schedulers.blocking": MagicMock(
+                    BlockingScheduler=mock_blocking_scheduler
+                ),
+                "apscheduler.triggers": MagicMock(),
+                "apscheduler.triggers.cron": MagicMock(),
+            },
+        ):
+            with patch(
+                "autom8_asana.automation.polling.polling_scheduler.BlockingScheduler",
+                mock_blocking_scheduler,
+                create=True,
+            ):
                 # This test verifies the structure but may fail due to import complexity
                 # The key point is that run() attempts to use APScheduler
                 pass
@@ -483,7 +503,9 @@ class TestPollingSchedulerIntegration:
         scheduler.run_once()
 
         # Verify lock was released (file should not be exclusively locked)
-        assert not Path(lock_path).exists() or True  # Lock file may or may not exist after release
+        assert (
+            not Path(lock_path).exists() or True
+        )  # Lock file may or may not exist after release
 
     def test_multiple_run_once_calls(
         self,
@@ -583,9 +605,13 @@ class TestPollingSchedulerActionExecution:
                     rule_id="stale-check",
                     name="Stale Task Check",
                     project_gid="1234567890123",
-                    conditions=[RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))],
+                    conditions=[
+                        RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))
+                    ],
                     # Use correct param name: tag_gid instead of tag
-                    action=ActionConfig(type="add_tag", params={"tag_gid": "tag-escalate-123"}),
+                    action=ActionConfig(
+                        type="add_tag", params={"tag_gid": "tag-escalate-123"}
+                    ),
                     enabled=True,
                 ),
             ],
@@ -630,7 +656,9 @@ class TestPollingSchedulerActionExecution:
         rule = scheduler_with_client.config.rules[0]  # stale-check rule
 
         # Use stale tasks (task-1, task-5, task-7 are modified 5+ days ago, matching 3-day stale)
-        stale_tasks = [t for t in sample_tasks if t.gid in ("task-1", "task-5", "task-7")]
+        stale_tasks = [
+            t for t in sample_tasks if t.gid in ("task-1", "task-5", "task-7")
+        ]
 
         tasks_by_project = {rule.project_gid: stale_tasks}
 
@@ -648,10 +676,14 @@ class TestPollingSchedulerActionExecution:
         rule = scheduler_dry_run.config.rules[0]
 
         # Use stale tasks
-        stale_tasks = [t for t in sample_tasks if t.gid in ("task-1", "task-5", "task-7")]
+        stale_tasks = [
+            t for t in sample_tasks if t.gid in ("task-1", "task-5", "task-7")
+        ]
         tasks_by_project = {rule.project_gid: stale_tasks}
 
-        with patch("autom8_asana.automation.polling.polling_scheduler.StructuredLogger") as mock_logger:
+        with patch(
+            "autom8_asana.automation.polling.polling_scheduler.StructuredLogger"
+        ) as mock_logger:
             mock_log = MagicMock()
             mock_logger.get_logger.return_value = mock_log
             mock_logger.log_rule_evaluation = MagicMock()
@@ -660,7 +692,8 @@ class TestPollingSchedulerActionExecution:
 
             # Verify dry-run logs were emitted
             dry_run_calls = [
-                call for call in mock_log.info.call_args_list
+                call
+                for call in mock_log.info.call_args_list
                 if call[0][0] == "action_skipped_dry_run"
             ]
             assert len(dry_run_calls) == len(stale_tasks)
@@ -671,7 +704,9 @@ class TestPollingSchedulerActionExecution:
         mock_client: MagicMock,
     ) -> None:
         """No actions executed when no tasks are provided."""
-        with patch("autom8_asana.automation.polling.polling_scheduler.StructuredLogger") as mock_logger:
+        with patch(
+            "autom8_asana.automation.polling.polling_scheduler.StructuredLogger"
+        ) as mock_logger:
             mock_log = MagicMock()
             mock_logger.get_logger.return_value = mock_log
             mock_logger.log_rule_evaluation = MagicMock()
@@ -708,7 +743,9 @@ class TestPollingSchedulerActionExecution:
         rule = scheduler.config.rules[0]
 
         # Use stale tasks
-        stale_tasks = [t for t in sample_tasks if t.gid in ("task-1", "task-5", "task-7")]
+        stale_tasks = [
+            t for t in sample_tasks if t.gid in ("task-1", "task-5", "task-7")
+        ]
         tasks_by_project = {rule.project_gid: stale_tasks}
 
         scheduler._evaluate_rules(tasks_by_project)
@@ -743,7 +780,9 @@ class TestPollingSchedulerActionExecution:
         stale_tasks = [t for t in sample_tasks if t.gid == "task-1"]
         tasks_by_project = {rule.project_gid: stale_tasks}
 
-        with patch("autom8_asana.automation.polling.polling_scheduler.StructuredLogger") as mock_logger:
+        with patch(
+            "autom8_asana.automation.polling.polling_scheduler.StructuredLogger"
+        ) as mock_logger:
             mock_log = MagicMock()
             mock_logger.get_logger.return_value = mock_log
             mock_logger.log_rule_evaluation = MagicMock()
@@ -784,7 +823,9 @@ class TestPollingSchedulerTriggerEvaluator:
             "evaluate_conditions",
             wraps=scheduler._evaluator.evaluate_conditions,
         ) as mock_evaluate:
-            with patch("autom8_asana.automation.polling.polling_scheduler.StructuredLogger"):
+            with patch(
+                "autom8_asana.automation.polling.polling_scheduler.StructuredLogger"
+            ):
                 scheduler._evaluate_rules(tasks_by_project)
 
                 # Should call evaluate_conditions for each enabled rule with matching project

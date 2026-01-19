@@ -209,8 +209,7 @@ class GidLookupIndex:
         version = data["version"]
         if version != "1.0":
             raise ValueError(
-                f"Unsupported serialization version: {version}. "
-                f"Expected '1.0'."
+                f"Unsupported serialization version: {version}. Expected '1.0'."
             )
 
         # Parse datetime (raises ValueError if invalid format)

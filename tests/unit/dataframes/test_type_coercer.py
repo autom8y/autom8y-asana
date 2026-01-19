@@ -489,9 +489,7 @@ class TestAdversarialNestedAndComplexLists:
         assert result is not None
         assert isinstance(result, str)
 
-    def test_mixed_types_with_none_numbers_strings(
-        self, coercer: TypeCoercer
-    ) -> None:
+    def test_mixed_types_with_none_numbers_strings(self, coercer: TypeCoercer) -> None:
         """Test list with None interspersed with numbers and strings."""
         mixed = [None, "A", 123, None, "B", 45.6, None]
         result = coercer.coerce(mixed, "Utf8")

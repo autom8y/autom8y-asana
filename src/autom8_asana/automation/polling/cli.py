@@ -24,10 +24,12 @@ Exit Codes:
 from __future__ import annotations
 
 import argparse
-from autom8y_log import get_logger
+import logging
 import sys
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
+
+from autom8y_log import get_logger
 
 from autom8_asana.automation.polling.config_loader import ConfigurationLoader
 from autom8_asana.automation.polling.config_schema import AutomationRulesConfig
@@ -182,7 +184,9 @@ def evaluate_command(config_path: str, dry_run: bool = False) -> int:
                     print(f"    Action: {rule.action.type}")
                     print()
 
-            print("[DRY RUN] Skipping actual evaluation (use without --dry-run to execute)")
+            print(
+                "[DRY RUN] Skipping actual evaluation (use without --dry-run to execute)"
+            )
             return 0
 
         # Create scheduler and run single evaluation

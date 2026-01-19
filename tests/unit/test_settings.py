@@ -416,7 +416,9 @@ class TestProjectOverrideSettings:
             settings = ProjectOverrideSettings()
             assert settings is not None
 
-    def test_invalid_gid_warns_in_default_mode(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_invalid_gid_warns_in_default_mode(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """Test invalid ASANA_PROJECT_* GID logs warning in default mode."""
         from autom8_asana.settings import ProjectOverrideSettings
 

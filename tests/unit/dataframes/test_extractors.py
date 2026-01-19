@@ -450,7 +450,9 @@ class TestBaseExtractor:
             source="cascade:Office Phone",
         )
 
-        with pytest.raises(ValueError, match="cascade: sources require async extraction"):
+        with pytest.raises(
+            ValueError, match="cascade: sources require async extraction"
+        ):
             extractor._extract_column(minimal_task, col)
 
     def test_cascade_source_requires_client(self, minimal_task: Task) -> None:
@@ -468,7 +470,9 @@ class TestBaseExtractor:
             source="cascade:Office Phone",
         )
 
-        with pytest.raises(ValueError, match="AsanaClient required for cascade: sources"):
+        with pytest.raises(
+            ValueError, match="AsanaClient required for cascade: sources"
+        ):
             # Try to get cascading resolver when client is None
             extractor._get_cascading_resolver()
 
@@ -507,7 +511,9 @@ class TestBaseExtractor:
             resolver = extractor._get_cascading_resolver()
 
             # Should create resolver with cascade_plugin=None (no unified store)
-            mock_resolver_class.assert_called_once_with(mock_client, cascade_plugin=None)
+            mock_resolver_class.assert_called_once_with(
+                mock_client, cascade_plugin=None
+            )
             assert resolver == mock_resolver_instance
 
     def test_cascading_resolver_cached(self) -> None:
@@ -633,10 +639,12 @@ class TestCascadeAsyncExtraction:
         from unittest.mock import MagicMock
 
         mock_client = MagicMock()
-        mock_resolver = MockCustomFieldResolver({
-            "vertical": "Healthcare",
-            "specialty": "Dental",
-        })
+        mock_resolver = MockCustomFieldResolver(
+            {
+                "vertical": "Healthcare",
+                "specialty": "Dental",
+            }
+        )
         extractor = ContactExtractor(CONTACT_SCHEMA, mock_resolver, client=mock_client)
 
         row = await extractor.extract_async(full_task)

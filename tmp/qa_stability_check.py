@@ -47,9 +47,9 @@ def main():
         url = f"{ASANA_API_URL}/v1/resolve/{entity}"
         payload = {"criteria": [criteria]}
 
-        print(f"\n{'='*50}")
+        print(f"\n{'=' * 50}")
         print(f"Testing {entity.upper()} (3 attempts)")
-        print(f"{'='*50}")
+        print(f"{'=' * 50}")
 
         for attempt in range(1, 4):
             print(f"\n  Attempt {attempt}:")
@@ -64,7 +64,9 @@ def main():
                         data = resp.json()
                         print(f"    Response: {json.dumps(data, indent=6)[:200]}")
                     elif resp.status_code in (503, 504):
-                        print("    ERROR: Load balancer error (service may be unhealthy)")
+                        print(
+                            "    ERROR: Load balancer error (service may be unhealthy)"
+                        )
                     else:
                         print(f"    Response: {resp.text[:200]}")
             except httpx.TimeoutException:

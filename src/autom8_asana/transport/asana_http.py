@@ -354,9 +354,7 @@ class AsanaHttpClient:
         # Use write semaphore for mutations
         semaphore = self._write_semaphore
         attempt = 0
-        max_attempts = (
-            self._retry_policy.max_attempts if self._retry_policy else 1
-        )
+        max_attempts = self._retry_policy.max_attempts if self._retry_policy else 1
 
         while True:
             async with semaphore:
@@ -382,9 +380,7 @@ class AsanaHttpClient:
                         # Handle rate limit
                         if isinstance(error, RateLimitError):
                             if self._should_retry(429, attempt, max_attempts):
-                                await self._wait_for_retry(
-                                    attempt, error.retry_after
-                                )
+                                await self._wait_for_retry(attempt, error.retry_after)
                                 attempt += 1
                                 continue
 
@@ -502,9 +498,7 @@ class AsanaHttpClient:
             self._read_semaphore if method.upper() == "GET" else self._write_semaphore
         )
         attempt = 0
-        max_attempts = (
-            self._retry_policy.max_attempts if self._retry_policy else 1
-        )
+        max_attempts = self._retry_policy.max_attempts if self._retry_policy else 1
 
         while True:
             async with semaphore:
@@ -532,9 +526,7 @@ class AsanaHttpClient:
                         # Handle rate limit with Retry-After
                         if isinstance(error, RateLimitError):
                             if self._should_retry(429, attempt, max_attempts):
-                                await self._wait_for_retry(
-                                    attempt, error.retry_after
-                                )
+                                await self._wait_for_retry(attempt, error.retry_after)
                                 attempt += 1
                                 continue
 
@@ -590,9 +582,7 @@ class AsanaHttpClient:
 
         semaphore = self._read_semaphore
         attempt = 0
-        max_attempts = (
-            self._retry_policy.max_attempts if self._retry_policy else 1
-        )
+        max_attempts = self._retry_policy.max_attempts if self._retry_policy else 1
 
         while True:
             async with semaphore:
@@ -617,9 +607,7 @@ class AsanaHttpClient:
                         # Handle rate limit with Retry-After
                         if isinstance(error, RateLimitError):
                             if self._should_retry(429, attempt, max_attempts):
-                                await self._wait_for_retry(
-                                    attempt, error.retry_after
-                                )
+                                await self._wait_for_retry(attempt, error.retry_after)
                                 attempt += 1
                                 continue
 

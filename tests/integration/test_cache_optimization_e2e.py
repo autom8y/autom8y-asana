@@ -255,7 +255,9 @@ class TestCacheColdToWarmLifecycle:
         result = coordinator.merge_results(task_gids, cached_tasks, fetched_tasks)
 
         # Assert: Hit rate > 90%
-        assert result.hit_rate > 0.90, f"Hit rate {result.hit_rate:.1%} below 90% target"
+        assert result.hit_rate > 0.90, (
+            f"Hit rate {result.hit_rate:.1%} below 90% target"
+        )
         assert result.cache_hits == len(sample_tasks)
         assert result.cache_misses == 0
 
@@ -406,7 +408,9 @@ class TestCachePerformanceTiming:
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         # Assert: Lookup is fast (< 100ms for 5 tasks)
-        assert elapsed_ms < 100, f"Cache lookup took {elapsed_ms:.2f}ms, expected < 100ms"
+        assert elapsed_ms < 100, (
+            f"Cache lookup took {elapsed_ms:.2f}ms, expected < 100ms"
+        )
 
     async def test_cache_population_is_fast(
         self,
@@ -426,7 +430,9 @@ class TestCachePerformanceTiming:
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         # Assert: Population is fast (< 100ms for 5 tasks)
-        assert elapsed_ms < 100, f"Cache population took {elapsed_ms:.2f}ms, expected < 100ms"
+        assert elapsed_ms < 100, (
+            f"Cache population took {elapsed_ms:.2f}ms, expected < 100ms"
+        )
 
 
 # =============================================================================

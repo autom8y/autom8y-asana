@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import polars as pl
 import pytest
@@ -25,7 +25,6 @@ import pytest
 from autom8_asana.cache.entry import CacheEntry, EntryType
 from autom8_asana.cache.freshness_coordinator import FreshnessMode
 from autom8_asana.cache.unified import UnifiedTaskStore
-from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
 from autom8_asana.dataframes.builders.task_cache import (
     TaskCacheCoordinator,
     TaskCacheResult,
@@ -382,9 +381,7 @@ class TestTaskCacheCoordinatorUnifiedAdapter:
         result = await coordinator.lookup_tasks_async(["task-001"])
 
         # Verify cache was queried
-        mock_cache_provider.get_batch.assert_called_with(
-            ["task-001"], EntryType.TASK
-        )
+        mock_cache_provider.get_batch.assert_called_with(["task-001"], EntryType.TASK)
         assert "task-001" in result
         assert result["task-001"] is not None
 
@@ -431,9 +428,7 @@ class TestTaskCacheCoordinatorUnifiedAdapter:
         # Merge results
         cached = {"task-001": task1}
         fetched = [task2]
-        result = coordinator.merge_results(
-            ["task-001", "task-002"], cached, fetched
-        )
+        result = coordinator.merge_results(["task-001", "task-002"], cached, fetched)
 
         # Verify result
         assert isinstance(result, TaskCacheResult)
