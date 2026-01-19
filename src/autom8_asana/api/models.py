@@ -13,7 +13,7 @@ Per PRD-ASANA-SATELLITE Appendix A:
 - Error response: {"error": {"code": ..., "message": ...}, "meta": {...}}
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, Field
@@ -60,7 +60,7 @@ class ResponseMeta(BaseModel):
         description="Request correlation ID",
     )
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="Response timestamp (UTC)",
     )
     pagination: PaginationMeta | None = Field(

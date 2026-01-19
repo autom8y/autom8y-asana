@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import functools
 import time
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, TypeVar, cast
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from autom8_asana.observability.correlation import generate_correlation_id
 

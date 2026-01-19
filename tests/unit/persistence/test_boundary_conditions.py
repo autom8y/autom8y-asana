@@ -13,7 +13,6 @@ from autom8_asana.models import Task
 from autom8_asana.persistence.session import SaveSession
 from autom8_asana.persistence.tracker import ChangeTracker
 
-
 # ---------------------------------------------------------------------------
 # Test Fixtures
 # ---------------------------------------------------------------------------

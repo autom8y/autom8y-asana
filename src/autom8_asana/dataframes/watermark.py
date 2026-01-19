@@ -42,10 +42,11 @@ Example:
 from __future__ import annotations
 
 import asyncio
-from autom8y_log import get_logger
 import threading
 from datetime import datetime
 from typing import TYPE_CHECKING, ClassVar
+
+from autom8y_log import get_logger
 
 if TYPE_CHECKING:
     from autom8_asana.dataframes.persistence import DataFramePersistence
@@ -90,7 +91,7 @@ class WatermarkRepository:
     # Instance attributes (declared for pyright, initialized in __new__)
     _watermarks: dict[str, datetime]
     _instance_lock: threading.Lock
-    _persistence: "DataFramePersistence | None"
+    _persistence: DataFramePersistence | None
 
     def __new__(cls) -> WatermarkRepository:
         """Get or create singleton instance (thread-safe).
@@ -109,7 +110,7 @@ class WatermarkRepository:
 
     @classmethod
     def get_instance(
-        cls, persistence: "DataFramePersistence | None" = None
+        cls, persistence: DataFramePersistence | None = None
     ) -> WatermarkRepository:
         """Get singleton instance, optionally configuring persistence.
 
@@ -126,7 +127,7 @@ class WatermarkRepository:
             instance._persistence = persistence
         return instance
 
-    def set_persistence(self, persistence: "DataFramePersistence | None") -> None:
+    def set_persistence(self, persistence: DataFramePersistence | None) -> None:
         """Configure persistence layer after initialization.
 
         This allows setting persistence after the singleton is created,
@@ -179,7 +180,7 @@ class WatermarkRepository:
         self,
         project_gid: str,
         timestamp: datetime,
-        persistence: "DataFramePersistence",
+        persistence: DataFramePersistence,
     ) -> None:
         """Schedule async persistence without blocking.
 
@@ -201,7 +202,7 @@ class WatermarkRepository:
         self,
         project_gid: str,
         timestamp: datetime,
-        persistence: "DataFramePersistence",
+        persistence: DataFramePersistence,
     ) -> None:
         """Persist watermark to S3 asynchronously.
 
@@ -242,7 +243,7 @@ class WatermarkRepository:
             self._watermarks.pop(project_gid, None)
 
     async def load_from_persistence(
-        self, persistence: "DataFramePersistence | None" = None
+        self, persistence: DataFramePersistence | None = None
     ) -> int:
         """Load all persisted watermarks from S3 into memory.
 

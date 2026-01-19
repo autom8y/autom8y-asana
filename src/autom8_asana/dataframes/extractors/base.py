@@ -409,7 +409,7 @@ class BaseExtractor(ABC):
         if task.created_at:
             return self._parse_datetime(task.created_at)
         # Return epoch as fallback for required field
-        return dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
+        return dt.datetime(1970, 1, 1, tzinfo=dt.UTC)
 
     def _extract_due_on(self, task: Task) -> dt.date | None:
         """Extract due date (FR-MODEL-021).
@@ -474,7 +474,7 @@ class BaseExtractor(ABC):
         if task.modified_at:
             return self._parse_datetime(task.modified_at)
         # Return epoch as fallback for required field
-        return dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
+        return dt.datetime(1970, 1, 1, tzinfo=dt.UTC)
 
     def _extract_section(
         self,
@@ -573,13 +573,13 @@ class BaseExtractor(ABC):
                 try:
                     parsed = dt.datetime.strptime(value, fmt)
                     if parsed.tzinfo is None:
-                        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+                        parsed = parsed.replace(tzinfo=dt.UTC)
                     return parsed
                 except ValueError:
                     continue
 
             # Last resort: return with UTC timezone
-            return dt.datetime(1970, 1, 1, tzinfo=dt.timezone.utc)
+            return dt.datetime(1970, 1, 1, tzinfo=dt.UTC)
 
     @staticmethod
     def _parse_date(value: str) -> dt.date:

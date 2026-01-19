@@ -10,7 +10,7 @@ Per ADR-0134: Integrates with BaseClient as optional coordinator pattern.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from autom8y_log import get_logger
@@ -62,8 +62,8 @@ class StalenessCheckCoordinator:
         ...     pass
     """
 
-    cache_provider: "CacheProvider"
-    batch_client: "BatchClient"
+    cache_provider: CacheProvider
+    batch_client: BatchClient
     settings: StalenessCheckSettings = field(default_factory=StalenessCheckSettings)
 
     # Internal components (created in __post_init__)
@@ -114,7 +114,7 @@ class StalenessCheckCoordinator:
             return None
 
         self._stats["total_checks"] += 1
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC)
 
         try:
             # Queue for batch check
@@ -124,9 +124,7 @@ class StalenessCheckCoordinator:
             result = self._process_staleness_result(entry, modified_at)
 
             # Log result
-            duration_ms = (
-                datetime.now(timezone.utc) - start_time
-            ).total_seconds() * 1000
+            duration_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
             self._log_staleness_check(entry, result, modified_at, duration_ms)
 
             return result
@@ -248,7 +246,7 @@ class StalenessCheckCoordinator:
             data=entry.data,
             entry_type=entry.entry_type,
             version=entry.version,  # Preserved: actual version unchanged
-            cached_at=datetime.now(timezone.utc),  # Reset: new expiration window
+            cached_at=datetime.now(UTC),  # Reset: new expiration window
             ttl=new_ttl,
             project_gid=entry.project_gid,
             metadata={**entry.metadata, "extension_count": new_count},

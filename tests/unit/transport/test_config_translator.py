@@ -6,7 +6,6 @@ between autom8_asana domain config and autom8y-http platform config.
 
 from __future__ import annotations
 
-
 from autom8_asana.config import (
     AsanaConfig,
     CircuitBreakerConfig,

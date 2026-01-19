@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-
 from autom8_asana.models.business.offer import Offer, OfferHolder
 from autom8_asana.models.business.unit import Unit, UnitHolder
 from autom8_asana.models.task import Task

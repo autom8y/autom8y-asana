@@ -248,7 +248,7 @@ class DataServiceConfig:
             )
 
     @classmethod
-    def from_env(cls) -> "DataServiceConfig":
+    def from_env(cls) -> DataServiceConfig:
         """Create config from environment variables.
 
         Per FR-001.2: Reads AUTOM8_DATA_* environment variables.

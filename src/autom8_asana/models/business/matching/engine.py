@@ -6,9 +6,10 @@ Per TDD FR-M-002: Composite field comparison with configurable weights.
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
 import math
 from typing import TYPE_CHECKING
+
+from autom8y_log import get_logger
 
 from autom8_asana.models.business.matching.comparators import (
     ExactComparator,
@@ -104,7 +105,7 @@ class MatchingEngine:
 
     def compute_match(
         self,
-        query: "BusinessData",
+        query: BusinessData,
         candidate: Candidate,
     ) -> MatchResult:
         """Compute match score between query and candidate.
@@ -183,7 +184,7 @@ class MatchingEngine:
 
     def find_best_match(
         self,
-        query: "BusinessData",
+        query: BusinessData,
         candidates: list[Candidate],
     ) -> MatchResult | None:
         """Find best matching candidate above threshold.
@@ -221,7 +222,7 @@ class MatchingEngine:
 
     def _compare_email(
         self,
-        query: "BusinessData",
+        query: BusinessData,
         candidate: Candidate,
     ) -> FieldComparison:
         """Compare email fields.
@@ -276,7 +277,7 @@ class MatchingEngine:
 
     def _compare_phone(
         self,
-        query: "BusinessData",
+        query: BusinessData,
         candidate: Candidate,
     ) -> FieldComparison:
         """Compare phone fields.
@@ -331,7 +332,7 @@ class MatchingEngine:
 
     def _compare_name(
         self,
-        query: "BusinessData",
+        query: BusinessData,
         candidate: Candidate,
     ) -> FieldComparison:
         """Compare name fields using fuzzy matching.
@@ -387,7 +388,7 @@ class MatchingEngine:
 
     def _compare_domain(
         self,
-        query: "BusinessData",
+        query: BusinessData,
         candidate: Candidate,
     ) -> FieldComparison:
         """Compare domain fields.

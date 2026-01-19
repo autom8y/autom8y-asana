@@ -11,7 +11,7 @@ Tests cover:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import polars as pl
 import pytest
@@ -136,9 +136,9 @@ class TestGidLookupIndexFromDataframe:
             }
         )
 
-        before = datetime.now(timezone.utc)
+        before = datetime.now(UTC)
         index = GidLookupIndex.from_dataframe(df)
-        after = datetime.now(timezone.utc)
+        after = datetime.now(UTC)
 
         assert before <= index.created_at <= after
 
@@ -320,7 +320,7 @@ class TestGidLookupIndexStaleDetection:
 
     def test_old_index_is_stale(self) -> None:
         """Index older than TTL should be stale."""
-        old_time = datetime.now(timezone.utc) - timedelta(hours=2)
+        old_time = datetime.now(UTC) - timedelta(hours=2)
         index = GidLookupIndex(
             lookup_dict={"pv1:+17705753103:chiropractic": "111"},
             created_at=old_time,
@@ -331,7 +331,7 @@ class TestGidLookupIndexStaleDetection:
     def test_exactly_at_ttl_not_stale(self) -> None:
         """Index at exactly TTL boundary should not be stale (> not >=)."""
         # Create index slightly before TTL boundary
-        almost_stale_time = datetime.now(timezone.utc) - timedelta(seconds=3599)
+        almost_stale_time = datetime.now(UTC) - timedelta(seconds=3599)
         index = GidLookupIndex(
             lookup_dict={"pv1:+17705753103:chiropractic": "111"},
             created_at=almost_stale_time,

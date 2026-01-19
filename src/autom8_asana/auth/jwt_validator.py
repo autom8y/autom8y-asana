@@ -16,8 +16,9 @@ Per ADR-S2S-001: No custom JWT validation logic - delegate entirely to SDK.
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
 from typing import TYPE_CHECKING
+
+from autom8y_log import get_logger
 
 if TYPE_CHECKING:
     from autom8y_auth import AuthClient, ServiceClaims
@@ -25,10 +26,10 @@ if TYPE_CHECKING:
 logger = get_logger("autom8_asana.auth")
 
 # Module-level client (lazy initialized, thread-safe)
-_auth_client: "AuthClient | None" = None
+_auth_client: AuthClient | None = None
 
 
-def _get_auth_client() -> "AuthClient":
+def _get_auth_client() -> AuthClient:
     """Get or create the auth client using environment config.
 
     Thread-safe lazy initialization. Client is reused across requests.
@@ -58,7 +59,7 @@ def _get_auth_client() -> "AuthClient":
     return _auth_client
 
 
-async def validate_service_token(token: str) -> "ServiceClaims":
+async def validate_service_token(token: str) -> ServiceClaims:
     """Validate JWT and return service claims.
 
     Args:

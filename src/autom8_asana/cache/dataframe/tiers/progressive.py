@@ -22,7 +22,7 @@ from __future__ import annotations
 import io
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import polars as pl
@@ -69,7 +69,7 @@ class ProgressiveTier:
         ...     entry = await tier.get_async("unit:proj-123")
     """
 
-    persistence: "SectionPersistence"
+    persistence: SectionPersistence
     _stats: dict[str, int] = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:
@@ -106,7 +106,7 @@ class ProgressiveTier:
             raise ValueError(f"Invalid cache key format: {key}")
         return parts[0], parts[1]
 
-    async def get_async(self, key: str) -> "CacheEntry | None":
+    async def get_async(self, key: str) -> CacheEntry | None:
         """Get entry from progressive storage location.
 
         Args:
@@ -178,11 +178,11 @@ class ProgressiveTier:
                 schema_version = watermark_data.get("schema_version", "unknown")
             except Exception:
                 # Fallback to current time if watermark parsing fails
-                watermark = datetime.now(timezone.utc)
+                watermark = datetime.now(UTC)
                 schema_version = "unknown"
         else:
             # No watermark file - use current time
-            watermark = datetime.now(timezone.utc)
+            watermark = datetime.now(UTC)
             schema_version = "unknown"
 
         entry = CacheEntry(
@@ -206,7 +206,7 @@ class ProgressiveTier:
 
         return entry
 
-    async def put_async(self, key: str, entry: "CacheEntry") -> bool:
+    async def put_async(self, key: str, entry: CacheEntry) -> bool:
         """Store entry to progressive storage location.
 
         Delegates to SectionPersistence.write_final_artifacts_async() to ensure
@@ -353,7 +353,7 @@ class ProgressiveTier:
             Parsed datetime, or current UTC time if parsing fails.
         """
         if not value:
-            return datetime.now(timezone.utc)
+            return datetime.now(UTC)
 
         try:
             # Handle Z suffix
@@ -362,7 +362,7 @@ class ProgressiveTier:
 
             dt = datetime.fromisoformat(value)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=UTC)
             return dt
         except ValueError:
-            return datetime.now(timezone.utc)
+            return datetime.now(UTC)

@@ -19,7 +19,6 @@ from autom8_asana.search.models import (
 )
 from autom8_asana.search.service import SearchService
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================

@@ -437,6 +437,7 @@ class TestProjectOverrideSettings:
     def test_invalid_gid_raises_in_strict_mode(self) -> None:
         """Test invalid ASANA_PROJECT_* GID raises ValueError in strict mode."""
         from pydantic import ValidationError
+
         from autom8_asana.settings import ProjectOverrideSettings
 
         env = {
@@ -453,6 +454,7 @@ class TestProjectOverrideSettings:
     def test_short_gid_raises_in_strict_mode(self) -> None:
         """Test GID with less than 10 digits raises ValueError in strict mode."""
         from pydantic import ValidationError
+
         from autom8_asana.settings import ProjectOverrideSettings
 
         env = {
@@ -468,6 +470,7 @@ class TestProjectOverrideSettings:
     def test_non_numeric_gid_raises_in_strict_mode(self) -> None:
         """Test non-numeric GID raises ValueError in strict mode."""
         from pydantic import ValidationError
+
         from autom8_asana.settings import ProjectOverrideSettings
 
         env = {
@@ -483,6 +486,7 @@ class TestProjectOverrideSettings:
     def test_validation_triggered_by_main_settings_in_strict_mode(self) -> None:
         """Test project override validation is triggered by main Settings in strict mode."""
         from pydantic import ValidationError
+
         from autom8_asana.settings import Settings
 
         env = {

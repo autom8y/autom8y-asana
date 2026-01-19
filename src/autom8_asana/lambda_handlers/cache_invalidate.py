@@ -30,7 +30,7 @@ import asyncio
 import time
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
@@ -60,9 +60,7 @@ class InvalidateResponse:
     tasks_cleared: dict[str, int] = field(default_factory=dict)
     dataframes_cleared: int = 0
     duration_ms: float = 0.0
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     invocation_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:

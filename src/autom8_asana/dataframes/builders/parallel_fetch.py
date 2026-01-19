@@ -11,11 +11,12 @@ Per PRD-CACHE-OPT-P3 / ADR-0131: GID enumeration caching for 10x speedup.
 from __future__ import annotations
 
 import asyncio
-from autom8y_log import get_logger
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, ClassVar
+
+from autom8y_log import get_logger
 
 from autom8_asana.cache.entry import CacheEntry, EntryType
 from autom8_asana.dataframes.exceptions import DataFrameError
@@ -312,8 +313,8 @@ class ParallelSectionFetcher:
                 key=key,
                 data={"sections": [{"gid": s.gid, "name": s.name} for s in sections]},
                 entry_type=EntryType.PROJECT_SECTIONS,
-                version=datetime.now(timezone.utc),
-                cached_at=datetime.now(timezone.utc),
+                version=datetime.now(UTC),
+                cached_at=datetime.now(UTC),
                 ttl=self._SECTIONS_TTL,
                 project_gid=self.project_gid,
                 metadata={"section_count": len(sections)},
@@ -485,8 +486,8 @@ class ParallelSectionFetcher:
                 key=key,
                 data={"section_gids": section_gids},
                 entry_type=EntryType.GID_ENUMERATION,
-                version=datetime.now(timezone.utc),
-                cached_at=datetime.now(timezone.utc),
+                version=datetime.now(UTC),
+                cached_at=datetime.now(UTC),
                 ttl=self._GID_ENUM_TTL,
                 project_gid=self.project_gid,
                 metadata={

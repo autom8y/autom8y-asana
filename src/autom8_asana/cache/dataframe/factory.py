@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def initialize_dataframe_cache() -> "DataFrameCache | None":
+def initialize_dataframe_cache() -> DataFrameCache | None:
     """Initialize the singleton DataFrameCache with settings from environment.
 
     Creates a DataFrameCache instance configured with:
@@ -63,8 +63,10 @@ def initialize_dataframe_cache() -> "DataFrameCache | None":
     from autom8_asana.cache.dataframe.tiers.progressive import ProgressiveTier
     from autom8_asana.cache.dataframe_cache import (
         DataFrameCache,
-        get_dataframe_cache as _get_cache,
         set_dataframe_cache,
+    )
+    from autom8_asana.cache.dataframe_cache import (
+        get_dataframe_cache as _get_cache,
     )
     from autom8_asana.dataframes.section_persistence import SectionPersistence
     from autom8_asana.settings import get_settings
@@ -151,7 +153,7 @@ def initialize_dataframe_cache() -> "DataFrameCache | None":
     return cache
 
 
-def get_dataframe_cache_provider() -> "DataFrameCache | None":
+def get_dataframe_cache_provider() -> DataFrameCache | None:
     """Get the DataFrameCache singleton for use with @dataframe_cache decorator.
 
     This function is designed to be passed to the @dataframe_cache decorator's
@@ -177,7 +179,7 @@ def get_dataframe_cache_provider() -> "DataFrameCache | None":
 
 
 # Re-export for convenience
-def get_dataframe_cache() -> "DataFrameCache | None":
+def get_dataframe_cache() -> DataFrameCache | None:
     """Get the singleton DataFrameCache instance.
 
     Returns:

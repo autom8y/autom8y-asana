@@ -5,12 +5,15 @@ Tests for tiered caching, cache validation, build lock management,
 and statistics.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import polars as pl
 import pytest
 
+from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker
+from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
+from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
 from autom8_asana.cache.dataframe_cache import (
     CacheEntry,
     DataFrameCache,
@@ -19,9 +22,6 @@ from autom8_asana.cache.dataframe_cache import (
     reset_dataframe_cache,
     set_dataframe_cache,
 )
-from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker
-from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
-from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
 
 
 def make_entry(
@@ -50,8 +50,8 @@ def make_entry(
         project_gid=project_gid,
         entity_type=entity_type,
         dataframe=df,
-        watermark=datetime.now(timezone.utc),
-        created_at=datetime.now(timezone.utc) - timedelta(hours=created_hours_ago),
+        watermark=datetime.now(UTC),
+        created_at=datetime.now(UTC) - timedelta(hours=created_hours_ago),
         schema_version=schema_version,
     )
 
@@ -212,7 +212,7 @@ class TestDataFrameCache:
         cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
         # Pass a newer watermark
-        current_watermark = datetime.now(timezone.utc) + timedelta(minutes=5)
+        current_watermark = datetime.now(UTC) + timedelta(minutes=5)
         result = await cache.get_async("proj-1", "unit", current_watermark)
 
         assert result is None
@@ -226,7 +226,7 @@ class TestDataFrameCache:
         cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
         df = pl.DataFrame({"gid": ["1"], "name": ["A"]})
-        watermark = datetime.now(timezone.utc)
+        watermark = datetime.now(UTC)
 
         await cache.put_async("proj-1", "unit", df, watermark)
 
@@ -244,16 +244,16 @@ class TestDataFrameCache:
         circuit.record_failure("proj-1")
 
         # Simulate timeout so circuit is half-open
-        circuit._circuits["proj-1"].last_failure = datetime.now(
-            timezone.utc
-        ) - timedelta(seconds=120)
+        circuit._circuits["proj-1"].last_failure = datetime.now(UTC) - timedelta(
+            seconds=120
+        )
         circuit.is_open("proj-1")  # Triggers half-open
 
         progressive_tier = AsyncMock()
         cache = make_cache(progressive_tier=progressive_tier, circuit_breaker=circuit)
 
         df = pl.DataFrame({"gid": ["1"]})
-        await cache.put_async("proj-1", "unit", df, datetime.now(timezone.utc))
+        await cache.put_async("proj-1", "unit", df, datetime.now(UTC))
 
         # Circuit should be closed
         from autom8_asana.cache.dataframe.circuit_breaker import CircuitState

@@ -36,7 +36,6 @@ from autom8_asana.dataframes.schemas import BASE_SCHEMA, CONTACT_SCHEMA, UNIT_SC
 from autom8_asana.models.common import NameGid
 from autom8_asana.models.task import Task
 
-
 # =============================================================================
 # Test Fixtures
 # =============================================================================

@@ -14,12 +14,11 @@ import pytest
 
 from autom8_asana.models import Task
 from autom8_asana.persistence.models import (
-    HealingResult,
     HealingReport,
+    HealingResult,
     SaveResult,
 )
 from autom8_asana.persistence.session import SaveSession
-
 
 # ---------------------------------------------------------------------------
 # Test Fixtures

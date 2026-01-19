@@ -3,7 +3,6 @@
 import logging
 from typing import Any
 
-
 from autom8_asana.cache.events import (
     _normalize_event_type,
     create_metrics_callback,

@@ -6,7 +6,7 @@ Per ADR-0010: Sequential chunk execution.
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from autom8_asana.batch.models import BatchRequest, BatchResult
 from autom8_asana.persistence.models import OperationType

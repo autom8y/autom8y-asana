@@ -8,10 +8,11 @@ Thread-safe for concurrent extraction using RLock.
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
 import threading
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
+
+from autom8y_log import get_logger
 
 from autom8_asana.dataframes.resolver.normalizer import NameNormalizer
 

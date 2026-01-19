@@ -7,8 +7,10 @@ with cache miss -> 503 response behavior.
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
+from datetime import UTC
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from autom8y_log import get_logger
 from fastapi import HTTPException
@@ -22,7 +24,7 @@ T = TypeVar("T")
 
 
 def dataframe_cache(
-    cache_provider: Callable[[], "DataFrameCache | None"],
+    cache_provider: Callable[[], DataFrameCache | None],
     entity_type: str,
     build_method: str = "_build_dataframe",
     bypass_env_var: str = "DATAFRAME_CACHE_BYPASS",
@@ -175,10 +177,10 @@ def dataframe_cache(
                     df, watermark = result
                 else:
                     # Assume it's just the DataFrame, use current time as watermark
-                    from datetime import datetime, timezone
+                    from datetime import datetime
 
                     df = result
-                    watermark = datetime.now(timezone.utc)
+                    watermark = datetime.now(UTC)
 
                 if df is None:
                     await cache.release_build_lock_async(

@@ -14,7 +14,6 @@ from __future__ import annotations
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.dataframes.schemas.base import BASE_COLUMNS
 
-
 # Process fields (10 fields) - inherited by AssetEdit from Process
 PROCESS_COLUMNS: list[ColumnDef] = [
     ColumnDef(

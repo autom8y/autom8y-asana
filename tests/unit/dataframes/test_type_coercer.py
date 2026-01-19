@@ -12,7 +12,6 @@ import pytest
 
 from autom8_asana.dataframes.resolver import TypeCoercer, coerce_value
 
-
 # ============================================================================
 # Test Fixtures
 # ============================================================================

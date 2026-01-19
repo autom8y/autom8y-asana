@@ -1,6 +1,6 @@
 """Tests for incremental story loading."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -83,7 +83,7 @@ class TestLoadStoriesIncremental:
             key="task123",
             data={"stories": [{"gid": "old"}]},
             entry_type=EntryType.STORIES,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
             metadata={},  # Missing last_fetched
         )
         cache._cache["stories:task123"] = corrupted_entry
@@ -116,7 +116,7 @@ class TestLoadStoriesIncremental:
                 ]
             },
             entry_type=EntryType.STORIES,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
             metadata={"last_fetched": last_fetched},
         )
         cache._cache["stories:task123"] = cached_entry
@@ -155,7 +155,7 @@ class TestLoadStoriesIncremental:
                 ]
             },
             entry_type=EntryType.STORIES,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
             metadata={"last_fetched": "2025-01-01T12:00:00+00:00"},
         )
         cache._cache["stories:task123"] = cached_entry

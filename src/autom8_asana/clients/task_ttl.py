@@ -49,7 +49,7 @@ class TaskTTLResolver:
     Thread Safety: Stateless after initialization - safe for concurrent use.
     """
 
-    def __init__(self, config: "AsanaConfig") -> None:
+    def __init__(self, config: AsanaConfig) -> None:
         """Initialize with SDK configuration.
 
         Args:

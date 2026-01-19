@@ -19,6 +19,7 @@ may be required if tests fail unexpectedly.
 from __future__ import annotations
 
 import os
+
 import pytest
 
 # Skip all tests if no API token

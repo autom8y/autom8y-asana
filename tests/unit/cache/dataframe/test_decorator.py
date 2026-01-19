@@ -5,19 +5,19 @@ cache hit, cache miss, build coalescing, and 503 responses.
 """
 
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import polars as pl
 import pytest
 from fastapi import HTTPException
 
+from autom8_asana.cache.dataframe.decorator import dataframe_cache
 from autom8_asana.cache.dataframe_cache import (
     CacheEntry,
     DataFrameCache,
     reset_dataframe_cache,
 )
-from autom8_asana.cache.dataframe.decorator import dataframe_cache
 
 
 def make_entry(project_gid: str = "proj-1") -> CacheEntry:
@@ -27,8 +27,8 @@ def make_entry(project_gid: str = "proj-1") -> CacheEntry:
         project_gid=project_gid,
         entity_type="unit",
         dataframe=df,
-        watermark=datetime.now(timezone.utc),
-        created_at=datetime.now(timezone.utc),
+        watermark=datetime.now(UTC),
+        created_at=datetime.now(UTC),
         schema_version="1.0.0",
     )
 
@@ -100,7 +100,7 @@ class TestDataframeCacheDecorator:
                 self, project_gid: str, client: object
             ) -> tuple[pl.DataFrame, datetime]:
                 df = pl.DataFrame({"gid": ["1", "2"]})
-                return df, datetime.now(timezone.utc)
+                return df, datetime.now(UTC)
 
         strategy = TestStrategy()
         result = await strategy.resolve([], "proj-1", None)
@@ -178,7 +178,7 @@ class TestDataframeCacheDecorator:
             async def _build_dataframe(
                 self, project_gid: str, client: object
             ) -> tuple[pl.DataFrame | None, datetime]:
-                return None, datetime.now(timezone.utc)  # Build fails
+                return None, datetime.now(UTC)  # Build fails
 
         strategy = TestStrategy()
 
@@ -280,7 +280,7 @@ class TestDataframeCacheDecorator:
                 self, project_gid: str, client: object
             ) -> tuple[pl.DataFrame, datetime]:
                 df = pl.DataFrame({"gid": ["offer-1"]})
-                return df, datetime.now(timezone.utc)
+                return df, datetime.now(UTC)
 
         strategy = TestStrategy()
         await strategy.resolve([], "proj-1", None)
@@ -306,7 +306,7 @@ class TestDataframeCacheDecorator:
                 self, project_gid: str, client: object
             ) -> tuple[pl.DataFrame, datetime]:
                 df = pl.DataFrame({"gid": ["contact-1"]})
-                return df, datetime.now(timezone.utc)
+                return df, datetime.now(UTC)
 
         strategy = TestStrategy()
         await strategy.resolve([], "proj-1", None)

@@ -17,7 +17,6 @@ from pydantic import ValidationError
 
 from autom8_asana.models import AsanaResource, NameGid, Task
 
-
 # ---------------------------------------------------------------------------
 # Test Fixtures - Realistic Asana API responses
 # ---------------------------------------------------------------------------

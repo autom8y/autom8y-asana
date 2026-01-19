@@ -14,10 +14,12 @@ Per ADR-0073: Batch operations implemented as module-level functions.
 from __future__ import annotations
 
 import asyncio
-from autom8y_log import get_logger
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Generic, Sequence, TypeVar
+from typing import TYPE_CHECKING, Generic, TypeVar
+
+from autom8y_log import get_logger
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient

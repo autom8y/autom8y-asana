@@ -288,10 +288,10 @@ class TestAsanaClientObservability:
         """AsanaClient accepts observability_hook parameter."""
 
         # This should not raise TypeError
-        from autom8_asana.client import AsanaClient
-
         # We can't fully instantiate without auth, but we can check the signature
         import inspect
+
+        from autom8_asana.client import AsanaClient
 
         sig = inspect.signature(AsanaClient.__init__)
         assert "observability_hook" in sig.parameters

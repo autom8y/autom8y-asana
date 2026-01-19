@@ -7,7 +7,7 @@ deduplication, and concurrent callers.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -41,7 +41,7 @@ def make_entry(gid: str, modified_at: str = "2025-12-23T10:00:00.000Z") -> Cache
         data={"gid": gid, "name": f"Task {gid}"},
         entry_type=EntryType.TASK,
         version=datetime.fromisoformat(modified_at.replace("Z", "+00:00")),
-        cached_at=datetime.now(timezone.utc),
+        cached_at=datetime.now(UTC),
         ttl=300,
     )
 

@@ -28,8 +28,9 @@ Example:
 from __future__ import annotations
 
 import asyncio
-from autom8y_log import get_logger
 from typing import TYPE_CHECKING, Any
+
+from autom8y_log import get_logger
 
 # Import HealingResult from models (canonical location per ABS-001)
 from autom8_asana.persistence.models import HealingResult
@@ -190,7 +191,7 @@ class HealingManager:
             },
         )
 
-    async def execute_async(self, http_client: "AsanaHttpClient") -> "HealingReport":
+    async def execute_async(self, http_client: AsanaHttpClient) -> HealingReport:
         """Execute healing for all queued entities.
 
         Per TDD-DETECTION/ADR-0095: Healing adds missing project memberships.
@@ -275,8 +276,8 @@ class HealingManager:
 
 
 async def heal_entity_async(
-    entity: "BusinessEntity",
-    client: "AsanaClient",
+    entity: BusinessEntity,
+    client: AsanaClient,
     dry_run: bool = False,
 ) -> HealingResult:
     """Heal a single entity by adding to expected project.
@@ -386,8 +387,8 @@ async def heal_entity_async(
 
 
 async def heal_entities_async(
-    entities: list["BusinessEntity"],
-    client: "AsanaClient",
+    entities: list[BusinessEntity],
+    client: AsanaClient,
     dry_run: bool = False,
     max_concurrent: int = 5,
 ) -> list[HealingResult]:
@@ -434,7 +435,7 @@ async def heal_entities_async(
 
     semaphore = asyncio.Semaphore(max_concurrent)
 
-    async def heal_one(entity: "BusinessEntity") -> HealingResult:
+    async def heal_one(entity: BusinessEntity) -> HealingResult:
         async with semaphore:
             return await heal_entity_async(entity, client, dry_run)
 

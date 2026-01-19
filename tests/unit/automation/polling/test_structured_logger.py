@@ -20,9 +20,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from autom8_asana.automation.polling.structured_logger import (
+    _STRUCTLOG_AVAILABLE,
     StructuredLogger,
     _StdlibLoggerAdapter,
-    _STRUCTLOG_AVAILABLE,
 )
 
 

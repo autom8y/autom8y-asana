@@ -12,6 +12,11 @@ Example:
         task = await client.tasks.get_async("task_gid")
 """
 
+# Default providers (for AWS deployments per ADR-VAULT-001)
+from autom8_asana._defaults import (
+    EnvAuthProvider,
+    SecretsManagerAuthProvider,
+)
 from autom8_asana.batch import BatchClient, BatchRequest, BatchResult, BatchSummary
 from autom8_asana.client import AsanaClient
 from autom8_asana.config import (
@@ -21,6 +26,46 @@ from autom8_asana.config import (
     RateLimitConfig,
     RetryConfig,
     TimeoutConfig,
+)
+
+# Dataframe Layer (TDD-0009)
+from autom8_asana.dataframes import (
+    # Schemas
+    BASE_SCHEMA,
+    CONTACT_SCHEMA,
+    # Constants
+    LAZY_THRESHOLD,
+    UNIT_SCHEMA,
+    # Extractors
+    BaseExtractor,
+    # Cache Integration
+    CachedRow,
+    ColumnDef,
+    ContactExtractor,
+    ContactRow,
+    # Resolver (TDD-0009.1)
+    CustomFieldResolver,
+    # Builders
+    DataFrameBuilder,
+    DataFrameCacheIntegration,
+    # Exceptions
+    DataFrameError,
+    DataFrameSchema,
+    DefaultCustomFieldResolver,
+    ExtractionError,
+    FailingResolver,
+    MockCustomFieldResolver,
+    NameNormalizer,
+    ProgressiveProjectBuilder,
+    SchemaNotFoundError,
+    SchemaRegistry,
+    SchemaVersionError,
+    SectionDataFrameBuilder,
+    # Models
+    TaskRow,
+    TypeCoercionError,
+    UnitExtractor,
+    UnitRow,
 )
 from autom8_asana.exceptions import (
     AsanaError,
@@ -34,31 +79,6 @@ from autom8_asana.exceptions import (
     ServerError,
     SyncInAsyncContextError,
     TimeoutError,
-)
-
-# TDD-HARDENING-A: GID validation exception at root level (FR-EXC-006)
-from autom8_asana.persistence.exceptions import GidValidationError
-
-# Protocols (for type checking and custom implementations)
-from autom8_asana.protocols import (
-    AuthProvider,
-    CacheProvider,
-    ItemLoader,
-    LogProvider,
-    ObservabilityHook,  # TDD-HARDENING-A/FR-OBS-009
-)
-
-# Default providers (for AWS deployments per ADR-VAULT-001)
-from autom8_asana._defaults import (
-    EnvAuthProvider,
-    SecretsManagerAuthProvider,
-)
-
-# Observability (per TDD-0007, ADR-0013)
-from autom8_asana.observability import (
-    CorrelationContext,
-    error_handler,
-    generate_correlation_id,
 )
 
 # Models (Pydantic v2, per ADR-0005, TDD-0002, TDD-0004)
@@ -87,44 +107,23 @@ from autom8_asana.models import (
     Workspace,
 )
 
-# Dataframe Layer (TDD-0009)
-from autom8_asana.dataframes import (
-    # Constants
-    LAZY_THRESHOLD,
-    # Models
-    TaskRow,
-    UnitRow,
-    ContactRow,
-    DataFrameSchema,
-    ColumnDef,
-    SchemaRegistry,
-    # Schemas
-    BASE_SCHEMA,
-    UNIT_SCHEMA,
-    CONTACT_SCHEMA,
-    # Builders
-    DataFrameBuilder,
-    SectionDataFrameBuilder,
-    ProgressiveProjectBuilder,
-    # Extractors
-    BaseExtractor,
-    UnitExtractor,
-    ContactExtractor,
-    # Resolver (TDD-0009.1)
-    CustomFieldResolver,
-    DefaultCustomFieldResolver,
-    MockCustomFieldResolver,
-    FailingResolver,
-    NameNormalizer,
-    # Cache Integration
-    CachedRow,
-    DataFrameCacheIntegration,
-    # Exceptions
-    DataFrameError,
-    SchemaNotFoundError,
-    ExtractionError,
-    TypeCoercionError,
-    SchemaVersionError,
+# Observability (per TDD-0007, ADR-0013)
+from autom8_asana.observability import (
+    CorrelationContext,
+    error_handler,
+    generate_correlation_id,
+)
+
+# TDD-HARDENING-A: GID validation exception at root level (FR-EXC-006)
+from autom8_asana.persistence.exceptions import GidValidationError
+
+# Protocols (for type checking and custom implementations)
+from autom8_asana.protocols import (
+    AuthProvider,
+    CacheProvider,
+    ItemLoader,
+    LogProvider,
+    ObservabilityHook,  # TDD-HARDENING-A/FR-OBS-009
 )
 
 __version__ = "0.1.0"

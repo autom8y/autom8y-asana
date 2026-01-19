@@ -7,7 +7,7 @@ CloudWatch metric emission.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -627,7 +627,7 @@ class TestCheckpointIntegration:
         from autom8_asana.lambda_handlers.checkpoint import CheckpointRecord
 
         # Create a fresh checkpoint with unit completed
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         checkpoint = CheckpointRecord(
             invocation_id="prior-123",
             completed_entities=["unit"],
@@ -708,7 +708,7 @@ class TestCheckpointIntegration:
         from autom8_asana.lambda_handlers.checkpoint import CheckpointRecord
 
         # Create a stale checkpoint
-        old_time = datetime.now(timezone.utc) - timedelta(hours=2)
+        old_time = datetime.now(UTC) - timedelta(hours=2)
         stale_checkpoint = CheckpointRecord(
             invocation_id="old-123",
             completed_entities=["unit"],

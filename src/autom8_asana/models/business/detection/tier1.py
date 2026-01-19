@@ -88,11 +88,11 @@ def _detect_tier1_project_membership(task: Task) -> DetectionResult | None:
     Returns:
         DetectionResult if project GID is registered, None otherwise.
     """
-    from autom8_asana.models.business.registry import get_registry
     from autom8_asana.models.business._bootstrap import (
         is_bootstrap_complete,
         register_all_models,
     )
+    from autom8_asana.models.business.registry import get_registry
 
     # BOOTSTRAP GUARD: Ensure registry is populated before detection
     # This guards against import paths that bypass models/business/__init__.py

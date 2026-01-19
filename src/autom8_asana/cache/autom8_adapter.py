@@ -34,9 +34,10 @@ Usage in autom8:
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Awaitable, Callable
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from autom8_asana.cache.batch import fetch_task_modifications
 from autom8_asana.cache.entry import CacheEntry, EntryType
@@ -279,14 +280,14 @@ async def migrate_task_collection_loading(
                     else:
                         version = modified_at
                 else:
-                    version = datetime.now(timezone.utc)
+                    version = datetime.now(UTC)
 
                 entry = CacheEntry(
                     key=gid,
                     data=task,
                     entry_type=EntryType.TASK,
                     version=version,
-                    cached_at=datetime.now(timezone.utc),
+                    cached_at=datetime.now(UTC),
                     ttl=ttl,
                 )
                 cache.set_versioned(gid, entry)
@@ -358,7 +359,7 @@ async def warm_project_tasks(
     tasks = await task_fetcher(project_gid)
 
     entries_to_cache: dict[str, CacheEntry] = {}
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     for task in tasks:
         gid = task.get("gid")
@@ -455,8 +456,8 @@ def _parse_version(version_str: str) -> datetime:
     try:
         dt = datetime.fromisoformat(version_str)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
         return dt
     except ValueError:
         # Fallback to current time if parsing fails
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)

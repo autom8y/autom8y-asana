@@ -23,7 +23,7 @@ Example:
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
@@ -511,5 +511,5 @@ class TieredCacheProvider:
         return replace(
             entry,
             ttl=self._config.promotion_ttl,
-            cached_at=datetime.now(timezone.utc),
+            cached_at=datetime.now(UTC),
         )

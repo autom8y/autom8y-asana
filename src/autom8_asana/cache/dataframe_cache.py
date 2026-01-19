@@ -7,15 +7,15 @@ with Memory + S3 tiering, request coalescing, and circuit breaker patterns.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import polars as pl
 from autom8y_log import get_logger
 
 if TYPE_CHECKING:
-    from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
     from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker
+    from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
     from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
     from autom8_asana.cache.dataframe.tiers.progressive import ProgressiveTier
 
@@ -102,7 +102,7 @@ class CacheEntry:
         Returns:
             True if entry age exceeds ttl_seconds.
         """
-        age = datetime.now(timezone.utc) - self.created_at
+        age = datetime.now(UTC) - self.created_at
         return age.total_seconds() > ttl_seconds
 
     def is_fresh_by_watermark(self, current_watermark: datetime) -> bool:
@@ -163,10 +163,10 @@ class DataFrameCache:
         >>> await cache.put_async("project-123", "unit", df, watermark)
     """
 
-    memory_tier: "MemoryTier"
-    progressive_tier: "ProgressiveTier"
-    coalescer: "DataFrameCacheCoalescer"
-    circuit_breaker: "CircuitBreaker"
+    memory_tier: MemoryTier
+    progressive_tier: ProgressiveTier
+    coalescer: DataFrameCacheCoalescer
+    circuit_breaker: CircuitBreaker
     ttl_hours: int = 12
     schema_version: str = "1.0.0"
 
@@ -305,7 +305,7 @@ class DataFrameCache:
             entity_type=entity_type,
             dataframe=dataframe,
             watermark=watermark,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             schema_version=schema_version,
         )
 

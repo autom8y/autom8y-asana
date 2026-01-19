@@ -7,8 +7,9 @@ combination because custom field values vary by project context.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from autom8_asana.cache.entry import CacheEntry, EntryType
 from autom8_asana.cache.versioning import parse_version
@@ -79,7 +80,7 @@ async def load_dataframe_cached(
     dataframe_data = await compute_fn(task_gid, project_gid)
 
     # Determine version
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     version_dt = parse_version(current_modified_at) if current_modified_at else now
 
     # Cache it

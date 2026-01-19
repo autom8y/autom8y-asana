@@ -16,7 +16,7 @@ This module validates each success criterion from the PRD:
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -30,7 +30,6 @@ from autom8_asana.cache.unified import UnifiedTaskStore
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.dataframes.views.cascade_view import CascadeViewPlugin
 from autom8_asana.dataframes.views.dataframe_view import DataFrameViewPlugin
-
 
 # =============================================================================
 # Test Fixtures
@@ -130,7 +129,7 @@ def make_cache_entry(task_data: dict[str, Any]) -> CacheEntry:
         data=task_data,
         entry_type=EntryType.TASK,
         version=version,
-        cached_at=datetime.now(timezone.utc),
+        cached_at=datetime.now(UTC),
         ttl=300,
     )
 

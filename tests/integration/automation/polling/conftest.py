@@ -15,8 +15,9 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, AsyncGenerator
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -42,7 +43,7 @@ def _get_asana_token() -> str | None:
 
 
 @pytest.fixture(scope="module")
-def asana_client() -> "AsanaClient":
+def asana_client() -> AsanaClient:
     """Real Asana client from environment.
 
     This fixture creates a real AsanaClient using the ASANA_ACCESS_TOKEN
@@ -61,7 +62,7 @@ def asana_client() -> "AsanaClient":
 
 
 @pytest.fixture(scope="module")
-def workspace_gid(asana_client: "AsanaClient") -> str:
+def workspace_gid(asana_client: AsanaClient) -> str:
     """Get workspace GID from client or environment.
 
     Uses the client's auto-detected workspace, or ASANA_WORKSPACE_GID env var.
@@ -126,9 +127,9 @@ def test_section_gid() -> str:
 
 @pytest.fixture
 async def test_task(
-    asana_client: "AsanaClient",
+    asana_client: AsanaClient,
     test_project_gid: str,
-) -> AsyncGenerator["Task", None]:
+) -> AsyncGenerator[Task, None]:
     """Create a temporary task for testing, cleanup after.
 
     Creates a new task in the test project with a unique name.
@@ -139,9 +140,7 @@ async def test_task(
     """
     # Generate unique task name with timestamp and UUID
     unique_id = str(uuid.uuid4())[:8]
-    task_name = (
-        f"[Integration Test] {datetime.now(timezone.utc).isoformat()} - {unique_id}"
-    )
+    task_name = f"[Integration Test] {datetime.now(UTC).isoformat()} - {unique_id}"
 
     # Create the task
     task = await asana_client.tasks.create_async(
@@ -162,9 +161,9 @@ async def test_task(
 
 @pytest.fixture
 async def stale_task(
-    asana_client: "AsanaClient",
+    asana_client: AsanaClient,
     test_project_gid: str,
-) -> AsyncGenerator["Task", None]:
+) -> AsyncGenerator[Task, None]:
     """Create a task that appears stale for trigger testing.
 
     Note: We cannot actually make a task stale without waiting days.
@@ -181,9 +180,7 @@ async def stale_task(
         Task object that can be used for trigger testing.
     """
     unique_id = str(uuid.uuid4())[:8]
-    task_name = (
-        f"[Stale Test Task] {datetime.now(timezone.utc).isoformat()} - {unique_id}"
-    )
+    task_name = f"[Stale Test Task] {datetime.now(UTC).isoformat()} - {unique_id}"
 
     task = await asana_client.tasks.create_async(
         name=task_name,
@@ -201,9 +198,9 @@ async def stale_task(
 
 @pytest.fixture
 async def task_with_due_date(
-    asana_client: "AsanaClient",
+    asana_client: AsanaClient,
     test_project_gid: str,
-) -> AsyncGenerator["Task", None]:
+) -> AsyncGenerator[Task, None]:
     """Create a task with a due date in the near future.
 
     Creates a task due in 3 days, useful for deadline trigger testing.
@@ -213,7 +210,7 @@ async def task_with_due_date(
     """
     unique_id = str(uuid.uuid4())[:8]
     task_name = f"[Due Date Test Task] {unique_id}"
-    due_date = (datetime.now(timezone.utc) + timedelta(days=3)).strftime("%Y-%m-%d")
+    due_date = (datetime.now(UTC) + timedelta(days=3)).strftime("%Y-%m-%d")
 
     task = await asana_client.tasks.create_async(
         name=task_name,
@@ -240,7 +237,7 @@ from tests._shared.mocks import MockTask
 @pytest.fixture
 def now() -> datetime:
     """Current UTC datetime for consistent testing."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @pytest.fixture

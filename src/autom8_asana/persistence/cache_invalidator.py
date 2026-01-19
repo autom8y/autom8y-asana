@@ -7,10 +7,10 @@ Per TDD-WATERMARK-CACHE Phase 3: DataFrame cache invalidation.
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from autom8_asana.persistence.models import SaveResult, ActionResult
+    from autom8_asana.persistence.models import ActionResult, SaveResult
 
 
 class CacheInvalidator:

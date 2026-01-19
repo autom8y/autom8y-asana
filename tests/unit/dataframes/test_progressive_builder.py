@@ -5,7 +5,7 @@ Tests progressive project building with section-level S3 persistence.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -17,8 +17,8 @@ from autom8_asana.dataframes.builders.progressive import (
     build_project_progressive_async,
 )
 from autom8_asana.dataframes.section_persistence import (
-    SectionManifest,
     SectionInfo,
+    SectionManifest,
     SectionPersistence,
     SectionStatus,
 )
@@ -30,7 +30,7 @@ class TestProgressiveBuildResult:
     def test_create_result(self) -> None:
         """Result contains all expected fields."""
         df = pl.DataFrame({"gid": ["1", "2"]})
-        watermark = datetime.now(timezone.utc)
+        watermark = datetime.now(UTC)
 
         result = ProgressiveBuildResult(
             df=df,
@@ -372,7 +372,7 @@ class TestConvenienceFunction:
             mock_builder.build_progressive_async = AsyncMock(
                 return_value=ProgressiveBuildResult(
                     df=pl.DataFrame(),
-                    watermark=datetime.now(timezone.utc),
+                    watermark=datetime.now(UTC),
                     total_rows=0,
                     sections_fetched=0,
                     sections_resumed=0,

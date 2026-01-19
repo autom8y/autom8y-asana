@@ -11,7 +11,7 @@ The SDK mocks its own JWKS client internally for testability.
 
 from __future__ import annotations
 
-from typing import Generator
+from collections.abc import Generator
 
 import pytest
 
@@ -54,8 +54,9 @@ class TestValidateServiceTokenIntegration:
     @pytest.mark.asyncio
     async def test_validate_invalid_token_format(self) -> None:
         """Invalid token format raises error."""
-        from autom8_asana.auth.jwt_validator import validate_service_token
         from autom8y_auth import AuthError
+
+        from autom8_asana.auth.jwt_validator import validate_service_token
 
         # A token with 2 dots but invalid content should fail
         with pytest.raises(AuthError):
@@ -64,8 +65,9 @@ class TestValidateServiceTokenIntegration:
     @pytest.mark.asyncio
     async def test_validate_malformed_jwt(self) -> None:
         """Malformed JWT raises InvalidTokenError."""
-        from autom8_asana.auth.jwt_validator import validate_service_token
         from autom8y_auth import InvalidTokenError
+
+        from autom8_asana.auth.jwt_validator import validate_service_token
 
         # Base64-looking but invalid JWT
         with pytest.raises(InvalidTokenError):

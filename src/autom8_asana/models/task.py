@@ -135,7 +135,7 @@ class Task(AsanaResource):
     _original_custom_fields: list[dict[str, Any]] | None = PrivateAttr(default=None)
 
     @model_validator(mode="after")
-    def _capture_custom_fields_snapshot(self) -> "Task":
+    def _capture_custom_fields_snapshot(self) -> Task:
         """Capture snapshot of custom_fields at initialization.
 
         Per TDD-TRIAGE-FIXES/ADR-0067: Enable detection of direct modifications.

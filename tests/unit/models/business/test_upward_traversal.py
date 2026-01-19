@@ -25,7 +25,6 @@ from autom8_asana.models.business.process import ProcessHolder
 from autom8_asana.models.business.unit import Unit, UnitHolder
 from autom8_asana.models.task import NameGid, Task
 
-
 # =============================================================================
 # Parent Chain Navigation Tests
 # =============================================================================

@@ -13,9 +13,9 @@ Per ADR-0082: Fields class auto-generation from descriptors.
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, cast
 
+from autom8y_log import get_logger
 from pydantic import ConfigDict, PrivateAttr
 
 from autom8_asana.models.business.descriptors import (

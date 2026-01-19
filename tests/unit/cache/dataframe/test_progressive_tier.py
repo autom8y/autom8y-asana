@@ -7,14 +7,14 @@ and statistics tracking.
 
 import io
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import polars as pl
 import pytest
 
-from autom8_asana.cache.dataframe_cache import CacheEntry
 from autom8_asana.cache.dataframe.tiers.progressive import ProgressiveTier
+from autom8_asana.cache.dataframe_cache import CacheEntry
 from autom8_asana.dataframes.async_s3 import S3ReadResult
 
 
@@ -32,8 +32,8 @@ def make_entry(project_gid: str = "proj-1") -> CacheEntry:
         project_gid=project_gid,
         entity_type="unit",
         dataframe=df,
-        watermark=datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc),
-        created_at=datetime(2024, 1, 15, 11, 0, 0, tzinfo=timezone.utc),
+        watermark=datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC),
+        created_at=datetime(2024, 1, 15, 11, 0, 0, tzinfo=UTC),
         schema_version="1.0.0",
     )
 
@@ -530,7 +530,7 @@ class TestProgressiveTierDatetimeParsing:
 
         assert result.tzinfo is not None
         # Should be recent
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         assert abs((now - result).total_seconds()) < 5
 
     def test_parse_datetime_invalid(self) -> None:
@@ -542,5 +542,5 @@ class TestProgressiveTierDatetimeParsing:
 
         assert result.tzinfo is not None
         # Should be recent
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         assert abs((now - result).total_seconds()) < 5

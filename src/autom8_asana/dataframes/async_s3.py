@@ -30,11 +30,12 @@ Example:
 from __future__ import annotations
 
 import asyncio
-from autom8y_log import get_logger
 import time
 from dataclasses import dataclass, field
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
+
+from autom8y_log import get_logger
 
 if TYPE_CHECKING:
     from mypy_boto3_s3 import S3Client
@@ -182,13 +183,13 @@ class AsyncS3Client:
             )
 
         self._config = config
-        self._client: "S3Client | None" = None
+        self._client: S3Client | None = None
         self._degraded = False
         self._last_error_time: float = 0.0
         self._degraded_backoff = 60.0  # seconds before retry in degraded mode
         self._initialized = False
 
-    async def __aenter__(self) -> "AsyncS3Client":
+    async def __aenter__(self) -> AsyncS3Client:
         """Async context manager entry."""
         await self._ensure_initialized()
         return self
@@ -242,7 +243,7 @@ class AsyncS3Client:
             logger.error("Failed to create boto3 S3 client: %s", e)
             self._degraded = True
 
-    def _get_client(self) -> "S3Client":
+    def _get_client(self) -> S3Client:
         """Get the boto3 S3 client.
 
         Returns:

@@ -100,7 +100,7 @@ class TestSaveAsyncWithPartialFailures:
         This test verifies that when SaveSession commit fails,
         save_async() raises SaveSessionError (not just the first error).
         """
-        from autom8_asana.persistence.models import SaveResult, SaveError, OperationType
+        from autom8_asana.persistence.models import OperationType, SaveError, SaveResult
 
         # Create a task with client reference
         task = Task(gid="123", name="Test Task")
@@ -133,7 +133,7 @@ class TestSaveAsyncWithPartialFailures:
         Verifies that SaveSessionError properly stores and provides
         access to the full SaveResult for inspection by callers.
         """
-        from autom8_asana.persistence.models import SaveResult, SaveError, OperationType
+        from autom8_asana.persistence.models import OperationType, SaveError, SaveResult
 
         task = Task(gid="456", name="Another Task")
         task._client = client
@@ -176,7 +176,7 @@ class TestSaveAsyncWithPartialFailures:
         task._client = client
 
         # Create multiple failures to verify count in message
-        from autom8_asana.persistence.models import SaveResult, SaveError, OperationType
+        from autom8_asana.persistence.models import OperationType, SaveError, SaveResult
 
         errors = []
         for i in range(3):
@@ -262,7 +262,7 @@ class TestSaveAsyncWithPartialFailures:
             for failed_op in e.result.failed:
                 print(f"Failed: {failed_op.error}")
         """
-        from autom8_asana.persistence.models import SaveResult, SaveError, OperationType
+        from autom8_asana.persistence.models import OperationType, SaveError, SaveResult
 
         task = Task(gid="222", name="Docstring Example Task")
         task._client = client

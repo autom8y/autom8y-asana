@@ -9,7 +9,6 @@ from __future__ import annotations
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.dataframes.schemas.base import BASE_COLUMNS
 
-
 # AssetEditHolder columns - office_phone cascading from Business
 ASSET_EDIT_HOLDER_COLUMNS: list[ColumnDef] = [
     ColumnDef(

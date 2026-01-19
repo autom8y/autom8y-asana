@@ -9,8 +9,8 @@ Per task-002: Builds on cache population pattern from task-001.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Optional
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import polars as pl
@@ -76,7 +76,7 @@ class GidLookupIndex:
         """
         return pair.canonical_key in self._lookup
 
-    def get_gid(self, pair: PhoneVerticalPair) -> Optional[str]:
+    def get_gid(self, pair: PhoneVerticalPair) -> str | None:
         """Look up GID for a phone/vertical pair.
 
         Performs O(1) dictionary lookup using the pair's canonical_key.
@@ -97,7 +97,7 @@ class GidLookupIndex:
     def get_gids(
         self,
         pairs: list[PhoneVerticalPair],
-    ) -> dict[PhoneVerticalPair, Optional[str]]:
+    ) -> dict[PhoneVerticalPair, str | None]:
         """Look up GIDs for multiple phone/vertical pairs.
 
         Performs batch lookup, preserving input order in the result.
@@ -129,7 +129,7 @@ class GidLookupIndex:
             >>> if index.is_stale(ttl_seconds=3600):  # 1 hour
             ...     index = GidLookupIndex.from_dataframe(fresh_df)
         """
-        age = datetime.now(timezone.utc) - self._created_at
+        age = datetime.now(UTC) - self._created_at
         return age.total_seconds() > ttl_seconds
 
     def __eq__(self, other: object) -> bool:
@@ -294,5 +294,5 @@ class GidLookupIndex:
 
         return cls(
             lookup_dict=lookup_dict,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )

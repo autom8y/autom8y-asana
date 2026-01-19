@@ -17,7 +17,6 @@ from autom8_asana.cache.entry import EntryType
 from autom8_asana.models import Task
 from autom8_asana.persistence.session import SaveSession
 
-
 # ---------------------------------------------------------------------------
 # Mock Cache Provider
 # ---------------------------------------------------------------------------

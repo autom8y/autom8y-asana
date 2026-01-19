@@ -13,10 +13,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from autom8_asana.automation.seeding import FieldSeeder, WriteResult
-
 # Import the accessor module for patching
 import autom8_asana.models.custom_field_accessor as custom_field_accessor_module
+from autom8_asana.automation.seeding import FieldSeeder, WriteResult
 
 
 def create_mock_client() -> MagicMock:

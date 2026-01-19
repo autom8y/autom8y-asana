@@ -7,7 +7,7 @@ Provides polymorphic name/GID resolution with per-session caching.
 from __future__ import annotations
 
 from difflib import get_close_matches
-from typing import TYPE_CHECKING, cast, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from autom8_asana.exceptions import NameNotFoundError
 from autom8_asana.transport.sync import sync_wrapper

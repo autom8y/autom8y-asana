@@ -46,7 +46,7 @@ class TestAsanaHttpClientInit:
 
     def test_uses_provided_rate_limiter(self):
         """Uses injected rate limiter."""
-        from autom8y_http import TokenBucketRateLimiter, RateLimiterConfig
+        from autom8y_http import RateLimiterConfig, TokenBucketRateLimiter
 
         config = AsanaConfig()
         auth = MockAuthProvider()

@@ -6,13 +6,13 @@ cannot be batched and require individual API calls executed sequentially.
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from autom8_asana.models.common import NameGid
 from autom8_asana.persistence.models import (
     ActionOperation,
     ActionResult,
 )
-from autom8_asana.models.common import NameGid
 
 if TYPE_CHECKING:
     from autom8_asana.transport.asana_http import AsanaHttpClient

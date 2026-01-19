@@ -60,7 +60,7 @@ class TaskParentFetcher:
         ... )
     """
 
-    def __init__(self, client: "AsanaClient") -> None:
+    def __init__(self, client: AsanaClient) -> None:
         """Initialize fetcher with Asana client.
 
         Args:
@@ -68,7 +68,7 @@ class TaskParentFetcher:
         """
         self._client = client
 
-    async def fetch_batch(self, keys: set[str]) -> dict[str, "Task"]:
+    async def fetch_batch(self, keys: set[str]) -> dict[str, Task]:
         """Fetch multiple tasks by GID.
 
         Per TDD-GID-RESOLUTION-SERVICE: Fetches tasks in batch using
@@ -83,9 +83,9 @@ class TaskParentFetcher:
         """
         import asyncio
 
-        results: dict[str, "Task"] = {}
+        results: dict[str, Task] = {}
 
-        async def fetch_one(gid: str) -> tuple[str, "Task | None"]:
+        async def fetch_one(gid: str) -> tuple[str, Task | None]:
             try:
                 task = await self._client.tasks.get_async(
                     gid,
@@ -108,7 +108,7 @@ class TaskParentFetcher:
 
         return results
 
-    def get_parent_key(self, item: "Task") -> str | None:
+    def get_parent_key(self, item: Task) -> str | None:
         """Extract parent GID from task.
 
         Args:
@@ -168,8 +168,8 @@ class CascadingFieldResolver:
 
     def __init__(
         self,
-        client: "AsanaClient",
-        cascade_plugin: "CascadeViewPlugin | None" = None,
+        client: AsanaClient,
+        cascade_plugin: CascadeViewPlugin | None = None,
         hierarchy_resolver: Any | None = None,
     ) -> None:
         """Initialize resolver with Asana client.
@@ -187,7 +187,7 @@ class CascadingFieldResolver:
         self._cascade_plugin = cascade_plugin
         self._hierarchy_resolver = hierarchy_resolver
         # Local cache of pre-fetched parents (populated by warm_parents or on-demand)
-        self._parent_cache: dict[str, "Task"] = {}
+        self._parent_cache: dict[str, Task] = {}
 
     async def resolve_async(
         self,
@@ -397,7 +397,7 @@ class CascadingFieldResolver:
 
     async def warm_parents(
         self,
-        tasks: list["Task"],
+        tasks: list[Task],
         max_depth: int = 5,
     ) -> None:
         """Pre-fetch all parent chains for a batch of tasks.
@@ -474,7 +474,7 @@ class CascadingFieldResolver:
             self._hierarchy_resolver = HierarchyAwareResolver(fetcher=fetcher)
         return self._hierarchy_resolver
 
-    async def _fetch_parent_async(self, parent_gid: str) -> "Task | None":
+    async def _fetch_parent_async(self, parent_gid: str) -> Task | None:
         """Fetch parent task from cache, cascade plugin, or API.
 
         Per TDD-GID-RESOLUTION-SERVICE: First checks local parent cache
@@ -526,7 +526,7 @@ class CascadingFieldResolver:
                 extra={"parent_gid": parent_gid},
             )
             resolved = await hierarchy_resolver.resolve_batch(keys={parent_gid})
-            fetched_parent: "Task | None" = resolved.get(parent_gid)
+            fetched_parent: Task | None = resolved.get(parent_gid)
             if fetched_parent is not None:
                 self._parent_cache[parent_gid] = fetched_parent
             return fetched_parent

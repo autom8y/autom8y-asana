@@ -6,9 +6,8 @@ Covers get/set/invalidate operations, graceful degradation, and error handling.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
-
 
 from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvider
 from autom8_asana.cache.entry import CacheEntry, EntryType
@@ -52,7 +51,7 @@ class TestBaseClientCacheGet:
             key="123",
             data={"gid": "123", "name": "Test Task"},
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
             ttl=300,
         )
         self.cache_provider.set_versioned("123", entry)
@@ -76,9 +75,9 @@ class TestBaseClientCacheGet:
             key="123",
             data={"gid": "123", "name": "Test Task"},
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
             ttl=0,  # Already expired
-            cached_at=datetime(2020, 1, 1, tzinfo=timezone.utc),  # In the past
+            cached_at=datetime(2020, 1, 1, tzinfo=UTC),  # In the past
         )
         self.cache_provider.set_versioned("123", entry)
 
@@ -195,11 +194,11 @@ class TestBaseClientCacheSet:
     def test_uses_current_time_when_no_modified_at(self) -> None:
         """Uses current time as version when modified_at not present."""
         data = {"gid": "123", "name": "Test Task"}
-        before = datetime.now(timezone.utc)
+        before = datetime.now(UTC)
 
         self.client._cache_set("123", data, EntryType.TASK)
 
-        after = datetime.now(timezone.utc)
+        after = datetime.now(UTC)
         entry = self.cache_provider.get_versioned("123", EntryType.TASK)
         assert entry is not None
         assert before <= entry.version <= after
@@ -259,7 +258,7 @@ class TestBaseClientCacheInvalidate:
             key="123",
             data={"gid": "123"},
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
         )
         self.cache_provider.set_versioned("123", entry)
 
@@ -279,13 +278,13 @@ class TestBaseClientCacheInvalidate:
             key="123",
             data={"gid": "123", "type": "task"},
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
         )
         subtasks_entry = CacheEntry(
             key="123",
             data={"gid": "123", "type": "subtasks"},
             entry_type=EntryType.SUBTASKS,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
         )
         self.cache_provider.set_versioned("123", task_entry)
         self.cache_provider.set_versioned("123", subtasks_entry)
@@ -329,7 +328,7 @@ class TestBaseClientParseModifiedAt:
         assert result.day == 15
         assert result.hour == 10
         assert result.minute == 30
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
 
     def test_parses_iso_string_with_offset(self) -> None:
         """Parses ISO string with explicit timezone offset."""
@@ -343,11 +342,11 @@ class TestBaseClientParseModifiedAt:
         result = BaseClient._parse_modified_at("2025-06-15T10:30:00")
 
         assert result.year == 2025
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
 
     def test_passes_through_datetime_with_timezone(self) -> None:
         """Passes through datetime that already has timezone."""
-        dt = datetime(2025, 6, 15, 10, 30, tzinfo=timezone.utc)
+        dt = datetime(2025, 6, 15, 10, 30, tzinfo=UTC)
 
         result = BaseClient._parse_modified_at(dt)
 
@@ -359,7 +358,7 @@ class TestBaseClientParseModifiedAt:
 
         result = BaseClient._parse_modified_at(dt)
 
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
         assert result.year == 2025
 
     def test_parses_iso_string_with_microseconds(self) -> None:

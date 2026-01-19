@@ -16,30 +16,30 @@ Per TDD-0011: Extended five-phase execution with actions:
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from autom8_asana.persistence.models import (
-    EntityState,
-    OperationType,
-    PlannedOperation,
-    SaveResult,
-    SaveError,
-    ActionOperation,
-    ActionResult,
-)
 from autom8_asana.persistence.exceptions import (
     DependencyResolutionError,
     UnsupportedOperationError,
 )
 from autom8_asana.persistence.executor import BatchExecutor
+from autom8_asana.persistence.models import (
+    ActionOperation,
+    ActionResult,
+    EntityState,
+    OperationType,
+    PlannedOperation,
+    SaveError,
+    SaveResult,
+)
 
 if TYPE_CHECKING:
     from autom8_asana.batch.client import BatchClient
     from autom8_asana.models.base import AsanaResource
-    from autom8_asana.persistence.tracker import ChangeTracker
-    from autom8_asana.persistence.graph import DependencyGraph
-    from autom8_asana.persistence.events import EventSystem
     from autom8_asana.persistence.action_executor import ActionExecutor
+    from autom8_asana.persistence.events import EventSystem
+    from autom8_asana.persistence.graph import DependencyGraph
+    from autom8_asana.persistence.tracker import ChangeTracker
 
 
 # Fields that cannot be directly modified via PUT/PATCH

@@ -27,7 +27,6 @@ from autom8_asana.models.business.detection import EntityType
 from autom8_asana.models.business.fields import get_cascading_field
 from autom8_asana.services.gid_lookup import GidLookupIndex
 
-
 # =============================================================================
 # Test Fixtures
 # =============================================================================

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from threading import Lock, local
-from typing import Any, Callable
+from typing import Any
 
 
 @dataclass
@@ -29,7 +30,7 @@ class CacheEvent:
     key: str
     entry_type: str | None
     latency_ms: float
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     correlation_id: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 

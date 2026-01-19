@@ -36,17 +36,15 @@ Design Principles:
 import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from autom8y_log import get_logger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-
-from autom8y_log import get_logger
 
 # CRITICAL: Import from models.business at module level to ensure bootstrap runs
 # on every app startup BEFORE any detection can occur. The bootstrap in
@@ -984,7 +982,7 @@ async def _do_incremental_catchup(
                 incremental=True,
             )
 
-            new_watermark = datetime.now(timezone.utc)
+            new_watermark = datetime.now(UTC)
 
             # Check if DataFrame actually changed
             was_incremental = True
@@ -1039,7 +1037,7 @@ async def _do_full_rebuild(
     from autom8_asana.dataframes.section_persistence import SectionPersistence
     from autom8_asana.services.resolver import to_pascal_case
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Get bot PAT for API access
     try:
@@ -1088,7 +1086,7 @@ async def _do_full_rebuild(
                 incremental=False,
             )
 
-            return df, datetime.now(timezone.utc)
+            return df, datetime.now(UTC)
 
     except Exception as e:
         logger.warning(

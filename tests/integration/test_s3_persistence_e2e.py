@@ -18,7 +18,7 @@ Running Locally:
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import polars as pl
@@ -84,9 +84,9 @@ def sample_dataframe() -> pl.DataFrame:
             "completed": [True, False, True],
             "priority": [1, 2, 3],
             "created_at": [
-                datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc),
-                datetime(2025, 1, 2, 12, 0, tzinfo=timezone.utc),
-                datetime(2025, 1, 3, 12, 0, tzinfo=timezone.utc),
+                datetime(2025, 1, 1, 12, 0, tzinfo=UTC),
+                datetime(2025, 1, 2, 12, 0, tzinfo=UTC),
+                datetime(2025, 1, 3, 12, 0, tzinfo=UTC),
             ],
             "notes": ["Note 1", None, "Note 3"],
         }
@@ -113,7 +113,7 @@ class TestS3PersistenceE2E:
         - Column order and structure are maintained
         """
         # Arrange
-        watermark = datetime(2025, 1, 5, 12, 0, 0, tzinfo=timezone.utc)
+        watermark = datetime(2025, 1, 5, 12, 0, 0, tzinfo=UTC)
 
         try:
             # Act: Save DataFrame to S3
@@ -181,7 +181,7 @@ class TestS3PersistenceE2E:
         - Watermark contains microsecond precision
         """
         # Arrange: Use a watermark with microseconds to test precision
-        watermark = datetime(2025, 6, 15, 10, 30, 45, 123456, tzinfo=timezone.utc)
+        watermark = datetime(2025, 6, 15, 10, 30, 45, 123456, tzinfo=UTC)
 
         try:
             # Act: Save DataFrame with watermark
@@ -242,7 +242,7 @@ class TestS3PersistenceE2E:
         )
 
         df = pl.DataFrame({"gid": ["123"], "name": ["Test"]})
-        watermark = datetime.now(timezone.utc)
+        watermark = datetime.now(UTC)
 
         # Act & Assert: save_dataframe should fail gracefully (return False, no exception)
         save_result = await invalid_persistence.save_dataframe(
@@ -288,7 +288,7 @@ class TestS3PersistenceE2E:
         # Arrange: Create multiple unique test project GIDs
         test_projects = [f"e2e_list_test_{uuid.uuid4().hex[:8]}" for _ in range(3)]
         df = pl.DataFrame({"gid": ["123"], "name": ["Test"]})
-        watermark = datetime.now(timezone.utc)
+        watermark = datetime.now(UTC)
 
         try:
             # Act: Persist DataFrames for each project
@@ -329,7 +329,7 @@ class TestS3PersistenceE2E:
         - Subsequent load returns (None, None)
         - Delete is idempotent (succeeds even if already deleted)
         """
-        watermark = datetime.now(timezone.utc)
+        watermark = datetime.now(UTC)
 
         # Act: Save then delete
         await persistence.save_dataframe(
@@ -366,12 +366,12 @@ class TestS3PersistenceE2E:
         """
         # Arrange: Create two different DataFrames
         df_v1 = pl.DataFrame({"gid": ["v1_001"], "name": ["Version 1"]})
-        wm_v1 = datetime(2025, 1, 1, tzinfo=timezone.utc)
+        wm_v1 = datetime(2025, 1, 1, tzinfo=UTC)
 
         df_v2 = pl.DataFrame(
             {"gid": ["v2_001", "v2_002"], "name": ["Version 2A", "Version 2B"]}
         )
-        wm_v2 = datetime(2025, 6, 1, tzinfo=timezone.utc)
+        wm_v2 = datetime(2025, 6, 1, tzinfo=UTC)
 
         try:
             # Act: Save v1, then overwrite with v2
@@ -411,7 +411,7 @@ class TestS3PersistenceE2E:
                 "priority": [i % 5 for i in range(num_rows)],
             }
         )
-        watermark = datetime.now(timezone.utc)
+        watermark = datetime.now(UTC)
 
         try:
             # Act: Save and load
@@ -466,7 +466,7 @@ class TestS3PersistenceE2E:
                 ],
             }
         )
-        watermark = datetime.now(timezone.utc)
+        watermark = datetime.now(UTC)
 
         try:
             await persistence.save_dataframe(test_project_gid, df, watermark)

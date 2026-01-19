@@ -109,7 +109,7 @@ class MatchingConfig(BaseSettings):
     )
 
     @classmethod
-    def from_env(cls) -> "MatchingConfig":
+    def from_env(cls) -> MatchingConfig:
         """Create from environment variables.
 
         Convenience factory method that creates configuration from

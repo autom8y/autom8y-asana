@@ -6,16 +6,16 @@ Detects execution context via AWS_LAMBDA_RUNTIME_API environment variable:
 - Present: Lambda mode - invokes handler via awslambdaric
 """
 
+import json
 import os
 import sys
-import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def log(level: str, message: str) -> None:
     """Emit structured JSON log line."""
     entry = {
-        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "level": level,
         "component": "entrypoint",
         "message": message,

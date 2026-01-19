@@ -14,13 +14,13 @@ This builder enables:
 from __future__ import annotations
 
 import asyncio
-from autom8y_log import get_logger
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
+from autom8y_log import get_logger
 
 from autom8_asana.dataframes.builders.base import gather_with_limit
 from autom8_asana.dataframes.builders.delta_merger import DeltaMerger
@@ -37,7 +37,7 @@ from autom8_asana.dataframes.section_persistence import (
 )
 
 if TYPE_CHECKING:
-    from typing import Callable
+    from collections.abc import Callable
 
     from autom8_asana.client import AsanaClient
     from autom8_asana.dataframes.models.schema import DataFrameSchema
@@ -119,14 +119,14 @@ class ProgressiveProjectBuilder:
 
     def __init__(
         self,
-        client: "AsanaClient",
+        client: AsanaClient,
         project_gid: str,
         entity_type: str,
-        schema: "DataFrameSchema",
+        schema: DataFrameSchema,
         persistence: SectionPersistence,
         *,
-        resolver: "CustomFieldResolver | None" = None,
-        store: "Any | None" = None,
+        resolver: CustomFieldResolver | None = None,
+        store: Any | None = None,
         max_concurrent_sections: int = 8,
     ) -> None:
         """Initialize progressive builder.
@@ -149,7 +149,7 @@ class ProgressiveProjectBuilder:
         self._resolver = resolver
         self._store = store
         self._max_concurrent = max_concurrent_sections
-        self._dataframe_view: "DataFrameViewPlugin | None" = None
+        self._dataframe_view: DataFrameViewPlugin | None = None
 
     async def build_progressive_async(
         self,
@@ -182,7 +182,7 @@ class ProgressiveProjectBuilder:
             )
             return ProgressiveBuildResult(
                 df=pl.DataFrame(schema=self._schema.to_polars_schema()),
-                watermark=datetime.now(timezone.utc),
+                watermark=datetime.now(UTC),
                 total_rows=0,
                 sections_fetched=0,
                 sections_resumed=0,
@@ -278,7 +278,7 @@ class ProgressiveProjectBuilder:
             merged_df = pl.DataFrame(schema=self._schema.to_polars_schema())
 
         total_rows = len(merged_df)
-        watermark = datetime.now(timezone.utc)
+        watermark = datetime.now(UTC)
 
         # Step 6: Write final artifacts
         if total_rows > 0:
@@ -330,9 +330,9 @@ class ProgressiveProjectBuilder:
             resolver=self._resolver,
         )
 
-    async def _list_sections(self) -> list["Section"]:
+    async def _list_sections(self) -> list[Section]:
         """List sections for the project."""
-        sections: list["Section"] = await self._client.sections.list_for_project_async(
+        sections: list[Section] = await self._client.sections.list_for_project_async(
             self._project_gid
         ).collect()
         return sections
@@ -340,7 +340,7 @@ class ProgressiveProjectBuilder:
     async def _fetch_and_persist_section(
         self,
         section_gid: str,
-        section: "Section | None",
+        section: Section | None,
         section_index: int,
         total_sections: int,
     ) -> bool:
@@ -366,7 +366,7 @@ class ProgressiveProjectBuilder:
             )
 
             # Fetch tasks for section
-            tasks: list["Task"] = await self._client.tasks.list_async(
+            tasks: list[Task] = await self._client.tasks.list_async(
                 section=section_gid,
                 opt_fields=BASE_OPT_FIELDS,
             ).collect()
@@ -442,7 +442,7 @@ class ProgressiveProjectBuilder:
 
             return False
 
-    def _task_to_dict(self, task: "Task") -> dict[str, Any]:
+    def _task_to_dict(self, task: Task) -> dict[str, Any]:
         """Convert Task model to dict for DataFrameView extraction."""
         # Use task's model_dump if available, otherwise manual conversion
         if hasattr(task, "model_dump"):
@@ -487,7 +487,7 @@ class ProgressiveProjectBuilder:
         )
         return rows
 
-    async def _populate_store_with_tasks(self, tasks: list["Task"]) -> None:
+    async def _populate_store_with_tasks(self, tasks: list[Task]) -> None:
         """Populate UnifiedStore with fetched tasks for cascade resolution.
 
         Per ADR-cascade-field-resolution: Uses put_batch_async with warm_hierarchy=True
@@ -561,12 +561,12 @@ class ProgressiveProjectBuilder:
     async def build_with_parallel_fetch_async(
         self,
         project_gid: str,
-        schema: "DataFrameSchema",
+        schema: DataFrameSchema,
         *,
         resume: bool = True,
         incremental: bool = True,
         max_concurrent_sections: int = 5,
-        on_progress: "Callable[[BuildProgress], None] | None" = None,
+        on_progress: Callable[[BuildProgress], None] | None = None,
     ) -> pl.DataFrame:
         """Build DataFrame with parallel section fetch and incremental filtering.
 
@@ -672,12 +672,12 @@ class ProgressiveProjectBuilder:
         sections_complete = 0
 
         async def process_section(
-            section: "Section",
+            section: Section,
         ) -> tuple[list[dict[str, Any]], list[str], set[str]]:
             """Process a single section: fetch, filter, extract."""
             async with semaphore:
                 # Fetch tasks for section
-                tasks: list["Task"] = await self._client.tasks.list_async(
+                tasks: list[Task] = await self._client.tasks.list_async(
                     section=section.gid,
                     opt_fields=BASE_OPT_FIELDS,
                 ).collect()
@@ -807,7 +807,7 @@ class ProgressiveProjectBuilder:
 
         # Step 7: Persist merged DataFrame to S3
         if len(merged_df) > 0:
-            watermark = datetime.now(timezone.utc)
+            watermark = datetime.now(UTC)
             index_data = self._build_index_data(merged_df)
             await self._persistence.write_final_artifacts_async(
                 project_gid=project_gid,
@@ -875,7 +875,7 @@ class ProgressiveProjectBuilder:
             )
             return None
 
-    def _build_empty_dataframe(self, schema: "DataFrameSchema") -> pl.DataFrame:
+    def _build_empty_dataframe(self, schema: DataFrameSchema) -> pl.DataFrame:
         """Build empty DataFrame with schema columns.
 
         Args:
@@ -900,7 +900,7 @@ class ProgressiveProjectBuilder:
 
         if isinstance(value, datetime):
             if value.tzinfo is None:
-                return value.replace(tzinfo=timezone.utc)
+                return value.replace(tzinfo=UTC)
             return value
 
         if not isinstance(value, str):
@@ -913,21 +913,21 @@ class ProgressiveProjectBuilder:
         try:
             dt = datetime.fromisoformat(value)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=UTC)
             return dt
         except ValueError:
             return None
 
 
 async def build_project_progressive_async(
-    client: "AsanaClient",
+    client: AsanaClient,
     project_gid: str,
     entity_type: str,
-    schema: "DataFrameSchema",
+    schema: DataFrameSchema,
     persistence: SectionPersistence,
     *,
-    resolver: "CustomFieldResolver | None" = None,
-    store: "Any | None" = None,
+    resolver: CustomFieldResolver | None = None,
+    store: Any | None = None,
     resume: bool = True,
 ) -> ProgressiveBuildResult:
     """Convenience function for progressive project build.

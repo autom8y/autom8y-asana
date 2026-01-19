@@ -6,7 +6,7 @@ DataFrame conversion, and staleness fields.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 import polars as pl
@@ -19,7 +19,6 @@ from autom8_asana.clients.data.models import (
     InsightsRequest,
     InsightsResponse,
 )
-
 
 # -----------------------------------------------------------------------------
 # InsightsRequest Tests
@@ -252,7 +251,7 @@ class TestInsightsMetadata:
 
     def test_full_metadata(self) -> None:
         """Create metadata with all fields."""
-        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         metadata = InsightsMetadata(
             factory="account",
             frame_type="AccountInsights",
@@ -305,7 +304,7 @@ class TestInsightsMetadataStaleness:
 
     def test_stale_response_indicators(self) -> None:
         """Stale response has is_stale=True and cached_at set."""
-        cached_at = datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+        cached_at = datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC)
         metadata = InsightsMetadata(
             factory="account",
             row_count=5,
@@ -630,9 +629,7 @@ class TestInsightsResponseParsing:
         response = InsightsResponse(**api_response)
 
         assert response.metadata.is_stale is True
-        assert response.metadata.cached_at == datetime(
-            2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc
-        )
+        assert response.metadata.cached_at == datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
 
 
 # -----------------------------------------------------------------------------

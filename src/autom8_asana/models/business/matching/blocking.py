@@ -20,7 +20,7 @@ class BlockingRule(Protocol):
     reducing comparison space from O(n^2) to O(n).
     """
 
-    def matches(self, query: "BusinessData", candidate: "Candidate") -> bool:
+    def matches(self, query: BusinessData, candidate: Candidate) -> bool:
         """Check if candidate passes blocking filter.
 
         Args:
@@ -47,7 +47,7 @@ class DomainBlockingRule:
         True
     """
 
-    def matches(self, query: "BusinessData", candidate: "Candidate") -> bool:
+    def matches(self, query: BusinessData, candidate: Candidate) -> bool:
         """Check if domains match.
 
         Args:
@@ -85,7 +85,7 @@ class PhonePrefixBlockingRule:
 
     PREFIX_LENGTH = 6
 
-    def matches(self, query: "BusinessData", candidate: "Candidate") -> bool:
+    def matches(self, query: BusinessData, candidate: Candidate) -> bool:
         """Check if phone prefixes match.
 
         Args:
@@ -170,7 +170,7 @@ class NameTokenBlockingRule:
     # Minimum token length to consider
     MIN_TOKEN_LENGTH = 3
 
-    def matches(self, query: "BusinessData", candidate: "Candidate") -> bool:
+    def matches(self, query: BusinessData, candidate: Candidate) -> bool:
         """Check if names share significant tokens.
 
         Args:
@@ -253,7 +253,7 @@ class CompositeBlockingRule:
             ]
         self._rules = rules
 
-    def matches(self, query: "BusinessData", candidate: "Candidate") -> bool:
+    def matches(self, query: BusinessData, candidate: Candidate) -> bool:
         """Check if any blocking rule matches.
 
         Args:
@@ -279,9 +279,9 @@ class CompositeBlockingRule:
 
     def filter_candidates(
         self,
-        query: "BusinessData",
-        candidates: list["Candidate"],
-    ) -> list["Candidate"]:
+        query: BusinessData,
+        candidates: list[Candidate],
+    ) -> list[Candidate]:
         """Filter candidates using blocking rules.
 
         Args:

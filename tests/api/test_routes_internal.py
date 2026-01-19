@@ -89,7 +89,9 @@ class TestDeprecatedImportsRemoved:
     def test_phone_vertical_input_not_importable(self) -> None:
         """PhoneVerticalInput model has been removed."""
         with pytest.raises(ImportError):
-            from autom8_asana.api.routes.internal import PhoneVerticalInput  # noqa: F401
+            from autom8_asana.api.routes.internal import (
+                PhoneVerticalInput,  # noqa: F401
+            )
 
     def test_resolve_gids_not_importable(self) -> None:
         """resolve_gids function has been removed."""

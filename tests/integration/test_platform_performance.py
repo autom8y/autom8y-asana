@@ -19,16 +19,14 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-
-from autom8y_http import ConcurrencyConfig, ConcurrencyController
 from autom8y_cache import HierarchyAwareResolver
+from autom8y_http import ConcurrencyConfig, ConcurrencyController
 
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.dataframes.resolver.cascading import (
     CascadingFieldResolver,
     TaskParentFetcher,
 )
-
 
 # =============================================================================
 # Test Fixtures

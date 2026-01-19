@@ -10,9 +10,8 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Dict
 
 from autom8y_log import get_logger
 
@@ -78,7 +77,7 @@ class DataFrameCacheCoalescer:
     max_wait_seconds: float = 60.0
 
     # Internal state
-    _builds: Dict[str, BuildState] = field(default_factory=dict, init=False)
+    _builds: dict[str, BuildState] = field(default_factory=dict, init=False)
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
 
     # Statistics
@@ -119,7 +118,7 @@ class DataFrameCacheCoalescer:
             # Acquire lock
             self._builds[key] = BuildState(
                 status=BuildStatus.BUILDING,
-                started_at=datetime.now(timezone.utc),
+                started_at=datetime.now(UTC),
                 event=asyncio.Event(),
             )
             self._stats["acquires"] += 1
@@ -166,7 +165,7 @@ class DataFrameCacheCoalescer:
 
             return state.status == BuildStatus.SUCCESS
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._stats["wait_timeouts"] += 1
             logger.warning(
                 "dataframe_coalescer_wait_timeout",

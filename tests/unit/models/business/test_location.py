@@ -6,9 +6,8 @@ Per PRD-0024: Updated field schema to match Asana reality.
 
 from __future__ import annotations
 
-
-from autom8_asana.models.business.location import Location, LocationHolder
 from autom8_asana.models.business.hours import Hours
+from autom8_asana.models.business.location import Location, LocationHolder
 from autom8_asana.models.task import Task
 
 

@@ -20,7 +20,7 @@ Test Matrix (per TDD Appendix B):
 
 from __future__ import annotations
 
-from typing import Generator
+from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -34,6 +34,8 @@ from autom8_asana.services.dynamic_index import DynamicIndex
 from autom8_asana.services.resolution_result import ResolutionResult
 from autom8_asana.services.resolver import (
     EntityProjectRegistry,
+)
+from autom8_asana.services.resolver import (
     _apply_legacy_mapping as resolver_apply_legacy_mapping,
 )
 
@@ -572,16 +574,18 @@ class TestResolutionCriterionModel:
 
     def test_invalid_phone_format(self) -> None:
         """ResolutionCriterion rejects invalid phone format."""
-        from autom8_asana.api.routes.resolver import ResolutionCriterion
         import pydantic
+
+        from autom8_asana.api.routes.resolver import ResolutionCriterion
 
         with pytest.raises(pydantic.ValidationError):
             ResolutionCriterion(phone="5551234567", vertical="dental")
 
     def test_phone_starting_with_zero_rejected(self) -> None:
         """Phone starting with zero after + is rejected."""
-        from autom8_asana.api.routes.resolver import ResolutionCriterion
         import pydantic
+
+        from autom8_asana.api.routes.resolver import ResolutionCriterion
 
         with pytest.raises(pydantic.ValidationError):
             ResolutionCriterion(phone="+05551234567", vertical="dental")

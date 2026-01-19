@@ -59,9 +59,9 @@ class CascadeViewPlugin:
 
     def __init__(
         self,
-        store: "UnifiedTaskStore",
+        store: UnifiedTaskStore,
         registry: dict[str, CascadingFieldEntry] | None = None,
-        tasks_client: "TasksClient | None" = None,
+        tasks_client: TasksClient | None = None,
     ) -> None:
         """Initialize cascade plugin.
 
@@ -90,7 +90,7 @@ class CascadeViewPlugin:
         }
 
     @property
-    def store(self) -> "UnifiedTaskStore":
+    def store(self) -> UnifiedTaskStore:
         """Get the unified task store."""
         return self._store
 
@@ -101,7 +101,7 @@ class CascadeViewPlugin:
 
     async def resolve_async(
         self,
-        task: "Task",
+        task: Task,
         field_name: str,
         max_depth: int = 5,
     ) -> Any:
@@ -180,7 +180,7 @@ class CascadeViewPlugin:
 
     async def _traverse_parent_chain(
         self,
-        task: "Task",
+        task: Task,
         field_def: CascadingFieldDef,
         owner_class: type,
         max_depth: int,
@@ -362,7 +362,7 @@ class CascadeViewPlugin:
 
     async def prefetch_parents_async(
         self,
-        tasks: list["Task"],
+        tasks: list[Task],
     ) -> None:
         """Prefetch parent chains for batch efficiency.
 
@@ -413,7 +413,7 @@ class CascadeViewPlugin:
             },
         )
 
-    def _get_custom_field_value(self, task: "Task", field_name: str) -> Any:
+    def _get_custom_field_value(self, task: Task, field_name: str) -> Any:
         """Extract custom field value from task by name.
 
         Args:

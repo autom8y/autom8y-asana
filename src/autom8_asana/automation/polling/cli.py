@@ -26,7 +26,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from autom8y_log import get_logger
@@ -193,7 +193,7 @@ def evaluate_command(config_path: str, dry_run: bool = False) -> int:
         scheduler = PollingScheduler(config)
 
         # Log evaluation start
-        utc_now = datetime.now(timezone.utc)
+        utc_now = datetime.now(UTC)
         print(f"Starting evaluation cycle at {utc_now.isoformat()}")
         print(f"Evaluating {enabled_count} enabled rules...")
         print()
@@ -203,7 +203,7 @@ def evaluate_command(config_path: str, dry_run: bool = False) -> int:
         scheduler._evaluate_rules()
 
         # Log completion
-        utc_end = datetime.now(timezone.utc)
+        utc_end = datetime.now(UTC)
         duration = (utc_end - utc_now).total_seconds()
         print()
         print(f"Evaluation completed in {duration:.2f} seconds")

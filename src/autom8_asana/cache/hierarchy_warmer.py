@@ -75,7 +75,7 @@ async def _gather_with_limit(
 
 async def _fetch_parent(
     gid: str,
-    tasks_client: "TasksClient",
+    tasks_client: TasksClient,
 ) -> dict[str, Any] | None:
     """Fetch a single task with fields needed for cascade resolution.
 
@@ -100,11 +100,11 @@ async def _fetch_parent(
 
 async def warm_ancestors_async(
     gids: list[str],
-    hierarchy_index: "HierarchyIndex",
-    tasks_client: "TasksClient",
+    hierarchy_index: HierarchyIndex,
+    tasks_client: TasksClient,
     max_depth: int = 5,
     max_concurrent: int = _DEFAULT_MAX_CONCURRENT,
-    unified_store: "UnifiedTaskStore | None" = None,
+    unified_store: UnifiedTaskStore | None = None,
 ) -> int:
     """Recursively fetch, cache, and register parent chains.
 

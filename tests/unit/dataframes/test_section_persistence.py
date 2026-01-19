@@ -6,7 +6,7 @@ Tests section-level S3 persistence for progressive cache warming.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import polars as pl
@@ -47,7 +47,7 @@ class TestSectionInfo:
 
     def test_complete_info(self) -> None:
         """Complete section has written_at and rows."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         info = SectionInfo(
             status=SectionStatus.COMPLETE,
             rows=450,

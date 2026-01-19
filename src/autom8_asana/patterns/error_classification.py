@@ -180,7 +180,7 @@ class RetryableErrorMixin:
 
         # Check for status_code attribute on generic exceptions
         if hasattr(error, "status_code"):
-            status = getattr(error, "status_code")
+            status = error.status_code
             if isinstance(status, int):
                 return status
 

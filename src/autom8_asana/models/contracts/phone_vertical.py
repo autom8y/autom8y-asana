@@ -7,7 +7,8 @@ Per parent spike: Version-prefixed canonical_key (pv1:) for future migration.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Iterator
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -124,7 +125,7 @@ class PhoneVerticalPair(BaseModel):
         return hash((self.office_phone, self.vertical))
 
     @classmethod
-    def from_business(cls, business: "Business") -> "PhoneVerticalPair":
+    def from_business(cls, business: Business) -> PhoneVerticalPair:
         """Create PhoneVerticalPair from Business entity.
 
         This factory method extracts office_phone and vertical from a

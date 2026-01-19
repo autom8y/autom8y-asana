@@ -6,8 +6,9 @@ to fetch only new stories since last fetch, reducing API calls and response size
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from autom8_asana.cache.entry import CacheEntry, EntryType
 from autom8_asana.cache.versioning import format_version, parse_version
@@ -107,7 +108,7 @@ def _create_stories_entry(
     Returns:
         CacheEntry containing the stories data.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     version_dt = parse_version(version) if version else now
 
     return CacheEntry(

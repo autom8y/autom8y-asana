@@ -6,7 +6,7 @@ with mocked UnifiedTaskStore and schema.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -683,7 +683,7 @@ class TestDataFrameViewPluginIncremental:
 
         plugin = DataFrameViewPlugin(store=mock_store, schema=simple_schema)
 
-        watermark = datetime(2025, 1, 1, tzinfo=timezone.utc)
+        watermark = datetime(2025, 1, 1, tzinfo=UTC)
         result_df, new_watermark = await plugin.materialize_incremental_async(
             existing_df, watermark, "proj-1"
         )

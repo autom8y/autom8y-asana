@@ -164,6 +164,7 @@ class AsanaClient:
             ExponentialBackoffRetry,
             TokenBucketRateLimiter,
         )
+
         from autom8_asana.transport.config_translator import ConfigTranslator
 
         # Create shared rate limiter (per ADR-0062)
@@ -264,7 +265,7 @@ class AsanaClient:
             self._automation = AutomationEngine(self._config.automation)
 
     @property
-    def automation(self) -> "AutomationEngine | None":
+    def automation(self) -> AutomationEngine | None:
         """Access automation engine for rule registration.
 
         Per TDD-AUTOMATION-LAYER: Provides access to AutomationEngine.
@@ -280,7 +281,7 @@ class AsanaClient:
         return self._automation
 
     @property
-    def observability(self) -> "ObservabilityHook":
+    def observability(self) -> ObservabilityHook:
         """Observability hook for metrics and tracing.
 
         Per TDD-HARDENING-A/FR-OBS-011: Exposes the configured observability hook.
@@ -292,7 +293,7 @@ class AsanaClient:
         return self._observability_hook
 
     @property
-    def cache_metrics(self) -> "CacheMetrics | None":
+    def cache_metrics(self) -> CacheMetrics | None:
         """Access cache metrics for observability.
 
         Per TDD-CACHE-UTILIZATION: Exposes cache hit/miss statistics.
@@ -619,7 +620,7 @@ class AsanaClient:
         return self._batch
 
     @property
-    def search(self) -> "SearchService":
+    def search(self) -> SearchService:
         """Search interface for cached project frames.
 
         Per TDD-search-interface: Provides field-based GID lookup from
@@ -647,8 +648,8 @@ class AsanaClient:
 
         with self._search_lock:
             if self._search is None:
-                from autom8_asana.search import SearchService
                 from autom8_asana.dataframes import DataFrameCacheIntegration
+                from autom8_asana.search import SearchService
 
                 # Create DataFrame cache integration if cache is available
                 df_integration: DataFrameCacheIntegration | None = None
@@ -665,7 +666,7 @@ class AsanaClient:
         return self._search
 
     @property
-    def unified_store(self) -> "UnifiedTaskStore | None":
+    def unified_store(self) -> UnifiedTaskStore | None:
         """Access unified task store for cache operations.
 
         Per MIGRATION-PLAN-legacy-cache-elimination RF-002:

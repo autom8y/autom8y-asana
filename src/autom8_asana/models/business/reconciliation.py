@@ -56,7 +56,7 @@ class Reconciliation(BusinessEntity):
     # --- Deprecation Alias (Phase 6: Naming Standardization) ---
 
     @property
-    def reconciliations_holder(self) -> "ReconciliationHolder | None":
+    def reconciliations_holder(self) -> ReconciliationHolder | None:
         """Deprecated alias for reconciliation_holder.
 
         .. deprecated::

@@ -25,7 +25,6 @@ from pydantic import ValidationError
 
 from autom8_asana.models import NameGid, PageIterator, Task
 
-
 # ---------------------------------------------------------------------------
 # NameGid Edge Cases
 # ---------------------------------------------------------------------------

@@ -158,7 +158,7 @@ class RuleCondition(BaseModel):
     field_whitelist: list[str] | None = None
 
     @model_validator(mode="after")
-    def at_least_one_trigger_required(self) -> "RuleCondition":
+    def at_least_one_trigger_required(self) -> RuleCondition:
         """Validate that at least one trigger type is specified."""
         if self.stale is None and self.deadline is None and self.age is None:
             raise ValueError(

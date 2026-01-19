@@ -42,13 +42,13 @@ from __future__ import annotations
 
 import io
 import json
-from autom8y_log import get_logger
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
+from autom8y_log import get_logger
 from pydantic import BaseModel, Field
 
 from autom8_asana.dataframes.async_s3 import AsyncS3Client, AsyncS3Config
@@ -94,7 +94,7 @@ class SectionManifest(BaseModel):
 
     project_gid: str
     entity_type: str
-    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     sections: dict[str, SectionInfo] = Field(default_factory=dict)
     total_sections: int = 0
     completed_sections: int = 0
@@ -143,7 +143,7 @@ class SectionManifest(BaseModel):
         self.sections[section_gid] = SectionInfo(
             status=SectionStatus.COMPLETE,
             rows=rows,
-            written_at=datetime.now(timezone.utc),
+            written_at=datetime.now(UTC),
         )
         self.completed_sections = len(self.get_complete_section_gids())
 
@@ -250,7 +250,7 @@ class SectionPersistence:
         self._polars_module: Any = None
         self._initialize_polars()
 
-    async def __aenter__(self) -> "SectionPersistence":
+    async def __aenter__(self) -> SectionPersistence:
         """Async context manager entry."""
         await self._s3_client.__aenter__()
         return self
@@ -460,7 +460,7 @@ class SectionPersistence:
         self,
         project_gid: str,
         section_gid: str,
-        df: "pl.DataFrame",
+        df: pl.DataFrame,
     ) -> bool:
         """Write a section DataFrame to S3.
 
@@ -539,7 +539,7 @@ class SectionPersistence:
         self,
         project_gid: str,
         section_gid: str,
-    ) -> "pl.DataFrame | None":
+    ) -> pl.DataFrame | None:
         """Read a section DataFrame from S3.
 
         Args:
@@ -582,7 +582,7 @@ class SectionPersistence:
     async def read_all_sections_async(
         self,
         project_gid: str,
-    ) -> list["pl.DataFrame"]:
+    ) -> list[pl.DataFrame]:
         """Read all complete section DataFrames for a project.
 
         Args:
@@ -621,7 +621,7 @@ class SectionPersistence:
     async def merge_sections_to_dataframe_async(
         self,
         project_gid: str,
-    ) -> "pl.DataFrame | None":
+    ) -> pl.DataFrame | None:
         """Merge all complete sections into a single DataFrame.
 
         Used after all sections are complete to create the final merged
@@ -666,7 +666,7 @@ class SectionPersistence:
     async def write_final_artifacts_async(
         self,
         project_gid: str,
-        df: "pl.DataFrame",
+        df: pl.DataFrame,
         watermark: datetime,
         index_data: dict[str, Any] | None = None,
     ) -> bool:
@@ -714,7 +714,7 @@ class SectionPersistence:
             "watermark": watermark.isoformat(),
             "row_count": len(df),
             "columns": df.columns,
-            "saved_at": datetime.now(timezone.utc).isoformat(),
+            "saved_at": datetime.now(UTC).isoformat(),
         }
         wm_key = self._make_watermark_key(project_gid)
         wm_result = await self._s3_client.put_object_async(

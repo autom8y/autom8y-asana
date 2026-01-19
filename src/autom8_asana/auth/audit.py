@@ -20,11 +20,11 @@ from __future__ import annotations
 import json
 import logging
 import time
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from autom8y_log import get_logger
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from autom8_asana.api.dependencies import AuthContext
@@ -147,15 +147,13 @@ class S2SAuditLogger:
             ISO 8601 timestamp with UTC timezone (Z suffix).
         """
         return (
-            datetime.now(timezone.utc)
-            .isoformat(timespec="milliseconds")
-            .replace("+00:00", "Z")
+            datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
         )
 
     def log_request(
         self,
         request_id: str,
-        auth_context: "AuthContext",
+        auth_context: AuthContext,
         endpoint: str,
         method: str,
         status: int,
@@ -216,7 +214,7 @@ class S2SAuditLogger:
     def log_jwt_only(
         self,
         request_id: str,
-        auth_context: "AuthContext",
+        auth_context: AuthContext,
         endpoint: str,
         method: str,
         status: int,

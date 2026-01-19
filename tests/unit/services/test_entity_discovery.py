@@ -12,9 +12,9 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 from autom8_asana.services.resolver import (
+    ENTITY_ALIASES,
     CriterionValidationResult,
     EntityProjectRegistry,
-    ENTITY_ALIASES,
     _apply_legacy_mapping,
     _validate_field_type,
     get_resolvable_entities,

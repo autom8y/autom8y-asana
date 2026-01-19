@@ -4,6 +4,7 @@ Per TDD-TRIAGE-FIXES Issue #5: GID Input Validation.
 """
 
 import pytest
+
 from autom8_asana.persistence.exceptions import ValidationError
 from autom8_asana.persistence.validation import validate_gid
 
@@ -179,8 +180,9 @@ class TestClientGIDValidation:
 
     def test_get_async_validates_task_gid(self, client_fixture):
         """TasksClient.get_async() validates task_gid."""
-        import pytest
         import asyncio
+
+        import pytest
 
         async def run_test():
             with pytest.raises(ValidationError):
@@ -190,8 +192,9 @@ class TestClientGIDValidation:
 
     def test_add_tag_async_validates_both_gids(self, client_fixture):
         """TasksClient.add_tag_async() validates both GIDs."""
-        import pytest
         import asyncio
+
+        import pytest
 
         async def run_test():
             with pytest.raises(ValidationError):
@@ -204,8 +207,9 @@ class TestClientGIDValidation:
 
     def test_remove_tag_async_validates_both_gids(self, client_fixture):
         """TasksClient.remove_tag_async() validates both GIDs."""
-        import pytest
         import asyncio
+
+        import pytest
 
         async def run_test():
             with pytest.raises(ValidationError):
@@ -218,8 +222,9 @@ class TestClientGIDValidation:
 
     def test_move_to_section_async_validates_gids(self, client_fixture):
         """TasksClient.move_to_section_async() validates all GIDs."""
-        import pytest
         import asyncio
+
+        import pytest
 
         async def run_test():
             with pytest.raises(ValidationError):
@@ -241,8 +246,9 @@ class TestClientGIDValidation:
 
     def test_set_assignee_async_validates_both_gids(self, client_fixture):
         """TasksClient.set_assignee_async() validates both GIDs."""
-        import pytest
         import asyncio
+
+        import pytest
 
         async def run_test():
             with pytest.raises(ValidationError):
@@ -255,8 +261,9 @@ class TestClientGIDValidation:
 
     def test_add_to_project_async_validates_gids(self, client_fixture):
         """TasksClient.add_to_project_async() validates GIDs."""
-        import pytest
         import asyncio
+
+        import pytest
 
         async def run_test():
             with pytest.raises(ValidationError):
@@ -271,8 +278,9 @@ class TestClientGIDValidation:
 
     def test_remove_from_project_async_validates_gids(self, client_fixture):
         """TasksClient.remove_from_project_async() validates GIDs."""
-        import pytest
         import asyncio
+
+        import pytest
 
         async def run_test():
             with pytest.raises(ValidationError):

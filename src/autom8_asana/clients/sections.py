@@ -7,6 +7,7 @@ Use raw=True for backward-compatible dict returns.
 
 from __future__ import annotations
 
+from datetime import UTC
 from typing import Any, Literal, overload
 
 from autom8_asana.clients.base import BaseClient
@@ -294,7 +295,7 @@ class SectionsClient(BaseClient):
             async for section in client.sections.list_for_project_async("123"):
                 print(section.name)
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from autom8_asana.cache.entry import CacheEntry, EntryType
 
@@ -318,7 +319,7 @@ class SectionsClient(BaseClient):
             if cache is not None and data:
                 try:
                     entries: dict[str, CacheEntry] = {}
-                    now = datetime.now(timezone.utc)
+                    now = datetime.now(UTC)
                     for section_data in data:
                         gid = section_data.get("gid")
                         if gid:

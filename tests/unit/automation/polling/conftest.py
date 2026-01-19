@@ -6,7 +6,7 @@ polling_scheduler, structured_logger, and cli tests.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -20,7 +20,6 @@ from autom8_asana.automation.polling.config_schema import (
     TriggerDeadlineConfig,
     TriggerStaleConfig,
 )
-
 
 # ============================================================================
 # YAML Configuration Fixtures
@@ -346,7 +345,7 @@ from tests._shared.mocks import MockTask
 @pytest.fixture
 def now() -> datetime:
     """Current UTC datetime for consistent testing."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @pytest.fixture

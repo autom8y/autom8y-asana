@@ -15,7 +15,7 @@ state and watermarks to S3.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import polars as pl
@@ -42,7 +42,7 @@ def sample_dataframe() -> pl.DataFrame:
 @pytest.fixture
 def sample_watermark() -> datetime:
     """Create a sample watermark for testing."""
-    return datetime(2024, 6, 15, 12, 30, 45, tzinfo=timezone.utc)
+    return datetime(2024, 6, 15, 12, 30, 45, tzinfo=UTC)
 
 
 class TestPersistenceConfig:
@@ -495,7 +495,7 @@ class TestSaveIndex:
     @pytest.mark.asyncio
     async def test_save_index_returns_false_when_degraded(self) -> None:
         """save_index returns False when in degraded mode."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from autom8_asana.services.gid_lookup import GidLookupIndex
 
@@ -508,7 +508,7 @@ class TestSaveIndex:
         # Create a minimal index
         index = GidLookupIndex(
             lookup_dict={"pv1:+17705551234:dental": "123456"},
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
 
         result = await persistence.save_index("project-123", index)
@@ -518,7 +518,7 @@ class TestSaveIndex:
     @pytest.mark.asyncio
     async def test_save_index_success(self) -> None:
         """save_index uploads JSON to S3 with correct key and content."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from autom8_asana.services.gid_lookup import GidLookupIndex
 
@@ -530,7 +530,7 @@ class TestSaveIndex:
             persistence._boto3_module = MagicMock()  # Required for _get_client()
 
         # Create a minimal index
-        created_at = datetime(2024, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+        created_at = datetime(2024, 6, 15, 12, 0, 0, tzinfo=UTC)
         index = GidLookupIndex(
             lookup_dict={"pv1:+17705551234:dental": "123456"},
             created_at=created_at,
@@ -554,7 +554,7 @@ class TestSaveIndex:
     @pytest.mark.asyncio
     async def test_save_index_handles_s3_error(self) -> None:
         """save_index returns False and enters degraded mode on S3 error."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from autom8_asana.services.gid_lookup import GidLookupIndex
 
@@ -569,7 +569,7 @@ class TestSaveIndex:
         # Create a minimal index
         index = GidLookupIndex(
             lookup_dict={"pv1:+17705551234:dental": "123456"},
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
 
         # Mock S3 client that raises ConnectionError
@@ -627,7 +627,7 @@ class TestLoadIndex:
     async def test_load_index_success(self) -> None:
         """load_index reconstructs GidLookupIndex from S3 JSON."""
         import json
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         config = PersistenceConfig(bucket="test-bucket")
 
@@ -637,7 +637,7 @@ class TestLoadIndex:
             persistence._boto3_module = MagicMock()  # Required for _get_client()
 
         # Create serialized index data
-        created_at = datetime(2024, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+        created_at = datetime(2024, 6, 15, 12, 0, 0, tzinfo=UTC)
         index_data = {
             "version": "1.0",
             "created_at": created_at.isoformat(),
@@ -771,7 +771,7 @@ class TestIndexRoundTrip:
     @pytest.mark.asyncio
     async def test_save_and_load_preserves_data(self) -> None:
         """Round-trip through save/load preserves all index data."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from autom8_asana.services.gid_lookup import GidLookupIndex
 
@@ -783,7 +783,7 @@ class TestIndexRoundTrip:
             persistence._boto3_module = MagicMock()  # Required for _get_client()
 
         # Create index with multiple entries
-        created_at = datetime(2024, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+        created_at = datetime(2024, 6, 15, 12, 0, 0, tzinfo=UTC)
         original_index = GidLookupIndex(
             lookup_dict={
                 "pv1:+17705551234:dental": "123456",
@@ -830,7 +830,7 @@ class TestIndexDegradedModeOperations:
     @pytest.mark.asyncio
     async def test_all_index_operations_graceful_in_degraded_mode(self) -> None:
         """All index operations return appropriate values in degraded mode."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from autom8_asana.services.gid_lookup import GidLookupIndex
 
@@ -843,7 +843,7 @@ class TestIndexDegradedModeOperations:
         # Create a minimal index for save test
         index = GidLookupIndex(
             lookup_dict={"pv1:+17705551234:dental": "123456"},
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
 
         # save_index returns False
@@ -1001,8 +1001,8 @@ class TestLoadAllWatermarks:
             persistence._boto3_module = MagicMock()
 
         # Mock watermarks
-        wm1 = datetime(2024, 1, 15, tzinfo=timezone.utc)
-        wm2 = datetime(2024, 6, 20, tzinfo=timezone.utc)
+        wm1 = datetime(2024, 1, 15, tzinfo=UTC)
+        wm2 = datetime(2024, 6, 20, tzinfo=UTC)
 
         watermark_responses = {
             "dataframes/proj-1/watermark.json": {
@@ -1048,8 +1048,9 @@ class TestLoadAllWatermarks:
     @pytest.mark.asyncio
     async def test_load_all_watermarks_handles_missing_watermark(self) -> None:
         """load_all_watermarks skips projects with missing watermark files."""
-        import botocore.exceptions
         import json
+
+        import botocore.exceptions
 
         config = PersistenceConfig(bucket="test-bucket", prefix="dataframes/")
 
@@ -1060,7 +1061,7 @@ class TestLoadAllWatermarks:
             persistence._botocore_module = botocore.exceptions
 
         # Mock watermarks - one exists, one doesn't
-        wm1 = datetime(2024, 1, 15, tzinfo=timezone.utc)
+        wm1 = datetime(2024, 1, 15, tzinfo=UTC)
 
         def mock_get_object(Bucket, Key):  # noqa: N803
             if Key == "dataframes/proj-1/watermark.json":

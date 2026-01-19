@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import PrivateAttr
 
+from autom8_asana.exceptions import InsightsValidationError
 from autom8_asana.models.business.base import BusinessEntity
 from autom8_asana.models.business.contact import Contact, ContactHolder
 from autom8_asana.models.business.descriptors import (
@@ -24,13 +25,12 @@ from autom8_asana.models.business.descriptors import (
     TextField,
 )
 from autom8_asana.models.business.fields import CascadingFieldDef
+from autom8_asana.models.business.holder_factory import HolderFactory
 from autom8_asana.models.business.mixins import (
     FinancialFieldsMixin,
     SharedCascadingFieldsMixin,
 )
-from autom8_asana.models.business.holder_factory import HolderFactory
 from autom8_asana.models.task import Task
-from autom8_asana.exceptions import InsightsValidationError
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient

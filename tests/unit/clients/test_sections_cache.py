@@ -8,7 +8,7 @@ Per ADR-0127: Graceful degradation.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -174,8 +174,8 @@ def make_cache_entry(
         key=gid,
         data=make_section_data(gid=gid, name=name),
         entry_type=EntryType.SECTION,
-        version=datetime.now(timezone.utc),  # No modified_at for sections
-        cached_at=datetime.now(timezone.utc),
+        version=datetime.now(UTC),  # No modified_at for sections
+        cached_at=datetime.now(UTC),
         ttl=ttl,
     )
 
@@ -341,8 +341,8 @@ class TestCacheExpiration:
             key=SECTION_GID,
             data=make_section_data(gid=SECTION_GID, name="Expired Section"),
             entry_type=EntryType.SECTION,
-            version=datetime.now(timezone.utc),
-            cached_at=datetime.now(timezone.utc) - timedelta(hours=1),
+            version=datetime.now(UTC),
+            cached_at=datetime.now(UTC) - timedelta(hours=1),
             ttl=1800,  # 30 min TTL, but cached 1 hour ago
         )
         cache_provider._cache[f"{SECTION_GID}:{EntryType.SECTION.value}"] = (

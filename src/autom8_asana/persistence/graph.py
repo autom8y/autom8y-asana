@@ -6,7 +6,7 @@ Per ADR-0037: Use Kahn's algorithm for O(V+E) dependency ordering.
 from __future__ import annotations
 
 from collections import defaultdict, deque
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from autom8_asana.persistence.exceptions import CyclicDependencyError
 

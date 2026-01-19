@@ -25,15 +25,15 @@ from autom8_asana.models.business.descriptors import (
     TextField,
 )
 from autom8_asana.models.business.fields import InheritedFieldDef
+
+# Note: PeopleField removed - rep field now inherited from SharedCascadingFieldsMixin
+from autom8_asana.models.business.holder_factory import HolderFactory
 from autom8_asana.models.business.mixins import (
     FinancialFieldsMixin,
     SharedCascadingFieldsMixin,
     UnitNestedHolderMixin,
     UpwardTraversalMixin,
 )
-
-# Note: PeopleField removed - rep field now inherited from SharedCascadingFieldsMixin
-from autom8_asana.models.business.holder_factory import HolderFactory
 from autom8_asana.models.task import Task
 
 if TYPE_CHECKING:

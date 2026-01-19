@@ -31,7 +31,6 @@ from autom8_asana.models.business.patterns import (
 from autom8_asana.models.business.registry import ProjectTypeRegistry
 from autom8_asana.models.task import Task
 
-
 # --- Fixtures ---
 
 

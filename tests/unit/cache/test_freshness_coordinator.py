@@ -6,7 +6,7 @@ chunking by Asana batch limit, and freshness mode behavior.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -53,7 +53,7 @@ def make_entry(
         cached_ago_seconds: How many seconds ago it was cached (0 = now).
     """
     version = datetime.fromisoformat(modified_at.replace("Z", "+00:00"))
-    cached_at = datetime.now(timezone.utc) - timedelta(seconds=cached_ago_seconds)
+    cached_at = datetime.now(UTC) - timedelta(seconds=cached_ago_seconds)
     return CacheEntry(
         key=gid,
         data={"gid": gid, "name": f"Task {gid}"},
@@ -101,7 +101,7 @@ class TestFreshnessResult:
         result = FreshnessResult(
             gid="123",
             is_fresh=True,
-            cached_version=datetime.now(timezone.utc),
+            cached_version=datetime.now(UTC),
             current_version=None,
             action="use_cache",
         )

@@ -13,10 +13,10 @@ Per ADR-0076: Auto-invalidation on parent reference change.
 
 from __future__ import annotations
 
-from autom8y_log import get_logger
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from autom8y_log import get_logger
 from pydantic import PrivateAttr
 
 from autom8_asana.models.business.descriptors import HolderRef, ParentRef

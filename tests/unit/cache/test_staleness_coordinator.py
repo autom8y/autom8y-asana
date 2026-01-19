@@ -6,7 +6,7 @@ and error handling.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -64,7 +64,7 @@ def make_entry(
         data={"gid": gid, "name": f"Task {gid}"},
         entry_type=EntryType.TASK,
         version=version,
-        cached_at=datetime.now(timezone.utc),
+        cached_at=datetime.now(UTC),
         ttl=ttl,
         metadata={"extension_count": extension_count} if extension_count > 0 else {},
     )
@@ -310,7 +310,7 @@ class TestTTLExtension:
         self, coordinator: StalenessCheckCoordinator
     ) -> None:
         """Test that cached_at is reset on extension."""
-        old_cached_at = datetime.now(timezone.utc) - timedelta(hours=1)
+        old_cached_at = datetime.now(UTC) - timedelta(hours=1)
         entry = CacheEntry(
             key="123",
             data={"gid": "123"},
@@ -342,7 +342,7 @@ class TestTTLExtension:
             data={"gid": "123", "name": "Original"},
             entry_type=EntryType.TASK,
             version=original_version,
-            cached_at=datetime.now(timezone.utc),
+            cached_at=datetime.now(UTC),
             ttl=300,
         )
 

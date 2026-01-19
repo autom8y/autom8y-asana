@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
@@ -84,7 +84,7 @@ class UniversalResolutionStrategy:
         self,
         criteria: list[dict[str, Any]],
         project_gid: str,
-        client: "AsanaClient",
+        client: AsanaClient,
         requested_fields: list[str] | None = None,
     ) -> list[ResolutionResult]:
         """Resolve criteria to entity GIDs with optional field enrichment.
@@ -230,7 +230,7 @@ class UniversalResolutionStrategy:
         self,
         project_gid: str,
         key_columns: list[str],
-        client: "AsanaClient",
+        client: AsanaClient,
     ) -> DynamicIndex | None:
         """Get index from cache or build from DataFrame.
 
@@ -288,7 +288,7 @@ class UniversalResolutionStrategy:
 
     def _enrich_from_dataframe(
         self,
-        df: "pl.DataFrame",
+        df: pl.DataFrame,
         gids: list[str],
         fields: list[str],
     ) -> list[dict[str, Any]]:
@@ -369,8 +369,8 @@ class UniversalResolutionStrategy:
     async def _get_dataframe(
         self,
         project_gid: str,
-        client: "AsanaClient",
-    ) -> "pl.DataFrame | None":
+        client: AsanaClient,
+    ) -> pl.DataFrame | None:
         """Get DataFrame for entity type.
 
         Uses injected _cached_dataframe if available (from @dataframe_cache decorator),
@@ -452,7 +452,7 @@ class UniversalResolutionStrategy:
     async def _build_dataframe(
         self,
         project_gid: str,
-        client: "AsanaClient",
+        client: AsanaClient,
     ) -> tuple[Any, datetime]:
         """Build DataFrame for caching.
 
@@ -470,14 +470,14 @@ class UniversalResolutionStrategy:
             DataFrame may be None on failure.
         """
         df = await self._build_entity_dataframe(project_gid, client)
-        watermark = datetime.now(timezone.utc)
+        watermark = datetime.now(UTC)
         return df, watermark
 
     async def _build_entity_dataframe(
         self,
         project_gid: str,
-        client: "AsanaClient",
-    ) -> "pl.DataFrame | None":
+        client: AsanaClient,
+    ) -> pl.DataFrame | None:
         """Build entity-specific DataFrame.
 
         Routes to appropriate builder based on entity_type.

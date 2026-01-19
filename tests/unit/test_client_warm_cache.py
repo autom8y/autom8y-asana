@@ -5,7 +5,7 @@ Per TDD-CACHE-UTILIZATION Phase 3: Cache Warming implementation tests.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -79,7 +79,7 @@ class TestWarmCacheAsync:
             key="123",
             data={"gid": "123", "name": "Cached Task"},
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
             ttl=300,
         )
         mock_cache_provider.set_versioned("123", cache_entry)
@@ -134,7 +134,7 @@ class TestWarmCacheAsync:
             key="cached_gid",
             data={"gid": "cached_gid", "name": "Cached"},
             entry_type=EntryType.TASK,
-            version=datetime.now(timezone.utc),
+            version=datetime.now(UTC),
             ttl=300,
         )
         mock_cache_provider.set_versioned("cached_gid", cache_entry)
@@ -322,7 +322,7 @@ class TestWarmCacheEdgeCases:
                 key="123",
                 data=mock_data,
                 entry_type=EntryType.TASK,
-                version=datetime.now(timezone.utc),
+                version=datetime.now(UTC),
                 ttl=300,
             )
             cache_provider.set_versioned("123", cache_entry)

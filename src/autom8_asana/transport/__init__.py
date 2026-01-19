@@ -13,16 +13,16 @@ Active Components:
 
 from __future__ import annotations
 
-# Re-export sync_wrapper (utility for sync operations)
-from autom8_asana.transport.sync import sync_wrapper
+# CircuitState enum re-exported from platform SDK (autom8y-http >= 0.3.0)
+from autom8y_http.protocols import CircuitState
 
 # Re-export new transport components (recommended)
 from autom8_asana.transport.asana_http import AsanaHttpClient
 from autom8_asana.transport.config_translator import ConfigTranslator
 from autom8_asana.transport.response_handler import AsanaResponseHandler
 
-# CircuitState enum re-exported from platform SDK (autom8y-http >= 0.3.0)
-from autom8y_http.protocols import CircuitState
+# Re-export sync_wrapper (utility for sync operations)
+from autom8_asana.transport.sync import sync_wrapper
 
 __all__ = [
     # Transport components
