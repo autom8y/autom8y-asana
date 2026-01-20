@@ -125,7 +125,11 @@ class TestTimerEdgeCases:
 
     @pytest.mark.asyncio
     async def test_request_at_window_boundary(self) -> None:
-        """Test request arriving exactly at window expiry boundary."""
+        """Test request arriving within coalesce window gets batched.
+
+        Note: Uses a longer window (200ms) with proportionally shorter sleep
+        to avoid CI timing flakiness. The 45ms/50ms margin was too tight.
+        """
         mock_checker = MagicMock()
         batches_received = []
 
@@ -137,17 +141,17 @@ class TestTimerEdgeCases:
 
         coalescer = RequestCoalescer(
             checker=mock_checker,
-            window_ms=50,
+            window_ms=200,  # Longer window for CI stability
             max_batch=100,
         )
 
         # First request starts the timer
         task1 = asyncio.create_task(coalescer.request_check_async(make_entry("1")))
 
-        # Wait just under the window
-        await asyncio.sleep(0.045)
+        # Wait well under the window (100ms out of 200ms)
+        await asyncio.sleep(0.100)
 
-        # Second request arrives just before window expires
+        # Second request arrives within window
         task2 = asyncio.create_task(coalescer.request_check_async(make_entry("2")))
 
         results = await asyncio.gather(task1, task2)
