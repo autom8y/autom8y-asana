@@ -41,6 +41,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+import inflection
 from autom8y_log import get_logger
 
 if TYPE_CHECKING:
@@ -323,53 +324,56 @@ async def _discover_entity_projects_for_lambda() -> None:
         )
 
 
-def _normalize_project_name(name: str) -> str:
-    """Normalize project name for entity type matching.
+# Override map for non-standard project names (exact match, case-insensitive)
+# Maps project names that don't follow convention to their entity types
+ENTITY_OVERRIDES: dict[str, str] = {
+    "business offers": "offer",
+    "business units": "unit",
+    "paid content": "asset_edit",
+    "units": "unit_holder",  # Maps correctly, but unit_holder not in WARMABLE_ENTITIES
+}
 
-    Converts names like "Business Units" to "unit", "Offers" to "offer", etc.
-    Includes explicit mappings for non-standard project names.
+# Valid entity types in priority order for cache warming
+# Only these entity types will be returned by _normalize_project_name
+WARMABLE_ENTITIES: list[str] = ["offer", "business", "contact", "unit", "asset_edit"]
+
+
+def _normalize_project_name(name: str) -> str | None:
+    """Map project name to entity type using convention + overrides.
+
+    Uses a two-step algorithm:
+    1. Check explicit overrides first (exact match, case-insensitive)
+    2. Singularize project name using inflection (Rails port)
+
+    Only returns entity types that are in WARMABLE_ENTITIES. This ensures
+    workflow projects like "pause a business unit" are NOT mapped to any
+    entity type (they don't match overrides and singularization won't produce
+    a valid warmable entity).
 
     Args:
         name: Project name to normalize.
 
     Returns:
-        Normalized name suitable for entity type matching.
+        Entity type string if valid and warmable, None if no match.
     """
-    # Explicit mappings for non-standard project names
-    # "Paid Content" is the Asana project for AssetEdit entities
-    EXPLICIT_MAPPINGS: dict[str, str] = {
-        "paid content": "asset_edit",
-    }
-
     normalized = name.lower().strip()
 
-    # Check explicit mappings first
-    if normalized in EXPLICIT_MAPPINGS:
-        return EXPLICIT_MAPPINGS[normalized]
+    # 1. Check overrides first (exact match)
+    if normalized in ENTITY_OVERRIDES:
+        entity_type = ENTITY_OVERRIDES[normalized]
+        # Only return if it's warmable
+        if entity_type in WARMABLE_ENTITIES:
+            return entity_type
+        return None
 
-    # Handle "Business Units" -> "unit"
-    if "unit" in normalized:
-        return "unit"
+    # 2. Singularize using inflection (Rails port - handles edge cases correctly)
+    singular = inflection.singularize(normalized)
 
-    # Handle "Businesses" or "Business" -> "business"
-    if normalized.startswith("business") and "unit" not in normalized:
-        return "business"
+    # 3. Return only if it's a valid warmable entity
+    if singular in WARMABLE_ENTITIES:
+        return singular
 
-    # Handle "Offers" or "Offer" -> "offer"
-    if normalized.startswith("offer"):
-        return "offer"
-
-    # Handle "Contacts" or "Contact" -> "contact"
-    if normalized.startswith("contact"):
-        return "contact"
-
-    # Handle "Asset Edit" or "AssetEdit" -> "asset_edit"
-    if "asset" in normalized and "edit" in normalized:
-        if "holder" in normalized:
-            return "asset_edit_holder"
-        return "asset_edit"
-
-    return normalized
+    return None
 
 
 def _match_entity_type(project_name: str, entity_types: list[str]) -> str | None:
@@ -383,7 +387,7 @@ def _match_entity_type(project_name: str, entity_types: list[str]) -> str | None
         Matched entity type or None if no match.
     """
     normalized = _normalize_project_name(project_name)
-    if normalized in entity_types:
+    if normalized is not None and normalized in entity_types:
         return normalized
     return None
 

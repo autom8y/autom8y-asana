@@ -65,6 +65,10 @@ Example:
     300
 """
 
+# DataFrame entity caching (TDD-DATAFRAME-CACHE-001)
+# Import subpackage to expose for test patching (e.g., autom8_asana.cache.dataframe.factory)
+from autom8_asana.cache import dataframe  # noqa: F401
+
 # autom8 integration adapter (ADR-0025)
 from autom8_asana.cache.autom8_adapter import (
     MigrationResult,

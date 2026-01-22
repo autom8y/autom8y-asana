@@ -28,11 +28,21 @@ from .audit import (
     reset_audit_logger,
 )
 from .bot_pat import BotPATError, clear_bot_pat_cache, get_bot_pat
-from .dual_mode import AuthMode, detect_token_type, get_auth_mode
 from .jwt_validator import reset_auth_client, validate_service_token
 
+# Dual mode requires FastAPI - import conditionally to allow non-API usage
+try:
+    from .dual_mode import AuthMode, detect_token_type, get_auth_mode
+
+    _HAS_FASTAPI = True
+except ImportError:
+    _HAS_FASTAPI = False
+    AuthMode = None  # type: ignore[misc, assignment]
+    detect_token_type = None  # type: ignore[misc, assignment]
+    get_auth_mode = None  # type: ignore[misc, assignment]
+
 __all__ = [
-    # Dual mode
+    # Dual mode (requires FastAPI)
     "AuthMode",
     "detect_token_type",
     "get_auth_mode",
