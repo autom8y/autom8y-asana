@@ -110,16 +110,16 @@ class RetryConfig:
     """Retry behavior configuration.
 
     Attributes:
-        max_retries: Maximum retry attempts (default 3)
-        base_delay: Initial delay in seconds (default 0.1)
+        max_retries: Maximum retry attempts (default 5)
+        base_delay: Initial delay in seconds (default 0.5)
         max_delay: Maximum delay cap in seconds (default 60)
         exponential_base: Multiplier for exponential backoff (default 2)
         jitter: Add random jitter to delays (default True)
         retryable_status_codes: HTTP status codes that trigger retry
     """
 
-    max_retries: int = 3
-    base_delay: float = 0.1
+    max_retries: int = 5
+    base_delay: float = 0.5
     max_delay: float = 60.0
     exponential_base: float = 2.0
     jitter: bool = True

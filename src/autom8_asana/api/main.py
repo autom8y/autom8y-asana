@@ -1168,68 +1168,6 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
 
                             result = await builder.build_progressive_async(resume=True)
 
-                            # Per TDD-cache-freshness-remediation Fix 3:
-                            # Check watermark freshness after progressive load.
-                            # If data was resumed from S3 and watermark is stale,
-                            # trigger incremental catch-up as defense-in-depth.
-                            try:
-                                freshness_threshold_hours = int(
-                                    os.environ.get(
-                                        "PRELOAD_FRESHNESS_THRESHOLD_HOURS", "8"
-                                    )
-                                )
-                            except (ValueError, TypeError):
-                                freshness_threshold_hours = 8
-
-                            watermark_age_hours = (
-                                datetime.now(UTC) - result.watermark
-                            ).total_seconds() / 3600
-
-                            if (
-                                watermark_age_hours > freshness_threshold_hours
-                                and result.sections_resumed > 0
-                            ):
-                                logger.warning(
-                                    "progressive_preload_stale_data_detected",
-                                    extra={
-                                        "project_gid": project_gid,
-                                        "entity_type": entity_type,
-                                        "watermark_age_hours": round(
-                                            watermark_age_hours, 2
-                                        ),
-                                        "threshold_hours": freshness_threshold_hours,
-                                        "sections_resumed": result.sections_resumed,
-                                    },
-                                )
-
-                                try:
-                                    result = await builder.build_progressive_async(
-                                        resume=True
-                                    )
-
-                                    logger.info(
-                                        "progressive_preload_catchup_complete",
-                                        extra={
-                                            "project_gid": project_gid,
-                                            "entity_type": entity_type,
-                                            "rows_after_catchup": result.total_rows,
-                                        },
-                                    )
-                                except Exception as catchup_err:
-                                    # Graceful fallback: proceed with stale data
-                                    logger.warning(
-                                        "progressive_preload_catchup_failed",
-                                        extra={
-                                            "project_gid": project_gid,
-                                            "entity_type": entity_type,
-                                            "error": str(catchup_err),
-                                            "error_type": type(
-                                                catchup_err
-                                            ).__name__,
-                                            "fallback": "proceed_with_stale_data",
-                                        },
-                                    )
-
                             # Update totals
                             sections_fetched_total += result.sections_fetched
                             sections_resumed_total += result.sections_resumed

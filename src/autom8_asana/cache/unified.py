@@ -7,6 +7,7 @@ a unified cache layer.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -69,16 +70,19 @@ class UnifiedTaskStore:
     cache: CacheProvider
     batch_client: BatchClient | None = None
     freshness_mode: FreshnessMode = FreshnessMode.EVENTUAL
+    hierarchy_concurrency: int = 10
 
     # Internal components
     _hierarchy: HierarchyIndex = field(default_factory=HierarchyIndex, init=False)
     _freshness: FreshnessCoordinator = field(init=False)
+    _hierarchy_semaphore: asyncio.Semaphore = field(init=False)
 
     # Statistics
     _stats: dict[str, int] = field(default_factory=dict, init=False, repr=False)
 
     def __post_init__(self) -> None:
         """Initialize internal components."""
+        self._hierarchy_semaphore = asyncio.Semaphore(self.hierarchy_concurrency)
         self._freshness = FreshnessCoordinator(
             batch_client=self.batch_client,
             coalesce_window_ms=50,
@@ -557,23 +561,41 @@ class UnifiedTaskStore:
                     "warm_hierarchy_fetching_immediate_parents",
                     extra={"parent_count": len(parent_gids_needed)},
                 )
-                for parent_gid in parent_gids_needed:
-                    try:
-                        parent_task = await tasks_client.get_async(
-                            parent_gid, opt_fields=_HIERARCHY_OPT_FIELDS
-                        )
-                        if parent_task:
-                            parent_dict = parent_task.model_dump(exclude_none=True)
-                            self._hierarchy.register(parent_dict)
-                            await self.put_async(
-                                parent_dict, opt_fields=_HIERARCHY_OPT_FIELDS
+
+                async def _fetch_immediate_parent(
+                    parent_gid: str,
+                ) -> bool:
+                    async with self._hierarchy_semaphore:
+                        try:
+                            parent_task = await tasks_client.get_async(
+                                parent_gid, opt_fields=_HIERARCHY_OPT_FIELDS
                             )
-                            immediate_parents_fetched += 1
-                    except Exception as e:
-                        logger.warning(
-                            "warm_immediate_parent_failed",
-                            extra={"parent_gid": parent_gid, "error": str(e)},
-                        )
+                            if parent_task:
+                                parent_dict = parent_task.model_dump(
+                                    exclude_none=True
+                                )
+                                self._hierarchy.register(parent_dict)
+                                await self.put_async(
+                                    parent_dict, opt_fields=_HIERARCHY_OPT_FIELDS
+                                )
+                                return True
+                        except Exception as e:
+                            logger.warning(
+                                "warm_immediate_parent_failed",
+                                extra={
+                                    "parent_gid": parent_gid,
+                                    "error": str(e),
+                                },
+                            )
+                    return False
+
+                results = await asyncio.gather(
+                    *[
+                        _fetch_immediate_parent(gid)
+                        for gid in parent_gids_needed
+                    ]
+                )
+                immediate_parents_fetched = sum(1 for r in results if r)
 
             # INFO-level logging for immediate parent fetch results
             logger.info(
@@ -593,6 +615,7 @@ class UnifiedTaskStore:
                     tasks_client=tasks_client,
                     max_depth=5,
                     unified_store=self,  # Pass self to cache fetched parents
+                    global_semaphore=self._hierarchy_semaphore,
                 )
 
         logger.debug(

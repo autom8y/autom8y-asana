@@ -54,34 +54,48 @@ _DEFAULT_MAX_CONCURRENT: int = 5
 async def _gather_with_limit(
     coros: list[Any],
     max_concurrent: int = _DEFAULT_MAX_CONCURRENT,
+    semaphore: asyncio.Semaphore | None = None,
 ) -> list[Any]:
     """Execute coroutines with bounded concurrency using semaphore.
 
     Args:
         coros: List of coroutines to execute
         max_concurrent: Maximum concurrent executions
+        semaphore: Optional external semaphore (overrides max_concurrent).
 
     Returns:
         List of results in same order as input coroutines
     """
-    semaphore = asyncio.Semaphore(max_concurrent)
+    sem = semaphore or asyncio.Semaphore(max_concurrent)
 
     async def bounded_coro(coro: Any) -> Any:
-        async with semaphore:
+        async with sem:
             return await coro
 
     return await asyncio.gather(*[bounded_coro(c) for c in coros])
 
 
+def _is_rate_limit_error(exc: Exception) -> bool:
+    """Check if an exception indicates a 429 rate limit error."""
+    # Check for httpx.HTTPStatusError or similar with status_code
+    status_code = getattr(getattr(exc, "response", None), "status_code", None)
+    if status_code == 429:
+        return True
+    # Check string representation as fallback
+    return "429" in str(exc) or "rate limit" in str(exc).lower()
+
+
 async def _fetch_parent(
     gid: str,
     tasks_client: TasksClient,
+    backoff_event: asyncio.Event | None = None,
 ) -> dict[str, Any] | None:
     """Fetch a single task with fields needed for cascade resolution.
 
     Args:
         gid: Task GID to fetch.
         tasks_client: TasksClient for fetching.
+        backoff_event: Optional event to signal when a 429 is encountered.
 
     Returns:
         Full task dict with parent info and custom_fields, or None if fetch failed.
@@ -91,6 +105,8 @@ async def _fetch_parent(
         # Return full task dict for caching
         return task.model_dump(exclude_none=True)
     except Exception as e:
+        if _is_rate_limit_error(e) and backoff_event is not None:
+            backoff_event.set()
         logger.warning(
             "hierarchy_warm_fetch_failed",
             extra={"gid": gid, "error": str(e)},
@@ -105,6 +121,7 @@ async def warm_ancestors_async(
     max_depth: int = 5,
     max_concurrent: int = _DEFAULT_MAX_CONCURRENT,
     unified_store: UnifiedTaskStore | None = None,
+    global_semaphore: asyncio.Semaphore | None = None,
 ) -> int:
     """Recursively fetch, cache, and register parent chains.
 
@@ -121,6 +138,8 @@ async def warm_ancestors_async(
         unified_store: Optional UnifiedTaskStore to cache fetched parents.
             Per ADR-hierarchy-registration-architecture: Fetched parents are
             cached with custom_fields for cascade resolution.
+        global_semaphore: Optional shared semaphore to bound all hierarchy
+            fetches across concurrent sections. Overrides max_concurrent.
 
     Returns:
         Count of ancestors warmed (fetched and registered).
@@ -136,6 +155,7 @@ async def warm_ancestors_async(
     """
     total_warmed = 0
     visited: set[str] = set()
+    backoff_event = asyncio.Event()
 
     # Start with the initial GIDs as already visited (we don't need to fetch them)
     visited.update(gids)
@@ -199,12 +219,25 @@ async def warm_ancestors_async(
         parents_to_fetch = gids_to_fetch
         already_known: list[str] = []
 
+        # Adaptive backoff: pause if previous batch hit 429s
+        if backoff_event.is_set():
+            backoff_event.clear()
+            await asyncio.sleep(2.0)
+            logger.info(
+                "hierarchy_warm_429_backoff",
+                extra={"depth": depth},
+            )
+
         # Batch fetch missing parents with bounded concurrency
         fetched_results: list[dict[str, Any] | None] = []
         if parents_to_fetch:
             fetched_results = await _gather_with_limit(
-                [_fetch_parent(gid, tasks_client) for gid in parents_to_fetch],
+                [
+                    _fetch_parent(gid, tasks_client, backoff_event=backoff_event)
+                    for gid in parents_to_fetch
+                ],
                 max_concurrent=max_concurrent,
+                semaphore=global_semaphore,
             )
 
         # Register fetched parents and collect next level

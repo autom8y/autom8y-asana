@@ -74,7 +74,7 @@ class TestAsanaHttpClientInit:
         client = AsanaHttpClient(config, auth)
 
         assert client._retry_policy is not None
-        assert client._retry_policy.max_attempts == 4  # 3 retries + 1 initial
+        assert client._retry_policy.max_attempts == 6  # 5 retries + 1 initial
 
     def test_creates_concurrency_semaphores(self):
         """Creates read/write semaphores from config."""

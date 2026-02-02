@@ -132,8 +132,8 @@ class TestToRetryConfig:
         """Default retry values are preserved."""
         config = AsanaConfig()
         result = ConfigTranslator.to_retry_config(config)
-        assert result.max_retries == 3
-        assert result.base_delay == 0.1
+        assert result.max_retries == 5
+        assert result.base_delay == 0.5
         assert result.max_delay == 60.0
         assert result.jitter is True
 
