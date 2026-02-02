@@ -33,7 +33,7 @@ The naming reflects Greek mythology (see `docs/philosophy/knossos-doctrine.md` f
 For full details: `docs/guides/knossos-integration.md` and `docs/decisions/ADR-0009-knossos-roster-identity.md`
 <!-- KNOSSOS:END knossos-identity -->
 
-<!-- KNOSSOS:START quick-start source=ACTIVE_RITE+agents regenerate=true -->
+<!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
 This project uses a 5-agent workflow (10x-dev):
