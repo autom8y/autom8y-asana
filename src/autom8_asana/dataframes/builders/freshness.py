@@ -385,8 +385,8 @@ class SectionFreshnessProber:
         # Compute new watermark and gid_hash
         new_gid_hash = compute_gid_hash(list(current_gids))
         new_watermark: datetime | None = None
-        if "_modified_at" in merged_df.columns and len(merged_df) > 0:
-            max_val = merged_df["_modified_at"].max()
+        if "last_modified" in merged_df.columns and len(merged_df) > 0:
+            max_val = merged_df["last_modified"].max()
             if max_val is not None:
                 new_watermark = max_val if isinstance(max_val, datetime) else None
 
@@ -477,8 +477,8 @@ class SectionFreshnessProber:
         # Compute freshness metadata
         gid_hash = compute_gid_hash([t.gid for t in tasks])
         watermark: datetime | None = None
-        if "_modified_at" in section_df.columns and len(section_df) > 0:
-            max_val = section_df["_modified_at"].max()
+        if "last_modified" in section_df.columns and len(section_df) > 0:
+            max_val = section_df["last_modified"].max()
             if max_val is not None:
                 watermark = max_val if isinstance(max_val, datetime) else None
 

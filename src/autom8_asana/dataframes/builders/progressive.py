@@ -477,8 +477,8 @@ class ProgressiveProjectBuilder:
 
             section_gid_hash = compute_gid_hash([t.gid for t in tasks])
             section_watermark: datetime | None = None
-            if "_modified_at" in section_df.columns and len(section_df) > 0:
-                max_val = section_df["_modified_at"].max()
+            if "last_modified" in section_df.columns and len(section_df) > 0:
+                max_val = section_df["last_modified"].max()
                 if max_val is not None and isinstance(max_val, datetime):
                     section_watermark = max_val
 
