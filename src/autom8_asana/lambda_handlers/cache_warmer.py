@@ -673,42 +673,26 @@ async def _warm_cache_async(
                     if status.result == WarmResult.SUCCESS:
                         completed_entities.append(entity_type)
 
-                        # Clear stale manifest for this entity's project
-                        # Per TDD-cache-freshness-remediation Fix 2: Delete
-                        # manifest after successful warm so next ECS restart
-                        # does a fresh build instead of resuming stale data.
+                        # NOTE: Previously (TDD-cache-freshness-remediation
+                        # Fix 2) we deleted the manifest here so ECS would
+                        # do a "fresh build" on restart.  This caused a
+                        # fundamental flaw: ECS preload found no manifest,
+                        # could not resume from sections, and either OOM'd
+                        # doing a full API fetch or delegated to Lambda —
+                        # leaving the container with an empty in-memory
+                        # cache (503).  Staleness is now handled by the
+                        # watermark freshness check in the preload path
+                        # (Fix 3), so we preserve manifests for resumption.
                         project_gid = get_project_gid(entity_type)
                         if project_gid:
-                            try:
-                                from autom8_asana.dataframes.section_persistence import (
-                                    SectionPersistence,
-                                )
-
-                                section_persistence = SectionPersistence()
-                                async with section_persistence:
-                                    await section_persistence.delete_manifest_async(
-                                        project_gid
-                                    )
-                                    logger.info(
-                                        "manifest_cleared_after_warm",
-                                        extra={
-                                            "entity_type": entity_type,
-                                            "project_gid": project_gid,
-                                            "invocation_id": invocation_id,
-                                        },
-                                    )
-                            except Exception as e:
-                                # Non-fatal: manifest clearing failure
-                                # should not block warming
-                                logger.warning(
-                                    "manifest_clear_failed",
-                                    extra={
-                                        "entity_type": entity_type,
-                                        "project_gid": project_gid,
-                                        "error": str(e),
-                                        "invocation_id": invocation_id,
-                                    },
-                                )
+                            logger.info(
+                                "manifest_preserved_after_warm",
+                                extra={
+                                    "entity_type": entity_type,
+                                    "project_gid": project_gid,
+                                    "invocation_id": invocation_id,
+                                },
+                            )
 
                         # Emit success metrics
                         _emit_metric(
