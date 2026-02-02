@@ -964,26 +964,20 @@ async def _do_incremental_catchup(
             resolver = DefaultCustomFieldResolver()
             section_persistence = SectionPersistence()
 
-            builder = ProgressiveProjectBuilder(
-                client=client,
-                project_gid=project_gid,
-                entity_type=entity_type,
-                schema=schema,
-                persistence=section_persistence,
-                resolver=resolver,
-                store=client.unified_store,
-            )
+            async with section_persistence:
+                builder = ProgressiveProjectBuilder(
+                    client=client,
+                    project_gid=project_gid,
+                    entity_type=entity_type,
+                    schema=schema,
+                    persistence=section_persistence,
+                    resolver=resolver,
+                    store=client.unified_store,
+                )
 
-            # Use build_with_parallel_fetch_async with incremental=True
-            # This will use the IncrementalFilter to only process changed tasks
-            updated_df = await builder.build_with_parallel_fetch_async(
-                project_gid=project_gid,
-                schema=schema,
-                resume=True,
-                incremental=True,
-            )
-
-            new_watermark = datetime.now(UTC)
+                build_result = await builder.build_progressive_async(resume=True)
+                updated_df = build_result.df
+                new_watermark = build_result.watermark
 
             # Check if DataFrame actually changed
             was_incremental = True
@@ -1069,25 +1063,21 @@ async def _do_full_rebuild(
             resolver = DefaultCustomFieldResolver()
             section_persistence = SectionPersistence()
 
-            builder = ProgressiveProjectBuilder(
-                client=client,
-                project_gid=project_gid,
-                entity_type=entity_type,
-                schema=schema,
-                persistence=section_persistence,
-                resolver=resolver,
-                store=client.unified_store,
-            )
+            async with section_persistence:
+                builder = ProgressiveProjectBuilder(
+                    client=client,
+                    project_gid=project_gid,
+                    entity_type=entity_type,
+                    schema=schema,
+                    persistence=section_persistence,
+                    resolver=resolver,
+                    store=client.unified_store,
+                )
 
-            # Full fetch with resume=False to force fresh build
-            df = await builder.build_with_parallel_fetch_async(
-                project_gid=project_gid,
-                schema=schema,
-                resume=False,
-                incremental=False,
-            )
+                # Full fetch with resume=False to force fresh build
+                result = await builder.build_progressive_async(resume=False)
 
-            return df, datetime.now(UTC)
+                return result.df, result.watermark
 
     except Exception as e:
         logger.warning(
@@ -1473,24 +1463,8 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                 )
 
                                 try:
-                                    catchup_df = (
-                                        await builder.build_with_parallel_fetch_async(
-                                            project_gid=project_gid,
-                                            schema=schema,
-                                            resume=True,
-                                            incremental=True,
-                                        )
-                                    )
-
-                                    # Update result with catch-up data
-                                    result = ProgressiveBuildResult(
-                                        df=catchup_df,
-                                        watermark=datetime.now(UTC),
-                                        total_rows=len(catchup_df),
-                                        sections_fetched=result.sections_fetched,
-                                        sections_resumed=result.sections_resumed,
-                                        fetch_time_ms=result.fetch_time_ms,
-                                        total_time_ms=result.total_time_ms,
+                                    result = await builder.build_progressive_async(
+                                        resume=True
                                     )
 
                                     logger.info(

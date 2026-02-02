@@ -76,12 +76,15 @@ class TestPreloadFreshnessValidation:
         stale_result = _make_build_result(
             watermark_age_hours=10, sections_resumed=3
         )
-        catchup_df = pl.DataFrame({"gid": ["1", "2", "3"]})
+        fresh_result = _make_build_result(
+            watermark_age_hours=0, sections_resumed=0, sections_fetched=3,
+            total_rows=3,
+        )
 
         mock_builder = MagicMock()
-        mock_builder.build_progressive_async = AsyncMock(return_value=stale_result)
-        mock_builder.build_with_parallel_fetch_async = AsyncMock(
-            return_value=catchup_df
+        # First call returns stale result, second call (catch-up) returns fresh
+        mock_builder.build_progressive_async = AsyncMock(
+            side_effect=[stale_result, fresh_result]
         )
 
         mock_persistence = MagicMock()
@@ -124,8 +127,8 @@ class TestPreloadFreshnessValidation:
 
             await _preload_dataframe_cache_progressive(app)
 
-        # Verify catch-up was triggered
-        mock_builder.build_with_parallel_fetch_async.assert_called_once()
+        # Verify catch-up was triggered (build_progressive_async called twice)
+        assert mock_builder.build_progressive_async.call_count == 2
 
     @pytest.mark.asyncio
     async def test_preload_skips_catchup_for_fresh_data(self) -> None:
@@ -141,7 +144,6 @@ class TestPreloadFreshnessValidation:
 
         mock_builder = MagicMock()
         mock_builder.build_progressive_async = AsyncMock(return_value=fresh_result)
-        mock_builder.build_with_parallel_fetch_async = AsyncMock()
 
         mock_persistence = MagicMock()
         mock_persistence.is_available = True
@@ -183,8 +185,8 @@ class TestPreloadFreshnessValidation:
 
             await _preload_dataframe_cache_progressive(app)
 
-        # Catch-up should NOT be triggered
-        mock_builder.build_with_parallel_fetch_async.assert_not_called()
+        # Catch-up should NOT be triggered (only one call)
+        assert mock_builder.build_progressive_async.call_count == 1
 
     @pytest.mark.asyncio
     async def test_preload_skips_catchup_when_no_resume(self) -> None:
@@ -201,7 +203,6 @@ class TestPreloadFreshnessValidation:
 
         mock_builder = MagicMock()
         mock_builder.build_progressive_async = AsyncMock(return_value=result)
-        mock_builder.build_with_parallel_fetch_async = AsyncMock()
 
         mock_persistence = MagicMock()
         mock_persistence.is_available = True
@@ -243,8 +244,8 @@ class TestPreloadFreshnessValidation:
 
             await _preload_dataframe_cache_progressive(app)
 
-        # Catch-up should NOT be triggered (sections_resumed == 0)
-        mock_builder.build_with_parallel_fetch_async.assert_not_called()
+        # Catch-up should NOT be triggered (sections_resumed == 0, only one call)
+        assert mock_builder.build_progressive_async.call_count == 1
 
     @pytest.mark.asyncio
     async def test_preload_graceful_on_catchup_failure(self) -> None:
@@ -258,10 +259,9 @@ class TestPreloadFreshnessValidation:
         )
 
         mock_builder = MagicMock()
-        mock_builder.build_progressive_async = AsyncMock(return_value=stale_result)
-        # Catch-up raises exception
-        mock_builder.build_with_parallel_fetch_async = AsyncMock(
-            side_effect=Exception("API rate limited")
+        # First call returns stale result, second call (catch-up) raises exception
+        mock_builder.build_progressive_async = AsyncMock(
+            side_effect=[stale_result, Exception("API rate limited")]
         )
 
         mock_persistence = MagicMock()

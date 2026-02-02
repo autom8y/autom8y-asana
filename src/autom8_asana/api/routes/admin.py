@@ -277,24 +277,20 @@ async def _perform_incremental_rebuild(
                 schema = SchemaRegistry.get_instance().get_schema(task_type)
                 resolver = DefaultCustomFieldResolver()
 
-                builder = ProgressiveProjectBuilder(
-                    client=client,
-                    project_gid=project_gid,
-                    entity_type=entity_type,
-                    schema=schema,
-                    persistence=persistence,
-                    resolver=resolver,
-                    store=client.unified_store,
-                )
+                async with persistence:
+                    builder = ProgressiveProjectBuilder(
+                        client=client,
+                        project_gid=project_gid,
+                        entity_type=entity_type,
+                        schema=schema,
+                        persistence=persistence,
+                        resolver=resolver,
+                        store=client.unified_store,
+                    )
 
-                df = await builder.build_with_parallel_fetch_async(
-                    project_gid=project_gid,
-                    schema=schema,
-                    resume=True,
-                    incremental=True,
-                )
-
-                watermark = datetime.now(UTC)
+                    build_result = await builder.build_progressive_async(resume=True)
+                    df = build_result.df
+                    watermark = build_result.watermark
 
                 # Update cache and watermark
                 if dataframe_cache is not None and len(df) > 0:

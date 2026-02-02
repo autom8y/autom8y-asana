@@ -29,8 +29,6 @@ if TYPE_CHECKING:
 # - Custom fields: custom_fields with nested subfields
 #
 # Note: modified_at is required for watermark-based task filtering.
-# The IncrementalFilter uses modified_at to determine whether a cached
-# task needs reprocessing (PROCESS) or can be skipped (SKIP).
 
 BASE_OPT_FIELDS: list[str] = [
     # Core identity fields
