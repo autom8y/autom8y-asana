@@ -613,6 +613,43 @@ async def _warm_cache_async(
                     if status.result == WarmResult.SUCCESS:
                         completed_entities.append(entity_type)
 
+                        # Clear stale manifest for this entity's project
+                        # Per TDD-cache-freshness-remediation Fix 2: Delete
+                        # manifest after successful warm so next ECS restart
+                        # does a fresh build instead of resuming stale data.
+                        project_gid = get_project_gid(entity_type)
+                        if project_gid:
+                            try:
+                                from autom8_asana.dataframes.section_persistence import (
+                                    SectionPersistence,
+                                )
+
+                                section_persistence = SectionPersistence()
+                                async with section_persistence:
+                                    await section_persistence.delete_manifest_async(
+                                        project_gid
+                                    )
+                                    logger.info(
+                                        "manifest_cleared_after_warm",
+                                        extra={
+                                            "entity_type": entity_type,
+                                            "project_gid": project_gid,
+                                            "invocation_id": invocation_id,
+                                        },
+                                    )
+                            except Exception as e:
+                                # Non-fatal: manifest clearing failure
+                                # should not block warming
+                                logger.warning(
+                                    "manifest_clear_failed",
+                                    extra={
+                                        "entity_type": entity_type,
+                                        "project_gid": project_gid,
+                                        "error": str(e),
+                                        "invocation_id": invocation_id,
+                                    },
+                                )
+
                         # Emit success metrics
                         _emit_metric(
                             "WarmSuccess",

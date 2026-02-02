@@ -1,0 +1,333 @@
+"""Admin routes for cache management.
+
+Provides operational endpoints for manual cache control.
+Authentication: Service token (S2S JWT) required.
+
+Per TDD-cache-freshness-remediation Fix 4:
+- POST /v1/admin/cache/refresh for manual cache invalidation and rebuild
+- S2S JWT auth via require_service_claims
+- Async background execution (202 Accepted)
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import UTC, datetime
+from typing import Any
+
+from autom8y_log import get_logger
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from pydantic import BaseModel
+
+from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
+
+logger = get_logger(__name__)
+
+router = APIRouter(prefix="/v1/admin", tags=["admin"])
+
+VALID_ENTITY_TYPES = {"unit", "business", "offer", "contact", "asset_edit"}
+
+
+class CacheRefreshRequest(BaseModel):
+    """Request body for cache refresh endpoint.
+
+    Attributes:
+        entity_type: Specific entity type to refresh. If None, refresh all.
+        force_full_rebuild: If True, delete manifests and rebuild from scratch.
+    """
+
+    entity_type: str | None = None
+    force_full_rebuild: bool = False
+
+
+class CacheRefreshResponse(BaseModel):
+    """Response body for cache refresh endpoint.
+
+    Attributes:
+        status: Always "accepted" for 202 responses.
+        message: Human-readable description of the action taken.
+        entity_types: List of entity types being refreshed.
+        refresh_id: Unique identifier for this refresh operation.
+        force_full_rebuild: Whether full rebuild was requested.
+    """
+
+    status: str = "accepted"
+    message: str
+    entity_types: list[str]
+    refresh_id: str
+    force_full_rebuild: bool
+
+
+async def _perform_cache_refresh(
+    entity_types: list[str],
+    force_full_rebuild: bool,
+    refresh_id: str,
+) -> None:
+    """Background task to perform cache refresh.
+
+    Args:
+        entity_types: Entity types to refresh.
+        force_full_rebuild: Whether to delete manifests and rebuild.
+        refresh_id: Unique identifier for logging correlation.
+    """
+    import os
+
+    from autom8_asana import AsanaClient
+    from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
+    from autom8_asana.cache.dataframe.factory import get_dataframe_cache
+    from autom8_asana.dataframes.builders.progressive import ProgressiveProjectBuilder
+    from autom8_asana.dataframes.models.registry import SchemaRegistry
+    from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
+    from autom8_asana.dataframes.section_persistence import SectionPersistence
+    from autom8_asana.dataframes.watermark import get_watermark_repo
+    from autom8_asana.services.resolver import EntityProjectRegistry, to_pascal_case
+
+    logger.info(
+        "cache_refresh_started",
+        extra={
+            "refresh_id": refresh_id,
+            "entity_types": entity_types,
+            "force_full_rebuild": force_full_rebuild,
+        },
+    )
+
+    try:
+        bot_pat = get_bot_pat()
+    except BotPATError as e:
+        logger.error(
+            "cache_refresh_no_bot_pat",
+            extra={"refresh_id": refresh_id, "error": str(e)},
+        )
+        return
+
+    workspace_gid = os.environ.get("ASANA_WORKSPACE_GID")
+    if not workspace_gid:
+        logger.error(
+            "cache_refresh_no_workspace",
+            extra={"refresh_id": refresh_id},
+        )
+        return
+
+    registry = EntityProjectRegistry.get_instance()
+    dataframe_cache = get_dataframe_cache()
+    watermark_repo = get_watermark_repo()
+    persistence = SectionPersistence()
+
+    for entity_type in entity_types:
+        try:
+            project_gid = registry.get_project_gid(entity_type)
+            if not project_gid:
+                logger.warning(
+                    "cache_refresh_no_project_gid",
+                    extra={
+                        "refresh_id": refresh_id,
+                        "entity_type": entity_type,
+                    },
+                )
+                continue
+
+            # Invalidate existing cache entry
+            if dataframe_cache is not None:
+                try:
+                    dataframe_cache.invalidate(project_gid, entity_type)
+                except Exception as e:
+                    logger.warning(
+                        "cache_refresh_invalidate_failed",
+                        extra={
+                            "refresh_id": refresh_id,
+                            "entity_type": entity_type,
+                            "error": str(e),
+                        },
+                    )
+
+            # Delete manifest if force rebuild
+            if force_full_rebuild:
+                try:
+                    async with persistence:
+                        await persistence.delete_manifest_async(project_gid)
+                    logger.info(
+                        "cache_refresh_manifest_deleted",
+                        extra={
+                            "refresh_id": refresh_id,
+                            "entity_type": entity_type,
+                            "project_gid": project_gid,
+                        },
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "cache_refresh_manifest_delete_failed",
+                        extra={
+                            "refresh_id": refresh_id,
+                            "entity_type": entity_type,
+                            "error": str(e),
+                        },
+                    )
+
+            # Rebuild via parallel fetch
+            async with AsanaClient(
+                token=bot_pat, workspace_gid=workspace_gid
+            ) as client:
+                task_type = to_pascal_case(entity_type)
+                schema = SchemaRegistry.get_instance().get_schema(task_type)
+                resolver = DefaultCustomFieldResolver()
+
+                builder = ProgressiveProjectBuilder(
+                    client=client,
+                    project_gid=project_gid,
+                    entity_type=entity_type,
+                    schema=schema,
+                    persistence=persistence,
+                    resolver=resolver,
+                    store=client.unified_store,
+                )
+
+                df = await builder.build_with_parallel_fetch_async(
+                    project_gid=project_gid,
+                    schema=schema,
+                    resume=not force_full_rebuild,
+                    incremental=not force_full_rebuild,
+                )
+
+                watermark = datetime.now(UTC)
+
+                # Update cache and watermark
+                if dataframe_cache is not None and len(df) > 0:
+                    await dataframe_cache.put_async(
+                        project_gid, entity_type, df, watermark
+                    )
+                watermark_repo.set_watermark(project_gid, watermark)
+
+                logger.info(
+                    "cache_refresh_entity_complete",
+                    extra={
+                        "refresh_id": refresh_id,
+                        "entity_type": entity_type,
+                        "project_gid": project_gid,
+                        "rows": len(df),
+                    },
+                )
+
+        except Exception as e:
+            logger.error(
+                "cache_refresh_entity_failed",
+                extra={
+                    "refresh_id": refresh_id,
+                    "entity_type": entity_type,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            )
+
+    logger.info(
+        "cache_refresh_complete",
+        extra={
+            "refresh_id": refresh_id,
+            "entity_types": entity_types,
+        },
+    )
+
+
+@router.post(
+    "/cache/refresh",
+    response_model=CacheRefreshResponse,
+    status_code=202,
+)
+async def refresh_cache(
+    request: Request,
+    body: CacheRefreshRequest,
+    background_tasks: BackgroundTasks,
+    claims: ServiceClaims = Depends(require_service_claims),
+) -> CacheRefreshResponse:
+    """Trigger cache refresh for one or all entity types.
+
+    Requires S2S JWT authentication. Kicks off a background task and
+    returns 202 Accepted immediately.
+
+    Args:
+        request: FastAPI request object.
+        body: Cache refresh request parameters.
+        background_tasks: FastAPI background tasks.
+        claims: Validated service claims from S2S JWT.
+
+    Returns:
+        CacheRefreshResponse with refresh details.
+
+    Raises:
+        HTTPException: 400 for invalid entity type, 503 for cache not ready.
+    """
+    from autom8_asana.cache.dataframe.factory import get_dataframe_cache
+    from autom8_asana.services.resolver import EntityProjectRegistry
+
+    # Validate entity type
+    if body.entity_type is not None and body.entity_type not in VALID_ENTITY_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "INVALID_ENTITY_TYPE",
+                "message": (
+                    f"Invalid entity_type: '{body.entity_type}'. "
+                    f"Valid types: {sorted(VALID_ENTITY_TYPES)}"
+                ),
+            },
+        )
+
+    # Check cache system is initialized
+    cache = get_dataframe_cache()
+    if cache is None:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "CACHE_NOT_INITIALIZED",
+                "message": "Cache system is not initialized. Try again later.",
+            },
+        )
+
+    # Check registry is ready
+    registry = EntityProjectRegistry.get_instance()
+    if not registry.is_ready():
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "REGISTRY_NOT_READY",
+                "message": "Entity project registry is not initialized.",
+            },
+        )
+
+    # Determine entity types to refresh
+    if body.entity_type is not None:
+        entity_types = [body.entity_type]
+    else:
+        entity_types = sorted(VALID_ENTITY_TYPES)
+
+    refresh_id = str(uuid.uuid4())
+
+    logger.info(
+        "cache_refresh_requested",
+        extra={
+            "refresh_id": refresh_id,
+            "entity_types": entity_types,
+            "force_full_rebuild": body.force_full_rebuild,
+            "caller_service": claims.service_name,
+        },
+    )
+
+    # Schedule background task
+    background_tasks.add_task(
+        _perform_cache_refresh,
+        entity_types=entity_types,
+        force_full_rebuild=body.force_full_rebuild,
+        refresh_id=refresh_id,
+    )
+
+    entity_list = ", ".join(entity_types)
+    message = f"Cache refresh initiated for entity_type={entity_list}"
+    if body.force_full_rebuild:
+        message += " (force full rebuild)"
+
+    return CacheRefreshResponse(
+        status="accepted",
+        message=message,
+        entity_types=entity_types,
+        refresh_id=refresh_id,
+        force_full_rebuild=body.force_full_rebuild,
+    )

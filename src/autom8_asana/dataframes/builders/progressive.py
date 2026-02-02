@@ -14,6 +14,7 @@ This builder enables:
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -198,8 +199,51 @@ class ProgressiveProjectBuilder:
         if resume:
             manifest = await self._persistence.get_manifest_async(self._project_gid)
             if manifest is not None:
+                # Check manifest age (staleness detection)
+                # Per TDD-cache-freshness-remediation Fix 1: Delete stale
+                # COMPLETE manifests to force a full rebuild. Incomplete
+                # manifests are preserved for transient failure resume.
+                try:
+                    manifest_ttl_hours = int(
+                        os.environ.get("MANIFEST_TTL_HOURS", "6")
+                    )
+                except (ValueError, TypeError):
+                    manifest_ttl_hours = 6
+
+                manifest_age_hours = (
+                    datetime.now(UTC) - manifest.started_at
+                ).total_seconds() / 3600
+
+                if manifest_age_hours > manifest_ttl_hours and manifest.is_complete():
+                    logger.warning(
+                        "progressive_build_manifest_stale",
+                        extra={
+                            "project_gid": self._project_gid,
+                            "manifest_age_hours": round(manifest_age_hours, 2),
+                            "ttl_hours": manifest_ttl_hours,
+                            "started_at": manifest.started_at.isoformat(),
+                        },
+                    )
+                    try:
+                        await self._persistence.delete_manifest_async(
+                            self._project_gid
+                        )
+                    except Exception as e:
+                        logger.error(
+                            "progressive_build_manifest_delete_failed",
+                            extra={
+                                "project_gid": self._project_gid,
+                                "error": str(e),
+                            },
+                        )
+                        # Continue with stale manifest (graceful degradation)
+                    else:
+                        manifest = None  # Force fresh build
+
                 # Check schema compatibility before resuming
-                if not manifest.is_schema_compatible(current_schema_version):
+                if manifest is not None and not manifest.is_schema_compatible(
+                    current_schema_version
+                ):
                     logger.warning(
                         "progressive_build_schema_mismatch",
                         extra={
@@ -210,7 +254,7 @@ class ProgressiveProjectBuilder:
                     )
                     await self._persistence.delete_manifest_async(self._project_gid)
                     manifest = None  # Force fresh build
-                else:
+                elif manifest is not None:
                     # Resume: only fetch incomplete sections
                     sections_to_fetch = manifest.get_incomplete_section_gids()
                     sections_resumed = manifest.completed_sections
