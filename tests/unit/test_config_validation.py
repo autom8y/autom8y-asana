@@ -78,8 +78,8 @@ class TestRetryConfig:
         """Default configuration is valid."""
         config = RetryConfig()
 
-        assert config.max_retries == 3
-        assert config.base_delay == 0.1
+        assert config.max_retries == 5
+        assert config.base_delay == 0.5
         assert config.max_delay == 60.0
         assert config.exponential_base == 2.0
         assert config.jitter is True

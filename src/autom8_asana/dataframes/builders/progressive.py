@@ -57,6 +57,8 @@ class ProgressiveBuildResult:
         sections_resumed: Number of sections loaded from S3 (resumed).
         fetch_time_ms: Time spent fetching from API.
         total_time_ms: Total build time including S3 writes.
+        sections_probed: Number of sections checked for freshness.
+        sections_delta_updated: Number of sections updated via delta merge.
     """
 
     df: pl.DataFrame
@@ -66,6 +68,8 @@ class ProgressiveBuildResult:
     sections_resumed: int
     fetch_time_ms: float
     total_time_ms: float
+    sections_probed: int = 0
+    sections_delta_updated: int = 0
 
 
 class ProgressiveProjectBuilder:
@@ -122,6 +126,7 @@ class ProgressiveProjectBuilder:
         self._store = store
         self._max_concurrent = max_concurrent_sections
         self._dataframe_view: DataFrameViewPlugin | None = None
+        self._section_dfs: dict[str, pl.DataFrame] = {}
 
     async def build_progressive_async(
         self,
@@ -139,6 +144,8 @@ class ProgressiveProjectBuilder:
         fetch_time = 0.0
         sections_fetched = 0
         sections_resumed = 0
+        sections_probed = 0
+        sections_delta_updated = 0
 
         # Initialize DataFrameView for task-to-row extraction
         await self._ensure_dataframe_view()
@@ -170,47 +177,6 @@ class ProgressiveProjectBuilder:
         if resume:
             manifest = await self._persistence.get_manifest_async(self._project_gid)
             if manifest is not None:
-                # Check manifest age (staleness detection)
-                # Per TDD-cache-freshness-remediation Fix 1: Delete stale
-                # COMPLETE manifests to force a full rebuild. Incomplete
-                # manifests are preserved for transient failure resume.
-                try:
-                    manifest_ttl_hours = int(
-                        os.environ.get("MANIFEST_TTL_HOURS", "6")
-                    )
-                except (ValueError, TypeError):
-                    manifest_ttl_hours = 6
-
-                manifest_age_hours = (
-                    datetime.now(UTC) - manifest.started_at
-                ).total_seconds() / 3600
-
-                if manifest_age_hours > manifest_ttl_hours and manifest.is_complete():
-                    logger.warning(
-                        "progressive_build_manifest_stale",
-                        extra={
-                            "project_gid": self._project_gid,
-                            "manifest_age_hours": round(manifest_age_hours, 2),
-                            "ttl_hours": manifest_ttl_hours,
-                            "started_at": manifest.started_at.isoformat(),
-                        },
-                    )
-                    try:
-                        await self._persistence.delete_manifest_async(
-                            self._project_gid
-                        )
-                    except Exception as e:
-                        logger.error(
-                            "progressive_build_manifest_delete_failed",
-                            extra={
-                                "project_gid": self._project_gid,
-                                "error": str(e),
-                            },
-                        )
-                        # Continue with stale manifest (graceful degradation)
-                    else:
-                        manifest = None  # Force fresh build
-
                 # Check schema compatibility before resuming
                 if manifest is not None and not manifest.is_schema_compatible(
                     current_schema_version
@@ -239,6 +205,60 @@ class ProgressiveProjectBuilder:
                             "sections_to_fetch": len(sections_to_fetch),
                         },
                     )
+
+                    # Step 2b: Probe COMPLETE sections for freshness
+                    if manifest.is_complete() and os.environ.get(
+                        "SECTION_FRESHNESS_PROBE", "1"
+                    ) != "0":
+                        try:
+                            from autom8_asana.dataframes.builders.freshness import (
+                                ProbeVerdict,
+                                SectionFreshnessProber,
+                            )
+
+                            prober = SectionFreshnessProber(
+                                client=self._client,
+                                persistence=self._persistence,
+                                project_gid=self._project_gid,
+                                manifest=manifest,
+                                schema=self._schema,
+                                dataframe_view=self._dataframe_view,
+                            )
+                            probe_results = await prober.probe_all_async()
+                            sections_probed = len(probe_results)
+
+                            stale = [
+                                r
+                                for r in probe_results
+                                if r.verdict
+                                not in (ProbeVerdict.CLEAN, ProbeVerdict.PROBE_FAILED)
+                            ]
+                            if stale:
+                                sections_delta_updated = (
+                                    await prober.apply_deltas_async(
+                                        stale,
+                                        dataframe_view=self._dataframe_view,
+                                    )
+                                )
+
+                                logger.info(
+                                    "progressive_build_freshness_applied",
+                                    extra={
+                                        "project_gid": self._project_gid,
+                                        "sections_probed": sections_probed,
+                                        "sections_stale": len(stale),
+                                        "sections_delta_updated": sections_delta_updated,
+                                    },
+                                )
+                        except Exception as e:
+                            logger.warning(
+                                "progressive_build_freshness_probe_failed",
+                                extra={
+                                    "project_gid": self._project_gid,
+                                    "error": str(e),
+                                    "error_type": type(e).__name__,
+                                },
+                            )
 
         # Step 3: Create/update manifest
         if manifest is None:
@@ -284,10 +304,23 @@ class ProgressiveProjectBuilder:
             sections_fetched = sum(1 for r in results if r)
             fetch_time = (time.perf_counter() - fetch_start) * 1000
 
-        # Step 5: Merge all sections from S3
+        # Step 5: Merge all sections from S3, with in-memory fallback
         merged_df = await self._persistence.merge_sections_to_dataframe_async(
             self._project_gid
         )
+
+        if merged_df is None and self._section_dfs:
+            merged_df = pl.concat(
+                list(self._section_dfs.values()), how="diagonal_relaxed"
+            )
+            logger.warning(
+                "progressive_build_s3_fallback",
+                extra={
+                    "project_gid": self._project_gid,
+                    "sections_in_memory": len(self._section_dfs),
+                    "total_rows": len(merged_df),
+                },
+            )
 
         if merged_df is None:
             merged_df = pl.DataFrame(schema=self._schema.to_polars_schema())
@@ -317,10 +350,15 @@ class ProgressiveProjectBuilder:
                 "total_rows": total_rows,
                 "sections_fetched": sections_fetched,
                 "sections_resumed": sections_resumed,
+                "sections_probed": sections_probed,
+                "sections_delta_updated": sections_delta_updated,
                 "fetch_time_ms": round(fetch_time, 2),
                 "total_time_ms": round(total_time, 2),
             },
         )
+
+        # Release in-memory section DataFrames
+        self._section_dfs.clear()
 
         return ProgressiveBuildResult(
             df=merged_df,
@@ -330,6 +368,8 @@ class ProgressiveProjectBuilder:
             sections_resumed=sections_resumed,
             fetch_time_ms=fetch_time,
             total_time_ms=total_time,
+            sections_probed=sections_probed,
+            sections_delta_updated=sections_delta_updated,
         )
 
     async def _ensure_dataframe_view(self) -> None:
@@ -406,11 +446,16 @@ class ProgressiveProjectBuilder:
 
             if not tasks:
                 # Empty section - mark as complete with 0 rows
+                from autom8_asana.dataframes.builders.freshness import (
+                    compute_gid_hash,
+                )
+
                 await self._persistence.update_manifest_section_async(
                     self._project_gid,
                     section_gid,
                     SectionStatus.COMPLETE,
                     rows=0,
+                    gid_hash=compute_gid_hash([]),
                 )
                 return True
 
@@ -427,11 +472,26 @@ class ProgressiveProjectBuilder:
                 coerced_rows, schema=self._schema.to_polars_schema()
             )
 
+            # Compute freshness metadata for section probing
+            from autom8_asana.dataframes.builders.freshness import compute_gid_hash
+
+            section_gid_hash = compute_gid_hash([t.gid for t in tasks])
+            section_watermark: datetime | None = None
+            if "_modified_at" in section_df.columns and len(section_df) > 0:
+                max_val = section_df["_modified_at"].max()
+                if max_val is not None and isinstance(max_val, datetime):
+                    section_watermark = max_val
+
+            # Store in memory before S3 write (fallback if S3 unavailable)
+            self._section_dfs[section_gid] = section_df
+
             # Write to S3 (this also updates manifest to COMPLETE)
             success = await self._persistence.write_section_async(
                 self._project_gid,
                 section_gid,
                 section_df,
+                watermark=section_watermark,
+                gid_hash=section_gid_hash,
             )
 
             return success

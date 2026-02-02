@@ -36,11 +36,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def warm_all_projects(entity_filter: str | None = None) -> int:
+async def warm_all_projects(
+    entity_filter: str | None = None,
+    force: bool = False,
+) -> int:
     """Warm cache for all registered projects.
 
     Args:
         entity_filter: Optional entity type to filter to (e.g. "offer").
+        force: If True, bypass manifest resume and do a full rebuild.
 
     Returns:
         Exit code (0 for success, 1 for failure).
@@ -136,7 +140,9 @@ async def warm_all_projects(entity_filter: str | None = None) -> int:
                         )
 
                         # Build DataFrame progressively (will auto-persist sections to S3)
-                        result = await builder.build_progressive_async()
+                        result = await builder.build_progressive_async(
+                            resume=not force,
+                        )
 
                 logger.info(
                     f"Successfully warmed {entity_type}: {result.total_rows} rows persisted"
@@ -172,8 +178,14 @@ def main() -> int:
         default=None,
         help="Optional entity type to warm (e.g. 'offer'). Warms all if omitted.",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        default=False,
+        help="Force full rebuild (no resume from manifest, no freshness probing).",
+    )
     args = parser.parse_args()
-    return asyncio.run(warm_all_projects(entity_filter=args.entity))
+    return asyncio.run(warm_all_projects(entity_filter=args.entity, force=args.force))
 
 
 if __name__ == "__main__":

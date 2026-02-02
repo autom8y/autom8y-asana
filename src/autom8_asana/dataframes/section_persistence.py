@@ -84,6 +84,8 @@ class SectionInfo(BaseModel):
     rows: int = 0
     written_at: datetime | None = None
     error: str | None = None
+    watermark: datetime | None = None
+    gid_hash: str | None = None
 
     model_config = {"use_enum_values": True}
 
@@ -140,12 +142,17 @@ class SectionManifest(BaseModel):
         self,
         section_gid: str,
         rows: int,
+        *,
+        watermark: datetime | None = None,
+        gid_hash: str | None = None,
     ) -> None:
         """Mark a section as complete."""
         self.sections[section_gid] = SectionInfo(
             status=SectionStatus.COMPLETE,
             rows=rows,
             written_at=datetime.now(UTC),
+            watermark=watermark,
+            gid_hash=gid_hash,
         )
         self.completed_sections = len(self.get_complete_section_gids())
 
@@ -423,6 +430,9 @@ class SectionPersistence:
         status: SectionStatus,
         rows: int = 0,
         error: str | None = None,
+        *,
+        watermark: datetime | None = None,
+        gid_hash: str | None = None,
     ) -> SectionManifest | None:
         """Update a section's status in the manifest.
 
@@ -435,6 +445,8 @@ class SectionPersistence:
             status: New status for the section.
             rows: Row count (for complete status).
             error: Error message (for failed status).
+            watermark: Max modified_at timestamp (for complete status).
+            gid_hash: SHA256 hash of sorted GIDs (for complete status).
 
         Returns:
             Updated manifest, or None on error.
@@ -448,7 +460,9 @@ class SectionPersistence:
                 return None
 
             if status == SectionStatus.COMPLETE:
-                manifest.mark_section_complete(section_gid, rows)
+                manifest.mark_section_complete(
+                    section_gid, rows, watermark=watermark, gid_hash=gid_hash
+                )
             elif status == SectionStatus.FAILED:
                 manifest.mark_section_failed(section_gid, error or "Unknown error")
             elif status == SectionStatus.IN_PROGRESS:
@@ -493,6 +507,9 @@ class SectionPersistence:
         project_gid: str,
         section_gid: str,
         df: pl.DataFrame,
+        *,
+        watermark: datetime | None = None,
+        gid_hash: str | None = None,
     ) -> bool:
         """Write a section DataFrame to S3.
 
@@ -500,6 +517,8 @@ class SectionPersistence:
             project_gid: Asana project GID.
             section_gid: Section GID.
             df: Polars DataFrame for this section.
+            watermark: Max modified_at timestamp for freshness probing.
+            gid_hash: SHA256 hash of sorted task GIDs for structural change detection.
 
         Returns:
             True if written successfully.
@@ -546,6 +565,8 @@ class SectionPersistence:
                 section_gid,
                 SectionStatus.COMPLETE,
                 rows=len(df),
+                watermark=watermark,
+                gid_hash=gid_hash,
             )
         else:
             logger.error(
