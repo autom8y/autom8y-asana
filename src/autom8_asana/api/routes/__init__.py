@@ -20,6 +20,7 @@ Current routes:
 - Query router (/v1/query) - S2S only (entity query)
 """
 
+from .admin import router as admin_router
 from .dataframes import router as dataframes_router
 from .health import router as health_router
 from .internal import router as internal_router
@@ -32,6 +33,7 @@ from .users import router as users_router
 from .workspaces import router as workspaces_router
 
 __all__ = [
+    "admin_router",
     "dataframes_router",
     "health_router",
     "internal_router",
