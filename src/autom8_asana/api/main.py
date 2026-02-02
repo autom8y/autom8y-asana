@@ -1357,13 +1357,60 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                 store=shared_store,  # Use SHARED store for cascade resolution
                             )
 
-                            # Check if manifest exists — if not, S3 was purged
-                            # and we must delegate to Lambda to avoid OOM from
-                            # full in-process build.
+                            # Check if manifest exists — if not, the
+                            # progressive builder would do a full API fetch
+                            # which risks OOM.  Instead, try loading
+                            # dataframe.parquet that Lambda may have already
+                            # written.  Only delegate to Lambda if no parquet
+                            # exists either.
                             manifest = await persistence.get_manifest_async(
                                 project_gid
                             )
                             if manifest is None:
+                                # Try loading existing dataframe.parquet from
+                                # S3 (Lambda writes this and deletes the
+                                # manifest after a successful warm).
+                                from autom8_asana.dataframes.persistence import (
+                                    DataFramePersistence,
+                                )
+
+                                df_persistence = DataFramePersistence()
+                                s3_df, s3_watermark = (
+                                    await df_persistence.load_dataframe(
+                                        project_gid
+                                    )
+                                )
+
+                                if s3_df is not None and len(s3_df) > 0:
+                                    # Parquet exists — load directly into
+                                    # memory cache (no API calls needed).
+                                    logger.info(
+                                        "progressive_preload_loaded_from_parquet",
+                                        extra={
+                                            "project_gid": project_gid,
+                                            "entity_type": entity_type,
+                                            "rows": len(s3_df),
+                                            "watermark": (
+                                                s3_watermark.isoformat()
+                                                if s3_watermark
+                                                else None
+                                            ),
+                                        },
+                                    )
+                                    if s3_watermark is not None:
+                                        watermark_repo.set_watermark(
+                                            project_gid, s3_watermark
+                                        )
+                                    if dataframe_cache is not None:
+                                        await dataframe_cache.put_async(
+                                            project_gid,
+                                            entity_type,
+                                            s3_df,
+                                            s3_watermark,
+                                        )
+                                    return True
+
+                                # No parquet either — delegate to Lambda
                                 lambda_arn = os.environ.get(
                                     "CACHE_WARMER_LAMBDA_ARN"
                                 )
@@ -1374,7 +1421,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                         extra={
                                             "project_gid": project_gid,
                                             "entity_type": entity_type,
-                                            "reason": "manifest missing, delegating to Lambda to avoid OOM",
+                                            "reason": "no manifest or parquet, delegating to Lambda",
                                         },
                                     )
                                     return False
@@ -1384,7 +1431,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                         extra={
                                             "project_gid": project_gid,
                                             "entity_type": entity_type,
-                                            "reason": "manifest missing, no Lambda ARN — skipping",
+                                            "reason": "no manifest or parquet, no Lambda ARN — skipping",
                                         },
                                     )
                                     return False
