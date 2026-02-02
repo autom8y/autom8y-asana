@@ -108,6 +108,17 @@ class CacheSettings(BaseSettings):
     memory_max_size: int = Field(
         default=10000, description="Maximum entries in in-memory cache"
     )
+    dataframe_heap_percent: float = Field(
+        default=0.3,
+        description="Max fraction of container memory for DataFrame cache (0.0-1.0)",
+        ge=0.0,
+        le=1.0,
+    )
+    dataframe_max_entries: int = Field(
+        default=100,
+        description="Max DataFrame entries in memory tier",
+        ge=1,
+    )
 
     @field_validator("provider", mode="before")
     @classmethod
