@@ -1116,6 +1116,43 @@ HEARTBEAT_INTERVAL_SECONDS = 30
 PRELOAD_EXCLUDE_PROJECT_GIDS: set[str] = set()
 
 
+def _invoke_cache_warmer_lambda_from_preload(
+    function_arn: str, entity_types: list[str]
+) -> None:
+    """Invoke cache warmer Lambda for entities missing S3 data."""
+    import json
+
+    import boto3
+
+    payload = {
+        "entity_types": entity_types,
+        "strict": False,
+        "resume_from_checkpoint": False,
+    }
+    try:
+        client = boto3.client("lambda")
+        client.invoke(
+            FunctionName=function_arn,
+            InvocationType="Event",
+            Payload=json.dumps(payload),
+        )
+        logger.info(
+            "preload_lambda_invoked",
+            extra={
+                "function_arn": function_arn,
+                "entity_types": entity_types,
+            },
+        )
+    except Exception as e:
+        logger.error(
+            "preload_lambda_invoke_failed",
+            extra={
+                "error": str(e),
+                "entity_types": entity_types,
+            },
+        )
+
+
 async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
     """Pre-warm DataFrame cache using progressive section writes.
 
@@ -1153,6 +1190,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
     sections_resumed_total = 0
     projects_in_progress: set[str] = set()
     projects_completed: set[str] = set()
+    projects_needing_lambda: list[str] = []
 
     # Heartbeat state
     heartbeat_task: asyncio.Task[None] | None = None
@@ -1319,6 +1357,38 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                 store=shared_store,  # Use SHARED store for cascade resolution
                             )
 
+                            # Check if manifest exists — if not, S3 was purged
+                            # and we must delegate to Lambda to avoid OOM from
+                            # full in-process build.
+                            manifest = await persistence.get_manifest_async(
+                                project_gid
+                            )
+                            if manifest is None:
+                                lambda_arn = os.environ.get(
+                                    "CACHE_WARMER_LAMBDA_ARN"
+                                )
+                                if lambda_arn:
+                                    projects_needing_lambda.append(entity_type)
+                                    logger.info(
+                                        "progressive_preload_no_manifest_delegating",
+                                        extra={
+                                            "project_gid": project_gid,
+                                            "entity_type": entity_type,
+                                            "reason": "manifest missing, delegating to Lambda to avoid OOM",
+                                        },
+                                    )
+                                    return False
+                                else:
+                                    logger.warning(
+                                        "progressive_preload_no_manifest_no_lambda",
+                                        extra={
+                                            "project_gid": project_gid,
+                                            "entity_type": entity_type,
+                                            "reason": "manifest missing, no Lambda ARN — skipping",
+                                        },
+                                    )
+                                    return False
+
                             result = await builder.build_progressive_async(resume=True)
 
                             # Per TDD-cache-freshness-remediation Fix 3:
@@ -1474,6 +1544,14 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
             for result in other_results:
                 if isinstance(result, bool) and result:
                     loaded_count += 1
+
+        # Invoke Lambda once for all entities missing S3 manifests
+        if projects_needing_lambda:
+            lambda_arn = os.environ.get("CACHE_WARMER_LAMBDA_ARN")
+            if lambda_arn:
+                _invoke_cache_warmer_lambda_from_preload(
+                    lambda_arn, projects_needing_lambda
+                )
 
     except Exception as e:
         logger.error(

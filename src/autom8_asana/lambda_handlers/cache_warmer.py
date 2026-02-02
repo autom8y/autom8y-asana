@@ -245,6 +245,63 @@ def _emit_metric(
         )
 
 
+def _self_invoke_continuation(
+    context: Any,
+    pending_entities: list[str],
+    parent_invocation_id: str,
+) -> None:
+    """Self-invoke Lambda with remaining entities for continuation.
+
+    Uses context.invoked_function_arn to get own ARN.
+    Fires asynchronously (InvocationType=Event) so current invocation
+    can return cleanly.
+    """
+    if not pending_entities:
+        return
+
+    function_arn = getattr(context, "invoked_function_arn", None)
+    if not function_arn:
+        logger.warning(
+            "self_invoke_no_arn",
+            extra={"parent_invocation_id": parent_invocation_id},
+        )
+        return
+
+    import json
+
+    import boto3
+
+    payload = {
+        "entity_types": pending_entities,
+        "strict": False,
+        "resume_from_checkpoint": True,
+    }
+    try:
+        client = boto3.client("lambda")
+        client.invoke(
+            FunctionName=function_arn,
+            InvocationType="Event",
+            Payload=json.dumps(payload),
+        )
+        logger.info(
+            "self_invoke_continuation",
+            extra={
+                "function_arn": function_arn,
+                "pending_entities": pending_entities,
+                "parent_invocation_id": parent_invocation_id,
+            },
+        )
+        _emit_metric("SelfContinuationInvoked", 1)
+    except Exception as e:
+        logger.error(
+            "self_invoke_failed",
+            extra={
+                "error": str(e),
+                "parent_invocation_id": parent_invocation_id,
+            },
+        )
+
+
 async def _discover_entity_projects_for_lambda() -> None:
     """Discover and register entity type project mappings for Lambda.
 
@@ -589,9 +646,12 @@ async def _warm_cache_async(
                     )
                     _emit_metric("CheckpointSaved", 1)
 
+                    # Self-invoke with remaining entities
+                    _self_invoke_continuation(context, pending, invocation_id)
+
                     return WarmResponse(
                         success=False,
-                        message=f"Partial completion due to timeout. Completed: {completed_entities}",
+                        message=f"Partial completion, self-continuing. Completed: {completed_entities}, Pending: {pending}",
                         entity_results=entity_results,
                         total_rows=sum(r.get("row_count", 0) for r in entity_results),
                         duration_ms=(time.monotonic() - start_time) * 1000,
