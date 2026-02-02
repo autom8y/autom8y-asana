@@ -18,7 +18,8 @@ S3 Key Structure:
         └── gid_lookup_index.json
 
 Thread Safety:
-    Uses async operations throughout. Manifest updates are atomic per-section.
+    Uses per-project asyncio.Lock to serialize manifest read-modify-write cycles.
+    An in-memory cache eliminates redundant S3 reads within the same event loop.
 
 Example:
     >>> from autom8_asana.dataframes.section_persistence import SectionPersistence
@@ -40,6 +41,7 @@ Example:
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 from dataclasses import dataclass
@@ -246,6 +248,10 @@ class SectionPersistence:
                 endpoint_url=config.endpoint_url,
             )
         )
+        # In-memory manifest cache + per-project locks to prevent
+        # read-modify-write races during concurrent section updates.
+        self._manifest_cache: dict[str, SectionManifest] = {}
+        self._manifest_locks: dict[str, asyncio.Lock] = {}
         # Initialize polars eagerly for is_available check
         self._polars_module: Any = None
         self._initialize_polars()
@@ -272,6 +278,16 @@ class SectionPersistence:
             self._polars_module = polars
         except ImportError:
             logger.warning("polars not available for SectionPersistence")
+
+    def _get_manifest_lock(self, project_gid: str) -> asyncio.Lock:
+        """Get or create a per-project asyncio.Lock for manifest updates.
+
+        Safe without additional synchronization because dict access between
+        check and assignment has no `await` (atomic in single event loop).
+        """
+        if project_gid not in self._manifest_locks:
+            self._manifest_locks[project_gid] = asyncio.Lock()
+        return self._manifest_locks[project_gid]
 
     @property
     def is_available(self) -> bool:
@@ -331,6 +347,7 @@ class SectionPersistence:
         )
 
         await self._save_manifest_async(manifest)
+        self._manifest_cache[project_gid] = manifest
 
         logger.info(
             "section_manifest_created",
@@ -346,12 +363,18 @@ class SectionPersistence:
     async def get_manifest_async(self, project_gid: str) -> SectionManifest | None:
         """Get manifest for a project.
 
+        Returns cached manifest if available, otherwise reads from S3
+        and populates the cache.
+
         Args:
             project_gid: Asana project GID.
 
         Returns:
             SectionManifest if exists, None otherwise.
         """
+        if project_gid in self._manifest_cache:
+            return self._manifest_cache[project_gid]
+
         key = self._make_manifest_key(project_gid)
         result = await self._s3_client.get_object_async(key)
 
@@ -367,7 +390,9 @@ class SectionPersistence:
 
         try:
             data = json.loads(result.data.decode("utf-8"))
-            return SectionManifest.model_validate(data)
+            manifest = SectionManifest.model_validate(data)
+            self._manifest_cache[project_gid] = manifest
+            return manifest
         except Exception as e:
             logger.error("manifest_parse_failed", project_gid=project_gid, error=str(e))
             return None
@@ -401,6 +426,9 @@ class SectionPersistence:
     ) -> SectionManifest | None:
         """Update a section's status in the manifest.
 
+        Uses a per-project asyncio.Lock to serialize read-modify-write cycles,
+        preventing concurrent updates from overwriting each other.
+
         Args:
             project_gid: Asana project GID.
             section_gid: Section GID to update.
@@ -411,21 +439,25 @@ class SectionPersistence:
         Returns:
             Updated manifest, or None on error.
         """
-        manifest = await self.get_manifest_async(project_gid)
-        if manifest is None:
-            logger.warning("manifest_not_found", project_gid=project_gid)
-            return None
+        lock = self._get_manifest_lock(project_gid)
 
-        if status == SectionStatus.COMPLETE:
-            manifest.mark_section_complete(section_gid, rows)
-        elif status == SectionStatus.FAILED:
-            manifest.mark_section_failed(section_gid, error or "Unknown error")
-        elif status == SectionStatus.IN_PROGRESS:
-            manifest.mark_section_in_progress(section_gid)
-        else:
-            manifest.sections[section_gid] = SectionInfo(status=status)
+        async with lock:
+            manifest = await self.get_manifest_async(project_gid)
+            if manifest is None:
+                logger.warning("manifest_not_found", project_gid=project_gid)
+                return None
 
-        await self._save_manifest_async(manifest)
+            if status == SectionStatus.COMPLETE:
+                manifest.mark_section_complete(section_gid, rows)
+            elif status == SectionStatus.FAILED:
+                manifest.mark_section_failed(section_gid, error or "Unknown error")
+            elif status == SectionStatus.IN_PROGRESS:
+                manifest.mark_section_in_progress(section_gid)
+            else:
+                manifest.sections[section_gid] = SectionInfo(status=status)
+
+            self._manifest_cache[project_gid] = manifest
+            await self._save_manifest_async(manifest)
 
         logger.info(
             "section_status_updated",
@@ -805,5 +837,6 @@ class SectionPersistence:
         Returns:
             True if deleted or didn't exist.
         """
+        self._manifest_cache.pop(project_gid, None)
         key = self._make_manifest_key(project_gid)
         return await self._s3_client.delete_object_async(key)
