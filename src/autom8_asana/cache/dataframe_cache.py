@@ -177,7 +177,12 @@ class DataFrameCache:
 
     def __post_init__(self) -> None:
         """Initialize per-entity-type statistics."""
-        for entity_type in ["unit", "business", "offer", "contact"]:
+        for entity_type in ["unit", "business", "offer", "contact", "asset_edit"]:
+            self._ensure_stats(entity_type)
+
+    def _ensure_stats(self, entity_type: str) -> None:
+        """Lazily initialize stats for an entity type if not present."""
+        if entity_type not in self._stats:
             self._stats[entity_type] = {
                 "memory_hits": 0,
                 "memory_misses": 0,
@@ -213,6 +218,7 @@ class DataFrameCache:
         cache_key = self._build_key(project_gid, entity_type)
 
         # Check circuit breaker
+        self._ensure_stats(entity_type)
         if self.circuit_breaker.is_open(project_gid):
             self._stats[entity_type]["circuit_breaks"] += 1
             logger.warning(
@@ -340,13 +346,14 @@ class DataFrameCache:
             entity_type: Optional specific entity type. If None, all types.
         """
         entity_types = (
-            [entity_type] if entity_type else ["unit", "business", "offer", "contact"]
+            [entity_type] if entity_type else ["unit", "business", "offer", "contact", "asset_edit"]
         )
 
         for et in entity_types:
             cache_key = self._build_key(project_gid, et)
             self.memory_tier.remove(cache_key)
             # Note: S3 entries not deleted, just superseded on next write
+            self._ensure_stats(et)
             self._stats[et]["invalidations"] += 1
 
         logger.info(
@@ -396,6 +403,7 @@ class DataFrameCache:
         cache_key = self._build_key(project_gid, entity_type)
         acquired = await self.coalescer.try_acquire_async(cache_key)
 
+        self._ensure_stats(entity_type)
         if acquired:
             self._stats[entity_type]["builds_triggered"] += 1
         else:
