@@ -19,6 +19,43 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+def _get_container_memory_bytes() -> int:
+    """Detect actual container memory limit via cgroup, env var, or fallback.
+
+    Priority:
+    1. CONTAINER_MEMORY_MB env var (explicit override)
+    2. cgroup v2: /sys/fs/cgroup/memory.max
+    3. cgroup v1: /sys/fs/cgroup/memory/memory.limit_in_bytes
+    4. Fallback: 1GB (conservative default for unknown environments)
+    """
+    import os
+
+    # 1. Explicit env var override
+    env_mb = os.environ.get("CONTAINER_MEMORY_MB")
+    if env_mb:
+        try:
+            return int(env_mb) * 1024 * 1024
+        except ValueError:
+            pass
+
+    # 2. cgroup v2
+    # 3. cgroup v1
+    for path in [
+        "/sys/fs/cgroup/memory.max",
+        "/sys/fs/cgroup/memory/memory.limit_in_bytes",
+    ]:
+        try:
+            with open(path) as f:
+                val = f.read().strip()
+                if val not in ("max", "-1"):
+                    return int(val)
+        except (FileNotFoundError, ValueError, PermissionError):
+            continue
+
+    # 4. Fallback: 1GB
+    return 1024 * 1024 * 1024
+
+
 @dataclass
 class MemoryTier:
     """Memory tier with LRU eviction and heap-based limits.
@@ -201,29 +238,20 @@ class MemoryTier:
         )
 
     def _get_max_bytes(self) -> int:
-        """Calculate maximum bytes based on heap percentage.
+        """Calculate maximum bytes based on heap percentage of container memory."""
+        total_memory = _get_container_memory_bytes()
+        max_bytes = int(total_memory * self.max_heap_percent)
 
-        Uses resource limits when available, otherwise falls back to
-        a reasonable default (4GB).
+        logger.debug(
+            "memory_tier_max_bytes",
+            extra={
+                "total_memory_mb": total_memory // (1024 * 1024),
+                "heap_percent": self.max_heap_percent,
+                "max_bytes_mb": max_bytes // (1024 * 1024),
+            },
+        )
 
-        Returns:
-            Maximum bytes allowed for this tier.
-        """
-        try:
-            import resource
-
-            soft, hard = resource.getrlimit(resource.RLIMIT_AS)
-            if soft == resource.RLIM_INFINITY:
-                # Fallback: assume 4GB
-                total_memory = 4 * 1024 * 1024 * 1024
-            else:
-                total_memory = soft
-        except (ImportError, ValueError):
-            # Windows or other platform without resource module
-            # Fallback: assume 4GB
-            total_memory = 4 * 1024 * 1024 * 1024
-
-        return int(total_memory * self.max_heap_percent)
+        return max_bytes
 
     def _estimate_size(self, entry: CacheEntry) -> int:
         """Estimate entry size in bytes.

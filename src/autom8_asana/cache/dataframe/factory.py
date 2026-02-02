@@ -95,8 +95,8 @@ def initialize_dataframe_cache() -> DataFrameCache | None:
 
     # Create tiers
     memory_tier = MemoryTier(
-        max_heap_percent=0.3,
-        max_entries=100,
+        max_heap_percent=settings.cache.dataframe_heap_percent,
+        max_entries=settings.cache.dataframe_max_entries,
     )
 
     # Create SectionPersistence for ProgressiveTier
@@ -145,8 +145,8 @@ def initialize_dataframe_cache() -> DataFrameCache | None:
             "tier_type": "progressive",
             "s3_bucket": settings.s3.bucket,
             "ttl_hours": 12,
-            "memory_max_entries": 100,
-            "memory_heap_percent": 0.3,
+            "memory_max_entries": settings.cache.dataframe_max_entries,
+            "memory_heap_percent": settings.cache.dataframe_heap_percent,
         },
     )
 
