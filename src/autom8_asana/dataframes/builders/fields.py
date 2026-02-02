@@ -69,10 +69,6 @@ BASE_OPT_FIELDS: list[str] = [
 ]
 
 
-# Watermark column name for DataFrame storage
-# Per ADR-001 in TDD: Stored as reserved column with underscore prefix
-WATERMARK_COLUMN_NAME: str = "_modified_at"
-
 
 def coerce_rows_to_schema(
     rows: list[dict[str, Any]],
