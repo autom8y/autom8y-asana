@@ -133,6 +133,7 @@ class TestPreloadFreshnessEdgeCases:
 
         mock_persistence = MagicMock()
         mock_persistence.is_available = True
+        mock_persistence.get_manifest_async = AsyncMock(return_value=MagicMock())
         mock_persistence.__aenter__ = AsyncMock(return_value=mock_persistence)
         mock_persistence.__aexit__ = AsyncMock(return_value=None)
 
@@ -159,6 +160,7 @@ class TestPreloadFreshnessEdgeCases:
 
         mock_persistence = MagicMock()
         mock_persistence.is_available = True
+        mock_persistence.get_manifest_async = AsyncMock(return_value=MagicMock())
         mock_persistence.__aenter__ = AsyncMock(return_value=mock_persistence)
         mock_persistence.__aexit__ = AsyncMock(return_value=None)
 
@@ -183,6 +185,7 @@ class TestPreloadFreshnessEdgeCases:
 
         mock_persistence = MagicMock()
         mock_persistence.is_available = True
+        mock_persistence.get_manifest_async = AsyncMock(return_value=MagicMock())
         mock_persistence.__aenter__ = AsyncMock(return_value=mock_persistence)
         mock_persistence.__aexit__ = AsyncMock(return_value=None)
 
@@ -216,6 +219,7 @@ class TestPreloadFreshnessEdgeCases:
 
         mock_persistence = MagicMock()
         mock_persistence.is_available = True
+        mock_persistence.get_manifest_async = AsyncMock(return_value=MagicMock())
         mock_persistence.__aenter__ = AsyncMock(return_value=mock_persistence)
         mock_persistence.__aexit__ = AsyncMock(return_value=None)
 
