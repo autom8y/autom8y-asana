@@ -7,6 +7,7 @@ Per TDD-0009 Phase 5: Validates the public API methods:
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import polars as pl
@@ -16,6 +17,7 @@ from pytest_mock import MockerFixture
 from autom8_asana.dataframes import (
     SchemaRegistry,
 )
+from autom8_asana.dataframes.builders.progressive import ProgressiveBuildResult
 from autom8_asana.models.common import NameGid
 from autom8_asana.models.project import Project
 from autom8_asana.models.section import Section
@@ -24,6 +26,41 @@ from autom8_asana.models.task import Task
 # ============================================================================
 # Test Fixtures
 # ============================================================================
+
+
+def _make_build_result(df: pl.DataFrame) -> ProgressiveBuildResult:
+    """Wrap a DataFrame in a ProgressiveBuildResult for mock returns."""
+    return ProgressiveBuildResult(
+        df=df,
+        watermark=datetime.now(UTC),
+        total_rows=len(df),
+        sections_fetched=1,
+        sections_resumed=0,
+        fetch_time_ms=0,
+        total_time_ms=0,
+    )
+
+
+def _patch_builder_and_persistence(
+    mocker: MockerFixture, sample_df: pl.DataFrame
+) -> MagicMock:
+    """Patch ProgressiveProjectBuilder and SectionPersistence for tests."""
+    mock_builder = mocker.patch(
+        "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
+    )
+    mock_builder.return_value.build_progressive_async = AsyncMock(
+        return_value=_make_build_result(sample_df)
+    )
+
+    mock_persistence = mocker.patch(
+        "autom8_asana.dataframes.section_persistence.SectionPersistence"
+    )
+    mock_persistence_inst = MagicMock()
+    mock_persistence_inst.__aenter__ = AsyncMock(return_value=mock_persistence_inst)
+    mock_persistence_inst.__aexit__ = AsyncMock(return_value=None)
+    mock_persistence.return_value = mock_persistence_inst
+
+    return mock_builder
 
 
 @pytest.fixture
@@ -143,12 +180,7 @@ class TestProjectToDataFrame:
         mocker: MockerFixture,
     ) -> None:
         """to_dataframe() should return a Polars DataFrame."""
-        mock_builder = mocker.patch(
-            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
-        )
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
-            return_value=sample_dataframe
-        )
+        _patch_builder_and_persistence(mocker, sample_dataframe)
 
         df = project_with_tasks.to_dataframe(task_type="Unit", client=mock_client)
         assert isinstance(df, pl.DataFrame)
@@ -161,12 +193,7 @@ class TestProjectToDataFrame:
         mocker: MockerFixture,
     ) -> None:
         """to_dataframe() should have base schema columns."""
-        mock_builder = mocker.patch(
-            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
-        )
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
-            return_value=sample_dataframe
-        )
+        _patch_builder_and_persistence(mocker, sample_dataframe)
 
         df = project_with_tasks.to_dataframe(task_type="Unit", client=mock_client)
 
@@ -183,12 +210,7 @@ class TestProjectToDataFrame:
         mocker: MockerFixture,
     ) -> None:
         """to_dataframe() should extract task data correctly."""
-        mock_builder = mocker.patch(
-            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
-        )
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
-            return_value=sample_dataframe
-        )
+        _patch_builder_and_persistence(mocker, sample_dataframe)
 
         df = project_with_tasks.to_dataframe(task_type="Unit", client=mock_client)
 
@@ -203,12 +225,7 @@ class TestProjectToDataFrame:
         mocker: MockerFixture,
     ) -> None:
         """to_dataframe() should handle empty project."""
-        mock_builder = mocker.patch(
-            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
-        )
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
-            return_value=empty_dataframe
-        )
+        _patch_builder_and_persistence(mocker, empty_dataframe)
 
         project = Project(gid="proj-empty", name="Empty")
         project.tasks = []
@@ -228,12 +245,7 @@ class TestProjectToDataFrame:
         mocker: MockerFixture,
     ) -> None:
         """to_dataframe() should work with use_cache=False."""
-        mock_builder = mocker.patch(
-            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
-        )
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
-            return_value=sample_dataframe
-        )
+        _patch_builder_and_persistence(mocker, sample_dataframe)
 
         df = project_with_tasks.to_dataframe(
             task_type="Unit", use_cache=False, client=mock_client
@@ -254,12 +266,7 @@ class TestProjectToDataFrameAsync:
         mocker: MockerFixture,
     ) -> None:
         """to_dataframe_async() should return a Polars DataFrame."""
-        mock_builder = mocker.patch(
-            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
-        )
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
-            return_value=sample_dataframe
-        )
+        _patch_builder_and_persistence(mocker, sample_dataframe)
 
         df = await project_with_tasks.to_dataframe_async(
             task_type="Unit", client=mock_client
@@ -275,12 +282,7 @@ class TestProjectToDataFrameAsync:
         mocker: MockerFixture,
     ) -> None:
         """to_dataframe_async() should extract task data."""
-        mock_builder = mocker.patch(
-            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
-        )
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
-            return_value=sample_dataframe
-        )
+        _patch_builder_and_persistence(mocker, sample_dataframe)
 
         df = await project_with_tasks.to_dataframe_async(
             task_type="Unit", client=mock_client
@@ -368,12 +370,7 @@ class TestPublicAPIIntegration:
             }
         )
 
-        mock_builder = mocker.patch(
-            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
-        )
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
-            return_value=filtered_df
-        )
+        _patch_builder_and_persistence(mocker, filtered_df)
 
         project = Project(gid="proj-001", name="Test Project")
         project.tasks = []  # Tasks aren't used since we mock the builder
@@ -404,12 +401,7 @@ class TestPublicAPIIntegration:
         mocker: MockerFixture,
     ) -> None:
         """Async method should produce same data as would sync version."""
-        mock_builder = mocker.patch(
-            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
-        )
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
-            return_value=sample_dataframe
-        )
+        _patch_builder_and_persistence(mocker, sample_dataframe)
 
         df_async = await project_with_tasks.to_dataframe_async(
             task_type="Unit", client=mock_client
@@ -427,12 +419,7 @@ class TestPublicAPIIntegration:
         mocker: MockerFixture,
     ) -> None:
         """Unit schema should include type-specific columns."""
-        mock_builder = mocker.patch(
-            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
-        )
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
-            return_value=sample_dataframe
-        )
+        _patch_builder_and_persistence(mocker, sample_dataframe)
 
         df = project_with_tasks.to_dataframe(task_type="Unit", client=mock_client)
 
@@ -454,12 +441,7 @@ class TestEdgeCases:
         mocker: MockerFixture,
     ) -> None:
         """to_dataframe() should handle tasks=None."""
-        mock_builder = mocker.patch(
-            "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
-        )
-        mock_builder.return_value.build_with_parallel_fetch_async = AsyncMock(
-            return_value=empty_dataframe
-        )
+        _patch_builder_and_persistence(mocker, empty_dataframe)
 
         project = Project(gid="proj-none", name="None Tasks")
         # tasks is None by default

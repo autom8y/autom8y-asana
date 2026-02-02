@@ -12,7 +12,6 @@ Public API:
     - DataFrameBuilder: Abstract base with lazy/eager evaluation
     - ProgressiveProjectBuilder: Progressive builder with S3 persistence and incremental support
     - SectionDataFrameBuilder: Section-scoped extraction with project context
-    - BuildProgress: Progress reporting dataclass for incremental builds
     - LAZY_THRESHOLD: Default threshold for automatic lazy evaluation (100)
     - BASE_OPT_FIELDS: Consolidated opt_fields for task fetching
     - ParallelSectionFetcher: Coordinates parallel task fetching across sections
@@ -52,7 +51,6 @@ from autom8_asana.dataframes.builders.parallel_fetch import (
     ParallelSectionFetcher,
 )
 from autom8_asana.dataframes.builders.progressive import (
-    BuildProgress,
     ProgressiveBuildResult,
     ProgressiveProjectBuilder,
 )
@@ -92,7 +90,7 @@ def create_dataframe_builder(
         ...     tasks_client=client.tasks,
         ...     unified_store=store,
         ... )
-        >>> # Builder is ready for use with build_with_parallel_fetch_async()
+        >>> # Builder is ready for use with build_progressive_async()
     """
     # Note: This factory requires an AsanaClient to be constructed properly.
     # For now, we raise an error since we can't construct a full client from just tasks_client.
@@ -113,7 +111,6 @@ __all__ = [
     "ProgressiveProjectBuilder",
     "SectionDataFrameBuilder",
     # Progressive builder results
-    "BuildProgress",
     "ProgressiveBuildResult",
     # Parallel fetch
     "FetchResult",

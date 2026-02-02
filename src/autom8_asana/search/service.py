@@ -464,7 +464,7 @@ class SearchService:
 
         Example:
             >>> # After building DataFrame via builder
-            >>> df = await builder.build_with_parallel_fetch_async(client)
+            >>> result = await builder.build_progressive_async()
             >>> client.search.set_project_dataframe(project_gid, df)
         """
         self._project_df_cache[project_gid] = (df, time.time())

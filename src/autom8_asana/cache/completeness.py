@@ -37,7 +37,7 @@ STANDARD (recommended default):
     - DataFrame extraction (cf: and cascade: prefixes)
     - Custom field value resolution
     - Parent chain traversal for cascading fields
-    - ProjectDataFrameBuilder.build_with_parallel_fetch_async()
+    - ProgressiveProjectBuilder.build_progressive_async()
 
 FULL:
     - Complete task details for display

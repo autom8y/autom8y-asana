@@ -129,7 +129,6 @@ class TestPreloadFreshnessEdgeCases:
 
         mock_builder = MagicMock()
         mock_builder.build_progressive_async = AsyncMock(return_value=result)
-        mock_builder.build_with_parallel_fetch_async = AsyncMock()
 
         mock_persistence = MagicMock()
         mock_persistence.is_available = True
@@ -140,7 +139,8 @@ class TestPreloadFreshnessEdgeCases:
         with _build_patch_stack(mock_builder, mock_persistence):
             await _preload_dataframe_cache_progressive(app)
 
-        mock_builder.build_with_parallel_fetch_async.assert_not_called()
+        # No catch-up (only one call)
+        assert mock_builder.build_progressive_async.call_count == 1
 
     @pytest.mark.asyncio
     async def test_preload_just_over_threshold_triggers_catchup(self) -> None:
@@ -149,13 +149,16 @@ class TestPreloadFreshnessEdgeCases:
 
         app, registry = _make_mock_app_and_registry()
 
-        result = _make_build_result(watermark_age_hours=8.001, sections_resumed=3)
-        catchup_df = pl.DataFrame({"gid": ["1", "2", "3"]})
+        stale_result = _make_build_result(watermark_age_hours=8.001, sections_resumed=3)
+        fresh_result = _make_build_result(
+            watermark_age_hours=0, sections_resumed=0, sections_fetched=3,
+            total_rows=3,
+        )
 
         mock_builder = MagicMock()
-        mock_builder.build_progressive_async = AsyncMock(return_value=result)
-        mock_builder.build_with_parallel_fetch_async = AsyncMock(
-            return_value=catchup_df
+        # First call returns stale, second call (catch-up) returns fresh
+        mock_builder.build_progressive_async = AsyncMock(
+            side_effect=[stale_result, fresh_result]
         )
 
         mock_persistence = MagicMock()
@@ -167,7 +170,8 @@ class TestPreloadFreshnessEdgeCases:
         with _build_patch_stack(mock_builder, mock_persistence):
             await _preload_dataframe_cache_progressive(app)
 
-        mock_builder.build_with_parallel_fetch_async.assert_called_once()
+        # Catch-up was triggered (two calls)
+        assert mock_builder.build_progressive_async.call_count == 2
 
     @pytest.mark.asyncio
     async def test_preload_freshness_invalid_env_var_falls_back(self) -> None:
@@ -181,7 +185,6 @@ class TestPreloadFreshnessEdgeCases:
 
         mock_builder = MagicMock()
         mock_builder.build_progressive_async = AsyncMock(return_value=result)
-        mock_builder.build_with_parallel_fetch_async = AsyncMock()
 
         mock_persistence = MagicMock()
         mock_persistence.is_available = True
@@ -198,7 +201,7 @@ class TestPreloadFreshnessEdgeCases:
             await _preload_dataframe_cache_progressive(app)
 
         # With fallback to 8 hours, 7-hour-old data should NOT trigger catchup
-        mock_builder.build_with_parallel_fetch_async.assert_not_called()
+        assert mock_builder.build_progressive_async.call_count == 1
 
     @pytest.mark.asyncio
     async def test_preload_zero_rows_result_still_catches_up(self) -> None:
@@ -207,14 +210,16 @@ class TestPreloadFreshnessEdgeCases:
 
         app, registry = _make_mock_app_and_registry()
 
-        result = _make_build_result(
+        stale_result = _make_build_result(
             watermark_age_hours=10, sections_resumed=3, total_rows=0
+        )
+        fresh_result = _make_build_result(
+            watermark_age_hours=0, sections_resumed=0, total_rows=0,
         )
 
         mock_builder = MagicMock()
-        mock_builder.build_progressive_async = AsyncMock(return_value=result)
-        mock_builder.build_with_parallel_fetch_async = AsyncMock(
-            return_value=pl.DataFrame({"gid": []})
+        mock_builder.build_progressive_async = AsyncMock(
+            side_effect=[stale_result, fresh_result]
         )
 
         mock_persistence = MagicMock()
@@ -228,4 +233,4 @@ class TestPreloadFreshnessEdgeCases:
             await _preload_dataframe_cache_progressive(app)
 
         # Catch-up should still be attempted (stale + sections_resumed > 0)
-        mock_builder.build_with_parallel_fetch_async.assert_called_once()
+        assert mock_builder.build_progressive_async.call_count == 2

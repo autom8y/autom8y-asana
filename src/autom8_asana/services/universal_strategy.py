@@ -511,22 +511,19 @@ class UniversalResolutionStrategy:
             resolver = self._get_custom_field_resolver()
 
             # Build DataFrame using ProgressiveProjectBuilder
-            builder = ProgressiveProjectBuilder(
-                client=client,
-                project_gid=project_gid,
-                entity_type=self.entity_type,
-                schema=schema,
-                persistence=persistence,
-                resolver=resolver,
-                store=client.unified_store,
-            )
+            async with persistence:
+                builder = ProgressiveProjectBuilder(
+                    client=client,
+                    project_gid=project_gid,
+                    entity_type=self.entity_type,
+                    schema=schema,
+                    persistence=persistence,
+                    resolver=resolver,
+                    store=client.unified_store,
+                )
 
-            df = await builder.build_with_parallel_fetch_async(
-                project_gid=project_gid,
-                schema=schema,
-                resume=True,
-                incremental=True,
-            )
+                result = await builder.build_progressive_async(resume=True)
+                df = result.df
 
             logger.info(
                 "entity_dataframe_built",

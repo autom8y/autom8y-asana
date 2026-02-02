@@ -210,23 +210,19 @@ class Project(AsanaResource):
         # Create section persistence for S3 storage
         persistence = SectionPersistence()
 
-        builder = ProgressiveProjectBuilder(
-            client=client,
-            project_gid=self.gid,
-            entity_type=entity_type,
-            schema=schema,
-            persistence=persistence,
-            resolver=resolver,
-            store=client.unified_store,
-        )
+        async with persistence:
+            builder = ProgressiveProjectBuilder(
+                client=client,
+                project_gid=self.gid,
+                entity_type=entity_type,
+                schema=schema,
+                persistence=persistence,
+                resolver=resolver,
+                store=client.unified_store,
+            )
 
-        # Use build_with_parallel_fetch_async for incremental support
-        return await builder.build_with_parallel_fetch_async(
-            project_gid=self.gid,
-            schema=schema,
-            resume=use_cache,
-            incremental=use_cache,
-        )
+            result = await builder.build_progressive_async(resume=use_cache)
+            return result.df
 
     async def to_dataframe_parallel_async(
         self,
@@ -256,10 +252,10 @@ class Project(AsanaResource):
             resolver: Optional custom field resolver.
             cache_integration: Optional explicit cache integration. If None,
                 uses client's configured cache provider.
-            **kwargs: Passed to build_with_parallel_fetch_async():
-                - resume: bool (default True)
-                - incremental: bool (default True)
+            **kwargs: Legacy keyword arguments:
                 - max_concurrent_sections: int (default 5)
+                - use_cache: bool (default True) — maps to resume
+                - use_parallel_fetch: ignored (no longer needed)
 
         Returns:
             Polars DataFrame with extracted task data.
@@ -301,25 +297,21 @@ class Project(AsanaResource):
         # Extract kwargs for ProgressiveProjectBuilder
         max_concurrent = kwargs.pop("max_concurrent_sections", 5)
 
-        builder = ProgressiveProjectBuilder(
-            client=client,
-            project_gid=self.gid,
-            entity_type=entity_type,
-            schema=schema,
-            persistence=persistence,
-            resolver=resolver,
-            store=client.unified_store,
-            max_concurrent_sections=max_concurrent,
-        )
-
         # Map legacy kwargs to new interface
         resume = kwargs.pop("use_cache", True)
-        incremental = kwargs.pop("use_parallel_fetch", True)
+        kwargs.pop("use_parallel_fetch", None)  # no longer needed
 
-        return await builder.build_with_parallel_fetch_async(
-            project_gid=self.gid,
-            schema=schema,
-            resume=resume,
-            incremental=incremental,
-            **kwargs,
-        )
+        async with persistence:
+            builder = ProgressiveProjectBuilder(
+                client=client,
+                project_gid=self.gid,
+                entity_type=entity_type,
+                schema=schema,
+                persistence=persistence,
+                resolver=resolver,
+                store=client.unified_store,
+                max_concurrent_sections=max_concurrent,
+            )
+
+            result = await builder.build_progressive_async(resume=resume)
+            return result.df
