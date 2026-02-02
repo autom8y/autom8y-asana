@@ -9,18 +9,22 @@ but runs standalone for operational use cases like:
 
 Usage:
     python scripts/warm_cache.py
+    python scripts/warm_cache.py --entity offer
 
 Environment Variables:
-    ASANA_PAT - Asana Personal Access Token (required)
+    ASANA_PAT or ASANA_BOT_PAT - Asana Personal Access Token (required)
+    ASANA_WORKSPACE_GID - Workspace GID (required)
     ASANA_CACHE_S3_BUCKET - S3 bucket for persistence (required)
     ASANA_CACHE_S3_REGION - AWS region (default: us-east-1)
 
 Per spike-s3-persistence integration map:
-Uses EntityProjectRegistry to discover registered entity types and warms all projects.
+Uses discover_entity_projects_async to populate EntityProjectRegistry, then warms all projects.
 """
 
+import argparse
 import asyncio
 import logging
+import os
 import sys
 import time
 
@@ -32,14 +36,24 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def warm_all_projects() -> int:
+async def warm_all_projects(entity_filter: str | None = None) -> int:
     """Warm cache for all registered projects.
+
+    Args:
+        entity_filter: Optional entity type to filter to (e.g. "offer").
 
     Returns:
         Exit code (0 for success, 1 for failure).
     """
+    from autom8_asana import AsanaClient
+    from autom8_asana.auth.bot_pat import get_bot_pat
+    from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
+    from autom8_asana.dataframes.models.registry import SchemaRegistry
     from autom8_asana.dataframes.persistence import DataFramePersistence
-    from autom8_asana.services.resolver import EntityProjectRegistry
+    from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
+    from autom8_asana.dataframes.section_persistence import SectionPersistence
+    from autom8_asana.services.discovery import discover_entity_projects_async
+    from autom8_asana.services.resolver import to_pascal_case
 
     start_time = time.perf_counter()
 
@@ -56,11 +70,12 @@ async def warm_all_projects() -> int:
 
         logger.info("S3 persistence available, starting cache warm...")
 
-        # Get entity registry
-        entity_registry = EntityProjectRegistry()
+        # Discover entity projects (populates EntityProjectRegistry)
+        logger.info("Running entity project discovery...")
+        entity_registry = await discover_entity_projects_async()
 
         if not entity_registry.is_ready():
-            logger.error("Entity registry not ready. Cannot discover projects.")
+            logger.error("Entity registry not ready after discovery. Cannot warm cache.")
             return 1
 
         # Get all registered entity types and their projects
@@ -68,54 +83,60 @@ async def warm_all_projects() -> int:
         project_configs: list[tuple[str, str]] = []  # (project_gid, entity_type)
 
         for entity_type in registered_types:
+            if entity_filter and entity_type != entity_filter:
+                continue
             config = entity_registry.get_config(entity_type)
             if config and config.project_gid:
                 project_configs.append((config.project_gid, entity_type))
 
         if not project_configs:
-            logger.warning("No registered projects found. Nothing to warm.")
+            if entity_filter:
+                logger.warning(
+                    f"Entity type '{entity_filter}' not found in registry. "
+                    f"Available: {registered_types}"
+                )
+            else:
+                logger.warning("No registered projects found. Nothing to warm.")
             return 0
 
         logger.info(f"Found {len(project_configs)} projects to warm")
 
+        # Get credentials for AsanaClient
+        bot_pat = get_bot_pat()
+        workspace_gid = os.environ.get("ASANA_WORKSPACE_GID", "")
+
         # Process each project
         success_count = 0
         failure_count = 0
+        schema_registry = SchemaRegistry.get_instance()
 
         for project_gid, entity_type in project_configs:
             logger.info(f"Warming cache for {entity_type} (project: {project_gid})...")
 
             try:
-                # Get schema and client
-                from autom8_asana.client import get_client
-                from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
-                from autom8_asana.dataframes.section_persistence import (
-                    SectionPersistence,
-                )
+                # Get schema for entity type via SchemaRegistry with PascalCase key
+                task_type = to_pascal_case(entity_type)
+                schema = schema_registry.get_schema(task_type)
 
-                client = get_client()
-
-                # Get schema for entity type
-                schema = entity_registry.get_schema(entity_type)
-                if schema is None:
-                    logger.error(f"No schema found for entity type: {entity_type}")
-                    failure_count += 1
-                    continue
-
-                # Create section persistence for progressive builder
+                resolver = DefaultCustomFieldResolver()
                 section_persistence = SectionPersistence()
 
-                # Build DataFrame with progressive builder
-                builder = ProgressiveProjectBuilder(
-                    client=client,
-                    project_gid=project_gid,
-                    entity_type=entity_type,
-                    schema=schema,
-                    persistence=section_persistence,
-                )
+                async with section_persistence:
+                    async with AsanaClient(
+                        token=bot_pat, workspace_gid=workspace_gid
+                    ) as client:
+                        builder = ProgressiveProjectBuilder(
+                            client=client,
+                            project_gid=project_gid,
+                            entity_type=entity_type,
+                            schema=schema,
+                            persistence=section_persistence,
+                            resolver=resolver,
+                            store=client.unified_store,
+                        )
 
-                # Build DataFrame progressively (will auto-persist sections to S3)
-                result = await builder.build_progressive_async()
+                        # Build DataFrame progressively (will auto-persist sections to S3)
+                        result = await builder.build_progressive_async()
 
                 logger.info(
                     f"Successfully warmed {entity_type}: {result.total_rows} rows persisted"
@@ -144,7 +165,15 @@ async def warm_all_projects() -> int:
 
 def main() -> int:
     """Entry point."""
-    return asyncio.run(warm_all_projects())
+    parser = argparse.ArgumentParser(description="Warm DataFrame cache to S3")
+    parser.add_argument(
+        "--entity",
+        type=str,
+        default=None,
+        help="Optional entity type to warm (e.g. 'offer'). Warms all if omitted.",
+    )
+    args = parser.parse_args()
+    return asyncio.run(warm_all_projects(entity_filter=args.entity))
 
 
 if __name__ == "__main__":
