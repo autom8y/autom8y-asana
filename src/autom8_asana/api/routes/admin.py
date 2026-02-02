@@ -13,8 +13,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Any
-
 from autom8y_log import get_logger
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -65,9 +63,149 @@ async def _perform_cache_refresh(
 ) -> None:
     """Background task to perform cache refresh.
 
+    For force_full_rebuild=True: Deletes all cached data (memory, S3 manifests,
+    S3 section parquets) and optionally triggers Lambda cache warmer. This avoids
+    OOM kills from in-process builds that exceed the 1024MB container limit.
+
+    For force_full_rebuild=False: Incremental rebuild via progressive builder
+    (lightweight — resumes from existing manifests).
+
     Args:
         entity_types: Entity types to refresh.
-        force_full_rebuild: Whether to delete manifests and rebuild.
+        force_full_rebuild: Whether to delete all cached data and delegate rebuild.
+        refresh_id: Unique identifier for logging correlation.
+    """
+    logger.info(
+        "cache_refresh_started",
+        extra={
+            "refresh_id": refresh_id,
+            "entity_types": entity_types,
+            "force_full_rebuild": force_full_rebuild,
+        },
+    )
+
+    if force_full_rebuild:
+        await _perform_force_rebuild(entity_types, refresh_id)
+    else:
+        await _perform_incremental_rebuild(entity_types, refresh_id)
+
+    logger.info(
+        "cache_refresh_complete",
+        extra={
+            "refresh_id": refresh_id,
+            "entity_types": entity_types,
+        },
+    )
+
+
+async def _perform_force_rebuild(
+    entity_types: list[str],
+    refresh_id: str,
+) -> None:
+    """Delete all cached data and optionally trigger Lambda rebuild.
+
+    This is lightweight — no in-process DataFrame builds. Cache is rebuilt
+    either by the Lambda cache warmer or on next container restart.
+
+    Args:
+        entity_types: Entity types to purge and rebuild.
+        refresh_id: Unique identifier for logging correlation.
+    """
+    import os
+
+    from autom8_asana.cache.dataframe.factory import get_dataframe_cache
+    from autom8_asana.dataframes.section_persistence import SectionPersistence
+    from autom8_asana.services.resolver import EntityProjectRegistry
+
+    registry = EntityProjectRegistry.get_instance()
+    dataframe_cache = get_dataframe_cache()
+    persistence = SectionPersistence()
+
+    for entity_type in entity_types:
+        try:
+            project_gid = registry.get_project_gid(entity_type)
+            if not project_gid:
+                logger.warning(
+                    "cache_refresh_no_project_gid",
+                    extra={
+                        "refresh_id": refresh_id,
+                        "entity_type": entity_type,
+                    },
+                )
+                continue
+
+            # 1. Invalidate memory cache
+            if dataframe_cache is not None:
+                try:
+                    dataframe_cache.invalidate(project_gid, entity_type)
+                except Exception as e:
+                    logger.warning(
+                        "cache_refresh_invalidate_failed",
+                        extra={
+                            "refresh_id": refresh_id,
+                            "entity_type": entity_type,
+                            "error": str(e),
+                        },
+                    )
+
+            # 2. Delete S3 manifest AND section parquets
+            try:
+                async with persistence:
+                    await persistence.delete_manifest_async(project_gid)
+                    await persistence.delete_section_files_async(project_gid)
+                logger.info(
+                    "cache_refresh_s3_purged",
+                    extra={
+                        "refresh_id": refresh_id,
+                        "entity_type": entity_type,
+                        "project_gid": project_gid,
+                    },
+                )
+            except Exception as e:
+                logger.warning(
+                    "cache_refresh_s3_purge_failed",
+                    extra={
+                        "refresh_id": refresh_id,
+                        "entity_type": entity_type,
+                        "error": str(e),
+                    },
+                )
+
+        except Exception as e:
+            logger.error(
+                "cache_refresh_entity_failed",
+                extra={
+                    "refresh_id": refresh_id,
+                    "entity_type": entity_type,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            )
+
+    # 3. Trigger Lambda cache warmer if configured
+    lambda_arn = os.environ.get("CACHE_WARMER_LAMBDA_ARN")
+    if lambda_arn:
+        _invoke_cache_warmer_lambda(lambda_arn, entity_types, refresh_id)
+    else:
+        logger.info(
+            "no_lambda_arn_configured",
+            extra={
+                "refresh_id": refresh_id,
+                "message": "cache will rebuild on next restart",
+            },
+        )
+
+
+async def _perform_incremental_rebuild(
+    entity_types: list[str],
+    refresh_id: str,
+) -> None:
+    """Incremental rebuild via progressive builder (resumes from manifests).
+
+    This is lightweight — only fetches changed sections since last manifest.
+
+    Args:
+        entity_types: Entity types to incrementally refresh.
         refresh_id: Unique identifier for logging correlation.
     """
     import os
@@ -81,15 +219,6 @@ async def _perform_cache_refresh(
     from autom8_asana.dataframes.section_persistence import SectionPersistence
     from autom8_asana.dataframes.watermark import get_watermark_repo
     from autom8_asana.services.resolver import EntityProjectRegistry, to_pascal_case
-
-    logger.info(
-        "cache_refresh_started",
-        extra={
-            "refresh_id": refresh_id,
-            "entity_types": entity_types,
-            "force_full_rebuild": force_full_rebuild,
-        },
-    )
 
     try:
         bot_pat = get_bot_pat()
@@ -140,30 +269,7 @@ async def _perform_cache_refresh(
                         },
                     )
 
-            # Delete manifest if force rebuild
-            if force_full_rebuild:
-                try:
-                    async with persistence:
-                        await persistence.delete_manifest_async(project_gid)
-                    logger.info(
-                        "cache_refresh_manifest_deleted",
-                        extra={
-                            "refresh_id": refresh_id,
-                            "entity_type": entity_type,
-                            "project_gid": project_gid,
-                        },
-                    )
-                except Exception as e:
-                    logger.warning(
-                        "cache_refresh_manifest_delete_failed",
-                        extra={
-                            "refresh_id": refresh_id,
-                            "entity_type": entity_type,
-                            "error": str(e),
-                        },
-                    )
-
-            # Rebuild via parallel fetch
+            # Incremental rebuild via parallel fetch (resumes from manifest)
             async with AsanaClient(
                 token=bot_pat, workspace_gid=workspace_gid
             ) as client:
@@ -184,8 +290,8 @@ async def _perform_cache_refresh(
                 df = await builder.build_with_parallel_fetch_async(
                     project_gid=project_gid,
                     schema=schema,
-                    resume=not force_full_rebuild,
-                    incremental=not force_full_rebuild,
+                    resume=True,
+                    incremental=True,
                 )
 
                 watermark = datetime.now(UTC)
@@ -218,13 +324,51 @@ async def _perform_cache_refresh(
                 },
             )
 
-    logger.info(
-        "cache_refresh_complete",
-        extra={
-            "refresh_id": refresh_id,
-            "entity_types": entity_types,
-        },
-    )
+
+def _invoke_cache_warmer_lambda(
+    function_arn: str,
+    entity_types: list[str],
+    refresh_id: str,
+) -> None:
+    """Invoke cache warmer Lambda asynchronously (fire-and-forget).
+
+    Args:
+        function_arn: ARN of the Lambda function to invoke.
+        entity_types: Entity types to rebuild.
+        refresh_id: Unique identifier for logging correlation.
+    """
+    import json
+
+    import boto3
+
+    client = boto3.client("lambda")
+    payload = {
+        "entity_types": entity_types,
+        "strict": False,
+        "resume_from_checkpoint": False,
+    }
+    try:
+        client.invoke(
+            FunctionName=function_arn,
+            InvocationType="Event",
+            Payload=json.dumps(payload),
+        )
+        logger.info(
+            "cache_warmer_lambda_invoked",
+            extra={
+                "function_arn": function_arn,
+                "entity_types": entity_types,
+                "refresh_id": refresh_id,
+            },
+        )
+    except Exception as e:
+        logger.error(
+            "cache_warmer_lambda_invoke_failed",
+            extra={
+                "error": str(e),
+                "refresh_id": refresh_id,
+            },
+        )
 
 
 @router.post(
