@@ -313,6 +313,22 @@ CHECKPOINT_EVERY_N_PAGES: int = 50
 Should be a multiple of PACE_PAGES_PER_PAUSE for predictable behavior."""
 
 
+# --- Hierarchy Warming Pacing Configuration ---
+# Per ADR-hierarchy-backpressure-hardening: Batch pacing for Phase 1
+# immediate parent fetches to prevent 429 bursts from unbounded
+# asyncio.gather() when parent count exceeds threshold.
+
+HIERARCHY_PACING_THRESHOLD: int = 100
+"""Number of parent GIDs above which batched pacing activates.
+Sections with fewer parents use unbounded asyncio.gather() (no overhead)."""
+
+HIERARCHY_BATCH_SIZE: int = 50
+"""Number of parent GIDs to fetch per batch when pacing is active. Must be >= 1."""
+
+HIERARCHY_BATCH_DELAY: float = 1.0
+"""Seconds to sleep between hierarchy parent fetch batches. Must be >= 0.0."""
+
+
 @dataclass
 class CacheConfig:
     """Cache configuration with environment variable overrides.

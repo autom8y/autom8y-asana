@@ -75,38 +75,23 @@ async def _gather_with_limit(
     return await asyncio.gather(*[bounded_coro(c) for c in coros])
 
 
-def _is_rate_limit_error(exc: Exception) -> bool:
-    """Check if an exception indicates a 429 rate limit error."""
-    # Check for httpx.HTTPStatusError or similar with status_code
-    status_code = getattr(getattr(exc, "response", None), "status_code", None)
-    if status_code == 429:
-        return True
-    # Check string representation as fallback
-    return "429" in str(exc) or "rate limit" in str(exc).lower()
-
-
 async def _fetch_parent(
     gid: str,
     tasks_client: TasksClient,
-    backoff_event: asyncio.Event | None = None,
 ) -> dict[str, Any] | None:
     """Fetch a single task with fields needed for cascade resolution.
 
     Args:
         gid: Task GID to fetch.
         tasks_client: TasksClient for fetching.
-        backoff_event: Optional event to signal when a 429 is encountered.
 
     Returns:
         Full task dict with parent info and custom_fields, or None if fetch failed.
     """
     try:
         task = await tasks_client.get_async(gid, opt_fields=_HIERARCHY_OPT_FIELDS)
-        # Return full task dict for caching
         return task.model_dump(exclude_none=True)
     except Exception as e:
-        if _is_rate_limit_error(e) and backoff_event is not None:
-            backoff_event.set()
         logger.warning(
             "hierarchy_warm_fetch_failed",
             extra={"gid": gid, "error": str(e)},
@@ -155,7 +140,6 @@ async def warm_ancestors_async(
     """
     total_warmed = 0
     visited: set[str] = set()
-    backoff_event = asyncio.Event()
 
     # Start with the initial GIDs as already visited (we don't need to fetch them)
     visited.update(gids)
@@ -219,21 +203,12 @@ async def warm_ancestors_async(
         parents_to_fetch = gids_to_fetch
         already_known: list[str] = []
 
-        # Adaptive backoff: pause if previous batch hit 429s
-        if backoff_event.is_set():
-            backoff_event.clear()
-            await asyncio.sleep(2.0)
-            logger.info(
-                "hierarchy_warm_429_backoff",
-                extra={"depth": depth},
-            )
-
         # Batch fetch missing parents with bounded concurrency
         fetched_results: list[dict[str, Any] | None] = []
         if parents_to_fetch:
             fetched_results = await _gather_with_limit(
                 [
-                    _fetch_parent(gid, tasks_client, backoff_event=backoff_event)
+                    _fetch_parent(gid, tasks_client)
                     for gid in parents_to_fetch
                 ],
                 max_concurrent=max_concurrent,

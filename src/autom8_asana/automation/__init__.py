@@ -82,7 +82,11 @@ from autom8_asana.automation.base import Action, AutomationRule, TriggerConditio
 from autom8_asana.automation.config import AutomationConfig, PipelineStage
 from autom8_asana.automation.context import AutomationContext
 from autom8_asana.automation.engine import AutomationEngine
-from autom8_asana.automation.pipeline import PipelineConversionRule
+
+# PipelineConversionRule is lazy-loaded via __getattr__ to break a circular
+# import: models.business.__init__ (bootstrap) -> cache -> config -> automation
+# -> pipeline -> models.business.  Deferring the pipeline import lets the
+# bootstrap finish before pipeline.py touches models.business.
 from autom8_asana.automation.seeding import FieldSeeder
 from autom8_asana.automation.templates import TemplateDiscovery
 from autom8_asana.automation.waiter import SubtaskWaiter
@@ -96,9 +100,17 @@ __all__ = [
     "AutomationContext",
     "AutomationConfig",
     "PipelineStage",
-    # Phase 2: Pipeline Conversion
+    # Phase 2: Pipeline Conversion (lazy-loaded)
     "PipelineConversionRule",
     "TemplateDiscovery",
     "FieldSeeder",
     "SubtaskWaiter",
 ]
+
+
+def __getattr__(name: str) -> object:
+    if name == "PipelineConversionRule":
+        from autom8_asana.automation.pipeline import PipelineConversionRule
+
+        return PipelineConversionRule
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
