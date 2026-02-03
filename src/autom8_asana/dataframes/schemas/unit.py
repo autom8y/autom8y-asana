@@ -93,5 +93,5 @@ UNIT_SCHEMA = DataFrameSchema(
         *BASE_COLUMNS,
         *[c for c in UNIT_COLUMNS if c not in BASE_COLUMNS],
     ],
-    version="1.1.0",  # Bump to invalidate stale caches missing warm_hierarchy fix
+    version="1.2.0",  # Bump to force rebuild with cascade:Office Phone resolution
 )
