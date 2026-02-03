@@ -33,6 +33,7 @@ class FreshnessStatus(str, Enum):
     EXPIRED_SERVABLE = "expired_servable"  # Beyond grace, data structurally valid (LKG)
     SCHEMA_MISMATCH = "schema_mismatch"  # Hard reject
     WATERMARK_STALE = "watermark_stale"  # Hard reject
+    CIRCUIT_LKG = "circuit_lkg"  # Circuit breaker open, serving LKG
 
 
 @dataclass
@@ -43,7 +44,7 @@ class FreshnessInfo:
     Not stored in CacheEntry (freshness changes over time as data ages).
     """
 
-    freshness: str  # "fresh" | "stale_servable" | "expired_servable" | "circuit_lkg"
+    freshness: str  # FreshnessStatus value (see FreshnessStatus enum)
     data_age_seconds: float
     staleness_ratio: float  # age / entity_ttl (>1.0 means past TTL)
 
@@ -283,7 +284,7 @@ class DataFrameCache:
                 age = (datetime.now(UTC) - entry.created_at).total_seconds()
                 cb_entity_ttl = DEFAULT_ENTITY_TTLS.get(entry.entity_type, DEFAULT_TTL)
                 self._last_freshness[cache_key] = FreshnessInfo(
-                    freshness="circuit_lkg",
+                    freshness=FreshnessStatus.CIRCUIT_LKG.value,
                     data_age_seconds=round(age, 1),
                     staleness_ratio=round(age / cb_entity_ttl, 2)
                     if cb_entity_ttl > 0
@@ -310,7 +311,7 @@ class DataFrameCache:
                 age = (datetime.now(UTC) - entry.created_at).total_seconds()
                 cb_entity_ttl = DEFAULT_ENTITY_TTLS.get(entry.entity_type, DEFAULT_TTL)
                 self._last_freshness[cache_key] = FreshnessInfo(
-                    freshness="circuit_lkg",
+                    freshness=FreshnessStatus.CIRCUIT_LKG.value,
                     data_age_seconds=round(age, 1),
                     staleness_ratio=round(age / cb_entity_ttl, 2)
                     if cb_entity_ttl > 0
