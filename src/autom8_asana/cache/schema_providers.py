@@ -119,16 +119,9 @@ def register_asana_schemas() -> None:
         )
         return
 
-    entity_types = [
-        "unit",
-        "contact",
-        "offer",
-        "business",
-        "asset_edit",
-        "asset_edit_holder",
-    ]
+    from autom8_asana.core.entity_types import ENTITY_TYPES_WITH_DERIVATIVES
 
-    for entity_type in entity_types:
+    for entity_type in ENTITY_TYPES_WITH_DERIVATIVES:
         entry_type = f"asana:{entity_type}"
         provider = AsanaSchemaProvider(entity_type)
         register_schema_provider(entry_type, provider)
@@ -145,7 +138,7 @@ def register_asana_schemas() -> None:
     logger.info(
         "asana_schemas_registered",
         extra={
-            "entity_types": entity_types,
-            "count": len(entity_types),
+            "entity_types": ENTITY_TYPES_WITH_DERIVATIVES,
+            "count": len(ENTITY_TYPES_WITH_DERIVATIVES),
         },
     )

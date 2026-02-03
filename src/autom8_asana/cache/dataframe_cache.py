@@ -197,7 +197,9 @@ class DataFrameCache:
 
     def __post_init__(self) -> None:
         """Initialize per-entity-type statistics."""
-        for entity_type in ["unit", "business", "offer", "contact", "asset_edit"]:
+        from autom8_asana.core.entity_types import ENTITY_TYPES
+
+        for entity_type in ENTITY_TYPES:
             self._ensure_stats(entity_type)
 
     def _ensure_stats(self, entity_type: str) -> None:
@@ -532,11 +534,9 @@ class DataFrameCache:
             project_gid: Project to invalidate.
             entity_type: Optional specific entity type. If None, all types.
         """
-        entity_types = (
-            [entity_type]
-            if entity_type
-            else ["unit", "business", "offer", "contact", "asset_edit"]
-        )
+        from autom8_asana.core.entity_types import ENTITY_TYPES
+
+        entity_types = [entity_type] if entity_type else ENTITY_TYPES
 
         for et in entity_types:
             cache_key = self._build_key(project_gid, et)
