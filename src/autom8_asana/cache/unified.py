@@ -851,24 +851,19 @@ class UnifiedTaskStore:
         Returns:
             Parsed datetime, or current time if None.
         """
-        if not modified_at:
-            return datetime.now(UTC)
+        from autom8_asana.core.datetime_utils import parse_iso_datetime
 
-        # Handle Z suffix
-        if modified_at.endswith("Z"):
-            modified_at = modified_at[:-1] + "+00:00"
-
-        try:
-            dt = datetime.fromisoformat(modified_at)
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=UTC)
-            return dt
-        except ValueError:
+        # Preserve warning log by checking if we got a fallback result
+        result = parse_iso_datetime(modified_at, default_now=False)
+        if result is None and modified_at:
             logger.warning(
                 "version_parse_failed",
                 extra={"modified_at": modified_at},
             )
             return datetime.now(UTC)
+        elif result is None:
+            return datetime.now(UTC)
+        return result
 
     def _extract_metadata(self, task: dict[str, Any]) -> dict[str, Any]:
         """Extract metadata from task for cache entry.
