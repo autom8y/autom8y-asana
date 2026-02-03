@@ -33,6 +33,63 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+async def _swr_build_callback(
+    cache: DataFrameCache,
+    project_gid: str,
+    entity_type: str,
+) -> None:
+    """SWR background rebuild callback.
+
+    Extracted from initialize_dataframe_cache closure for testability.
+    """
+    from autom8_asana import AsanaClient
+    from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
+    from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
+    from autom8_asana.dataframes.models.registry import SchemaRegistry
+    from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
+    from autom8_asana.dataframes.section_persistence import SectionPersistence
+    from autom8_asana.services.resolver import to_pascal_case
+
+    try:
+        bot_pat = get_bot_pat()
+    except BotPATError:
+        logger.warning("swr_build_no_bot_pat", extra={"project_gid": project_gid})
+        return
+
+    import os
+
+    workspace_gid = os.environ.get("ASANA_WORKSPACE_GID")
+    if not workspace_gid:
+        logger.warning("swr_build_no_workspace", extra={"project_gid": project_gid})
+        return
+
+    async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
+        task_type = to_pascal_case(entity_type)
+        schema = SchemaRegistry.get_instance().get_schema(task_type)
+        resolver = DefaultCustomFieldResolver()
+        section_persistence = SectionPersistence()
+
+        async with section_persistence:
+            builder = ProgressiveProjectBuilder(
+                client=client,
+                project_gid=project_gid,
+                entity_type=entity_type,
+                schema=schema,
+                persistence=section_persistence,
+                resolver=resolver,
+                store=client.unified_store,
+            )
+            result = await builder.build_progressive_async(resume=True)
+
+        if result.total_rows > 0:
+            await cache.put_async(
+                project_gid,
+                entity_type,
+                result.df,
+                result.watermark,
+            )
+
+
 def initialize_dataframe_cache() -> DataFrameCache | None:
     """Initialize the singleton DataFrameCache with settings from environment.
 
@@ -135,55 +192,9 @@ def initialize_dataframe_cache() -> DataFrameCache | None:
         circuit_breaker=circuit_breaker,
     )
 
-    async def _swr_build(project_gid: str, entity_type: str) -> None:
-        from autom8_asana import AsanaClient
-        from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
-        from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
-        from autom8_asana.dataframes.models.registry import SchemaRegistry
-        from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
-        from autom8_asana.dataframes.section_persistence import SectionPersistence
-        from autom8_asana.services.resolver import to_pascal_case
+    from functools import partial
 
-        try:
-            bot_pat = get_bot_pat()
-        except BotPATError:
-            logger.warning("swr_build_no_bot_pat", extra={"project_gid": project_gid})
-            return
-
-        import os
-
-        workspace_gid = os.environ.get("ASANA_WORKSPACE_GID")
-        if not workspace_gid:
-            logger.warning("swr_build_no_workspace", extra={"project_gid": project_gid})
-            return
-
-        async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
-            task_type = to_pascal_case(entity_type)
-            schema = SchemaRegistry.get_instance().get_schema(task_type)
-            resolver = DefaultCustomFieldResolver()
-            section_persistence = SectionPersistence()
-
-            async with section_persistence:
-                builder = ProgressiveProjectBuilder(
-                    client=client,
-                    project_gid=project_gid,
-                    entity_type=entity_type,
-                    schema=schema,
-                    persistence=section_persistence,
-                    resolver=resolver,
-                    store=client.unified_store,
-                )
-                result = await builder.build_progressive_async(resume=True)
-
-            if result.total_rows > 0:
-                await cache.put_async(
-                    project_gid,
-                    entity_type,
-                    result.df,
-                    result.watermark,
-                )
-
-    cache.set_build_callback(_swr_build)
+    cache.set_build_callback(partial(_swr_build_callback, cache))
 
     # Set as singleton
     set_dataframe_cache(cache)
