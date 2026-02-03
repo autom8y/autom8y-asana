@@ -88,6 +88,11 @@ class SectionInfo(BaseModel):
     gid_hash: str | None = None
     name: str | None = None
 
+    # Checkpoint tracking fields (per TDD-large-section-resilience D3)
+    last_fetched_offset: int = 0
+    rows_fetched: int = 0
+    chunks_checkpointed: int = 0
+
     model_config = {"use_enum_values": True}
 
 
