@@ -274,51 +274,7 @@ class DataFrameCache:
                     "entity_type": entity_type,
                 },
             )
-            # LKG: attempt to serve from cache, skip refresh
-            entry = self.memory_tier.get(cache_key)
-            if entry is not None and self._schema_is_valid(entry):
-                self._stats[entity_type]["lkg_circuit_serves"] += 1
-                self._stats[entity_type]["memory_hits"] += 1
-                info = self._build_freshness_info(entry, FreshnessStatus.CIRCUIT_LKG, cache_key)
-                logger.info(
-                    "dataframe_cache_circuit_lkg_serve",
-                    extra={
-                        "project_gid": project_gid,
-                        "entity_type": entity_type,
-                        "tier": "memory",
-                        "row_count": entry.row_count,
-                        "age_seconds": info.data_age_seconds,
-                    },
-                )
-                return entry
-
-            # Try progressive tier (read-only, no refresh)
-            entry = await self.progressive_tier.get_async(cache_key)
-            if entry is not None and self._schema_is_valid(entry):
-                self.memory_tier.put(cache_key, entry)
-                self._stats[entity_type]["lkg_circuit_serves"] += 1
-                self._stats[entity_type]["s3_hits"] += 1
-                info = self._build_freshness_info(entry, FreshnessStatus.CIRCUIT_LKG, cache_key)
-                logger.info(
-                    "dataframe_cache_circuit_lkg_serve",
-                    extra={
-                        "project_gid": project_gid,
-                        "entity_type": entity_type,
-                        "tier": "s3",
-                        "row_count": entry.row_count,
-                        "age_seconds": info.data_age_seconds,
-                    },
-                )
-                return entry
-
-            logger.warning(
-                "dataframe_cache_circuit_open_no_lkg",
-                extra={
-                    "project_gid": project_gid,
-                    "entity_type": entity_type,
-                },
-            )
-            return None
+            return await self._get_circuit_lkg(cache_key, project_gid, entity_type)
 
         # Try memory tier first
         entry = self.memory_tier.get(cache_key)
@@ -344,6 +300,72 @@ class DataFrameCache:
                 return result
 
         self._stats[entity_type]["s3_misses"] += 1
+        return None
+
+    async def _get_circuit_lkg(
+        self,
+        cache_key: str,
+        project_gid: str,
+        entity_type: str,
+    ) -> CacheEntry | None:
+        """Serve LKG from cache when circuit breaker is open.
+
+        Checks memory then S3. Returns entry if schema-valid.
+        No refresh triggered. No staleness cap applied.
+
+        Args:
+            cache_key: Cache key for lookups.
+            project_gid: Project GID for logging.
+            entity_type: Entity type for stats and logging.
+
+        Returns:
+            CacheEntry if found and schema-valid, None otherwise.
+        """
+        # Try memory tier first
+        entry = self.memory_tier.get(cache_key)
+        if entry is not None and self._schema_is_valid(entry):
+            self._stats[entity_type]["lkg_circuit_serves"] += 1
+            self._stats[entity_type]["memory_hits"] += 1
+            info = self._build_freshness_info(entry, FreshnessStatus.CIRCUIT_LKG, cache_key)
+            logger.info(
+                "dataframe_cache_circuit_lkg_serve",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "tier": "memory",
+                    "row_count": entry.row_count,
+                    "age_seconds": info.data_age_seconds,
+                },
+            )
+            return entry
+
+        # Try progressive tier (read-only, no refresh)
+        entry = await self.progressive_tier.get_async(cache_key)
+        if entry is not None and self._schema_is_valid(entry):
+            self.memory_tier.put(cache_key, entry)
+            self._stats[entity_type]["lkg_circuit_serves"] += 1
+            self._stats[entity_type]["s3_hits"] += 1
+            info = self._build_freshness_info(entry, FreshnessStatus.CIRCUIT_LKG, cache_key)
+            logger.info(
+                "dataframe_cache_circuit_lkg_serve",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "tier": "s3",
+                    "row_count": entry.row_count,
+                    "age_seconds": info.data_age_seconds,
+                },
+            )
+            return entry
+
+        # No LKG entry available
+        logger.warning(
+            "dataframe_cache_circuit_open_no_lkg",
+            extra={
+                "project_gid": project_gid,
+                "entity_type": entity_type,
+            },
+        )
         return None
 
     def _check_freshness_and_serve(
