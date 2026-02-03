@@ -24,7 +24,9 @@ class TestBaseSchemaStructure:
 
     def test_version_is_semver(self) -> None:
         """Verify version follows semver format."""
-        assert BASE_SCHEMA.version == "1.0.0"
+        parts = BASE_SCHEMA.version.split(".")
+        assert len(parts) == 3
+        assert all(part.isdigit() for part in parts)
 
     def test_column_count_is_12(self) -> None:
         """Verify BASE_SCHEMA has exactly 12 columns."""
@@ -189,7 +191,7 @@ class TestBaseSchemaToDict:
 
         assert result["name"] == "base"
         assert result["task_type"] == "*"
-        assert result["version"] == "1.0.0"
+        assert result["version"] == BASE_SCHEMA.version
         assert len(result["columns"]) == 12
 
     def test_to_dict_column_includes_description(self) -> None:

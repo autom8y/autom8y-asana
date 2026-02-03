@@ -25,7 +25,9 @@ class TestUnitSchemaStructure:
 
     def test_version_is_semver(self) -> None:
         """Verify version follows semver format."""
-        assert UNIT_SCHEMA.version == "1.1.0"
+        parts = UNIT_SCHEMA.version.split(".")
+        assert len(parts) == 3
+        assert all(part.isdigit() for part in parts)
 
     def test_column_count_is_23(self) -> None:
         """Verify UNIT_SCHEMA has exactly 23 columns (12 base + 11 Unit)."""
@@ -188,7 +190,7 @@ class TestUnitSchemaToDict:
 
         assert result["name"] == "unit"
         assert result["task_type"] == "Unit"
-        assert result["version"] == "1.1.0"
+        assert result["version"] == UNIT_SCHEMA.version
         assert len(result["columns"]) == 23
 
     def test_to_dict_includes_unit_columns(self) -> None:

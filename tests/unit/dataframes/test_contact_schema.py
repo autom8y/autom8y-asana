@@ -24,7 +24,9 @@ class TestContactSchemaStructure:
 
     def test_version_is_semver(self) -> None:
         """Verify version follows semver format."""
-        assert CONTACT_SCHEMA.version == "1.2.0"
+        parts = CONTACT_SCHEMA.version.split(".")
+        assert len(parts) == 3
+        assert all(part.isdigit() for part in parts)
 
     def test_column_count_is_25(self) -> None:
         """Verify CONTACT_SCHEMA has 25 columns (12 base + 13 contact-specific)."""
@@ -61,5 +63,5 @@ class TestContactSchemaToDict:
 
         assert result["name"] == "contact"
         assert result["task_type"] == "Contact"
-        assert result["version"] == "1.2.0"
+        assert result["version"] == CONTACT_SCHEMA.version
         assert len(result["columns"]) == 25
