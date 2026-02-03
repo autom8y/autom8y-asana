@@ -382,6 +382,12 @@ class DataFrameCache:
         Returns the entry if servable (fresh, stale-within-grace, or LKG),
         None if hard-rejected (schema mismatch or watermark stale).
         """
+        from autom8_asana.config import (
+            DEFAULT_ENTITY_TTLS,
+            DEFAULT_TTL,
+            LKG_MAX_STALENESS_MULTIPLIER,
+        )
+
         status = self._check_freshness(entry, current_watermark)
 
         # Build freshness info for servable states
@@ -425,12 +431,6 @@ class DataFrameCache:
 
         if status == FreshnessStatus.EXPIRED_SERVABLE:
             # Check max staleness policy before serving
-            from autom8_asana.config import (
-                DEFAULT_ENTITY_TTLS,
-                DEFAULT_TTL,
-                LKG_MAX_STALENESS_MULTIPLIER,
-            )
-
             entity_ttl = DEFAULT_ENTITY_TTLS.get(entry.entity_type, DEFAULT_TTL)
             age = info.data_age_seconds
 
