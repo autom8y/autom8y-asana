@@ -88,12 +88,14 @@ class MemoryTier:
     )
     _lock: threading.RLock = field(default_factory=threading.RLock, init=False)
     _current_bytes: int = field(default=0, init=False)
+    _container_memory_bytes: int = field(default=0, init=False)
+    _max_bytes: int = field(default=0, init=False)
 
     # Statistics
     _stats: dict[str, int] = field(default_factory=dict, init=False)
 
     def __post_init__(self) -> None:
-        """Initialize statistics."""
+        """Initialize statistics and cache memory limits."""
         self._stats = {
             "gets": 0,
             "puts": 0,
@@ -101,6 +103,16 @@ class MemoryTier:
             "evictions_staleness": 0,
             "evictions_memory": 0,
         }
+        self._container_memory_bytes = _get_container_memory_bytes()
+        self._max_bytes = int(self._container_memory_bytes * self.max_heap_percent)
+        logger.debug(
+            "memory_tier_max_bytes",
+            extra={
+                "total_memory_mb": self._container_memory_bytes // (1024 * 1024),
+                "heap_percent": self.max_heap_percent,
+                "max_bytes_mb": self._max_bytes // (1024 * 1024),
+            },
+        )
 
     def get(self, key: str) -> CacheEntry | None:
         """Get entry and move to front of LRU.
@@ -238,20 +250,8 @@ class MemoryTier:
         )
 
     def _get_max_bytes(self) -> int:
-        """Calculate maximum bytes based on heap percentage of container memory."""
-        total_memory = _get_container_memory_bytes()
-        max_bytes = int(total_memory * self.max_heap_percent)
-
-        logger.debug(
-            "memory_tier_max_bytes",
-            extra={
-                "total_memory_mb": total_memory // (1024 * 1024),
-                "heap_percent": self.max_heap_percent,
-                "max_bytes_mb": max_bytes // (1024 * 1024),
-            },
-        )
-
-        return max_bytes
+        """Return cached maximum bytes (computed at init)."""
+        return self._max_bytes
 
     def _estimate_size(self, entry: CacheEntry) -> int:
         """Estimate entry size in bytes.
