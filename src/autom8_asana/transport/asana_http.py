@@ -525,6 +525,15 @@ class AsanaHttpClient:
 
                         # Handle rate limit with Retry-After
                         if isinstance(error, RateLimitError):
+                            if self._logger:
+                                self._logger.warning(
+                                    "rate_limit_429_received",
+                                    extra={
+                                        "path": path,
+                                        "attempt": attempt,
+                                        "retry_after": error.retry_after,
+                                    },
+                                )
                             if self._should_retry(429, attempt, max_attempts):
                                 await self._wait_for_retry(attempt, error.retry_after)
                                 attempt += 1
@@ -606,6 +615,15 @@ class AsanaHttpClient:
 
                         # Handle rate limit with Retry-After
                         if isinstance(error, RateLimitError):
+                            if self._logger:
+                                self._logger.warning(
+                                    "rate_limit_429_received",
+                                    extra={
+                                        "path": path,
+                                        "attempt": attempt,
+                                        "retry_after": error.retry_after,
+                                    },
+                                )
                             if self._should_retry(429, attempt, max_attempts):
                                 await self._wait_for_retry(attempt, error.retry_after)
                                 attempt += 1

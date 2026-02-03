@@ -589,13 +589,61 @@ class UnifiedTaskStore:
                             )
                     return False
 
-                results = await asyncio.gather(
-                    *[
-                        _fetch_immediate_parent(gid)
-                        for gid in parent_gids_needed
-                    ]
+                # Lazy import to avoid circular dependency (config -> automation -> models -> cache)
+                from autom8_asana.config import (
+                    HIERARCHY_BATCH_DELAY,
+                    HIERARCHY_BATCH_SIZE,
+                    HIERARCHY_PACING_THRESHOLD,
                 )
-                immediate_parents_fetched = sum(1 for r in results if r)
+
+                parent_gid_list = list(parent_gids_needed)
+                pacing_enabled = len(parent_gid_list) > HIERARCHY_PACING_THRESHOLD
+
+                if pacing_enabled:
+                    logger.info(
+                        "hierarchy_pacing_enabled",
+                        extra={
+                            "parent_count": len(parent_gid_list),
+                            "batch_size": HIERARCHY_BATCH_SIZE,
+                            "batch_delay": HIERARCHY_BATCH_DELAY,
+                        },
+                    )
+
+                all_results: list[bool] = []
+
+                if not pacing_enabled:
+                    all_results = list(await asyncio.gather(
+                        *[_fetch_immediate_parent(gid) for gid in parent_gid_list]
+                    ))
+                else:
+                    for batch_start in range(0, len(parent_gid_list), HIERARCHY_BATCH_SIZE):
+                        batch = parent_gid_list[batch_start:batch_start + HIERARCHY_BATCH_SIZE]
+                        batch_results = await asyncio.gather(
+                            *[_fetch_immediate_parent(gid) for gid in batch]
+                        )
+                        all_results.extend(batch_results)
+                        if batch_start + HIERARCHY_BATCH_SIZE < len(parent_gid_list):
+                            logger.debug(
+                                "hierarchy_batch_pause",
+                                extra={
+                                    "batch_start": batch_start,
+                                    "batch_size": len(batch),
+                                    "total": len(parent_gid_list),
+                                },
+                            )
+                            await asyncio.sleep(HIERARCHY_BATCH_DELAY)
+
+                immediate_parents_fetched = sum(1 for r in all_results if r)
+
+                if pacing_enabled:
+                    logger.info(
+                        "hierarchy_warming_complete",
+                        extra={
+                            "parents_fetched": immediate_parents_fetched,
+                            "total_parents": len(parent_gid_list),
+                            "batches": (len(parent_gid_list) + HIERARCHY_BATCH_SIZE - 1) // HIERARCHY_BATCH_SIZE,
+                        },
+                    )
 
             # INFO-level logging for immediate parent fetch results
             logger.info(
