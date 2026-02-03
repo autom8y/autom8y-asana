@@ -201,7 +201,6 @@ async def warm_ancestors_async(
             continue
 
         parents_to_fetch = gids_to_fetch
-        already_known: list[str] = []
 
         # Batch fetch missing parents with bounded concurrency
         fetched_results: list[dict[str, Any] | None] = []
@@ -246,12 +245,6 @@ async def warm_ancestors_async(
                 await unified_store.put_async(
                     task_dict, opt_fields=_HIERARCHY_OPT_FIELDS
                 )
-
-        # Add already-known parents that might have grandparents we need
-        for parent_gid in already_known:
-            grandparent = hierarchy_index.get_parent_gid(parent_gid)
-            if grandparent and grandparent not in visited:
-                next_level_gids.append(grandparent)
 
         logger.debug(
             "hierarchy_warm_level",
