@@ -578,12 +578,20 @@ class DataFrameViewPlugin:
         # or when task_data is a dict (not a Task object)
         if source.startswith("cf:"):
             field_name = source[3:]  # Strip "cf:" prefix
-            return self._extract_custom_field_by_name(custom_fields, field_name)
+            raw = self._extract_custom_field_by_name(custom_fields, field_name)
         elif source.startswith("gid:"):
             field_gid = source[4:]  # Strip "gid:" prefix
-            return self._extract_custom_field_by_gid(custom_fields, field_gid)
+            raw = self._extract_custom_field_by_gid(custom_fields, field_gid)
+        else:
+            return None
 
-        return None
+        if raw is None:
+            return None
+
+        # Apply schema-aware type coercion (multi_enum list→string, etc.)
+        from autom8_asana.dataframes.resolver.coercer import coerce_value
+
+        return coerce_value(raw, col.dtype)
 
     def _extract_custom_field_by_name(
         self,
