@@ -291,6 +291,7 @@ class TestProgressiveTierPut:
             df=entry.dataframe,
             watermark=entry.watermark,
             index_data=None,
+            entity_type="unit",
         )
 
         stats = tier.get_stats()

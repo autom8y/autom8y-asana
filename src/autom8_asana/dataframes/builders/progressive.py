@@ -262,11 +262,15 @@ class ProgressiveProjectBuilder:
 
         # Step 3: Create/update manifest
         if manifest is None:
+            section_names = {
+                s.gid: s.name for s in sections if getattr(s, "name", None)
+            }
             manifest = await self._persistence.create_manifest_async(
                 self._project_gid,
                 self._entity_type,
                 section_gids,
                 schema_version=current_schema_version,
+                section_names=section_names or None,
             )
 
         logger.info(
@@ -338,6 +342,7 @@ class ProgressiveProjectBuilder:
                 merged_df,
                 watermark,
                 index_data=index_data,
+                entity_type=self._entity_type,
             )
 
         total_time = (time.perf_counter() - start_time) * 1000
@@ -616,8 +621,10 @@ class ProgressiveProjectBuilder:
         """Build GidLookupIndex serialized data from DataFrame."""
         try:
             from autom8_asana.services.gid_lookup import GidLookupIndex
+            from autom8_asana.services.universal_strategy import DEFAULT_KEY_COLUMNS
 
-            index = GidLookupIndex.from_dataframe(df)
+            key_columns = DEFAULT_KEY_COLUMNS.get(self._entity_type, ["gid"])
+            index = GidLookupIndex.from_dataframe(df, key_columns=key_columns)
             return index.serialize()
         except Exception as e:
             logger.warning(

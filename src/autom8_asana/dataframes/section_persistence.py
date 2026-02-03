@@ -86,6 +86,7 @@ class SectionInfo(BaseModel):
     error: str | None = None
     watermark: datetime | None = None
     gid_hash: str | None = None
+    name: str | None = None
 
     model_config = {"use_enum_values": True}
 
@@ -177,6 +178,39 @@ class SectionManifest(BaseModel):
     def is_complete(self) -> bool:
         """Check if all sections are complete."""
         return self.completed_sections == self.total_sections
+
+    def get_section_name_index(self) -> dict[str, str]:
+        """Return a ``{name.lower(): gid}`` mapping for sections with names."""
+        return {
+            info.name.lower(): gid
+            for gid, info in self.sections.items()
+            if info.name
+        }
+
+
+def _resolve_schema_version(entity_type: str | None) -> str | None:
+    """Resolve schema version for an entity type.
+
+    Uses SchemaRegistry to look up the current schema version,
+    avoiding circular imports with cache/dataframe_cache.py.
+
+    Args:
+        entity_type: Entity type identifier (e.g., "offer").
+
+    Returns:
+        Schema version string if found, None otherwise.
+    """
+    if not entity_type:
+        return None
+    try:
+        from autom8_asana.dataframes.models.registry import SchemaRegistry
+        from autom8_asana.services.resolver import to_pascal_case
+
+        registry = SchemaRegistry.get_instance()
+        schema = registry.get_schema(to_pascal_case(entity_type))
+        return schema.version if schema else None
+    except Exception:
+        return None
 
 
 @dataclass
@@ -333,6 +367,7 @@ class SectionPersistence:
         entity_type: str,
         section_gids: list[str],
         schema_version: str = "",
+        section_names: dict[str, str] | None = None,
     ) -> SectionManifest:
         """Create a new manifest for a project build.
 
@@ -341,15 +376,20 @@ class SectionPersistence:
             entity_type: Entity type (e.g., "offer", "contact").
             section_gids: List of section GIDs to track.
             schema_version: Schema version for cache compatibility.
+            section_names: Optional ``{gid: name}`` mapping for sections.
 
         Returns:
             Created SectionManifest.
         """
+        names = section_names or {}
         manifest = SectionManifest(
             project_gid=project_gid,
             entity_type=entity_type,
             total_sections=len(section_gids),
-            sections={gid: SectionInfo() for gid in section_gids},
+            sections={
+                gid: SectionInfo(name=names.get(gid))
+                for gid in section_gids
+            },
             schema_version=schema_version,
         )
 
@@ -725,6 +765,7 @@ class SectionPersistence:
         df: pl.DataFrame,
         watermark: datetime,
         index_data: dict[str, Any] | None = None,
+        entity_type: str | None = None,
     ) -> bool:
         """Write final artifacts atomically (DataFrame + watermark + optional index).
 
@@ -735,6 +776,7 @@ class SectionPersistence:
             df: Final merged DataFrame.
             watermark: Watermark timestamp.
             index_data: Optional serialized GidLookupIndex data.
+            entity_type: Optional entity type for schema_version resolution.
 
         Returns:
             True if all artifacts written successfully.
@@ -765,12 +807,14 @@ class SectionPersistence:
         success = success and df_result.success
 
         # 2. Write watermark
-        watermark_data = {
+        watermark_data: dict[str, Any] = {
             "project_gid": project_gid,
             "watermark": watermark.isoformat(),
             "row_count": len(df),
             "columns": df.columns,
             "saved_at": datetime.now(UTC).isoformat(),
+            "entity_type": entity_type,
+            "schema_version": _resolve_schema_version(entity_type),
         }
         wm_key = self._make_watermark_key(project_gid)
         wm_result = await self._s3_client.put_object_async(
@@ -800,6 +844,8 @@ class SectionPersistence:
                     "row_count": len(df),
                     "watermark": watermark.isoformat(),
                     "index_written": index_data is not None,
+                    "entity_type": entity_type,
+                    "schema_version": watermark_data.get("schema_version"),
                 },
             )
         else:

@@ -175,7 +175,9 @@ class TestBuildIndexData:
             result = builder._build_index_data(df)
 
             assert result == {"entries": {}}
-            mock_index_class.from_dataframe.assert_called_once_with(df)
+            mock_index_class.from_dataframe.assert_called_once_with(
+                df, key_columns=["office_phone", "vertical", "offer_id"]
+            )
 
     def test_build_index_failure(self) -> None:
         """Index build failure returns None."""

@@ -373,6 +373,28 @@ async def _discover_entity_projects_for_lambda() -> None:
                     },
                 )
 
+        # Fallback: use PRIMARY_PROJECT_GID from model classes for unmatched entities
+        from autom8_asana.services.discovery import ENTITY_MODEL_MAP
+
+        for et in entity_types_to_discover:
+            if entity_registry.get_project_gid(et) is None:
+                model_cls = ENTITY_MODEL_MAP.get(et)
+                gid = getattr(model_cls, "PRIMARY_PROJECT_GID", None) if model_cls else None
+                if gid:
+                    entity_registry.register(
+                        entity_type=et,
+                        project_gid=gid,
+                        project_name=f"{et} (model fallback)",
+                    )
+                    logger.info(
+                        "lambda_entity_project_registered_fallback",
+                        extra={
+                            "entity_type": et,
+                            "project_gid": gid,
+                            "source": "PRIMARY_PROJECT_GID",
+                        },
+                    )
+
         logger.info(
             "lambda_entity_discovery_complete",
             extra={
@@ -392,7 +414,7 @@ ENTITY_OVERRIDES: dict[str, str] = {
 
 # Valid entity types in priority order for cache warming
 # Only these entity types will be returned by _normalize_project_name
-WARMABLE_ENTITIES: list[str] = ["offer", "business", "contact", "unit", "asset_edit"]
+WARMABLE_ENTITIES: list[str] = ["offer", "business", "contact", "unit", "asset_edit", "asset_edit_holder"]
 
 
 def _normalize_project_name(name: str) -> str | None:

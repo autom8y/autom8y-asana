@@ -236,16 +236,21 @@ class GidLookupIndex:
         )
 
     @classmethod
-    def from_dataframe(cls, df: pl.DataFrame) -> GidLookupIndex:
+    def from_dataframe(
+        cls,
+        df: pl.DataFrame,
+        key_columns: list[str] | None = None,
+    ) -> GidLookupIndex:
         """Create a GidLookupIndex from a DataFrame.
 
         Builds the internal lookup dictionary from a DataFrame containing
-        office_phone, vertical, and gid columns. Filters out rows with
-        null values in any of these columns.
+        key columns and gid. Filters out rows with null values in any
+        required column.
 
         Args:
-            df: Polars DataFrame with columns: office_phone, vertical, gid.
-                Must follow UNIT_SCHEMA structure.
+            df: Polars DataFrame with gid column and key columns.
+            key_columns: Columns to use as lookup key. Defaults to
+                ["office_phone", "vertical"] for backwards compatibility.
 
         Returns:
             New GidLookupIndex instance with O(1) lookup capability.
@@ -264,10 +269,13 @@ class GidLookupIndex:
             2
 
         Note:
-            Rows with null office_phone, vertical, or gid are skipped.
-            The canonical_key format is 'pv1:{phone}:{vertical}'.
+            Rows with null values in any key column or gid are skipped.
+            The canonical_key format is 'pv1:{col1_val}:{col2_val}:...'.
         """
-        required_columns = {"office_phone", "vertical", "gid"}
+        if key_columns is None:
+            key_columns = ["office_phone", "vertical"]
+
+        required_columns = set(key_columns) | {"gid"}
         missing = required_columns - set(df.columns)
         if missing:
             raise KeyError(f"Missing required columns: {missing}")
@@ -276,20 +284,20 @@ class GidLookupIndex:
         lookup_dict: dict[str, str] = {}
 
         # Filter out rows with null values in required columns
-        valid_df = df.filter(
-            df["office_phone"].is_not_null()
-            & df["vertical"].is_not_null()
-            & df["gid"].is_not_null()
-        )
+        null_filter = df["gid"].is_not_null()
+        for col in key_columns:
+            null_filter = null_filter & df[col].is_not_null()
+        valid_df = df.filter(null_filter)
 
         # Build the dictionary using canonical_key format
-        # Normalize vertical to lowercase for case-insensitive matching
         for row in valid_df.iter_rows(named=True):
-            phone = row["office_phone"]
-            vertical = row["vertical"].lower()  # Normalize to lowercase
             gid = row["gid"]
-            # Use canonical_key format: pv1:{phone}:{vertical}
-            canonical_key = f"pv1:{phone}:{vertical}"
+            # Build canonical key: pv1:{col1_val}:{col2_val}:...
+            parts = []
+            for col in key_columns:
+                val = row[col]
+                parts.append(str(val).lower() if isinstance(val, str) else str(val))
+            canonical_key = "pv1:" + ":".join(parts)
             lookup_dict[canonical_key] = gid
 
         return cls(

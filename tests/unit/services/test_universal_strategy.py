@@ -335,13 +335,13 @@ class TestUniversalResolutionStrategy:
             entity_type="contact",
             index_cache=index_cache,
         )
-        assert contact_strategy.get_default_key_columns() == ["email"]
+        assert contact_strategy.get_default_key_columns() == ["office_phone", "contact_phone", "contact_email"]
 
         offer_strategy = UniversalResolutionStrategy(
             entity_type="offer",
             index_cache=index_cache,
         )
-        assert offer_strategy.get_default_key_columns() == ["offer_id"]
+        assert offer_strategy.get_default_key_columns() == ["office_phone", "vertical", "offer_id"]
 
 
 class TestUniversalStrategyBackwardsCompatibility:
