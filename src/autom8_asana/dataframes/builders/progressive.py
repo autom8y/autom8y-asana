@@ -13,6 +13,8 @@ This builder enables:
 
 from __future__ import annotations
 
+import asyncio
+import io
 import os
 import time
 from dataclasses import dataclass
@@ -22,6 +24,11 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 from autom8y_log import get_logger
 
+from autom8_asana.config import (
+    CHECKPOINT_EVERY_N_PAGES,
+    PACE_DELAY_SECONDS,
+    PACE_PAGES_PER_PAUSE,
+)
 from autom8_asana.dataframes.builders.base import gather_with_limit
 from autom8_asana.dataframes.builders.fields import (
     BASE_OPT_FIELDS,
@@ -127,6 +134,7 @@ class ProgressiveProjectBuilder:
         self._max_concurrent = max_concurrent_sections
         self._dataframe_view: DataFrameViewPlugin | None = None
         self._section_dfs: dict[str, pl.DataFrame] = {}
+        self._manifest: SectionManifest | None = None
 
     async def build_progressive_async(
         self,
@@ -273,6 +281,9 @@ class ProgressiveProjectBuilder:
                 section_names=section_names or None,
             )
 
+        # Store manifest for section-level access (resume/checkpoint)
+        self._manifest = manifest
+
         logger.info(
             "preload_project_started",
             extra={
@@ -406,6 +417,10 @@ class ProgressiveProjectBuilder:
     ) -> bool:
         """Fetch tasks for a section, build DataFrame, and persist to S3.
 
+        For large sections (100+ tasks on first page), uses paced iteration
+        with periodic checkpoint writes to avoid Asana cost-based 429s.
+        Per TDD-large-section-resilience.
+
         Args:
             section_gid: Section GID to fetch.
             section: Section object (may be None if not in map).
@@ -425,11 +440,147 @@ class ProgressiveProjectBuilder:
                 SectionStatus.IN_PROGRESS,
             )
 
-            # Fetch tasks for section
-            tasks: list[Task] = await self._client.tasks.list_async(
+            # --- Resume detection (per TDD section 3.5) ---
+            section_info = None
+            if self._manifest is not None:
+                section_info = self._manifest.sections.get(section_gid)
+
+            checkpoint_df: pl.DataFrame | None = None
+            resume_offset = 0
+
+            if (
+                section_info is not None
+                and section_info.status == SectionStatus.IN_PROGRESS
+                and section_info.rows_fetched > 0
+            ):
+                try:
+                    checkpoint_df = await self._persistence.read_section_async(
+                        self._project_gid, section_gid
+                    )
+                    if checkpoint_df is not None:
+                        resume_offset = section_info.last_fetched_offset
+                        logger.info(
+                            "section_checkpoint_resumed",
+                            extra={
+                                "section_gid": section_gid,
+                                "resumed_offset": resume_offset,
+                                "resumed_rows": section_info.rows_fetched,
+                                "checkpoint_rows": len(checkpoint_df),
+                            },
+                        )
+                except Exception as e:
+                    logger.warning(
+                        "section_checkpoint_resume_failed",
+                        extra={
+                            "section_gid": section_gid,
+                            "error": str(e),
+                            "fallback": "full_refetch",
+                        },
+                    )
+                    checkpoint_df = None
+                    resume_offset = 0
+
+            # --- Create PageIterator ---
+            iterator = self._client.tasks.list_async(
                 section=section_gid,
                 opt_fields=BASE_OPT_FIELDS,
-            ).collect()
+            )
+
+            # --- Skip past already-fetched pages on resume ---
+            if resume_offset > 0:
+                skip_count = 0
+                skip_task_count = 0
+                async for task in iterator:
+                    skip_task_count += 1
+                    if skip_task_count >= 100:
+                        skip_count += 1
+                        skip_task_count = 0
+                        if skip_count >= resume_offset:
+                            break
+
+                logger.info(
+                    "section_resume_pages_skipped",
+                    extra={
+                        "section_gid": section_gid,
+                        "pages_skipped": skip_count,
+                        "target_offset": resume_offset,
+                    },
+                )
+
+            # --- Fetch first page to determine section size ---
+            first_page_tasks: list[Task] = []
+            async for task in iterator:
+                first_page_tasks.append(task)
+                if len(first_page_tasks) >= 100:
+                    break
+
+            is_large_section = len(first_page_tasks) == 100
+
+            logger.info(
+                "large_section_detected",
+                extra={
+                    "section_gid": section_gid,
+                    "first_page_count": len(first_page_tasks),
+                    "pacing_enabled": is_large_section,
+                },
+            )
+
+            if not first_page_tasks:
+                # Empty section - mark as complete with 0 rows
+                from autom8_asana.dataframes.builders.freshness import (
+                    compute_gid_hash,
+                )
+
+                await self._persistence.update_manifest_section_async(
+                    self._project_gid,
+                    section_gid,
+                    SectionStatus.COMPLETE,
+                    rows=0,
+                    gid_hash=compute_gid_hash([]),
+                )
+                return True
+
+            if not is_large_section:
+                # --- Small section: process immediately (existing path) ---
+                tasks = first_page_tasks
+            else:
+                # --- Large section: paced iteration with checkpoints ---
+                all_tasks: list[Task] = list(first_page_tasks)
+                pages_fetched = 1
+                current_page_task_count = 0
+
+                async for task in iterator:
+                    all_tasks.append(task)
+                    current_page_task_count += 1
+
+                    if current_page_task_count >= 100:
+                        pages_fetched += 1
+                        current_page_task_count = 0
+
+                        # Pacing: pause every N pages
+                        if pages_fetched % PACE_PAGES_PER_PAUSE == 0:
+                            logger.info(
+                                "section_pace_pause",
+                                extra={
+                                    "section_gid": section_gid,
+                                    "pages_fetched": pages_fetched,
+                                    "rows_so_far": len(all_tasks),
+                                    "pause_seconds": PACE_DELAY_SECONDS,
+                                },
+                            )
+                            await asyncio.sleep(PACE_DELAY_SECONDS)
+
+                        # Checkpoint: persist every N pages
+                        if pages_fetched % CHECKPOINT_EVERY_N_PAGES == 0:
+                            await self._write_checkpoint(
+                                section_gid, all_tasks, pages_fetched
+                            )
+
+                # Account for final partial page
+                if current_page_task_count > 0:
+                    pages_fetched += 1
+
+                tasks = all_tasks
 
             # Populate UnifiedStore with fetched tasks for cascade resolution
             if self._store is not None and tasks:
@@ -449,30 +600,14 @@ class ProgressiveProjectBuilder:
                 },
             )
 
-            if not tasks:
-                # Empty section - mark as complete with 0 rows
-                from autom8_asana.dataframes.builders.freshness import (
-                    compute_gid_hash,
-                )
-
-                await self._persistence.update_manifest_section_async(
-                    self._project_gid,
-                    section_gid,
-                    SectionStatus.COMPLETE,
-                    rows=0,
-                    gid_hash=compute_gid_hash([]),
-                )
-                return True
-
             # Convert tasks to DataFrame rows
             task_dicts = [self._task_to_dict(task) for task in tasks]
             rows = await self._extract_rows(task_dicts)
 
-            # Coerce row values to match schema types (handles "0%" → 0.0, etc.)
+            # Coerce row values to match schema types (handles "0%" -> 0.0, etc.)
             coerced_rows = coerce_rows_to_schema(rows, self._schema)
 
             # Build section DataFrame with explicit schema to avoid type inference issues
-            # Per TDD: polars schema must match extraction schema for date/datetime types
             section_df = pl.DataFrame(
                 coerced_rows, schema=self._schema.to_polars_schema()
             )
@@ -521,6 +656,136 @@ class ProgressiveProjectBuilder:
             )
 
             return False
+
+    async def _write_checkpoint(
+        self,
+        section_gid: str,
+        tasks: list[Task],
+        pages_fetched: int,
+    ) -> bool:
+        """Write accumulated tasks as a checkpoint parquet to S3.
+
+        Converts accumulated tasks to a DataFrame and writes to the
+        section's existing S3 key (atomic overwrite via PutObject).
+        Updates manifest with checkpoint metadata.
+
+        Per TDD-large-section-resilience section 3.2 / ADR-LSR-002.
+
+        Args:
+            section_gid: Section GID being fetched.
+            tasks: All accumulated tasks so far.
+            pages_fetched: Number of pages consumed so far.
+
+        Returns:
+            True if checkpoint written successfully.
+        """
+        try:
+            task_dicts = [self._task_to_dict(task) for task in tasks]
+            rows = await self._extract_rows(task_dicts)
+            coerced_rows = coerce_rows_to_schema(rows, self._schema)
+            checkpoint_df = pl.DataFrame(
+                coerced_rows, schema=self._schema.to_polars_schema()
+            )
+
+            # Write to S3 at the section's key (atomic overwrite).
+            # We call the underlying S3 write directly, NOT
+            # write_section_async(), because that method marks
+            # the section COMPLETE. For checkpoints we need the
+            # section to remain IN_PROGRESS.
+            key = self._persistence._make_section_key(
+                self._project_gid, section_gid
+            )
+            buffer = io.BytesIO()
+            checkpoint_df.write_parquet(buffer)
+            buffer.seek(0)
+            parquet_bytes = buffer.read()
+
+            result = await self._persistence._s3_client.put_object_async(
+                key=key,
+                body=parquet_bytes,
+                content_type="application/octet-stream",
+                metadata={
+                    "project-gid": self._project_gid,
+                    "section-gid": section_gid,
+                    "row-count": str(len(checkpoint_df)),
+                    "checkpoint": "true",
+                    "pages-fetched": str(pages_fetched),
+                },
+            )
+
+            if result.success:
+                await self._update_checkpoint_metadata(
+                    section_gid, pages_fetched, len(checkpoint_df)
+                )
+                logger.info(
+                    "section_checkpoint_written",
+                    extra={
+                        "section_gid": section_gid,
+                        "pages_fetched": pages_fetched,
+                        "rows_checkpointed": len(checkpoint_df),
+                        "s3_key": key,
+                    },
+                )
+                # Store in memory for fallback
+                self._section_dfs[section_gid] = checkpoint_df
+            else:
+                logger.warning(
+                    "section_checkpoint_write_failed",
+                    extra={
+                        "section_gid": section_gid,
+                        "error": result.error,
+                    },
+                )
+
+            return result.success
+
+        except Exception as e:
+            logger.warning(
+                "section_checkpoint_failed",
+                extra={
+                    "section_gid": section_gid,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            )
+            return False
+
+    async def _update_checkpoint_metadata(
+        self,
+        section_gid: str,
+        pages_fetched: int,
+        rows_fetched: int,
+    ) -> None:
+        """Update manifest SectionInfo with checkpoint progress.
+
+        Uses the per-project manifest lock to safely update checkpoint
+        fields without race conditions.
+
+        Per TDD-large-section-resilience section 3.3.
+
+        Args:
+            section_gid: Section GID being checkpointed.
+            pages_fetched: Total pages fetched so far.
+            rows_fetched: Total rows accumulated so far.
+        """
+        lock = self._persistence._get_manifest_lock(self._project_gid)
+        async with lock:
+            manifest = await self._persistence.get_manifest_async(
+                self._project_gid
+            )
+            if manifest is None:
+                return
+
+            section_info = manifest.sections.get(section_gid)
+            if section_info is None:
+                return
+
+            section_info.last_fetched_offset = pages_fetched
+            section_info.rows_fetched = rows_fetched
+            section_info.chunks_checkpointed += 1
+
+            self._persistence._manifest_cache[self._project_gid] = manifest
+            await self._persistence._save_manifest_async(manifest)
 
     def _task_to_dict(self, task: Task) -> dict[str, Any]:
         """Convert Task model to dict for DataFrameView extraction."""

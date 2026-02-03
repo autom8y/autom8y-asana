@@ -295,6 +295,7 @@ class TestDependencyGraphOverhead:
 class TestMemoryOverhead:
     """Test memory overhead of tracking (NFR-PERF-001)."""
 
+    @pytest.mark.slow
     def test_memory_overhead_estimation(self) -> None:
         """Tracked entities should have reasonable memory overhead.
 
