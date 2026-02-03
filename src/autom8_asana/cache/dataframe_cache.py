@@ -275,21 +275,11 @@ class DataFrameCache:
                 },
             )
             # LKG: attempt to serve from cache, skip refresh
-            from autom8_asana.config import DEFAULT_ENTITY_TTLS, DEFAULT_TTL
-
             entry = self.memory_tier.get(cache_key)
             if entry is not None and self._schema_is_valid(entry):
                 self._stats[entity_type]["lkg_circuit_serves"] += 1
                 self._stats[entity_type]["memory_hits"] += 1
-                age = (datetime.now(UTC) - entry.created_at).total_seconds()
-                cb_entity_ttl = DEFAULT_ENTITY_TTLS.get(entry.entity_type, DEFAULT_TTL)
-                self._last_freshness[cache_key] = FreshnessInfo(
-                    freshness=FreshnessStatus.CIRCUIT_LKG.value,
-                    data_age_seconds=round(age, 1),
-                    staleness_ratio=round(age / cb_entity_ttl, 2)
-                    if cb_entity_ttl > 0
-                    else 0.0,
-                )
+                info = self._build_freshness_info(entry, FreshnessStatus.CIRCUIT_LKG, cache_key)
                 logger.info(
                     "dataframe_cache_circuit_lkg_serve",
                     extra={
@@ -297,7 +287,7 @@ class DataFrameCache:
                         "entity_type": entity_type,
                         "tier": "memory",
                         "row_count": entry.row_count,
-                        "age_seconds": round(age, 1),
+                        "age_seconds": info.data_age_seconds,
                     },
                 )
                 return entry
@@ -308,15 +298,7 @@ class DataFrameCache:
                 self.memory_tier.put(cache_key, entry)
                 self._stats[entity_type]["lkg_circuit_serves"] += 1
                 self._stats[entity_type]["s3_hits"] += 1
-                age = (datetime.now(UTC) - entry.created_at).total_seconds()
-                cb_entity_ttl = DEFAULT_ENTITY_TTLS.get(entry.entity_type, DEFAULT_TTL)
-                self._last_freshness[cache_key] = FreshnessInfo(
-                    freshness=FreshnessStatus.CIRCUIT_LKG.value,
-                    data_age_seconds=round(age, 1),
-                    staleness_ratio=round(age / cb_entity_ttl, 2)
-                    if cb_entity_ttl > 0
-                    else 0.0,
-                )
+                info = self._build_freshness_info(entry, FreshnessStatus.CIRCUIT_LKG, cache_key)
                 logger.info(
                     "dataframe_cache_circuit_lkg_serve",
                     extra={
@@ -324,7 +306,7 @@ class DataFrameCache:
                         "entity_type": entity_type,
                         "tier": "s3",
                         "row_count": entry.row_count,
-                        "age_seconds": round(age, 1),
+                        "age_seconds": info.data_age_seconds,
                     },
                 )
                 return entry
@@ -380,22 +362,15 @@ class DataFrameCache:
         """
         status = self._check_freshness(entry, current_watermark)
 
-        # Compute freshness info for side-channel (before any return)
-        from autom8_asana.config import DEFAULT_ENTITY_TTLS, DEFAULT_TTL
-
-        entity_ttl = DEFAULT_ENTITY_TTLS.get(entry.entity_type, DEFAULT_TTL)
-        age = (datetime.now(UTC) - entry.created_at).total_seconds()
-
+        # Build freshness info for servable states
         if status in (
             FreshnessStatus.FRESH,
             FreshnessStatus.STALE_SERVABLE,
             FreshnessStatus.EXPIRED_SERVABLE,
         ):
-            self._last_freshness[cache_key] = FreshnessInfo(
-                freshness=status.value,
-                data_age_seconds=round(age, 1),
-                staleness_ratio=round(age / entity_ttl, 2) if entity_ttl > 0 else 0.0,
-            )
+            info = self._build_freshness_info(entry, status, cache_key)
+        else:
+            info = None
 
         if status == FreshnessStatus.FRESH:
             self._stats[entity_type][f"{tier}_hits"] += 1
@@ -419,7 +394,7 @@ class DataFrameCache:
                     "project_gid": project_gid,
                     "entity_type": entity_type,
                     "row_count": entry.row_count,
-                    "age_seconds": round(age, 1),
+                    "age_seconds": info.data_age_seconds,
                     "freshness": "stale_servable",
                 },
             )
@@ -428,7 +403,14 @@ class DataFrameCache:
 
         if status == FreshnessStatus.EXPIRED_SERVABLE:
             # Check max staleness policy before serving
-            from autom8_asana.config import LKG_MAX_STALENESS_MULTIPLIER
+            from autom8_asana.config import (
+                DEFAULT_ENTITY_TTLS,
+                DEFAULT_TTL,
+                LKG_MAX_STALENESS_MULTIPLIER,
+            )
+
+            entity_ttl = DEFAULT_ENTITY_TTLS.get(entry.entity_type, DEFAULT_TTL)
+            age = info.data_age_seconds
 
             if LKG_MAX_STALENESS_MULTIPLIER > 0:
                 max_age = LKG_MAX_STALENESS_MULTIPLIER * entity_ttl
@@ -438,9 +420,9 @@ class DataFrameCache:
                         extra={
                             "project_gid": project_gid,
                             "entity_type": entity_type,
-                            "age_seconds": round(age, 1),
+                            "age_seconds": age,
                             "max_age_seconds": round(max_age, 1),
-                            "staleness_ratio": round(age / entity_ttl, 2),
+                            "staleness_ratio": info.staleness_ratio,
                         },
                     )
                     if tier == "memory":
@@ -456,7 +438,7 @@ class DataFrameCache:
                     "project_gid": project_gid,
                     "entity_type": entity_type,
                     "row_count": entry.row_count,
-                    "age_seconds": round(age, 1),
+                    "age_seconds": age,
                     "freshness": "expired_servable",
                 },
             )
@@ -674,6 +656,34 @@ class DataFrameCache:
         """
         cache_key = self._build_key(project_gid, entity_type)
         return self._last_freshness.get(cache_key)
+
+    def _build_freshness_info(
+        self,
+        entry: CacheEntry,
+        status: FreshnessStatus,
+        cache_key: str,
+    ) -> FreshnessInfo:
+        """Build FreshnessInfo and store in side-channel.
+
+        Args:
+            entry: Cache entry to compute freshness for.
+            status: Freshness status (from enum).
+            cache_key: Cache key for side-channel storage.
+
+        Returns:
+            FreshnessInfo with computed age and staleness metrics.
+        """
+        from autom8_asana.config import DEFAULT_ENTITY_TTLS, DEFAULT_TTL
+
+        entity_ttl = DEFAULT_ENTITY_TTLS.get(entry.entity_type, DEFAULT_TTL)
+        age = (datetime.now(UTC) - entry.created_at).total_seconds()
+        info = FreshnessInfo(
+            freshness=status.value,
+            data_age_seconds=round(age, 1),
+            staleness_ratio=round(age / entity_ttl, 2) if entity_ttl > 0 else 0.0,
+        )
+        self._last_freshness[cache_key] = info
+        return info
 
     def set_build_callback(
         self,
