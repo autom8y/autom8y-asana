@@ -32,13 +32,14 @@ __all__ = [
 ]
 
 
-# Default key columns for backwards compatibility with existing entity strategies
+# Default key columns for backwards compatibility with existing entity strategies.
+# Single source of truth for all key column configuration across the codebase.
 DEFAULT_KEY_COLUMNS: dict[str, list[str]] = {
     "unit": ["office_phone", "vertical"],
-    "business": ["office_phone", "vertical"],
-    "offer": ["offer_id"],
-    "contact": ["email"],
-    "asset_edit": ["offer_id"],
+    "business": ["office_phone"],
+    "offer": ["office_phone", "vertical", "offer_id"],
+    "contact": ["office_phone", "contact_phone", "contact_email"],
+    "asset_edit": ["office_phone", "vertical", "asset_id", "offer_id"],
     "asset_edit_holder": ["office_phone"],
 }
 

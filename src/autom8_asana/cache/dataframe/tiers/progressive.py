@@ -238,6 +238,7 @@ class ProgressiveTier:
                 df=entry.dataframe,
                 watermark=entry.watermark,
                 index_data=None,  # Index is built lazily, not stored with cache
+                entity_type=entity_type,
             )
 
             if success:
