@@ -255,6 +255,16 @@ class QueryEngine:
         elapsed_ms = (time.monotonic() - start) * 1000
         data = df.to_dicts()
 
+        # Read freshness info from query_service side-channel
+        freshness_info = getattr(self.query_service, "_last_freshness_info", None)
+        freshness_meta: dict[str, object] = {}
+        if freshness_info is not None:
+            freshness_meta = {
+                "freshness": freshness_info.freshness,
+                "data_age_seconds": freshness_info.data_age_seconds,
+                "staleness_ratio": freshness_info.staleness_ratio,
+            }
+
         return RowsResponse(
             data=data,
             meta=RowsMeta(
@@ -266,6 +276,7 @@ class QueryEngine:
                 project_gid=project_gid,
                 query_ms=round(elapsed_ms, 2),
                 **join_meta,  # type: ignore[arg-type]
+                **freshness_meta,  # type: ignore[arg-type]
             ),
         )
 
@@ -394,6 +405,16 @@ class QueryEngine:
         elapsed_ms = (time.monotonic() - start) * 1000
         data = result_df.to_dicts()
 
+        # Read freshness info from query_service side-channel
+        freshness_info = getattr(self.query_service, "_last_freshness_info", None)
+        freshness_meta: dict[str, object] = {}
+        if freshness_info is not None:
+            freshness_meta = {
+                "freshness": freshness_info.freshness,
+                "data_age_seconds": freshness_info.data_age_seconds,
+                "staleness_ratio": freshness_info.staleness_ratio,
+            }
+
         return AggregateResponse(
             data=data,
             meta=AggregateMeta(
@@ -403,5 +424,6 @@ class QueryEngine:
                 entity_type=entity_type,
                 project_gid=project_gid,
                 query_ms=round(elapsed_ms, 2),
+                **freshness_meta,  # type: ignore[arg-type]
             ),
         )

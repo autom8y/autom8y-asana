@@ -78,6 +78,12 @@ DEFAULT_TTL: int = 300  # 5 minutes - fallback for unknown entity types
 # while a background refresh runs. Beyond that window the entry is expired.
 SWR_GRACE_MULTIPLIER: float = 3.0
 
+# Last-Known-Good (LKG) configuration:
+# Controls how long expired entries can be served as LKG fallback.
+# 0.0 = unlimited (serve forever if schema/watermark valid)
+# >0.0 = serve for up to LKG_MAX_STALENESS_MULTIPLIER * entity_TTL seconds
+LKG_MAX_STALENESS_MULTIPLIER: float = 0.0
+
 DEFAULT_ENTITY_TTLS: dict[str, int] = {
     "business": 3600,  # 1 hour - rarely changes
     "contact": 900,  # 15 minutes

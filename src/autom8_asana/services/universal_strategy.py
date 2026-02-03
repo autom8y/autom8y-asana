@@ -81,6 +81,9 @@ class UniversalResolutionStrategy:
     # Injected by @dataframe_cache decorator on cache hit (if decorated)
     _cached_dataframe: Any = field(default=None, repr=False)
 
+    # Side-channel for freshness info from last cache access
+    _last_freshness_info: Any = field(default=None, repr=False)
+
     async def resolve(
         self,
         criteria: list[dict[str, Any]],
@@ -407,6 +410,10 @@ class UniversalResolutionStrategy:
             if cache is not None:
                 entry = await cache.get_async(project_gid, self.entity_type)
                 if entry is not None:
+                    # Retrieve freshness info side-channel
+                    self._last_freshness_info = getattr(
+                        cache, "get_freshness_info", lambda *a: None
+                    )(project_gid, self.entity_type)
                     return entry.dataframe
         except Exception as e:
             logger.warning(

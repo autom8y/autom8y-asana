@@ -113,6 +113,9 @@ class EntityQueryService:
         default=None
     )
 
+    # Side-channel for freshness info from last get_dataframe() call
+    _last_freshness_info: Any = field(default=None, init=False, repr=False)
+
     def __post_init__(self) -> None:
         """Initialize default strategy factory."""
         if self.strategy_factory is None:
@@ -398,4 +401,6 @@ class EntityQueryService:
         df = await strategy._get_dataframe(project_gid, client)
         if df is None:
             raise CacheNotWarmError(f"DataFrame unavailable for {entity_type}.")
+        # Propagate freshness info from strategy
+        self._last_freshness_info = getattr(strategy, "_last_freshness_info", None)
         return df

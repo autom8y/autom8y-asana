@@ -174,6 +174,10 @@ class AggregateMeta(BaseModel):
     entity_type: str
     project_gid: str
     query_ms: float
+    # LKG freshness metadata
+    freshness: str | None = None
+    data_age_seconds: float | None = None
+    staleness_ratio: float | None = None
 
 
 class AggregateResponse(BaseModel):
@@ -229,6 +233,10 @@ class RowsMeta(BaseModel):
     join_key: str | None = None
     join_matched: int | None = None
     join_unmatched: int | None = None
+    # LKG freshness metadata
+    freshness: str | None = None
+    data_age_seconds: float | None = None
+    staleness_ratio: float | None = None
 
 
 class RowsResponse(BaseModel):

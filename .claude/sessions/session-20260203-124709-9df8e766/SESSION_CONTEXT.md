@@ -64,7 +64,7 @@ current_phase: validation
 - ADR: /Users/tomtenuta/Code/autom8_asana/docs/design/ADR-hierarchy-backpressure-hardening.md
 - ADR: /Users/tomtenuta/Code/autom8_asana/docs/design/ADR-test-fixture-optimization.md
 - PRD: /Users/tomtenuta/Code/autom8_asana/docs/requirements/PRD-large-section-resilience.md
-- TDD: /Users/tomtenuta/Code/autom8_asana/docs/design/TDD-large-section-resilience.md
+- TDD: /Users/tomtenuta/Code/autom8_asana/docs/design/TDD-lkg-cache-freshness.md
 
 ## Tasks
 ### Completed
