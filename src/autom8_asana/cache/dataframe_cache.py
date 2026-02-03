@@ -6,8 +6,10 @@ with Memory + S3 tiering, request coalescing, and circuit breaker patterns.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from enum import Enum
 from typing import TYPE_CHECKING
 
 import polars as pl
@@ -20,6 +22,14 @@ if TYPE_CHECKING:
     from autom8_asana.cache.dataframe.tiers.progressive import ProgressiveTier
 
 logger = get_logger(__name__)
+
+
+class FreshnessStatus(str, Enum):
+    """Result of entity-aware freshness check."""
+
+    FRESH = "fresh"
+    STALE_SERVABLE = "stale_servable"  # Within SWR grace window
+    EXPIRED = "expired"
 
 
 def _get_schema_version_for_entity(entity_type: str) -> str | None:
@@ -144,8 +154,7 @@ class DataFrameCache:
         progressive_tier: Cold storage using SectionPersistence location.
         coalescer: Request coalescing for build deduplication.
         circuit_breaker: Per-project failure isolation.
-        ttl_hours: Default TTL in hours (12-24 configurable).
-        schema_version: Current schema version for invalidation.
+        schema_version: Current schema version for invalidation (fallback).
 
     Example:
         >>> cache = DataFrameCache(
@@ -153,7 +162,6 @@ class DataFrameCache:
         ...     progressive_tier=ProgressiveTier(persistence=persistence),
         ...     coalescer=DataFrameCacheCoalescer(),
         ...     circuit_breaker=CircuitBreaker(),
-        ...     ttl_hours=12,
         ... )
         >>>
         >>> # Get DataFrame (tries memory, then progressive tier, then returns None)
@@ -167,8 +175,12 @@ class DataFrameCache:
     progressive_tier: ProgressiveTier
     coalescer: DataFrameCacheCoalescer
     circuit_breaker: CircuitBreaker
-    ttl_hours: int = 12
     schema_version: str = "1.0.0"
+
+    # Optional callback for SWR background rebuilds.
+    # Signature: async def callback(project_gid: str, entity_type: str) -> None
+    # The callback should build the DataFrame and call put_async() on this cache.
+    _build_callback: object | None = field(default=None, init=False, repr=False)
 
     # Statistics per entity type
     _stats: dict[str, dict[str, int]] = field(
@@ -192,6 +204,8 @@ class DataFrameCache:
                 "builds_coalesced": 0,
                 "circuit_breaks": 0,
                 "invalidations": 0,
+                "swr_serves": 0,
+                "swr_refreshes_triggered": 0,
             }
 
     async def get_async(
@@ -200,12 +214,18 @@ class DataFrameCache:
         entity_type: str,
         current_watermark: datetime | None = None,
     ) -> CacheEntry | None:
-        """Get cached DataFrame entry.
+        """Get cached DataFrame entry with entity-aware TTL and SWR.
 
         Lookup order:
         1. Memory tier (hot cache)
         2. Progressive tier (cold storage via SectionPersistence)
         3. Return None (caller should trigger build)
+
+        Freshness states:
+        - FRESH: Entry within entity TTL — serve immediately.
+        - STALE_SERVABLE: Entry past TTL but within SWR grace window —
+          serve stale data and trigger background refresh.
+        - EXPIRED: Entry beyond grace window — treat as cache miss.
 
         Args:
             project_gid: Asana project GID.
@@ -213,7 +233,7 @@ class DataFrameCache:
             current_watermark: Optional watermark for freshness check.
 
         Returns:
-            CacheEntry if found and fresh, None otherwise.
+            CacheEntry if found and fresh/stale-servable, None otherwise.
         """
         cache_key = self._build_key(project_gid, entity_type)
 
@@ -233,42 +253,78 @@ class DataFrameCache:
         # Try memory tier first
         entry = self.memory_tier.get(cache_key)
         if entry is not None:
-            # Validate freshness
-            if self._is_valid(entry, current_watermark):
-                self._stats[entity_type]["memory_hits"] += 1
-                logger.debug(
-                    "dataframe_cache_memory_hit",
-                    extra={
-                        "project_gid": project_gid,
-                        "entity_type": entity_type,
-                        "row_count": entry.row_count,
-                    },
-                )
-                return entry
-            else:
-                # Stale - remove from memory
-                self.memory_tier.remove(cache_key)
+            result = self._check_freshness_and_serve(
+                entry, current_watermark, project_gid, entity_type, cache_key, "memory"
+            )
+            if result is not None:
+                return result
 
         self._stats[entity_type]["memory_misses"] += 1
 
         # Try progressive tier (S3 via SectionPersistence)
         entry = await self.progressive_tier.get_async(cache_key)
         if entry is not None:
-            if self._is_valid(entry, current_watermark):
-                self._stats[entity_type]["s3_hits"] += 1
-                # Hydrate memory tier
-                self.memory_tier.put(cache_key, entry)
-                logger.info(
-                    "dataframe_cache_s3_hit",
-                    extra={
-                        "project_gid": project_gid,
-                        "entity_type": entity_type,
-                        "row_count": entry.row_count,
-                    },
-                )
-                return entry
+            result = self._check_freshness_and_serve(
+                entry, current_watermark, project_gid, entity_type, cache_key, "s3"
+            )
+            if result is not None:
+                if result is entry:
+                    # Hydrate memory tier on S3 hit
+                    self.memory_tier.put(cache_key, entry)
+                return result
 
         self._stats[entity_type]["s3_misses"] += 1
+        return None
+
+    def _check_freshness_and_serve(
+        self,
+        entry: CacheEntry,
+        current_watermark: datetime | None,
+        project_gid: str,
+        entity_type: str,
+        cache_key: str,
+        tier: str,
+    ) -> CacheEntry | None:
+        """Check entry freshness and handle SWR logic for a tier.
+
+        Returns the entry if servable (fresh or stale-within-grace),
+        None if expired (caller should fall through to next tier).
+        """
+        status = self._check_freshness(entry, current_watermark)
+
+        if status == FreshnessStatus.FRESH:
+            self._stats[entity_type][f"{tier}_hits"] += 1
+            logger.debug(
+                f"dataframe_cache_{tier}_hit",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "row_count": entry.row_count,
+                    "freshness": "fresh",
+                },
+            )
+            return entry
+
+        if status == FreshnessStatus.STALE_SERVABLE:
+            self._stats[entity_type][f"{tier}_hits"] += 1
+            self._stats[entity_type]["swr_serves"] += 1
+            age = (datetime.now(UTC) - entry.created_at).total_seconds()
+            logger.info(
+                f"dataframe_cache_{tier}_swr_serve",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "row_count": entry.row_count,
+                    "age_seconds": round(age, 1),
+                    "freshness": "stale_servable",
+                },
+            )
+            self._trigger_swr_refresh(project_gid, entity_type, cache_key)
+            return entry
+
+        # EXPIRED — remove from memory if that's the tier, fall through
+        if tier == "memory":
+            self.memory_tier.remove(cache_key)
         return None
 
     async def put_async(
@@ -463,26 +519,43 @@ class DataFrameCache:
             for key in stats:
                 stats[key] = 0
 
+    def set_build_callback(
+        self,
+        callback: object,
+    ) -> None:
+        """Register async callback for SWR background rebuilds.
+
+        The callback is invoked as ``await callback(project_gid, entity_type)``
+        and should build the DataFrame then call ``put_async`` on this cache.
+
+        Args:
+            callback: Async callable ``(project_gid, entity_type) -> None``.
+        """
+        self._build_callback = callback
+
     def _build_key(self, project_gid: str, entity_type: str) -> str:
         """Build cache key from project and entity type."""
         return f"{entity_type}:{project_gid}"
 
-    def _is_valid(
+    def _check_freshness(
         self,
         entry: CacheEntry,
         current_watermark: datetime | None,
-    ) -> bool:
-        """Check if entry is valid (not stale, correct schema).
+    ) -> FreshnessStatus:
+        """Check entry freshness using entity-aware TTL with SWR grace.
+
+        Returns a three-state result:
+        - FRESH: Within entity TTL, serve immediately.
+        - STALE_SERVABLE: Past entity TTL but within SWR grace window.
+          Caller should serve stale data and trigger background refresh.
+        - EXPIRED: Beyond grace window or schema mismatch. Treat as miss.
 
         Schema version validation uses the SchemaRegistry to look up the
-        expected version for the entry's entity type, rather than comparing
-        against a hardcoded cache-level version. This ensures cache entries
-        are invalidated when individual entity schemas are bumped.
+        expected version for the entry's entity type.
         """
-        # Schema version check using registry lookup
+        # Schema version check — always hard-expire on mismatch
         expected_version = _get_schema_version_for_entity(entry.entity_type)
         if expected_version is None:
-            # Registry lookup failed - treat as invalid to force rebuild
             logger.warning(
                 "cache_entry_invalid_no_schema",
                 extra={
@@ -490,7 +563,7 @@ class DataFrameCache:
                     "entry_version": entry.schema_version,
                 },
             )
-            return False
+            return FreshnessStatus.EXPIRED
 
         if entry.schema_version != expected_version:
             logger.debug(
@@ -501,19 +574,91 @@ class DataFrameCache:
                     "expected_version": expected_version,
                 },
             )
-            return False
+            return FreshnessStatus.EXPIRED
 
-        # TTL check
-        ttl_seconds = self.ttl_hours * 3600
-        if entry.is_stale(ttl_seconds):
-            return False
-
-        # Watermark check (if provided)
+        # Watermark check — hard-expire if source has newer data
         if current_watermark is not None:
             if not entry.is_fresh_by_watermark(current_watermark):
-                return False
+                return FreshnessStatus.EXPIRED
 
-        return True
+        # Entity-aware TTL with SWR grace window
+        from autom8_asana.config import DEFAULT_ENTITY_TTLS, DEFAULT_TTL, SWR_GRACE_MULTIPLIER
+
+        entity_ttl = DEFAULT_ENTITY_TTLS.get(entry.entity_type, DEFAULT_TTL)
+        grace_ttl = entity_ttl * SWR_GRACE_MULTIPLIER
+        age = (datetime.now(UTC) - entry.created_at).total_seconds()
+
+        if age <= entity_ttl:
+            return FreshnessStatus.FRESH
+
+        if age <= grace_ttl:
+            return FreshnessStatus.STALE_SERVABLE
+
+        return FreshnessStatus.EXPIRED
+
+    def _trigger_swr_refresh(
+        self,
+        project_gid: str,
+        entity_type: str,
+        cache_key: str,
+    ) -> None:
+        """Schedule non-blocking background refresh, deduped by coalescer.
+
+        If a build is already in progress for this key, this is a no-op.
+        Otherwise fires an asyncio task to rebuild and re-cache the entry.
+        """
+        if self.coalescer.is_building(cache_key):
+            logger.debug(
+                "swr_refresh_already_building",
+                extra={"project_gid": project_gid, "entity_type": entity_type},
+            )
+            return
+
+        self._ensure_stats(entity_type)
+        self._stats[entity_type]["swr_refreshes_triggered"] += 1
+
+        logger.info(
+            "swr_refresh_triggered",
+            extra={"project_gid": project_gid, "entity_type": entity_type},
+        )
+
+        asyncio.create_task(
+            self._swr_refresh_async(project_gid, entity_type),
+            name=f"swr:{entity_type}:{project_gid}",
+        )
+
+    async def _swr_refresh_async(
+        self,
+        project_gid: str,
+        entity_type: str,
+    ) -> None:
+        """Background SWR refresh via coalescer-guarded build lock.
+
+        Acquires the build lock, then delegates the actual DataFrame rebuild
+        to the registered build callback.  If no callback is registered the
+        refresh is skipped (the Lambda warmer will pick it up instead).
+        """
+        acquired = await self.acquire_build_lock_async(project_gid, entity_type)
+        if not acquired:
+            # Another task already building — coalesced
+            return
+
+        try:
+            if self._build_callback is not None:
+                await self._build_callback(project_gid, entity_type)
+            else:
+                logger.debug(
+                    "swr_refresh_no_callback",
+                    extra={"project_gid": project_gid, "entity_type": entity_type},
+                )
+        except Exception:
+            logger.exception(
+                "swr_refresh_failed",
+                extra={"project_gid": project_gid, "entity_type": entity_type},
+            )
+            await self.release_build_lock_async(project_gid, entity_type, success=False)
+        else:
+            await self.release_build_lock_async(project_gid, entity_type, success=True)
 
 
 # Module-level singleton for easy access
