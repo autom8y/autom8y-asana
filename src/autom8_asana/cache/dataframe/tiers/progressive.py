@@ -351,17 +351,8 @@ class ProgressiveTier:
         Returns:
             Parsed datetime, or current UTC time if parsing fails.
         """
-        if not value:
-            return datetime.now(UTC)
+        from autom8_asana.core.datetime_utils import parse_iso_datetime
 
-        try:
-            # Handle Z suffix
-            if value.endswith("Z"):
-                value = value[:-1] + "+00:00"
-
-            dt = datetime.fromisoformat(value)
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=UTC)
-            return dt
-        except ValueError:
-            return datetime.now(UTC)
+        result = parse_iso_datetime(value, default_now=True)
+        assert result is not None  # default_now=True guarantees non-None
+        return result

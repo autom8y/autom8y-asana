@@ -906,6 +906,8 @@ class ProgressiveProjectBuilder:
         Returns:
             Timezone-aware datetime in UTC, or None if unparseable.
         """
+        from autom8_asana.core.datetime_utils import parse_iso_datetime
+
         if value is None:
             return None
 
@@ -917,17 +919,7 @@ class ProgressiveProjectBuilder:
         if not isinstance(value, str):
             return None
 
-        # Handle Z suffix
-        if value.endswith("Z"):
-            value = value[:-1] + "+00:00"
-
-        try:
-            dt = datetime.fromisoformat(value)
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=UTC)
-            return dt
-        except ValueError:
-            return None
+        return parse_iso_datetime(value, default_now=False)
 
 
 async def build_project_progressive_async(
