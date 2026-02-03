@@ -305,102 +305,17 @@ def _self_invoke_continuation(
 async def _discover_entity_projects_for_lambda() -> None:
     """Discover and register entity type project mappings for Lambda.
 
-    Standalone discovery function for Lambda environment that replicates
-    the discovery logic from api/main.py without FastAPI dependencies.
+    Delegates to the shared discovery service (services/discovery.py) which
+    uses a 3-phase approach: workspace discovery, model PRIMARY_PROJECT_GID
+    selection, and name-normalization fallback. This ensures Lambda and ECS
+    use identical discovery logic.
 
     Raises:
         RuntimeError: If discovery fails critically.
     """
-    import os
+    from autom8_asana.services.discovery import discover_entity_projects_async
 
-    from autom8_asana import AsanaClient
-    from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
-
-    # Per TDD-registry-consolidation: Import from package to ensure bootstrap runs
-    from autom8_asana.models.business import get_workspace_registry
-    from autom8_asana.services.resolver import EntityProjectRegistry
-
-    # Get bot PAT for S2S Asana access
-    try:
-        bot_pat = get_bot_pat()
-    except BotPATError as e:
-        logger.warning(
-            "lambda_discovery_no_bot_pat",
-            extra={"error": str(e)},
-        )
-        raise RuntimeError(f"Bot PAT not available: {e}") from e
-
-    # Get workspace GID from environment
-    workspace_gid = os.environ.get("ASANA_WORKSPACE_GID")
-
-    if not workspace_gid:
-        logger.warning("lambda_discovery_no_workspace")
-        raise RuntimeError("ASANA_WORKSPACE_GID not set")
-
-    async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
-        # Use existing WorkspaceProjectRegistry discovery
-        workspace_registry = get_workspace_registry()
-        await workspace_registry.discover_async(client)
-
-        # Map discovered projects to entity resolver registry
-        entity_registry = EntityProjectRegistry.get_instance()
-
-        # Known entity types to discover
-        entity_types_to_discover: list[str] = [
-            "unit",
-            "business",
-            "offer",
-            "contact",
-            "asset_edit",
-            "asset_edit_holder",
-        ]
-
-        # Match projects to entity types via normalized name matching
-        for project_name, project_gid in workspace_registry.get_all_projects().items():
-            entity_type = _match_entity_type(project_name, entity_types_to_discover)
-            if entity_type:
-                entity_registry.register(
-                    entity_type=entity_type,
-                    project_gid=project_gid,
-                    project_name=project_name,
-                )
-                logger.info(
-                    "lambda_entity_project_registered",
-                    extra={
-                        "entity_type": entity_type,
-                        "project_gid": project_gid,
-                        "project_name": project_name,
-                    },
-                )
-
-        # Fallback: use PRIMARY_PROJECT_GID from model classes for unmatched entities
-        from autom8_asana.services.discovery import ENTITY_MODEL_MAP
-
-        for et in entity_types_to_discover:
-            if entity_registry.get_project_gid(et) is None:
-                model_cls = ENTITY_MODEL_MAP.get(et)
-                gid = getattr(model_cls, "PRIMARY_PROJECT_GID", None) if model_cls else None
-                if gid:
-                    entity_registry.register(
-                        entity_type=et,
-                        project_gid=gid,
-                        project_name=f"{et} (model fallback)",
-                    )
-                    logger.info(
-                        "lambda_entity_project_registered_fallback",
-                        extra={
-                            "entity_type": et,
-                            "project_gid": gid,
-                            "source": "PRIMARY_PROJECT_GID",
-                        },
-                    )
-
-        logger.info(
-            "lambda_entity_discovery_complete",
-            extra={
-                "registered_types": entity_registry.get_all_entity_types(),
-            },
-        )
+    await discover_entity_projects_async()
 
 
 # Override map for non-standard project names (exact match, case-insensitive)
