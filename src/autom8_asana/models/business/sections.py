@@ -28,3 +28,19 @@ class OfferSection(str, Enum):
     # PAUSED = "..."
     # CANCELLED = "..."
     # ONBOARDING = "..."
+
+    @classmethod
+    def from_name(cls, name: str) -> OfferSection | None:
+        """Look up a member by name (case-insensitive).
+
+        Returns None if no member matches.
+
+        Example:
+            >>> OfferSection.from_name("active")
+            <OfferSection.ACTIVE: '1143843662099256'>
+        """
+        upper = name.upper()
+        for member in cls:
+            if member.name == upper:
+                return member
+        return None

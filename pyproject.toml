@@ -168,3 +168,8 @@ autom8y-config = { index = "autom8y" }
 autom8y-http = { index = "autom8y" }
 autom8y-log = { index = "autom8y" }
 
+[dependency-groups]
+dev = [
+    "pytest-json-report>=1.5.0",
+]
+

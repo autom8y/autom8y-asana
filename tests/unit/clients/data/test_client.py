@@ -893,6 +893,7 @@ class TestGetInsightsAsyncErrorMapping:
         assert exc.value.status_code == 500
         assert exc.value.reason == "server_error"
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_502_maps_to_service_error(self) -> None:
         """HTTP 502 maps to InsightsServiceError."""
@@ -919,6 +920,7 @@ class TestGetInsightsAsyncErrorMapping:
         assert exc.value.status_code == 502
         assert exc.value.reason == "server_error"
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_503_maps_to_service_error(self) -> None:
         """HTTP 503 maps to InsightsServiceError."""
@@ -944,6 +946,7 @@ class TestGetInsightsAsyncErrorMapping:
 
         assert exc.value.status_code == 503
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_504_maps_to_service_error(self) -> None:
         """HTTP 504 maps to InsightsServiceError."""
@@ -969,6 +972,7 @@ class TestGetInsightsAsyncErrorMapping:
 
         assert exc.value.status_code == 504
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_timeout_maps_to_service_error(self) -> None:
         """Request timeout maps to InsightsServiceError."""
@@ -2003,6 +2007,7 @@ class TestStaleFallback:
         assert response.metadata.cached_at is not None
         assert "stale cache" in response.warnings[-1]
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_stale_fallback_on_502_error(self) -> None:
         """Returns stale cache on HTTP 502 Bad Gateway error."""
@@ -2042,6 +2047,7 @@ class TestStaleFallback:
 
         assert response.metadata.is_stale is True
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_stale_fallback_on_503_error(self) -> None:
         """Returns stale cache on HTTP 503 Service Unavailable error."""
@@ -2081,6 +2087,7 @@ class TestStaleFallback:
 
         assert response.metadata.is_stale is True
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_stale_fallback_on_504_error(self) -> None:
         """Returns stale cache on HTTP 504 Gateway Timeout error."""
@@ -2120,6 +2127,7 @@ class TestStaleFallback:
 
         assert response.metadata.is_stale is True
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_stale_fallback_on_timeout(self) -> None:
         """Returns stale cache on request timeout."""
@@ -3046,6 +3054,7 @@ class TestObservabilityMetrics:
         assert error_call[2]["error_type"] == "server_error"
         assert error_call[2]["status_code"] == "500"
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_error_metrics_emitted_on_timeout(self) -> None:
         """Error metrics are emitted on timeout."""
@@ -3454,6 +3463,7 @@ class TestCircuitBreaker:
                 assert client.circuit_breaker.state == CircuitState.CLOSED
                 assert client.circuit_breaker.failure_count == 0
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_circuit_opens_after_threshold(self) -> None:
         """Circuit opens after 5 consecutive failures (503 responses)."""
@@ -3494,6 +3504,7 @@ class TestCircuitBreaker:
                 # Circuit should now be open
                 assert client.circuit_breaker.state == CircuitState.OPEN
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_circuit_open_raises_immediately(self) -> None:
         """When circuit is open, raises InsightsServiceError with reason='circuit_breaker'."""

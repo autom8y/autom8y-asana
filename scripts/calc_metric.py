@@ -23,7 +23,7 @@ import sys
 import boto3
 import polars as pl
 
-from autom8_asana.metrics import MetricRegistry, compute_metric
+from autom8_asana.metrics import MetricRegistry, SectionIndex, compute_metric, resolve_metric_scope
 
 
 # Business Offers project GID (same as Offer.PRIMARY_PROJECT_GID)
@@ -100,6 +100,11 @@ def main() -> None:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(1)
 
+    # Resolve section name → GID if needed
+    if metric.scope.section is None and metric.scope.section_name is not None:
+        index = SectionIndex.from_enum_fallback(metric.scope.entity_type)
+        metric = resolve_metric_scope(metric, index)
+
     # Load data
     bucket = os.environ.get("ASANA_CACHE_S3_BUCKET")
     if not bucket:
@@ -111,7 +116,7 @@ def main() -> None:
         sys.exit(1)
 
     df = load_section_parquet(bucket, PROJECT_GID, metric.scope.section)
-    section_label = metric.scope.section  # Future: resolve to name via OfferSection
+    section_label = metric.scope.section_name or metric.scope.section
     print(f"Section {section_label}: {len(df)} tasks")
 
     # Compute

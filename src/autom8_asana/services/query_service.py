@@ -285,3 +285,119 @@ class EntityQueryService:
             Paginated DataFrame slice.
         """
         return df.slice(offset, limit)
+
+    async def query_with_expr(
+        self,
+        entity_type: str,
+        project_gid: str,
+        client: AsanaClient,
+        expr: pl.Expr | None,
+        select: list[str],
+        limit: int,
+        offset: int,
+    ) -> QueryResult:
+        """Query with a compiled Polars expression.
+
+        Same cache lifecycle as query(), but accepts a pre-compiled
+        pl.Expr instead of a flat dict. Used by the /rows endpoint.
+
+        Args:
+            entity_type: Entity type to query (e.g., "offer").
+            project_gid: Project GID for cache key.
+            client: AsanaClient for build operations (if cache miss).
+            expr: Compiled Polars expression (None = no filter).
+            select: Fields to include in response.
+            limit: Max results.
+            offset: Skip N results.
+
+        Returns:
+            QueryResult with data and metadata.
+
+        Raises:
+            CacheNotWarmError: DataFrame unavailable after self-refresh.
+        """
+        assert self.strategy_factory is not None
+        strategy = self.strategy_factory(entity_type)
+        df = await strategy._get_dataframe(project_gid, client)
+
+        if df is None:
+            logger.warning(
+                "query_cache_not_warm",
+                extra={
+                    "entity_type": entity_type,
+                    "project_gid": project_gid,
+                },
+            )
+            raise CacheNotWarmError(
+                f"DataFrame unavailable for {entity_type}. "
+                "Cache warming may be in progress or build failed."
+            )
+
+        # Apply expression filter
+        if expr is not None:
+            filtered_df = df.filter(expr)
+        else:
+            filtered_df = df
+
+        total_count = len(filtered_df)
+
+        # Apply pagination
+        paginated_df = self._apply_pagination(filtered_df, offset, limit)
+
+        # Apply select
+        selected_df = self._apply_select(paginated_df, select)
+
+        # Convert to list of dicts
+        data = selected_df.to_dicts()
+
+        logger.debug(
+            "query_with_expr_executed",
+            extra={
+                "entity_type": entity_type,
+                "project_gid": project_gid,
+                "total_count": total_count,
+                "result_count": len(data),
+                "select_fields": select,
+                "has_expr": expr is not None,
+            },
+        )
+
+        return QueryResult(
+            data=data,
+            total_count=total_count,
+            project_gid=project_gid,
+        )
+
+    async def get_dataframe(
+        self,
+        entity_type: str,
+        project_gid: str,
+        client: AsanaClient,
+    ) -> pl.DataFrame:
+        """Get the raw DataFrame for an entity type.
+
+        Provides the same cache lifecycle as query() but returns the
+        raw DataFrame for custom processing (e.g., QueryEngine).
+
+        Per ADR-QE-004: wraps strategy._get_dataframe() so downstream
+        callers do not touch the private API directly.
+
+        Args:
+            entity_type: Entity type (e.g., "offer").
+            project_gid: Project GID for cache key.
+            client: AsanaClient for build operations if cache miss.
+
+        Returns:
+            Polars DataFrame.
+
+        Raises:
+            CacheNotWarmError: DataFrame unavailable after self-refresh.
+        """
+        assert self.strategy_factory is not None
+        strategy = self.strategy_factory(entity_type)
+        df = await strategy._get_dataframe(project_gid, client)
+        if df is None:
+            raise CacheNotWarmError(
+                f"DataFrame unavailable for {entity_type}."
+            )
+        return df

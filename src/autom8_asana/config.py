@@ -295,6 +295,24 @@ class DataFrameConfig:
             )
 
 
+# --- Large Section Pacing Configuration ---
+# Per TDD-large-section-resilience / FR-004
+#
+# These control paced ingestion for sections with 100+ tasks.
+# Module-level constants are sufficient; environment variable
+# overrides can be added later if production tuning is needed.
+
+PACE_PAGES_PER_PAUSE: int = 25
+"""Number of pages to fetch before pausing. Must be >= 1."""
+
+PACE_DELAY_SECONDS: float = 2.0
+"""Seconds to sleep between page batches. Must be >= 0.0."""
+
+CHECKPOINT_EVERY_N_PAGES: int = 50
+"""Pages between checkpoint writes to S3. Must be >= 1.
+Should be a multiple of PACE_PAGES_PER_PAUSE for predictable behavior."""
+
+
 @dataclass
 class CacheConfig:
     """Cache configuration with environment variable overrides.

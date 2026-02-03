@@ -72,6 +72,7 @@ from .routes import (
     internal_router,
     projects_router,
     query_router,
+    query_v2_router,
     resolver_router,
     sections_router,
     tasks_router,
@@ -1361,6 +1362,7 @@ def create_app() -> FastAPI:
     app.include_router(internal_router)
     app.include_router(resolver_router)
     app.include_router(query_router)
+    app.include_router(query_v2_router)
     app.include_router(admin_router)
 
     # --- Exception Handlers ---

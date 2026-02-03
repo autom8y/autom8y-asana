@@ -122,6 +122,7 @@ class TestAdminRefreshValidatesEntityType:
         body = response.json()
         assert body["detail"]["error"] == "INVALID_ENTITY_TYPE"
 
+    @pytest.mark.slow
     def test_admin_refresh_accepts_all_valid_entity_types(
         self,
         client: TestClient,
@@ -221,6 +222,7 @@ class TestAdminRefreshAcceptsValidRequest:
 class TestAdminRefreshAllTypes:
     """Test null entity_type triggers all types."""
 
+    @pytest.mark.slow
     def test_admin_refresh_all_types(
         self,
         client: TestClient,

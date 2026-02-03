@@ -12,6 +12,7 @@ from autom8_asana.metrics.compute import compute_metric
 from autom8_asana.metrics.expr import MetricExpr
 from autom8_asana.metrics.metric import Metric, Scope
 from autom8_asana.metrics.registry import MetricRegistry
+from autom8_asana.metrics.resolve import SectionIndex, resolve_metric_scope
 
 __all__ = [
     "MetricExpr",
@@ -19,4 +20,6 @@ __all__ = [
     "Scope",
     "MetricRegistry",
     "compute_metric",
+    "SectionIndex",
+    "resolve_metric_scope",
 ]

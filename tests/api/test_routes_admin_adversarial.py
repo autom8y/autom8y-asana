@@ -203,6 +203,7 @@ class TestAdminRefreshAdversarialInputs:
         )
         assert response.status_code == 422
 
+    @pytest.mark.slow
     def test_force_full_rebuild_non_boolean_coerced(self, client: TestClient) -> None:
         """Non-boolean force_full_rebuild should be coerced by Pydantic."""
         with (
@@ -233,6 +234,7 @@ class TestAdminRefreshAdversarialInputs:
 class TestAdminRefreshConcurrency:
     """Test concurrent and repeated refresh requests."""
 
+    @pytest.mark.slow
     def test_multiple_rapid_requests_all_accepted(self, client: TestClient) -> None:
         """Multiple rapid requests should all return 202 (each gets unique refresh_id)."""
         refresh_ids = set()

@@ -1,18 +1,8 @@
 """Entity Query routes for list/filter operations on DataFrame cache.
 
-Per TDD-entity-query-endpoint (Revised):
-This module provides the POST /v1/query/{entity_type} endpoint for querying
-entities from the DataFrame cache via UniversalResolutionStrategy.
-
-CRITICAL CHANGE: Uses EntityQueryService which routes through
-UniversalResolutionStrategy._get_dataframe() for full cache lifecycle:
-- Self-refresh on cache miss
-- Build lock acquisition (thundering herd prevention)
-- Request coalescing via @dataframe_cache decorator
-- Circuit breaker integration
-
 Routes:
-- POST /v1/query/{entity_type} - Query entities with filtering and pagination
+- POST /v1/query/{entity_type} - Legacy query with flat equality filtering (deprecated)
+- POST /v1/query/{entity_type}/rows - New query with composable predicate trees
 
 Authentication:
 - All routes require service token (S2S JWT) authentication
@@ -24,8 +14,10 @@ from __future__ import annotations
 import time
 from typing import Annotated, Any
 
+import polars as pl
 from autom8y_log import get_logger
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from autom8_asana.api.routes.internal import (
@@ -34,6 +26,17 @@ from autom8_asana.api.routes.internal import (
 )
 from autom8_asana.client import AsanaClient
 from autom8_asana.dataframes.models.registry import SchemaRegistry
+from autom8_asana.query.compiler import strip_section_predicates
+from autom8_asana.query.engine import QueryEngine
+from autom8_asana.query.errors import (
+    CoercionError,
+    InvalidOperatorError,
+    QueryEngineError,
+    QueryTooComplexError,
+    UnknownFieldError,
+    UnknownSectionError,
+)
+from autom8_asana.query.models import RowsRequest, RowsResponse
 from autom8_asana.services.query_service import CacheNotWarmError, EntityQueryService
 from autom8_asana.services.resolver import (
     EntityProjectRegistry,
@@ -385,7 +388,275 @@ async def query_entities(
             "duration_ms": round(elapsed_ms, 2),
             "caller_service": claims.service_name,
             "project_gid": result.project_gid,
-            "cache_status": "hit_or_refreshed",  # May have self-refreshed
+            "cache_status": "hit_or_refreshed",
+        },
+    )
+
+    # Add deprecation headers (per TDD Section 8.2)
+    response_obj = JSONResponse(content=response.model_dump())
+    response_obj.headers["Deprecation"] = "true"
+    response_obj.headers["Sunset"] = "2026-06-01"
+    response_obj.headers["Link"] = (
+        f"</v1/query/{entity_type}/rows>; rel=\"successor-version\""
+    )
+
+    logger.info(
+        "deprecated_query_endpoint_used",
+        extra={
+            "caller_service": claims.service_name,
+            "entity_type": entity_type,
+        },
+    )
+
+    return response_obj
+
+
+# --- Section Resolution Helper ---
+
+
+async def _resolve_section(
+    section_name: str,
+    entity_type: str,
+    project_gid: str,
+) -> str:
+    """Validate section name and return canonical name for filtering.
+
+    Strategy:
+    1. Try SectionIndex.from_manifest_async() using SectionPersistence
+    2. Fall back to SectionIndex.from_enum_fallback(entity_type)
+    3. If neither resolves, raise UNKNOWN_SECTION error
+
+    Returns:
+        The section name as provided (for direct DataFrame column match).
+
+    Raises:
+        HTTPException 422 UNKNOWN_SECTION
+    """
+    from autom8_asana.metrics.resolve import SectionIndex
+
+    # Try manifest-based resolution first
+    try:
+        from autom8_asana.dataframes.section_persistence import SectionPersistence
+
+        persistence = SectionPersistence()
+        if persistence.is_available:
+            async with persistence:
+                index = await SectionIndex.from_manifest_async(
+                    persistence, project_gid
+                )
+                if index.resolve(section_name) is not None:
+                    return section_name
+    except Exception:
+        # Manifest unavailable; fall through to enum fallback
+        pass
+
+    # Enum fallback
+    index = SectionIndex.from_enum_fallback(entity_type)
+    if index.resolve(section_name) is not None:
+        return section_name
+
+    raise HTTPException(
+        status_code=422,
+        detail={
+            "error": "UNKNOWN_SECTION",
+            "message": f"Unknown section: '{section_name}'",
+            "section": section_name,
+        },
+    )
+
+
+# --- New /rows Endpoint ---
+
+
+@router.post("/{entity_type}/rows", response_model=RowsResponse)
+async def query_rows(
+    entity_type: str,
+    request_body: RowsRequest,
+    request: Request,
+    claims: Annotated[ServiceClaims, Depends(require_service_claims)],
+) -> RowsResponse:
+    """Query entity rows with composable predicate trees.
+
+    Accepts a JSON predicate AST (AND/OR/NOT with leaf comparisons),
+    compiles it to a Polars expression, and filters the cached DataFrame.
+
+    Authentication:
+        Requires valid service token (S2S JWT).
+        PAT tokens are NOT supported.
+
+    Path Parameters:
+        entity_type: Entity type to query (unit, business, offer, etc.)
+
+    Error Responses:
+        - 400 QUERY_TOO_COMPLEX: Predicate depth exceeds MAX_PREDICATE_DEPTH
+        - 401 MISSING_AUTH / SERVICE_TOKEN_REQUIRED / JWT_INVALID
+        - 404 UNKNOWN_ENTITY_TYPE: entity_type not in allowed values
+        - 422 UNKNOWN_FIELD: Predicate references non-existent column
+        - 422 INVALID_OPERATOR: Operator incompatible with field dtype
+        - 422 COERCION_FAILED: Value cannot be coerced to field dtype
+        - 422 UNKNOWN_SECTION: Section name cannot be resolved
+        - 503 CACHE_NOT_WARMED: DataFrame cache not available
+    """
+    start_time = time.monotonic()
+    request_id = getattr(request.state, "request_id", "unknown")
+
+    # 1. Log request
+    logger.info(
+        "query_rows_request",
+        extra={
+            "request_id": request_id,
+            "entity_type": entity_type,
+            "caller_service": claims.service_name,
+            "section": request_body.section,
+            "select_fields": request_body.select,
+            "limit": request_body.limit,
+            "offset": request_body.offset,
+            "has_predicate": request_body.where is not None,
+        },
+    )
+
+    # 2. Validate entity type
+    queryable_types = _get_queryable_entities()
+    if entity_type not in queryable_types:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "UNKNOWN_ENTITY_TYPE",
+                "message": f"Unknown entity type: {entity_type}",
+                "available_types": sorted(queryable_types),
+            },
+        )
+
+    # 3. Get project GID
+    entity_registry: EntityProjectRegistry | None = getattr(
+        request.app.state, "entity_project_registry", None
+    )
+
+    if entity_registry is None or not entity_registry.is_ready():
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "PROJECT_NOT_CONFIGURED",
+                "message": "Entity project registry not initialized.",
+            },
+        )
+
+    project_gid = entity_registry.get_project_gid(entity_type)
+    if project_gid is None:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "PROJECT_NOT_CONFIGURED",
+                "message": f"No project configured for entity type: {entity_type}",
+            },
+        )
+
+    # 4. Get bot PAT
+    from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
+
+    try:
+        bot_pat = get_bot_pat()
+    except BotPATError as e:
+        logger.error(
+            "bot_pat_unavailable",
+            extra={"request_id": request_id, "error": str(e)},
+        )
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "SERVICE_NOT_CONFIGURED",
+                "message": "Bot PAT not configured for cache operations.",
+            },
+        )
+
+    # 5. Build section index for section validation (if needed)
+    section_index = None
+    if request_body.section is not None:
+        # Validate section name
+        await _resolve_section(
+            request_body.section, entity_type, project_gid
+        )
+        # Build section index for QueryEngine
+        from autom8_asana.metrics.resolve import SectionIndex
+
+        section_index = SectionIndex.from_enum_fallback(entity_type)
+
+    # 6. EC-006: If section param + section in predicate, strip conflicts
+    if request_body.section is not None and request_body.where is not None:
+        from autom8_asana.query.models import Comparison
+
+        # Check if any section predicates exist
+        def _has_section_pred(node: Any) -> bool:
+            if isinstance(node, Comparison):
+                return node.field == "section"
+            if hasattr(node, "and_"):
+                return any(_has_section_pred(c) for c in node.and_)
+            if hasattr(node, "or_"):
+                return any(_has_section_pred(c) for c in node.or_)
+            if hasattr(node, "not_"):
+                return _has_section_pred(node.not_)
+            return False
+
+        if _has_section_pred(request_body.where):
+            logger.warning(
+                "section_parameter_conflicts_with_predicate",
+                extra={
+                    "request_id": request_id,
+                    "entity_type": entity_type,
+                    "section": request_body.section,
+                },
+            )
+            stripped = strip_section_predicates(request_body.where)
+            # Reconstruct the request with stripped predicates
+            request_body = request_body.model_copy(
+                update={"where": stripped}
+            )
+
+    # 7. Execute via QueryEngine (handles compilation, depth check, etc.)
+    engine = QueryEngine()
+
+    try:
+        async with AsanaClient(token=bot_pat) as client:
+            response = await engine.execute_rows(
+                entity_type=entity_type,
+                project_gid=project_gid,
+                client=client,
+                request=request_body,
+                section_index=section_index,
+            )
+    except QueryTooComplexError as e:
+        raise HTTPException(status_code=400, detail=e.to_dict())
+    except UnknownFieldError as e:
+        raise HTTPException(status_code=422, detail=e.to_dict())
+    except InvalidOperatorError as e:
+        raise HTTPException(status_code=422, detail=e.to_dict())
+    except CoercionError as e:
+        raise HTTPException(status_code=422, detail=e.to_dict())
+    except UnknownSectionError as e:
+        raise HTTPException(status_code=422, detail=e.to_dict())
+    except CacheNotWarmError as e:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "CACHE_NOT_WARMED",
+                "message": str(e),
+                "entity_type": entity_type,
+                "retry_after_seconds": 30,
+            },
+        )
+
+    # 8. Log completion
+    elapsed_ms = (time.monotonic() - start_time) * 1000
+
+    logger.info(
+        "query_rows_complete",
+        extra={
+            "request_id": request_id,
+            "entity_type": entity_type,
+            "total_count": response.meta.total_count,
+            "returned_count": response.meta.returned_count,
+            "query_ms": round(elapsed_ms, 2),
+            "caller_service": claims.service_name,
         },
     )
 

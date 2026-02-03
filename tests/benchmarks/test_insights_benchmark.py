@@ -179,6 +179,7 @@ benchmark = pytest.mark.benchmark
 
 @benchmark
 @pytest.mark.asyncio
+@pytest.mark.benchmark
 @pytest.mark.usefixtures("enable_insights_feature")
 class TestSingleRequestBenchmark:
     """Benchmark tests for single get_insights_async request."""
@@ -321,6 +322,7 @@ class TestSingleRequestBenchmark:
 
 @benchmark
 @pytest.mark.asyncio
+@pytest.mark.benchmark
 @pytest.mark.usefixtures("enable_insights_feature")
 class TestBatchRequestBenchmark:
     """Benchmark tests for batch get_insights_batch_async requests."""
@@ -519,6 +521,7 @@ class TestBatchRequestBenchmark:
 # --- Response Parsing Benchmarks ---
 
 
+@pytest.mark.benchmark
 @benchmark
 class TestResponseParsingBenchmark:
     """Benchmark tests for response deserialization and DataFrame conversion."""

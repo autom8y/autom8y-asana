@@ -3,6 +3,8 @@
 import time
 from datetime import UTC, datetime
 
+import pytest
+
 from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvider
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
 from autom8_asana.cache.entry import CacheEntry, EntryType
@@ -104,6 +106,7 @@ class TestInMemoryCacheProvider:
 
         assert cache.get("nonexistent") is None
 
+    @pytest.mark.slow
     def test_ttl_expiration(self) -> None:
         """Test entries expire after TTL."""
         cache = InMemoryCacheProvider(default_ttl=1)
@@ -113,6 +116,7 @@ class TestInMemoryCacheProvider:
         time.sleep(1.1)
         assert cache.get("key") is None
 
+    @pytest.mark.slow
     def test_explicit_ttl_override(self) -> None:
         """Test explicit TTL overrides default."""
         cache = InMemoryCacheProvider(default_ttl=100)
@@ -431,6 +435,7 @@ class TestEnhancedInMemoryCacheProvider:
         assert metrics.misses == 0
         assert metrics.writes == 0
 
+    @pytest.mark.slow
     def test_versioned_ttl_expiration(self) -> None:
         """Test versioned entries expire based on TTL."""
         cache = EnhancedInMemoryCacheProvider()
