@@ -854,6 +854,7 @@ class TestRecursiveCallbackProtection:
 class TestMemoryManagement:
     """Tests for memory management under stress."""
 
+    @pytest.mark.slow
     def test_no_memory_leak_on_repeated_clear(self) -> None:
         """Test that repeated clear doesn't leak memory."""
         cache = EnhancedInMemoryCacheProvider(max_size=1000)

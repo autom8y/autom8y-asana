@@ -126,6 +126,7 @@ class TestPreloadDataframeCacheFunction:
 
         assert is_cache_ready() is True
 
+    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_preload_loads_index_from_s3_and_does_incremental_catchup(
         self,

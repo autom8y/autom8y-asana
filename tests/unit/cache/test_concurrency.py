@@ -16,6 +16,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
+
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
 from autom8_asana.cache.batch import ModificationCheckCache, reset_modification_cache
 from autom8_asana.cache.entry import CacheEntry, EntryType
@@ -513,6 +515,7 @@ class TestModificationCheckCacheConcurrency:
             assert len(cached) == 100
             assert len(uncached) == 0
 
+    @pytest.mark.slow
     def test_concurrent_cleanup(self) -> None:
         """Test concurrent cleanup_expired operations."""
         cache = ModificationCheckCache(ttl=0.01)  # 10ms TTL

@@ -84,6 +84,22 @@ test *args:
 test-cov:
     uv run pytest --cov=autom8_asana --cov-report=html --cov-report=term
 
+# Run fast tests only (no slow, integration, or benchmarks)
+test-fast *args:
+    uv run pytest tests/ -m "not slow and not integration and not benchmark" {{args}}
+
+# Run slow tests only
+test-slow *args:
+    uv run pytest tests/ -m "slow" {{args}}
+
+# Run integration tests (requires ASANA_PAT)
+test-integration *args:
+    uv run pytest tests/ -m "integration" {{args}}
+
+# Run benchmarks
+test-bench *args:
+    uv run pytest tests/ -m "benchmark" {{args}}
+
 # === Combined Checks ===
 
 # Full CI-equivalent check

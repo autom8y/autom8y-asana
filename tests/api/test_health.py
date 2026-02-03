@@ -93,6 +93,7 @@ class TestHealthEndpoint:
         assert response.headers["content-type"] == "application/json"
 
 
+@pytest.mark.slow
 class TestS2SHealthEndpoint:
     """Tests for the /health/s2s endpoint.
 

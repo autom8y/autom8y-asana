@@ -28,6 +28,7 @@ class TestOfferDefinitions:
         assert metric.expr.agg == "sum"
         assert metric.scope.entity_type == "offer"
         assert metric.scope.section == "1143843662099256"
+        assert metric.scope.section_name == "Active"
         assert metric.scope.dedup_keys == ["office_phone", "vertical"]
 
     def test_active_ad_spend_definition(self) -> None:

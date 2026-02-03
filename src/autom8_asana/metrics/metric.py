@@ -6,7 +6,7 @@ Metric combines a MetricExpr with a Scope under a registry-friendly name.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import polars as pl
 
@@ -42,8 +42,13 @@ class Scope:
 
     entity_type: str
     section: str | None = None
+    section_name: str | None = None
     dedup_keys: list[str] | None = field(default=None)
     pre_filters: list[pl.Expr] | None = field(default=None)
+
+    def with_resolved_section(self, gid: str) -> Scope:
+        """Return a new Scope with section set to *gid*."""
+        return replace(self, section=gid)
 
 
 @dataclass(frozen=True)

@@ -21,6 +21,7 @@ from autom8_asana.models.business.sections import OfferSection
 _ACTIVE_OFFER_SCOPE = Scope(
     entity_type="offer",
     section=OfferSection.ACTIVE.value,
+    section_name="Active",
     dedup_keys=["office_phone", "vertical"],
 )
 

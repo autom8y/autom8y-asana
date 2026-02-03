@@ -379,6 +379,7 @@ class TestRegistryAdversarial:
 # 4. CLI Adversarial Tests
 # ===========================================================================
 
+@pytest.mark.slow
 class TestCLIAdversarial:
     """Adversarial tests for scripts/calc_metric.py CLI."""
 
