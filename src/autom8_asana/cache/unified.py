@@ -528,148 +528,13 @@ class UnifiedTaskStore:
         # Warm parent chains if requested
         # Per ADR-hierarchy-registration-architecture: Recursively fetch and
         # register missing ancestors for complete cascade resolution
-        ancestors_warmed = 0
         immediate_parents_fetched = 0
+        ancestors_warmed = 0
         if warm_hierarchy and tasks_client is not None:
-            from autom8_asana.cache.hierarchy_warmer import (
-                _HIERARCHY_OPT_FIELDS,
-                warm_ancestors_async,
+            immediate_parents_fetched = await self._fetch_immediate_parents(
+                tasks, tasks_client
             )
-
-            # Per TDD-unit-cascade-resolution-fix Fix 4: Fetch and register immediate
-            # parents BEFORE calling warm_ancestors_async. This ensures the hierarchy
-            # index has parent tasks registered so get_ancestor_chain() works.
-            # Per TDD-unit-cascade-resolution-fix Fix 1: Check CACHE, not hierarchy.
-            # hierarchy.contains() returns True when a GID exists in _children_map
-            # (added during child registration), but this doesn't mean the parent's
-            # FULL TASK DATA is cached. We need the parent's custom_fields for cascade.
-            parent_gids_needed: set[str] = set()
-            for task in tasks:
-                parent = task.get("parent")
-                if parent and isinstance(parent, dict):
-                    parent_gid = parent.get("gid")
-                    if parent_gid:
-                        # Check cache, not hierarchy - we need the parent's FULL TASK DATA
-                        cached_entry = self.cache.get_versioned(
-                            parent_gid, EntryType.TASK
-                        )
-                        if cached_entry is None:
-                            parent_gids_needed.add(parent_gid)
-
-            if parent_gids_needed:
-                logger.debug(
-                    "warm_hierarchy_fetching_immediate_parents",
-                    extra={"parent_count": len(parent_gids_needed)},
-                )
-
-                async def _fetch_immediate_parent(
-                    parent_gid: str,
-                ) -> bool:
-                    async with self._hierarchy_semaphore:
-                        try:
-                            parent_task = await tasks_client.get_async(
-                                parent_gid, opt_fields=_HIERARCHY_OPT_FIELDS
-                            )
-                            if parent_task:
-                                parent_dict = parent_task.model_dump(exclude_none=True)
-                                self._hierarchy.register(parent_dict)
-                                await self.put_async(
-                                    parent_dict, opt_fields=_HIERARCHY_OPT_FIELDS
-                                )
-                                return True
-                        except Exception as e:
-                            logger.warning(
-                                "warm_immediate_parent_failed",
-                                extra={
-                                    "parent_gid": parent_gid,
-                                    "error": str(e),
-                                },
-                            )
-                    return False
-
-                # Lazy import to avoid circular dependency (config -> automation -> models -> cache)
-                from autom8_asana.config import (
-                    HIERARCHY_BATCH_DELAY,
-                    HIERARCHY_BATCH_SIZE,
-                    HIERARCHY_PACING_THRESHOLD,
-                )
-
-                parent_gid_list = list(parent_gids_needed)
-                pacing_enabled = len(parent_gid_list) > HIERARCHY_PACING_THRESHOLD
-
-                if pacing_enabled:
-                    logger.info(
-                        "hierarchy_pacing_enabled",
-                        extra={
-                            "parent_count": len(parent_gid_list),
-                            "batch_size": HIERARCHY_BATCH_SIZE,
-                            "batch_delay": HIERARCHY_BATCH_DELAY,
-                        },
-                    )
-
-                all_results: list[bool] = []
-
-                if not pacing_enabled:
-                    all_results = list(
-                        await asyncio.gather(
-                            *[_fetch_immediate_parent(gid) for gid in parent_gid_list]
-                        )
-                    )
-                else:
-                    for batch_start in range(
-                        0, len(parent_gid_list), HIERARCHY_BATCH_SIZE
-                    ):
-                        batch = parent_gid_list[
-                            batch_start : batch_start + HIERARCHY_BATCH_SIZE
-                        ]
-                        batch_results = await asyncio.gather(
-                            *[_fetch_immediate_parent(gid) for gid in batch]
-                        )
-                        all_results.extend(batch_results)
-                        if batch_start + HIERARCHY_BATCH_SIZE < len(parent_gid_list):
-                            logger.debug(
-                                "hierarchy_batch_pause",
-                                extra={
-                                    "batch_start": batch_start,
-                                    "batch_size": len(batch),
-                                    "total": len(parent_gid_list),
-                                },
-                            )
-                            await asyncio.sleep(HIERARCHY_BATCH_DELAY)
-
-                immediate_parents_fetched = sum(1 for r in all_results if r)
-
-                if pacing_enabled:
-                    logger.info(
-                        "hierarchy_warming_complete",
-                        extra={
-                            "parents_fetched": immediate_parents_fetched,
-                            "total_parents": len(parent_gid_list),
-                            "batches": (len(parent_gid_list) + HIERARCHY_BATCH_SIZE - 1)
-                            // HIERARCHY_BATCH_SIZE,
-                        },
-                    )
-
-            # INFO-level logging for immediate parent fetch results
-            logger.info(
-                "unified_store_immediate_parents_fetched",
-                extra={
-                    "parents_requested": len(parent_gids_needed),
-                    "parents_fetched": immediate_parents_fetched,
-                },
-            )
-
-            # Then warm deeper ancestors (grandparents and beyond)
-            task_gids = [gid for t in tasks if (gid := t.get("gid")) is not None]
-            if task_gids:
-                ancestors_warmed = await warm_ancestors_async(
-                    gids=task_gids,
-                    hierarchy_index=self._hierarchy,
-                    tasks_client=tasks_client,
-                    max_depth=5,
-                    unified_store=self,  # Pass self to cache fetched parents
-                    global_semaphore=self._hierarchy_semaphore,
-                )
+            ancestors_warmed = await self._warm_ancestors(tasks, tasks_client)
 
         logger.debug(
             "unified_store_put_batch",
@@ -685,6 +550,151 @@ class UnifiedTaskStore:
         )
 
         return cached_count
+
+    async def _fetch_immediate_parents(
+        self,
+        tasks: list[dict[str, Any]],
+        tasks_client: TasksClient,
+    ) -> int:
+        """Fetch and cache immediate parents not yet in cache.
+
+        Returns count of parents successfully fetched.
+        """
+        from autom8_asana.cache.hierarchy_warmer import _HIERARCHY_OPT_FIELDS
+        from autom8_asana.config import (
+            HIERARCHY_BATCH_DELAY,
+            HIERARCHY_BATCH_SIZE,
+            HIERARCHY_PACING_THRESHOLD,
+        )
+
+        # Check which parents need fetching
+        parent_gids_needed: set[str] = set()
+        for task in tasks:
+            parent = task.get("parent")
+            if parent and isinstance(parent, dict):
+                parent_gid = parent.get("gid")
+                if parent_gid:
+                    # Check cache, not hierarchy - we need the parent's FULL TASK DATA
+                    cached_entry = self.cache.get_versioned(parent_gid, EntryType.TASK)
+                    if cached_entry is None:
+                        parent_gids_needed.add(parent_gid)
+
+        if not parent_gids_needed:
+            return 0
+
+        logger.debug(
+            "warm_hierarchy_fetching_immediate_parents",
+            extra={"parent_count": len(parent_gids_needed)},
+        )
+
+        async def _fetch_immediate_parent(parent_gid: str) -> bool:
+            async with self._hierarchy_semaphore:
+                try:
+                    parent_task = await tasks_client.get_async(
+                        parent_gid, opt_fields=_HIERARCHY_OPT_FIELDS
+                    )
+                    if parent_task:
+                        parent_dict = parent_task.model_dump(exclude_none=True)
+                        self._hierarchy.register(parent_dict)
+                        await self.put_async(parent_dict, opt_fields=_HIERARCHY_OPT_FIELDS)
+                        return True
+                except Exception as e:
+                    logger.warning(
+                        "warm_immediate_parent_failed",
+                        extra={
+                            "parent_gid": parent_gid,
+                            "error": str(e),
+                        },
+                    )
+            return False
+
+        parent_gid_list = list(parent_gids_needed)
+        pacing_enabled = len(parent_gid_list) > HIERARCHY_PACING_THRESHOLD
+
+        if pacing_enabled:
+            logger.info(
+                "hierarchy_pacing_enabled",
+                extra={
+                    "parent_count": len(parent_gid_list),
+                    "batch_size": HIERARCHY_BATCH_SIZE,
+                    "batch_delay": HIERARCHY_BATCH_DELAY,
+                },
+            )
+
+        all_results: list[bool] = []
+
+        if not pacing_enabled:
+            all_results = list(
+                await asyncio.gather(
+                    *[_fetch_immediate_parent(gid) for gid in parent_gid_list]
+                )
+            )
+        else:
+            for batch_start in range(0, len(parent_gid_list), HIERARCHY_BATCH_SIZE):
+                batch = parent_gid_list[batch_start : batch_start + HIERARCHY_BATCH_SIZE]
+                batch_results = await asyncio.gather(
+                    *[_fetch_immediate_parent(gid) for gid in batch]
+                )
+                all_results.extend(batch_results)
+                if batch_start + HIERARCHY_BATCH_SIZE < len(parent_gid_list):
+                    logger.debug(
+                        "hierarchy_batch_pause",
+                        extra={
+                            "batch_start": batch_start,
+                            "batch_size": len(batch),
+                            "total": len(parent_gid_list),
+                        },
+                    )
+                    await asyncio.sleep(HIERARCHY_BATCH_DELAY)
+
+        immediate_parents_fetched = sum(1 for r in all_results if r)
+
+        if pacing_enabled:
+            logger.info(
+                "hierarchy_warming_complete",
+                extra={
+                    "parents_fetched": immediate_parents_fetched,
+                    "total_parents": len(parent_gid_list),
+                    "batches": (len(parent_gid_list) + HIERARCHY_BATCH_SIZE - 1)
+                    // HIERARCHY_BATCH_SIZE,
+                },
+            )
+
+        logger.info(
+            "unified_store_immediate_parents_fetched",
+            extra={
+                "parents_requested": len(parent_gids_needed),
+                "parents_fetched": immediate_parents_fetched,
+            },
+        )
+
+        return immediate_parents_fetched
+
+    async def _warm_ancestors(
+        self,
+        tasks: list[dict[str, Any]],
+        tasks_client: TasksClient,
+    ) -> int:
+        """Warm deeper ancestor chains via hierarchy warmer.
+
+        Returns count of ancestors warmed.
+        """
+        from autom8_asana.cache.hierarchy_warmer import warm_ancestors_async
+
+        task_gids = [gid for t in tasks if (gid := t.get("gid")) is not None]
+        if not task_gids:
+            return 0
+
+        ancestors_warmed = await warm_ancestors_async(
+            gids=task_gids,
+            hierarchy_index=self._hierarchy,
+            tasks_client=tasks_client,
+            max_depth=5,
+            unified_store=self,  # Pass self to cache fetched parents
+            global_semaphore=self._hierarchy_semaphore,
+        )
+
+        return ancestors_warmed
 
     async def get_parent_chain_async(
         self,
