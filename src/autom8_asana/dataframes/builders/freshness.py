@@ -465,9 +465,7 @@ class SectionFreshnessProber:
             else:
                 task_dicts.append({"gid": t.gid, "name": getattr(t, "name", "")})
 
-        rows = await view._extract_rows_async(
-            task_dicts, project_gid=self._project_gid
-        )
+        rows = await view._extract_rows_async(task_dicts, project_gid=self._project_gid)
 
         from autom8_asana.dataframes.builders.fields import coerce_rows_to_schema
 

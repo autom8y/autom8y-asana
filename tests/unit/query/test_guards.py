@@ -102,9 +102,7 @@ class TestPredicateDepth:
 
     def test_tc_g005_flat_array_depth(self) -> None:
         """TC-G005: Flat array sugar wraps in AND -> depth 2."""
-        req = RowsRequest.model_validate(
-            {"where": [_leaf, _leaf]}
-        )
+        req = RowsRequest.model_validate({"where": [_leaf, _leaf]})
         assert isinstance(req.where, AndGroup)
         assert predicate_depth(req.where) == 2
 
@@ -120,9 +118,7 @@ class TestPredicateDepth:
 
     def test_or_group_depth(self) -> None:
         """OR group adds 1 to max child depth."""
-        node = _predicate_adapter.validate_python(
-            {"or": [_leaf, {"and": [_leaf]}]}
-        )
+        node = _predicate_adapter.validate_python({"or": [_leaf, {"and": [_leaf]}]})
         # or(leaf, and(leaf)) -> max(1, 2) + 1 = 3
         assert predicate_depth(node) == 3
 

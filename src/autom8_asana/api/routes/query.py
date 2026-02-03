@@ -397,7 +397,7 @@ async def query_entities(
     response_obj.headers["Deprecation"] = "true"
     response_obj.headers["Sunset"] = "2026-06-01"
     response_obj.headers["Link"] = (
-        f"</v1/query/{entity_type}/rows>; rel=\"successor-version\""
+        f'</v1/query/{entity_type}/rows>; rel="successor-version"'
     )
 
     logger.info(
@@ -441,9 +441,7 @@ async def _resolve_section(
         persistence = SectionPersistence()
         if persistence.is_available:
             async with persistence:
-                index = await SectionIndex.from_manifest_async(
-                    persistence, project_gid
-                )
+                index = await SectionIndex.from_manifest_async(persistence, project_gid)
                 if index.resolve(section_name) is not None:
                     return section_name
     except Exception:
@@ -573,9 +571,7 @@ async def query_rows(
     section_index = None
     if request_body.section is not None:
         # Validate section name
-        await _resolve_section(
-            request_body.section, entity_type, project_gid
-        )
+        await _resolve_section(request_body.section, entity_type, project_gid)
         # Build section index for QueryEngine
         from autom8_asana.metrics.resolve import SectionIndex
 
@@ -608,9 +604,7 @@ async def query_rows(
             )
             stripped = strip_section_predicates(request_body.where)
             # Reconstruct the request with stripped predicates
-            request_body = request_body.model_copy(
-                update={"where": stripped}
-            )
+            request_body = request_body.model_copy(update={"where": stripped})
 
     # 7. Execute via QueryEngine (handles compilation, depth check, etc.)
     engine = QueryEngine()

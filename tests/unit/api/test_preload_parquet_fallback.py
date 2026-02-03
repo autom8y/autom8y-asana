@@ -82,9 +82,7 @@ def _build_patch_stack(
             return_value=mock_watermark_repo,
         )
     )
-    stack.enter_context(
-        patch("autom8_asana.dataframes.models.registry.SchemaRegistry")
-    )
+    stack.enter_context(patch("autom8_asana.dataframes.models.registry.SchemaRegistry"))
     stack.enter_context(
         patch("autom8_asana.dataframes.resolver.DefaultCustomFieldResolver")
     )
@@ -182,9 +180,7 @@ class TestPreloadParquetFallback:
 
         # No parquet in S3
         mock_df_persistence = MagicMock()
-        mock_df_persistence.load_dataframe = AsyncMock(
-            return_value=(None, None)
-        )
+        mock_df_persistence.load_dataframe = AsyncMock(return_value=(None, None))
 
         mock_cache = MagicMock()
         mock_cache.put_async = AsyncMock()
@@ -263,9 +259,7 @@ class TestPreloadParquetFallback:
 
         # load_dataframe returns (None, None) on error (its own error handling)
         mock_df_persistence = MagicMock()
-        mock_df_persistence.load_dataframe = AsyncMock(
-            return_value=(None, None)
-        )
+        mock_df_persistence.load_dataframe = AsyncMock(return_value=(None, None))
 
         with _build_patch_stack(
             mock_persistence,

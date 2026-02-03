@@ -77,9 +77,11 @@ def mock_cache_provider() -> MagicMock:
 def mock_tasks_client() -> MagicMock:
     """Create a mock TasksClient that returns parent responses."""
     client = MagicMock()
+
     # Default: return a parent task for any GID
     async def _get_async(gid: str, **kwargs):  # noqa: ANN003
         return _make_parent_response(gid)
+
     client.get_async = AsyncMock(side_effect=_get_async)
     return client
 
@@ -108,7 +110,9 @@ class TestHierarchyPacingThreshold:
         # Create 50 tasks each with a unique parent (below threshold of 100)
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(50)]
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        with patch(
+            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+        ) as mock_sleep:
             await store.put_batch_async(
                 tasks,
                 warm_hierarchy=True,
@@ -128,7 +132,9 @@ class TestHierarchyPacingThreshold:
         # Create 120 tasks each with a unique parent (above threshold of 100)
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(120)]
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        with patch(
+            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+        ) as mock_sleep:
             await store.put_batch_async(
                 tasks,
                 warm_hierarchy=True,
@@ -151,7 +157,9 @@ class TestHierarchyBatchSizing:
         # 150 parents / 50 per batch = 3 batches, 2 pauses
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(150)]
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        with patch(
+            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+        ) as mock_sleep:
             await store.put_batch_async(
                 tasks,
                 warm_hierarchy=True,
@@ -169,7 +177,9 @@ class TestHierarchyBatchSizing:
         # 200 parents / 50 per batch = 4 batches, 3 pauses (no pause after last)
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(200)]
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        with patch(
+            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+        ) as mock_sleep:
             await store.put_batch_async(
                 tasks,
                 warm_hierarchy=True,
@@ -186,7 +196,9 @@ class TestHierarchyBatchSizing:
         """Sleep calls use HIERARCHY_BATCH_DELAY value."""
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(120)]
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        with patch(
+            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+        ) as mock_sleep:
             with patch("autom8_asana.config.HIERARCHY_BATCH_DELAY", 2.5):
                 await store.put_batch_async(
                     tasks,
@@ -249,7 +261,9 @@ class TestHierarchyPacingResults:
         one fetch per unique parent GID.
         """
         # 200 tasks all sharing 110 unique parents (above threshold)
-        tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i % 110}") for i in range(200)]
+        tasks = [
+            _make_task(f"task-{i}", parent_gid=f"parent-{i % 110}") for i in range(200)
+        ]
 
         with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock):
             await store.put_batch_async(
@@ -284,7 +298,8 @@ class TestHierarchyPacingLogging:
 
                 # Find the hierarchy_pacing_enabled log call
                 info_calls = [
-                    c for c in mock_logger.info.call_args_list
+                    c
+                    for c in mock_logger.info.call_args_list
                     if c[0][0] == "hierarchy_pacing_enabled"
                 ]
                 assert len(info_calls) == 1
@@ -312,7 +327,8 @@ class TestHierarchyPacingLogging:
 
                 # Find the hierarchy_warming_complete log call
                 info_calls = [
-                    c for c in mock_logger.info.call_args_list
+                    c
+                    for c in mock_logger.info.call_args_list
                     if c[0][0] == "hierarchy_warming_complete"
                 ]
                 assert len(info_calls) == 1
@@ -340,7 +356,8 @@ class TestHierarchyPacingLogging:
 
                 # Find the hierarchy_batch_pause log calls
                 debug_calls = [
-                    c for c in mock_logger.debug.call_args_list
+                    c
+                    for c in mock_logger.debug.call_args_list
                     if c[0][0] == "hierarchy_batch_pause"
                 ]
                 # 3 batches = 2 pauses
@@ -364,7 +381,8 @@ class TestHierarchyPacingLogging:
 
             # No pacing-specific log events
             info_calls = [
-                c for c in mock_logger.info.call_args_list
+                c
+                for c in mock_logger.info.call_args_list
                 if c[0][0] in ("hierarchy_pacing_enabled", "hierarchy_warming_complete")
             ]
             assert len(info_calls) == 0

@@ -387,7 +387,9 @@ class TestEntityTTLAndSWR:
 
         cache = make_cache(memory_tier=memory)
 
-        with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task") as mock_task:
+        with patch(
+            "autom8_asana.cache.dataframe_cache.asyncio.create_task"
+        ) as mock_task:
             result = await cache.get_async("proj-1", "unit")
 
         assert result is entry
@@ -474,7 +476,9 @@ class TestEntityTTLAndSWR:
 
         cache = make_cache(memory_tier=memory, coalescer=coalescer)
 
-        with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task") as mock_task:
+        with patch(
+            "autom8_asana.cache.dataframe_cache.asyncio.create_task"
+        ) as mock_task:
             result = await cache.get_async("proj-1", "unit")
 
         # Entry is still served (SWR)
@@ -513,7 +517,9 @@ class TestEntityTTLAndSWR:
 
         # Stale servable: 1200s old, unit TTL = 900s, grace = 2700s
         stale_entry = make_entry(entity_type="unit", created_seconds_ago=1200)
-        assert cache._check_freshness(stale_entry, None) == FreshnessStatus.STALE_SERVABLE
+        assert (
+            cache._check_freshness(stale_entry, None) == FreshnessStatus.STALE_SERVABLE
+        )
 
         # Expired: 3600s old, unit TTL = 900s, grace = 2700s
         expired_entry = make_entry(entity_type="unit", created_seconds_ago=3600)
@@ -530,7 +536,9 @@ class TestEntityTTLAndSWR:
         cache = make_cache()
         entry = make_entry(entity_type="unit", created_seconds_ago=0)
         future_watermark = datetime.now(UTC) + timedelta(minutes=5)
-        assert cache._check_freshness(entry, future_watermark) == FreshnessStatus.EXPIRED
+        assert (
+            cache._check_freshness(entry, future_watermark) == FreshnessStatus.EXPIRED
+        )
 
 
 class TestSWRCallbackWiring:
@@ -545,7 +553,9 @@ class TestSWRCallbackWiring:
         reset_dataframe_cache()
 
     @patch("autom8_asana.settings.get_settings")
-    def test_initialize_registers_build_callback(self, mock_settings: MagicMock) -> None:
+    def test_initialize_registers_build_callback(
+        self, mock_settings: MagicMock
+    ) -> None:
         """After initialize_dataframe_cache(), _build_callback is not None."""
         from autom8_asana.cache.dataframe.factory import initialize_dataframe_cache
 

@@ -15,6 +15,7 @@ from autom8_asana.metrics.resolve import SectionIndex, resolve_metric_scope
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 def _make_metric(
     *,
     section: str | None = None,
@@ -35,6 +36,7 @@ def _make_metric(
 # ---------------------------------------------------------------------------
 # SectionIndex
 # ---------------------------------------------------------------------------
+
 
 class TestSectionIndex:
     def test_case_insensitive(self) -> None:
@@ -59,6 +61,7 @@ class TestSectionIndex:
 # ---------------------------------------------------------------------------
 # resolve_metric_scope
 # ---------------------------------------------------------------------------
+
 
 class TestResolveMetricScope:
     def test_already_resolved(self) -> None:

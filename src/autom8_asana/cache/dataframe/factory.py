@@ -177,7 +177,10 @@ def initialize_dataframe_cache() -> DataFrameCache | None:
 
             if result.total_rows > 0:
                 await cache.put_async(
-                    project_gid, entity_type, result.df, result.watermark,
+                    project_gid,
+                    entity_type,
+                    result.df,
+                    result.watermark,
                 )
 
     cache.set_build_callback(_swr_build)

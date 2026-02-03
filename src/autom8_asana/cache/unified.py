@@ -571,9 +571,7 @@ class UnifiedTaskStore:
                                 parent_gid, opt_fields=_HIERARCHY_OPT_FIELDS
                             )
                             if parent_task:
-                                parent_dict = parent_task.model_dump(
-                                    exclude_none=True
-                                )
+                                parent_dict = parent_task.model_dump(exclude_none=True)
                                 self._hierarchy.register(parent_dict)
                                 await self.put_async(
                                     parent_dict, opt_fields=_HIERARCHY_OPT_FIELDS
@@ -612,12 +610,18 @@ class UnifiedTaskStore:
                 all_results: list[bool] = []
 
                 if not pacing_enabled:
-                    all_results = list(await asyncio.gather(
-                        *[_fetch_immediate_parent(gid) for gid in parent_gid_list]
-                    ))
+                    all_results = list(
+                        await asyncio.gather(
+                            *[_fetch_immediate_parent(gid) for gid in parent_gid_list]
+                        )
+                    )
                 else:
-                    for batch_start in range(0, len(parent_gid_list), HIERARCHY_BATCH_SIZE):
-                        batch = parent_gid_list[batch_start:batch_start + HIERARCHY_BATCH_SIZE]
+                    for batch_start in range(
+                        0, len(parent_gid_list), HIERARCHY_BATCH_SIZE
+                    ):
+                        batch = parent_gid_list[
+                            batch_start : batch_start + HIERARCHY_BATCH_SIZE
+                        ]
                         batch_results = await asyncio.gather(
                             *[_fetch_immediate_parent(gid) for gid in batch]
                         )
@@ -641,7 +645,8 @@ class UnifiedTaskStore:
                         extra={
                             "parents_fetched": immediate_parents_fetched,
                             "total_parents": len(parent_gid_list),
-                            "batches": (len(parent_gid_list) + HIERARCHY_BATCH_SIZE - 1) // HIERARCHY_BATCH_SIZE,
+                            "batches": (len(parent_gid_list) + HIERARCHY_BATCH_SIZE - 1)
+                            // HIERARCHY_BATCH_SIZE,
                         },
                     )
 

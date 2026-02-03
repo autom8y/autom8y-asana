@@ -124,9 +124,7 @@ def execute_join(
 
     # 5. Rename target columns to avoid collision (prefix with entity type)
     rename_map = {
-        col: f"{target_entity_type}_{col}"
-        for col in select_columns
-        if col != join_key
+        col: f"{target_entity_type}_{col}" for col in select_columns if col != join_key
     }
     target_renamed = target_deduped.rename(rename_map)
     renamed_cols = list(rename_map.values())
@@ -141,9 +139,7 @@ def execute_join(
     # 7. Compute match statistics
     if renamed_cols:
         first_join_col = renamed_cols[0]
-        matched_count = enriched.filter(
-            pl.col(first_join_col).is_not_null()
-        ).height
+        matched_count = enriched.filter(pl.col(first_join_col).is_not_null()).height
     else:
         matched_count = enriched.height
 

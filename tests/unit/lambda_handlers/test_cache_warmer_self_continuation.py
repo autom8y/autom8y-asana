@@ -37,7 +37,10 @@ class TestSelfInvokeContinuation:
         import json
 
         call_kwargs = mock_lambda.invoke.call_args[1]
-        assert call_kwargs["FunctionName"] == "arn:aws:lambda:us-east-1:123:function:warmer"
+        assert (
+            call_kwargs["FunctionName"]
+            == "arn:aws:lambda:us-east-1:123:function:warmer"
+        )
         assert call_kwargs["InvocationType"] == "Event"
 
         payload = json.loads(call_kwargs["Payload"])

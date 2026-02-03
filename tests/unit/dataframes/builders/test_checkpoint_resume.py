@@ -38,8 +38,7 @@ class _FakePageIterator:
 
     def __init__(self, total_tasks: int, start_gid: int = 0) -> None:
         self._tasks = [
-            _make_mock_task(str(i))
-            for i in range(start_gid, start_gid + total_tasks)
+            _make_mock_task(str(i)) for i in range(start_gid, start_gid + total_tasks)
         ]
         self._index = 0
 
@@ -78,9 +77,7 @@ def _make_builder(
     mock_persistence._s3_client.put_object_async = AsyncMock(
         return_value=mock_s3_result
     )
-    mock_persistence._get_manifest_lock = MagicMock(
-        return_value=asyncio.Lock()
-    )
+    mock_persistence._get_manifest_lock = MagicMock(return_value=asyncio.Lock())
     mock_persistence.get_manifest_async = AsyncMock(return_value=manifest)
     mock_persistence._manifest_cache = {}
     mock_persistence._save_manifest_async = AsyncMock(return_value=True)
@@ -117,10 +114,12 @@ class TestResumeFromCheckpoint:
 
     async def test_resume_from_checkpoint(self) -> None:
         """Builder reads checkpoint and skips already-fetched pages."""
-        checkpoint_df = pl.DataFrame({
-            "gid": [str(i) for i in range(500)],
-            "name": [f"Task {i}" for i in range(500)],
-        })
+        checkpoint_df = pl.DataFrame(
+            {
+                "gid": [str(i) for i in range(500)],
+                "name": [f"Task {i}" for i in range(500)],
+            }
+        )
         section_info = SectionInfo(
             status=SectionStatus.IN_PROGRESS,
             rows_fetched=500,
@@ -145,9 +144,7 @@ class TestResumeFromCheckpoint:
             "autom8_asana.dataframes.builders.progressive.asyncio.sleep",
             new_callable=AsyncMock,
         ):
-            result = await builder._fetch_and_persist_section(
-                "sec_1", None, 0, 1
-            )
+            result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
         # read_section_async should have been called to read the checkpoint
@@ -180,9 +177,7 @@ class TestResumeMissingCheckpoint:
         # Small section to keep test fast
         builder._client.tasks.list_async.return_value = _FakePageIterator(50)
 
-        result = await builder._fetch_and_persist_section(
-            "sec_1", None, 0, 1
-        )
+        result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
         # No pages should be skipped since checkpoint was None
@@ -217,9 +212,7 @@ class TestResumeCorruptCheckpoint:
 
         builder._client.tasks.list_async.return_value = _FakePageIterator(50)
 
-        result = await builder._fetch_and_persist_section(
-            "sec_1", None, 0, 1
-        )
+        result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
         # Falls back to full refetch
@@ -245,9 +238,7 @@ class TestNoResumeForPendingSection:
 
         builder._client.tasks.list_async.return_value = _FakePageIterator(50)
 
-        result = await builder._fetch_and_persist_section(
-            "sec_1", None, 0, 1
-        )
+        result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
         # read_section_async should NOT be called for PENDING sections

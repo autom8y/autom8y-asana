@@ -187,9 +187,7 @@ class SectionManifest(BaseModel):
     def get_section_name_index(self) -> dict[str, str]:
         """Return a ``{name.lower(): gid}`` mapping for sections with names."""
         return {
-            info.name.lower(): gid
-            for gid, info in self.sections.items()
-            if info.name
+            info.name.lower(): gid for gid, info in self.sections.items() if info.name
         }
 
 
@@ -391,10 +389,7 @@ class SectionPersistence:
             project_gid=project_gid,
             entity_type=entity_type,
             total_sections=len(section_gids),
-            sections={
-                gid: SectionInfo(name=names.get(gid))
-                for gid in section_gids
-            },
+            sections={gid: SectionInfo(name=names.get(gid)) for gid in section_gids},
             schema_version=schema_version,
         )
 

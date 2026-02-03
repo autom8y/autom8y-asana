@@ -1060,9 +1060,7 @@ class TestDataFrameViewPluginMultiEnumCoercion:
             columns=[
                 ColumnDef("gid", "Utf8", nullable=False, source=None),
                 ColumnDef("name", "Utf8", nullable=False, source=None),
-                ColumnDef(
-                    "platforms", "Utf8", nullable=True, source="cf:Platforms"
-                ),
+                ColumnDef("platforms", "Utf8", nullable=True, source="cf:Platforms"),
             ],
             version="1.0.0",
         )
@@ -1094,9 +1092,7 @@ class TestDataFrameViewPluginMultiEnumCoercion:
         mock_store.get_batch_async = AsyncMock(return_value=tasks)
         mock_store.get_parent_chain_async = AsyncMock(return_value=[])
 
-        plugin = DataFrameViewPlugin(
-            store=mock_store, schema=multi_enum_list_schema
-        )
+        plugin = DataFrameViewPlugin(store=mock_store, schema=multi_enum_list_schema)
         result = await plugin.materialize_async(["task-1"])
 
         assert len(result) == 1
@@ -1131,9 +1127,7 @@ class TestDataFrameViewPluginMultiEnumCoercion:
         mock_store.get_batch_async = AsyncMock(return_value=tasks)
         mock_store.get_parent_chain_async = AsyncMock(return_value=[])
 
-        plugin = DataFrameViewPlugin(
-            store=mock_store, schema=multi_enum_string_schema
-        )
+        plugin = DataFrameViewPlugin(store=mock_store, schema=multi_enum_string_schema)
         result = await plugin.materialize_async(["task-1"])
 
         assert len(result) == 1
@@ -1187,9 +1181,7 @@ class TestDataFrameViewPluginMultiEnumCoercion:
         mock_store.get_batch_async = AsyncMock(return_value=tasks)
         mock_store.get_parent_chain_async = AsyncMock(return_value=[])
 
-        plugin = DataFrameViewPlugin(
-            store=mock_store, schema=multi_enum_list_schema
-        )
+        plugin = DataFrameViewPlugin(store=mock_store, schema=multi_enum_list_schema)
 
         # This should NOT raise polars.exceptions.ComputeError
         result = await plugin.materialize_async(["task-1", "task-2"])

@@ -63,7 +63,7 @@ For routing guidance: `/consult`
 Skills are invoked via the **Skill tool**. Key skills: `orchestration` (workflow coordination), `documentation` (templates), `prompting` (agent invocation), `standards` (conventions), `ecosystem-ref` (roster ecosystem patterns). See `.claude/skills/` and `~/.claude/skills/` for full list.
 <!-- KNOSSOS:END skills -->
 
-<!-- KNOSSOS:START agent-configurations regenerate=true source=agents/*.md -->
+<!-- KNOSSOS:START agent-configurations source=agents/*.md regenerate=true -->
 ## Agent Configurations
 
 Full agent prompts live in `.claude/agents/`:

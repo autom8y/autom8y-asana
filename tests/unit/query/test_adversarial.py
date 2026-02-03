@@ -580,9 +580,7 @@ class TestDepthAttacks:
         """Tree where one branch is deep and others are shallow."""
         deep_branch = _build_deep_and_chain(5)
         shallow_branch = _leaf
-        node = _adapter.validate_python(
-            {"or": [deep_branch, shallow_branch]}
-        )
+        node = _adapter.validate_python({"or": [deep_branch, shallow_branch]})
         # or -> deep_branch(5) => 1 + 5 = 6
         assert predicate_depth(node) == 6
         limits = QueryLimits()
@@ -696,9 +694,7 @@ class TestEmptyDataFrame:
         self, empty_engine: QueryEngine, empty_schema: DataFrameSchema
     ) -> None:
         request = RowsRequest.model_validate({})
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_reg_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_reg_cls:
             mock_reg = MagicMock()
             mock_reg.get_schema.return_value = empty_schema
             mock_reg_cls.get_instance.return_value = mock_reg
@@ -714,9 +710,7 @@ class TestEmptyDataFrame:
         assert result.data == []
 
     @pytest.mark.asyncio
-    async def test_query_all_filtered_out(
-        self, empty_schema: DataFrameSchema
-    ) -> None:
+    async def test_query_all_filtered_out(self, empty_schema: DataFrameSchema) -> None:
         """DataFrame with data but filter matches nothing."""
         df = pl.DataFrame(
             {
@@ -732,9 +726,7 @@ class TestEmptyDataFrame:
         request = RowsRequest.model_validate(
             {"where": {"field": "name", "op": "eq", "value": "Nonexistent"}}
         )
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_reg_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_reg_cls:
             mock_reg = MagicMock()
             mock_reg.get_schema.return_value = empty_schema
             mock_reg_cls.get_instance.return_value = mock_reg
@@ -869,9 +861,7 @@ class TestSectionEdgeCases:
                 "where": {"field": "name", "op": "eq", "value": "A"},
             }
         )
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_reg_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_reg_cls:
             mock_reg = MagicMock()
             mock_reg.get_schema.return_value = section_schema
             mock_reg_cls.get_instance.return_value = mock_reg
@@ -909,9 +899,7 @@ class TestSectionEdgeCases:
         # SectionIndex resolves case-insensitively, but DataFrame filter is exact
         section_index = SectionIndex(_name_to_gid={"active": "gid-1"})
         request = RowsRequest.model_validate({"section": "Active"})
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_reg_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_reg_cls:
             mock_reg = MagicMock()
             mock_reg.get_schema.return_value = section_schema
             mock_reg_cls.get_instance.return_value = mock_reg
@@ -1061,17 +1049,13 @@ class TestFieldValidation:
                 ColumnDef("section", "Utf8", nullable=True),
             ],
         )
-        df = pl.DataFrame(
-            {"gid": ["1"], "name": ["A"], "section": ["S"]}
-        )
+        df = pl.DataFrame({"gid": ["1"], "name": ["A"], "section": ["S"]})
         service = EntityQueryService()
         service.get_dataframe = AsyncMock(return_value=df)  # type: ignore[method-assign]
         engine = QueryEngine(query_service=service)
 
         request = RowsRequest.model_validate({"select": ["name", "bogus"]})
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_reg_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_reg_cls:
             mock_reg = MagicMock()
             mock_reg.get_schema.return_value = schema
             mock_reg_cls.get_instance.return_value = mock_reg
@@ -1097,17 +1081,13 @@ class TestFieldValidation:
                 ColumnDef("section", "Utf8", nullable=True),
             ],
         )
-        df = pl.DataFrame(
-            {"gid": ["1"], "name": ["A"], "section": ["S"]}
-        )
+        df = pl.DataFrame({"gid": ["1"], "name": ["A"], "section": ["S"]})
         service = EntityQueryService()
         service.get_dataframe = AsyncMock(return_value=df)  # type: ignore[method-assign]
         engine = QueryEngine(query_service=service)
 
         request = RowsRequest.model_validate({"select": ["gid"]})
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_reg_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_reg_cls:
             mock_reg = MagicMock()
             mock_reg.get_schema.return_value = schema
             mock_reg_cls.get_instance.return_value = mock_reg
@@ -1139,9 +1119,7 @@ class TestFieldValidation:
                 ColumnDef("phantom", "Utf8", nullable=True),
             ],
         )
-        df = pl.DataFrame(
-            {"gid": ["1"], "name": ["A"], "section": ["S"]}
-        )
+        df = pl.DataFrame({"gid": ["1"], "name": ["A"], "section": ["S"]})
         service = EntityQueryService()
         service.get_dataframe = AsyncMock(return_value=df)  # type: ignore[method-assign]
         engine = QueryEngine(query_service=service)
@@ -1149,9 +1127,7 @@ class TestFieldValidation:
         request = RowsRequest.model_validate(
             {"where": {"field": "phantom", "op": "eq", "value": "ghost"}}
         )
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_reg_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_reg_cls:
             mock_reg = MagicMock()
             mock_reg.get_schema.return_value = schema
             mock_reg_cls.get_instance.return_value = mock_reg
@@ -1194,9 +1170,7 @@ class TestFlatArraySugar:
 
     def test_array_of_non_predicates_rejected(self) -> None:
         with pytest.raises(ValidationError):
-            RowsRequest.model_validate(
-                {"where": ["not", "a", "predicate"]}
-            )
+            RowsRequest.model_validate({"where": ["not", "a", "predicate"]})
 
     def test_array_with_mixed_valid_predicates(self) -> None:
         req = RowsRequest.model_validate(
@@ -1252,9 +1226,7 @@ class TestMalformedPayloads:
 
     def test_invalid_op_string(self) -> None:
         with pytest.raises(ValidationError):
-            _adapter.validate_python(
-                {"field": "name", "op": "LIKE", "value": "%x%"}
-            )
+            _adapter.validate_python({"field": "name", "op": "LIKE", "value": "%x%"})
 
     def test_extra_field_on_comparison(self) -> None:
         with pytest.raises(ValidationError):
@@ -1272,9 +1244,7 @@ class TestMalformedPayloads:
 
     def test_extra_field_on_not_group(self) -> None:
         with pytest.raises(ValidationError):
-            _adapter.validate_python(
-                {"not": _leaf, "extra": True}
-            )
+            _adapter.validate_python({"not": _leaf, "extra": True})
 
     def test_string_where_object_expected(self) -> None:
         with pytest.raises(ValidationError):
@@ -1343,17 +1313,13 @@ class TestMalformedPayloads:
         """Dict with both 'not' and 'or' -- discriminator checks 'and' first,
         then 'or', then 'not'. 'or' is found first, extra fields rejected."""
         with pytest.raises(ValidationError):
-            _adapter.validate_python(
-                {"not": _leaf, "or": [_leaf]}
-            )
+            _adapter.validate_python({"not": _leaf, "or": [_leaf]})
 
     def test_ambiguous_dict_with_and_and_or(self) -> None:
         """Dict with both 'and' and 'or' -- discriminator picks 'and'.
         'or' is extra field, rejected."""
         with pytest.raises(ValidationError):
-            _adapter.validate_python(
-                {"and": [_leaf], "or": [_leaf]}
-            )
+            _adapter.validate_python({"and": [_leaf], "or": [_leaf]})
 
     def test_and_with_null_value(self) -> None:
         """'and': null should be rejected (expects list)."""
@@ -1621,9 +1587,7 @@ class TestPaginationEdgeCases:
     ) -> None:
         """Offset past all rows returns empty result."""
         request = RowsRequest.model_validate({"offset": 100, "limit": 10})
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_reg_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_reg_cls:
             mock_reg = MagicMock()
             mock_reg.get_schema.return_value = small_schema
             mock_reg_cls.get_instance.return_value = mock_reg
@@ -1644,9 +1608,7 @@ class TestPaginationEdgeCases:
     ) -> None:
         """Offset exactly at total count returns empty."""
         request = RowsRequest.model_validate({"offset": 3, "limit": 10})
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_reg_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_reg_cls:
             mock_reg = MagicMock()
             mock_reg.get_schema.return_value = small_schema
             mock_reg_cls.get_instance.return_value = mock_reg
@@ -1664,9 +1626,7 @@ class TestPaginationEdgeCases:
         self, small_engine: QueryEngine, small_schema: DataFrameSchema
     ) -> None:
         request = RowsRequest.model_validate({"limit": 1})
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_reg_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_reg_cls:
             mock_reg = MagicMock()
             mock_reg.get_schema.return_value = small_schema
             mock_reg_cls.get_instance.return_value = mock_reg
@@ -1685,9 +1645,7 @@ class TestPaginationEdgeCases:
     ) -> None:
         """offset=2, limit=100 on 3-row df returns 1 row."""
         request = RowsRequest.model_validate({"offset": 2, "limit": 100})
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_reg_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_reg_cls:
             mock_reg = MagicMock()
             mock_reg.get_schema.return_value = small_schema
             mock_reg_cls.get_instance.return_value = mock_reg
@@ -1726,9 +1684,7 @@ class TestPaginationEdgeCases:
         )
 
         request = RowsRequest.model_validate({"limit": 1000})
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_reg_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_reg_cls:
             mock_reg = MagicMock()
             mock_reg.get_schema.return_value = schema
             mock_reg_cls.get_instance.return_value = mock_reg
@@ -1954,9 +1910,7 @@ class TestEngineIntegrationAdversarial:
         )
         engine = self._make_engine(df)
         request = RowsRequest.model_validate({})
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_reg_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_reg_cls:
             mock_reg = MagicMock()
             mock_reg.get_schema.return_value = engine_schema
             mock_reg_cls.get_instance.return_value = mock_reg
@@ -2001,9 +1955,7 @@ class TestEngineIntegrationAdversarial:
         )
         engine = self._make_engine(df)
         request = RowsRequest.model_validate({})
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_reg_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_reg_cls:
             mock_reg = MagicMock()
             mock_reg.get_schema.return_value = engine_schema
             mock_reg_cls.get_instance.return_value = mock_reg

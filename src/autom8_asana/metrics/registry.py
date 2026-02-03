@@ -92,9 +92,7 @@ class MetricRegistry:
 
         if name not in self._metrics:
             available = ", ".join(sorted(self._metrics.keys()))
-            raise KeyError(
-                f"Unknown metric '{name}'. Available: {available}"
-            )
+            raise KeyError(f"Unknown metric '{name}'. Available: {available}")
 
         return self._metrics[name]
 

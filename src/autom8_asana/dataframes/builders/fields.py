@@ -69,7 +69,6 @@ BASE_OPT_FIELDS: list[str] = [
 ]
 
 
-
 def coerce_rows_to_schema(
     rows: list[dict[str, Any]],
     schema: DataFrameSchema,

@@ -9,7 +9,13 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from autom8_asana.query.errors import QueryTooComplexError
-from autom8_asana.query.models import AndGroup, Comparison, NotGroup, OrGroup, PredicateNode
+from autom8_asana.query.models import (
+    AndGroup,
+    Comparison,
+    NotGroup,
+    OrGroup,
+    PredicateNode,
+)
 
 if TYPE_CHECKING:
     from autom8_asana.dataframes.models.schema import DataFrameSchema

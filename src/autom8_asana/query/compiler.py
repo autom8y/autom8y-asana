@@ -14,7 +14,11 @@ from typing import Any
 import polars as pl
 
 from autom8_asana.dataframes.models.schema import DataFrameSchema
-from autom8_asana.query.errors import CoercionError, InvalidOperatorError, UnknownFieldError
+from autom8_asana.query.errors import (
+    CoercionError,
+    InvalidOperatorError,
+    UnknownFieldError,
+)
 from autom8_asana.query.models import (
     AndGroup,
     Comparison,
@@ -178,9 +182,7 @@ class PredicateCompiler:
         """
         return self._compile_node(node, schema)
 
-    def _compile_node(
-        self, node: PredicateNode, schema: DataFrameSchema
-    ) -> pl.Expr:
+    def _compile_node(self, node: PredicateNode, schema: DataFrameSchema) -> pl.Expr:
         """Recursively compile any predicate node."""
         if isinstance(node, Comparison):
             return self._compile_comparison(node, schema)

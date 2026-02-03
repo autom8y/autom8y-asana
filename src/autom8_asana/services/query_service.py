@@ -397,7 +397,5 @@ class EntityQueryService:
         strategy = self.strategy_factory(entity_type)
         df = await strategy._get_dataframe(project_gid, client)
         if df is None:
-            raise CacheNotWarmError(
-                f"DataFrame unavailable for {entity_type}."
-            )
+            raise CacheNotWarmError(f"DataFrame unavailable for {entity_type}.")
         return df

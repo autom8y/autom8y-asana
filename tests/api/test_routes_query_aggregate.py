@@ -48,7 +48,13 @@ def _create_mock_dataframe() -> pl.DataFrame:
                 "+15552222222",
                 "+15553333333",
             ],
-            "offer_id": ["offer-001", "offer-002", "offer-003", "offer-004", "offer-005"],
+            "offer_id": [
+                "offer-001",
+                "offer-002",
+                "offer-003",
+                "offer-004",
+                "offer-005",
+            ],
         }
     )
 
@@ -136,15 +142,17 @@ class TestAggregateEndpointBasic:
     def test_tc_ra003_sum_on_boolean_column(self, client: TestClient) -> None:
         """TC-RA003: sum on Boolean column returns 422 AGGREGATION_ERROR."""
         # Need a df with a Boolean column
-        mock_df = pl.DataFrame({
-            "gid": ["1", "2"],
-            "name": ["A", "B"],
-            "section": ["ACTIVE", "ACTIVE"],
-            "vertical": ["dental", "medical"],
-            "office_phone": ["+111", "+222"],
-            "offer_id": ["o1", "o2"],
-            "is_completed": [True, False],
-        })
+        mock_df = pl.DataFrame(
+            {
+                "gid": ["1", "2"],
+                "name": ["A", "B"],
+                "section": ["ACTIVE", "ACTIVE"],
+                "vertical": ["dental", "medical"],
+                "office_phone": ["+111", "+222"],
+                "offer_id": ["o1", "o2"],
+                "is_completed": [True, False],
+            }
+        )
         p1, p2, p3, p4 = _common_patches(mock_df)
 
         with p1, p2, p3 as mock_client_class, p4:
@@ -172,15 +180,17 @@ class TestAggregateEndpointBasic:
     def test_tc_ra004_group_by_list_column(self, client: TestClient) -> None:
         """TC-RA004: group_by on List column returns 422 AGGREGATION_ERROR."""
         # Need a df with a List column
-        mock_df = pl.DataFrame({
-            "gid": ["1", "2"],
-            "name": ["A", "B"],
-            "section": ["ACTIVE", "ACTIVE"],
-            "vertical": ["dental", "medical"],
-            "office_phone": ["+111", "+222"],
-            "offer_id": ["o1", "o2"],
-            "platforms": [["fb"], ["google"]],
-        })
+        mock_df = pl.DataFrame(
+            {
+                "gid": ["1", "2"],
+                "name": ["A", "B"],
+                "section": ["ACTIVE", "ACTIVE"],
+                "vertical": ["dental", "medical"],
+                "office_phone": ["+111", "+222"],
+                "offer_id": ["o1", "o2"],
+                "platforms": [["fb"], ["google"]],
+            }
+        )
         p1, p2, p3, p4 = _common_patches(mock_df)
 
         with p1, p2, p3 as mock_client_class, p4:
@@ -366,7 +376,11 @@ class TestAggregateEndpointBasic:
                 json={
                     "group_by": ["section"],
                     "aggregations": [
-                        {"column": "vertical", "agg": "count_distinct", "alias": "uniq_verts"},
+                        {
+                            "column": "vertical",
+                            "agg": "count_distinct",
+                            "alias": "uniq_verts",
+                        },
                     ],
                 },
             )

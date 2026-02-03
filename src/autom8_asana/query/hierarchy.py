@@ -75,8 +75,9 @@ def find_relationship(
         EntityRelationship if found, None otherwise.
     """
     for rel in ENTITY_RELATIONSHIPS:
-        if (rel.parent_type == source_type and rel.child_type == target_type) or \
-           (rel.child_type == source_type and rel.parent_type == target_type):
+        if (rel.parent_type == source_type and rel.child_type == target_type) or (
+            rel.child_type == source_type and rel.parent_type == target_type
+        ):
             return rel
     return None
 

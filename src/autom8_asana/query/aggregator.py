@@ -52,9 +52,14 @@ AGG_COMPATIBILITY: dict[str, frozenset[AggFunction]] = {
 }
 
 # Agg functions that require Utf8 -> Float64 cast before application
-_UTF8_CAST_AGGS = frozenset({
-    AggFunction.SUM, AggFunction.MEAN, AggFunction.MIN, AggFunction.MAX,
-})
+_UTF8_CAST_AGGS = frozenset(
+    {
+        AggFunction.SUM,
+        AggFunction.MEAN,
+        AggFunction.MIN,
+        AggFunction.MAX,
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +120,10 @@ class AggregationCompiler:
 
         # 3. Build expression with optional Utf8 cast
         return _build_agg_expr(
-            spec.column, spec.agg, col_def.dtype, spec.resolved_alias,
+            spec.column,
+            spec.agg,
+            col_def.dtype,
+            spec.resolved_alias,
         )
 
 
@@ -177,9 +185,7 @@ def validate_alias_uniqueness(
         if alias in seen:
             raise AggregationError(f"Duplicate alias: '{alias}'")
         if alias in group_by:
-            raise AggregationError(
-                f"Alias '{alias}' collides with group_by column"
-            )
+            raise AggregationError(f"Alias '{alias}' collides with group_by column")
         seen.add(alias)
 
 
@@ -209,7 +215,10 @@ def build_post_agg_schema(
     Returns:
         DataFrameSchema with columns representing the aggregated output.
     """
-    from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema as DFSchema
+    from autom8_asana.dataframes.models.schema import (
+        ColumnDef,
+        DataFrameSchema as DFSchema,
+    )
 
     columns: list[ColumnDef] = []
 
@@ -217,21 +226,25 @@ def build_post_agg_schema(
     for col_name in group_by_columns:
         source_col = source_schema.get_column(col_name)
         if source_col is not None:
-            columns.append(ColumnDef(
-                name=col_name,
-                dtype=source_col.dtype,
-                nullable=source_col.nullable,
-            ))
+            columns.append(
+                ColumnDef(
+                    name=col_name,
+                    dtype=source_col.dtype,
+                    nullable=source_col.nullable,
+                )
+            )
 
     # Aggregation output columns with inferred dtypes
     for spec in agg_specs:
         alias = spec.resolved_alias
         output_dtype = _infer_agg_output_dtype(spec, source_schema)
-        columns.append(ColumnDef(
-            name=alias,
-            dtype=output_dtype,
-            nullable=True,
-        ))
+        columns.append(
+            ColumnDef(
+                name=alias,
+                dtype=output_dtype,
+                nullable=True,
+            )
+        )
 
     return DFSchema(
         name="__aggregate_output__",

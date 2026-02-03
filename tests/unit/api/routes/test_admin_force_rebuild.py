@@ -118,7 +118,9 @@ class TestForceRebuildLambdaInvocation:
             patch(_PERSISTENCE_PATCH, return_value=mock_persistence),
             patch.dict(
                 "os.environ",
-                {"CACHE_WARMER_LAMBDA_ARN": "arn:aws:lambda:us-east-1:123:function:cache-warmer"},
+                {
+                    "CACHE_WARMER_LAMBDA_ARN": "arn:aws:lambda:us-east-1:123:function:cache-warmer"
+                },
             ),
             patch(_LAMBDA_PATCH, mock_invoke),
         ):
@@ -147,6 +149,7 @@ class TestForceRebuildLambdaInvocation:
             patch(_LAMBDA_PATCH, mock_invoke),
         ):
             import os
+
             os.environ.pop("CACHE_WARMER_LAMBDA_ARN", None)
             await _perform_force_rebuild(["unit"], "test-refresh-id")
 
@@ -170,10 +173,14 @@ class TestInvokeCacheWarmerLambda:
 
         mock_client.invoke.assert_called_once()
         call_kwargs = mock_client.invoke.call_args.kwargs
-        assert call_kwargs["FunctionName"] == "arn:aws:lambda:us-east-1:123:function:cache-warmer"
+        assert (
+            call_kwargs["FunctionName"]
+            == "arn:aws:lambda:us-east-1:123:function:cache-warmer"
+        )
         assert call_kwargs["InvocationType"] == "Event"
 
         import json
+
         payload = json.loads(call_kwargs["Payload"])
         assert payload["entity_types"] == ["unit", "contact"]
         assert payload["strict"] is False
@@ -217,6 +224,7 @@ class TestForceRebuildNoInProcessBuilder:
 
         # The force rebuild path should not import or use ProgressiveProjectBuilder.
         import inspect
+
         source = inspect.getsource(_perform_force_rebuild)
         assert "ProgressiveProjectBuilder" not in source
 

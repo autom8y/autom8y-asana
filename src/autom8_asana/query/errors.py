@@ -40,8 +40,7 @@ class QueryTooComplexError(QueryEngineError):
         return {
             "error": "QUERY_TOO_COMPLEX",
             "message": (
-                f"Predicate tree depth {self.depth} exceeds "
-                f"maximum of {self.max_depth}"
+                f"Predicate tree depth {self.depth} exceeds maximum of {self.max_depth}"
             ),
             "max_depth": self.max_depth,
         }
@@ -98,8 +97,7 @@ class CoercionError(QueryEngineError):
         return {
             "error": "COERCION_FAILED",
             "message": (
-                f"Cannot coerce {self.value!r} to {self.dtype} "
-                f"for field '{self.field}'"
+                f"Cannot coerce {self.value!r} to {self.dtype} for field '{self.field}'"
             ),
             "field": self.field,
             "field_dtype": self.dtype,

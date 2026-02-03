@@ -51,7 +51,6 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-
 @dataclass
 class ProgressiveBuildResult:
     """Result of progressive project build.
@@ -215,9 +214,10 @@ class ProgressiveProjectBuilder:
                     )
 
                     # Step 2b: Probe COMPLETE sections for freshness
-                    if manifest.is_complete() and os.environ.get(
-                        "SECTION_FRESHNESS_PROBE", "1"
-                    ) != "0":
+                    if (
+                        manifest.is_complete()
+                        and os.environ.get("SECTION_FRESHNESS_PROBE", "1") != "0"
+                    ):
                         try:
                             from autom8_asana.dataframes.builders.freshness import (
                                 ProbeVerdict,
@@ -692,9 +692,7 @@ class ProgressiveProjectBuilder:
             # write_section_async(), because that method marks
             # the section COMPLETE. For checkpoints we need the
             # section to remain IN_PROGRESS.
-            key = self._persistence._make_section_key(
-                self._project_gid, section_gid
-            )
+            key = self._persistence._make_section_key(self._project_gid, section_gid)
             buffer = io.BytesIO()
             checkpoint_df.write_parquet(buffer)
             buffer.seek(0)
@@ -770,9 +768,7 @@ class ProgressiveProjectBuilder:
         """
         lock = self._persistence._get_manifest_lock(self._project_gid)
         async with lock:
-            manifest = await self._persistence.get_manifest_async(
-                self._project_gid
-            )
+            manifest = await self._persistence.get_manifest_async(self._project_gid)
             if manifest is None:
                 return
 
@@ -900,7 +896,6 @@ class ProgressiveProjectBuilder:
                 },
             )
             return None
-
 
     def _parse_datetime(self, value: str | datetime | None) -> datetime | None:
         """Parse datetime value to timezone-aware datetime.

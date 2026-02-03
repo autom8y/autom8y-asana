@@ -5,8 +5,8 @@ status: ACTIVE
 created_at: "2026-02-03T11:47:09Z"
 initiative: Dynamic Query Service
 complexity: SERVICE
-active_rite: ""
-current_phase: implementation
+active_rite: rnd
+current_phase: validation
 ---
 
 
@@ -260,6 +260,20 @@ current_phase: implementation
   - Agent: qa-adversary
   - Verdict: GO - Batch pacing validated, 429 handling confirmed, zero regressions
 
+## Sprint 6: SWR Production Wiring + Dead Code Cleanup
+
+**Status: COMPLETE**
+
+**Goal**: Wire the SWR build callback in factory.py so background refreshes work, and remove ttl_hours dead code from DataFrameCache and tests.
+
+**Entry Point**: principal-engineer (skip PRD/TDD — spike serves as design artifact)
+
+**Sprint Context**: /Users/tomtenuta/Code/autom8_asana/.claude/sessions/session-20260203-124709-9df8e766/SPRINT_CONTEXT_S6.md
+
+**Created**: 2026-02-03T16:48:01Z
+
+**Completion Date**: 2026-02-03T16:56:04Z
+
 ## Blockers
 None.
 
@@ -409,3 +423,67 @@ All 3 tasks completed successfully:
 **Completion Date**: 2026-02-04T02:00:00Z
 
 **Next Phase**: Session ready for wrap
+
+## Sprint 6 Summary
+
+**Status: COMPLETE**
+
+All 2 tasks completed successfully:
+1. **S6-001**: Implementation - Wire SWR build callback + remove ttl_hours dead code (5 files modified)
+2. **S6-002**: QA (Adversarial) - tests/unit/cache/dataframe/test_adversarial_swr_wiring.py (validation)
+
+**Total Test Coverage**: 158 dataframe cache tests, 942 cache tests, 6822 unit tests — all passing, 0 failures
+
+**Quality Gates**:
+- Zero defects found in adversarial testing
+- Zero regressions introduced
+- ttl_hours fully removed from src/ and tests/
+- SWR callback correctly wired with proper closure, ordering, and resume=True
+- All adversarial edge cases validated safe
+- QA Verdict: GO - SWR production-ready
+
+**Key Deliverables**:
+- **SWR Build Callback**: factory.py now wires _swr_build callback for background refresh
+- **Dead Code Removal**: ttl_hours parameter fully eliminated from DataFrameCache and test helpers
+- **Production Ready**: SWR background refresh operational with proper error handling and early returns
+
+**Implementation Changes**:
+- src/autom8_asana/cache/factory.py: Wired _swr_build callback with resume=True, removed ttl_hours=12
+- src/autom8_asana/cache/dataframe_cache.py: Removed ttl_hours field from dataclass
+- tests/unit/cache/dataframe/test_dataframe_cache.py: Removed ttl_hours from make_cache(), added TestSWRCallbackWiring
+- tests/unit/cache/dataframe/test_schema_version_validation.py: Removed ttl_hours from make_cache()
+- tests/unit/cache/dataframe/test_dataframe_cache_stats.py: Removed ttl_hours from _make_cache()
+- tests/unit/cache/dataframe/test_adversarial_swr_wiring.py: Adversarial validation tests
+
+**Completion Date**: 2026-02-03T16:56:04Z
+
+**Next Phase**: Session ready for wrap
+
+### Sprint 6 Tasks
+
+#### Completed
+
+- **S6-001** (implementation): Wire SWR build callback + remove ttl_hours dead code
+  - Agent: principal-engineer
+  - Status: completed
+  - Completed: 2026-02-03T17:30:00Z
+  - Artifacts:
+    - src/autom8_asana/cache/factory.py (wired _swr_build callback with resume=True, removed ttl_hours=12)
+    - src/autom8_asana/cache/dataframe_cache.py (removed ttl_hours field from dataclass)
+    - tests/unit/cache/dataframe/test_dataframe_cache.py (removed ttl_hours from make_cache(), added TestSWRCallbackWiring test class)
+    - tests/unit/cache/dataframe/test_schema_version_validation.py (removed ttl_hours from make_cache())
+    - tests/unit/cache/dataframe/test_dataframe_cache_stats.py (removed ttl_hours from _make_cache())
+  - Test Results: 158 dataframe cache tests passed, 942 cache tests passed, zero ttl_hours references in src/
+
+- **S6-002** (validation): Adversarial testing of SWR wiring + dead code removal
+  - Agent: qa-adversary
+  - Status: completed
+  - Completed: 2026-02-03T16:56:04Z
+  - Artifact: /Users/tomtenuta/Code/autom8_asana/tests/unit/cache/dataframe/test_adversarial_swr_wiring.py
+  - Test Summary: 158 dataframe cache tests, 942 cache tests, 6822 unit tests — all passing, zero failures
+  - Defects: Zero
+  - Key Validations:
+    - ttl_hours fully dead in src/ and tests/
+    - SWR callback correctly wired (closure, ordering, resume=True, early returns, guarded puts)
+    - All adversarial edge cases assessed safe
+  - Verdict: GO - Zero defects, zero regressions, SWR production-ready
