@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
+from autom8_asana.cache.dataframe_cache import FreshnessInfo
 from autom8_asana.services.dynamic_index import DynamicIndex, DynamicIndexCache
 from autom8_asana.services.resolution_result import ResolutionResult
 from autom8_asana.services.resolver import to_pascal_case
@@ -81,8 +82,8 @@ class UniversalResolutionStrategy:
     # Injected by @dataframe_cache decorator on cache hit (if decorated)
     _cached_dataframe: Any = field(default=None, repr=False)
 
-    # Side-channel for freshness info from last cache access
-    _last_freshness_info: Any = field(default=None, repr=False)
+    # Freshness info from last cache access
+    _last_freshness_info: FreshnessInfo | None = field(default=None, repr=False)
 
     async def resolve(
         self,
@@ -410,10 +411,10 @@ class UniversalResolutionStrategy:
             if cache is not None:
                 entry = await cache.get_async(project_gid, self.entity_type)
                 if entry is not None:
-                    # Retrieve freshness info side-channel
-                    self._last_freshness_info = getattr(
-                        cache, "get_freshness_info", lambda *a: None
-                    )(project_gid, self.entity_type)
+                    # Retrieve freshness info via typed public method
+                    self._last_freshness_info = cache.get_freshness_info(
+                        project_gid, self.entity_type
+                    )
                     return entry.dataframe
         except Exception as e:
             logger.warning(
