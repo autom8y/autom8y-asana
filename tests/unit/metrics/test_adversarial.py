@@ -12,14 +12,13 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 import polars as pl
+import pytest
 
 from autom8_asana.metrics.compute import compute_metric
 from autom8_asana.metrics.expr import SUPPORTED_AGGS, MetricExpr
 from autom8_asana.metrics.metric import Metric, Scope
 from autom8_asana.metrics.registry import MetricRegistry
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -499,10 +498,10 @@ class TestImportSafety:
     def test_import_metrics_package(self) -> None:
         """Top-level package import works."""
         from autom8_asana.metrics import (
-            MetricExpr,
             Metric,
-            Scope,
+            MetricExpr,
             MetricRegistry,
+            Scope,
             compute_metric,
         )
 

@@ -24,7 +24,6 @@ from autom8_asana.query.errors import (
 )
 from autom8_asana.query.models import AggFunction, AggSpec
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -524,6 +523,7 @@ class TestHavingWithPredicateCompiler:
         having_node = {"field": "total_amount", "op": "gt", "value": 200.0}
 
         from pydantic import TypeAdapter
+
         from autom8_asana.query.models import PredicateNode
 
         adapter = TypeAdapter(PredicateNode)
@@ -557,6 +557,7 @@ class TestHavingWithPredicateCompiler:
         pred_compiler = PredicateCompiler()
 
         from pydantic import TypeAdapter
+
         from autom8_asana.query.models import PredicateNode
 
         adapter = TypeAdapter(PredicateNode)
@@ -582,6 +583,7 @@ class TestHavingWithPredicateCompiler:
         pred_compiler = PredicateCompiler()
 
         from pydantic import TypeAdapter
+
         from autom8_asana.query.models import PredicateNode
 
         adapter = TypeAdapter(PredicateNode)
@@ -615,6 +617,7 @@ class TestHavingWithPredicateCompiler:
         pred_compiler = PredicateCompiler()
 
         from pydantic import TypeAdapter
+
         from autom8_asana.query.models import PredicateNode
 
         adapter = TypeAdapter(PredicateNode)
@@ -645,6 +648,7 @@ class TestHavingWithPredicateCompiler:
         pred_compiler = PredicateCompiler()
 
         from pydantic import TypeAdapter
+
         from autom8_asana.query.models import PredicateNode
 
         adapter = TypeAdapter(PredicateNode)

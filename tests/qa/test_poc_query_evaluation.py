@@ -10,7 +10,7 @@ QA Adversary: Validates PRD-dynamic-query-service acceptance criteria.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -49,8 +49,8 @@ from autom8_asana.query.hierarchy import (
 from autom8_asana.query.join import JoinSpec, execute_join
 from autom8_asana.query.models import (
     AggFunction,
-    AggregateRequest,
     AggregateMeta,
+    AggregateRequest,
     AggregateResponse,
     AggSpec,
     AndGroup,
@@ -63,7 +63,6 @@ from autom8_asana.query.models import (
     RowsResponse,
 )
 from autom8_asana.services.query_service import EntityQueryService
-
 
 # ============================================================================
 # Shared Fixtures: realistic DataFrames mirroring actual entity schemas
@@ -120,7 +119,7 @@ def business_schema() -> DataFrameSchema:
 @pytest.fixture
 def offer_df() -> pl.DataFrame:
     """Realistic offer DataFrame with diverse data for BI queries."""
-    now = datetime(2026, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)
     return pl.DataFrame(
         {
             "gid": [f"o{i}" for i in range(1, 11)],
@@ -561,9 +560,7 @@ class TestCategory2PredicateComposition:
                 "amount": [1.5, 2.5, 3.5, 4.5, 5.5],
                 "is_active": [True, True, False, False, True],
                 "date_field": [date(2026, 1, i) for i in range(1, 6)],
-                "created": [
-                    datetime(2026, 1, i, tzinfo=timezone.utc) for i in range(1, 6)
-                ],
+                "created": [datetime(2026, 1, i, tzinfo=UTC) for i in range(1, 6)],
                 "tags": [["a"], ["b"], ["c"], ["d"], ["e"]],
             }
         )

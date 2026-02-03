@@ -10,7 +10,6 @@ from dataclasses import dataclass
 
 import polars as pl
 
-
 # Supported aggregation functions
 SUPPORTED_AGGS: frozenset[str] = frozenset({"sum", "count", "mean", "min", "max"})
 

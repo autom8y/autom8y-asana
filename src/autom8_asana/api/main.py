@@ -904,7 +904,6 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
     from autom8_asana.cache.dataframe.factory import get_dataframe_cache
     from autom8_asana.dataframes.builders.progressive import (
-        ProgressiveBuildResult,
         ProgressiveProjectBuilder,
     )
     from autom8_asana.dataframes.models.registry import SchemaRegistry

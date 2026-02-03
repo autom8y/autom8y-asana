@@ -14,7 +14,6 @@ from __future__ import annotations
 import time
 from typing import Annotated, Any
 
-import polars as pl
 from autom8y_log import get_logger
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -31,7 +30,6 @@ from autom8_asana.query.engine import QueryEngine
 from autom8_asana.query.errors import (
     CoercionError,
     InvalidOperatorError,
-    QueryEngineError,
     QueryTooComplexError,
     UnknownFieldError,
     UnknownSectionError,

@@ -9,7 +9,7 @@ See ADR-QE-002 for the rationale behind this approach.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, field_validator
 
@@ -84,12 +84,10 @@ def _predicate_discriminator(v: Any) -> str:
 
 
 PredicateNode = Annotated[
-    Union[
-        Annotated[Comparison, Tag("comparison")],
-        Annotated[AndGroup, Tag("and")],
-        Annotated[OrGroup, Tag("or")],
-        Annotated[NotGroup, Tag("not")],
-    ],
+    Annotated[Comparison, Tag("comparison")]
+    | Annotated[AndGroup, Tag("and")]
+    | Annotated[OrGroup, Tag("or")]
+    | Annotated[NotGroup, Tag("not")],
     Discriminator(_predicate_discriminator),
 ]
 

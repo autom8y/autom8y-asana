@@ -27,6 +27,7 @@ from autom8_asana.query.errors import (
     UnknownFieldError,
     UnknownSectionError,
 )
+from autom8_asana.query.guards import QueryLimits, predicate_depth
 from autom8_asana.query.hierarchy import (
     ENTITY_RELATIONSHIPS,
     EntityRelationship,
@@ -34,8 +35,7 @@ from autom8_asana.query.hierarchy import (
     get_join_key,
     get_joinable_types,
 )
-from autom8_asana.query.join import JoinResult, JoinSpec, MAX_JOIN_DEPTH, execute_join
-from autom8_asana.query.guards import QueryLimits, predicate_depth
+from autom8_asana.query.join import MAX_JOIN_DEPTH, JoinResult, JoinSpec, execute_join
 from autom8_asana.query.models import (
     AggFunction,
     AggregateMeta,

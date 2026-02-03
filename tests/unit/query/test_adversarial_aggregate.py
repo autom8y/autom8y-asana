@@ -46,7 +46,6 @@ from autom8_asana.query.models import (
 )
 from autom8_asana.services.query_service import EntityQueryService
 
-
 # ---------------------------------------------------------------------------
 # Shared fixtures
 # ---------------------------------------------------------------------------

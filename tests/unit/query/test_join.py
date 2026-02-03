@@ -13,7 +13,6 @@ from pydantic import ValidationError
 from autom8_asana.query.errors import JoinError
 from autom8_asana.query.join import JoinSpec, execute_join
 
-
 # ---------------------------------------------------------------------------
 # JoinSpec Model Tests (TC-J001 through TC-J005)
 # ---------------------------------------------------------------------------
