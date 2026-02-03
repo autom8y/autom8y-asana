@@ -203,17 +203,9 @@ def _resolve_schema_version(entity_type: str | None) -> str | None:
     Returns:
         Schema version string if found, None otherwise.
     """
-    if not entity_type:
-        return None
-    try:
-        from autom8_asana.dataframes.models.registry import SchemaRegistry
-        from autom8_asana.services.resolver import to_pascal_case
+    from autom8_asana.core.schema import get_schema_version
 
-        registry = SchemaRegistry.get_instance()
-        schema = registry.get_schema(to_pascal_case(entity_type))
-        return schema.version if schema else None
-    except Exception:
-        return None
+    return get_schema_version(entity_type)
 
 
 @dataclass

@@ -58,25 +58,9 @@ def _get_schema_version_for_entity(entity_type: str) -> str | None:
     Returns:
         Schema version string if found, None if lookup fails.
     """
-    try:
-        from autom8_asana.dataframes.models.registry import SchemaRegistry
-        from autom8_asana.services.resolver import to_pascal_case
+    from autom8_asana.core.schema import get_schema_version
 
-        registry = SchemaRegistry.get_instance()
-        # Convert entity_type to PascalCase for registry lookup
-        # e.g., "unit" -> "Unit", "asset_edit" -> "AssetEdit"
-        registry_key = to_pascal_case(entity_type)
-        schema = registry.get_schema(registry_key)
-        return schema.version
-    except Exception as e:
-        logger.warning(
-            "schema_version_lookup_failed",
-            extra={
-                "entity_type": entity_type,
-                "error": str(e),
-            },
-        )
-        return None
+    return get_schema_version(entity_type)
 
 
 @dataclass
