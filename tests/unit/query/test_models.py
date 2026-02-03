@@ -7,6 +7,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from autom8_asana.query.models import (
     AggFunction,
+    AggregateMeta,
     AggregateRequest,
     AggSpec,
     AndGroup,
@@ -15,6 +16,7 @@ from autom8_asana.query.models import (
     Op,
     OrGroup,
     PredicateNode,
+    RowsMeta,
     RowsRequest,
 )
 
@@ -370,3 +372,61 @@ class TestAggregateRequest:
             }
         )
         assert req.having is None
+
+
+class TestResponseModelFreshness:
+    """Tests for freshness fields on RowsMeta and AggregateMeta."""
+
+    def test_rows_meta_freshness_fields_optional(self) -> None:
+        """RowsMeta with no freshness fields is valid (defaults to None)."""
+        meta = RowsMeta(
+            total_count=10,
+            returned_count=5,
+            limit=100,
+            offset=0,
+            entity_type="unit",
+            project_gid="proj-1",
+            query_ms=1.5,
+        )
+        assert meta.freshness is None
+        assert meta.data_age_seconds is None
+        assert meta.staleness_ratio is None
+
+    def test_rows_meta_freshness_fields_populated(self) -> None:
+        """RowsMeta with freshness fields round-trips correctly."""
+        meta = RowsMeta(
+            total_count=10,
+            returned_count=5,
+            limit=100,
+            offset=0,
+            entity_type="unit",
+            project_gid="proj-1",
+            query_ms=1.5,
+            freshness="fresh",
+            data_age_seconds=60.0,
+            staleness_ratio=0.07,
+        )
+        assert meta.freshness == "fresh"
+        assert meta.data_age_seconds == 60.0
+        assert meta.staleness_ratio == 0.07
+
+        # Verify serialization round-trip
+        data = meta.model_dump()
+        restored = RowsMeta.model_validate(data)
+        assert restored.freshness == "fresh"
+        assert restored.data_age_seconds == 60.0
+        assert restored.staleness_ratio == 0.07
+
+    def test_aggregate_meta_freshness_fields_optional(self) -> None:
+        """AggregateMeta with no freshness fields is valid (defaults to None)."""
+        meta = AggregateMeta(
+            group_count=3,
+            aggregation_count=1,
+            group_by=["vertical"],
+            entity_type="unit",
+            project_gid="proj-1",
+            query_ms=2.0,
+        )
+        assert meta.freshness is None
+        assert meta.data_age_seconds is None
+        assert meta.staleness_ratio is None
