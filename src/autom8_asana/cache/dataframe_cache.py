@@ -414,6 +414,7 @@ class DataFrameCache:
             return entry
 
         if status == FreshnessStatus.STALE_SERVABLE:
+            assert info is not None  # Guaranteed by status check above
             self._stats[entity_type][f"{tier}_hits"] += 1
             self._stats[entity_type]["swr_serves"] += 1
             logger.info(
@@ -430,6 +431,7 @@ class DataFrameCache:
             return entry
 
         if status == FreshnessStatus.EXPIRED_SERVABLE:
+            assert info is not None  # Guaranteed by status check above
             # Check max staleness policy before serving
             entity_ttl = DEFAULT_ENTITY_TTLS.get(entry.entity_type, DEFAULT_TTL)
             age = info.data_age_seconds
