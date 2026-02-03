@@ -1128,7 +1128,10 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                         watermark_repo.set_watermark(
                                             project_gid, s3_watermark
                                         )
-                                    if dataframe_cache is not None:
+                                    if (
+                                        dataframe_cache is not None
+                                        and s3_watermark is not None
+                                    ):
                                         await dataframe_cache.put_async(
                                             project_gid,
                                             entity_type,

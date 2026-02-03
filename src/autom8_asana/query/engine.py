@@ -196,6 +196,12 @@ class QueryEngine:
                 client,
             )
 
+            if join_key is None:
+                raise JoinError(
+                    f"No join key found between {entity_type} "
+                    f"and {request.join.entity_type}"
+                )
+
             # Execute join
             join_result = execute_join(
                 primary_df=df,
@@ -259,7 +265,7 @@ class QueryEngine:
                 entity_type=entity_type,
                 project_gid=project_gid,
                 query_ms=round(elapsed_ms, 2),
-                **join_meta,
+                **join_meta,  # type: ignore[arg-type]
             ),
         )
 
