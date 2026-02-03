@@ -101,9 +101,7 @@ def _make_builder(
             return_value=mock_s3_result
         )
 
-    mock_persistence._get_manifest_lock = MagicMock(
-        return_value=asyncio.Lock()
-    )
+    mock_persistence._get_manifest_lock = MagicMock(return_value=asyncio.Lock())
     mock_persistence.get_manifest_async = AsyncMock(return_value=manifest)
     mock_persistence._manifest_cache = {}
     mock_persistence._save_manifest_async = AsyncMock(return_value=True)
@@ -468,7 +466,9 @@ class TestConcurrentLargeSections:
         # Section 1: 300 tasks (3 pages, enters pacing)
         # Section 2: 500 tasks (5 pages, enters pacing)
         builder1._client.tasks.list_async.return_value = _FakePageIterator(300)
-        builder2._client.tasks.list_async.return_value = _FakePageIterator(500, start_gid=300)
+        builder2._client.tasks.list_async.return_value = _FakePageIterator(
+            500, start_gid=300
+        )
 
         sleep_mock, pace_mock, ckpt_mock, delay_mock = _patch_pacing(
             pace_pages=2, checkpoint_pages=3
@@ -556,10 +556,12 @@ class TestResumeEdgeCases:
         will exhaust the iterator before reaching the target offset.
         The first-page fetch after skip will get 0 tasks.
         """
-        checkpoint_df = pl.DataFrame({
-            "gid": [str(i) for i in range(500)],
-            "name": [f"Task {i}" for i in range(500)],
-        })
+        checkpoint_df = pl.DataFrame(
+            {
+                "gid": [str(i) for i in range(500)],
+                "name": [f"Task {i}" for i in range(500)],
+            }
+        )
         section_info = SectionInfo(
             status=SectionStatus.IN_PROGRESS,
             rows_fetched=500,

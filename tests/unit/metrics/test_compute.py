@@ -13,13 +13,15 @@ from autom8_asana.metrics.metric import Metric, Scope
 @pytest.fixture
 def sample_offer_df() -> pl.DataFrame:
     """Synthetic ACTIVE section DataFrame matching parquet schema."""
-    return pl.DataFrame({
-        "name": ["Offer A", "Offer B", "Offer C", "Offer D"],
-        "office_phone": ["555-0001", "555-0001", "555-0002", "555-0003"],
-        "vertical": ["dental", "dental", "dental", "med_spa"],
-        "mrr": ["1000", "2000", "1500", None],
-        "weekly_ad_spend": ["500", "600", None, "200"],
-    })
+    return pl.DataFrame(
+        {
+            "name": ["Offer A", "Offer B", "Offer C", "Offer D"],
+            "office_phone": ["555-0001", "555-0001", "555-0002", "555-0003"],
+            "vertical": ["dental", "dental", "dental", "med_spa"],
+            "mrr": ["1000", "2000", "1500", None],
+            "weekly_ad_spend": ["500", "600", None, "200"],
+        }
+    )
 
 
 def _make_metric(
@@ -105,11 +107,13 @@ class TestComputeBasic:
         assert len(result) == 2
 
     def test_deterministic_sort(self) -> None:
-        df = pl.DataFrame({
-            "name": ["Z", "A", "M"],
-            "key": ["c", "a", "b"],
-            "val": [1, 2, 3],
-        })
+        df = pl.DataFrame(
+            {
+                "name": ["Z", "A", "M"],
+                "key": ["c", "a", "b"],
+                "val": [1, 2, 3],
+            }
+        )
         metric = _make_metric("val", dedup_keys=["key"])
         result = compute_metric(metric, df)
         assert result["key"].to_list() == ["a", "b", "c"]
@@ -121,10 +125,12 @@ class TestComputeBasic:
         assert len(result) == 0
 
     def test_null_handling_in_metric_column(self) -> None:
-        df = pl.DataFrame({
-            "name": ["a", "b", "c"],
-            "val": [10.0, None, 30.0],
-        })
+        df = pl.DataFrame(
+            {
+                "name": ["a", "b", "c"],
+                "val": [10.0, None, 30.0],
+            }
+        )
         metric = _make_metric("val")
         result = compute_metric(metric, df)
         # sum ignores nulls: 10 + 30 = 40
@@ -181,9 +187,13 @@ class TestComputeParity:
 
         # Reproduce old script logic
         old_result = (
-            sample_offer_df.select("name", "office_phone", "vertical", "weekly_ad_spend")
+            sample_offer_df.select(
+                "name", "office_phone", "vertical", "weekly_ad_spend"
+            )
             .with_columns(
-                pl.col("weekly_ad_spend").cast(pl.Float64, strict=False).alias("weekly_ad_spend")
+                pl.col("weekly_ad_spend")
+                .cast(pl.Float64, strict=False)
+                .alias("weekly_ad_spend")
             )
             .filter(
                 pl.col("weekly_ad_spend").is_not_null()

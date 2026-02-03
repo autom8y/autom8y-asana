@@ -139,41 +139,124 @@ def offer_df() -> pl.DataFrame:
             "type": ["Offer"] * 10,
             "date": [date(2026, 1, i) for i in range(1, 11)],
             "created": [now] * 10,
-            "is_completed": [False, False, True, False, False, True, False, False, True, False],
-            "section": [
-                "Active", "Active", "Won", "Active", "Active",
-                "Lost", "Active", "Won", "Lost", "Active",
+            "is_completed": [
+                False,
+                False,
+                True,
+                False,
+                False,
+                True,
+                False,
+                False,
+                True,
+                False,
             ],
-            "tags": [["seo"], ["ppc"], ["social"], ["seo"], ["ppc"],
-                     ["social"], ["seo"], ["ppc"], ["seo"], ["social"]],
+            "section": [
+                "Active",
+                "Active",
+                "Won",
+                "Active",
+                "Active",
+                "Lost",
+                "Active",
+                "Won",
+                "Lost",
+                "Active",
+            ],
+            "tags": [
+                ["seo"],
+                ["ppc"],
+                ["social"],
+                ["seo"],
+                ["ppc"],
+                ["social"],
+                ["seo"],
+                ["ppc"],
+                ["seo"],
+                ["social"],
+            ],
             "office_phone": [
-                "+1111", "+2222", "+1111", "+3333", "+2222",
-                "+4444", "+3333", "+1111", "+4444", "+5555",
+                "+1111",
+                "+2222",
+                "+1111",
+                "+3333",
+                "+2222",
+                "+4444",
+                "+3333",
+                "+1111",
+                "+4444",
+                "+5555",
             ],
             "vertical": [
-                "dental", "medical", "dental", "medical", "dental",
-                "ortho", "medical", "dental", "ortho", "medical",
+                "dental",
+                "medical",
+                "dental",
+                "medical",
+                "dental",
+                "ortho",
+                "medical",
+                "dental",
+                "ortho",
+                "medical",
             ],
             "mrr": [
-                "500", "1200", "300", "800", "600",
-                "150", "900", "750", "200", "1100",
+                "500",
+                "1200",
+                "300",
+                "800",
+                "600",
+                "150",
+                "900",
+                "750",
+                "200",
+                "1100",
             ],
             "cost": [
-                "50", "120", "30", "80", "60",
-                "15", "90", "75", "20", "110",
+                "50",
+                "120",
+                "30",
+                "80",
+                "60",
+                "15",
+                "90",
+                "75",
+                "20",
+                "110",
             ],
             "weekly_ad_spend": [
-                "100", "250", "75", "200", "150",
-                "50", "180", "120", "40", "220",
+                "100",
+                "250",
+                "75",
+                "200",
+                "150",
+                "50",
+                "180",
+                "120",
+                "40",
+                "220",
             ],
             "language": [
-                "en", "es", "en", "en", "es",
-                "en", "es", "en", "en", "es",
+                "en",
+                "es",
+                "en",
+                "en",
+                "es",
+                "en",
+                "es",
+                "en",
+                "en",
+                "es",
             ],
             "platforms": [
-                ["facebook"], ["google"], ["facebook", "instagram"],
-                ["google"], ["facebook"], ["instagram"],
-                ["google", "facebook"], ["facebook"], ["google"],
+                ["facebook"],
+                ["google"],
+                ["facebook", "instagram"],
+                ["google"],
+                ["facebook"],
+                ["instagram"],
+                ["google", "facebook"],
+                ["facebook"],
+                ["google"],
                 ["instagram", "facebook"],
             ],
             "offer_id": [f"OFF-{i:03d}" for i in range(1, 11)],
@@ -211,7 +294,9 @@ def _mock_query_service(df: pl.DataFrame) -> EntityQueryService:
     return service
 
 
-def _mock_dual_query_service(primary_df: pl.DataFrame, target_df: pl.DataFrame) -> EntityQueryService:
+def _mock_dual_query_service(
+    primary_df: pl.DataFrame, target_df: pl.DataFrame
+) -> EntityQueryService:
     """Create a query service returning different DFs for primary and target."""
     service = EntityQueryService()
     service.get_dataframe = AsyncMock(side_effect=[primary_df, target_df])
@@ -248,7 +333,10 @@ class TestCategory1BusinessIntelligence:
 
     @pytest.mark.asyncio
     async def test_bi_active_offers_above_mrr_threshold(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """BI: Show me all offers in the Active section with MRR above 500.
 
@@ -258,19 +346,23 @@ class TestCategory1BusinessIntelligence:
         whether the predicate engine handles Utf8 ordering correctly.
         """
         engine = QueryEngine(query_service=_mock_query_service(offer_df))
-        request = RowsRequest.model_validate({
-            "where": {
-                "and": [
-                    {"field": "section", "op": "eq", "value": "Active"},
-                    {"field": "mrr", "op": "gt", "value": "500"},
-                ]
-            },
-            "select": ["name", "mrr", "section", "vertical"],
-        })
+        request = RowsRequest.model_validate(
+            {
+                "where": {
+                    "and": [
+                        {"field": "section", "op": "eq", "value": "Active"},
+                        {"field": "mrr", "op": "gt", "value": "500"},
+                    ]
+                },
+                "select": ["name", "mrr", "section", "vertical"],
+            }
+        )
         with _patch_single_schema(offer_schema):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="proj-1",
-                client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="proj-1",
+                client=mock_client,
+                request=request,
             )
 
         # Verify only Active rows returned
@@ -281,23 +373,30 @@ class TestCategory1BusinessIntelligence:
 
     @pytest.mark.asyncio
     async def test_bi_count_offers_by_vertical(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """BI: Count offers by vertical.
 
         Fundamental aggregation -- one of the most common reporting queries.
         """
         engine = QueryEngine(query_service=_mock_query_service(offer_df))
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [
-                {"column": "gid", "agg": "count", "alias": "offer_count"},
-            ],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [
+                    {"column": "gid", "agg": "count", "alias": "offer_count"},
+                ],
+            }
+        )
         with _patch_single_schema(offer_schema):
             result = await engine.execute_aggregate(
-                entity_type="offer", project_gid="proj-1",
-                client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="proj-1",
+                client=mock_client,
+                request=request,
             )
 
         data_by_vert = {d["vertical"]: d for d in result.data}
@@ -308,24 +407,31 @@ class TestCategory1BusinessIntelligence:
 
     @pytest.mark.asyncio
     async def test_bi_average_mrr_by_section(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """BI: Average MRR by section.
 
         Exercises Utf8 -> Float64 casting for mean aggregation (ADR-AGG-005).
         """
         engine = QueryEngine(query_service=_mock_query_service(offer_df))
-        request = AggregateRequest.model_validate({
-            "group_by": ["section"],
-            "aggregations": [
-                {"column": "mrr", "agg": "mean", "alias": "avg_mrr"},
-                {"column": "gid", "agg": "count", "alias": "offer_count"},
-            ],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["section"],
+                "aggregations": [
+                    {"column": "mrr", "agg": "mean", "alias": "avg_mrr"},
+                    {"column": "gid", "agg": "count", "alias": "offer_count"},
+                ],
+            }
+        )
         with _patch_single_schema(offer_schema):
             result = await engine.execute_aggregate(
-                entity_type="offer", project_gid="proj-1",
-                client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="proj-1",
+                client=mock_client,
+                request=request,
             )
 
         assert result.meta.group_count == 3  # Active, Won, Lost
@@ -336,21 +442,28 @@ class TestCategory1BusinessIntelligence:
 
     @pytest.mark.asyncio
     async def test_bi_list_businesses_filtered_by_booking_type(
-        self, business_schema: DataFrameSchema, business_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        business_schema: DataFrameSchema,
+        business_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """BI: List businesses filtered by booking_type = 'Online'.
 
         Simple equality filter on a categorical column.
         """
         engine = QueryEngine(query_service=_mock_query_service(business_df))
-        request = RowsRequest.model_validate({
-            "where": {"field": "booking_type", "op": "eq", "value": "Online"},
-            "select": ["name", "office_phone", "booking_type"],
-        })
+        request = RowsRequest.model_validate(
+            {
+                "where": {"field": "booking_type", "op": "eq", "value": "Online"},
+                "select": ["name", "office_phone", "booking_type"],
+            }
+        )
         with _patch_single_schema(business_schema):
             result = await engine.execute_rows(
-                entity_type="business", project_gid="proj-1",
-                client=mock_client, request=request,
+                entity_type="business",
+                project_gid="proj-1",
+                client=mock_client,
+                request=request,
             )
 
         assert result.meta.total_count == 3  # Acme, Gamma, Echo
@@ -376,18 +489,22 @@ class TestCategory1BusinessIntelligence:
         mock_epr = MagicMock()
         mock_epr.get_project_gid.return_value = "biz-proj-1"
 
-        request = RowsRequest.model_validate({
-            "select": ["name", "mrr", "office_phone"],
-            "join": {
-                "entity_type": "business",
-                "select": ["booking_type"],
-            },
-        })
+        request = RowsRequest.model_validate(
+            {
+                "select": ["name", "mrr", "office_phone"],
+                "join": {
+                    "entity_type": "business",
+                    "select": ["booking_type"],
+                },
+            }
+        )
 
         with _patch_schema_map(schema_map):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="proj-1",
-                client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="proj-1",
+                client=mock_client,
+                request=request,
                 entity_project_registry=mock_epr,
             )
 
@@ -435,76 +552,118 @@ class TestCategory2PredicateComposition:
     @pytest.fixture
     def test_df(self) -> pl.DataFrame:
         """DataFrame matching simple_schema for predicate evaluation."""
-        return pl.DataFrame({
-            "gid": ["1", "2", "3", "4", "5"],
-            "name": ["Alpha", "Bravo", "Charlie", "Delta", "Echo"],
-            "section": ["Active", "Active", "Won", "Lost", "Active"],
-            "count": [10, 20, 30, 40, 50],
-            "amount": [1.5, 2.5, 3.5, 4.5, 5.5],
-            "is_active": [True, True, False, False, True],
-            "date_field": [date(2026, 1, i) for i in range(1, 6)],
-            "created": [datetime(2026, 1, i, tzinfo=timezone.utc) for i in range(1, 6)],
-            "tags": [["a"], ["b"], ["c"], ["d"], ["e"]],
-        })
+        return pl.DataFrame(
+            {
+                "gid": ["1", "2", "3", "4", "5"],
+                "name": ["Alpha", "Bravo", "Charlie", "Delta", "Echo"],
+                "section": ["Active", "Active", "Won", "Lost", "Active"],
+                "count": [10, 20, 30, 40, 50],
+                "amount": [1.5, 2.5, 3.5, 4.5, 5.5],
+                "is_active": [True, True, False, False, True],
+                "date_field": [date(2026, 1, i) for i in range(1, 6)],
+                "created": [
+                    datetime(2026, 1, i, tzinfo=timezone.utc) for i in range(1, 6)
+                ],
+                "tags": [["a"], ["b"], ["c"], ["d"], ["e"]],
+            }
+        )
 
-    def test_simple_eq(self, compiler: PredicateCompiler, simple_schema: DataFrameSchema, test_df: pl.DataFrame) -> None:
+    def test_simple_eq(
+        self,
+        compiler: PredicateCompiler,
+        simple_schema: DataFrameSchema,
+        test_df: pl.DataFrame,
+    ) -> None:
         """Simple equality predicate: section = 'Active'."""
         node = Comparison(field="section", op=Op.EQ, value="Active")
         expr = compiler.compile(node, simple_schema)
         result = test_df.filter(expr)
         assert len(result) == 3
 
-    def test_simple_ne(self, compiler: PredicateCompiler, simple_schema: DataFrameSchema, test_df: pl.DataFrame) -> None:
+    def test_simple_ne(
+        self,
+        compiler: PredicateCompiler,
+        simple_schema: DataFrameSchema,
+        test_df: pl.DataFrame,
+    ) -> None:
         """Simple not-equal: section != 'Active'."""
         node = Comparison(field="section", op=Op.NE, value="Active")
         expr = compiler.compile(node, simple_schema)
         result = test_df.filter(expr)
         assert len(result) == 2
 
-    def test_and_composition(self, compiler: PredicateCompiler, simple_schema: DataFrameSchema, test_df: pl.DataFrame) -> None:
+    def test_and_composition(
+        self,
+        compiler: PredicateCompiler,
+        simple_schema: DataFrameSchema,
+        test_df: pl.DataFrame,
+    ) -> None:
         """AND composition: section = Active AND count > 15."""
-        node = AndGroup.model_validate({
-            "and": [
-                {"field": "section", "op": "eq", "value": "Active"},
-                {"field": "count", "op": "gt", "value": 15},
-            ]
-        })
+        node = AndGroup.model_validate(
+            {
+                "and": [
+                    {"field": "section", "op": "eq", "value": "Active"},
+                    {"field": "count", "op": "gt", "value": 15},
+                ]
+            }
+        )
         expr = compiler.compile(node, simple_schema)
         result = test_df.filter(expr)
         assert len(result) == 2  # rows 2(20) and 5(50)
 
-    def test_or_composition(self, compiler: PredicateCompiler, simple_schema: DataFrameSchema, test_df: pl.DataFrame) -> None:
+    def test_or_composition(
+        self,
+        compiler: PredicateCompiler,
+        simple_schema: DataFrameSchema,
+        test_df: pl.DataFrame,
+    ) -> None:
         """OR composition: section = Won OR section = Lost."""
-        node = OrGroup.model_validate({
-            "or": [
-                {"field": "section", "op": "eq", "value": "Won"},
-                {"field": "section", "op": "eq", "value": "Lost"},
-            ]
-        })
+        node = OrGroup.model_validate(
+            {
+                "or": [
+                    {"field": "section", "op": "eq", "value": "Won"},
+                    {"field": "section", "op": "eq", "value": "Lost"},
+                ]
+            }
+        )
         expr = compiler.compile(node, simple_schema)
         result = test_df.filter(expr)
         assert len(result) == 2
 
-    def test_not_negation(self, compiler: PredicateCompiler, simple_schema: DataFrameSchema, test_df: pl.DataFrame) -> None:
+    def test_not_negation(
+        self,
+        compiler: PredicateCompiler,
+        simple_schema: DataFrameSchema,
+        test_df: pl.DataFrame,
+    ) -> None:
         """NOT negation: NOT section = Active."""
-        node = NotGroup.model_validate({
-            "not": {"field": "section", "op": "eq", "value": "Active"}
-        })
+        node = NotGroup.model_validate(
+            {"not": {"field": "section", "op": "eq", "value": "Active"}}
+        )
         expr = compiler.compile(node, simple_schema)
         result = test_df.filter(expr)
         assert len(result) == 2  # Won, Lost
 
-    def test_nested_and_containing_or(self, compiler: PredicateCompiler, simple_schema: DataFrameSchema, test_df: pl.DataFrame) -> None:
+    def test_nested_and_containing_or(
+        self,
+        compiler: PredicateCompiler,
+        simple_schema: DataFrameSchema,
+        test_df: pl.DataFrame,
+    ) -> None:
         """Nested: AND containing OR: (section=Active AND (count>25 OR amount<3))."""
-        node = AndGroup.model_validate({
-            "and": [
-                {"field": "section", "op": "eq", "value": "Active"},
-                {"or": [
-                    {"field": "count", "op": "gt", "value": 25},
-                    {"field": "amount", "op": "lt", "value": 3.0},
-                ]},
-            ]
-        })
+        node = AndGroup.model_validate(
+            {
+                "and": [
+                    {"field": "section", "op": "eq", "value": "Active"},
+                    {
+                        "or": [
+                            {"field": "count", "op": "gt", "value": 25},
+                            {"field": "amount", "op": "lt", "value": 3.0},
+                        ]
+                    },
+                ]
+            }
+        )
         expr = compiler.compile(node, simple_schema)
         result = test_df.filter(expr)
         # Active rows: 1(10,1.5), 2(20,2.5), 5(50,5.5)
@@ -512,17 +671,32 @@ class TestCategory2PredicateComposition:
         # Intersection: rows 1, 2, 5
         assert len(result) == 3
 
-    def test_deep_nesting_3_levels(self, compiler: PredicateCompiler, simple_schema: DataFrameSchema, test_df: pl.DataFrame) -> None:
+    def test_deep_nesting_3_levels(
+        self,
+        compiler: PredicateCompiler,
+        simple_schema: DataFrameSchema,
+        test_df: pl.DataFrame,
+    ) -> None:
         """Deep nesting: 3+ levels deep: AND(OR(NOT(eq), eq), eq)."""
-        node = AndGroup.model_validate({
-            "and": [
-                {"or": [
-                    {"not": {"field": "section", "op": "eq", "value": "Active"}},
-                    {"field": "count", "op": "eq", "value": 10},
-                ]},
-                {"field": "is_active", "op": "eq", "value": True},
-            ]
-        })
+        node = AndGroup.model_validate(
+            {
+                "and": [
+                    {
+                        "or": [
+                            {
+                                "not": {
+                                    "field": "section",
+                                    "op": "eq",
+                                    "value": "Active",
+                                }
+                            },
+                            {"field": "count", "op": "eq", "value": 10},
+                        ]
+                    },
+                    {"field": "is_active", "op": "eq", "value": True},
+                ]
+            }
+        )
         expr = compiler.compile(node, simple_schema)
         result = test_df.filter(expr)
         # is_active=True: rows 1, 2, 5
@@ -530,17 +704,25 @@ class TestCategory2PredicateComposition:
         # From is_active=True set: row 1(count=10 passes OR), row 2(Active so NOT fails, count=20 not 10), row 5(same)
         assert len(result) == 1  # Only row 1
 
-    @pytest.mark.parametrize("op,value,expected_count", [
-        (Op.GT, 25, 2),       # 30, 40, 50 -> but check: gt 25 = 30,40,50 = 3
-        (Op.LT, 25, 2),       # 10, 20
-        (Op.GTE, 30, 3),      # 30, 40, 50
-        (Op.LTE, 20, 2),      # 10, 20
-        (Op.EQ, 30, 1),       # 30
-        (Op.NE, 30, 4),       # 10, 20, 40, 50
-    ])
+    @pytest.mark.parametrize(
+        "op,value,expected_count",
+        [
+            (Op.GT, 25, 2),  # 30, 40, 50 -> but check: gt 25 = 30,40,50 = 3
+            (Op.LT, 25, 2),  # 10, 20
+            (Op.GTE, 30, 3),  # 30, 40, 50
+            (Op.LTE, 20, 2),  # 10, 20
+            (Op.EQ, 30, 1),  # 30
+            (Op.NE, 30, 4),  # 10, 20, 40, 50
+        ],
+    )
     def test_numeric_operators_int64(
-        self, compiler: PredicateCompiler, simple_schema: DataFrameSchema, test_df: pl.DataFrame,
-        op: Op, value: int, expected_count: int,
+        self,
+        compiler: PredicateCompiler,
+        simple_schema: DataFrameSchema,
+        test_df: pl.DataFrame,
+        op: Op,
+        value: int,
+        expected_count: int,
     ) -> None:
         """Parametrized: all orderable operators on Int64 column."""
         node = Comparison(field="count", op=op, value=value)
@@ -551,21 +733,36 @@ class TestCategory2PredicateComposition:
         else:
             assert len(result) == expected_count
 
-    def test_in_operator(self, compiler: PredicateCompiler, simple_schema: DataFrameSchema, test_df: pl.DataFrame) -> None:
+    def test_in_operator(
+        self,
+        compiler: PredicateCompiler,
+        simple_schema: DataFrameSchema,
+        test_df: pl.DataFrame,
+    ) -> None:
         """IN operator: name in ['Alpha', 'Echo']."""
         node = Comparison(field="name", op=Op.IN, value=["Alpha", "Echo"])
         expr = compiler.compile(node, simple_schema)
         result = test_df.filter(expr)
         assert len(result) == 2
 
-    def test_not_in_operator(self, compiler: PredicateCompiler, simple_schema: DataFrameSchema, test_df: pl.DataFrame) -> None:
+    def test_not_in_operator(
+        self,
+        compiler: PredicateCompiler,
+        simple_schema: DataFrameSchema,
+        test_df: pl.DataFrame,
+    ) -> None:
         """NOT_IN operator: section not_in ['Won', 'Lost']."""
         node = Comparison(field="section", op=Op.NOT_IN, value=["Won", "Lost"])
         expr = compiler.compile(node, simple_schema)
         result = test_df.filter(expr)
         assert len(result) == 3  # Active rows
 
-    def test_contains_operator(self, compiler: PredicateCompiler, simple_schema: DataFrameSchema, test_df: pl.DataFrame) -> None:
+    def test_contains_operator(
+        self,
+        compiler: PredicateCompiler,
+        simple_schema: DataFrameSchema,
+        test_df: pl.DataFrame,
+    ) -> None:
         """CONTAINS operator: name contains 'lph'."""
         node = Comparison(field="name", op=Op.CONTAINS, value="lph")
         expr = compiler.compile(node, simple_schema)
@@ -573,7 +770,12 @@ class TestCategory2PredicateComposition:
         assert len(result) == 1
         assert result["name"][0] == "Alpha"
 
-    def test_starts_with_operator(self, compiler: PredicateCompiler, simple_schema: DataFrameSchema, test_df: pl.DataFrame) -> None:
+    def test_starts_with_operator(
+        self,
+        compiler: PredicateCompiler,
+        simple_schema: DataFrameSchema,
+        test_df: pl.DataFrame,
+    ) -> None:
         """STARTS_WITH operator: name starts_with 'Ech'."""
         node = Comparison(field="name", op=Op.STARTS_WITH, value="Ech")
         expr = compiler.compile(node, simple_schema)
@@ -581,42 +783,72 @@ class TestCategory2PredicateComposition:
         assert len(result) == 1
         assert result["name"][0] == "Echo"
 
-    def test_boolean_eq(self, compiler: PredicateCompiler, simple_schema: DataFrameSchema, test_df: pl.DataFrame) -> None:
+    def test_boolean_eq(
+        self,
+        compiler: PredicateCompiler,
+        simple_schema: DataFrameSchema,
+        test_df: pl.DataFrame,
+    ) -> None:
         """Boolean equality: is_active = True."""
         node = Comparison(field="is_active", op=Op.EQ, value=True)
         expr = compiler.compile(node, simple_schema)
         result = test_df.filter(expr)
         assert len(result) == 3
 
-    def test_date_comparison(self, compiler: PredicateCompiler, simple_schema: DataFrameSchema, test_df: pl.DataFrame) -> None:
+    def test_date_comparison(
+        self,
+        compiler: PredicateCompiler,
+        simple_schema: DataFrameSchema,
+        test_df: pl.DataFrame,
+    ) -> None:
         """Date comparison: date_field > '2026-01-03'."""
         node = Comparison(field="date_field", op=Op.GT, value="2026-01-03")
         expr = compiler.compile(node, simple_schema)
         result = test_df.filter(expr)
         assert len(result) == 2  # Jan 4, Jan 5
 
-    def test_datetime_comparison(self, compiler: PredicateCompiler, simple_schema: DataFrameSchema, test_df: pl.DataFrame) -> None:
+    def test_datetime_comparison(
+        self,
+        compiler: PredicateCompiler,
+        simple_schema: DataFrameSchema,
+        test_df: pl.DataFrame,
+    ) -> None:
         """Datetime comparison: created >= '2026-01-03T00:00:00Z'."""
         node = Comparison(field="created", op=Op.GTE, value="2026-01-03T00:00:00Z")
         expr = compiler.compile(node, simple_schema)
         result = test_df.filter(expr)
         assert len(result) == 3  # Jan 3, 4, 5
 
-    def test_empty_and_group(self, compiler: PredicateCompiler, simple_schema: DataFrameSchema, test_df: pl.DataFrame) -> None:
+    def test_empty_and_group(
+        self,
+        compiler: PredicateCompiler,
+        simple_schema: DataFrameSchema,
+        test_df: pl.DataFrame,
+    ) -> None:
         """Empty AND group = identity (match all, per EC-005)."""
         node = AndGroup.model_validate({"and": []})
         expr = compiler.compile(node, simple_schema)
         result = test_df.filter(expr)
         assert len(result) == 5
 
-    def test_empty_or_group(self, compiler: PredicateCompiler, simple_schema: DataFrameSchema, test_df: pl.DataFrame) -> None:
+    def test_empty_or_group(
+        self,
+        compiler: PredicateCompiler,
+        simple_schema: DataFrameSchema,
+        test_df: pl.DataFrame,
+    ) -> None:
         """Empty OR group = identity(false) (match none)."""
         node = OrGroup.model_validate({"or": []})
         expr = compiler.compile(node, simple_schema)
         result = test_df.filter(expr)
         assert len(result) == 0
 
-    def test_in_with_null_in_list(self, compiler: PredicateCompiler, simple_schema: DataFrameSchema, test_df: pl.DataFrame) -> None:
+    def test_in_with_null_in_list(
+        self,
+        compiler: PredicateCompiler,
+        simple_schema: DataFrameSchema,
+        test_df: pl.DataFrame,
+    ) -> None:
         """IN operator with null in list: null is ignored per EC-002."""
         node = Comparison(field="name", op=Op.IN, value=[None, "Alpha"])
         expr = compiler.compile(node, simple_schema)
@@ -653,29 +885,45 @@ class TestCategory3AggregationCompleteness:
 
     @pytest.fixture
     def agg_df(self) -> pl.DataFrame:
-        return pl.DataFrame({
-            "gid": ["1", "2", "3", "4", "5", "6"],
-            "name": ["A", "B", "A", "C", "B", "A"],
-            "vertical": ["dental", "dental", "medical", "medical", "dental", "medical"],
-            "section": ["Active", "Active", "Active", "Won", "Won", "Won"],
-            "amount": [100.0, 200.0, 300.0, 150.0, 250.0, None],
-            "quantity": [10, 20, 30, 15, 25, 35],
-            "mrr": ["500", "1000", "750", "invalid", "800", "1200"],
-            "date_col": [date(2026, 1, i) for i in range(1, 7)],
-            "tags": [["a"], ["b"], ["c"], ["d"], ["e"], ["f"]],
-        })
+        return pl.DataFrame(
+            {
+                "gid": ["1", "2", "3", "4", "5", "6"],
+                "name": ["A", "B", "A", "C", "B", "A"],
+                "vertical": [
+                    "dental",
+                    "dental",
+                    "medical",
+                    "medical",
+                    "dental",
+                    "medical",
+                ],
+                "section": ["Active", "Active", "Active", "Won", "Won", "Won"],
+                "amount": [100.0, 200.0, 300.0, 150.0, 250.0, None],
+                "quantity": [10, 20, 30, 15, 25, 35],
+                "mrr": ["500", "1000", "750", "invalid", "800", "1200"],
+                "date_col": [date(2026, 1, i) for i in range(1, 7)],
+                "tags": [["a"], ["b"], ["c"], ["d"], ["e"], ["f"]],
+            }
+        )
 
     @pytest.mark.asyncio
-    async def test_sum_numeric(self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock) -> None:
+    async def test_sum_numeric(
+        self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock
+    ) -> None:
         """Sum on Float64 column."""
         engine = QueryEngine(query_service=_mock_query_service(agg_df))
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "amount", "agg": "sum", "alias": "total"}],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "amount", "agg": "sum", "alias": "total"}],
+            }
+        )
         with _patch_single_schema(agg_schema):
             result = await engine.execute_aggregate(
-                entity_type="test", project_gid="p1", client=mock_client, request=request,
+                entity_type="test",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
         data_by_vert = {d["vertical"]: d for d in result.data}
         assert data_by_vert["dental"]["total"] == pytest.approx(550.0)
@@ -683,48 +931,71 @@ class TestCategory3AggregationCompleteness:
         assert data_by_vert["medical"]["total"] == pytest.approx(450.0)
 
     @pytest.mark.asyncio
-    async def test_count(self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock) -> None:
+    async def test_count(
+        self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock
+    ) -> None:
         """Count on any column."""
         engine = QueryEngine(query_service=_mock_query_service(agg_df))
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
+            }
+        )
         with _patch_single_schema(agg_schema):
             result = await engine.execute_aggregate(
-                entity_type="test", project_gid="p1", client=mock_client, request=request,
+                entity_type="test",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
         data_by_vert = {d["vertical"]: d for d in result.data}
         assert data_by_vert["dental"]["cnt"] == 3
         assert data_by_vert["medical"]["cnt"] == 3
 
     @pytest.mark.asyncio
-    async def test_count_distinct(self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock) -> None:
+    async def test_count_distinct(
+        self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock
+    ) -> None:
         """Count distinct on categorical column."""
         engine = QueryEngine(query_service=_mock_query_service(agg_df))
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "name", "agg": "count_distinct", "alias": "uniq"}],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [
+                    {"column": "name", "agg": "count_distinct", "alias": "uniq"}
+                ],
+            }
+        )
         with _patch_single_schema(agg_schema):
             result = await engine.execute_aggregate(
-                entity_type="test", project_gid="p1", client=mock_client, request=request,
+                entity_type="test",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
         data_by_vert = {d["vertical"]: d for d in result.data}
         assert data_by_vert["dental"]["uniq"] == 2  # A, B
         assert data_by_vert["medical"]["uniq"] == 2  # A, C
 
     @pytest.mark.asyncio
-    async def test_mean_numeric(self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock) -> None:
+    async def test_mean_numeric(
+        self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock
+    ) -> None:
         """Mean on Float64 column (null excluded per Polars)."""
         engine = QueryEngine(query_service=_mock_query_service(agg_df))
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "amount", "agg": "mean", "alias": "avg"}],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "amount", "agg": "mean", "alias": "avg"}],
+            }
+        )
         with _patch_single_schema(agg_schema):
             result = await engine.execute_aggregate(
-                entity_type="test", project_gid="p1", client=mock_client, request=request,
+                entity_type="test",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
         data_by_vert = {d["vertical"]: d for d in result.data}
         # dental: (100+200+250)/3
@@ -733,38 +1004,52 @@ class TestCategory3AggregationCompleteness:
         assert data_by_vert["medical"]["avg"] == pytest.approx(225.0)
 
     @pytest.mark.asyncio
-    async def test_min_max_numeric(self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock) -> None:
+    async def test_min_max_numeric(
+        self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock
+    ) -> None:
         """Min/max on Float64 column."""
         engine = QueryEngine(query_service=_mock_query_service(agg_df))
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [
-                {"column": "amount", "agg": "min", "alias": "min_amt"},
-                {"column": "amount", "agg": "max", "alias": "max_amt"},
-            ],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [
+                    {"column": "amount", "agg": "min", "alias": "min_amt"},
+                    {"column": "amount", "agg": "max", "alias": "max_amt"},
+                ],
+            }
+        )
         with _patch_single_schema(agg_schema):
             result = await engine.execute_aggregate(
-                entity_type="test", project_gid="p1", client=mock_client, request=request,
+                entity_type="test",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
         data_by_vert = {d["vertical"]: d for d in result.data}
         assert data_by_vert["dental"]["min_amt"] == 100.0
         assert data_by_vert["dental"]["max_amt"] == 250.0
 
     @pytest.mark.asyncio
-    async def test_min_max_date(self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock) -> None:
+    async def test_min_max_date(
+        self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock
+    ) -> None:
         """Min/max on Date column."""
         engine = QueryEngine(query_service=_mock_query_service(agg_df))
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [
-                {"column": "date_col", "agg": "min", "alias": "earliest"},
-                {"column": "date_col", "agg": "max", "alias": "latest"},
-            ],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [
+                    {"column": "date_col", "agg": "min", "alias": "earliest"},
+                    {"column": "date_col", "agg": "max", "alias": "latest"},
+                ],
+            }
+        )
         with _patch_single_schema(agg_schema):
             result = await engine.execute_aggregate(
-                entity_type="test", project_gid="p1", client=mock_client, request=request,
+                entity_type="test",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
         assert result.meta.group_count == 2
         for row in result.data:
@@ -773,23 +1058,31 @@ class TestCategory3AggregationCompleteness:
 
     @pytest.mark.asyncio
     async def test_multiple_aggregations_single_request(
-        self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        agg_schema: DataFrameSchema,
+        agg_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """Multiple aggs in one request: sum, count, mean, min, max."""
         engine = QueryEngine(query_service=_mock_query_service(agg_df))
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [
-                {"column": "amount", "agg": "sum", "alias": "total"},
-                {"column": "gid", "agg": "count", "alias": "cnt"},
-                {"column": "amount", "agg": "mean", "alias": "avg"},
-                {"column": "amount", "agg": "min", "alias": "min_val"},
-                {"column": "amount", "agg": "max", "alias": "max_val"},
-            ],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [
+                    {"column": "amount", "agg": "sum", "alias": "total"},
+                    {"column": "gid", "agg": "count", "alias": "cnt"},
+                    {"column": "amount", "agg": "mean", "alias": "avg"},
+                    {"column": "amount", "agg": "min", "alias": "min_val"},
+                    {"column": "amount", "agg": "max", "alias": "max_val"},
+                ],
+            }
+        )
         with _patch_single_schema(agg_schema):
             result = await engine.execute_aggregate(
-                entity_type="test", project_gid="p1", client=mock_client, request=request,
+                entity_type="test",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
         assert result.meta.aggregation_count == 5
         for row in result.data:
@@ -797,91 +1090,131 @@ class TestCategory3AggregationCompleteness:
                 assert alias in row
 
     @pytest.mark.asyncio
-    async def test_group_by_2_columns(self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock) -> None:
+    async def test_group_by_2_columns(
+        self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock
+    ) -> None:
         """GROUP BY with 2 columns: vertical + section."""
         engine = QueryEngine(query_service=_mock_query_service(agg_df))
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical", "section"],
-            "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical", "section"],
+                "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
+            }
+        )
         with _patch_single_schema(agg_schema):
             result = await engine.execute_aggregate(
-                entity_type="test", project_gid="p1", client=mock_client, request=request,
+                entity_type="test",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
-        assert result.meta.group_count == 4  # dental/Active, dental/Won, medical/Active, medical/Won
+        assert (
+            result.meta.group_count == 4
+        )  # dental/Active, dental/Won, medical/Active, medical/Won
 
     @pytest.mark.asyncio
-    async def test_group_by_3_columns(self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock) -> None:
+    async def test_group_by_3_columns(
+        self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock
+    ) -> None:
         """GROUP BY with 3 columns: vertical + section + name."""
         engine = QueryEngine(query_service=_mock_query_service(agg_df))
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical", "section", "name"],
-            "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical", "section", "name"],
+                "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
+            }
+        )
         with _patch_single_schema(agg_schema):
             result = await engine.execute_aggregate(
-                entity_type="test", project_gid="p1", client=mock_client, request=request,
+                entity_type="test",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
         assert result.meta.group_count == 6  # Each row is unique on 3 cols
         assert result.meta.group_by == ["vertical", "section", "name"]
 
     @pytest.mark.asyncio
     async def test_having_filter_on_aggregated_result(
-        self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        agg_schema: DataFrameSchema,
+        agg_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """HAVING filter: only groups with total > 400."""
         engine = QueryEngine(query_service=_mock_query_service(agg_df))
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "amount", "agg": "sum", "alias": "total"}],
-            "having": {"field": "total", "op": "gt", "value": 400.0},
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "amount", "agg": "sum", "alias": "total"}],
+                "having": {"field": "total", "op": "gt", "value": 400.0},
+            }
+        )
         with _patch_single_schema(agg_schema):
             result = await engine.execute_aggregate(
-                entity_type="test", project_gid="p1", client=mock_client, request=request,
+                entity_type="test",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
         # dental total=550, medical total=450 -> both pass
         assert result.meta.group_count == 2
 
     @pytest.mark.asyncio
     async def test_having_with_nested_predicates(
-        self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        agg_schema: DataFrameSchema,
+        agg_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """HAVING with AND predicate: total > 400 AND cnt > 2."""
         engine = QueryEngine(query_service=_mock_query_service(agg_df))
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [
-                {"column": "amount", "agg": "sum", "alias": "total"},
-                {"column": "gid", "agg": "count", "alias": "cnt"},
-            ],
-            "having": {
-                "and": [
-                    {"field": "total", "op": "gt", "value": 400.0},
-                    {"field": "cnt", "op": "gte", "value": 3},
-                ]
-            },
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [
+                    {"column": "amount", "agg": "sum", "alias": "total"},
+                    {"column": "gid", "agg": "count", "alias": "cnt"},
+                ],
+                "having": {
+                    "and": [
+                        {"field": "total", "op": "gt", "value": 400.0},
+                        {"field": "cnt", "op": "gte", "value": 3},
+                    ]
+                },
+            }
+        )
         with _patch_single_schema(agg_schema):
             result = await engine.execute_aggregate(
-                entity_type="test", project_gid="p1", client=mock_client, request=request,
+                entity_type="test",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
         # Both groups have cnt=3 and total>400 -> both pass
         assert result.meta.group_count == 2
 
     @pytest.mark.asyncio
     async def test_aggregation_on_utf8_column(
-        self, agg_schema: DataFrameSchema, agg_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        agg_schema: DataFrameSchema,
+        agg_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """ADR-AGG-005: Sum on Utf8 column (mrr) casts to Float64."""
         engine = QueryEngine(query_service=_mock_query_service(agg_df))
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "mrr", "agg": "sum", "alias": "total_mrr"}],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "mrr", "agg": "sum", "alias": "total_mrr"}],
+            }
+        )
         with _patch_single_schema(agg_schema):
             result = await engine.execute_aggregate(
-                entity_type="test", project_gid="p1", client=mock_client, request=request,
+                entity_type="test",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
         data_by_vert = {d["vertical"]: d for d in result.data}
         # dental: "500" + "1000" + "800" = 2300
@@ -914,15 +1247,23 @@ class TestCategory4JoinEnrichment:
         mock_epr = MagicMock()
         mock_epr.get_project_gid.return_value = "biz-proj"
 
-        request = RowsRequest.model_validate({
-            "select": ["name", "office_phone"],
-            "join": {"entity_type": "business", "select": ["booking_type", "company_id"]},
-        })
+        request = RowsRequest.model_validate(
+            {
+                "select": ["name", "office_phone"],
+                "join": {
+                    "entity_type": "business",
+                    "select": ["booking_type", "company_id"],
+                },
+            }
+        )
 
         with _patch_schema_map(schema_map):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="p1", client=mock_client,
-                request=request, entity_project_registry=mock_epr,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
+                entity_project_registry=mock_epr,
             )
 
         for row in result.data:
@@ -947,16 +1288,21 @@ class TestCategory4JoinEnrichment:
         mock_epr = MagicMock()
         mock_epr.get_project_gid.return_value = "biz-proj"
 
-        request = RowsRequest.model_validate({
-            "where": {"field": "section", "op": "eq", "value": "Active"},
-            "select": ["name", "section", "office_phone"],
-            "join": {"entity_type": "business", "select": ["booking_type"]},
-        })
+        request = RowsRequest.model_validate(
+            {
+                "where": {"field": "section", "op": "eq", "value": "Active"},
+                "select": ["name", "section", "office_phone"],
+                "join": {"entity_type": "business", "select": ["booking_type"]},
+            }
+        )
 
         with _patch_schema_map(schema_map):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="p1", client=mock_client,
-                request=request, entity_project_registry=mock_epr,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
+                entity_project_registry=mock_epr,
             )
 
         for row in result.data:
@@ -982,16 +1328,21 @@ class TestCategory4JoinEnrichment:
         mock_epr.get_project_gid.return_value = "biz-proj"
         section_index = SectionIndex(_name_to_gid={"active": "gid-123"})
 
-        request = RowsRequest.model_validate({
-            "section": "Active",
-            "select": ["name", "office_phone"],
-            "join": {"entity_type": "business", "select": ["booking_type"]},
-        })
+        request = RowsRequest.model_validate(
+            {
+                "section": "Active",
+                "select": ["name", "office_phone"],
+                "join": {"entity_type": "business", "select": ["booking_type"]},
+            }
+        )
 
         with _patch_schema_map(schema_map):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="p1", client=mock_client,
-                request=request, section_index=section_index,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
+                section_index=section_index,
                 entity_project_registry=mock_epr,
             )
 
@@ -1000,17 +1351,25 @@ class TestCategory4JoinEnrichment:
 
     @pytest.mark.asyncio
     async def test_join_to_unrelated_entity_raises(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """Error: join to unrelated entity type raises JoinError."""
         engine = QueryEngine(query_service=_mock_query_service(offer_df))
-        request = RowsRequest.model_validate({
-            "join": {"entity_type": "asset_edit", "select": ["some_col"]},
-        })
+        request = RowsRequest.model_validate(
+            {
+                "join": {"entity_type": "asset_edit", "select": ["some_col"]},
+            }
+        )
         with _patch_single_schema(offer_schema):
             with pytest.raises(JoinError, match="No relationship"):
                 await engine.execute_rows(
-                    entity_type="offer", project_gid="p1", client=mock_client, request=request,
+                    entity_type="offer",
+                    project_gid="p1",
+                    client=mock_client,
+                    request=request,
                 )
 
     @pytest.mark.asyncio
@@ -1024,13 +1383,18 @@ class TestCategory4JoinEnrichment:
         """Error: join selecting nonexistent column raises UnknownFieldError."""
         schema_map = {"Offer": offer_schema, "Business": business_schema}
         engine = QueryEngine(query_service=_mock_query_service(offer_df))
-        request = RowsRequest.model_validate({
-            "join": {"entity_type": "business", "select": ["totally_fake_column"]},
-        })
+        request = RowsRequest.model_validate(
+            {
+                "join": {"entity_type": "business", "select": ["totally_fake_column"]},
+            }
+        )
         with _patch_schema_map(schema_map):
             with pytest.raises(UnknownFieldError) as exc_info:
                 await engine.execute_rows(
-                    entity_type="offer", project_gid="p1", client=mock_client, request=request,
+                    entity_type="offer",
+                    project_gid="p1",
+                    client=mock_client,
+                    request=request,
                 )
             assert exc_info.value.field == "totally_fake_column"
 
@@ -1045,14 +1409,20 @@ class TestCategory5PaginationOrdering:
 
     @pytest.mark.asyncio
     async def test_default_pagination(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """Default: offset=0, limit=100 returns all rows."""
         engine = QueryEngine(query_service=_mock_query_service(offer_df))
         request = RowsRequest.model_validate({})
         with _patch_single_schema(offer_schema):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="p1", client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
         assert result.meta.offset == 0
         assert result.meta.limit == 100
@@ -1061,14 +1431,20 @@ class TestCategory5PaginationOrdering:
 
     @pytest.mark.asyncio
     async def test_custom_offset_and_limit(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """Custom offset=3, limit=4 returns rows 4-7."""
         engine = QueryEngine(query_service=_mock_query_service(offer_df))
         request = RowsRequest.model_validate({"offset": 3, "limit": 4})
         with _patch_single_schema(offer_schema):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="p1", client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
         assert result.meta.offset == 3
         assert result.meta.returned_count == 4
@@ -1076,14 +1452,20 @@ class TestCategory5PaginationOrdering:
 
     @pytest.mark.asyncio
     async def test_offset_beyond_total_returns_empty(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """Offset beyond total rows returns empty data list."""
         engine = QueryEngine(query_service=_mock_query_service(offer_df))
         request = RowsRequest.model_validate({"offset": 100})
         with _patch_single_schema(offer_schema):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="p1", client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
         assert result.meta.total_count == 10
         assert result.meta.returned_count == 0
@@ -1091,7 +1473,10 @@ class TestCategory5PaginationOrdering:
 
     @pytest.mark.asyncio
     async def test_large_limit_clamped_by_guard(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """Large limit clamped to max_result_rows."""
         engine = QueryEngine(
@@ -1101,7 +1486,10 @@ class TestCategory5PaginationOrdering:
         request = RowsRequest.model_validate({"limit": 1000})
         with _patch_single_schema(offer_schema):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="p1", client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
         assert result.meta.limit == 5
         assert result.meta.returned_count == 5
@@ -1130,7 +1518,10 @@ class TestCategory6SectionScoping:
 
     @pytest.mark.asyncio
     async def test_specific_section_name(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """Query with specific section name: 'Active'."""
         from autom8_asana.metrics.resolve import SectionIndex
@@ -1141,8 +1532,11 @@ class TestCategory6SectionScoping:
 
         with _patch_single_schema(offer_schema):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="p1", client=mock_client,
-                request=request, section_index=section_index,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
+                section_index=section_index,
             )
 
         for row in result.data:
@@ -1151,20 +1545,29 @@ class TestCategory6SectionScoping:
 
     @pytest.mark.asyncio
     async def test_no_section_queries_all(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """Query without section returns all rows."""
         engine = QueryEngine(query_service=_mock_query_service(offer_df))
         request = RowsRequest.model_validate({})
         with _patch_single_schema(offer_schema):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="p1", client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
         assert result.meta.total_count == 10
 
     @pytest.mark.asyncio
     async def test_nonexistent_section_raises(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """Query with nonexistent section name raises UnknownSectionError."""
         from autom8_asana.metrics.resolve import SectionIndex
@@ -1175,8 +1578,11 @@ class TestCategory6SectionScoping:
 
         with pytest.raises(UnknownSectionError) as exc_info:
             await engine.execute_rows(
-                entity_type="offer", project_gid="p1", client=mock_client,
-                request=request, section_index=section_index,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
+                section_index=section_index,
             )
         assert exc_info.value.section == "Archived"
 
@@ -1206,22 +1612,36 @@ class TestCategory7ErrorHandlingGuards:
 
     @pytest.fixture
     def simple_df(self) -> pl.DataFrame:
-        return pl.DataFrame({
-            "gid": ["1", "2"],
-            "name": ["A", "B"],
-            "section": ["Active", "Won"],
-            "count": [10, 20],
-            "is_active": [True, False],
-            "tags": [["a"], ["b"]],
-        })
+        return pl.DataFrame(
+            {
+                "gid": ["1", "2"],
+                "name": ["A", "B"],
+                "section": ["Active", "Won"],
+                "count": [10, 20],
+                "is_active": [True, False],
+                "tags": [["a"], ["b"]],
+            }
+        )
 
     def test_predicate_depth_exceeds_max(self) -> None:
         """Predicate depth exceeding MAX_PREDICATE_DEPTH raises QueryTooComplexError."""
         limits = QueryLimits(max_predicate_depth=3)
         # Build a depth-4 tree: AND(OR(NOT(AND(leaf))))
-        deep_pred = AndGroup.model_validate({
-            "and": [{"or": [{"not": {"and": [{"field": "name", "op": "eq", "value": "x"}]}}]}]
-        })
+        deep_pred = AndGroup.model_validate(
+            {
+                "and": [
+                    {
+                        "or": [
+                            {
+                                "not": {
+                                    "and": [{"field": "name", "op": "eq", "value": "x"}]
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        )
         depth = predicate_depth(deep_pred)
         assert depth > 3
         with pytest.raises(QueryTooComplexError):
@@ -1231,7 +1651,8 @@ class TestCategory7ErrorHandlingGuards:
         """Unknown column in predicate raises UnknownFieldError."""
         compiler = PredicateCompiler()
         schema = DataFrameSchema(
-            name="test", task_type="Test",
+            name="test",
+            task_type="Test",
             columns=[ColumnDef("gid", "Utf8", nullable=False)],
         )
         node = Comparison(field="nonexistent", op=Op.EQ, value="x")
@@ -1243,7 +1664,8 @@ class TestCategory7ErrorHandlingGuards:
         """Contains on Int64 column raises InvalidOperatorError."""
         compiler = PredicateCompiler()
         schema = DataFrameSchema(
-            name="test", task_type="Test",
+            name="test",
+            task_type="Test",
             columns=[ColumnDef("count", "Int64", nullable=True)],
         )
         node = Comparison(field="count", op=Op.CONTAINS, value="5")
@@ -1256,7 +1678,8 @@ class TestCategory7ErrorHandlingGuards:
         """GT on Boolean column raises InvalidOperatorError."""
         compiler = PredicateCompiler()
         schema = DataFrameSchema(
-            name="test", task_type="Test",
+            name="test",
+            task_type="Test",
             columns=[ColumnDef("flag", "Boolean", nullable=True)],
         )
         node = Comparison(field="flag", op=Op.GT, value=True)
@@ -1267,7 +1690,8 @@ class TestCategory7ErrorHandlingGuards:
         """String 'abc' to Int64 raises CoercionError."""
         compiler = PredicateCompiler()
         schema = DataFrameSchema(
-            name="test", task_type="Test",
+            name="test",
+            task_type="Test",
             columns=[ColumnDef("count", "Int64", nullable=True)],
         )
         node = Comparison(field="count", op=Op.EQ, value="abc")
@@ -1280,7 +1704,8 @@ class TestCategory7ErrorHandlingGuards:
         """Invalid date string raises CoercionError."""
         compiler = PredicateCompiler()
         schema = DataFrameSchema(
-            name="test", task_type="Test",
+            name="test",
+            task_type="Test",
             columns=[ColumnDef("dt", "Date", nullable=True)],
         )
         node = Comparison(field="dt", op=Op.EQ, value="not-a-date")
@@ -1291,7 +1716,8 @@ class TestCategory7ErrorHandlingGuards:
         """String to Boolean raises CoercionError."""
         compiler = PredicateCompiler()
         schema = DataFrameSchema(
-            name="test", task_type="Test",
+            name="test",
+            task_type="Test",
             columns=[ColumnDef("flag", "Boolean", nullable=True)],
         )
         node = Comparison(field="flag", op=Op.EQ, value="true")
@@ -1304,28 +1730,37 @@ class TestCategory7ErrorHandlingGuards:
 
     @pytest.mark.asyncio
     async def test_group_by_list_dtype_raises(
-        self, simple_schema: DataFrameSchema, simple_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        simple_schema: DataFrameSchema,
+        simple_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """GROUP BY on List-dtype column raises AggregationError."""
         engine = QueryEngine(query_service=_mock_query_service(simple_df))
-        request = AggregateRequest.model_validate({
-            "group_by": ["tags"],
-            "aggregations": [{"column": "gid", "agg": "count"}],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["tags"],
+                "aggregations": [{"column": "gid", "agg": "count"}],
+            }
+        )
         with _patch_single_schema(simple_schema):
             with pytest.raises(AggregationError, match="List"):
                 await engine.execute_aggregate(
-                    entity_type="test", project_gid="p1",
-                    client=mock_client, request=request,
+                    entity_type="test",
+                    project_gid="p1",
+                    client=mock_client,
+                    request=request,
                 )
 
     def test_exceeding_max_group_by_columns(self) -> None:
         """Exceeding MAX_GROUP_BY_COLUMNS raises AggregationError."""
         limits = QueryLimits(max_group_by_columns=2)
         schema = DataFrameSchema(
-            name="t", task_type="T",
+            name="t",
+            task_type="T",
             columns=[
-                ColumnDef("a", "Utf8"), ColumnDef("b", "Utf8"),
+                ColumnDef("a", "Utf8"),
+                ColumnDef("b", "Utf8"),
                 ColumnDef("c", "Utf8"),
             ],
         )
@@ -1342,7 +1777,8 @@ class TestCategory7ErrorHandlingGuards:
         """IN operator with non-list value raises CoercionError."""
         compiler = PredicateCompiler()
         schema = DataFrameSchema(
-            name="test", task_type="Test",
+            name="test",
+            task_type="Test",
             columns=[ColumnDef("name", "Utf8", nullable=True)],
         )
         node = Comparison(field="name", op=Op.IN, value="not_a_list")
@@ -1354,7 +1790,9 @@ class TestCategory7ErrorHandlingGuards:
         errors = [
             QueryTooComplexError(depth=10, max_depth=5),
             UnknownFieldError(field="foo", available=["bar"]),
-            InvalidOperatorError(field="f", dtype="Int64", op="contains", allowed=["eq"]),
+            InvalidOperatorError(
+                field="f", dtype="Int64", op="contains", allowed=["eq"]
+            ),
             CoercionError(field="f", dtype="Int64", value="abc", reason="bad"),
             UnknownSectionError(section="Archived"),
             AggregationError(message="test error"),
@@ -1377,14 +1815,20 @@ class TestCategory8ResponseShape:
 
     @pytest.mark.asyncio
     async def test_rows_response_shape(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """Rows response has data (list of dicts) and meta with required fields."""
         engine = QueryEngine(query_service=_mock_query_service(offer_df))
         request = RowsRequest.model_validate({"limit": 3})
         with _patch_single_schema(offer_schema):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="p1", client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
 
         assert isinstance(result, RowsResponse)
@@ -1407,14 +1851,20 @@ class TestCategory8ResponseShape:
 
     @pytest.mark.asyncio
     async def test_rows_response_select_limits_columns(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """When select is specified, only those columns (plus gid) appear."""
         engine = QueryEngine(query_service=_mock_query_service(offer_df))
         request = RowsRequest.model_validate({"select": ["name", "mrr"]})
         with _patch_single_schema(offer_schema):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="p1", client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
 
         for row in result.data:
@@ -1422,17 +1872,25 @@ class TestCategory8ResponseShape:
 
     @pytest.mark.asyncio
     async def test_aggregate_response_shape(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """Aggregate response has data (list of dicts) and meta with group_count."""
         engine = QueryEngine(query_service=_mock_query_service(offer_df))
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
+            }
+        )
         with _patch_single_schema(offer_schema):
             result = await engine.execute_aggregate(
-                entity_type="offer", project_gid="p1", client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
 
         assert isinstance(result, AggregateResponse)
@@ -1467,15 +1925,20 @@ class TestCategory8ResponseShape:
         mock_epr = MagicMock()
         mock_epr.get_project_gid.return_value = "biz-proj"
 
-        request = RowsRequest.model_validate({
-            "select": ["name"],
-            "join": {"entity_type": "business", "select": ["booking_type"]},
-        })
+        request = RowsRequest.model_validate(
+            {
+                "select": ["name"],
+                "join": {"entity_type": "business", "select": ["booking_type"]},
+            }
+        )
 
         with _patch_schema_map(schema_map):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="p1", client=mock_client,
-                request=request, entity_project_registry=mock_epr,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
+                entity_project_registry=mock_epr,
             )
 
         for row in result.data:
@@ -1486,14 +1949,20 @@ class TestCategory8ResponseShape:
 
     @pytest.mark.asyncio
     async def test_no_join_meta_null_when_no_join(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """Without join, join meta fields are None."""
         engine = QueryEngine(query_service=_mock_query_service(offer_df))
         request = RowsRequest.model_validate({})
         with _patch_single_schema(offer_schema):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="p1", client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
         assert result.meta.join_entity is None
         assert result.meta.join_key is None
@@ -1528,19 +1997,24 @@ class TestCategory9EndToEndComposition:
         mock_epr.get_project_gid.return_value = "biz-proj"
         section_index = SectionIndex(_name_to_gid={"active": "gid-1"})
 
-        request = RowsRequest.model_validate({
-            "where": {"field": "vertical", "op": "eq", "value": "dental"},
-            "section": "Active",
-            "select": ["name", "mrr", "office_phone"],
-            "join": {"entity_type": "business", "select": ["booking_type"]},
-            "limit": 2,
-            "offset": 0,
-        })
+        request = RowsRequest.model_validate(
+            {
+                "where": {"field": "vertical", "op": "eq", "value": "dental"},
+                "section": "Active",
+                "select": ["name", "mrr", "office_phone"],
+                "join": {"entity_type": "business", "select": ["booking_type"]},
+                "limit": 2,
+                "offset": 0,
+            }
+        )
 
         with _patch_schema_map(schema_map):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="p1", client=mock_client,
-                request=request, section_index=section_index,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
+                section_index=section_index,
                 entity_project_registry=mock_epr,
             )
 
@@ -1551,23 +2025,31 @@ class TestCategory9EndToEndComposition:
 
     @pytest.mark.asyncio
     async def test_where_group_by_having_multiple_aggs(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """WHERE + GROUP BY + HAVING + multiple aggregations."""
         engine = QueryEngine(query_service=_mock_query_service(offer_df))
-        request = AggregateRequest.model_validate({
-            "where": {"field": "section", "op": "eq", "value": "Active"},
-            "group_by": ["vertical"],
-            "aggregations": [
-                {"column": "mrr", "agg": "sum", "alias": "total_mrr"},
-                {"column": "gid", "agg": "count", "alias": "offer_count"},
-                {"column": "cost", "agg": "mean", "alias": "avg_cost"},
-            ],
-            "having": {"field": "offer_count", "op": "gte", "value": 2},
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "where": {"field": "section", "op": "eq", "value": "Active"},
+                "group_by": ["vertical"],
+                "aggregations": [
+                    {"column": "mrr", "agg": "sum", "alias": "total_mrr"},
+                    {"column": "gid", "agg": "count", "alias": "offer_count"},
+                    {"column": "cost", "agg": "mean", "alias": "avg_cost"},
+                ],
+                "having": {"field": "offer_count", "op": "gte", "value": 2},
+            }
+        )
         with _patch_single_schema(offer_schema):
             result = await engine.execute_aggregate(
-                entity_type="offer", project_gid="p1", client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
 
         # Active offers by vertical: dental(o1, o5)=2, medical(o2, o4, o7, o10)=4
@@ -1579,7 +2061,10 @@ class TestCategory9EndToEndComposition:
 
     @pytest.mark.asyncio
     async def test_nested_predicates_section_select_subset(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """Nested predicates + section + select subset."""
         from autom8_asana.metrics.resolve import SectionIndex
@@ -1587,24 +2072,31 @@ class TestCategory9EndToEndComposition:
         section_index = SectionIndex(_name_to_gid={"active": "gid-1"})
         engine = QueryEngine(query_service=_mock_query_service(offer_df))
 
-        request = RowsRequest.model_validate({
-            "section": "Active",
-            "where": {
-                "or": [
-                    {"field": "vertical", "op": "eq", "value": "dental"},
-                    {"and": [
-                        {"field": "vertical", "op": "eq", "value": "medical"},
-                        {"field": "language", "op": "eq", "value": "en"},
-                    ]},
-                ]
-            },
-            "select": ["name", "vertical", "language", "mrr"],
-        })
+        request = RowsRequest.model_validate(
+            {
+                "section": "Active",
+                "where": {
+                    "or": [
+                        {"field": "vertical", "op": "eq", "value": "dental"},
+                        {
+                            "and": [
+                                {"field": "vertical", "op": "eq", "value": "medical"},
+                                {"field": "language", "op": "eq", "value": "en"},
+                            ]
+                        },
+                    ]
+                },
+                "select": ["name", "vertical", "language", "mrr"],
+            }
+        )
 
         with _patch_single_schema(offer_schema):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="p1", client=mock_client,
-                request=request, section_index=section_index,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
+                section_index=section_index,
             )
 
         for row in result.data:
@@ -1612,21 +2104,29 @@ class TestCategory9EndToEndComposition:
 
     @pytest.mark.asyncio
     async def test_flat_array_sugar_works_end_to_end(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """Flat array sugar (FR-001) auto-wraps to AND at engine level."""
         engine = QueryEngine(query_service=_mock_query_service(offer_df))
-        request = RowsRequest.model_validate({
-            "where": [
-                {"field": "section", "op": "eq", "value": "Active"},
-                {"field": "vertical", "op": "eq", "value": "dental"},
-            ],
-            "select": ["name", "section", "vertical"],
-        })
+        request = RowsRequest.model_validate(
+            {
+                "where": [
+                    {"field": "section", "op": "eq", "value": "Active"},
+                    {"field": "vertical", "op": "eq", "value": "dental"},
+                ],
+                "select": ["name", "section", "vertical"],
+            }
+        )
 
         with _patch_single_schema(offer_schema):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="p1", client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
 
         for row in result.data:
@@ -1635,7 +2135,10 @@ class TestCategory9EndToEndComposition:
 
     @pytest.mark.asyncio
     async def test_empty_array_sugar_returns_all_rows(
-        self, offer_schema: DataFrameSchema, offer_df: pl.DataFrame, mock_client: AsyncMock,
+        self,
+        offer_schema: DataFrameSchema,
+        offer_df: pl.DataFrame,
+        mock_client: AsyncMock,
     ) -> None:
         """Empty array [] sugar = no filter (EC-005)."""
         engine = QueryEngine(query_service=_mock_query_service(offer_df))
@@ -1643,7 +2146,10 @@ class TestCategory9EndToEndComposition:
 
         with _patch_single_schema(offer_schema):
             result = await engine.execute_rows(
-                entity_type="offer", project_gid="p1", client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="p1",
+                client=mock_client,
+                request=request,
             )
 
         assert result.meta.total_count == 10
@@ -1712,11 +2218,13 @@ class TestCategory11ModelValidation:
     def test_aggregate_request_extra_field_rejected(self) -> None:
         """AggregateRequest with extra='forbid' rejects unknown fields."""
         with pytest.raises(Exception):
-            AggregateRequest.model_validate({
-                "group_by": ["a"],
-                "aggregations": [{"column": "a", "agg": "count"}],
-                "rogue_field": True,
-            })
+            AggregateRequest.model_validate(
+                {
+                    "group_by": ["a"],
+                    "aggregations": [{"column": "a", "agg": "count"}],
+                    "rogue_field": True,
+                }
+            )
 
     def test_agg_spec_extra_field_rejected(self) -> None:
         """AggSpec with extra='forbid' rejects unknown fields."""
@@ -1731,35 +2239,43 @@ class TestCategory11ModelValidation:
     def test_aggregate_request_min_group_by(self) -> None:
         """AggregateRequest requires at least 1 group_by column."""
         with pytest.raises(Exception):
-            AggregateRequest.model_validate({
-                "group_by": [],
-                "aggregations": [{"column": "a", "agg": "count"}],
-            })
+            AggregateRequest.model_validate(
+                {
+                    "group_by": [],
+                    "aggregations": [{"column": "a", "agg": "count"}],
+                }
+            )
 
     def test_aggregate_request_max_group_by(self) -> None:
         """AggregateRequest max 5 group_by columns."""
         with pytest.raises(Exception):
-            AggregateRequest.model_validate({
-                "group_by": ["a", "b", "c", "d", "e", "f"],
-                "aggregations": [{"column": "a", "agg": "count"}],
-            })
+            AggregateRequest.model_validate(
+                {
+                    "group_by": ["a", "b", "c", "d", "e", "f"],
+                    "aggregations": [{"column": "a", "agg": "count"}],
+                }
+            )
 
     def test_aggregate_request_min_aggregations(self) -> None:
         """AggregateRequest requires at least 1 aggregation."""
         with pytest.raises(Exception):
-            AggregateRequest.model_validate({
-                "group_by": ["a"],
-                "aggregations": [],
-            })
+            AggregateRequest.model_validate(
+                {
+                    "group_by": ["a"],
+                    "aggregations": [],
+                }
+            )
 
     def test_aggregate_request_max_aggregations(self) -> None:
         """AggregateRequest max 10 aggregations."""
         specs = [{"column": "a", "agg": "count", "alias": f"c{i}"} for i in range(11)]
         with pytest.raises(Exception):
-            AggregateRequest.model_validate({
-                "group_by": ["a"],
-                "aggregations": specs,
-            })
+            AggregateRequest.model_validate(
+                {
+                    "group_by": ["a"],
+                    "aggregations": specs,
+                }
+            )
 
     def test_join_spec_min_select(self) -> None:
         """JoinSpec requires at least 1 select column."""
@@ -1778,7 +2294,18 @@ class TestCategory11ModelValidation:
 
     def test_op_enum_values(self) -> None:
         """All expected Op enum values exist."""
-        expected = {"eq", "ne", "gt", "lt", "gte", "lte", "in", "not_in", "contains", "starts_with"}
+        expected = {
+            "eq",
+            "ne",
+            "gt",
+            "lt",
+            "gte",
+            "lte",
+            "in",
+            "not_in",
+            "contains",
+            "starts_with",
+        }
         actual = {op.value for op in Op}
         assert actual == expected
 
@@ -1790,7 +2317,9 @@ class TestCategory11ModelValidation:
 
     def test_predicate_discriminator_and_group(self) -> None:
         """Discriminator correctly parses AND group."""
-        node = AndGroup.model_validate({"and": [{"field": "a", "op": "eq", "value": 1}]})
+        node = AndGroup.model_validate(
+            {"and": [{"field": "a", "op": "eq", "value": 1}]}
+        )
         assert isinstance(node, AndGroup)
         assert len(node.and_) == 1
 
@@ -1823,44 +2352,50 @@ class TestCategory12SectionPredicateStripping:
 
     def test_strip_section_from_and_group(self) -> None:
         """Strip section from AND group, preserving other predicates."""
-        node = AndGroup.model_validate({
-            "and": [
-                {"field": "section", "op": "eq", "value": "Active"},
-                {"field": "name", "op": "eq", "value": "Acme"},
-            ]
-        })
+        node = AndGroup.model_validate(
+            {
+                "and": [
+                    {"field": "section", "op": "eq", "value": "Active"},
+                    {"field": "name", "op": "eq", "value": "Acme"},
+                ]
+            }
+        )
         result = strip_section_predicates(node)
         assert isinstance(result, Comparison)
         assert result.field == "name"
 
     def test_strip_all_section_from_and_returns_none(self) -> None:
         """Strip all section predicates from AND returns None."""
-        node = AndGroup.model_validate({
-            "and": [
-                {"field": "section", "op": "eq", "value": "Active"},
-                {"field": "section", "op": "eq", "value": "Won"},
-            ]
-        })
+        node = AndGroup.model_validate(
+            {
+                "and": [
+                    {"field": "section", "op": "eq", "value": "Active"},
+                    {"field": "section", "op": "eq", "value": "Won"},
+                ]
+            }
+        )
         result = strip_section_predicates(node)
         assert result is None
 
     def test_strip_preserves_non_section_in_or(self) -> None:
         """Strip section from OR group."""
-        node = OrGroup.model_validate({
-            "or": [
-                {"field": "section", "op": "eq", "value": "Active"},
-                {"field": "name", "op": "eq", "value": "Acme"},
-            ]
-        })
+        node = OrGroup.model_validate(
+            {
+                "or": [
+                    {"field": "section", "op": "eq", "value": "Active"},
+                    {"field": "name", "op": "eq", "value": "Acme"},
+                ]
+            }
+        )
         result = strip_section_predicates(node)
         assert isinstance(result, Comparison)
         assert result.field == "name"
 
     def test_strip_from_not_group(self) -> None:
         """Strip section from NOT group."""
-        node = NotGroup.model_validate({
-            "not": {"field": "section", "op": "eq", "value": "Active"}
-        })
+        node = NotGroup.model_validate(
+            {"not": {"field": "section", "op": "eq", "value": "Active"}}
+        )
         result = strip_section_predicates(node)
         assert result is None
 
@@ -1887,7 +2422,8 @@ class TestCategory13AggregatorModule:
     @pytest.fixture
     def agg_schema(self) -> DataFrameSchema:
         return DataFrameSchema(
-            name="t", task_type="T",
+            name="t",
+            task_type="T",
             columns=[
                 ColumnDef("gid", "Utf8"),
                 ColumnDef("amount", "Float64"),
@@ -1898,19 +2434,25 @@ class TestCategory13AggregatorModule:
             ],
         )
 
-    def test_sum_on_list_dtype_raises(self, agg_compiler: AggregationCompiler, agg_schema: DataFrameSchema) -> None:
+    def test_sum_on_list_dtype_raises(
+        self, agg_compiler: AggregationCompiler, agg_schema: DataFrameSchema
+    ) -> None:
         """Sum on List[Utf8] raises AggregationError."""
         specs = [AggSpec(column="tags", agg=AggFunction.SUM)]
         with pytest.raises(AggregationError):
             agg_compiler.compile(specs, agg_schema)
 
-    def test_mean_on_boolean_raises(self, agg_compiler: AggregationCompiler, agg_schema: DataFrameSchema) -> None:
+    def test_mean_on_boolean_raises(
+        self, agg_compiler: AggregationCompiler, agg_schema: DataFrameSchema
+    ) -> None:
         """Mean on Boolean raises AggregationError."""
         specs = [AggSpec(column="flag", agg=AggFunction.MEAN)]
         with pytest.raises(AggregationError):
             agg_compiler.compile(specs, agg_schema)
 
-    def test_sum_on_date_raises(self, agg_compiler: AggregationCompiler, agg_schema: DataFrameSchema) -> None:
+    def test_sum_on_date_raises(
+        self, agg_compiler: AggregationCompiler, agg_schema: DataFrameSchema
+    ) -> None:
         """Sum on Date raises AggregationError."""
         specs = [AggSpec(column="dt", agg=AggFunction.SUM)]
         with pytest.raises(AggregationError):
@@ -1931,7 +2473,9 @@ class TestCategory13AggregatorModule:
         with pytest.raises(AggregationError, match="collides"):
             validate_alias_uniqueness(specs, ["name"])
 
-    def test_build_post_agg_schema_has_correct_columns(self, agg_schema: DataFrameSchema) -> None:
+    def test_build_post_agg_schema_has_correct_columns(
+        self, agg_schema: DataFrameSchema
+    ) -> None:
         """build_post_agg_schema generates correct synthetic schema."""
         specs = [
             AggSpec(column="amount", agg=AggFunction.SUM, alias="total"),
@@ -1950,7 +2494,9 @@ class TestCategory13AggregatorModule:
     def test_agg_compatibility_matrix_completeness(self) -> None:
         """AGG_COMPATIBILITY covers all dtypes in OPERATOR_MATRIX."""
         for dtype in OPERATOR_MATRIX:
-            assert dtype in AGG_COMPATIBILITY, f"Missing agg compatibility for dtype: {dtype}"
+            assert dtype in AGG_COMPATIBILITY, (
+                f"Missing agg compatibility for dtype: {dtype}"
+            )
 
 
 # ============================================================================
@@ -1966,7 +2512,9 @@ class TestCategory14PredicateDepthCalculation:
         assert predicate_depth(node) == 1
 
     def test_and_with_single_child_depth_2(self) -> None:
-        node = AndGroup.model_validate({"and": [{"field": "a", "op": "eq", "value": 1}]})
+        node = AndGroup.model_validate(
+            {"and": [{"field": "a", "op": "eq", "value": 1}]}
+        )
         assert predicate_depth(node) == 2
 
     def test_not_with_comparison_depth_2(self) -> None:
@@ -1975,9 +2523,23 @@ class TestCategory14PredicateDepthCalculation:
 
     def test_deeply_nested_depth_calculation(self) -> None:
         """Depth 5: AND(OR(NOT(AND(OR(leaf)))))."""
-        node = AndGroup.model_validate({
-            "and": [{"or": [{"not": {"and": [{"or": [{"field": "a", "op": "eq", "value": 1}]}]}}]}]
-        })
+        node = AndGroup.model_validate(
+            {
+                "and": [
+                    {
+                        "or": [
+                            {
+                                "not": {
+                                    "and": [
+                                        {"or": [{"field": "a", "op": "eq", "value": 1}]}
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        )
         assert predicate_depth(node) == 6  # Exceeds default max of 5
 
     def test_empty_and_depth_1(self) -> None:

@@ -592,9 +592,7 @@ class TestEngineJoinAdversarial:
             }
         )
 
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_registry_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_registry_cls:
             mock_registry = MagicMock()
             mock_registry.get_schema.side_effect = lambda k: schema_map[k]
             mock_registry_cls.get_instance.return_value = mock_registry
@@ -649,9 +647,7 @@ class TestEngineJoinAdversarial:
             }
         )
 
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_registry_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_registry_cls:
             mock_registry = MagicMock()
             mock_registry.get_schema.side_effect = lambda k: schema_map[k]
             mock_registry_cls.get_instance.return_value = mock_registry
@@ -711,9 +707,7 @@ class TestEngineJoinAdversarial:
             }
         )
 
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_registry_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_registry_cls:
             mock_registry = MagicMock()
             mock_registry.get_schema.side_effect = lambda k: schema_map[k]
             mock_registry_cls.get_instance.return_value = mock_registry
@@ -776,9 +770,7 @@ class TestEngineJoinAdversarial:
             }
         )
 
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_registry_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_registry_cls:
             mock_registry = MagicMock()
             mock_registry.get_schema.side_effect = lambda k: schema_map[k]
             mock_registry_cls.get_instance.return_value = mock_registry
@@ -848,9 +840,7 @@ class TestErrorSerialization:
 
     def test_join_error_no_project_format(self) -> None:
         """Error message for no project configured."""
-        err = JoinError(
-            "No project configured for join target: business"
-        )
+        err = JoinError("No project configured for join target: business")
         d = err.to_dict()
         assert "No project configured" in d["message"]
 
@@ -967,9 +957,7 @@ class TestTDDDeviationProbes:
             }
         )
 
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry"
-        ) as mock_registry_cls:
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_registry_cls:
             mock_registry = MagicMock()
             mock_registry.get_schema.side_effect = lambda k: schema_map[k]
             mock_registry_cls.get_instance.return_value = mock_registry

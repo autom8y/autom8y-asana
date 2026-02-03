@@ -207,10 +207,7 @@ async def warm_ancestors_async(
         fetched_results: list[dict[str, Any] | None] = []
         if parents_to_fetch:
             fetched_results = await _gather_with_limit(
-                [
-                    _fetch_parent(gid, tasks_client)
-                    for gid in parents_to_fetch
-                ],
+                [_fetch_parent(gid, tasks_client) for gid in parents_to_fetch],
                 max_concurrent=max_concurrent,
                 semaphore=global_semaphore,
             )

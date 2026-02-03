@@ -1094,9 +1094,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                             # dataframe.parquet that Lambda may have already
                             # written.  Only delegate to Lambda if no parquet
                             # exists either.
-                            manifest = await persistence.get_manifest_async(
-                                project_gid
-                            )
+                            manifest = await persistence.get_manifest_async(project_gid)
                             if manifest is None:
                                 # Try loading existing dataframe.parquet from
                                 # S3 (Lambda writes this and deletes the
@@ -1106,11 +1104,10 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                 )
 
                                 df_persistence = DataFramePersistence()
-                                s3_df, s3_watermark = (
-                                    await df_persistence.load_dataframe(
-                                        project_gid
-                                    )
-                                )
+                                (
+                                    s3_df,
+                                    s3_watermark,
+                                ) = await df_persistence.load_dataframe(project_gid)
 
                                 if s3_df is not None and len(s3_df) > 0:
                                     # Parquet exists — load directly into
@@ -1142,9 +1139,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                     return True
 
                                 # No parquet either — delegate to Lambda
-                                lambda_arn = os.environ.get(
-                                    "CACHE_WARMER_LAMBDA_ARN"
-                                )
+                                lambda_arn = os.environ.get("CACHE_WARMER_LAMBDA_ARN")
                                 if lambda_arn:
                                     projects_needing_lambda.append(entity_type)
                                     logger.info(

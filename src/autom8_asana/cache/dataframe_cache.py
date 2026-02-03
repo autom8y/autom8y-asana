@@ -402,7 +402,9 @@ class DataFrameCache:
             entity_type: Optional specific entity type. If None, all types.
         """
         entity_types = (
-            [entity_type] if entity_type else ["unit", "business", "offer", "contact", "asset_edit"]
+            [entity_type]
+            if entity_type
+            else ["unit", "business", "offer", "contact", "asset_edit"]
         )
 
         for et in entity_types:
@@ -582,7 +584,11 @@ class DataFrameCache:
                 return FreshnessStatus.EXPIRED
 
         # Entity-aware TTL with SWR grace window
-        from autom8_asana.config import DEFAULT_ENTITY_TTLS, DEFAULT_TTL, SWR_GRACE_MULTIPLIER
+        from autom8_asana.config import (
+            DEFAULT_ENTITY_TTLS,
+            DEFAULT_TTL,
+            SWR_GRACE_MULTIPLIER,
+        )
 
         entity_ttl = DEFAULT_ENTITY_TTLS.get(entry.entity_type, DEFAULT_TTL)
         grace_ttl = entity_ttl * SWR_GRACE_MULTIPLIER

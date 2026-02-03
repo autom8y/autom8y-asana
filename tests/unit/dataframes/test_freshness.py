@@ -117,9 +117,7 @@ class TestSectionFreshnessProber:
 
     @pytest.mark.asyncio
     async def test_probe_no_complete_sections(self) -> None:
-        manifest = _make_manifest(
-            {"sec_1": SectionInfo(status=SectionStatus.PENDING)}
-        )
+        manifest = _make_manifest({"sec_1": SectionInfo(status=SectionStatus.PENDING)})
         prober, _ = self._make_prober(manifest)
         results = await prober.probe_all_async()
         assert results == []
@@ -162,7 +160,11 @@ class TestSectionFreshnessProber:
             }
         )
         # Current API returns different tasks (t3 removed, t4 added)
-        current_tasks = [_make_task_mock("t1"), _make_task_mock("t2"), _make_task_mock("t4")]
+        current_tasks = [
+            _make_task_mock("t1"),
+            _make_task_mock("t2"),
+            _make_task_mock("t4"),
+        ]
         prober, client = self._make_prober(
             manifest,
             list_async_side_effect=[_make_page_iterator(current_tasks)],

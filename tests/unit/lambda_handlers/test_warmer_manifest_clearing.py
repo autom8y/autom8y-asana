@@ -23,9 +23,7 @@ from autom8_asana.lambda_handlers.cache_warmer import (
 class MockLambdaContext:
     """Mock Lambda context for testing."""
 
-    def __init__(
-        self, remaining_time_ms: int = 600_000, request_id: str = "test-123"
-    ):
+    def __init__(self, remaining_time_ms: int = 600_000, request_id: str = "test-123"):
         self._remaining_time_ms = remaining_time_ms
         self.aws_request_id = request_id
 

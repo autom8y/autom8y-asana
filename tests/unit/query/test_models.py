@@ -73,9 +73,7 @@ class TestAndGroupParsing:
 
     def test_and_extra_field_rejected(self) -> None:
         with pytest.raises(ValidationError):
-            _predicate_adapter.validate_python(
-                {"and": [], "extra": True}
-            )
+            _predicate_adapter.validate_python({"and": [], "extra": True})
 
 
 class TestOrGroupParsing:
@@ -227,9 +225,7 @@ class TestAggSpec:
     def test_tc_as003_invalid_agg_function(self) -> None:
         """TC-AS003: AggSpec with invalid agg function raises ValidationError."""
         with pytest.raises(ValidationError):
-            AggSpec.model_validate(
-                {"column": "amount", "agg": "invalid_agg"}
-            )
+            AggSpec.model_validate({"column": "amount", "agg": "invalid_agg"})
 
     def test_tc_as004_extra_fields_rejected(self) -> None:
         """TC-AS004: AggSpec with extra fields rejected."""
@@ -261,67 +257,81 @@ class TestAggregateRequest:
     def test_tc_as005_empty_group_by_rejected(self) -> None:
         """TC-AS005: AggregateRequest with empty group_by raises ValidationError."""
         with pytest.raises(ValidationError):
-            AggregateRequest.model_validate({
-                "group_by": [],
-                "aggregations": [{"column": "x", "agg": "count"}],
-            })
+            AggregateRequest.model_validate(
+                {
+                    "group_by": [],
+                    "aggregations": [{"column": "x", "agg": "count"}],
+                }
+            )
 
     def test_tc_as006_too_many_group_by_rejected(self) -> None:
         """TC-AS006: AggregateRequest with >5 group_by raises ValidationError."""
         with pytest.raises(ValidationError):
-            AggregateRequest.model_validate({
-                "group_by": ["a", "b", "c", "d", "e", "f"],
-                "aggregations": [{"column": "x", "agg": "count"}],
-            })
+            AggregateRequest.model_validate(
+                {
+                    "group_by": ["a", "b", "c", "d", "e", "f"],
+                    "aggregations": [{"column": "x", "agg": "count"}],
+                }
+            )
 
     def test_tc_as007_empty_aggregations_rejected(self) -> None:
         """TC-AS007: AggregateRequest with empty aggregations raises ValidationError."""
         with pytest.raises(ValidationError):
-            AggregateRequest.model_validate({
-                "group_by": ["vertical"],
-                "aggregations": [],
-            })
+            AggregateRequest.model_validate(
+                {
+                    "group_by": ["vertical"],
+                    "aggregations": [],
+                }
+            )
 
     def test_tc_as008_too_many_aggregations_rejected(self) -> None:
         """TC-AS008: AggregateRequest with >10 aggregations raises ValidationError."""
         aggs = [{"column": f"col_{i}", "agg": "count"} for i in range(11)]
         with pytest.raises(ValidationError):
-            AggregateRequest.model_validate({
-                "group_by": ["vertical"],
-                "aggregations": aggs,
-            })
+            AggregateRequest.model_validate(
+                {
+                    "group_by": ["vertical"],
+                    "aggregations": aggs,
+                }
+            )
 
     def test_tc_as009_where_flat_array_sugar(self) -> None:
         """TC-AS009: AggregateRequest WHERE flat array sugar wraps to AND group."""
-        req = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count"}],
-            "where": [
-                {"field": "a", "op": "eq", "value": 1},
-                {"field": "b", "op": "eq", "value": 2},
-            ],
-        })
+        req = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count"}],
+                "where": [
+                    {"field": "a", "op": "eq", "value": 1},
+                    {"field": "b", "op": "eq", "value": 2},
+                ],
+            }
+        )
         assert isinstance(req.where, AndGroup)
         assert len(req.where.and_) == 2
 
     def test_tc_as010_having_flat_array_sugar(self) -> None:
         """TC-AS010: AggregateRequest HAVING flat array sugar wraps to AND group."""
-        req = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
-            "having": [
-                {"field": "cnt", "op": "gt", "value": 5},
-            ],
-        })
+        req = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
+                "having": [
+                    {"field": "cnt", "op": "gt", "value": 5},
+                ],
+            }
+        )
         assert isinstance(req.having, AndGroup)
         assert len(req.having.and_) == 1
 
     def test_valid_minimal_request(self) -> None:
         """Minimal valid AggregateRequest parses successfully."""
-        req = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count"}],
-        })
+        req = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count"}],
+            }
+        )
         assert req.group_by == ["vertical"]
         assert len(req.aggregations) == 1
         assert req.where is None
@@ -331,26 +341,32 @@ class TestAggregateRequest:
     def test_extra_fields_rejected(self) -> None:
         """AggregateRequest with extra fields rejected."""
         with pytest.raises(ValidationError):
-            AggregateRequest.model_validate({
-                "group_by": ["vertical"],
-                "aggregations": [{"column": "gid", "agg": "count"}],
-                "bogus": True,
-            })
+            AggregateRequest.model_validate(
+                {
+                    "group_by": ["vertical"],
+                    "aggregations": [{"column": "gid", "agg": "count"}],
+                    "bogus": True,
+                }
+            )
 
     def test_where_empty_array_becomes_none(self) -> None:
         """Empty WHERE array becomes None."""
-        req = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count"}],
-            "where": [],
-        })
+        req = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count"}],
+                "where": [],
+            }
+        )
         assert req.where is None
 
     def test_having_empty_array_becomes_none(self) -> None:
         """Empty HAVING array becomes None."""
-        req = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count"}],
-            "having": [],
-        })
+        req = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count"}],
+                "having": [],
+            }
+        )
         assert req.having is None

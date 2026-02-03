@@ -27,6 +27,7 @@ from autom8_asana.cache.unified import UnifiedTaskStore
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_task(
     gid: str,
     parent_gid: str | None = None,
@@ -52,6 +53,7 @@ def _make_parent_response(gid: str) -> MagicMock:
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_cache_provider() -> MagicMock:
@@ -100,6 +102,7 @@ def store(mock_cache_provider: MagicMock) -> UnifiedTaskStore:
 # 1. BOUNDARY CONDITIONS
 # ============================================================================
 
+
 class TestBoundaryConditions:
     """Exact boundary probes around HIERARCHY_PACING_THRESHOLD (100)."""
 
@@ -110,8 +113,12 @@ class TestBoundaryConditions:
         """Exactly 100 unique parents -- threshold is >, not >=, so no pacing."""
         tasks = [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(100)]
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=mock_tasks_client)
+        with patch(
+            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+        ) as mock_sleep:
+            await store.put_batch_async(
+                tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
+            )
             mock_sleep.assert_not_called()
 
         assert mock_tasks_client.get_async.call_count == 100
@@ -123,8 +130,12 @@ class TestBoundaryConditions:
         """101 unique parents -- pacing must activate (> 100)."""
         tasks = [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(101)]
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=mock_tasks_client)
+        with patch(
+            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+        ) as mock_sleep:
+            await store.put_batch_async(
+                tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
+            )
             # 101 / 50 = 3 batches (50, 50, 1) -> 2 pauses
             assert mock_sleep.call_count == 2
 
@@ -137,8 +148,12 @@ class TestBoundaryConditions:
         """Zero tasks with parents -- no fetches, no pacing, no crash."""
         tasks = [_make_task(f"t-{i}") for i in range(10)]  # no parent_gid
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=mock_tasks_client)
+        with patch(
+            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+        ) as mock_sleep:
+            await store.put_batch_async(
+                tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
+            )
             mock_sleep.assert_not_called()
 
         mock_tasks_client.get_async.assert_not_called()
@@ -150,8 +165,12 @@ class TestBoundaryConditions:
         """One task with one parent -- minimal case, no pacing."""
         tasks = [_make_task("only-task", parent_gid="only-parent")]
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=mock_tasks_client)
+        with patch(
+            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+        ) as mock_sleep:
+            await store.put_batch_async(
+                tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
+            )
             mock_sleep.assert_not_called()
 
         assert mock_tasks_client.get_async.call_count == 1
@@ -160,6 +179,7 @@ class TestBoundaryConditions:
 # ============================================================================
 # 2. BATCH EDGE CASES
 # ============================================================================
+
 
 class TestBatchEdgeCases:
     """Verify batch arithmetic for divisible, non-divisible, and single-overflow cases."""
@@ -171,8 +191,12 @@ class TestBatchEdgeCases:
         """150 parents / 50 = 3 full batches, 2 pauses."""
         tasks = [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(150)]
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=mock_tasks_client)
+        with patch(
+            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+        ) as mock_sleep:
+            await store.put_batch_async(
+                tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
+            )
             assert mock_sleep.call_count == 2
 
         assert mock_tasks_client.get_async.call_count == 150
@@ -184,8 +208,12 @@ class TestBatchEdgeCases:
         """151 parents / 50 = 4 batches (50,50,50,1), 3 pauses."""
         tasks = [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(151)]
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-            await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=mock_tasks_client)
+        with patch(
+            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+        ) as mock_sleep:
+            await store.put_batch_async(
+                tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
+            )
             assert mock_sleep.call_count == 3
 
         assert mock_tasks_client.get_async.call_count == 151
@@ -199,10 +227,14 @@ class TestBatchEdgeCases:
         tasks = [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(101)]
 
         with (
-            patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+            patch(
+                "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+            ) as mock_sleep,
             patch("autom8_asana.config.HIERARCHY_BATCH_SIZE", 200),
         ):
-            await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=mock_tasks_client)
+            await store.put_batch_async(
+                tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
+            )
             # Single batch that fits everything -> no pause needed
             mock_sleep.assert_not_called()
 
@@ -215,9 +247,13 @@ class TestBatchEdgeCases:
         tasks = [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(n)]
 
         with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock):
-            await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=mock_tasks_client)
+            await store.put_batch_async(
+                tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
+            )
 
-        fetched_gids = [call.args[0] for call in mock_tasks_client.get_async.call_args_list]
+        fetched_gids = [
+            call.args[0] for call in mock_tasks_client.get_async.call_args_list
+        ]
         assert len(fetched_gids) == n
         assert len(set(fetched_gids)) == n  # all unique
 
@@ -225,6 +261,7 @@ class TestBatchEdgeCases:
 # ============================================================================
 # 3. ERROR RESILIENCE
 # ============================================================================
+
 
 class TestErrorResilience:
     """Verify that batch failures do not abort subsequent batches."""
@@ -255,7 +292,9 @@ class TestErrorResilience:
         client = MagicMock()
         client.get_async = AsyncMock(side_effect=_flaky_get)
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        with patch(
+            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+        ) as mock_sleep:
             await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=client)
             # Pacing activated (120 > 100), 2 pauses expected in Phase 1
             assert mock_sleep.call_count == 2
@@ -265,9 +304,7 @@ class TestErrorResilience:
         assert client.get_async.call_count >= n
 
     @pytest.mark.asyncio
-    async def test_all_fetches_fail_no_crash(
-        self, store: UnifiedTaskStore
-    ) -> None:
+    async def test_all_fetches_fail_no_crash(self, store: UnifiedTaskStore) -> None:
         """If every single fetch fails, the system does not crash.
 
         Phase 2 will re-attempt uncached parents, doubling the call count.
@@ -320,6 +357,7 @@ class TestErrorResilience:
 # 4. CONCURRENCY INTERACTION
 # ============================================================================
 
+
 class TestConcurrencyInteraction:
     """Verify semaphore limits concurrency within paced batches."""
 
@@ -356,12 +394,15 @@ class TestConcurrencyInteraction:
             )
 
         # The default _hierarchy_semaphore is 10
-        assert max_concurrent <= 10, f"Max concurrency was {max_concurrent}, expected <= 10"
+        assert max_concurrent <= 10, (
+            f"Max concurrency was {max_concurrent}, expected <= 10"
+        )
 
 
 # ============================================================================
 # 5. DEAD CODE REMOVAL VALIDATION
 # ============================================================================
+
 
 class TestDeadCodeRemoval:
     """Verify dead code has been fully removed."""
@@ -400,13 +441,16 @@ class TestDeadCodeRemoval:
 
         hw_src = inspect.getsource(hw)
         uf_src = inspect.getsource(uf)
-        assert "backoff_event" not in hw_src, "backoff_event reference in hierarchy_warmer.py"
+        assert "backoff_event" not in hw_src, (
+            "backoff_event reference in hierarchy_warmer.py"
+        )
         assert "backoff_event" not in uf_src, "backoff_event reference in unified.py"
 
 
 # ============================================================================
 # 6. 429 LOGGING
 # ============================================================================
+
 
 class TestRateLimitLogging:
     """Verify structured rate_limit_429_received log is emitted correctly."""
@@ -458,6 +502,7 @@ class TestRateLimitLogging:
 # ============================================================================
 # 7. PHASE 2 UNAFFECTED (warm_ancestors_async)
 # ============================================================================
+
 
 class TestPhase2Unaffected:
     """Verify warm_ancestors_async still works after dead code removal."""
@@ -589,27 +634,32 @@ class TestPhase2Unaffected:
 # 8. CONFIGURATION CONSTANTS VALIDATION
 # ============================================================================
 
+
 class TestConfigConstants:
     """Verify configuration constants have sane values and types."""
 
     def test_threshold_is_positive_int(self) -> None:
         from autom8_asana.config import HIERARCHY_PACING_THRESHOLD
+
         assert isinstance(HIERARCHY_PACING_THRESHOLD, int)
         assert HIERARCHY_PACING_THRESHOLD > 0
 
     def test_batch_size_is_positive_int(self) -> None:
         from autom8_asana.config import HIERARCHY_BATCH_SIZE
+
         assert isinstance(HIERARCHY_BATCH_SIZE, int)
         assert HIERARCHY_BATCH_SIZE >= 1
 
     def test_batch_delay_is_non_negative_float(self) -> None:
         from autom8_asana.config import HIERARCHY_BATCH_DELAY
+
         assert isinstance(HIERARCHY_BATCH_DELAY, (int, float))
         assert HIERARCHY_BATCH_DELAY >= 0.0
 
     def test_batch_size_less_than_threshold(self) -> None:
         """Batch size should be less than threshold, otherwise pacing is meaningless."""
         from autom8_asana.config import HIERARCHY_BATCH_SIZE, HIERARCHY_PACING_THRESHOLD
+
         assert HIERARCHY_BATCH_SIZE < HIERARCHY_PACING_THRESHOLD, (
             f"BATCH_SIZE ({HIERARCHY_BATCH_SIZE}) >= THRESHOLD ({HIERARCHY_PACING_THRESHOLD}) "
             "makes pacing pointless"

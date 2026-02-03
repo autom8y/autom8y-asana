@@ -54,6 +54,7 @@ __all__ = [
     "validate_project_env_vars",
     "DEFAULT_ENTITY_TTLS",
     "DEFAULT_TTL",
+    "SWR_GRACE_MULTIPLIER",
     # Platform primitive configs (for new code)
     "PlatformRateLimiterConfig",
     "PlatformRetryConfig",
@@ -71,6 +72,11 @@ logger = get_logger(__name__)
 # DO NOT duplicate these values elsewhere - import from this module.
 
 DEFAULT_TTL: int = 300  # 5 minutes - fallback for unknown entity types
+
+# Per SPIKE-stale-while-revalidate-freshness Option A:
+# Stale entries are served for up to GRACE_MULTIPLIER * entity_TTL seconds
+# while a background refresh runs. Beyond that window the entry is expired.
+SWR_GRACE_MULTIPLIER: float = 3.0
 
 DEFAULT_ENTITY_TTLS: dict[str, int] = {
     "business": 3600,  # 1 hour - rarely changes

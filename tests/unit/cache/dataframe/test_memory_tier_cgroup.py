@@ -45,7 +45,11 @@ class TestGetContainerMemoryBytes:
             ),
         ):
             # Remove env var if present
-            env = {k: v for k, v in __import__("os").environ.items() if k != "CONTAINER_MEMORY_MB"}
+            env = {
+                k: v
+                for k, v in __import__("os").environ.items()
+                if k != "CONTAINER_MEMORY_MB"
+            }
             with patch.dict("os.environ", env, clear=True):
                 result = _get_container_memory_bytes()
         assert result == cgroup_bytes

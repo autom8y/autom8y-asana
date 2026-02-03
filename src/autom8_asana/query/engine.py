@@ -22,7 +22,11 @@ from autom8_asana.query.errors import (
     UnknownFieldError,
     UnknownSectionError,
 )
-from autom8_asana.query.hierarchy import find_relationship, get_join_key, get_joinable_types
+from autom8_asana.query.hierarchy import (
+    find_relationship,
+    get_join_key,
+    get_joinable_types,
+)
 from autom8_asana.query.join import execute_join
 from autom8_asana.query.guards import QueryLimits, predicate_depth
 from autom8_asana.query.models import (
@@ -184,8 +188,7 @@ class QueryEngine:
             )
             if target_project_gid is None:
                 raise JoinError(
-                    f"No project configured for join target: "
-                    f"{request.join.entity_type}"
+                    f"No project configured for join target: {request.join.entity_type}"
                 )
 
             target_df = await self.query_service.get_dataframe(

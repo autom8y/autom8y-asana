@@ -174,9 +174,7 @@ class TestExecuteJoin:
         assert result.matched_count == 2
         assert result.unmatched_count == 0
 
-    def test_tc_je005_join_key_missing_primary(
-        self, target_df: pl.DataFrame
-    ) -> None:
+    def test_tc_je005_join_key_missing_primary(self, target_df: pl.DataFrame) -> None:
         """TC-JE005: Join key missing from primary raises JoinError."""
         no_key_primary = pl.DataFrame({"gid": ["o1"], "name": ["Offer A"]})
         with pytest.raises(JoinError, match="not found in primary"):
@@ -188,13 +186,9 @@ class TestExecuteJoin:
                 target_entity_type="business",
             )
 
-    def test_tc_je006_join_key_missing_target(
-        self, primary_df: pl.DataFrame
-    ) -> None:
+    def test_tc_je006_join_key_missing_target(self, primary_df: pl.DataFrame) -> None:
         """TC-JE006: Join key missing from target raises JoinError."""
-        no_key_target = pl.DataFrame(
-            {"gid": ["b1"], "booking_type": ["Online"]}
-        )
+        no_key_target = pl.DataFrame({"gid": ["b1"], "booking_type": ["Online"]})
         with pytest.raises(JoinError, match="not found in target"):
             execute_join(
                 primary_df=primary_df,
@@ -217,9 +211,7 @@ class TestExecuteJoin:
                 target_entity_type="business",
             )
 
-    def test_tc_je008_duplicate_join_key_dedup(
-        self, primary_df: pl.DataFrame
-    ) -> None:
+    def test_tc_je008_duplicate_join_key_dedup(self, primary_df: pl.DataFrame) -> None:
         """TC-JE008: Target with duplicate join keys deduplicates (first)."""
         dup_target = pl.DataFrame(
             {

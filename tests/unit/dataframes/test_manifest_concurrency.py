@@ -28,7 +28,9 @@ def _make_persistence() -> SectionPersistence:
     persistence = SectionPersistence(config=config)
     persistence._s3_client = AsyncMock()
     persistence._s3_client.put_object_async = AsyncMock(
-        return_value=S3WriteResult(success=True, key="test", size_bytes=100, duration_ms=10.0)
+        return_value=S3WriteResult(
+            success=True, key="test", size_bytes=100, duration_ms=10.0
+        )
     )
     return persistence
 
@@ -114,7 +116,11 @@ async def test_get_manifest_falls_through_to_s3() -> None:
 
     persistence._s3_client.get_object_async = AsyncMock(
         return_value=S3ReadResult(
-            success=True, key="test", data=manifest_json, size_bytes=len(manifest_json), duration_ms=5.0
+            success=True,
+            key="test",
+            data=manifest_json,
+            size_bytes=len(manifest_json),
+            duration_ms=5.0,
         )
     )
 

@@ -13,11 +13,23 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
 from autom8_asana.client import AsanaClient
 from autom8_asana.query.engine import QueryEngine
-from autom8_asana.query.errors import AggregateGroupLimitError, QueryEngineError, QueryTooComplexError
+from autom8_asana.query.errors import (
+    AggregateGroupLimitError,
+    QueryEngineError,
+    QueryTooComplexError,
+)
 from autom8_asana.query.guards import predicate_depth
-from autom8_asana.query.models import AggregateRequest, AggregateResponse, RowsRequest, RowsResponse
+from autom8_asana.query.models import (
+    AggregateRequest,
+    AggregateResponse,
+    RowsRequest,
+    RowsResponse,
+)
 from autom8_asana.services.query_service import CacheNotWarmError
-from autom8_asana.services.resolver import EntityProjectRegistry, get_resolvable_entities
+from autom8_asana.services.resolver import (
+    EntityProjectRegistry,
+    get_resolvable_entities,
+)
 
 __all__ = [
     "router",
@@ -67,7 +79,9 @@ async def query_rows(
 
     # Get project GID
     registry: EntityProjectRegistry | None = getattr(
-        request.app.state, "entity_project_registry", None,
+        request.app.state,
+        "entity_project_registry",
+        None,
     )
     if registry is None or not registry.is_ready():
         raise HTTPException(
@@ -109,9 +123,7 @@ async def query_rows(
         from autom8_asana.metrics.resolve import SectionIndex
 
         persistence = SectionPersistence()
-        section_index = await SectionIndex.from_manifest_async(
-            persistence, project_gid
-        )
+        section_index = await SectionIndex.from_manifest_async(persistence, project_gid)
         # Check if manifest had results; if not, fall back to enum
         if section_index.resolve(request_body.section) is None:
             section_index = SectionIndex.from_enum_fallback(entity_type)
@@ -184,7 +196,9 @@ async def query_aggregate(
 
     # Get project GID (same pattern as /rows)
     registry: EntityProjectRegistry | None = getattr(
-        request.app.state, "entity_project_registry", None,
+        request.app.state,
+        "entity_project_registry",
+        None,
     )
     if registry is None or not registry.is_ready():
         raise HTTPException(
@@ -226,9 +240,7 @@ async def query_aggregate(
         from autom8_asana.metrics.resolve import SectionIndex
 
         persistence = SectionPersistence()
-        section_index = await SectionIndex.from_manifest_async(
-            persistence, project_gid
-        )
+        section_index = await SectionIndex.from_manifest_async(persistence, project_gid)
         if section_index.resolve(request_body.section) is None:
             section_index = SectionIndex.from_enum_fallback(entity_type)
 

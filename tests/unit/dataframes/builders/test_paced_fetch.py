@@ -76,9 +76,7 @@ def _make_builder(
     mock_persistence._s3_client.put_object_async = AsyncMock(
         return_value=mock_s3_result
     )
-    mock_persistence._get_manifest_lock = MagicMock(
-        return_value=asyncio.Lock()
-    )
+    mock_persistence._get_manifest_lock = MagicMock(return_value=asyncio.Lock())
     mock_persistence.get_manifest_async = AsyncMock(return_value=manifest)
     mock_persistence._manifest_cache = {}
     mock_persistence._save_manifest_async = AsyncMock(return_value=True)
@@ -123,10 +121,10 @@ class TestSmallSectionNoPacing:
         # Return 50 tasks (less than one full page)
         builder._client.tasks.list_async.return_value = _FakePageIterator(50)
 
-        with patch("autom8_asana.dataframes.builders.progressive.asyncio.sleep") as mock_sleep:
-            result = await builder._fetch_and_persist_section(
-                "sec_1", None, 0, 1
-            )
+        with patch(
+            "autom8_asana.dataframes.builders.progressive.asyncio.sleep"
+        ) as mock_sleep:
+            result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
         mock_sleep.assert_not_called()
@@ -153,9 +151,7 @@ class TestLargeSectionPacingActivated:
         # 150 tasks: first page has 100, second page has 50
         builder._client.tasks.list_async.return_value = _FakePageIterator(150)
 
-        result = await builder._fetch_and_persist_section(
-            "sec_1", None, 0, 1
-        )
+        result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
         # Should have 150 tasks in final write
@@ -204,9 +200,7 @@ class TestPacingSleepIntervals:
                 50,
             ),
         ):
-            result = await builder._fetch_and_persist_section(
-                "sec_1", None, 0, 1
-            )
+            result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
         # Sleep called at page boundaries: 25, 50, 75
@@ -245,9 +239,7 @@ class TestCheckpointWriteAtIntervals:
                 25,
             ),
         ):
-            result = await builder._fetch_and_persist_section(
-                "sec_1", None, 0, 1
-            )
+            result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
         # Checkpoint writes go directly to S3 client (not write_section_async)
@@ -287,9 +279,7 @@ class TestCheckpointMetadataUpdated:
                 25,
             ),
         ):
-            result = await builder._fetch_and_persist_section(
-                "sec_1", None, 0, 1
-            )
+            result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
         # _update_checkpoint_metadata was called, which saves manifest
@@ -311,20 +301,33 @@ class TestEmptySectionNoPacing:
         builder = _make_builder(manifest=manifest)
         builder._client.tasks.list_async.return_value = _FakePageIterator(0)
 
-        with patch("autom8_asana.dataframes.builders.progressive.asyncio.sleep") as mock_sleep:
-            result = await builder._fetch_and_persist_section(
-                "sec_1", None, 0, 1
-            )
+        with patch(
+            "autom8_asana.dataframes.builders.progressive.asyncio.sleep"
+        ) as mock_sleep:
+            result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
         mock_sleep.assert_not_called()
         # Should be marked COMPLETE with 0 rows
         builder._persistence.update_manifest_section_async.assert_any_call(
-            "proj_123", "sec_1", SectionStatus.COMPLETE, rows=0, gid_hash=pytest.approx(
-                builder._persistence.update_manifest_section_async.call_args_list[-1][1].get(
+            "proj_123",
+            "sec_1",
+            SectionStatus.COMPLETE,
+            rows=0,
+            gid_hash=pytest.approx(
+                builder._persistence.update_manifest_section_async.call_args_list[-1][
+                    1
+                ].get(
                     "gid_hash",
-                    builder._persistence.update_manifest_section_async.call_args_list[-1][0][-1]
-                    if len(builder._persistence.update_manifest_section_async.call_args_list[-1][0]) > 3
+                    builder._persistence.update_manifest_section_async.call_args_list[
+                        -1
+                    ][0][-1]
+                    if len(
+                        builder._persistence.update_manifest_section_async.call_args_list[
+                            -1
+                        ][0]
+                    )
+                    > 3
                     else None,
                 ),
             ),
@@ -352,9 +355,7 @@ class TestExactly100TasksPacingHarmless:
             "autom8_asana.dataframes.builders.progressive.asyncio.sleep",
             new_callable=AsyncMock,
         ) as mock_sleep:
-            result = await builder._fetch_and_persist_section(
-                "sec_1", None, 0, 1
-            )
+            result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
         # Pacing loop entered but iterator immediately exhausted -- no sleep
@@ -396,9 +397,7 @@ class TestFinalWriteReplacesCheckpoint:
                 25,
             ),
         ):
-            result = await builder._fetch_and_persist_section(
-                "sec_1", None, 0, 1
-            )
+            result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
         # Final write through write_section_async has all rows

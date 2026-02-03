@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -23,6 +24,7 @@ from autom8_asana.metrics.registry import MetricRegistry
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _metric(
     column: str = "val",
@@ -57,6 +59,7 @@ def _metric(
 # ===========================================================================
 # 1. MetricExpr Adversarial Tests
 # ===========================================================================
+
 
 class TestMetricExprAdversarial:
     """Adversarial tests for MetricExpr edge cases."""
@@ -128,15 +131,18 @@ class TestMetricExprAdversarial:
 # 2. compute_metric Adversarial Tests
 # ===========================================================================
 
+
 class TestComputeAdversarial:
     """Adversarial tests for compute_metric edge cases."""
 
     def test_empty_df_after_filter(self) -> None:
         """Filter removes ALL rows -> empty result, no crash."""
-        df = pl.DataFrame({
-            "name": ["a", "b"],
-            "val": [0, 0],
-        })
+        df = pl.DataFrame(
+            {
+                "name": ["a", "b"],
+                "val": [0, 0],
+            }
+        )
         m = _metric("val", filter_expr=pl.col("val") > 100)
         result = compute_metric(m, df)
         assert len(result) == 0
@@ -144,10 +150,12 @@ class TestComputeAdversarial:
 
     def test_all_null_column(self) -> None:
         """Column exists but all values are None."""
-        df = pl.DataFrame({
-            "name": ["a", "b", "c"],
-            "val": [None, None, None],
-        }).cast({"val": pl.Float64})
+        df = pl.DataFrame(
+            {
+                "name": ["a", "b", "c"],
+                "val": [None, None, None],
+            }
+        ).cast({"val": pl.Float64})
         m = _metric("val")
         result = compute_metric(m, df)
         assert len(result) == 3
@@ -157,10 +165,12 @@ class TestComputeAdversarial:
 
     def test_all_null_column_with_filter_gt_zero(self) -> None:
         """All-null column with > 0 filter -> empty result."""
-        df = pl.DataFrame({
-            "name": ["a", "b"],
-            "val": [None, None],
-        }).cast({"val": pl.Float64})
+        df = pl.DataFrame(
+            {
+                "name": ["a", "b"],
+                "val": [None, None],
+            }
+        ).cast({"val": pl.Float64})
         m = _metric(
             "val",
             filter_expr=pl.col("val").is_not_null() & (pl.col("val") > 0),
@@ -184,11 +194,13 @@ class TestComputeAdversarial:
 
     def test_dedup_with_nulls_in_dedup_keys(self) -> None:
         """Null values in dedup keys should still work (each null is unique or grouped)."""
-        df = pl.DataFrame({
-            "name": ["a", "b", "c"],
-            "key": [None, None, "x"],
-            "val": [10, 20, 30],
-        })
+        df = pl.DataFrame(
+            {
+                "name": ["a", "b", "c"],
+                "key": [None, None, "x"],
+                "val": [10, 20, 30],
+            }
+        )
         m = _metric("val", dedup_keys=["key"])
         result = compute_metric(m, df)
         # Polars unique with null: nulls may be grouped as one
@@ -205,10 +217,12 @@ class TestComputeAdversarial:
 
     def test_duplicate_column_in_dedup_keys_and_metric(self) -> None:
         """Metric column also appears in dedup_keys -> no duplicate column error."""
-        df = pl.DataFrame({
-            "name": ["a", "b"],
-            "val": [10, 20],
-        })
+        df = pl.DataFrame(
+            {
+                "name": ["a", "b"],
+                "val": [10, 20],
+            }
+        )
         m = _metric("val", dedup_keys=["val"])
         result = compute_metric(m, df)
         # Both are unique by val
@@ -236,10 +250,12 @@ class TestComputeAdversarial:
 
     def test_cast_then_filter_order(self) -> None:
         """Cast happens before filter -- filter on cast-result should work."""
-        df = pl.DataFrame({
-            "name": ["a", "b", "c"],
-            "val": ["100", "not_num", "200"],
-        })
+        df = pl.DataFrame(
+            {
+                "name": ["a", "b", "c"],
+                "val": ["100", "not_num", "200"],
+            }
+        )
         m = _metric(
             "val",
             cast_dtype=pl.Float64,
@@ -256,11 +272,13 @@ class TestComputeAdversarial:
         Note: pre_filters can only reference columns that compute_metric selects
         (name, dedup_keys, metric column). Use dedup_keys to include extra columns.
         """
-        df = pl.DataFrame({
-            "name": ["a", "b", "c", "d"],
-            "cat": ["x", "x", "y", "y"],
-            "val": [10.0, 20.0, 30.0, 40.0],
-        })
+        df = pl.DataFrame(
+            {
+                "name": ["a", "b", "c", "d"],
+                "cat": ["x", "x", "y", "y"],
+                "val": [10.0, 20.0, 30.0, 40.0],
+            }
+        )
         m = _metric(
             "val",
             filter_expr=pl.col("val") > 15,
@@ -289,6 +307,7 @@ class TestComputeAdversarial:
 # ===========================================================================
 # 3. Registry Adversarial Tests
 # ===========================================================================
+
 
 class TestRegistryAdversarial:
     """Adversarial tests for MetricRegistry."""
@@ -379,6 +398,10 @@ class TestRegistryAdversarial:
 # 4. CLI Adversarial Tests
 # ===========================================================================
 
+
+_PROJECT_ROOT = str(Path(__file__).resolve().parents[3])
+
+
 @pytest.mark.slow
 class TestCLIAdversarial:
     """Adversarial tests for scripts/calc_metric.py CLI."""
@@ -387,8 +410,10 @@ class TestCLIAdversarial:
         """No arguments -> error exit."""
         result = subprocess.run(
             [sys.executable, "scripts/calc_metric.py"],
-            capture_output=True, text=True, timeout=30,
-            cwd="/Users/tomtenuta/Code/autom8_asana",
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=_PROJECT_ROOT,
         )
         assert result.returncode != 0
 
@@ -396,8 +421,10 @@ class TestCLIAdversarial:
         """--list shows available metrics."""
         result = subprocess.run(
             [sys.executable, "scripts/calc_metric.py", "--list"],
-            capture_output=True, text=True, timeout=30,
-            cwd="/Users/tomtenuta/Code/autom8_asana",
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=_PROJECT_ROOT,
         )
         assert result.returncode == 0
         assert "active_mrr" in result.stdout
@@ -408,8 +435,10 @@ class TestCLIAdversarial:
         """Unknown metric name -> error exit with message."""
         result = subprocess.run(
             [sys.executable, "scripts/calc_metric.py", "nonexistent_metric"],
-            capture_output=True, text=True, timeout=30,
-            cwd="/Users/tomtenuta/Code/autom8_asana",
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=_PROJECT_ROOT,
             env={**__import__("os").environ, "ASANA_CACHE_S3_BUCKET": "fake-bucket"},
         )
         assert result.returncode != 0
@@ -418,11 +447,14 @@ class TestCLIAdversarial:
     def test_cli_no_bucket_env(self) -> None:
         """Missing ASANA_CACHE_S3_BUCKET -> error."""
         import os
+
         env = {k: v for k, v in os.environ.items() if k != "ASANA_CACHE_S3_BUCKET"}
         result = subprocess.run(
             [sys.executable, "scripts/calc_metric.py", "active_mrr"],
-            capture_output=True, text=True, timeout=30,
-            cwd="/Users/tomtenuta/Code/autom8_asana",
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=_PROJECT_ROOT,
             env=env,
         )
         assert result.returncode != 0
@@ -432,8 +464,10 @@ class TestCLIAdversarial:
         """--help works and documents flags."""
         result = subprocess.run(
             [sys.executable, "scripts/calc_metric.py", "--help"],
-            capture_output=True, text=True, timeout=30,
-            cwd="/Users/tomtenuta/Code/autom8_asana",
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=_PROJECT_ROOT,
         )
         assert result.returncode == 0
         assert "--verbose" in result.stdout
@@ -444,8 +478,10 @@ class TestCLIAdversarial:
         """--list with a metric name should still just list."""
         result = subprocess.run(
             [sys.executable, "scripts/calc_metric.py", "--list", "active_mrr"],
-            capture_output=True, text=True, timeout=30,
-            cwd="/Users/tomtenuta/Code/autom8_asana",
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=_PROJECT_ROOT,
         )
         # --list should take precedence, or both should work without crash
         assert result.returncode == 0
@@ -455,6 +491,7 @@ class TestCLIAdversarial:
 # ===========================================================================
 # 5. Import and Module-Level Tests
 # ===========================================================================
+
 
 class TestImportSafety:
     """Verify no import errors or side effects."""
@@ -468,6 +505,7 @@ class TestImportSafety:
             MetricRegistry,
             compute_metric,
         )
+
         assert MetricExpr is not None
         assert Metric is not None
         assert Scope is not None
@@ -477,12 +515,14 @@ class TestImportSafety:
     def test_import_definitions_offer(self) -> None:
         """Importing offer definitions does not crash."""
         from autom8_asana.metrics.definitions import offer
+
         assert hasattr(offer, "ACTIVE_MRR")
         assert hasattr(offer, "ACTIVE_AD_SPEND")
 
     def test_offer_section_enum_used_correctly(self) -> None:
         """OfferSection.ACTIVE matches the section GID in metric definitions."""
         from autom8_asana.models.business.sections import OfferSection
+
         MetricRegistry.reset()
         registry = MetricRegistry()
         mrr = registry.get_metric("active_mrr")
@@ -500,41 +540,83 @@ class TestImportSafety:
 # 6. Backward Compatibility Deep Tests
 # ===========================================================================
 
+
 class TestBackwardCompatibilityDeep:
     """Deep parity tests comparing new metrics layer to old script logic."""
 
     @pytest.fixture
     def realistic_offer_df(self) -> pl.DataFrame:
         """Larger, more realistic test DataFrame."""
-        return pl.DataFrame({
-            "name": [
-                "Offer A", "Offer B", "Offer C", "Offer D", "Offer E",
-                "Offer F", "Offer G", "Offer H", "Offer I", "Offer J",
-            ],
-            "office_phone": [
-                "555-0001", "555-0001", "555-0002", "555-0003", "555-0003",
-                "555-0004", "555-0005", "555-0005", "555-0006", "555-0006",
-            ],
-            "vertical": [
-                "dental", "dental", "dental", "med_spa", "med_spa",
-                "chiro", "dental", "plumbing", "dental", "dental",
-            ],
-            "mrr": [
-                "1000", "2000", "1500", None, "500",
-                "0", "300", "400", "-50", "abc",
-            ],
-            "weekly_ad_spend": [
-                "500", "600", None, "200", "0",
-                "150", "abc", "300", "100", "250",
-            ],
-        })
+        return pl.DataFrame(
+            {
+                "name": [
+                    "Offer A",
+                    "Offer B",
+                    "Offer C",
+                    "Offer D",
+                    "Offer E",
+                    "Offer F",
+                    "Offer G",
+                    "Offer H",
+                    "Offer I",
+                    "Offer J",
+                ],
+                "office_phone": [
+                    "555-0001",
+                    "555-0001",
+                    "555-0002",
+                    "555-0003",
+                    "555-0003",
+                    "555-0004",
+                    "555-0005",
+                    "555-0005",
+                    "555-0006",
+                    "555-0006",
+                ],
+                "vertical": [
+                    "dental",
+                    "dental",
+                    "dental",
+                    "med_spa",
+                    "med_spa",
+                    "chiro",
+                    "dental",
+                    "plumbing",
+                    "dental",
+                    "dental",
+                ],
+                "mrr": [
+                    "1000",
+                    "2000",
+                    "1500",
+                    None,
+                    "500",
+                    "0",
+                    "300",
+                    "400",
+                    "-50",
+                    "abc",
+                ],
+                "weekly_ad_spend": [
+                    "500",
+                    "600",
+                    None,
+                    "200",
+                    "0",
+                    "150",
+                    "abc",
+                    "300",
+                    "100",
+                    "250",
+                ],
+            }
+        )
 
     def test_mrr_parity_realistic(self, realistic_offer_df: pl.DataFrame) -> None:
         """MRR totals match between old and new logic on realistic data."""
         # Old script logic (from calc_mrr.py)
         old = (
-            realistic_offer_df
-            .select("name", "office_phone", "vertical", "mrr")
+            realistic_offer_df.select("name", "office_phone", "vertical", "mrr")
             .with_columns(pl.col("mrr").cast(pl.Float64, strict=False).alias("mrr"))
             .filter(pl.col("mrr").is_not_null() & (pl.col("mrr") > 0))
             .unique(subset=["office_phone", "vertical"], keep="first")
@@ -553,17 +635,24 @@ class TestBackwardCompatibilityDeep:
         new_total = new["mrr"].sum()
         new_count = len(new)
 
-        assert new_total == old_total, f"MRR mismatch: new={new_total} vs old={old_total}"
-        assert new_count == old_count, f"Row count mismatch: new={new_count} vs old={old_count}"
+        assert new_total == old_total, (
+            f"MRR mismatch: new={new_total} vs old={old_total}"
+        )
+        assert new_count == old_count, (
+            f"Row count mismatch: new={new_count} vs old={old_count}"
+        )
 
     def test_ad_spend_parity_realistic(self, realistic_offer_df: pl.DataFrame) -> None:
         """Ad spend totals match between old and new logic on realistic data."""
         # Old script logic (from calc_ad_spend.py)
         old = (
-            realistic_offer_df
-            .select("name", "office_phone", "vertical", "weekly_ad_spend")
+            realistic_offer_df.select(
+                "name", "office_phone", "vertical", "weekly_ad_spend"
+            )
             .with_columns(
-                pl.col("weekly_ad_spend").cast(pl.Float64, strict=False).alias("weekly_ad_spend")
+                pl.col("weekly_ad_spend")
+                .cast(pl.Float64, strict=False)
+                .alias("weekly_ad_spend")
             )
             .filter(
                 pl.col("weekly_ad_spend").is_not_null()
@@ -588,17 +677,23 @@ class TestBackwardCompatibilityDeep:
         new_total = new["weekly_ad_spend"].sum()
         new_count = len(new)
 
-        assert new_total == old_total, f"Ad spend mismatch: new={new_total} vs old={old_total}"
-        assert new_count == old_count, f"Row count mismatch: new={new_count} vs old={old_count}"
+        assert new_total == old_total, (
+            f"Ad spend mismatch: new={new_total} vs old={old_total}"
+        )
+        assert new_count == old_count, (
+            f"Row count mismatch: new={new_count} vs old={old_count}"
+        )
 
     def test_zero_values_filtered_by_gt_zero(self) -> None:
         """Zero values are correctly excluded by > 0 filter (matching old scripts)."""
-        df = pl.DataFrame({
-            "name": ["a", "b", "c"],
-            "office_phone": ["p1", "p2", "p3"],
-            "vertical": ["v1", "v2", "v3"],
-            "mrr": ["0", "100", "0.0"],
-        })
+        df = pl.DataFrame(
+            {
+                "name": ["a", "b", "c"],
+                "office_phone": ["p1", "p2", "p3"],
+                "vertical": ["v1", "v2", "v3"],
+                "mrr": ["0", "100", "0.0"],
+            }
+        )
         m = _metric(
             "mrr",
             cast_dtype=pl.Float64,
@@ -611,12 +706,14 @@ class TestBackwardCompatibilityDeep:
 
     def test_negative_values_filtered_by_gt_zero(self) -> None:
         """Negative values are excluded by > 0 filter."""
-        df = pl.DataFrame({
-            "name": ["a", "b"],
-            "office_phone": ["p1", "p2"],
-            "vertical": ["v1", "v2"],
-            "mrr": ["-50", "100"],
-        })
+        df = pl.DataFrame(
+            {
+                "name": ["a", "b"],
+                "office_phone": ["p1", "p2"],
+                "vertical": ["v1", "v2"],
+                "mrr": ["-50", "100"],
+            }
+        )
         m = _metric(
             "mrr",
             cast_dtype=pl.Float64,
@@ -629,11 +726,13 @@ class TestBackwardCompatibilityDeep:
 
     def test_dedup_keeps_first_encounter(self) -> None:
         """Dedup keeps first row per key combo, matching Polars unique(keep='first')."""
-        df = pl.DataFrame({
-            "name": ["first", "second", "third"],
-            "key": ["a", "a", "b"],
-            "val": [10, 20, 30],
-        })
+        df = pl.DataFrame(
+            {
+                "name": ["first", "second", "third"],
+                "key": ["a", "a", "b"],
+                "val": [10, 20, 30],
+            }
+        )
         m = _metric("val", dedup_keys=["key"])
         result = compute_metric(m, df)
         # key "a" should keep "first" with val=10

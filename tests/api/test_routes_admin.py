@@ -45,9 +45,7 @@ def authed_app(app: FastAPI, mock_service_claims: ServiceClaims) -> FastAPI:
     async def override_require_service_claims() -> ServiceClaims:
         return mock_service_claims
 
-    app.dependency_overrides[require_service_claims] = (
-        override_require_service_claims
-    )
+    app.dependency_overrides[require_service_claims] = override_require_service_claims
     return app
 
 

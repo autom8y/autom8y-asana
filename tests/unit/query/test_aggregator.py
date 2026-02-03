@@ -17,7 +17,11 @@ from autom8_asana.query.aggregator import (
     validate_alias_uniqueness,
 )
 from autom8_asana.query.compiler import PredicateCompiler
-from autom8_asana.query.errors import AggregationError, InvalidOperatorError, UnknownFieldError
+from autom8_asana.query.errors import (
+    AggregationError,
+    InvalidOperatorError,
+    UnknownFieldError,
+)
 from autom8_asana.query.models import AggFunction, AggSpec
 
 
@@ -74,37 +78,47 @@ class TestAggregationCompiler:
         spec = AggSpec(column="amount", agg=AggFunction.SUM, alias="total_amount")
         exprs = compiler.compile([spec], numeric_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental", "medical"],
-            "amount": [100.0, 200.0, 300.0],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental", "medical"],
+                "amount": [100.0, 200.0, 300.0],
+            }
+        )
         result = df.group_by("vertical").agg(exprs).sort("vertical")
         assert result["total_amount"].to_list() == [300.0, 300.0]
 
-    def test_tc_ac002_sum_on_utf8_casts_to_float64(self, offer_schema: DataFrameSchema) -> None:
+    def test_tc_ac002_sum_on_utf8_casts_to_float64(
+        self, offer_schema: DataFrameSchema
+    ) -> None:
         """TC-AC002: sum on Utf8 column casts to Float64 (ADR-AGG-005)."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="mrr", agg=AggFunction.SUM, alias="total_mrr")
         exprs = compiler.compile([spec], offer_schema)
 
         # Verify the expression works with numeric strings
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental", "medical"],
-            "mrr": ["100", "200", "300"],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental", "medical"],
+                "mrr": ["100", "200", "300"],
+            }
+        )
         result = df.group_by("vertical").agg(exprs).sort("vertical")
         assert result["total_mrr"].to_list() == [300.0, 300.0]
 
-    def test_utf8_sum_non_numeric_strings_become_null(self, offer_schema: DataFrameSchema) -> None:
+    def test_utf8_sum_non_numeric_strings_become_null(
+        self, offer_schema: DataFrameSchema
+    ) -> None:
         """Utf8 sum with non-numeric strings produces null (strict=False)."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="mrr", agg=AggFunction.SUM, alias="total_mrr")
         exprs = compiler.compile([spec], offer_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental"],
-            "mrr": ["not_a_number", "also_not"],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental"],
+                "mrr": ["not_a_number", "also_not"],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         # Non-numeric strings cast to null, sum of nulls is 0 in Polars
         assert result["total_mrr"].to_list() == [0.0]
@@ -115,15 +129,19 @@ class TestAggregationCompiler:
         spec = AggSpec(column="vertical", agg=AggFunction.COUNT, alias="vert_count")
         exprs = compiler.compile([spec], numeric_schema)
 
-        df = pl.DataFrame({
-            "section": ["A", "A", "A"],
-            "vertical": ["dental", None, "medical"],
-        })
+        df = pl.DataFrame(
+            {
+                "section": ["A", "A", "A"],
+                "vertical": ["dental", None, "medical"],
+            }
+        )
         result = df.group_by("section").agg(exprs)
         # count excludes nulls
         assert result["vert_count"].to_list() == [2]
 
-    def test_tc_ac004_count_distinct_utf8(self, numeric_schema: DataFrameSchema) -> None:
+    def test_tc_ac004_count_distinct_utf8(
+        self, numeric_schema: DataFrameSchema
+    ) -> None:
         """TC-AC004: count_distinct on Utf8 column counts unique values."""
         compiler = AggregationCompiler()
         spec = AggSpec(
@@ -133,10 +151,12 @@ class TestAggregationCompiler:
         )
         exprs = compiler.compile([spec], numeric_schema)
 
-        df = pl.DataFrame({
-            "section": ["Active", "Active", "Active"],
-            "vertical": ["dental", "dental", "medical"],
-        })
+        df = pl.DataFrame(
+            {
+                "section": ["Active", "Active", "Active"],
+                "vertical": ["dental", "dental", "medical"],
+            }
+        )
         result = df.group_by("section").agg(exprs)
         assert result["unique_verticals"].to_list() == [2]
 
@@ -146,14 +166,18 @@ class TestAggregationCompiler:
         spec = AggSpec(column="amount", agg=AggFunction.MEAN, alias="avg_amount")
         exprs = compiler.compile([spec], numeric_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental"],
-            "amount": [100.0, 200.0],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental"],
+                "amount": [100.0, 200.0],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         assert result["avg_amount"].to_list() == [150.0]
 
-    def test_tc_ac006_mean_on_boolean_raises(self, numeric_schema: DataFrameSchema) -> None:
+    def test_tc_ac006_mean_on_boolean_raises(
+        self, numeric_schema: DataFrameSchema
+    ) -> None:
         """TC-AC006: mean on Boolean column raises AggregationError."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="is_active", agg=AggFunction.MEAN)
@@ -171,10 +195,12 @@ class TestAggregationCompiler:
 
         from datetime import date
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental"],
-            "created_date": [date(2025, 1, 1), date(2025, 6, 15)],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental"],
+                "created_date": [date(2025, 1, 1), date(2025, 6, 15)],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         assert result["earliest"].to_list() == [date(2025, 1, 1)]
 
@@ -184,10 +210,12 @@ class TestAggregationCompiler:
         spec = AggSpec(column="quantity", agg=AggFunction.MAX, alias="max_qty")
         exprs = compiler.compile([spec], numeric_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental", "dental"],
-            "quantity": [10, 50, 30],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental", "dental"],
+                "quantity": [10, 50, 30],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         assert result["max_qty"].to_list() == [50]
 
@@ -200,7 +228,9 @@ class TestAggregationCompiler:
             compiler.compile([spec], offer_schema)
         assert "platforms" in str(exc_info.value.message)
 
-    def test_tc_ac010_nonexistent_column_raises(self, numeric_schema: DataFrameSchema) -> None:
+    def test_tc_ac010_nonexistent_column_raises(
+        self, numeric_schema: DataFrameSchema
+    ) -> None:
         """TC-AC010: Aggregation on non-existent column raises AggregationError."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="nonexistent", agg=AggFunction.SUM)
@@ -216,10 +246,12 @@ class TestAggregationCompiler:
         spec = AggSpec(column="amount", agg=AggFunction.SUM, alias="my_total")
         exprs = compiler.compile([spec], numeric_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental"],
-            "amount": [100.0],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental"],
+                "amount": [100.0],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         assert "my_total" in result.columns
 
@@ -229,10 +261,12 @@ class TestAggregationCompiler:
         spec = AggSpec(column="amount", agg=AggFunction.SUM)
         exprs = compiler.compile([spec], numeric_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental"],
-            "amount": [100.0],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental"],
+                "amount": [100.0],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         assert "sum_amount" in result.columns
 
@@ -243,10 +277,12 @@ class TestAggregationCompiler:
         spec_max = AggSpec(column="mrr", agg=AggFunction.MAX, alias="max_mrr")
         exprs = compiler.compile([spec_min, spec_max], offer_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental", "dental"],
-            "mrr": ["100", "200", "300"],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental", "dental"],
+                "mrr": ["100", "200", "300"],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         assert result["min_mrr"].to_list() == [100.0]
         assert result["max_mrr"].to_list() == [300.0]
@@ -257,24 +293,32 @@ class TestAggregationCompiler:
         spec = AggSpec(column="mrr", agg=AggFunction.MEAN, alias="avg_mrr")
         exprs = compiler.compile([spec], offer_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental"],
-            "mrr": ["100", "200"],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental"],
+                "mrr": ["100", "200"],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         assert result["avg_mrr"].to_list() == [150.0]
 
-    def test_tc_ac016_count_on_utf8_no_cast(self, offer_schema: DataFrameSchema) -> None:
+    def test_tc_ac016_count_on_utf8_no_cast(
+        self, offer_schema: DataFrameSchema
+    ) -> None:
         """TC-AC016: count/count_distinct on Utf8 do NOT cast (they count values, not numerics)."""
         compiler = AggregationCompiler()
         spec_count = AggSpec(column="mrr", agg=AggFunction.COUNT, alias="mrr_count")
-        spec_uniq = AggSpec(column="mrr", agg=AggFunction.COUNT_DISTINCT, alias="mrr_uniq")
+        spec_uniq = AggSpec(
+            column="mrr", agg=AggFunction.COUNT_DISTINCT, alias="mrr_uniq"
+        )
         exprs = compiler.compile([spec_count, spec_uniq], offer_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental", "dental"],
-            "mrr": ["100", "100", "200"],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental", "dental"],
+                "mrr": ["100", "100", "200"],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         assert result["mrr_count"].to_list() == [3]
         assert result["mrr_uniq"].to_list() == [2]
@@ -290,11 +334,13 @@ class TestAggregationCompiler:
         exprs = compiler.compile(specs, numeric_schema)
         assert len(exprs) == 3
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental"],
-            "amount": [100.0, 200.0],
-            "gid": ["1", "2"],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental"],
+                "amount": [100.0, 200.0],
+                "gid": ["1", "2"],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         assert "total" in result.columns
         assert "avg" in result.columns
@@ -333,7 +379,9 @@ class TestBuildPostAggSchema:
         assert col is not None
         assert col.dtype == "Float64"
 
-    def test_sum_output_dtype_same_as_input(self, numeric_schema: DataFrameSchema) -> None:
+    def test_sum_output_dtype_same_as_input(
+        self, numeric_schema: DataFrameSchema
+    ) -> None:
         """sum retains source dtype."""
         spec = AggSpec(column="amount", agg=AggFunction.SUM, alias="total")
         schema = build_post_agg_schema(
@@ -358,7 +406,8 @@ class TestBuildPostAggSchema:
         assert col.dtype == "Int64"
 
     def test_group_by_columns_retain_source_dtype(
-        self, numeric_schema: DataFrameSchema,
+        self,
+        numeric_schema: DataFrameSchema,
     ) -> None:
         """group_by columns retain their source dtype."""
         spec = AggSpec(column="amount", agg=AggFunction.SUM, alias="total")
@@ -371,7 +420,9 @@ class TestBuildPostAggSchema:
         assert col is not None
         assert col.dtype == "Utf8"
 
-    def test_tc_hs004_sum_utf8_output_dtype_float64(self, offer_schema: DataFrameSchema) -> None:
+    def test_tc_hs004_sum_utf8_output_dtype_float64(
+        self, offer_schema: DataFrameSchema
+    ) -> None:
         """TC-HS004: sum on Utf8 (cast) produces Float64 output dtype."""
         spec = AggSpec(column="mrr", agg=AggFunction.SUM, alias="total_mrr")
         schema = build_post_agg_schema(
@@ -383,7 +434,9 @@ class TestBuildPostAggSchema:
         assert col is not None
         assert col.dtype == "Float64"
 
-    def test_sum_int64_output_dtype_int64(self, numeric_schema: DataFrameSchema) -> None:
+    def test_sum_int64_output_dtype_int64(
+        self, numeric_schema: DataFrameSchema
+    ) -> None:
         """sum on Int64 produces Int64 output dtype (not Float64)."""
         spec = AggSpec(column="quantity", agg=AggFunction.SUM, alias="total_qty")
         schema = build_post_agg_schema(
@@ -419,7 +472,9 @@ class TestBuildPostAggSchema:
         assert col is not None
         assert col.dtype == "Date"
 
-    def test_multiple_agg_columns_present(self, numeric_schema: DataFrameSchema) -> None:
+    def test_multiple_agg_columns_present(
+        self, numeric_schema: DataFrameSchema
+    ) -> None:
         """Multiple agg specs all present in post-agg schema."""
         specs = [
             AggSpec(column="amount", agg=AggFunction.SUM, alias="total"),
@@ -443,13 +498,17 @@ class TestBuildPostAggSchema:
 class TestHavingWithPredicateCompiler:
     """Test HAVING clause using PredicateCompiler on synthetic post-agg schema."""
 
-    def test_tc_ah001_having_on_agg_alias_gt(self, numeric_schema: DataFrameSchema) -> None:
+    def test_tc_ah001_having_on_agg_alias_gt(
+        self, numeric_schema: DataFrameSchema
+    ) -> None:
         """TC-AH001: HAVING on aggregated alias column (gt) filters groups correctly."""
         # Build aggregated DataFrame
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental", "medical", "medical", "medical"],
-            "amount": [100.0, 200.0, 50.0, 50.0, 50.0],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental", "medical", "medical", "medical"],
+                "amount": [100.0, 200.0, 50.0, 50.0, 50.0],
+            }
+        )
         spec = AggSpec(column="amount", agg=AggFunction.SUM, alias="total_amount")
         agg_compiler = AggregationCompiler()
         exprs = agg_compiler.compile([spec], numeric_schema)
@@ -475,12 +534,16 @@ class TestHavingWithPredicateCompiler:
         assert len(result) == 1
         assert result["vertical"].to_list() == ["dental"]
 
-    def test_tc_ah002_having_on_group_by_column(self, numeric_schema: DataFrameSchema) -> None:
+    def test_tc_ah002_having_on_group_by_column(
+        self, numeric_schema: DataFrameSchema
+    ) -> None:
         """TC-AH002: HAVING on group_by column (eq) filters groups by group key."""
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental", "medical"],
-            "amount": [100.0, 200.0, 300.0],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental", "medical"],
+                "amount": [100.0, 200.0, 300.0],
+            }
+        )
         spec = AggSpec(column="amount", agg=AggFunction.SUM, alias="total")
         agg_compiler = AggregationCompiler()
         exprs = agg_compiler.compile([spec], numeric_schema)
@@ -529,12 +592,16 @@ class TestHavingWithPredicateCompiler:
             pred_compiler.compile(parsed, post_schema)
         assert exc_info.value.field == "nonexistent_col"
 
-    def test_tc_ah004_having_with_and_group(self, numeric_schema: DataFrameSchema) -> None:
+    def test_tc_ah004_having_with_and_group(
+        self, numeric_schema: DataFrameSchema
+    ) -> None:
         """TC-AH004: HAVING with AND group applies both conditions."""
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental", "medical", "medical"],
-            "amount": [100.0, 200.0, 50.0, 50.0],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental", "medical", "medical"],
+                "amount": [100.0, 200.0, 50.0, 50.0],
+            }
+        )
         spec = AggSpec(column="amount", agg=AggFunction.SUM, alias="total")
         agg_compiler = AggregationCompiler()
         exprs = agg_compiler.compile([spec], numeric_schema)
@@ -551,12 +618,14 @@ class TestHavingWithPredicateCompiler:
         from autom8_asana.query.models import PredicateNode
 
         adapter = TypeAdapter(PredicateNode)
-        parsed = adapter.validate_python({
-            "and": [
-                {"field": "total", "op": "gte", "value": 100.0},
-                {"field": "vertical", "op": "eq", "value": "dental"},
-            ]
-        })
+        parsed = adapter.validate_python(
+            {
+                "and": [
+                    {"field": "total", "op": "gte", "value": 100.0},
+                    {"field": "vertical", "op": "eq", "value": "dental"},
+                ]
+            }
+        )
         having_expr = pred_compiler.compile(parsed, post_schema)
         result = agg_df.filter(having_expr)
 

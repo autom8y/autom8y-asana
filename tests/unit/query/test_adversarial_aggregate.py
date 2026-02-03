@@ -137,7 +137,9 @@ class TestAggSpecModelEdgeCases:
         with pytest.raises(AggregationError, match="Duplicate alias"):
             validate_alias_uniqueness(specs, ["vertical"])
 
-    def test_all_six_agg_functions_on_same_column(self, offer_schema: DataFrameSchema) -> None:
+    def test_all_six_agg_functions_on_same_column(
+        self, offer_schema: DataFrameSchema
+    ) -> None:
         """All 6 agg functions applied to a single Float64 column compiles successfully."""
         compiler = AggregationCompiler()
         specs = [
@@ -159,54 +161,66 @@ class TestAggSpecModelEdgeCases:
     def test_aggregate_request_empty_group_by_rejected(self) -> None:
         """AggregateRequest with empty group_by fails Pydantic min_length=1."""
         with pytest.raises(ValidationError, match="group_by"):
-            AggregateRequest.model_validate({
-                "group_by": [],
-                "aggregations": [{"column": "gid", "agg": "count"}],
-            })
+            AggregateRequest.model_validate(
+                {
+                    "group_by": [],
+                    "aggregations": [{"column": "gid", "agg": "count"}],
+                }
+            )
 
     def test_aggregate_request_six_group_by_rejected(self) -> None:
         """AggregateRequest with 6 group_by columns fails Pydantic max_length=5."""
         with pytest.raises(ValidationError, match="group_by"):
-            AggregateRequest.model_validate({
-                "group_by": ["a", "b", "c", "d", "e", "f"],
-                "aggregations": [{"column": "gid", "agg": "count"}],
-            })
+            AggregateRequest.model_validate(
+                {
+                    "group_by": ["a", "b", "c", "d", "e", "f"],
+                    "aggregations": [{"column": "gid", "agg": "count"}],
+                }
+            )
 
     def test_aggregate_request_empty_aggregations_rejected(self) -> None:
         """AggregateRequest with empty aggregations fails Pydantic min_length=1."""
         with pytest.raises(ValidationError, match="aggregations"):
-            AggregateRequest.model_validate({
-                "group_by": ["vertical"],
-                "aggregations": [],
-            })
+            AggregateRequest.model_validate(
+                {
+                    "group_by": ["vertical"],
+                    "aggregations": [],
+                }
+            )
 
     def test_aggregate_request_eleven_aggregations_rejected(self) -> None:
         """AggregateRequest with 11 aggregations fails Pydantic max_length=10."""
         aggs = [{"column": "gid", "agg": "count", "alias": f"a{i}"} for i in range(11)]
         with pytest.raises(ValidationError, match="aggregations"):
-            AggregateRequest.model_validate({
-                "group_by": ["vertical"],
-                "aggregations": aggs,
-            })
+            AggregateRequest.model_validate(
+                {
+                    "group_by": ["vertical"],
+                    "aggregations": aggs,
+                }
+            )
 
     def test_aggregate_request_extra_field_rejected(self) -> None:
         """AggregateRequest with extra fields rejected by extra='forbid'."""
         with pytest.raises(ValidationError):
-            AggregateRequest.model_validate({
-                "group_by": ["vertical"],
-                "aggregations": [{"column": "gid", "agg": "count"}],
-                "surprise": True,
-            })
+            AggregateRequest.model_validate(
+                {
+                    "group_by": ["vertical"],
+                    "aggregations": [{"column": "gid", "agg": "count"}],
+                    "surprise": True,
+                }
+            )
 
     def test_aggspec_extra_field_rejected(self) -> None:
         """AggSpec with extra fields rejected by extra='forbid'."""
         with pytest.raises(ValidationError):
-            AggSpec.model_validate({
-                "column": "gid",
-                "agg": "count",
-                "alias": "x",
-                "extra_param": 42,
-            })
+            AggSpec.model_validate(
+                {
+                    "column": "gid",
+                    "agg": "count",
+                    "alias": "x",
+                    "extra_param": 42,
+                }
+            )
 
 
 # ===========================================================================
@@ -223,7 +237,9 @@ class TestGroupByEdgeCases:
         with pytest.raises(AggregationError, match="List"):
             limits.check_group_by(["platforms"], offer_schema)
 
-    def test_group_by_nonexistent_column_rejected(self, offer_schema: DataFrameSchema) -> None:
+    def test_group_by_nonexistent_column_rejected(
+        self, offer_schema: DataFrameSchema
+    ) -> None:
         """GROUP BY on column not in schema raises UnknownFieldError."""
         limits = QueryLimits()
         with pytest.raises(UnknownFieldError) as exc_info:
@@ -238,32 +254,40 @@ class TestGroupByEdgeCases:
 
     @pytest.mark.asyncio
     async def test_group_by_all_null_values_produces_single_null_group(
-        self, mock_client: AsyncMock, offer_schema: DataFrameSchema,
+        self,
+        mock_client: AsyncMock,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """GROUP BY on column where all values are null produces a single null group."""
-        df = pl.DataFrame({
-            "gid": ["1", "2", "3"],
-            "name": [None, None, None],
-            "vertical": [None, None, None],
-            "section": ["A", "B", "C"],
-            "mrr": ["100", "200", "300"],
-            "cost": ["10", "20", "30"],
-            "amount": [1.0, 2.0, 3.0],
-            "quantity": [1, 2, 3],
-            "is_active": [True, False, True],
-            "created_date": [None, None, None],
-            "platforms": [["fb"], ["g"], ["fb"]],
-        })
+        df = pl.DataFrame(
+            {
+                "gid": ["1", "2", "3"],
+                "name": [None, None, None],
+                "vertical": [None, None, None],
+                "section": ["A", "B", "C"],
+                "mrr": ["100", "200", "300"],
+                "cost": ["10", "20", "30"],
+                "amount": [1.0, 2.0, 3.0],
+                "quantity": [1, 2, 3],
+                "is_active": [True, False, True],
+                "created_date": [None, None, None],
+                "platforms": [["fb"], ["g"], ["fb"]],
+            }
+        )
         engine = _make_engine(df)
 
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
+            }
+        )
         with _patch_schema(offer_schema):
             result = await engine.execute_aggregate(
-                entity_type="offer", project_gid="proj-1",
-                client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="proj-1",
+                client=mock_client,
+                request=request,
             )
 
         # All nulls -> single group with null key
@@ -273,32 +297,40 @@ class TestGroupByEdgeCases:
 
     @pytest.mark.asyncio
     async def test_group_by_single_unique_value_produces_single_group(
-        self, mock_client: AsyncMock, offer_schema: DataFrameSchema,
+        self,
+        mock_client: AsyncMock,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """GROUP BY on column with single unique value produces one group."""
-        df = pl.DataFrame({
-            "gid": ["1", "2", "3"],
-            "name": ["A", "B", "C"],
-            "vertical": ["dental", "dental", "dental"],
-            "section": ["A", "B", "C"],
-            "mrr": ["100", "200", "300"],
-            "cost": ["10", "20", "30"],
-            "amount": [1.0, 2.0, 3.0],
-            "quantity": [1, 2, 3],
-            "is_active": [True, False, True],
-            "created_date": [None, None, None],
-            "platforms": [["fb"], ["g"], ["fb"]],
-        })
+        df = pl.DataFrame(
+            {
+                "gid": ["1", "2", "3"],
+                "name": ["A", "B", "C"],
+                "vertical": ["dental", "dental", "dental"],
+                "section": ["A", "B", "C"],
+                "mrr": ["100", "200", "300"],
+                "cost": ["10", "20", "30"],
+                "amount": [1.0, 2.0, 3.0],
+                "quantity": [1, 2, 3],
+                "is_active": [True, False, True],
+                "created_date": [None, None, None],
+                "platforms": [["fb"], ["g"], ["fb"]],
+            }
+        )
         engine = _make_engine(df)
 
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
+            }
+        )
         with _patch_schema(offer_schema):
             result = await engine.execute_aggregate(
-                entity_type="offer", project_gid="proj-1",
-                client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="proj-1",
+                client=mock_client,
+                request=request,
             )
 
         assert result.meta.group_count == 1
@@ -307,35 +339,43 @@ class TestGroupByEdgeCases:
 
     @pytest.mark.asyncio
     async def test_group_by_exceeding_max_aggregate_groups_raises(
-        self, mock_client: AsyncMock, offer_schema: DataFrameSchema,
+        self,
+        mock_client: AsyncMock,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """GROUP BY producing groups > max_aggregate_groups triggers AggregateGroupLimitError."""
         # Each row has unique gid, so group_by gid produces N groups
         n = 15
-        df = pl.DataFrame({
-            "gid": [str(i) for i in range(n)],
-            "name": [f"n{i}" for i in range(n)],
-            "vertical": [f"v{i}" for i in range(n)],
-            "section": ["A"] * n,
-            "mrr": ["100"] * n,
-            "cost": ["10"] * n,
-            "amount": [1.0] * n,
-            "quantity": [1] * n,
-            "is_active": [True] * n,
-            "created_date": [None] * n,
-            "platforms": [["fb"]] * n,
-        })
+        df = pl.DataFrame(
+            {
+                "gid": [str(i) for i in range(n)],
+                "name": [f"n{i}" for i in range(n)],
+                "vertical": [f"v{i}" for i in range(n)],
+                "section": ["A"] * n,
+                "mrr": ["100"] * n,
+                "cost": ["10"] * n,
+                "amount": [1.0] * n,
+                "quantity": [1] * n,
+                "is_active": [True] * n,
+                "created_date": [None] * n,
+                "platforms": [["fb"]] * n,
+            }
+        )
         engine = _make_engine(df, max_aggregate_groups=10)
 
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
+            }
+        )
         with _patch_schema(offer_schema):
             with pytest.raises(AggregateGroupLimitError) as exc_info:
                 await engine.execute_aggregate(
-                    entity_type="offer", project_gid="proj-1",
-                    client=mock_client, request=request,
+                    entity_type="offer",
+                    project_gid="proj-1",
+                    client=mock_client,
+                    request=request,
                 )
             assert exc_info.value.group_count == n
             assert exc_info.value.max_groups == 10
@@ -351,80 +391,96 @@ class TestHavingEdgeCases:
 
     @pytest.mark.asyncio
     async def test_having_nonexistent_alias_raises(
-        self, mock_client: AsyncMock, offer_schema: DataFrameSchema,
+        self,
+        mock_client: AsyncMock,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """HAVING referencing alias not in agg output raises UnknownFieldError."""
-        df = pl.DataFrame({
-            "gid": ["1", "2"],
-            "name": ["A", "B"],
-            "vertical": ["dental", "medical"],
-            "section": ["A", "B"],
-            "mrr": ["100", "200"],
-            "cost": ["10", "20"],
-            "amount": [1.0, 2.0],
-            "quantity": [1, 2],
-            "is_active": [True, False],
-            "created_date": [None, None],
-            "platforms": [["fb"], ["g"]],
-        })
+        df = pl.DataFrame(
+            {
+                "gid": ["1", "2"],
+                "name": ["A", "B"],
+                "vertical": ["dental", "medical"],
+                "section": ["A", "B"],
+                "mrr": ["100", "200"],
+                "cost": ["10", "20"],
+                "amount": [1.0, 2.0],
+                "quantity": [1, 2],
+                "is_active": [True, False],
+                "created_date": [None, None],
+                "platforms": [["fb"], ["g"]],
+            }
+        )
         engine = _make_engine(df)
 
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
-            "having": {"field": "nonexistent_alias", "op": "gt", "value": 0},
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
+                "having": {"field": "nonexistent_alias", "op": "gt", "value": 0},
+            }
+        )
         with _patch_schema(offer_schema):
             with pytest.raises(UnknownFieldError) as exc_info:
                 await engine.execute_aggregate(
-                    entity_type="offer", project_gid="proj-1",
-                    client=mock_client, request=request,
+                    entity_type="offer",
+                    project_gid="proj-1",
+                    client=mock_client,
+                    request=request,
                 )
             assert exc_info.value.field == "nonexistent_alias"
 
     @pytest.mark.asyncio
     async def test_having_complex_nested_predicates(
-        self, mock_client: AsyncMock, offer_schema: DataFrameSchema,
+        self,
+        mock_client: AsyncMock,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """HAVING with AND/OR nested predicates works correctly."""
-        df = pl.DataFrame({
-            "gid": ["1", "2", "3", "4", "5", "6"],
-            "name": ["A", "B", "C", "D", "E", "F"],
-            "vertical": ["dental", "dental", "medical", "medical", "vet", "vet"],
-            "section": ["A"] * 6,
-            "mrr": ["100"] * 6,
-            "cost": ["10"] * 6,
-            "amount": [100.0, 200.0, 50.0, 60.0, 1000.0, 2000.0],
-            "quantity": [1, 2, 3, 4, 5, 6],
-            "is_active": [True] * 6,
-            "created_date": [None] * 6,
-            "platforms": [["fb"]] * 6,
-        })
+        df = pl.DataFrame(
+            {
+                "gid": ["1", "2", "3", "4", "5", "6"],
+                "name": ["A", "B", "C", "D", "E", "F"],
+                "vertical": ["dental", "dental", "medical", "medical", "vet", "vet"],
+                "section": ["A"] * 6,
+                "mrr": ["100"] * 6,
+                "cost": ["10"] * 6,
+                "amount": [100.0, 200.0, 50.0, 60.0, 1000.0, 2000.0],
+                "quantity": [1, 2, 3, 4, 5, 6],
+                "is_active": [True] * 6,
+                "created_date": [None] * 6,
+                "platforms": [["fb"]] * 6,
+            }
+        )
         engine = _make_engine(df)
 
         # HAVING: (total > 200 AND cnt >= 2) OR vertical = "vet"
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [
-                {"column": "amount", "agg": "sum", "alias": "total"},
-                {"column": "gid", "agg": "count", "alias": "cnt"},
-            ],
-            "having": {
-                "or": [
-                    {
-                        "and": [
-                            {"field": "total", "op": "gt", "value": 200.0},
-                            {"field": "cnt", "op": "gte", "value": 2},
-                        ]
-                    },
-                    {"field": "vertical", "op": "eq", "value": "vet"},
-                ]
-            },
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [
+                    {"column": "amount", "agg": "sum", "alias": "total"},
+                    {"column": "gid", "agg": "count", "alias": "cnt"},
+                ],
+                "having": {
+                    "or": [
+                        {
+                            "and": [
+                                {"field": "total", "op": "gt", "value": 200.0},
+                                {"field": "cnt", "op": "gte", "value": 2},
+                            ]
+                        },
+                        {"field": "vertical", "op": "eq", "value": "vet"},
+                    ]
+                },
+            }
+        )
         with _patch_schema(offer_schema):
             result = await engine.execute_aggregate(
-                entity_type="offer", project_gid="proj-1",
-                client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="proj-1",
+                client=mock_client,
+                request=request,
             )
 
         verts = {d["vertical"] for d in result.data}
@@ -437,33 +493,41 @@ class TestHavingEdgeCases:
 
     @pytest.mark.asyncio
     async def test_having_filters_all_groups_returns_empty(
-        self, mock_client: AsyncMock, offer_schema: DataFrameSchema,
+        self,
+        mock_client: AsyncMock,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """HAVING that filters out ALL groups returns empty data."""
-        df = pl.DataFrame({
-            "gid": ["1", "2"],
-            "name": ["A", "B"],
-            "vertical": ["dental", "medical"],
-            "section": ["A", "B"],
-            "mrr": ["100", "200"],
-            "cost": ["10", "20"],
-            "amount": [1.0, 2.0],
-            "quantity": [1, 2],
-            "is_active": [True, False],
-            "created_date": [None, None],
-            "platforms": [["fb"], ["g"]],
-        })
+        df = pl.DataFrame(
+            {
+                "gid": ["1", "2"],
+                "name": ["A", "B"],
+                "vertical": ["dental", "medical"],
+                "section": ["A", "B"],
+                "mrr": ["100", "200"],
+                "cost": ["10", "20"],
+                "amount": [1.0, 2.0],
+                "quantity": [1, 2],
+                "is_active": [True, False],
+                "created_date": [None, None],
+                "platforms": [["fb"], ["g"]],
+            }
+        )
         engine = _make_engine(df)
 
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
-            "having": {"field": "cnt", "op": "gt", "value": 999999},
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
+                "having": {"field": "cnt", "op": "gt", "value": 999999},
+            }
+        )
         with _patch_schema(offer_schema):
             result = await engine.execute_aggregate(
-                entity_type="offer", project_gid="proj-1",
-                client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="proj-1",
+                client=mock_client,
+                request=request,
             )
 
         assert result.data == []
@@ -471,33 +535,41 @@ class TestHavingEdgeCases:
 
     @pytest.mark.asyncio
     async def test_having_on_group_by_column_works(
-        self, mock_client: AsyncMock, offer_schema: DataFrameSchema,
+        self,
+        mock_client: AsyncMock,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """HAVING on a group_by column (not an aggregation alias) works."""
-        df = pl.DataFrame({
-            "gid": ["1", "2", "3"],
-            "name": ["A", "B", "C"],
-            "vertical": ["dental", "dental", "medical"],
-            "section": ["A", "B", "C"],
-            "mrr": ["100", "200", "300"],
-            "cost": ["10", "20", "30"],
-            "amount": [1.0, 2.0, 3.0],
-            "quantity": [1, 2, 3],
-            "is_active": [True, False, True],
-            "created_date": [None, None, None],
-            "platforms": [["fb"], ["g"], ["fb"]],
-        })
+        df = pl.DataFrame(
+            {
+                "gid": ["1", "2", "3"],
+                "name": ["A", "B", "C"],
+                "vertical": ["dental", "dental", "medical"],
+                "section": ["A", "B", "C"],
+                "mrr": ["100", "200", "300"],
+                "cost": ["10", "20", "30"],
+                "amount": [1.0, 2.0, 3.0],
+                "quantity": [1, 2, 3],
+                "is_active": [True, False, True],
+                "created_date": [None, None, None],
+                "platforms": [["fb"], ["g"], ["fb"]],
+            }
+        )
         engine = _make_engine(df)
 
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
-            "having": {"field": "vertical", "op": "eq", "value": "dental"},
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
+                "having": {"field": "vertical", "op": "eq", "value": "dental"},
+            }
+        )
         with _patch_schema(offer_schema):
             result = await engine.execute_aggregate(
-                entity_type="offer", project_gid="proj-1",
-                client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="proj-1",
+                client=mock_client,
+                request=request,
             )
 
         assert result.meta.group_count == 1
@@ -506,33 +578,41 @@ class TestHavingEdgeCases:
 
     @pytest.mark.asyncio
     async def test_having_numeric_comparison_on_count(
-        self, mock_client: AsyncMock, offer_schema: DataFrameSchema,
+        self,
+        mock_client: AsyncMock,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """HAVING with numeric comparison on count result works."""
-        df = pl.DataFrame({
-            "gid": ["1", "2", "3", "4", "5"],
-            "name": ["A", "B", "C", "D", "E"],
-            "vertical": ["dental", "dental", "dental", "medical", "medical"],
-            "section": ["A"] * 5,
-            "mrr": ["100"] * 5,
-            "cost": ["10"] * 5,
-            "amount": [1.0] * 5,
-            "quantity": [1] * 5,
-            "is_active": [True] * 5,
-            "created_date": [None] * 5,
-            "platforms": [["fb"]] * 5,
-        })
+        df = pl.DataFrame(
+            {
+                "gid": ["1", "2", "3", "4", "5"],
+                "name": ["A", "B", "C", "D", "E"],
+                "vertical": ["dental", "dental", "dental", "medical", "medical"],
+                "section": ["A"] * 5,
+                "mrr": ["100"] * 5,
+                "cost": ["10"] * 5,
+                "amount": [1.0] * 5,
+                "quantity": [1] * 5,
+                "is_active": [True] * 5,
+                "created_date": [None] * 5,
+                "platforms": [["fb"]] * 5,
+            }
+        )
         engine = _make_engine(df)
 
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
-            "having": {"field": "cnt", "op": "gte", "value": 3},
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
+                "having": {"field": "cnt", "op": "gte", "value": 3},
+            }
+        )
         with _patch_schema(offer_schema):
             result = await engine.execute_aggregate(
-                entity_type="offer", project_gid="proj-1",
-                client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="proj-1",
+                client=mock_client,
+                request=request,
             )
 
         # dental=3, medical=2 -> only dental passes cnt >= 3
@@ -541,59 +621,71 @@ class TestHavingEdgeCases:
 
     def test_having_flat_array_sugar_wraps_to_and(self) -> None:
         """HAVING provided as flat array is auto-wrapped to AND group."""
-        req = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
-            "having": [
-                {"field": "cnt", "op": "gt", "value": 1},
-                {"field": "cnt", "op": "lt", "value": 100},
-            ],
-        })
+        req = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
+                "having": [
+                    {"field": "cnt", "op": "gt", "value": 1},
+                    {"field": "cnt", "op": "lt", "value": 100},
+                ],
+            }
+        )
         # Should parse without error; having is an AndGroup
         assert req.having is not None
 
     def test_having_empty_array_becomes_none(self) -> None:
         """HAVING provided as empty array becomes None."""
-        req = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
-            "having": [],
-        })
+        req = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
+                "having": [],
+            }
+        )
         assert req.having is None
 
     @pytest.mark.asyncio
     async def test_having_depth_guard(
-        self, mock_client: AsyncMock, offer_schema: DataFrameSchema,
+        self,
+        mock_client: AsyncMock,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """HAVING predicate exceeding max depth raises QueryTooComplexError."""
-        df = pl.DataFrame({
-            "gid": ["1"],
-            "name": ["A"],
-            "vertical": ["dental"],
-            "section": ["A"],
-            "mrr": ["100"],
-            "cost": ["10"],
-            "amount": [1.0],
-            "quantity": [1],
-            "is_active": [True],
-            "created_date": [None],
-            "platforms": [["fb"]],
-        })
+        df = pl.DataFrame(
+            {
+                "gid": ["1"],
+                "name": ["A"],
+                "vertical": ["dental"],
+                "section": ["A"],
+                "mrr": ["100"],
+                "cost": ["10"],
+                "amount": [1.0],
+                "quantity": [1],
+                "is_active": [True],
+                "created_date": [None],
+                "platforms": [["fb"]],
+            }
+        )
         engine = _make_engine(df)
 
         leaf = {"field": "cnt", "op": "gt", "value": 1}
         deep = {"and": [{"or": [{"and": [{"not": {"and": [leaf]}}]}]}]}  # depth=6
 
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
-            "having": deep,
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
+                "having": deep,
+            }
+        )
         with _patch_schema(offer_schema):
             with pytest.raises(QueryTooComplexError):
                 await engine.execute_aggregate(
-                    entity_type="offer", project_gid="proj-1",
-                    client=mock_client, request=request,
+                    entity_type="offer",
+                    project_gid="proj-1",
+                    client=mock_client,
+                    request=request,
                 )
 
 
@@ -641,16 +733,20 @@ class TestAggregationCompilationEdgeCases:
             with pytest.raises(AggregationError):
                 compiler.compile([spec], offer_schema)
 
-    def test_sum_utf8_all_nulls_returns_zero(self, offer_schema: DataFrameSchema) -> None:
+    def test_sum_utf8_all_nulls_returns_zero(
+        self, offer_schema: DataFrameSchema
+    ) -> None:
         """sum on Utf8 column where all values are null returns 0.0."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="mrr", agg=AggFunction.SUM, alias="total_mrr")
         exprs = compiler.compile([spec], offer_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental"],
-            "mrr": [None, None],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental"],
+                "mrr": [None, None],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         # Polars sum of nulls after cast = 0.0
         assert result["total_mrr"].to_list() == [0.0]
@@ -661,10 +757,12 @@ class TestAggregationCompilationEdgeCases:
         spec = AggSpec(column="mrr", agg=AggFunction.COUNT, alias="cnt")
         exprs = compiler.compile([spec], offer_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental"],
-            "mrr": [None, None],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental"],
+                "mrr": [None, None],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         assert result["cnt"].to_list() == [0]
 
@@ -674,10 +772,12 @@ class TestAggregationCompilationEdgeCases:
         spec = AggSpec(column="mrr", agg=AggFunction.COUNT_DISTINCT, alias="uniq")
         exprs = compiler.compile([spec], offer_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental", "dental"],
-            "mrr": ["100", "100", None],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental", "dental"],
+                "mrr": ["100", "100", None],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         # "100" and null = 2 distinct values
         assert result["uniq"].to_list() == [2]
@@ -688,14 +788,18 @@ class TestAggregationCompilationEdgeCases:
         spec = AggSpec(column="amount", agg=AggFunction.MEAN, alias="avg")
         exprs = compiler.compile([spec], offer_schema)
 
-        df = pl.DataFrame({
-            "vertical": pl.Series([], dtype=pl.Utf8),
-            "amount": pl.Series([], dtype=pl.Float64),
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": pl.Series([], dtype=pl.Utf8),
+                "amount": pl.Series([], dtype=pl.Float64),
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         assert len(result) == 0
 
-    def test_empty_string_column_not_in_schema(self, offer_schema: DataFrameSchema) -> None:
+    def test_empty_string_column_not_in_schema(
+        self, offer_schema: DataFrameSchema
+    ) -> None:
         """AggSpec with empty string column name fails at compile time."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="", agg=AggFunction.SUM, alias="total")
@@ -713,41 +817,49 @@ class TestEngineIntegrationAdversarial:
 
     @pytest.mark.asyncio
     async def test_full_pipeline_where_section_having(
-        self, mock_client: AsyncMock, offer_schema: DataFrameSchema,
+        self,
+        mock_client: AsyncMock,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """Full pipeline: WHERE + section + GROUP BY + HAVING."""
         from autom8_asana.metrics.resolve import SectionIndex
 
         section_index = SectionIndex(_name_to_gid={"active": "gid-123"})
 
-        df = pl.DataFrame({
-            "gid": ["1", "2", "3", "4", "5"],
-            "name": ["A", "B", "C", "D", "E"],
-            "vertical": ["dental", "dental", "medical", "medical", "dental"],
-            "section": ["Active", "Active", "Active", "Won", "Active"],
-            "mrr": ["100", "200", "300", "400", "500"],
-            "cost": ["10", "20", "30", "40", "50"],
-            "amount": [100.0, 200.0, 300.0, 400.0, 500.0],
-            "quantity": [1, 2, 3, 4, 5],
-            "is_active": [True, True, False, True, True],
-            "created_date": [None] * 5,
-            "platforms": [["fb"]] * 5,
-        })
+        df = pl.DataFrame(
+            {
+                "gid": ["1", "2", "3", "4", "5"],
+                "name": ["A", "B", "C", "D", "E"],
+                "vertical": ["dental", "dental", "medical", "medical", "dental"],
+                "section": ["Active", "Active", "Active", "Won", "Active"],
+                "mrr": ["100", "200", "300", "400", "500"],
+                "cost": ["10", "20", "30", "40", "50"],
+                "amount": [100.0, 200.0, 300.0, 400.0, 500.0],
+                "quantity": [1, 2, 3, 4, 5],
+                "is_active": [True, True, False, True, True],
+                "created_date": [None] * 5,
+                "platforms": [["fb"]] * 5,
+            }
+        )
         engine = _make_engine(df)
 
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [
-                {"column": "amount", "agg": "sum", "alias": "total"},
-            ],
-            "section": "Active",
-            "where": {"field": "is_active", "op": "eq", "value": True},
-            "having": {"field": "total", "op": "gte", "value": 500.0},
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [
+                    {"column": "amount", "agg": "sum", "alias": "total"},
+                ],
+                "section": "Active",
+                "where": {"field": "is_active", "op": "eq", "value": True},
+                "having": {"field": "total", "op": "gte", "value": 500.0},
+            }
+        )
         with _patch_schema(offer_schema):
             result = await engine.execute_aggregate(
-                entity_type="offer", project_gid="proj-1",
-                client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="proj-1",
+                client=mock_client,
+                request=request,
                 section_index=section_index,
             )
 
@@ -761,137 +873,169 @@ class TestEngineIntegrationAdversarial:
 
     @pytest.mark.asyncio
     async def test_where_depth_guard(
-        self, mock_client: AsyncMock, offer_schema: DataFrameSchema,
+        self,
+        mock_client: AsyncMock,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """WHERE predicate exceeding max depth raises QueryTooComplexError."""
-        df = pl.DataFrame({
-            "gid": ["1"],
-            "name": ["A"],
-            "vertical": ["dental"],
-            "section": ["A"],
-            "mrr": ["100"],
-            "cost": ["10"],
-            "amount": [1.0],
-            "quantity": [1],
-            "is_active": [True],
-            "created_date": [None],
-            "platforms": [["fb"]],
-        })
+        df = pl.DataFrame(
+            {
+                "gid": ["1"],
+                "name": ["A"],
+                "vertical": ["dental"],
+                "section": ["A"],
+                "mrr": ["100"],
+                "cost": ["10"],
+                "amount": [1.0],
+                "quantity": [1],
+                "is_active": [True],
+                "created_date": [None],
+                "platforms": [["fb"]],
+            }
+        )
         engine = _make_engine(df)
 
         leaf = {"field": "name", "op": "eq", "value": "x"}
         deep = {"and": [{"or": [{"and": [{"not": {"and": [leaf]}}]}]}]}  # depth=6
 
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
-            "where": deep,
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
+                "where": deep,
+            }
+        )
         with _patch_schema(offer_schema):
             with pytest.raises(QueryTooComplexError):
                 await engine.execute_aggregate(
-                    entity_type="offer", project_gid="proj-1",
-                    client=mock_client, request=request,
+                    entity_type="offer",
+                    project_gid="proj-1",
+                    client=mock_client,
+                    request=request,
                 )
 
     @pytest.mark.asyncio
     async def test_alias_collision_at_engine_level(
-        self, mock_client: AsyncMock, offer_schema: DataFrameSchema,
+        self,
+        mock_client: AsyncMock,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """Duplicate aliases detected at engine level before compilation."""
-        df = pl.DataFrame({
-            "gid": ["1"],
-            "name": ["A"],
-            "vertical": ["dental"],
-            "section": ["A"],
-            "mrr": ["100"],
-            "cost": ["10"],
-            "amount": [1.0],
-            "quantity": [1],
-            "is_active": [True],
-            "created_date": [None],
-            "platforms": [["fb"]],
-        })
+        df = pl.DataFrame(
+            {
+                "gid": ["1"],
+                "name": ["A"],
+                "vertical": ["dental"],
+                "section": ["A"],
+                "mrr": ["100"],
+                "cost": ["10"],
+                "amount": [1.0],
+                "quantity": [1],
+                "is_active": [True],
+                "created_date": [None],
+                "platforms": [["fb"]],
+            }
+        )
         engine = _make_engine(df)
 
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [
-                {"column": "amount", "agg": "sum", "alias": "total"},
-                {"column": "quantity", "agg": "sum", "alias": "total"},
-            ],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [
+                    {"column": "amount", "agg": "sum", "alias": "total"},
+                    {"column": "quantity", "agg": "sum", "alias": "total"},
+                ],
+            }
+        )
         with _patch_schema(offer_schema):
             with pytest.raises(AggregationError, match="Duplicate alias"):
                 await engine.execute_aggregate(
-                    entity_type="offer", project_gid="proj-1",
-                    client=mock_client, request=request,
+                    entity_type="offer",
+                    project_gid="proj-1",
+                    client=mock_client,
+                    request=request,
                 )
 
     @pytest.mark.asyncio
     async def test_alias_collides_with_group_by_column_at_engine(
-        self, mock_client: AsyncMock, offer_schema: DataFrameSchema,
+        self,
+        mock_client: AsyncMock,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """Alias colliding with group_by column detected at engine level."""
-        df = pl.DataFrame({
-            "gid": ["1"],
-            "name": ["A"],
-            "vertical": ["dental"],
-            "section": ["A"],
-            "mrr": ["100"],
-            "cost": ["10"],
-            "amount": [1.0],
-            "quantity": [1],
-            "is_active": [True],
-            "created_date": [None],
-            "platforms": [["fb"]],
-        })
+        df = pl.DataFrame(
+            {
+                "gid": ["1"],
+                "name": ["A"],
+                "vertical": ["dental"],
+                "section": ["A"],
+                "mrr": ["100"],
+                "cost": ["10"],
+                "amount": [1.0],
+                "quantity": [1],
+                "is_active": [True],
+                "created_date": [None],
+                "platforms": [["fb"]],
+            }
+        )
         engine = _make_engine(df)
 
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [
-                {"column": "amount", "agg": "sum", "alias": "vertical"},
-            ],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [
+                    {"column": "amount", "agg": "sum", "alias": "vertical"},
+                ],
+            }
+        )
         with _patch_schema(offer_schema):
             with pytest.raises(AggregationError, match="collides with group_by"):
                 await engine.execute_aggregate(
-                    entity_type="offer", project_gid="proj-1",
-                    client=mock_client, request=request,
+                    entity_type="offer",
+                    project_gid="proj-1",
+                    client=mock_client,
+                    request=request,
                 )
 
     @pytest.mark.asyncio
     async def test_response_format_data_is_list_of_dicts(
-        self, mock_client: AsyncMock, offer_schema: DataFrameSchema,
+        self,
+        mock_client: AsyncMock,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """Response data is a list of dicts with correct keys."""
-        df = pl.DataFrame({
-            "gid": ["1", "2", "3"],
-            "name": ["A", "B", "C"],
-            "vertical": ["dental", "dental", "medical"],
-            "section": ["A", "B", "C"],
-            "mrr": ["100", "200", "300"],
-            "cost": ["10", "20", "30"],
-            "amount": [1.0, 2.0, 3.0],
-            "quantity": [1, 2, 3],
-            "is_active": [True, False, True],
-            "created_date": [None, None, None],
-            "platforms": [["fb"], ["g"], ["fb"]],
-        })
+        df = pl.DataFrame(
+            {
+                "gid": ["1", "2", "3"],
+                "name": ["A", "B", "C"],
+                "vertical": ["dental", "dental", "medical"],
+                "section": ["A", "B", "C"],
+                "mrr": ["100", "200", "300"],
+                "cost": ["10", "20", "30"],
+                "amount": [1.0, 2.0, 3.0],
+                "quantity": [1, 2, 3],
+                "is_active": [True, False, True],
+                "created_date": [None, None, None],
+                "platforms": [["fb"], ["g"], ["fb"]],
+            }
+        )
         engine = _make_engine(df)
 
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [
-                {"column": "amount", "agg": "sum", "alias": "total"},
-                {"column": "gid", "agg": "count", "alias": "cnt"},
-            ],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [
+                    {"column": "amount", "agg": "sum", "alias": "total"},
+                    {"column": "gid", "agg": "count", "alias": "cnt"},
+                ],
+            }
+        )
         with _patch_schema(offer_schema):
             result = await engine.execute_aggregate(
-                entity_type="offer", project_gid="proj-1",
-                client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="proj-1",
+                client=mock_client,
+                request=request,
             )
 
         assert isinstance(result.data, list)
@@ -906,32 +1050,40 @@ class TestEngineIntegrationAdversarial:
 
     @pytest.mark.asyncio
     async def test_meta_has_group_count(
-        self, mock_client: AsyncMock, offer_schema: DataFrameSchema,
+        self,
+        mock_client: AsyncMock,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """AggregateMeta includes group_count matching actual data length."""
-        df = pl.DataFrame({
-            "gid": ["1", "2"],
-            "name": ["A", "B"],
-            "vertical": ["dental", "medical"],
-            "section": ["A", "B"],
-            "mrr": ["100", "200"],
-            "cost": ["10", "20"],
-            "amount": [1.0, 2.0],
-            "quantity": [1, 2],
-            "is_active": [True, False],
-            "created_date": [None, None],
-            "platforms": [["fb"], ["g"]],
-        })
+        df = pl.DataFrame(
+            {
+                "gid": ["1", "2"],
+                "name": ["A", "B"],
+                "vertical": ["dental", "medical"],
+                "section": ["A", "B"],
+                "mrr": ["100", "200"],
+                "cost": ["10", "20"],
+                "amount": [1.0, 2.0],
+                "quantity": [1, 2],
+                "is_active": [True, False],
+                "created_date": [None, None],
+                "platforms": [["fb"], ["g"]],
+            }
+        )
         engine = _make_engine(df)
 
-        request = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
-        })
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count", "alias": "cnt"}],
+            }
+        )
         with _patch_schema(offer_schema):
             result = await engine.execute_aggregate(
-                entity_type="offer", project_gid="proj-1",
-                client=mock_client, request=request,
+                entity_type="offer",
+                project_gid="proj-1",
+                client=mock_client,
+                request=request,
             )
 
         assert result.meta.group_count == 2
@@ -957,44 +1109,54 @@ class TestAPIEndpointEdgeCases:
     def test_valid_entity_type_invalid_aggregations(self) -> None:
         """Valid entity_type but invalid agg function rejected."""
         with pytest.raises(ValidationError):
-            AggregateRequest.model_validate({
-                "group_by": ["vertical"],
-                "aggregations": [{"column": "gid", "agg": "INVALID_FUNC"}],
-            })
+            AggregateRequest.model_validate(
+                {
+                    "group_by": ["vertical"],
+                    "aggregations": [{"column": "gid", "agg": "INVALID_FUNC"}],
+                }
+            )
 
     def test_where_flat_array_sugar(self) -> None:
         """WHERE provided as flat array is auto-wrapped to AND group."""
-        req = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count"}],
-            "where": [
-                {"field": "name", "op": "eq", "value": "test"},
-            ],
-        })
+        req = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count"}],
+                "where": [
+                    {"field": "name", "op": "eq", "value": "test"},
+                ],
+            }
+        )
         assert req.where is not None
 
     def test_where_empty_array_becomes_none(self) -> None:
         """WHERE provided as empty array becomes None."""
-        req = AggregateRequest.model_validate({
-            "group_by": ["vertical"],
-            "aggregations": [{"column": "gid", "agg": "count"}],
-            "where": [],
-        })
+        req = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "gid", "agg": "count"}],
+                "where": [],
+            }
+        )
         assert req.where is None
 
     def test_aggregate_request_missing_group_by(self) -> None:
         """Missing group_by field rejected."""
         with pytest.raises(ValidationError):
-            AggregateRequest.model_validate({
-                "aggregations": [{"column": "gid", "agg": "count"}],
-            })
+            AggregateRequest.model_validate(
+                {
+                    "aggregations": [{"column": "gid", "agg": "count"}],
+                }
+            )
 
     def test_aggregate_request_missing_aggregations(self) -> None:
         """Missing aggregations field rejected."""
         with pytest.raises(ValidationError):
-            AggregateRequest.model_validate({
-                "group_by": ["vertical"],
-            })
+            AggregateRequest.model_validate(
+                {
+                    "group_by": ["vertical"],
+                }
+            )
 
 
 # ===========================================================================
@@ -1005,17 +1167,21 @@ class TestAPIEndpointEdgeCases:
 class TestNumericCastingAdversarial:
     """Adversarial tests for Utf8 -> Float64 casting in aggregation."""
 
-    def test_utf8_mix_numeric_and_nonnumeric(self, offer_schema: DataFrameSchema) -> None:
+    def test_utf8_mix_numeric_and_nonnumeric(
+        self, offer_schema: DataFrameSchema
+    ) -> None:
         """Utf8 column with mix of numeric and non-numeric strings:
         non-numeric become null, sum ignores nulls."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="mrr", agg=AggFunction.SUM, alias="total")
         exprs = compiler.compile([spec], offer_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental", "dental"],
-            "mrr": ["100.5", "not_a_number", "200.5"],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental", "dental"],
+                "mrr": ["100.5", "not_a_number", "200.5"],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         # "not_a_number" -> null via strict=False, sum ignores null
         assert result["total"].to_list() == [pytest.approx(301.0)]
@@ -1026,24 +1192,30 @@ class TestNumericCastingAdversarial:
         spec = AggSpec(column="mrr", agg=AggFunction.SUM, alias="total")
         exprs = compiler.compile([spec], offer_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental"],
-            "mrr": ["abc", "def"],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental"],
+                "mrr": ["abc", "def"],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         # All cast to null, sum of nulls = 0.0
         assert result["total"].to_list() == [0.0]
 
-    def test_utf8_empty_strings_become_null(self, offer_schema: DataFrameSchema) -> None:
+    def test_utf8_empty_strings_become_null(
+        self, offer_schema: DataFrameSchema
+    ) -> None:
         """Utf8 column with empty strings: empty strings become null after cast."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="mrr", agg=AggFunction.SUM, alias="total")
         exprs = compiler.compile([spec], offer_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental", "dental"],
-            "mrr": ["", "100", ""],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental", "dental"],
+                "mrr": ["", "100", ""],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         # "" -> null via Float64 cast, sum = 100.0
         assert result["total"].to_list() == [100.0]
@@ -1054,10 +1226,12 @@ class TestNumericCastingAdversarial:
         spec = AggSpec(column="mrr", agg=AggFunction.MEAN, alias="avg")
         exprs = compiler.compile([spec], offer_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental", "dental"],
-            "mrr": ["100", "bad", "200"],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental", "dental"],
+                "mrr": ["100", "bad", "200"],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         # mean of [100.0, null, 200.0] = 150.0 (null excluded)
         assert result["avg"].to_list() == [150.0]
@@ -1069,10 +1243,12 @@ class TestNumericCastingAdversarial:
         spec_max = AggSpec(column="mrr", agg=AggFunction.MAX, alias="max_mrr")
         exprs = compiler.compile([spec_min, spec_max], offer_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental", "dental"],
-            "mrr": ["100", "bad", "300"],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental", "dental"],
+                "mrr": ["100", "bad", "300"],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         assert result["min_mrr"].to_list() == [100.0]
         assert result["max_mrr"].to_list() == [300.0]
@@ -1083,38 +1259,48 @@ class TestNumericCastingAdversarial:
         spec = AggSpec(column="mrr", agg=AggFunction.COUNT, alias="cnt")
         exprs = compiler.compile([spec], offer_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental", "dental"],
-            "mrr": ["100", "bad", None],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental", "dental"],
+                "mrr": ["100", "bad", None],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         # count counts non-null: "100" and "bad" are non-null, None is excluded
         assert result["cnt"].to_list() == [2]
 
-    def test_utf8_count_distinct_does_not_cast(self, offer_schema: DataFrameSchema) -> None:
+    def test_utf8_count_distinct_does_not_cast(
+        self, offer_schema: DataFrameSchema
+    ) -> None:
         """count_distinct on Utf8 column does NOT cast -- counts unique string values."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="mrr", agg=AggFunction.COUNT_DISTINCT, alias="uniq")
         exprs = compiler.compile([spec], offer_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental", "dental", "dental"],
-            "mrr": ["100", "100", "bad", None],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental", "dental", "dental"],
+                "mrr": ["100", "100", "bad", None],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         # "100", "bad", null = 3 distinct
         assert result["uniq"].to_list() == [3]
 
-    def test_utf8_sum_preserves_decimal_precision(self, offer_schema: DataFrameSchema) -> None:
+    def test_utf8_sum_preserves_decimal_precision(
+        self, offer_schema: DataFrameSchema
+    ) -> None:
         """Utf8 sum preserves decimal precision within Float64 limits."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="mrr", agg=AggFunction.SUM, alias="total")
         exprs = compiler.compile([spec], offer_schema)
 
-        df = pl.DataFrame({
-            "vertical": ["dental", "dental"],
-            "mrr": ["0.1", "0.2"],
-        })
+        df = pl.DataFrame(
+            {
+                "vertical": ["dental", "dental"],
+                "mrr": ["0.1", "0.2"],
+            }
+        )
         result = df.group_by("vertical").agg(exprs)
         # Float64 addition: 0.1 + 0.2 ~ 0.3 (within floating point tolerance)
         assert result["total"].to_list() == [pytest.approx(0.3)]
@@ -1169,7 +1355,8 @@ class TestPostAggSchemaAdversarial:
     """Adversarial tests for build_post_agg_schema edge cases."""
 
     def test_schema_includes_all_group_by_and_agg_columns(
-        self, offer_schema: DataFrameSchema,
+        self,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """Post-agg schema includes both group_by columns and all agg aliases."""
         specs = [
@@ -1190,7 +1377,8 @@ class TestPostAggSchemaAdversarial:
         assert "avg" in col_names
 
     def test_post_agg_schema_sum_int64_infers_int64(
-        self, offer_schema: DataFrameSchema,
+        self,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """sum on Int64 column infers Int64 output (not Float64)."""
         spec = AggSpec(column="quantity", agg=AggFunction.SUM, alias="total_qty")
@@ -1204,7 +1392,8 @@ class TestPostAggSchemaAdversarial:
         assert col.dtype == "Int64"
 
     def test_post_agg_schema_sum_utf8_infers_float64(
-        self, offer_schema: DataFrameSchema,
+        self,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """sum on Utf8 column (financial) infers Float64 output."""
         spec = AggSpec(column="mrr", agg=AggFunction.SUM, alias="total_mrr")
@@ -1218,7 +1407,8 @@ class TestPostAggSchemaAdversarial:
         assert col.dtype == "Float64"
 
     def test_post_agg_schema_min_date_retains_date(
-        self, offer_schema: DataFrameSchema,
+        self,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """min on Date column retains Date output dtype."""
         spec = AggSpec(column="created_date", agg=AggFunction.MIN, alias="earliest")
@@ -1232,7 +1422,8 @@ class TestPostAggSchemaAdversarial:
         assert col.dtype == "Date"
 
     def test_post_agg_schema_all_agg_columns_are_nullable(
-        self, offer_schema: DataFrameSchema,
+        self,
+        offer_schema: DataFrameSchema,
     ) -> None:
         """All aggregation output columns in post-agg schema are nullable."""
         specs = [

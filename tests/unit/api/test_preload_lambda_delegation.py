@@ -20,7 +20,9 @@ class TestInvokeCacheWarmerLambdaFromPreload:
     """Tests for _invoke_cache_warmer_lambda_from_preload helper."""
 
     @patch("boto3.client")
-    def test_invokes_lambda_with_correct_payload(self, mock_boto3_client: MagicMock) -> None:
+    def test_invokes_lambda_with_correct_payload(
+        self, mock_boto3_client: MagicMock
+    ) -> None:
         """Lambda is invoked asynchronously with entity types."""
         mock_lambda = MagicMock()
         mock_boto3_client.return_value = mock_lambda
@@ -33,7 +35,10 @@ class TestInvokeCacheWarmerLambdaFromPreload:
         mock_boto3_client.assert_called_once_with("lambda")
         mock_lambda.invoke.assert_called_once()
         call_kwargs = mock_lambda.invoke.call_args[1]
-        assert call_kwargs["FunctionName"] == "arn:aws:lambda:us-east-1:123:function:warmer"
+        assert (
+            call_kwargs["FunctionName"]
+            == "arn:aws:lambda:us-east-1:123:function:warmer"
+        )
         assert call_kwargs["InvocationType"] == "Event"
 
         import json
@@ -44,7 +49,9 @@ class TestInvokeCacheWarmerLambdaFromPreload:
         assert payload["resume_from_checkpoint"] is False
 
     @patch("boto3.client")
-    def test_handles_invoke_error_gracefully(self, mock_boto3_client: MagicMock) -> None:
+    def test_handles_invoke_error_gracefully(
+        self, mock_boto3_client: MagicMock
+    ) -> None:
         """Errors during Lambda invocation are logged, not raised."""
         mock_lambda = MagicMock()
         mock_lambda.invoke.side_effect = Exception("AccessDenied")
@@ -61,7 +68,10 @@ class TestPreloadManifestCheck:
     """Tests for manifest check in process_project."""
 
     @pytest.mark.asyncio
-    @patch.dict("os.environ", {"CACHE_WARMER_LAMBDA_ARN": "arn:aws:lambda:us-east-1:123:function:warmer"})
+    @patch.dict(
+        "os.environ",
+        {"CACHE_WARMER_LAMBDA_ARN": "arn:aws:lambda:us-east-1:123:function:warmer"},
+    )
     async def test_skips_build_when_no_manifest_and_lambda_available(self) -> None:
         """When manifest is None and Lambda ARN is set, skip in-process build."""
         mock_persistence = AsyncMock()
@@ -120,7 +130,9 @@ class TestPreloadManifestCheck:
         # In the real code, this returns False without adding to projects_needing_lambda
 
     @patch("boto3.client")
-    def test_lambda_invoked_with_all_delegated_entities(self, mock_boto3_client: MagicMock) -> None:
+    def test_lambda_invoked_with_all_delegated_entities(
+        self, mock_boto3_client: MagicMock
+    ) -> None:
         """Lambda is invoked once with all entity types that had missing manifests."""
         mock_lambda = MagicMock()
         mock_boto3_client.return_value = mock_lambda
