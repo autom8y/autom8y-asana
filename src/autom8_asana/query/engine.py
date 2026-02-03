@@ -423,12 +423,11 @@ class QueryEngine:
         return section
 
     def _get_freshness_meta(self) -> dict[str, object]:
-        """Read freshness info from query_service side-channel.
+        """Read freshness info from query_service.
 
-        Note: Uses getattr side-channel pattern (see SM-L005 for future
-        formalization). This helper consolidates the read to a single location.
+        Note: Accesses typed attribute on EntityQueryService.
         """
-        freshness_info = getattr(self.query_service, "_last_freshness_info", None)
+        freshness_info = self.query_service._last_freshness_info
         if freshness_info is None:
             return {}
         return {

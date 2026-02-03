@@ -27,6 +27,8 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 from autom8y_log import get_logger
 
+from autom8_asana.cache.dataframe_cache import FreshnessInfo
+
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
     from autom8_asana.services.universal_strategy import UniversalResolutionStrategy
@@ -113,8 +115,8 @@ class EntityQueryService:
         default=None
     )
 
-    # Side-channel for freshness info from last get_dataframe() call
-    _last_freshness_info: Any = field(default=None, init=False, repr=False)
+    # Freshness info from last get_dataframe() call
+    _last_freshness_info: FreshnessInfo | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         """Initialize default strategy factory."""
@@ -401,6 +403,6 @@ class EntityQueryService:
         df = await strategy._get_dataframe(project_gid, client)
         if df is None:
             raise CacheNotWarmError(f"DataFrame unavailable for {entity_type}.")
-        # Propagate freshness info from strategy
-        self._last_freshness_info = getattr(strategy, "_last_freshness_info", None)
+        # Propagate freshness info from strategy (typed attribute)
+        self._last_freshness_info = strategy._last_freshness_info
         return df
