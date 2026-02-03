@@ -242,10 +242,8 @@ class ProgressiveTier:
             )
 
             if success:
-                # Estimate bytes written from DataFrame size
-                buffer = io.BytesIO()
-                entry.dataframe.write_parquet(buffer)
-                self._stats["bytes_written"] += len(buffer.getvalue())
+                # Estimate bytes written from DataFrame memory footprint
+                self._stats["bytes_written"] += int(entry.dataframe.estimated_size())
 
                 logger.info(
                     "progressive_tier_put_success",
