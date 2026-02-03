@@ -246,14 +246,7 @@ class QueryEngine:
         data = df.to_dicts()
 
         # Read freshness info from query_service side-channel
-        freshness_info = getattr(self.query_service, "_last_freshness_info", None)
-        freshness_meta: dict[str, object] = {}
-        if freshness_info is not None:
-            freshness_meta = {
-                "freshness": freshness_info.freshness,
-                "data_age_seconds": freshness_info.data_age_seconds,
-                "staleness_ratio": freshness_info.staleness_ratio,
-            }
+        freshness_meta = self._get_freshness_meta()
 
         return RowsResponse(
             data=data,
@@ -389,14 +382,7 @@ class QueryEngine:
         data = result_df.to_dicts()
 
         # Read freshness info from query_service side-channel
-        freshness_info = getattr(self.query_service, "_last_freshness_info", None)
-        freshness_meta: dict[str, object] = {}
-        if freshness_info is not None:
-            freshness_meta = {
-                "freshness": freshness_info.freshness,
-                "data_age_seconds": freshness_info.data_age_seconds,
-                "staleness_ratio": freshness_info.staleness_ratio,
-            }
+        freshness_meta = self._get_freshness_meta()
 
         return AggregateResponse(
             data=data,
@@ -435,3 +421,18 @@ class QueryEngine:
         if resolved_gid is None:
             raise UnknownSectionError(section=section)
         return section
+
+    def _get_freshness_meta(self) -> dict[str, object]:
+        """Read freshness info from query_service side-channel.
+
+        Note: Uses getattr side-channel pattern (see SM-L005 for future
+        formalization). This helper consolidates the read to a single location.
+        """
+        freshness_info = getattr(self.query_service, "_last_freshness_info", None)
+        if freshness_info is None:
+            return {}
+        return {
+            "freshness": freshness_info.freshness,
+            "data_age_seconds": freshness_info.data_age_seconds,
+            "staleness_ratio": freshness_info.staleness_ratio,
+        }
