@@ -1024,3 +1024,174 @@ class TestDataFrameViewPluginMixedTypes:
         assert 0.0 in discounts
         assert 0.25 in discounts
         assert all(isinstance(d, (int, float)) or d is None for d in discounts)
+
+
+class TestDataFrameViewPluginMultiEnumCoercion:
+    """Tests for multi_enum custom field type coercion.
+
+    Per TDD-custom-field-type-coercion: multi_enum fields return list[str]
+    from the Asana API but must be coerced to match the schema's target dtype.
+    Without coercion, Polars throws ComputeError when list values conflict
+    with inferred Utf8 type from earlier None values.
+    """
+
+    @pytest.fixture
+    def multi_enum_list_schema(self) -> DataFrameSchema:
+        """Schema with a List[Utf8] column from multi_enum source."""
+        return DataFrameSchema(
+            name="multi_enum_test",
+            task_type="Offer",
+            columns=[
+                ColumnDef("gid", "Utf8", nullable=False, source=None),
+                ColumnDef("name", "Utf8", nullable=False, source=None),
+                ColumnDef(
+                    "platforms", "List[Utf8]", nullable=True, source="cf:Platforms"
+                ),
+            ],
+            version="1.0.0",
+        )
+
+    @pytest.fixture
+    def multi_enum_string_schema(self) -> DataFrameSchema:
+        """Schema with a Utf8 column from multi_enum source."""
+        return DataFrameSchema(
+            name="multi_enum_string_test",
+            task_type="Offer",
+            columns=[
+                ColumnDef("gid", "Utf8", nullable=False, source=None),
+                ColumnDef("name", "Utf8", nullable=False, source=None),
+                ColumnDef(
+                    "platforms", "Utf8", nullable=True, source="cf:Platforms"
+                ),
+            ],
+            version="1.0.0",
+        )
+
+    @pytest.mark.asyncio
+    async def test_multi_enum_list_dtype_preserves_list(
+        self, mock_store: MagicMock, multi_enum_list_schema: DataFrameSchema
+    ) -> None:
+        """Test multi_enum value preserved as list when target is List[Utf8]."""
+        tasks = {
+            "task-1": {
+                "gid": "task-1",
+                "name": "Task with platforms",
+                "resource_subtype": "default_task",
+                "completed": False,
+                "custom_fields": [
+                    {
+                        "gid": "cf-plat",
+                        "name": "Platforms",
+                        "resource_subtype": "multi_enum",
+                        "multi_enum_values": [
+                            {"gid": "e1", "name": "Corrective Care"},
+                            {"gid": "e2", "name": "Preventive Care"},
+                        ],
+                    }
+                ],
+            },
+        }
+        mock_store.get_batch_async = AsyncMock(return_value=tasks)
+        mock_store.get_parent_chain_async = AsyncMock(return_value=[])
+
+        plugin = DataFrameViewPlugin(
+            store=mock_store, schema=multi_enum_list_schema
+        )
+        result = await plugin.materialize_async(["task-1"])
+
+        assert len(result) == 1
+        platforms = result["platforms"][0].to_list()
+        assert "Corrective Care" in platforms
+        assert "Preventive Care" in platforms
+
+    @pytest.mark.asyncio
+    async def test_multi_enum_string_dtype_coerces_to_csv(
+        self, mock_store: MagicMock, multi_enum_string_schema: DataFrameSchema
+    ) -> None:
+        """Test multi_enum list coerced to comma-separated string when target is Utf8."""
+        tasks = {
+            "task-1": {
+                "gid": "task-1",
+                "name": "Task with platforms",
+                "resource_subtype": "default_task",
+                "completed": False,
+                "custom_fields": [
+                    {
+                        "gid": "cf-plat",
+                        "name": "Platforms",
+                        "resource_subtype": "multi_enum",
+                        "multi_enum_values": [
+                            {"gid": "e1", "name": "Corrective Care"},
+                            {"gid": "e2", "name": "Preventive Care"},
+                        ],
+                    }
+                ],
+            },
+        }
+        mock_store.get_batch_async = AsyncMock(return_value=tasks)
+        mock_store.get_parent_chain_async = AsyncMock(return_value=[])
+
+        plugin = DataFrameViewPlugin(
+            store=mock_store, schema=multi_enum_string_schema
+        )
+        result = await plugin.materialize_async(["task-1"])
+
+        assert len(result) == 1
+        platforms = result["platforms"][0]
+        assert isinstance(platforms, str)
+        assert "Corrective Care" in platforms
+        assert "Preventive Care" in platforms
+
+    @pytest.mark.asyncio
+    async def test_multi_enum_mixed_none_and_values_no_crash(
+        self, mock_store: MagicMock, multi_enum_list_schema: DataFrameSchema
+    ) -> None:
+        """Test that None followed by list values doesn't crash Polars.
+
+        This is the exact production scenario: first task has None for the
+        multi_enum field, Polars infers Utf8, then a later task has
+        ["Corrective Care"] which conflicts.
+        """
+        tasks = {
+            "task-1": {
+                "gid": "task-1",
+                "name": "Task without platforms",
+                "resource_subtype": "default_task",
+                "completed": False,
+                "custom_fields": [
+                    {
+                        "gid": "cf-plat",
+                        "name": "Platforms",
+                        "resource_subtype": "multi_enum",
+                        "multi_enum_values": [],  # Empty - returns None
+                    }
+                ],
+            },
+            "task-2": {
+                "gid": "task-2",
+                "name": "Task with platforms",
+                "resource_subtype": "default_task",
+                "completed": False,
+                "custom_fields": [
+                    {
+                        "gid": "cf-plat",
+                        "name": "Platforms",
+                        "resource_subtype": "multi_enum",
+                        "multi_enum_values": [
+                            {"gid": "e1", "name": "Corrective Care"},
+                        ],
+                    }
+                ],
+            },
+        }
+        mock_store.get_batch_async = AsyncMock(return_value=tasks)
+        mock_store.get_parent_chain_async = AsyncMock(return_value=[])
+
+        plugin = DataFrameViewPlugin(
+            store=mock_store, schema=multi_enum_list_schema
+        )
+
+        # This should NOT raise polars.exceptions.ComputeError
+        result = await plugin.materialize_async(["task-1", "task-2"])
+
+        assert len(result) == 2
