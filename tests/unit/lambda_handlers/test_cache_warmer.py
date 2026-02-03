@@ -17,8 +17,6 @@ from autom8_asana.lambda_handlers.cache_warmer import (
     TIMEOUT_BUFFER_MS,
     WarmResponse,
     _emit_metric,
-    _match_entity_type,
-    _normalize_project_name,
     _should_exit_early,
     _warm_cache_async,
     handler,
@@ -73,164 +71,6 @@ class TestWarmResponse:
         assert result["total_rows"] == 5000
         assert result["duration_ms"] == 2500.0
         assert "timestamp" in result
-
-
-class TestNormalizeProjectName:
-    """Tests for _normalize_project_name function.
-
-    The new algorithm uses:
-    1. Explicit overrides for non-standard project names
-    2. Singularization via inflect for convention-based matching
-    3. WARMABLE_ENTITIES filter to only return valid entity types
-    """
-
-    # =========================================================================
-    # Override-based matching tests
-    # =========================================================================
-
-    def test_override_business_units_to_unit(self) -> None:
-        """'business units' maps to 'unit' via override."""
-        assert _normalize_project_name("Business Units") == "unit"
-
-    def test_override_business_offers_to_offer(self) -> None:
-        """'business offers' maps to 'offer' via override (NOT 'business')."""
-        assert _normalize_project_name("business offers") == "offer"
-
-    def test_override_paid_content_to_asset_edit(self) -> None:
-        """'paid content' maps to 'asset_edit' via override."""
-        assert _normalize_project_name("paid content") == "asset_edit"
-
-    def test_override_units_returns_none(self) -> None:
-        """'units' maps to 'unit_holder' which is NOT in WARMABLE_ENTITIES."""
-        # 'units' project maps to UnitHolder, not Unit entity
-        # Since unit_holder is not warmable, returns None
-        assert _normalize_project_name("units") is None
-
-    # =========================================================================
-    # Convention-based matching tests (singularization)
-    # =========================================================================
-
-    def test_convention_businesses_to_business(self) -> None:
-        """'businesses' singularizes to 'business' via inflect."""
-        assert _normalize_project_name("Businesses") == "business"
-
-    def test_convention_business_singular(self) -> None:
-        """'business' is already singular and in WARMABLE_ENTITIES."""
-        assert _normalize_project_name("Business") == "business"
-
-    def test_convention_offers_to_offer(self) -> None:
-        """'offers' singularizes to 'offer' via inflect."""
-        assert _normalize_project_name("Offers") == "offer"
-
-    def test_convention_offer_singular(self) -> None:
-        """'offer' is already singular and in WARMABLE_ENTITIES."""
-        assert _normalize_project_name("Offer") == "offer"
-
-    def test_convention_contacts_to_contact(self) -> None:
-        """'contacts' singularizes to 'contact' via inflect."""
-        assert _normalize_project_name("Contacts") == "contact"
-
-    def test_convention_contact_singular(self) -> None:
-        """'contact' is already singular and in WARMABLE_ENTITIES."""
-        assert _normalize_project_name("Contact") == "contact"
-
-    # =========================================================================
-    # Case insensitivity and whitespace handling
-    # =========================================================================
-
-    def test_case_insensitive_override(self) -> None:
-        """Override matching is case insensitive."""
-        assert _normalize_project_name("BUSINESS UNITS") == "unit"
-        assert _normalize_project_name("Business Offers") == "offer"
-
-    def test_case_insensitive_convention(self) -> None:
-        """Convention matching is case insensitive."""
-        assert _normalize_project_name("OFFERS") == "offer"
-        assert _normalize_project_name("CONTACTS") == "contact"
-
-    def test_whitespace_handling(self) -> None:
-        """Normalization strips leading/trailing whitespace."""
-        assert _normalize_project_name("  Business Units  ") == "unit"
-        assert _normalize_project_name("  businesses  ") == "business"
-
-    # =========================================================================
-    # Non-matching projects (workflow projects, unknown names)
-    # =========================================================================
-
-    def test_workflow_project_no_match(self) -> None:
-        """Workflow projects should NOT match any entity type.
-
-        'pause a business unit' is a workflow project, not a data source.
-        It should not be mapped to 'unit' entity type.
-        """
-        # These are workflow projects that happen to contain entity keywords
-        assert _normalize_project_name("pause a business unit") is None
-        assert _normalize_project_name("Archive Old Units") is None
-        assert _normalize_project_name("Unit Onboarding Workflow") is None
-
-    def test_non_canonical_projects_no_match(self) -> None:
-        """Projects not in overrides and not matching convention return None.
-
-        These were previously mapped via explicit mappings but are not
-        canonical data sources for cache warming.
-        """
-        # 'business offers2' is not in overrides, singularization gives
-        # 'business offers2' which is not in WARMABLE_ENTITIES
-        assert _normalize_project_name("business offers2") is None
-
-        # 'offer holders' singularizes to 'offer holder', not in WARMABLE_ENTITIES
-        assert _normalize_project_name("offer holders") is None
-
-        # 'contact holder' is singular, not in WARMABLE_ENTITIES
-        assert _normalize_project_name("contact holder") is None
-
-        # 'asset edit holder' is not in WARMABLE_ENTITIES
-        assert _normalize_project_name("asset edit holder") is None
-
-        # 'asset editing holder' is not in WARMABLE_ENTITIES
-        assert _normalize_project_name("asset editing holder") is None
-
-    def test_random_project_no_match(self) -> None:
-        """Random project names return None."""
-        assert _normalize_project_name("Random Project") is None
-        assert _normalize_project_name("My Tasks") is None
-        assert _normalize_project_name("Sprint Board") is None
-
-
-class TestMatchEntityType:
-    """Tests for _match_entity_type function."""
-
-    def test_match_unit_via_override(self) -> None:
-        """Match 'Business Units' to 'unit' via override."""
-        entity_types = ["unit", "business", "offer", "contact"]
-        assert _match_entity_type("Business Units", entity_types) == "unit"
-
-    def test_match_offer_via_convention(self) -> None:
-        """Match 'Offers' to 'offer' via singularization."""
-        entity_types = ["unit", "business", "offer", "contact"]
-        assert _match_entity_type("Offers", entity_types) == "offer"
-
-    def test_match_business_offers_to_offer(self) -> None:
-        """Match 'business offers' to 'offer' via override (not 'business')."""
-        entity_types = ["unit", "business", "offer", "contact"]
-        assert _match_entity_type("business offers", entity_types) == "offer"
-
-    def test_no_match_for_random_project(self) -> None:
-        """Return None for unmatched project name."""
-        entity_types = ["unit", "business", "offer", "contact"]
-        assert _match_entity_type("Random Project", entity_types) is None
-
-    def test_no_match_for_workflow_project(self) -> None:
-        """Return None for workflow projects even if they contain entity keywords."""
-        entity_types = ["unit", "business", "offer", "contact"]
-        assert _match_entity_type("pause a business unit", entity_types) is None
-
-    def test_no_match_when_entity_type_not_in_list(self) -> None:
-        """Return None when normalized entity type is not in the provided list."""
-        # Even though 'business units' normalizes to 'unit', if 'unit' isn't
-        # in the entity_types list, it should return None
-        entity_types = ["business", "offer", "contact"]  # No 'unit'
-        assert _match_entity_type("Business Units", entity_types) is None
 
 
 class TestWarmCacheAsync:
@@ -295,7 +135,7 @@ class TestWarmCacheAsync:
                 return_value=mock_registry,
             ),
             patch(
-                "autom8_asana.lambda_handlers.cache_warmer._discover_entity_projects_for_lambda",
+                "autom8_asana.services.discovery.discover_entity_projects_async",
                 new_callable=AsyncMock,
                 side_effect=RuntimeError("Discovery failed"),
             ),
