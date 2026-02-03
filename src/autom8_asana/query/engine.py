@@ -102,19 +102,9 @@ class QueryEngine:
             self.limits.check_depth(depth)
 
         # 2. Resolve section
-        section_name_filter: str | None = None
-        if request.section is not None:
-            if section_index is None:
-                # Caller should provide; fallback to enum
-                from autom8_asana.metrics.resolve import SectionIndex as _SectionIndex
-
-                section_index = _SectionIndex.from_enum_fallback(entity_type)
-            resolved_gid = section_index.resolve(request.section)
-            if resolved_gid is None:
-                raise UnknownSectionError(section=request.section)
-            # EC-010: DataFrame section column stores NAMES, not GIDs.
-            # We filter by the parameter name directly.
-            section_name_filter = request.section
+        section_name_filter = self._resolve_section(
+            request.section, entity_type, section_index
+        )
 
         # 3. Load DataFrame
         df = await self.query_service.get_dataframe(
@@ -329,16 +319,9 @@ class QueryEngine:
             self.limits.check_depth(depth)
 
         # 3. Resolve section (same pattern as execute_rows)
-        section_name_filter: str | None = None
-        if request.section is not None:
-            if section_index is None:
-                from autom8_asana.metrics.resolve import SectionIndex as _SectionIndex
-
-                section_index = _SectionIndex.from_enum_fallback(entity_type)
-            resolved_gid = section_index.resolve(request.section)
-            if resolved_gid is None:
-                raise UnknownSectionError(section=request.section)
-            section_name_filter = request.section
+        section_name_filter = self._resolve_section(
+            request.section, entity_type, section_index
+        )
 
         # 4. Load DataFrame
         df = await self.query_service.get_dataframe(
@@ -427,3 +410,28 @@ class QueryEngine:
                 **freshness_meta,  # type: ignore[arg-type]
             ),
         )
+
+    def _resolve_section(
+        self,
+        section: str | None,
+        entity_type: str,
+        section_index: SectionIndex | None,
+    ) -> str | None:
+        """Resolve section parameter to section name filter.
+
+        Returns:
+            Section name string if section was provided, None otherwise.
+
+        Raises:
+            UnknownSectionError: If section cannot be resolved.
+        """
+        if section is None:
+            return None
+        if section_index is None:
+            from autom8_asana.metrics.resolve import SectionIndex as _SectionIndex
+
+            section_index = _SectionIndex.from_enum_fallback(entity_type)
+        resolved_gid = section_index.resolve(section)
+        if resolved_gid is None:
+            raise UnknownSectionError(section=section)
+        return section
