@@ -22,7 +22,6 @@ def _make_cache() -> DataFrameCache:
         progressive_tier=progressive_tier,
         coalescer=DataFrameCacheCoalescer(),
         circuit_breaker=CircuitBreaker(),
-        ttl_hours=12,
     )
 
 

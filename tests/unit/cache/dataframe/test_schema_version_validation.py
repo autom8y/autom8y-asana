@@ -53,7 +53,6 @@ def make_cache(
     progressive_tier: MagicMock | None = None,
     coalescer: DataFrameCacheCoalescer | None = None,
     circuit_breaker: CircuitBreaker | None = None,
-    ttl_hours: int = 12,
     schema_version: str = "1.0.0",
 ) -> DataFrameCache:
     """Create a DataFrameCache with mocked dependencies."""
@@ -68,7 +67,6 @@ def make_cache(
         circuit_breaker=circuit_breaker
         if circuit_breaker is not None
         else CircuitBreaker(),
-        ttl_hours=ttl_hours,
         schema_version=schema_version,
     )
 
@@ -118,7 +116,7 @@ class TestSchemaVersionLookup:
 
 
 class TestSchemaVersionValidation:
-    """Tests for _is_valid() using SchemaRegistry lookup."""
+    """Tests for _check_freshness() using SchemaRegistry lookup."""
 
     @pytest.mark.asyncio
     async def test_entry_valid_when_version_matches_registry(self) -> None:
@@ -258,7 +256,7 @@ class TestRegressionPrevention:
         Root cause: factory.py hardcoded schema_version="1.0.0" but UNIT_SCHEMA
         was bumped, causing stale cache hits.
 
-        Fix: _is_valid() now looks up expected version from SchemaRegistry
+        Fix: _check_freshness() now looks up expected version from SchemaRegistry
         instead of comparing against self.schema_version.
         """
         memory = MemoryTier(max_entries=100)

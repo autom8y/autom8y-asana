@@ -2,11 +2,11 @@
 
 Per TDD-DATAFRAME-CACHE-001 and TDD-UNIFIED-PROGRESSIVE-CACHE-001:
 Tests for tiered caching, cache validation, build lock management,
-and statistics.
+statistics, and entity-level TTL with SWR.
 """
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
 import pytest
@@ -17,6 +17,7 @@ from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
 from autom8_asana.cache.dataframe_cache import (
     CacheEntry,
     DataFrameCache,
+    FreshnessStatus,
     _get_schema_version_for_entity,
     get_dataframe_cache,
     reset_dataframe_cache,
@@ -29,11 +30,16 @@ def make_entry(
     entity_type: str = "unit",
     schema_version: str | None = None,
     created_hours_ago: int = 0,
+    created_seconds_ago: int | None = None,
 ) -> CacheEntry:
     """Create a test CacheEntry.
 
     If schema_version is not provided, looks up the correct version from
     SchemaRegistry to ensure test entries are valid by default.
+
+    Args:
+        created_seconds_ago: Fine-grained age control (takes precedence
+            over created_hours_ago when provided).
     """
     df = pl.DataFrame(
         {
@@ -46,12 +52,17 @@ def make_entry(
     if schema_version is None:
         schema_version = _get_schema_version_for_entity(entity_type) or "1.0.0"
 
+    if created_seconds_ago is not None:
+        age = timedelta(seconds=created_seconds_ago)
+    else:
+        age = timedelta(hours=created_hours_ago)
+
     return CacheEntry(
         project_gid=project_gid,
         entity_type=entity_type,
         dataframe=df,
         watermark=datetime.now(UTC),
-        created_at=datetime.now(UTC) - timedelta(hours=created_hours_ago),
+        created_at=datetime.now(UTC) - age,
         schema_version=schema_version,
     )
 
@@ -61,7 +72,6 @@ def make_cache(
     progressive_tier: MagicMock | None = None,
     coalescer: DataFrameCacheCoalescer | None = None,
     circuit_breaker: CircuitBreaker | None = None,
-    ttl_hours: int = 12,
     schema_version: str = "1.0.0",
 ) -> DataFrameCache:
     """Create a DataFrameCache with mocked dependencies.
@@ -80,7 +90,6 @@ def make_cache(
         circuit_breaker=circuit_breaker
         if circuit_breaker is not None
         else CircuitBreaker(),
-        ttl_hours=ttl_hours,
         schema_version=schema_version,
     )
 
@@ -160,23 +169,22 @@ class TestDataFrameCache:
         assert stats["unit"]["circuit_breaks"] == 1
 
     @pytest.mark.asyncio
-    async def test_get_stale_entry_rejected(self) -> None:
-        """Get rejects stale entries from memory."""
+    async def test_get_expired_entry_rejected(self) -> None:
+        """Get rejects entries beyond SWR grace window."""
         memory = MemoryTier(max_entries=100)
+        # unit TTL=900s, grace=2700s. 24 hours old = far beyond grace.
         old_entry = make_entry(created_hours_ago=24)
         memory.put("unit:proj-1", old_entry)
 
         progressive_tier = AsyncMock()
         progressive_tier.get_async.return_value = None
 
-        cache = make_cache(
-            memory_tier=memory, progressive_tier=progressive_tier, ttl_hours=12
-        )
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
         result = await cache.get_async("proj-1", "unit")
 
         assert result is None
-        # Stale entry should be removed from memory
+        # Expired entry should be removed from memory
         assert memory.get("unit:proj-1") is None
 
     @pytest.mark.asyncio
@@ -348,6 +356,215 @@ class TestDataFrameCache:
         cache.reset_stats()
 
         assert cache._stats["unit"]["memory_hits"] == 0
+
+
+class TestEntityTTLAndSWR:
+    """Tests for entity-level TTL enforcement and stale-while-revalidate."""
+
+    @pytest.mark.asyncio
+    async def test_fresh_entry_served_immediately(self) -> None:
+        """Entry within entity TTL is served as fresh (no SWR triggered)."""
+        memory = MemoryTier(max_entries=100)
+        # unit TTL = 900s. Entry is 60s old → fresh.
+        entry = make_entry(entity_type="unit", created_seconds_ago=60)
+        memory.put("unit:proj-1", entry)
+
+        cache = make_cache(memory_tier=memory)
+        result = await cache.get_async("proj-1", "unit")
+
+        assert result is entry
+        stats = cache.get_stats()
+        assert stats["unit"]["memory_hits"] == 1
+        assert stats["unit"]["swr_serves"] == 0
+
+    @pytest.mark.asyncio
+    async def test_stale_entry_within_grace_triggers_swr(self) -> None:
+        """Entry past TTL but within grace window is served + SWR fires."""
+        memory = MemoryTier(max_entries=100)
+        # unit TTL = 900s, grace = 2700s. Entry 1200s old → stale but servable.
+        entry = make_entry(entity_type="unit", created_seconds_ago=1200)
+        memory.put("unit:proj-1", entry)
+
+        cache = make_cache(memory_tier=memory)
+
+        with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task") as mock_task:
+            result = await cache.get_async("proj-1", "unit")
+
+        assert result is entry
+        stats = cache.get_stats()
+        assert stats["unit"]["swr_serves"] == 1
+        assert stats["unit"]["swr_refreshes_triggered"] == 1
+        mock_task.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_expired_entry_beyond_grace_returns_none(self) -> None:
+        """Entry beyond SWR grace window is treated as cache miss."""
+        memory = MemoryTier(max_entries=100)
+        # unit TTL = 900s, grace = 2700s. Entry 3600s old → expired.
+        entry = make_entry(entity_type="unit", created_seconds_ago=3600)
+        memory.put("unit:proj-1", entry)
+
+        progressive_tier = AsyncMock()
+        progressive_tier.get_async.return_value = None
+
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
+        result = await cache.get_async("proj-1", "unit")
+
+        assert result is None
+        assert memory.get("unit:proj-1") is None
+
+    @pytest.mark.asyncio
+    async def test_offer_entity_ttl_respected(self) -> None:
+        """Offer entity (TTL=180s) goes stale faster than unit (TTL=900s)."""
+        memory = MemoryTier(max_entries=100)
+        # offer TTL = 180s. Entry 200s old → stale (within grace 540s).
+        entry = make_entry(entity_type="offer", created_seconds_ago=200)
+        memory.put("offer:proj-1", entry)
+
+        cache = make_cache(memory_tier=memory)
+
+        with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task"):
+            result = await cache.get_async("proj-1", "offer")
+
+        assert result is entry
+        stats = cache.get_stats()
+        assert stats["offer"]["swr_serves"] == 1
+
+    @pytest.mark.asyncio
+    async def test_offer_expired_beyond_grace(self) -> None:
+        """Offer entity beyond 3x TTL (540s) returns None."""
+        memory = MemoryTier(max_entries=100)
+        # offer TTL = 180s, grace = 540s. Entry 600s old → expired.
+        entry = make_entry(entity_type="offer", created_seconds_ago=600)
+        memory.put("offer:proj-1", entry)
+
+        progressive_tier = AsyncMock()
+        progressive_tier.get_async.return_value = None
+
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
+        result = await cache.get_async("proj-1", "offer")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_business_entity_ttl_respected(self) -> None:
+        """Business entity (TTL=3600s) stays fresh for longer."""
+        memory = MemoryTier(max_entries=100)
+        # business TTL = 3600s. Entry 1800s old → still fresh.
+        entry = make_entry(entity_type="business", created_seconds_ago=1800)
+        memory.put("business:proj-1", entry)
+
+        cache = make_cache(memory_tier=memory)
+        result = await cache.get_async("proj-1", "business")
+
+        assert result is entry
+        stats = cache.get_stats()
+        assert stats["business"]["swr_serves"] == 0
+
+    @pytest.mark.asyncio
+    async def test_swr_deduplicates_concurrent_refreshes(self) -> None:
+        """Coalescer prevents duplicate SWR refreshes for same key."""
+        memory = MemoryTier(max_entries=100)
+        coalescer = DataFrameCacheCoalescer()
+        # Simulate an in-progress build
+        await coalescer.try_acquire_async("unit:proj-1")
+
+        entry = make_entry(entity_type="unit", created_seconds_ago=1200)
+        memory.put("unit:proj-1", entry)
+
+        cache = make_cache(memory_tier=memory, coalescer=coalescer)
+
+        with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task") as mock_task:
+            result = await cache.get_async("proj-1", "unit")
+
+        # Entry is still served (SWR)
+        assert result is entry
+        # But no new task is created (build already in progress)
+        mock_task.assert_not_called()
+        stats = cache.get_stats()
+        assert stats["unit"]["swr_serves"] == 1
+        assert stats["unit"]["swr_refreshes_triggered"] == 0
+
+    @pytest.mark.asyncio
+    async def test_swr_on_s3_tier_hydrates_memory(self) -> None:
+        """SWR entry from S3 tier is served and hydrated to memory."""
+        memory = MemoryTier(max_entries=100)
+        progressive_tier = AsyncMock()
+        # unit TTL = 900s, entry 1200s old → stale but servable from S3
+        entry = make_entry(entity_type="unit", created_seconds_ago=1200)
+        progressive_tier.get_async.return_value = entry
+
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
+
+        with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task"):
+            result = await cache.get_async("proj-1", "unit")
+
+        assert result is entry
+        # Should hydrate memory tier even for SWR entries
+        assert memory.get("unit:proj-1") is entry
+
+    def test_check_freshness_returns_correct_states(self) -> None:
+        """_check_freshness returns correct FreshnessStatus for each age band."""
+        cache = make_cache()
+
+        # Fresh: 60s old, unit TTL = 900s
+        fresh_entry = make_entry(entity_type="unit", created_seconds_ago=60)
+        assert cache._check_freshness(fresh_entry, None) == FreshnessStatus.FRESH
+
+        # Stale servable: 1200s old, unit TTL = 900s, grace = 2700s
+        stale_entry = make_entry(entity_type="unit", created_seconds_ago=1200)
+        assert cache._check_freshness(stale_entry, None) == FreshnessStatus.STALE_SERVABLE
+
+        # Expired: 3600s old, unit TTL = 900s, grace = 2700s
+        expired_entry = make_entry(entity_type="unit", created_seconds_ago=3600)
+        assert cache._check_freshness(expired_entry, None) == FreshnessStatus.EXPIRED
+
+    def test_check_freshness_schema_mismatch_is_expired(self) -> None:
+        """Schema mismatch always returns EXPIRED regardless of age."""
+        cache = make_cache()
+        entry = make_entry(entity_type="unit", schema_version="0.0.1")
+        assert cache._check_freshness(entry, None) == FreshnessStatus.EXPIRED
+
+    def test_check_freshness_stale_watermark_is_expired(self) -> None:
+        """Stale watermark always returns EXPIRED regardless of age."""
+        cache = make_cache()
+        entry = make_entry(entity_type="unit", created_seconds_ago=0)
+        future_watermark = datetime.now(UTC) + timedelta(minutes=5)
+        assert cache._check_freshness(entry, future_watermark) == FreshnessStatus.EXPIRED
+
+
+class TestSWRCallbackWiring:
+    """Tests that factory wires the SWR build callback onto the cache."""
+
+    def setup_method(self) -> None:
+        """Reset singleton before each test."""
+        reset_dataframe_cache()
+
+    def teardown_method(self) -> None:
+        """Reset singleton after each test."""
+        reset_dataframe_cache()
+
+    @patch("autom8_asana.settings.get_settings")
+    def test_initialize_registers_build_callback(self, mock_settings: MagicMock) -> None:
+        """After initialize_dataframe_cache(), _build_callback is not None."""
+        from autom8_asana.cache.dataframe.factory import initialize_dataframe_cache
+
+        # Configure mock settings with S3 bucket so factory doesn't return None
+        mock_s3 = MagicMock()
+        mock_s3.bucket = "test-bucket"
+        mock_s3.region = "us-east-1"
+        mock_s3.endpoint_url = None
+        mock_settings.return_value.s3 = mock_s3
+
+        mock_cache_settings = MagicMock()
+        mock_cache_settings.dataframe_heap_percent = 0.3
+        mock_cache_settings.dataframe_max_entries = 100
+        mock_settings.return_value.cache = mock_cache_settings
+
+        cache = initialize_dataframe_cache()
+
+        assert cache is not None
+        assert cache._build_callback is not None
 
 
 class TestDataFrameCacheSingleton:
