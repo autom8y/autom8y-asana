@@ -41,7 +41,6 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-import inflection
 from autom8y_log import get_logger
 
 if TYPE_CHECKING:
@@ -302,90 +301,6 @@ def _self_invoke_continuation(
         )
 
 
-async def _discover_entity_projects_for_lambda() -> None:
-    """Discover and register entity type project mappings for Lambda.
-
-    Delegates to the shared discovery service (services/discovery.py) which
-    uses a 3-phase approach: workspace discovery, model PRIMARY_PROJECT_GID
-    selection, and name-normalization fallback. This ensures Lambda and ECS
-    use identical discovery logic.
-
-    Raises:
-        RuntimeError: If discovery fails critically.
-    """
-    from autom8_asana.services.discovery import discover_entity_projects_async
-
-    await discover_entity_projects_async()
-
-
-# Override map for non-standard project names (exact match, case-insensitive)
-# Maps project names that don't follow convention to their entity types
-ENTITY_OVERRIDES: dict[str, str] = {
-    "business offers": "offer",
-    "business units": "unit",
-    "paid content": "asset_edit",
-    "units": "unit_holder",  # Maps correctly, but unit_holder not in WARMABLE_ENTITIES
-}
-
-# Valid entity types in priority order for cache warming
-# Only these entity types will be returned by _normalize_project_name
-WARMABLE_ENTITIES: list[str] = ["offer", "business", "contact", "unit", "asset_edit", "asset_edit_holder"]
-
-
-def _normalize_project_name(name: str) -> str | None:
-    """Map project name to entity type using convention + overrides.
-
-    Uses a two-step algorithm:
-    1. Check explicit overrides first (exact match, case-insensitive)
-    2. Singularize project name using inflection (Rails port)
-
-    Only returns entity types that are in WARMABLE_ENTITIES. This ensures
-    workflow projects like "pause a business unit" are NOT mapped to any
-    entity type (they don't match overrides and singularization won't produce
-    a valid warmable entity).
-
-    Args:
-        name: Project name to normalize.
-
-    Returns:
-        Entity type string if valid and warmable, None if no match.
-    """
-    normalized = name.lower().strip()
-
-    # 1. Check overrides first (exact match)
-    if normalized in ENTITY_OVERRIDES:
-        entity_type = ENTITY_OVERRIDES[normalized]
-        # Only return if it's warmable
-        if entity_type in WARMABLE_ENTITIES:
-            return entity_type
-        return None
-
-    # 2. Singularize using inflection (Rails port - handles edge cases correctly)
-    singular = inflection.singularize(normalized)
-
-    # 3. Return only if it's a valid warmable entity
-    if singular in WARMABLE_ENTITIES:
-        return singular
-
-    return None
-
-
-def _match_entity_type(project_name: str, entity_types: list[str]) -> str | None:
-    """Match a project name to an entity type.
-
-    Args:
-        project_name: Project name to match.
-        entity_types: List of valid entity type identifiers.
-
-    Returns:
-        Matched entity type or None if no match.
-    """
-    normalized = _normalize_project_name(project_name)
-    if normalized is not None and normalized in entity_types:
-        return normalized
-    return None
-
-
 async def _warm_cache_async(
     entity_types: list[str] | None = None,
     strict: bool = True,
@@ -449,9 +364,11 @@ async def _warm_cache_async(
     # Get EntityProjectRegistry
     registry = EntityProjectRegistry.get_instance()
     if not registry.is_ready():
-        # Try to discover projects
+        # Try to discover projects using the shared 3-phase discovery service
         try:
-            await _discover_entity_projects_for_lambda()
+            from autom8_asana.services.discovery import discover_entity_projects_async
+
+            await discover_entity_projects_async()
         except Exception as e:
             logger.warning(
                 "cache_warmer_discovery_failed",
