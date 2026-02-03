@@ -127,7 +127,7 @@ class SectionFreshnessProber:
         )
 
         # Log summary
-        verdicts = {}
+        verdicts: dict[str, int] = {}
         for r in results:
             verdicts[r.verdict.value] = verdicts.get(r.verdict.value, 0) + 1
 

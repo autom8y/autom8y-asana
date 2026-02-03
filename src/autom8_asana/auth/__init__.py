@@ -37,9 +37,9 @@ try:
     _HAS_FASTAPI = True
 except ImportError:
     _HAS_FASTAPI = False
-    AuthMode = None  # type: ignore[misc, assignment]
-    detect_token_type = None  # type: ignore[misc, assignment]
-    get_auth_mode = None  # type: ignore[misc, assignment]
+    AuthMode = None  # type: ignore[misc,assignment]
+    detect_token_type = None  # type: ignore[assignment]
+    get_auth_mode = None  # type: ignore[assignment]
 
 __all__ = [
     # Dual mode (requires FastAPI)

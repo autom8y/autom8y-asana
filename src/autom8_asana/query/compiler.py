@@ -124,17 +124,17 @@ def _build_expr(field: str, op: Op, value: Any) -> pl.Expr:
 
     match op:
         case Op.EQ:
-            return col == value
+            return col == value  # type: ignore[no-any-return]
         case Op.NE:
-            return col != value
+            return col != value  # type: ignore[no-any-return]
         case Op.GT:
-            return col > value
+            return col > value  # type: ignore[no-any-return]
         case Op.LT:
-            return col < value
+            return col < value  # type: ignore[no-any-return]
         case Op.GTE:
-            return col >= value
+            return col >= value  # type: ignore[no-any-return]
         case Op.LTE:
-            return col <= value
+            return col <= value  # type: ignore[no-any-return]
         case Op.IN:
             return col.is_in(value)
         case Op.NOT_IN:
@@ -284,7 +284,7 @@ def strip_section_predicates(node: PredicateNode) -> PredicateNode | None:
     return node  # pragma: no cover
 
 
-def _to_raw(node: PredicateNode) -> dict:
+def _to_raw(node: PredicateNode) -> dict[str, Any]:
     """Serialize a PredicateNode back to dict for model_validate round-trip."""
     if isinstance(node, Comparison):
         return {"field": node.field, "op": node.op.value, "value": node.value}

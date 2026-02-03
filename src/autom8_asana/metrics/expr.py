@@ -6,6 +6,7 @@ and aggregation function needed to compute one scalar from a DataFrame.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import polars as pl
@@ -43,7 +44,7 @@ class MetricExpr:
 
     name: str
     column: str
-    cast_dtype: pl.DataType | None = None
+    cast_dtype: type[pl.DataType] | pl.DataType | None = None
     agg: str = "sum"
     filter_expr: pl.Expr | None = None
 
@@ -76,6 +77,7 @@ class MetricExpr:
             e = e.cast(self.cast_dtype, strict=False)
 
         # Apply aggregation
-        e = getattr(e, self.agg)()
+        agg_fn: Callable[[], pl.Expr] = getattr(e, self.agg)
+        e = agg_fn()
 
         return e.alias(self.name)

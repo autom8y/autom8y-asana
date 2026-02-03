@@ -7,6 +7,7 @@ with Memory + S3 tiering, request coalescing, and circuit breaker patterns.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
@@ -180,7 +181,9 @@ class DataFrameCache:
     # Optional callback for SWR background rebuilds.
     # Signature: async def callback(project_gid: str, entity_type: str) -> None
     # The callback should build the DataFrame and call put_async() on this cache.
-    _build_callback: object | None = field(default=None, init=False, repr=False)
+    _build_callback: Callable[[str, str], Awaitable[None]] | None = field(
+        default=None, init=False, repr=False
+    )
 
     # Statistics per entity type
     _stats: dict[str, dict[str, int]] = field(
@@ -523,7 +526,7 @@ class DataFrameCache:
 
     def set_build_callback(
         self,
-        callback: object,
+        callback: Callable[[str, str], Awaitable[None]],
     ) -> None:
         """Register async callback for SWR background rebuilds.
 

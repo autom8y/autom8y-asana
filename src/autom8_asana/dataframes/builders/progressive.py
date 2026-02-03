@@ -270,8 +270,8 @@ class ProgressiveProjectBuilder:
 
         # Step 3: Create/update manifest
         if manifest is None:
-            section_names = {
-                s.gid: s.name for s in sections if getattr(s, "name", None)
+            section_names: dict[str, str] = {
+                s.gid: s.name for s in sections if isinstance(s.name, str)
             }
             manifest = await self._persistence.create_manifest_async(
                 self._project_gid,

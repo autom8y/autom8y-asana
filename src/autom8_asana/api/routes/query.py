@@ -186,7 +186,7 @@ async def query_entities(
     request_body: QueryRequest,
     request: Request,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
-) -> QueryResponse:
+) -> JSONResponse:
     """Query entities from DataFrame cache with full cache lifecycle.
 
     CRITICAL: This endpoint uses EntityQueryService which routes through
