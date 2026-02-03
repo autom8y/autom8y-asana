@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime, timezone
 
 import polars as pl
 import pytest
-
 from pydantic import TypeAdapter
 
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
@@ -251,7 +250,7 @@ class TestCompilerDatetime:
     ) -> None:
         node = Comparison(field="created_at", op=Op.EQ, value="2026-01-15T10:30:00Z")
         expr = compiler.compile(node, test_schema)
-        dt_val = datetime(2026, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+        dt_val = datetime(2026, 1, 15, 10, 30, 0, tzinfo=UTC)
         df = pl.DataFrame({"created_at": [dt_val]})
         assert len(df.filter(expr)) == 1
 

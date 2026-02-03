@@ -10,7 +10,6 @@ from autom8_asana.metrics.expr import MetricExpr
 from autom8_asana.metrics.metric import Metric, Scope
 from autom8_asana.metrics.resolve import SectionIndex, resolve_metric_scope
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

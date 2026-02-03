@@ -22,7 +22,6 @@ from autom8_asana.cache.hierarchy_warmer import (
 )
 from autom8_asana.cache.unified import UnifiedTaskStore
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

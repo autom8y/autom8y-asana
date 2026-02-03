@@ -217,6 +217,8 @@ def build_post_agg_schema(
     """
     from autom8_asana.dataframes.models.schema import (
         ColumnDef,
+    )
+    from autom8_asana.dataframes.models.schema import (
         DataFrameSchema as DFSchema,
     )
 

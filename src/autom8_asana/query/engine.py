@@ -17,21 +17,20 @@ from autom8_asana.dataframes.models.registry import SchemaRegistry
 from autom8_asana.query.compiler import PredicateCompiler
 from autom8_asana.query.errors import (
     AggregateGroupLimitError,
-    AggregationError,
     JoinError,
     UnknownFieldError,
     UnknownSectionError,
 )
+from autom8_asana.query.guards import QueryLimits, predicate_depth
 from autom8_asana.query.hierarchy import (
     find_relationship,
     get_join_key,
     get_joinable_types,
 )
 from autom8_asana.query.join import execute_join
-from autom8_asana.query.guards import QueryLimits, predicate_depth
 from autom8_asana.query.models import (
-    AggregateRequest,
     AggregateMeta,
+    AggregateRequest,
     AggregateResponse,
     RowsMeta,
     RowsRequest,

@@ -12,7 +12,7 @@ Per TDD-cache-freshness-remediation Fix 4:
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+
 from autom8y_log import get_logger
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -376,7 +376,7 @@ async def refresh_cache(
     request: Request,
     body: CacheRefreshRequest,
     background_tasks: BackgroundTasks,
-    claims: ServiceClaims = Depends(require_service_claims),
+    claims: ServiceClaims = Depends(require_service_claims),  # noqa: B008
 ) -> CacheRefreshResponse:
     """Trigger cache refresh for one or all entity types.
 

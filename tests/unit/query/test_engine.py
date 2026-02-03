@@ -13,6 +13,7 @@ from autom8_asana.query.engine import QueryEngine
 from autom8_asana.query.errors import (
     AggregationError,
     JoinError,
+    QueryTooComplexError,
     UnknownFieldError,
     UnknownSectionError,
 )
@@ -25,7 +26,6 @@ from autom8_asana.query.models import (
     Op,
     RowsRequest,
 )
-from autom8_asana.query.errors import QueryTooComplexError
 from autom8_asana.services.query_service import EntityQueryService
 
 
