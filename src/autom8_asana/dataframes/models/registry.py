@@ -80,6 +80,8 @@ class SchemaRegistry:
                 return
 
             # Import schemas here to avoid circular imports
+            # Note: This is the canonical registration point for schemas.
+            # See core.entity_types.ENTITY_TYPES for the list of entity types.
             from autom8_asana.dataframes.schemas.asset_edit import ASSET_EDIT_SCHEMA
             from autom8_asana.dataframes.schemas.asset_edit_holder import (
                 ASSET_EDIT_HOLDER_SCHEMA,

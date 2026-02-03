@@ -18,12 +18,13 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
+from autom8_asana.core.entity_types import ENTITY_TYPES
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/v1/admin", tags=["admin"])
 
-VALID_ENTITY_TYPES = {"unit", "business", "offer", "contact", "asset_edit"}
+VALID_ENTITY_TYPES = set(ENTITY_TYPES)
 
 
 class CacheRefreshRequest(BaseModel):
