@@ -4,7 +4,7 @@ Per TDD-unit-cascade-resolution-fix: Tests that schema version validation
 uses SchemaRegistry lookup per entity type, not a hardcoded cache-level version.
 
 This prevents stale cache hits when entity schemas are bumped independently
-(e.g., UNIT_SCHEMA at 1.1.0 while cache was initialized with 1.0.0).
+(e.g., UNIT_SCHEMA bumped while cache was initialized with an older version).
 """
 
 from datetime import UTC, datetime, timedelta
@@ -21,6 +21,7 @@ from autom8_asana.cache.dataframe_cache import (
     DataFrameCache,
     _get_schema_version_for_entity,
 )
+from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
 
 
 def make_entry(
@@ -76,11 +77,10 @@ class TestSchemaVersionLookup:
     """Tests for _get_schema_version_for_entity helper."""
 
     def test_lookup_unit_schema_version(self) -> None:
-        """Lookup returns UNIT_SCHEMA version (1.1.0)."""
+        """Lookup returns UNIT_SCHEMA version dynamically."""
         version = _get_schema_version_for_entity("unit")
 
-        # UNIT_SCHEMA is at 1.1.0 per schemas/unit.py
-        assert version == "1.1.0"
+        assert version == UNIT_SCHEMA.version
 
     def test_lookup_contact_schema_version(self) -> None:
         """Lookup returns CONTACT_SCHEMA version."""
@@ -124,8 +124,8 @@ class TestSchemaVersionValidation:
     async def test_entry_valid_when_version_matches_registry(self) -> None:
         """Entry is valid when its version matches registry version."""
         memory = MemoryTier(max_entries=100)
-        # Create entry with version matching UNIT_SCHEMA (1.1.0)
-        entry = make_entry(entity_type="unit", schema_version="1.1.0")
+        # Create entry with version matching current UNIT_SCHEMA
+        entry = make_entry(entity_type="unit", schema_version=UNIT_SCHEMA.version)
         memory.put("unit:proj-1", entry)
 
         cache = make_cache(memory_tier=memory)
@@ -133,7 +133,7 @@ class TestSchemaVersionValidation:
         result = await cache.get_async("proj-1", "unit")
 
         assert result is not None
-        assert result.schema_version == "1.1.0"
+        assert result.schema_version == UNIT_SCHEMA.version
 
     @pytest.mark.asyncio
     async def test_entry_invalid_when_version_older_than_registry(self) -> None:
@@ -161,7 +161,7 @@ class TestSchemaVersionValidation:
     async def test_entry_invalid_when_registry_lookup_fails(self) -> None:
         """Entry is invalid when registry lookup fails (defensive)."""
         memory = MemoryTier(max_entries=100)
-        entry = make_entry(entity_type="unit", schema_version="1.1.0")
+        entry = make_entry(entity_type="unit", schema_version=UNIT_SCHEMA.version)
         memory.put("unit:proj-1", entry)
 
         progressive_tier = AsyncMock()
@@ -196,10 +196,10 @@ class TestPutAsyncSchemaVersion:
 
         await cache.put_async("proj-1", "unit", df, watermark)
 
-        # Verify entry was stamped with UNIT_SCHEMA version (1.1.0)
+        # Verify entry was stamped with current UNIT_SCHEMA version
         entry = memory.get("unit:proj-1")
         assert entry is not None
-        assert entry.schema_version == "1.1.0"
+        assert entry.schema_version == UNIT_SCHEMA.version
 
     @pytest.mark.asyncio
     async def test_put_uses_fallback_on_registry_failure(self) -> None:
@@ -252,11 +252,11 @@ class TestRegressionPrevention:
     """Regression tests for the root cause bug."""
 
     @pytest.mark.asyncio
-    async def test_unit_schema_1_1_0_not_matched_by_cache_1_0_0(self) -> None:
-        """Regression: Cache entries with 1.0.0 are rejected for UNIT_SCHEMA at 1.1.0.
+    async def test_old_version_not_matched_by_current_schema(self) -> None:
+        """Regression: Cache entries with old version are rejected for current UNIT_SCHEMA.
 
         Root cause: factory.py hardcoded schema_version="1.0.0" but UNIT_SCHEMA
-        was bumped to "1.1.0", causing stale cache hits.
+        was bumped, causing stale cache hits.
 
         Fix: _is_valid() now looks up expected version from SchemaRegistry
         instead of comparing against self.schema_version.
@@ -276,7 +276,7 @@ class TestRegressionPrevention:
         old_entry = make_entry(entity_type="unit", schema_version="1.0.0")
         memory.put("unit:proj-1", old_entry)
 
-        # Get should reject because UNIT_SCHEMA is at 1.1.0
+        # Get should reject because UNIT_SCHEMA is at a newer version
         result = await cache.get_async("proj-1", "unit")
         assert result is None
 
@@ -290,7 +290,7 @@ class TestRegressionPrevention:
         memory = MemoryTier(max_entries=100)
         progressive_tier = AsyncMock()
 
-        # Even with hardcoded 1.0.0, entries should get 1.1.0 from registry
+        # Even with hardcoded 1.0.0, entries should get current version from registry
         cache = make_cache(
             memory_tier=memory,
             progressive_tier=progressive_tier,
@@ -303,4 +303,4 @@ class TestRegressionPrevention:
         entry = memory.get("unit:proj-1")
         assert entry is not None
         # Entry should have UNIT_SCHEMA version, not cache default
-        assert entry.schema_version == "1.1.0"
+        assert entry.schema_version == UNIT_SCHEMA.version

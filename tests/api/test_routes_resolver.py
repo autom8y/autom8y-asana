@@ -20,7 +20,6 @@ Test Matrix (per TDD Appendix B):
 
 from __future__ import annotations
 
-from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -28,8 +27,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from autom8_asana.api.main import create_app
-from autom8_asana.auth.bot_pat import clear_bot_pat_cache
-from autom8_asana.auth.jwt_validator import reset_auth_client
 from autom8_asana.services.dynamic_index import DynamicIndex
 from autom8_asana.services.resolution_result import ResolutionResult
 from autom8_asana.services.resolver import (
@@ -91,47 +88,6 @@ def _make_mock_strategy_resolve(
         return results
 
     return mock_resolve
-
-
-@pytest.fixture
-def app():
-    """Create a test application instance with mocked discovery."""
-    with patch(
-        "autom8_asana.api.main._discover_entity_projects",
-        new_callable=AsyncMock,
-    ) as mock_discover:
-
-        async def setup_registry(app):
-            EntityProjectRegistry.reset()
-            registry = EntityProjectRegistry.get_instance()
-            registry.register(
-                entity_type="unit",
-                project_gid="1201081073731555",
-                project_name="units",
-            )
-            app.state.entity_project_registry = registry
-
-        mock_discover.side_effect = setup_registry
-        yield create_app()
-
-
-@pytest.fixture
-def client(app) -> Generator[TestClient, None, None]:
-    """Create a synchronous test client."""
-    with TestClient(app) as test_client:
-        yield test_client
-
-
-@pytest.fixture(autouse=True)
-def reset_singletons() -> Generator[None, None, None]:
-    """Reset singletons before and after each test."""
-    clear_bot_pat_cache()
-    reset_auth_client()
-    EntityProjectRegistry.reset()
-    yield
-    clear_bot_pat_cache()
-    reset_auth_client()
-    EntityProjectRegistry.reset()
 
 
 def _mock_jwt_validation(service_name: str = "autom8_data"):
