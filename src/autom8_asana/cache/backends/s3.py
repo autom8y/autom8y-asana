@@ -344,7 +344,10 @@ class S3CacheProvider(DegradedModeMixin):
                 metadata=entry_metadata,
             )
         except (json.JSONDecodeError, ValueError, KeyError, gzip.BadGzipFile) as e:
-            logger.warning(f"Failed to deserialize S3 cache entry for {key}: {e}")
+            logger.warning(
+                "cache_entry_deserialize_failed",
+                extra={"key": key, "error": str(e)},
+            )
             return None
 
     # === Original methods (backward compatible) ===
@@ -650,7 +653,8 @@ class S3CacheProvider(DegradedModeMixin):
         # Warming requires integration with Asana API clients
         # which is out of scope for the cache backend
         logger.info(
-            f"S3 cache warm requested for {len(gids)} GIDs (not yet implemented)"
+            "cache_warm_requested",
+            extra={"gid_count": len(gids), "status": "not_implemented"},
         )
         return WarmResult(warmed=0, failed=0, skipped=len(gids))
 
