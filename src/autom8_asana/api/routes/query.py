@@ -160,7 +160,7 @@ async def query_entities(
             status_code=get_status_for_error(e), detail=e.to_dict()
         )
 
-    # 2. Field validation (replaces _validate_fields())
+    # 2. Field validation via QueryService
     if request_body.where:
         try:
             validate_fields(
