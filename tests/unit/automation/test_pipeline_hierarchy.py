@@ -244,7 +244,7 @@ class TestPlaceInHierarchyAsync:
             mock_session = MagicMock()
             mock_session.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session.__aexit__ = AsyncMock(return_value=None)
-            mock_session.commit_async = AsyncMock(side_effect=Exception("API Error"))
+            mock_session.commit_async = AsyncMock(side_effect=ConnectionError("API Error"))
             mock_session.set_parent = MagicMock()
             mock_session_class.return_value = mock_session
 
@@ -315,7 +315,7 @@ class TestPlaceInHierarchyAsync:
         unit = MockUnit(gid="unit_123", process_holder=None)
 
         async def mock_fetch_error(client: Any) -> None:
-            raise Exception("Fetch failed")
+            raise ConnectionError("Fetch failed")
 
         unit._fetch_holders_async = mock_fetch_error  # type: ignore
 

@@ -387,8 +387,7 @@ class BusinessSeeder:
             match_result = await self._find_by_composite_match(data)
             if match_result:
                 return match_result
-        except Exception as e:
-            # Graceful degradation - log and continue to create new
+        except Exception as e:  # BROAD-CATCH: catch-all-and-degrade -- composite matching involves search+blocking+scoring, must degrade gracefully
             logger.warning(
                 "Composite matching failed, will create new business",
                 extra={
@@ -493,7 +492,7 @@ class BusinessSeeder:
                 )
                 candidates.append(candidate)
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: catch-all-and-degrade -- search API + assertion + data access
             logger.warning(
                 "Failed to get match candidates",
                 extra={"query_name": data.name, "error": str(e)},
@@ -538,8 +537,7 @@ class BusinessSeeder:
                 limit=1,
             )
             return result.hits[0] if result.hits else None
-        except Exception as e:
-            # Graceful degradation - log and return None
+        except Exception as e:  # BROAD-CATCH: catch-all-and-degrade -- search API + assertion can raise diverse errors
             logger.warning(
                 "Search by company_id failed",
                 extra={"company_id": company_id, "error": str(e)},
@@ -582,8 +580,7 @@ class BusinessSeeder:
                 limit=1,
             )
             return result.hits[0] if result.hits else None
-        except Exception as e:
-            # Graceful degradation - log and return None
+        except Exception as e:  # BROAD-CATCH: catch-all-and-degrade -- search API + assertion can raise diverse errors
             logger.warning(
                 "Search by name failed",
                 extra={"business_name": name, "error": str(e)},

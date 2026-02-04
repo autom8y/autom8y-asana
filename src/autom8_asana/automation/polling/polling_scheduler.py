@@ -420,8 +420,7 @@ class PollingScheduler:
                 )
                 # Log the action result
                 StructuredLogger.log_action_result(result, rule_id=rule.rule_id)
-            except Exception as exc:
-                # Log error but continue processing other tasks
+            except Exception as exc:  # BROAD-CATCH: isolation -- per-task loop, single task failure must not abort batch
                 structured_log.error(
                     "action_execution_error",
                     rule_id=rule.rule_id,

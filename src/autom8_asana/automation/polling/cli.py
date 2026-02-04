@@ -79,7 +79,7 @@ def validate_command(config_path: str) -> int:
         print(f"Configuration error: {e}", file=sys.stderr)
         return 1
 
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: boundary -- CLI entry point
         print(f"Unexpected error: {e}", file=sys.stderr)
         return 1
 
@@ -134,7 +134,7 @@ def status_command(config_path: str) -> int:
         print(f"Configuration error: {e}", file=sys.stderr)
         return 1
 
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: boundary -- CLI entry point
         print(f"Unexpected error: {e}", file=sys.stderr)
         return 1
 
@@ -214,7 +214,7 @@ def evaluate_command(config_path: str, dry_run: bool = False) -> int:
         print(f"Configuration error: {e}", file=sys.stderr)
         return 1
 
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: boundary -- CLI entry point
         print(f"Evaluation error: {e}", file=sys.stderr)
         logger.exception("Evaluation failed")
         return 1

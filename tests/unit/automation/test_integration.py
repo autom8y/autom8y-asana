@@ -562,6 +562,19 @@ class TestFullFlowIntegration:
         mock_tasks_client.duplicate_async = AsyncMock(return_value=new_task)
         # Mock add_to_project_async
         mock_tasks_client.add_to_project_async = AsyncMock(return_value=new_task)
+        # Mock tasks used by pipeline post-creation steps
+        mock_tasks_client.update_async = AsyncMock(return_value=None)
+        mock_tasks_client.get_async = AsyncMock(
+            return_value=MagicMock(custom_fields=[])
+        )
+        mock_tasks_client.set_assignee_async = AsyncMock(return_value=None)
+
+        # Mock stories client for onboarding comment
+        mock_stories_client = MagicMock()
+        mock_stories_client.create_comment_async = AsyncMock(return_value=None)
+
+        # Mock sections.add_task_async for section placement
+        mock_sections_client.add_task_async = AsyncMock(return_value=None)
 
         with patch("autom8_asana.client.AsanaHttpClient", return_value=mock_http):
             from autom8_asana.client import AsanaClient
@@ -584,6 +597,7 @@ class TestFullFlowIntegration:
                 # Inject mocked clients
                 client._sections = mock_sections_client
                 client._tasks = mock_tasks_client
+                client._stories = mock_stories_client
 
                 # Step 2: Register PipelineConversionRule
                 rule = PipelineConversionRule()

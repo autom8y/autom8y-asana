@@ -307,7 +307,7 @@ class TestWriteFieldsAsync:
     async def test_api_error_returns_failure(self) -> None:
         """Test that API errors return failure result."""
         client = create_mock_client()
-        client.tasks.get_async.side_effect = Exception("API connection failed")
+        client.tasks.get_async.side_effect = ConnectionError("API connection failed")
 
         seeder = FieldSeeder(client)
 

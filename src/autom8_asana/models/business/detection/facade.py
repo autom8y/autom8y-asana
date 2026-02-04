@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 from autom8y_log import get_logger
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 from autom8_asana.models.business.detection.config import (
     HOLDER_NAME_MAP,
     get_holder_attr,
@@ -105,8 +106,7 @@ def _get_cached_detection(
             needs_healing=data["needs_healing"],
             expected_project_gid=data["expected_project_gid"],
         )
-    except Exception:
-        # Per FR-DEGRADE-001: Cache lookup failures don't prevent detection
+    except Exception:  # BROAD-CATCH: metrics -- per FR-DEGRADE-001, cache lookup failures don't prevent detection
         logger.debug("Detection cache lookup failed", exc_info=True)
         return None
 
@@ -165,8 +165,7 @@ def _cache_detection_result(
 
     try:
         cache.set(task.gid, entry)  # type: ignore[attr-defined]
-    except Exception:
-        # Per FR-DEGRADE-002: Cache storage failures don't prevent detection
+    except Exception:  # BROAD-CATCH: metrics -- per FR-DEGRADE-002, cache storage failures don't prevent detection
         logger.warning(
             "detection_cache_store_failed_silent",
             extra={
@@ -210,7 +209,7 @@ def detect_entity_type_from_dict(data: dict[str, Any]) -> str | None:
         return None
     except ImportError:
         return None
-    except Exception:
+    except Exception:  # BROAD-CATCH: vendor-polymorphic -- model_validate can raise diverse pydantic errors
         logger.debug("Detection result fetch failed", exc_info=True)
         return None
 
@@ -516,7 +515,7 @@ async def detect_entity_type_async(
                             "task_gid": task.gid,
                         },
                     )
-            except Exception as exc:
+            except CACHE_TRANSIENT_ERRORS as exc:
                 # Per FR-DEGRADE-003: Log warning on cache failure
                 logger.warning(
                     "detection_cache_check_failed",
@@ -545,7 +544,7 @@ async def detect_entity_type_async(
                             "entity_type": tier4_result.entity_type.value,
                         },
                     )
-                except Exception as exc:
+                except CACHE_TRANSIENT_ERRORS as exc:
                     # Per FR-DEGRADE-003: Log warning on cache failure
                     logger.warning(
                         "detection_cache_store_failed",

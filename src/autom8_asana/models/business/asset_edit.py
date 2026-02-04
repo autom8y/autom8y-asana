@@ -487,8 +487,7 @@ class AssetEdit(Process):
                     ambiguous_result = result
                     ambiguous_result.strategies_tried = strategies_tried.copy()
 
-            except Exception as e:
-                # Log and continue to next strategy
+            except Exception as e:  # BROAD-CATCH: isolation -- per-strategy loop, single strategy failure continues to next
                 logger.warning(
                     f"Strategy {strategy.value} failed with error",
                     extra={"asset_edit_gid": self.gid, "error": str(e)},

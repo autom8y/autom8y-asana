@@ -176,7 +176,7 @@ class UpwardTraversalMixin:
         if hydrate_full:
             try:
                 await business._fetch_holders_async(client)
-            except Exception as e:
+            except Exception as e:  # BROAD-CATCH: catch-all-and-degrade -- partial_ok catches any hydration failure
                 if partial_ok:
                     from autom8y_log import get_logger
 

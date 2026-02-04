@@ -287,7 +287,7 @@ async def hydrate_from_gid_async(
             opt_fields=_DETECTION_OPT_FIELDS,
         )
         api_calls += 1
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: boundary -- wraps diverse API+model failures into HydrationError
         # Cannot proceed without the entry task
         raise HydrationError(
             f"Failed to fetch entry task {gid}: {e}",
@@ -327,7 +327,7 @@ async def hydrate_from_gid_async(
                 opt_fields=_BUSINESS_FULL_OPT_FIELDS,
             )
             api_calls += 1
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: boundary -- wraps diverse API+model failures into HydrationError
             raise HydrationError(
                 f"Failed to fetch Business with full fields {gid}: {e}",
                 entity_gid=gid,
@@ -345,7 +345,7 @@ async def hydrate_from_gid_async(
                 api_calls += _estimate_hydration_calls(business)
                 # Track successful branches
                 succeeded.extend(_collect_success_branches(business))
-            except Exception as e:
+            except Exception as e:  # BROAD-CATCH: catch-all-and-degrade -- partial_ok catches any hydration failure
                 if partial_ok:
                     failed.append(
                         HydrationFailure(
@@ -381,7 +381,7 @@ async def hydrate_from_gid_async(
         except HydrationError:
             # Re-raise traversal errors - cannot continue without Business
             raise
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: boundary -- wraps diverse traversal failures into HydrationError
             raise HydrationError(
                 f"Upward traversal failed from {gid}: {e}",
                 entity_gid=gid,
@@ -396,7 +396,7 @@ async def hydrate_from_gid_async(
                 await business._fetch_holders_async(client)
                 api_calls += _estimate_hydration_calls(business)
                 succeeded.extend(_collect_success_branches(business))
-            except Exception as e:
+            except Exception as e:  # BROAD-CATCH: catch-all-and-degrade -- partial_ok catches any hydration failure
                 if partial_ok:
                     failed.append(
                         HydrationFailure(

@@ -164,7 +164,7 @@ class TestCreateOnboardingCommentAsync:
     ) -> None:
         """Test FR-COMMENT-005: Failure doesn't stop conversion."""
         mock_client.stories.create_comment_async = AsyncMock(
-            side_effect=Exception("API Error: Story creation failed")
+            side_effect=ConnectionError("API Error: Story creation failed")
         )
         new_task = MockTask("new_task_gid")
         source_process = MockProcess(name="Sales Lead")

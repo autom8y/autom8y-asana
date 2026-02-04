@@ -146,7 +146,7 @@ async def _ensure_units_hydrated(business: Business, client: AsanaClient) -> Non
     # Fetch full hierarchy to populate units
     try:
         await business._fetch_holders_async(client)
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: enrichment -- logs then re-raises for caller to handle
         logger.warning(
             "Failed to hydrate business units",
             extra={"business_gid": business.gid, "error": str(e)},
@@ -212,8 +212,7 @@ async def resolve_units_async(
         try:
             result = await ae.resolve_unit_async(client, strategy=strategy)
             results[ae.gid] = result
-        except Exception as e:
-            # Ensure every input has an entry, even on failure
+        except Exception as e:  # BROAD-CATCH: isolation -- per-entity loop, single failure must not abort batch
             logger.warning(
                 "AssetEdit resolution failed",
                 extra={"asset_edit_gid": ae.gid, "error": str(e)},
@@ -286,8 +285,7 @@ async def resolve_offers_async(
         try:
             result = await ae.resolve_offer_async(client, strategy=strategy)
             results[ae.gid] = result
-        except Exception as e:
-            # Ensure every input has an entry, even on failure
+        except Exception as e:  # BROAD-CATCH: isolation -- per-entity loop, single failure must not abort batch
             logger.warning(
                 "AssetEdit offer resolution failed",
                 extra={"asset_edit_gid": ae.gid, "error": str(e)},
