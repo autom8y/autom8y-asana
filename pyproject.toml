@@ -16,7 +16,8 @@ dependencies = [
     "autom8y-http>=0.3.0",
     "autom8y-cache>=0.3.0", # Per TDD-GID-RESOLUTION-SERVICE: HierarchyAwareResolver + schema versioning
     "autom8y-log>=0.3.2",
-    # autom8y-telemetry deferred - see TDD Phase 6
+    # Platform observability (PRD-PLATFORM-OBSERVABILITY-STD M3.3)
+    "autom8y-telemetry[fastapi]>=0.2.0",
     "boto3>=1.42.19",  # S3 for progressive cache warming (asyncio.to_thread)
     "inflection>=0.5.0",  # Singularization for entity type mapping (Rails port)
 ]
@@ -115,6 +116,10 @@ module = "apscheduler.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+module = "autom8y_telemetry.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = "autom8_asana.models.core"
 ignore_missing_imports = true
 
@@ -167,6 +172,7 @@ autom8y-cache = { index = "autom8y" }
 autom8y-config = { index = "autom8y" }
 autom8y-http = { index = "autom8y" }
 autom8y-log = { index = "autom8y" }
+autom8y-telemetry = { index = "autom8y" }
 
 [dependency-groups]
 dev = [

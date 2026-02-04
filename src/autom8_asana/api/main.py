@@ -128,6 +128,53 @@ def _register_schema_providers() -> None:
     register_asana_schemas()
 
 
+def _initialize_mutation_invalidator(app: FastAPI) -> None:
+    """Initialize the MutationInvalidator for REST cache invalidation.
+
+    Per TDD-CACHE-INVALIDATION-001: Creates a MutationInvalidator with
+    the app's cache provider and DataFrameCache, and stores it on app.state
+    for injection via get_mutation_invalidator() dependency.
+
+    Graceful degradation: If cache is not configured, creates a no-op
+    invalidator that logs warnings but does not fail.
+
+    Args:
+        app: FastAPI application instance.
+    """
+    from autom8_asana.cache.dataframe.factory import (
+        get_dataframe_cache as get_df_cache,
+    )
+    from autom8_asana.cache.factory import CacheProviderFactory
+    from autom8_asana.cache.mutation_invalidator import MutationInvalidator
+    from autom8_asana.config import CacheConfig
+
+    try:
+        # Get or create a cache provider for invalidation
+        cache_provider = CacheProviderFactory.create(config=CacheConfig(enabled=True))
+        dataframe_cache = get_df_cache()
+
+        app.state.mutation_invalidator = MutationInvalidator(
+            cache_provider=cache_provider,
+            dataframe_cache=dataframe_cache,
+        )
+
+        logger.info(
+            "mutation_invalidator_ready",
+            extra={
+                "has_dataframe_cache": dataframe_cache is not None,
+            },
+        )
+    except Exception as exc:
+        # Graceful degradation: invalidation disabled but app still works
+        logger.warning(
+            "mutation_invalidator_init_failed",
+            extra={
+                "error": str(exc),
+                "impact": "REST mutations will not invalidate cache",
+            },
+        )
+
+
 logger = get_logger(__name__)
 
 
@@ -200,6 +247,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Register schema providers with SDK for cache compatibility checks
     # Per SDK Phase 1: Bridges satellite SchemaRegistry to SDK registry
     _register_schema_providers()
+
+    # Initialize MutationInvalidator for REST cache invalidation
+    # Per TDD-CACHE-INVALIDATION-001: Wire cache invalidation into REST routes
+    _initialize_mutation_invalidator(app)
 
     # DataFrame cache preload (FR-003 per sprint-materialization-002)
     # Runs after entity discovery so we know which projects exist
@@ -717,7 +768,7 @@ async def _do_incremental_catchup(
                 )
 
                 build_result = await builder.build_progressive_async(resume=True)
-                updated_df = build_result.df
+                updated_df = build_result.dataframe
                 new_watermark = build_result.watermark
 
             # Check if DataFrame actually changed
@@ -818,7 +869,7 @@ async def _do_full_rebuild(
                 # Full fetch with resume=False to force fresh build
                 result = await builder.build_progressive_async(resume=False)
 
-                return result.df, result.watermark
+                return result.dataframe, result.watermark
 
     except Exception as e:
         logger.warning(
@@ -1167,7 +1218,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                             result = await builder.build_progressive_async(resume=True)
 
                             # Update totals
-                            sections_fetched_total += result.sections_fetched
+                            sections_fetched_total += result.sections_succeeded
                             sections_resumed_total += result.sections_resumed
 
                             if result.total_rows > 0:
@@ -1181,8 +1232,9 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                     await dataframe_cache.put_async(
                                         project_gid,
                                         entity_type,
-                                        result.df,
+                                        result.dataframe,
                                         result.watermark,
+                                        build_result=result,
                                     )
 
                             return True
@@ -1296,12 +1348,17 @@ def create_app() -> FastAPI:
         - Rate limiting middleware
         - Request ID middleware
         - Request logging middleware
+        - Platform observability (metrics, tracing, log correlation)
         - Health route
         - Exception handlers
 
     Per TDD-ASANA-SATELLITE:
     - Middleware stack order matters for proper execution
     - Exception handlers map SDK errors to HTTP responses
+
+    Per PRD-PLATFORM-OBSERVABILITY-STD M3.3:
+    - instrument_app() provides platform-standard baseline metrics
+    - Graceful degradation if autom8y-telemetry is not installed
     """
     settings = get_settings()
 
@@ -1315,6 +1372,32 @@ def create_app() -> FastAPI:
         redoc_url="/redoc" if settings.debug else None,
     )
 
+    # --- Platform Observability ---
+    # Per PRD-PLATFORM-OBSERVABILITY-STD M3.3: Adopt instrument_app() for
+    # platform-standard metrics (request duration, count, in-flight),
+    # /metrics endpoint, tracing, and log correlation.
+    # Must be added BEFORE other middleware so MetricsMiddleware wraps them.
+    try:
+        from autom8y_telemetry import InstrumentationConfig, instrument_app
+
+        instrument_app(
+            app,
+            InstrumentationConfig(service_name="asana"),
+        )
+        logger.info(
+            "platform_observability_enabled",
+            extra={"service_name": "asana"},
+        )
+    except ImportError:
+        logger.warning(
+            "platform_observability_unavailable",
+            extra={
+                "reason": "autom8y-telemetry not installed",
+                "impact": "No platform metrics, /metrics endpoint, or tracing",
+                "remediation": "Install autom8y-telemetry[fastapi]>=0.2.0",
+            },
+        )
+
     # --- Middleware Stack ---
     # Starlette executes middleware in reverse order of addition.
     # Outer to inner execution order:
@@ -1322,6 +1405,8 @@ def create_app() -> FastAPI:
     # 2. SlowAPIMiddleware - rate limiting
     # 3. RequestLoggingMiddleware - log all requests
     # 4. RequestIDMiddleware - set request_id (innermost)
+    # Note: MetricsMiddleware from instrument_app() is added above and
+    # wraps the entire stack for accurate request duration measurement.
 
     # CORS (if configured) - MUST be outermost to handle preflight OPTIONS
     if settings.cors_origins_list:
