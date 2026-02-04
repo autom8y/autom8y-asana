@@ -144,7 +144,7 @@ class CacheInvalidator:
                     gid,
                     [EntryType.TASK, EntryType.SUBTASKS, EntryType.DETECTION],
                 )
-            except Exception as exc:
+            except Exception as exc:  # BROAD-CATCH: isolation -- per-gid loop, single failure must not abort batch
                 # NFR-DEGRADE-001: Log and continue - invalidation failure is not fatal
                 if self._log:
                     self._log.warning(
@@ -181,7 +181,7 @@ class CacheInvalidator:
                     ]
                     if project_gids:
                         invalidate_task_dataframes(gid, project_gids, self._cache)
-                except Exception as exc:
+                except Exception as exc:  # BROAD-CATCH: isolation -- per-gid loop, single failure must not abort batch
                     # FR-INVALIDATE-005: Don't fail commit on invalidation error
                     if self._log:
                         self._log.warning(

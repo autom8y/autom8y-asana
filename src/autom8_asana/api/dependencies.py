@@ -182,7 +182,7 @@ async def get_auth_context(
                 "message": "Service-to-service authentication is not available",
             },
         )
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: boundary -- API auth boundary, wraps diverse errors into HTTPException
         # Import the error base class for type checking
         try:
             from autom8y_auth import AuthError

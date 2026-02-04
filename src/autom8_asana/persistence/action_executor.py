@@ -112,7 +112,7 @@ class ActionExecutor:
                 response_data=response,
             )
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: isolation -- action execution returns error result, never propagates
             return ActionResult(
                 action=action,
                 success=False,

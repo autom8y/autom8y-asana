@@ -191,8 +191,7 @@ class EventSystem:
                 result = hook(entity, operation, data)
                 if asyncio.iscoroutine(result):
                     await result
-            except Exception:
-                # Post-save hooks should not fail the operation
+            except Exception:  # BROAD-CATCH: hook -- post-save hooks must not fail the operation
                 logger.warning(
                     "post_save_hook_failed",
                     exc_info=True,
@@ -224,8 +223,7 @@ class EventSystem:
                 result = hook(entity, operation, error)
                 if asyncio.iscoroutine(result):
                     await result
-            except Exception:
-                # Error hooks should not fail the operation
+            except Exception:  # BROAD-CATCH: hook -- error hooks must not fail the operation
                 logger.warning(
                     "error_hook_failed",
                     exc_info=True,
@@ -287,8 +285,7 @@ class EventSystem:
                 hook_result = hook(result)
                 if asyncio.iscoroutine(hook_result):
                     await hook_result
-            except Exception:
-                # Post-commit hooks should not fail the operation
+            except Exception:  # BROAD-CATCH: hook -- post-commit hooks must not fail the operation
                 logger.warning(
                     "post_commit_hook_failed",
                     exc_info=True,

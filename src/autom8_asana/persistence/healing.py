@@ -242,7 +242,7 @@ class HealingManager:
                     project_gid=project_gid,
                 )
 
-            except Exception as e:
+            except Exception as e:  # BROAD-CATCH: isolation -- per-entity healing loop, failure must not abort batch
                 error_msg = str(e)
                 result = HealingResult(
                     entity_gid=entity.gid,
@@ -366,7 +366,7 @@ async def heal_entity_async(
             dry_run=False,
             error=None,
         )
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: isolation -- returns error result, never propagates
         logger.warning(
             "Failed to heal entity",
             extra={

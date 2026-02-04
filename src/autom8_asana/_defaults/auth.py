@@ -240,7 +240,7 @@ class SecretsManagerAuthProvider:
         except AuthenticationError:
             # Re-raise our own errors directly
             raise
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: boundary -- wraps diverse boto3 errors into AuthenticationError
             # Handle boto3 exceptions
             error_response: dict[str, Any] | None = getattr(e, "response", None)
             error_code = ""

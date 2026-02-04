@@ -85,7 +85,7 @@ def error_handler(
 
             return result
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: enrichment -- enriches exception with correlation context then re-raises
             elapsed = (time.monotonic() - start_time) * 1000
 
             # Enrich exception with correlation context
