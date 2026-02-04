@@ -14,6 +14,11 @@ from typing import Any, cast
 from autom8y_log import get_logger
 
 from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.errors import (
+    DegradedModeMixin,
+    is_connection_error,
+    is_s3_not_found_error,
+)
 from autom8_asana.cache.freshness import Freshness
 from autom8_asana.cache.metrics import CacheMetrics
 from autom8_asana.cache.settings import CacheSettings
@@ -44,7 +49,7 @@ class S3Config:
     default_ttl: int = 604800  # 7 days
 
 
-class S3CacheProvider:
+class S3CacheProvider(DegradedModeMixin):
     """S3-based cache provider for cold tier storage.
 
     Implements the CacheProvider protocol using S3 as the backend.
@@ -119,7 +124,8 @@ class S3CacheProvider:
 
             if not resolved_bucket:
                 logger.warning(
-                    "No S3 bucket configured. Set ASANA_CACHE_S3_BUCKET or pass bucket parameter."
+                    "s3_bucket_not_configured",
+                    extra={"message": "Set ASANA_CACHE_S3_BUCKET or pass bucket parameter"},
                 )
 
             config = S3Config(
@@ -136,6 +142,7 @@ class S3CacheProvider:
         self._client_lock = Lock()
         self._degraded = False
         self._last_reconnect_attempt = 0.0
+        self._reconnect_interval = float(self._settings.reconnect_interval)
         self._boto3_module: ModuleType | None = None
         self._botocore_module: ModuleType | None = None
 
@@ -149,7 +156,8 @@ class S3CacheProvider:
             self._initialize_client()
         except ImportError:
             logger.warning(
-                "boto3 package not installed. S3CacheProvider will operate in degraded mode."
+                "boto3_package_not_installed",
+                extra={"fallback": "degraded_mode"},
             )
             self._degraded = True
 
@@ -160,7 +168,8 @@ class S3CacheProvider:
 
         if not self._config.bucket:
             logger.warning(
-                "No S3 bucket configured. S3CacheProvider will operate in degraded mode."
+                "s3_bucket_not_configured",
+                extra={"fallback": "degraded_mode"},
             )
             self._degraded = True
             return
@@ -175,7 +184,10 @@ class S3CacheProvider:
             self._client = self._boto3_module.client("s3", **client_kwargs)
             self._degraded = False
         except Exception as e:
-            logger.error(f"Failed to initialize S3 client: {e}")
+            logger.error(
+                "s3_client_init_failed",
+                extra={"error": str(e), "error_type": type(e).__name__},
+            )
             self._degraded = True
 
     def _get_client(self) -> Any:
@@ -200,21 +212,23 @@ class S3CacheProvider:
 
     def _attempt_reconnect(self) -> None:
         """Attempt to reconnect to S3 if in degraded mode."""
-        now = time.time()
-        if now - self._last_reconnect_attempt < self._settings.reconnect_interval:
+        if not self.should_attempt_reconnect():
             return
 
         with self._client_lock:
-            self._last_reconnect_attempt = now
+            self.record_reconnect_attempt()
             try:
                 self._initialize_client()
                 if self._client is not None:
                     # Test connectivity with a simple HEAD bucket
                     self._client.head_bucket(Bucket=self._config.bucket)
-                    self._degraded = False
+                    self.exit_degraded_mode()
                     logger.info("S3 connection restored")
             except Exception as e:
-                logger.warning(f"S3 reconnect failed: {e}")
+                logger.warning(
+                    "s3_reconnect_failed",
+                    extra={"error": str(e)},
+                )
 
     def _make_key(self, key: str, entry_type: EntryType) -> str:
         """Generate S3 object key for a cache entry.
@@ -749,23 +763,8 @@ class S3CacheProvider:
         self._metrics.reset()
 
     def _is_not_found_error(self, error: Exception) -> bool:
-        """Check if an exception indicates object not found.
-
-        Args:
-            error: The exception to check.
-
-        Returns:
-            True if error indicates object not found (404/NoSuchKey).
-        """
-        if self._botocore_module is None:
-            return False
-
-        client_error = getattr(self._botocore_module, "ClientError", Exception)
-        if isinstance(error, client_error):
-            error_code = error.response.get("Error", {}).get("Code", "")  # type: ignore[attr-defined]
-            return error_code in ("NoSuchKey", "404", "NotFound")
-
-        return False
+        """Check if error indicates object not found."""
+        return is_s3_not_found_error(error)
 
     def _handle_s3_error(self, error: Exception) -> None:
         """Handle S3 errors and potentially enter degraded mode.
@@ -773,11 +772,7 @@ class S3CacheProvider:
         Args:
             error: The exception that occurred.
         """
-        error_types: tuple[type[Exception], ...] = (
-            ConnectionError,
-            TimeoutError,
-            OSError,
-        )
+        extra_types: tuple[type[Exception], ...] = ()
 
         # Check for boto3-specific errors
         if self._botocore_module is not None:
@@ -797,7 +792,7 @@ class S3CacheProvider:
             )
             read_timeout = getattr(self._botocore_module, "ReadTimeoutError", Exception)
 
-            error_types = error_types + (
+            extra_types = (
                 no_credentials,
                 partial_credentials,
                 endpoint_error,
@@ -813,19 +808,16 @@ class S3CacheProvider:
                     return
                 # Access denied or bucket not found are more serious
                 if error_code in ("AccessDenied", "NoSuchBucket"):
-                    if not self._degraded:
-                        logger.warning(
-                            f"S3 access error, entering degraded mode: {error}"
-                        )
-                        self._degraded = True
+                    self.enter_degraded_mode(str(error))
                     return
 
-        if isinstance(error, error_types):
-            if not self._degraded:
-                logger.warning(f"S3 error, entering degraded mode: {error}")
-                self._degraded = True
+        if is_connection_error(error, extra_types=extra_types):
+            self.enter_degraded_mode(str(error))
         else:
-            logger.error(f"S3 error: {error}")
+            logger.error(
+                "s3_error",
+                extra={"error": str(error), "error_type": type(error).__name__},
+            )
 
     def clear_all_tasks(self) -> int:
         """Clear all task entries from S3 cache.
