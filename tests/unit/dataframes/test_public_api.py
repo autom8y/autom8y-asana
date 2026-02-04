@@ -17,7 +17,12 @@ from pytest_mock import MockerFixture
 from autom8_asana.dataframes import (
     SchemaRegistry,
 )
-from autom8_asana.dataframes.builders.progressive import ProgressiveBuildResult
+from autom8_asana.dataframes.builders.build_result import (
+    BuildResult,
+    BuildStatus,
+    SectionOutcome,
+    SectionResult,
+)
 from autom8_asana.models.common import NameGid
 from autom8_asana.models.project import Project
 from autom8_asana.models.section import Section
@@ -28,16 +33,23 @@ from autom8_asana.models.task import Task
 # ============================================================================
 
 
-def _make_build_result(df: pl.DataFrame) -> ProgressiveBuildResult:
-    """Wrap a DataFrame in a ProgressiveBuildResult for mock returns."""
-    return ProgressiveBuildResult(
-        df=df,
+def _make_build_result(df: pl.DataFrame) -> BuildResult:
+    """Wrap a DataFrame in a BuildResult for mock returns."""
+    return BuildResult(
+        status=BuildStatus.SUCCESS,
+        sections=(
+            SectionResult(
+                section_gid="mock-section",
+                outcome=SectionOutcome.SUCCESS,
+                row_count=len(df),
+            ),
+        ),
+        dataframe=df,
         watermark=datetime.now(UTC),
-        total_rows=len(df),
-        sections_fetched=1,
-        sections_resumed=0,
-        fetch_time_ms=0,
-        total_time_ms=0,
+        project_gid="mock-project",
+        entity_type="mock-entity",
+        total_time_ms=0.0,
+        fetch_time_ms=0.0,
     )
 
 

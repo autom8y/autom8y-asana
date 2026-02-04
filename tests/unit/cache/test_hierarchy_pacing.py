@@ -7,14 +7,13 @@ preventing 429 bursts from unbounded asyncio.gather().
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from autom8_asana.cache.entry import EntryType
-from autom8_asana.cache.freshness_coordinator import FreshnessMode
-from autom8_asana.cache.unified import UnifiedTaskStore
+from autom8_asana.cache.models.entry import EntryType
+from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
 
 def _make_task(
@@ -111,7 +110,7 @@ class TestHierarchyPacingThreshold:
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(50)]
 
         with patch(
-            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
         ) as mock_sleep:
             await store.put_batch_async(
                 tasks,
@@ -133,7 +132,7 @@ class TestHierarchyPacingThreshold:
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(120)]
 
         with patch(
-            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
         ) as mock_sleep:
             await store.put_batch_async(
                 tasks,
@@ -158,7 +157,7 @@ class TestHierarchyBatchSizing:
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(150)]
 
         with patch(
-            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
         ) as mock_sleep:
             await store.put_batch_async(
                 tasks,
@@ -178,7 +177,7 @@ class TestHierarchyBatchSizing:
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(200)]
 
         with patch(
-            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
         ) as mock_sleep:
             await store.put_batch_async(
                 tasks,
@@ -197,7 +196,7 @@ class TestHierarchyBatchSizing:
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(120)]
 
         with patch(
-            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
         ) as mock_sleep:
             with patch("autom8_asana.config.HIERARCHY_BATCH_DELAY", 2.5):
                 await store.put_batch_async(
@@ -239,7 +238,7 @@ class TestHierarchyPacingResults:
         """All parents are fetched correctly in paced mode."""
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(120)]
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock):
+        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
             await store.put_batch_async(
                 tasks,
                 warm_hierarchy=True,
@@ -265,7 +264,7 @@ class TestHierarchyPacingResults:
             _make_task(f"task-{i}", parent_gid=f"parent-{i % 110}") for i in range(200)
         ]
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock):
+        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
             await store.put_batch_async(
                 tasks,
                 warm_hierarchy=True,
@@ -288,8 +287,8 @@ class TestHierarchyPacingLogging:
         """hierarchy_pacing_enabled log is emitted when pacing activates."""
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(120)]
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock):
-            with patch("autom8_asana.cache.unified.logger") as mock_logger:
+        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
+            with patch("autom8_asana.cache.providers.unified.logger") as mock_logger:
                 await store.put_batch_async(
                     tasks,
                     warm_hierarchy=True,
@@ -317,8 +316,8 @@ class TestHierarchyPacingLogging:
         """hierarchy_warming_complete log is emitted after paced warming."""
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(120)]
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock):
-            with patch("autom8_asana.cache.unified.logger") as mock_logger:
+        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
+            with patch("autom8_asana.cache.providers.unified.logger") as mock_logger:
                 await store.put_batch_async(
                     tasks,
                     warm_hierarchy=True,
@@ -346,8 +345,8 @@ class TestHierarchyPacingLogging:
         """hierarchy_batch_pause log is emitted between batches."""
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(120)]
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock):
-            with patch("autom8_asana.cache.unified.logger") as mock_logger:
+        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
+            with patch("autom8_asana.cache.providers.unified.logger") as mock_logger:
                 await store.put_batch_async(
                     tasks,
                     warm_hierarchy=True,
@@ -372,7 +371,7 @@ class TestHierarchyPacingLogging:
         """No pacing-specific logs are emitted for sections below threshold."""
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(50)]
 
-        with patch("autom8_asana.cache.unified.logger") as mock_logger:
+        with patch("autom8_asana.cache.providers.unified.logger") as mock_logger:
             await store.put_batch_async(
                 tasks,
                 warm_hierarchy=True,

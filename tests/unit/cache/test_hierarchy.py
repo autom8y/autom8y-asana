@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from autom8_asana.cache.hierarchy import HierarchyIndex
+from autom8_asana.cache.policies.hierarchy import HierarchyIndex
 
 
 class TestHierarchyIndexBasics:

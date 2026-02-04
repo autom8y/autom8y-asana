@@ -53,6 +53,8 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
+from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
+
 if TYPE_CHECKING:
     import polars as pl
 
@@ -235,7 +237,7 @@ class DataFramePersistence:
                 bucket=self._config.bucket,
                 prefix=self._config.prefix,
             )
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             logger.error("persistence_init_failed", error=str(e))
             self._degraded = True
 
@@ -274,7 +276,7 @@ class DataFramePersistence:
                     self._client.head_bucket(Bucket=self._config.bucket)
                     self._degraded = False
                     logger.info("S3 persistence connection restored")
-            except Exception as e:
+            except S3_TRANSPORT_ERRORS as e:
                 logger.warning("persistence_reconnect_failed", error=str(e))
 
     def _make_dataframe_key(self, project_gid: str) -> str:
@@ -327,7 +329,7 @@ class DataFramePersistence:
             client = self._get_client()
             client.head_bucket(Bucket=self._config.bucket)
             return True
-        except Exception:
+        except S3_TRANSPORT_ERRORS:
             return False
 
     async def save_dataframe(
@@ -419,7 +421,7 @@ class DataFramePersistence:
             )
             return True
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             self._handle_s3_error(e, "save", project_gid)
             return False
 
@@ -468,7 +470,7 @@ class DataFramePersistence:
                 wm_body = wm_response["Body"].read()
                 wm_data = json.loads(wm_body.decode("utf-8"))
                 watermark = datetime.fromisoformat(wm_data["watermark"])
-            except Exception as e:
+            except S3_TRANSPORT_ERRORS as e:
                 if self._is_not_found_error(e):
                     logger.debug("persistence_no_watermark", project_gid=project_gid)
                     return None, None
@@ -484,7 +486,7 @@ class DataFramePersistence:
                 df_body = df_response["Body"].read()
                 buffer = io.BytesIO(df_body)
                 df = pl.read_parquet(buffer)
-            except Exception as e:
+            except S3_TRANSPORT_ERRORS as e:
                 if self._is_not_found_error(e):
                     logger.warning(
                         "persistence_watermark_without_dataframe",
@@ -501,7 +503,7 @@ class DataFramePersistence:
             )
             return df, watermark
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             self._handle_s3_error(e, "load", project_gid)
             return None, None
 
@@ -537,14 +539,14 @@ class DataFramePersistence:
                         Bucket=self._config.bucket,
                         Key=key,
                     )
-                except Exception as e:
+                except S3_TRANSPORT_ERRORS as e:
                     if not self._is_not_found_error(e):
                         raise
 
             logger.info("persistence_dataframe_deleted", project_gid=project_gid)
             return True
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             self._handle_s3_error(e, "delete", project_gid)
             return False
 
@@ -581,7 +583,7 @@ class DataFramePersistence:
             data = json.loads(body.decode("utf-8"))
             return datetime.fromisoformat(data["watermark"])
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             if self._is_not_found_error(e):
                 return None
             self._handle_s3_error(e, "get_watermark", project_gid)
@@ -626,7 +628,7 @@ class DataFramePersistence:
 
             return sorted(projects)
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             self._handle_s3_error(e, "list", "all")
             return []
 
@@ -776,7 +778,7 @@ class DataFramePersistence:
             )
             return True
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             self._handle_s3_error(e, "save_watermark", project_gid)
             return False
 
@@ -813,7 +815,7 @@ class DataFramePersistence:
                     wm = await self.get_watermark_only(project_gid)
                     if wm is not None:
                         watermarks[project_gid] = wm
-                except Exception as e:
+                except S3_TRANSPORT_ERRORS as e:
                     # Log but continue with other projects
                     logger.warning(
                         "persistence_load_watermark_failed",
@@ -824,7 +826,7 @@ class DataFramePersistence:
             logger.info("persistence_watermarks_loaded", count=len(watermarks))
             return watermarks
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             self._handle_s3_error(e, "load_all_watermarks", "all")
             return {}
 
@@ -884,7 +886,7 @@ class DataFramePersistence:
             )
             return True
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             self._handle_s3_error(e, "save_index", project_gid)
             return False
 
@@ -927,7 +929,7 @@ class DataFramePersistence:
                 )
                 body = response["Body"].read()
                 data = json.loads(body.decode("utf-8"))
-            except Exception as e:
+            except S3_TRANSPORT_ERRORS as e:
                 if self._is_not_found_error(e):
                     logger.debug("persistence_no_index", project_gid=project_gid)
                     return None
@@ -945,7 +947,7 @@ class DataFramePersistence:
             )
             return index
 
-        except Exception as e:
+        except (S3_TRANSPORT_ERRORS + (ValueError, KeyError)) as e:
             self._handle_s3_error(e, "load_index", project_gid)
             return None
 
@@ -979,13 +981,13 @@ class DataFramePersistence:
                     Bucket=self._config.bucket,
                     Key=key,
                 )
-            except Exception as e:
+            except S3_TRANSPORT_ERRORS as e:
                 if not self._is_not_found_error(e):
                     raise
 
             logger.info("persistence_index_deleted", project_gid=project_gid)
             return True
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             self._handle_s3_error(e, "delete_index", project_gid)
             return False

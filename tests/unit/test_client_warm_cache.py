@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvider
-from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.client import AsanaClient
 from autom8_asana.protocols.cache import WarmResult
 
@@ -112,7 +112,7 @@ class TestWarmCacheAsync:
             # First call succeeds, second fails, third succeeds
             mock_get.side_effect = [
                 MagicMock(gid="123"),
-                Exception("API Error"),
+                ConnectionError("API Error"),
                 MagicMock(gid="789"),
             ]
 
@@ -145,7 +145,7 @@ class TestWarmCacheAsync:
             # uncached_ok succeeds, uncached_fail fails
             mock_get.side_effect = [
                 MagicMock(gid="uncached_ok"),
-                Exception("API Error"),
+                ConnectionError("API Error"),
             ]
 
             result = await client_with_cache.warm_cache_async(

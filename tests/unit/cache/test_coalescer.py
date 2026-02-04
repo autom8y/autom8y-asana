@@ -12,8 +12,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from autom8_asana.cache.coalescer import RequestCoalescer
-from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.policies.coalescer import RequestCoalescer
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
 
 
 @pytest.fixture
@@ -189,7 +189,7 @@ class TestRequestCoalescer:
     ) -> None:
         """Test that batch failure sets None for all results."""
         entries = [make_entry(str(i)) for i in range(3)]
-        mock_checker.check_batch_async.side_effect = Exception("Network error")
+        mock_checker.check_batch_async.side_effect = ConnectionError("Network error")
 
         results = await asyncio.gather(
             *[coalescer.request_check_async(entry) for entry in entries]

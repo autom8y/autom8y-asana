@@ -11,7 +11,11 @@ import asyncio
 from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any
 
+from autom8y_log import get_logger
+
 from autom8_asana.persistence.models import OperationType
+
+logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from autom8_asana.models.base import AsanaResource
@@ -189,7 +193,15 @@ class EventSystem:
                     await result
             except Exception:
                 # Post-save hooks should not fail the operation
-                pass
+                logger.warning(
+                    "post_save_hook_failed",
+                    exc_info=True,
+                    extra={
+                        "hook": getattr(hook, "__name__", repr(hook)),
+                        "entity_gid": getattr(entity, "gid", None),
+                        "operation": operation.value,
+                    },
+                )
 
     async def emit_error(
         self,
@@ -214,7 +226,16 @@ class EventSystem:
                     await result
             except Exception:
                 # Error hooks should not fail the operation
-                pass
+                logger.warning(
+                    "error_hook_failed",
+                    exc_info=True,
+                    extra={
+                        "hook": getattr(hook, "__name__", repr(hook)),
+                        "entity_gid": getattr(entity, "gid", None),
+                        "operation": operation.value,
+                        "original_error": type(error).__name__,
+                    },
+                )
 
     def register_post_commit(
         self,
@@ -268,7 +289,13 @@ class EventSystem:
                     await hook_result
             except Exception:
                 # Post-commit hooks should not fail the operation
-                pass
+                logger.warning(
+                    "post_commit_hook_failed",
+                    exc_info=True,
+                    extra={
+                        "hook": getattr(hook, "__name__", repr(hook)),
+                    },
+                )
 
     def clear_hooks(self) -> None:
         """Clear all registered hooks.

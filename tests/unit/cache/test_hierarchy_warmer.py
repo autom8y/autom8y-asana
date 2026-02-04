@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from autom8_asana.cache.hierarchy import HierarchyIndex
-from autom8_asana.cache.hierarchy_warmer import (
+from autom8_asana.cache.policies.hierarchy import HierarchyIndex
+from autom8_asana.cache.integration.hierarchy_warmer import (
     _HIERARCHY_OPT_FIELDS,
     warm_ancestors_async,
 )
@@ -227,7 +227,7 @@ class TestWarmAncestorsAsync:
         hierarchy_index.register({"gid": "unit-1", "parent": {"gid": "business-1"}})
 
         # Mock the tasks client to raise an error
-        mock_tasks_client.get_async = AsyncMock(side_effect=Exception("Network error"))
+        mock_tasks_client.get_async = AsyncMock(side_effect=ConnectionError("Network error"))
 
         # Should not raise, just log warning and continue
         warmed = await warm_ancestors_async(

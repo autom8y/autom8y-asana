@@ -12,6 +12,7 @@ Per Story 1.9: Full observability with structured logging, PII redaction, and me
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 import time
@@ -38,6 +39,7 @@ from autom8y_http import (
 )
 from autom8y_log import get_logger
 
+from autom8_asana.core.exceptions import CacheError
 from autom8_asana.clients.data.config import DataServiceConfig
 from autom8_asana.clients.data.models import (
     BatchInsightsResponse,
@@ -57,7 +59,7 @@ from autom8_asana.exceptions import (
 from autom8_asana.models.contracts import PhoneVerticalPair
 
 if TYPE_CHECKING:
-    from autom8_asana.cache.staleness_settings import StalenessCheckSettings
+    from autom8_asana.cache.models.staleness_settings import StalenessCheckSettings
     from autom8_asana.protocols.auth import AuthProvider
     from autom8_asana.protocols.cache import CacheProvider
     from autom8_asana.protocols.log import LogProvider
@@ -391,7 +393,7 @@ class DataServiceClient:
         if self._auth_provider is not None:
             try:
                 return self._auth_provider.get_secret(self._config.token_key)
-            except Exception as e:
+            except (KeyError, AttributeError, TypeError) as e:
                 if self._log:
                     self._log.warning(
                         f"DataServiceClient: Failed to get token from auth provider: {e}"
@@ -524,7 +526,7 @@ class DataServiceClient:
 
         try:
             self._metrics_hook(name, value, tags)
-        except Exception as e:
+        except (TypeError, ValueError, RuntimeError, OSError) as e:
             # Graceful degradation: metrics failures don't break requests
             if self._log:
                 self._log.warning(
@@ -583,7 +585,7 @@ class DataServiceClient:
                     f"DataServiceClient: Cached response for {cache_key}",
                     extra={"cache_key": cache_key, "ttl": self._config.cache_ttl},
                 )
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError, ValueError, TypeError, CacheError) as e:
             # Graceful degradation: cache failures don't break requests
             if self._log:
                 self._log.warning(
@@ -668,7 +670,7 @@ class DataServiceClient:
 
             return stale_response
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, OSError, ValueError, KeyError, TypeError, CacheError) as e:
             # Graceful degradation: cache read failures return None
             if self._log:
                 self._log.warning(
@@ -1389,9 +1391,9 @@ class DataServiceClient:
                 message = body["error"]
             elif "detail" in body:
                 message = body["detail"]
-        except Exception:
+        except (ValueError, KeyError, json.JSONDecodeError):
             # Use default message if body parsing fails
-            pass
+            logger.debug("Response body parsing failed", exc_info=True)
 
         # Determine error type for logging/metrics
         if status == 400:
@@ -1497,7 +1499,7 @@ class DataServiceClient:
         """
         try:
             body = response.json()
-        except Exception as e:
+        except (ValueError, json.JSONDecodeError) as e:
             raise InsightsServiceError(
                 f"Failed to parse response JSON: {e}",
                 request_id=request_id,
@@ -1543,7 +1545,7 @@ class DataServiceClient:
 
             return insights_response
 
-        except Exception as e:
+        except (ValueError, KeyError, TypeError) as e:
             raise InsightsServiceError(
                 f"Failed to parse response structure: {e}",
                 request_id=request_id,

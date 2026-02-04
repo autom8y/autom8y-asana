@@ -25,10 +25,11 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.cache.dataframes import make_dataframe_key
-from autom8_asana.cache.entry import CacheEntry, EntryType
-from autom8_asana.cache.freshness import Freshness
-from autom8_asana.cache.versioning import parse_version
+from autom8_asana.cache.integration.dataframes import make_dataframe_key
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.freshness import Freshness
+from autom8_asana.cache.models.versioning import parse_version
+from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 
 if TYPE_CHECKING:
     from autom8_asana.protocols.cache import CacheProvider
@@ -248,7 +249,7 @@ class DataFrameCacheIntegration:
                 metadata=entry.metadata,
             )
 
-        except Exception as exc:
+        except CACHE_TRANSIENT_ERRORS as exc:
             # FR-CACHE-008: Graceful degradation on cache errors
             self._log_cache_event(
                 "error",
@@ -342,7 +343,7 @@ class DataFrameCacheIntegration:
             self._log_cache_event("write", key, entry_type="dataframe")
             return True
 
-        except Exception as exc:
+        except CACHE_TRANSIENT_ERRORS as exc:
             # FR-CACHE-008: Graceful degradation
             self._log_cache_event(
                 "error",
@@ -404,7 +405,7 @@ class DataFrameCacheIntegration:
             for key in entries:
                 self._log_cache_event("write", key, entry_type="dataframe")
 
-        except Exception as exc:
+        except CACHE_TRANSIENT_ERRORS as exc:
             # FR-CACHE-008: Graceful degradation
             self._log_cache_event(
                 "error",
@@ -437,7 +438,7 @@ class DataFrameCacheIntegration:
             gids = [make_dataframe_key(t, p) for t, p in task_project_pairs]
             result = self._cache.warm(gids, [EntryType.DATAFRAME])
             return result.warmed + result.skipped
-        except Exception as exc:
+        except CACHE_TRANSIENT_ERRORS as exc:
             self._log_cache_event(
                 "error",
                 "warm",
@@ -476,7 +477,7 @@ class DataFrameCacheIntegration:
             self._cache.invalidate(key, [EntryType.DATAFRAME])
             self._log_cache_event("evict", key, entry_type="dataframe")
             return True
-        except Exception as exc:
+        except CACHE_TRANSIENT_ERRORS as exc:
             self._log_cache_event(
                 "error",
                 key,

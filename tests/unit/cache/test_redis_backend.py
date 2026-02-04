@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
 
 # Try to import fakeredis, skip tests if not available
 try:

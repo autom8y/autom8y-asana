@@ -8,7 +8,6 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
-import pytest
 from fastapi.testclient import TestClient
 
 

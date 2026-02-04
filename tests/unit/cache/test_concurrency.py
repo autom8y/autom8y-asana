@@ -19,9 +19,9 @@ from typing import Any
 import pytest
 
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
-from autom8_asana.cache.batch import ModificationCheckCache, reset_modification_cache
-from autom8_asana.cache.entry import CacheEntry, EntryType
-from autom8_asana.cache.metrics import CacheMetrics
+from autom8_asana.cache.integration.batch import ModificationCheckCache, reset_modification_cache
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.metrics import CacheMetrics
 
 
 class TestInMemoryCacheConcurrency:

@@ -36,8 +36,8 @@ from autom8_asana.exceptions import ConfigurationError
 from autom8_asana.settings import get_settings
 
 if TYPE_CHECKING:
-    from autom8_asana.cache.freshness import Freshness
-    from autom8_asana.cache.settings import OverflowSettings, TTLSettings
+    from autom8_asana.cache.models.freshness import Freshness
+    from autom8_asana.cache.models.settings import OverflowSettings, TTLSettings
 
 __all__ = [
     # Domain-specific configs (backward compatible)
@@ -47,6 +47,7 @@ __all__ = [
     "TimeoutConfig",
     "ConnectionPoolConfig",
     "CircuitBreakerConfig",
+    "S3LocationConfig",
     "CacheConfig",
     "DataFrameConfig",
     "AutomationConfig",
@@ -84,15 +85,20 @@ SWR_GRACE_MULTIPLIER: float = 3.0
 # >0.0 = serve for up to LKG_MAX_STALENESS_MULTIPLIER * entity_TTL seconds
 LKG_MAX_STALENESS_MULTIPLIER: float = 0.0
 
+# FACADE: Delegates to EntityRegistry. Preserves existing import path.
+# See: src/autom8_asana/core/entity_registry.py for the single source of truth.
+# The "address" entry is a legacy alias for "location" preserved for backward compat.
+from autom8_asana.core.entity_registry import get_registry as _get_entity_registry
+
+# Historically this dict contained: business, contact, unit, offer, process, hours,
+# and "address" (a legacy alias for location). Preserve exact same keys for compat.
+_LEGACY_TTL_EXCLUDE = {"location"}  # Represented as "address" in this dict
 DEFAULT_ENTITY_TTLS: dict[str, int] = {
-    "business": 3600,  # 1 hour - rarely changes
-    "contact": 900,  # 15 minutes
-    "unit": 900,  # 15 minutes
-    "offer": 180,  # 3 minutes - frequently updated
-    "process": 60,  # 1 minute - pipeline state changes often
-    "address": 3600,  # 1 hour - rarely changes
-    "hours": 3600,  # 1 hour - rarely changes
+    d.name: d.default_ttl_seconds
+    for d in _get_entity_registry().all_descriptors()
+    if d.default_ttl_seconds != 300 and d.name not in _LEGACY_TTL_EXCLUDE
 }
+DEFAULT_ENTITY_TTLS["address"] = 3600  # Legacy alias for location
 
 
 @dataclass(frozen=True)
@@ -272,6 +278,45 @@ class CircuitBreakerConfig:
 
 
 @dataclass(frozen=True)
+class S3LocationConfig:
+    """Shared S3 location configuration primitive.
+
+    Per B4 Config Consolidation: Extracted from duplicate S3 location fields
+    that appeared in S3Config, PersistenceConfig, SectionPersistenceConfig,
+    and AsyncS3Config. Backend-specific configs compose from this primitive
+    rather than redefining bucket/region/endpoint_url independently.
+
+    Attributes:
+        bucket: S3 bucket name.
+        region: AWS region (default "us-east-1").
+        endpoint_url: Custom endpoint URL for LocalStack or S3-compatible storage.
+    """
+
+    bucket: str = ""
+    region: str = "us-east-1"
+    endpoint_url: str | None = None
+
+    @classmethod
+    def from_env(cls) -> S3LocationConfig:
+        """Create S3 location config from Pydantic Settings.
+
+        Reads ASANA_CACHE_S3_BUCKET, ASANA_CACHE_S3_REGION, and
+        ASANA_CACHE_S3_ENDPOINT_URL environment variables via settings.
+
+        Returns:
+            S3LocationConfig populated from environment.
+        """
+        from autom8_asana.settings import get_settings
+
+        s3_settings = get_settings().s3
+        return cls(
+            bucket=s3_settings.bucket or "",
+            region=s3_settings.region,
+            endpoint_url=s3_settings.endpoint_url,
+        )
+
+
+@dataclass(frozen=True)
 class DataFrameConfig:
     """Configuration for DataFrame operations.
 
@@ -403,7 +448,7 @@ class CacheConfig:
     def ttl(self) -> TTLSettings:
         """TTL configuration settings (lazy-loaded)."""
         if self._ttl is None:
-            from autom8_asana.cache.settings import TTLSettings
+            from autom8_asana.cache.models.settings import TTLSettings
 
             object.__setattr__(self, "_ttl", TTLSettings())
         return self._ttl  # type: ignore[return-value]
@@ -417,7 +462,7 @@ class CacheConfig:
     def overflow(self) -> OverflowSettings:
         """Overflow threshold settings (lazy-loaded)."""
         if self._overflow is None:
-            from autom8_asana.cache.settings import OverflowSettings
+            from autom8_asana.cache.models.settings import OverflowSettings
 
             object.__setattr__(self, "_overflow", OverflowSettings())
         return self._overflow  # type: ignore[return-value]
@@ -431,7 +476,7 @@ class CacheConfig:
     def freshness(self) -> Freshness:
         """Default freshness mode for cache reads (lazy-loaded)."""
         if self._freshness is None:
-            from autom8_asana.cache.freshness import Freshness
+            from autom8_asana.cache.models.freshness import Freshness
 
             object.__setattr__(self, "_freshness", Freshness.EVENTUAL)
         return self._freshness  # type: ignore[return-value]
@@ -505,7 +550,7 @@ class CacheConfig:
             >>> config.enabled
             False
         """
-        from autom8_asana.cache.settings import TTLSettings
+        from autom8_asana.cache.models.settings import TTLSettings
         from autom8_asana.settings import CacheSettings as PydanticCacheSettings
 
         # Create fresh settings instance to read current env vars

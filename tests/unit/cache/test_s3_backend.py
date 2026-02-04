@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.protocols.cache import WarmResult
 
 # Try to import moto, skip integration tests if not available

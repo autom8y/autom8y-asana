@@ -22,8 +22,10 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
+from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
+
 if TYPE_CHECKING:
-    from autom8_asana.cache.dataframe_cache import DataFrameCache
+    from autom8_asana.cache.integration.dataframe_cache import DataFrameCache
     from autom8_asana.client import AsanaClient
 
 logger = get_logger(__name__)
@@ -243,7 +245,7 @@ class CacheWarmer:
                 # Re-raise RuntimeError from strict mode
                 raise
 
-            except Exception as e:
+            except CACHE_TRANSIENT_ERRORS as e:
                 self._stats["warm_failures"] += 1
                 elapsed_ms = (time.monotonic() - start) * 1000
 
@@ -379,7 +381,7 @@ class CacheWarmer:
                 row_count=row_count,
             )
 
-        except Exception as e:
+        except CACHE_TRANSIENT_ERRORS as e:
             logger.error(
                 "cache_warm_entity_failed",
                 extra={
@@ -470,7 +472,7 @@ class CacheWarmer:
 
             return status
 
-        except Exception as e:
+        except CACHE_TRANSIENT_ERRORS as e:
             self._stats["warm_failures"] += 1
             elapsed_ms = (time.monotonic() - start) * 1000
 

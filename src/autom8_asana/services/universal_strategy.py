@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.cache.dataframe_cache import FreshnessInfo
+from autom8_asana.cache.integration.dataframe_cache import FreshnessInfo
 from autom8_asana.services.dynamic_index import DynamicIndex, DynamicIndexCache
 from autom8_asana.services.resolution_result import ResolutionResult
 from autom8_asana.services.resolver import to_pascal_case
@@ -32,16 +32,19 @@ __all__ = [
     "UniversalResolutionStrategy",
 ]
 
+# Cache TTL for shared dynamic index (1 hour)
+# Balances memory vs. rebuild cost for entity resolution indexes
+DYNAMIC_INDEX_CACHE_TTL = 3600
 
-# Default key columns for backwards compatibility with existing entity strategies.
-# Single source of truth for all key column configuration across the codebase.
+
+# FACADE: Delegates to EntityRegistry. Preserves existing import path.
+# See: src/autom8_asana/core/entity_registry.py for the single source of truth.
+from autom8_asana.core.entity_registry import get_registry as _get_entity_registry
+
 DEFAULT_KEY_COLUMNS: dict[str, list[str]] = {
-    "unit": ["office_phone", "vertical"],
-    "business": ["office_phone"],
-    "offer": ["office_phone", "vertical", "offer_id"],
-    "contact": ["office_phone", "contact_phone", "contact_email"],
-    "asset_edit": ["office_phone", "vertical", "asset_id", "offer_id"],
-    "asset_edit_holder": ["office_phone"],
+    d.name: list(d.key_columns)
+    for d in _get_entity_registry().all_descriptors()
+    if d.key_columns
 }
 
 
@@ -532,7 +535,7 @@ class UniversalResolutionStrategy:
                 )
 
                 result = await builder.build_progressive_async(resume=True)
-                df = result.df
+                df = result.dataframe
 
             logger.info(
                 "entity_dataframe_built",
@@ -570,8 +573,9 @@ class UniversalResolutionStrategy:
 
         try:
             return registry.get_schema(schema_key)
-        except Exception:
+        except Exception as e:
             # Fall back to base schema
+            logger.warning("Custom field resolver fallback", exc_info=True)
             return registry.get_schema("*")
 
     def _get_custom_field_resolver(self) -> Any:
@@ -601,7 +605,7 @@ def get_shared_index_cache() -> DynamicIndexCache:
     if _shared_index_cache is None:
         _shared_index_cache = DynamicIndexCache(
             max_per_entity=5,
-            ttl_seconds=3600,  # 1 hour
+            ttl_seconds=DYNAMIC_INDEX_CACHE_TTL,
         )
     return _shared_index_cache
 

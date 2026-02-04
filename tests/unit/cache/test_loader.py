@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock
 import pytest
 
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
-from autom8_asana.cache.entry import CacheEntry, EntryType
-from autom8_asana.cache.freshness import Freshness
-from autom8_asana.cache.loader import (
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.freshness import Freshness
+from autom8_asana.cache.integration.loader import (
     load_batch_entries,
     load_task_entries,
     load_task_entry,
@@ -418,7 +418,7 @@ class TestLoadTaskEntries:
         """Test that one fetcher exception doesn't stop others."""
         cache = EnhancedInMemoryCacheProvider()
 
-        task_fetcher = AsyncMock(side_effect=Exception("API Error"))
+        task_fetcher = AsyncMock(side_effect=ConnectionError("API Error"))
         subtasks_fetcher = AsyncMock(
             return_value={
                 "subtasks": [],

@@ -24,12 +24,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from autom8_asana.batch.models import BatchResult
+from autom8_asana.core.exceptions import RedisTransportError
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
-from autom8_asana.cache.coalescer import RequestCoalescer
-from autom8_asana.cache.entry import CacheEntry, EntryType, _parse_datetime
-from autom8_asana.cache.lightweight_checker import LightweightChecker, _chunk
-from autom8_asana.cache.staleness_coordinator import StalenessCheckCoordinator
-from autom8_asana.cache.staleness_settings import StalenessCheckSettings
+from autom8_asana.cache.policies.coalescer import RequestCoalescer
+from autom8_asana.cache.models.entry import CacheEntry, EntryType, _parse_datetime
+from autom8_asana.cache.policies.lightweight_checker import LightweightChecker, _chunk
+from autom8_asana.cache.integration.staleness_coordinator import StalenessCheckCoordinator
+from autom8_asana.cache.models.staleness_settings import StalenessCheckSettings
 
 
 def make_entry(
@@ -291,7 +292,7 @@ class TestAPITimeoutHandling:
             nonlocal call_count
             call_count += 1
             if call_count == 2:  # Fail second chunk
-                raise Exception("Network error")
+                raise ConnectionError("Network error")
             return [
                 BatchResult(
                     status_code=200,
@@ -672,7 +673,7 @@ class TestCoordinatorGracefulDegradation:
     async def test_cache_unavailable_handled(self) -> None:
         """Test that cache unavailability is handled gracefully."""
         mock_cache = MagicMock()
-        mock_cache.set_versioned = MagicMock(side_effect=Exception("Redis down"))
+        mock_cache.set_versioned = MagicMock(side_effect=RedisTransportError("Redis down"))
         mock_cache.invalidate = MagicMock()
 
         batch_client = MagicMock()
@@ -709,7 +710,7 @@ class TestCoordinatorGracefulDegradation:
         """Test that cache invalidation failure is handled gracefully."""
         mock_cache = MagicMock()
         mock_cache.set_versioned = MagicMock()
-        mock_cache.invalidate = MagicMock(side_effect=Exception("Redis down"))
+        mock_cache.invalidate = MagicMock(side_effect=RedisTransportError("Redis down"))
 
         batch_client = MagicMock()
         batch_client.execute_async = AsyncMock(

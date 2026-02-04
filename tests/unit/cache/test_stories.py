@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from autom8_asana.cache.entry import CacheEntry, EntryType
-from autom8_asana.cache.stories import (
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.integration.stories import (
     DEFAULT_STORY_TYPES,
     _extract_stories_list,
     _merge_stories,

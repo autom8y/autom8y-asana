@@ -1,0 +1,87 @@
+---
+# Hygiene Sprint Triage Ruleset
+# Established via pre-triage interview, 2026-02-04
+# Session: session-20260204-170818-5363b6da
+
+scope_boundaries:
+  read_only_modules:
+    - src/autom8_asana/lambda_handlers/     # Lambda entry points
+    - src/autom8_asana/metrics/             # Analytics/metrics layer
+    - src/autom8_asana/detection/           # Detection layer
+    - src/autom8_asana/api/main.py          # 1466-line god module — defer refactoring
+
+  critical_gate: fix_or_defer
+  # Each critical must be fixed OR explicitly deferred with rationale.
+  # No hard ADR requirement. Tactful deferrals and escalations to
+  # individual initiatives are acceptable.
+
+error_handling_scope: silent_failures_only
+  # Fix: 15 swallowed exceptions + 2 critical silent-pass sites
+  # Defer: 106 bare-except replacements → follow-up initiative
+  # Defer: exception hierarchy wiring → follow-up initiative
+
+dead_code_scope: aggressive
+  # Remove: all 31 backward-compatibility shims (migrate imports first)
+  # Remove: all 66 unused test imports
+  # Remove: 1 unreferenced shim (cache/upgrader.py) — immediate
+  # Remove: 7 orphaned modules IF architect-enforcer classifies as fix-now
+  #         (no force-defer override)
+
+auto_fix_rules:
+  # All severities auto-fix as long as test gate passes.
+  # No manual checkpoint per finding.
+  - severity: critical
+    categories: ["*"]
+    action: auto_fix_with_test_gate
+  - severity: moderate
+    categories: ["*"]
+    action: auto_fix_with_test_gate
+  - severity: minor
+    categories: ["*"]
+    action: auto_fix_with_test_gate
+
+commit_strategy: per_logical_group
+  # One commit per related cluster of changes.
+  # Examples: "remove all cache shims", "fix swallowed exceptions in detection/"
+  # Target: ~8-15 commits total across remediation.
+
+test_gates:
+  all_changes:
+    - existing_tests_must_pass: true
+    - no_coverage_regression: true
+  # No distinction by severity — uniform gate for all changes.
+
+escalation_triggers:
+  per_file_threshold: null  # No escalation threshold
+  # Trust the test gate. If tests pass, changes are safe.
+
+force_fix:
+  # These MUST be resolved regardless of triage classification:
+  - id: DOC-001
+    description: "Broken TieredCacheProvider() call in lambda_handlers/cache_invalidate.py:105"
+    reason: "Runtime failure if Lambda invoked"
+  - id: SW-001
+    description: "Silent except-pass in detection/facade.py:167"
+    reason: "Complete observability gap"
+  - id: SW-002
+    description: "Silent except-pass in mutation_invalidator.py:309"
+    reason: "Complete observability gap"
+
+force_defer: []
+  # No force-defer overrides. Let architect-enforcer classify all findings.
+
+adr_triggers: []
+  # No ADR requirement for any finding type this sprint.
+
+success_criteria_overrides:
+  # Original criteria modified based on scope decisions:
+  - criterion: "Zero dead code paths in target scope"
+    override: "All shims removed, unused imports cleaned. Orphaned modules classified by architect."
+  - criterion: "All public interfaces have docstrings"
+    override: "Best effort within non-read-only modules. Not a sprint blocker."
+  - criterion: "No circular dependencies"
+    override: "Retained — scan found zero circular imports. Validated."
+  - criterion: "Consistent error handling patterns"
+    override: "Scoped to silent failures only. Bare-except sweep deferred."
+  - criterion: "All TODO markers resolved or converted to tracked issues"
+    override: "Best effort within non-read-only modules. Not a sprint blocker."

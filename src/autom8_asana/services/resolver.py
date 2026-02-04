@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from autom8y_log import get_logger
 
+from autom8_asana.dataframes.exceptions import SchemaNotFoundError
 from autom8_asana.services.resolution_result import ResolutionResult
 
 if TYPE_CHECKING:
@@ -239,9 +240,8 @@ class EntityProjectRegistry:
 
 # --- Dynamic Field Normalization (FR-006) ---
 
-# Entity type aliases - semantic domain hierarchy
-# Encodes: unit IS-A business_unit, offer IS-A business_offer,
-# business USES office_ prefix
+# FACADE: Delegates to EntityRegistry. Preserves existing import path.
+# See: src/autom8_asana/core/entity_registry.py for the single source of truth.
 #
 # Per TDD-dynamic-field-normalization:
 # Hierarchical alias resolution replaces static field mappings.
@@ -249,13 +249,12 @@ class EntityProjectRegistry:
 #   - unit + "phone" -> office_phone (via unit->business_unit->business->office)
 #   - offer + "phone" -> office_phone (via offer->business_offer->business->office)
 #   - contact + "email" -> contact_email (via prefix expansion)
+from autom8_asana.core.entity_registry import get_registry as _get_entity_registry
+
 ENTITY_ALIASES: dict[str, list[str]] = {
-    "unit": ["business_unit"],  # unit is a business_unit
-    "offer": ["business_offer"],  # offer is a business_offer
-    "business": ["office"],  # business fields use office_ prefix
-    "contact": [],  # contact uses its own prefix
-    "asset_edit": ["process"],  # asset_edit inherits Process field patterns
-    "asset_edit_holder": [],  # asset_edit_holder uses its own prefix
+    d.name: list(d.aliases)
+    for d in _get_entity_registry().all_descriptors()
+    if d.warmable  # Only warmable entities had aliases in the original dict
 }
 
 
@@ -402,7 +401,7 @@ def validate_criterion_for_entity(
 
     try:
         schema = schema_registry.get_schema(schema_key)
-    except Exception:
+    except SchemaNotFoundError:
         # Fall back to base schema if entity-specific not found
         schema = schema_registry.get_schema("*")
 
@@ -538,7 +537,7 @@ def _apply_legacy_mapping(
     try:
         schema = schema_registry.get_schema(schema_key)
         available_fields = set(schema.column_names())
-    except Exception:
+    except SchemaNotFoundError:
         available_fields = set()
 
     # Normalize each field
@@ -630,7 +629,7 @@ def filter_result_fields(
     try:
         schema = registry.get_schema(schema_key)
         valid_fields = {col.name for col in schema.columns}
-    except Exception:
+    except SchemaNotFoundError:
         # Fall back to base schema if entity-specific not found
         schema = registry.get_schema("*")
         valid_fields = {col.name for col in schema.columns}

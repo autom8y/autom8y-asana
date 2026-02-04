@@ -7,6 +7,7 @@ resolution with Memory + Progressive (SectionPersistence) storage.
 Components:
     - DataFrameCacheCoalescer: Build request coalescing (thundering herd prevention)
     - CircuitBreaker: Per-project failure isolation
+    - BuildCoordinator: Unified build coordination with staleness awareness
     - dataframe_cache: Class decorator for resolution strategies
     - CacheWarmer: Priority-based pre-warming for Lambda deployment
 
@@ -26,12 +27,24 @@ Example:
     >>> from autom8_asana.cache.dataframe.tiers import MemoryTier, ProgressiveTier
 """
 
+from autom8_asana.cache.dataframe.build_coordinator import (
+    BuildCoordinator,
+    BuildOutcome,
+    BuildResult,
+    CoalescingKey,
+    make_coalescing_key,
+)
 from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker, CircuitState
 from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
 from autom8_asana.cache.dataframe.decorator import dataframe_cache
 from autom8_asana.cache.dataframe.warmer import CacheWarmer, WarmResult, WarmStatus
 
 __all__ = [
+    "BuildCoordinator",
+    "BuildOutcome",
+    "BuildResult",
+    "CoalescingKey",
+    "make_coalescing_key",
     "DataFrameCacheCoalescer",
     "CircuitBreaker",
     "CircuitState",

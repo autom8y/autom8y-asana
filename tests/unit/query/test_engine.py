@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -19,11 +18,7 @@ from autom8_asana.query.errors import (
 )
 from autom8_asana.query.guards import QueryLimits
 from autom8_asana.query.models import (
-    AggFunction,
     AggregateRequest,
-    AggSpec,
-    Comparison,
-    Op,
     RowsRequest,
 )
 from autom8_asana.services.query_service import EntityQueryService

@@ -20,13 +20,13 @@ from datetime import UTC, datetime
 from typing import NamedTuple
 
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
-from autom8_asana.cache.batch import (
+from autom8_asana.cache.integration.batch import (
     ModificationCheckCache,
     fetch_task_modifications,
     reset_modification_cache,
 )
-from autom8_asana.cache.entry import CacheEntry, EntryType
-from autom8_asana.cache.staleness import check_batch_staleness
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.policies.staleness import check_batch_staleness
 
 
 class BatchBenchmarkResult(NamedTuple):

@@ -37,11 +37,12 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.cache.errors import (
+from autom8_asana.cache.models.errors import (
     DegradedModeMixin,
     is_s3_not_found_error,
     is_s3_retryable_error,
 )
+from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
 
 if TYPE_CHECKING:
     from mypy_boto3_s3 import S3Client
@@ -246,7 +247,7 @@ class AsyncS3Client(DegradedModeMixin):
                 bucket=self._config.bucket,
                 region=self._config.region,
             )
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             logger.error("s3_client_creation_failed", error=str(e))
             self._degraded = True
 
@@ -351,7 +352,7 @@ class AsyncS3Client(DegradedModeMixin):
                 )
                 return result
 
-            except Exception as e:
+            except S3_TRANSPORT_ERRORS as e:
                 if (
                     self._is_retryable_error(e)
                     and attempt < self._config.max_retries - 1
@@ -430,7 +431,7 @@ class AsyncS3Client(DegradedModeMixin):
                     duration_ms=duration_ms,
                 )
 
-            except Exception as e:
+            except S3_TRANSPORT_ERRORS as e:
                 if self._is_not_found_error(e):
                     duration_ms = (time.monotonic() - start_time) * 1000
                     return S3ReadResult(
@@ -498,7 +499,7 @@ class AsyncS3Client(DegradedModeMixin):
                 "etag": response.get("ETag", "").strip('"'),
                 "metadata": response.get("Metadata", {}),
             }
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             if self._is_not_found_error(e):
                 return None
             self._handle_error(e, "head_object", key)
@@ -524,7 +525,7 @@ class AsyncS3Client(DegradedModeMixin):
             )
             logger.debug("s3_delete_completed", extra={"key": key})
             return True
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             if self._is_not_found_error(e):
                 return True  # Already doesn't exist
             self._handle_error(e, "delete_object", key)
@@ -567,7 +568,7 @@ class AsyncS3Client(DegradedModeMixin):
                 )
 
             return objects
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             self._handle_error(e, "list_objects", prefix)
             return []
 
@@ -586,7 +587,7 @@ class AsyncS3Client(DegradedModeMixin):
                 Bucket=self._config.bucket,
             )
             return True
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             self._handle_error(e, "head_bucket", self._config.bucket)
             return False
 

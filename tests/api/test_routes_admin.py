@@ -5,7 +5,7 @@ Per TDD-cache-freshness-remediation Fix 4: Tests for POST /v1/admin/cache/refres
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import FastAPI

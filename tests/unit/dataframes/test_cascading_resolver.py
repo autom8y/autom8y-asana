@@ -571,7 +571,7 @@ class TestBrokenParentChain:
         )
 
         # Mock API to raise exception
-        mock_client.tasks.get_async.side_effect = Exception("Task not found")
+        mock_client.tasks.get_async.side_effect = ConnectionError("Task not found")
 
         with (
             patch(

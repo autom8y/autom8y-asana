@@ -3,13 +3,13 @@
 import logging
 from typing import Any
 
-from autom8_asana.cache.events import (
+from autom8_asana.cache.models.events import (
     _normalize_event_type,
     create_metrics_callback,
     has_cache_logging,
     setup_cache_logging,
 )
-from autom8_asana.cache.metrics import CacheEvent, CacheMetrics
+from autom8_asana.cache.models.metrics import CacheEvent, CacheMetrics
 
 
 class MockCacheLoggingProvider:

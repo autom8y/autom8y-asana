@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Literal, overload
 from autom8y_log import get_logger
 
 from autom8_asana.clients.base import BaseClient
+from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 from autom8_asana.models import PageIterator
 from autom8_asana.models.story import Story
 from autom8_asana.transport.sync import sync_wrapper
@@ -527,7 +528,7 @@ class StoriesClient(BaseClient):
             return stories
 
         try:
-            from autom8_asana.cache.stories import load_stories_incremental
+            from autom8_asana.cache.integration.stories import load_stories_incremental
 
             # FR-FETCH-001: Create loader-compatible fetcher
             fetcher = self._make_stories_fetcher(opt_fields)
@@ -567,7 +568,7 @@ class StoriesClient(BaseClient):
             # Convert dicts to Story models
             return [Story.model_validate(s) for s in stories_dicts]
 
-        except Exception as exc:
+        except CACHE_TRANSIENT_ERRORS as exc:
             duration_ms = (time.perf_counter() - start_time) * 1000
             # FR-DEGRADE-002, FR-DEGRADE-003: Enhanced fallback logging
             logger.warning(
@@ -751,7 +752,7 @@ class StoriesClient(BaseClient):
                     entry_type="stories",
                     item_count=story_count,
                 )
-        except Exception as exc:
+        except CACHE_TRANSIENT_ERRORS as exc:
             # Metrics recording should never fail the operation
             logger.debug(
                 "stories_cache_metrics_recording_failed",

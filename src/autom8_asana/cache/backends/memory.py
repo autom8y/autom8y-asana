@@ -7,12 +7,12 @@ from datetime import datetime
 from threading import Lock
 from typing import Any, NamedTuple
 
-from autom8_asana.cache.entry import CacheEntry, EntryType
-from autom8_asana.cache.errors import DegradedModeMixin
-from autom8_asana.cache.freshness import Freshness
-from autom8_asana.cache.metrics import CacheMetrics
-from autom8_asana.cache.settings import CacheSettings
-from autom8_asana.cache.versioning import is_current
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.errors import DegradedModeMixin
+from autom8_asana.cache.models.freshness import Freshness
+from autom8_asana.cache.models.metrics import CacheMetrics
+from autom8_asana.cache.models.settings import CacheSettings
+from autom8_asana.cache.models.versioning import is_current
 from autom8_asana.protocols.cache import WarmResult
 
 

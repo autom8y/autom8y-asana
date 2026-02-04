@@ -3,6 +3,16 @@
 Per TDD-INSIGHTS-001 Section 7: Configuration dataclasses for DataServiceClient.
 Per FR-001.2: Constructor accepts base_url with env default.
 Per ADR-INS-004: Includes cache_ttl for insights cache.
+
+Per B4 Config Consolidation audit: TimeoutConfig, ConnectionPoolConfig,
+RetryConfig, and CircuitBreakerConfig share the same field structure as
+their counterparts in autom8_asana.config but carry intentionally different
+default values tuned for the data service (smaller pools, fewer retries,
+502 in retryable codes, circuit breaker enabled by default). These remain
+as separate classes because consumers construct them with partial overrides
+expecting domain-specific defaults -- unifying the classes would silently
+change default behavior for any code that doesn't specify all fields.
+See the architectural opportunities report (B4) for the full analysis.
 """
 
 from __future__ import annotations
@@ -27,6 +37,9 @@ class TimeoutConfig:
 
     Per TDD-INSIGHTS-001 Section 7.1: Default values optimized for
     analytics queries which may take longer than typical API calls.
+
+    Note: Shares field structure with autom8_asana.config.TimeoutConfig
+    but uses data-service-specific defaults (pool=5.0 vs 10.0).
 
     Attributes:
         connect: Timeout for establishing connection (seconds).
@@ -63,6 +76,9 @@ class ConnectionPoolConfig:
     Per TDD-INSIGHTS-001 Section 7.1: Connection pool settings for
     persistent connections to autom8_data satellite.
 
+    Note: Shares field structure with autom8_asana.config.ConnectionPoolConfig
+    but uses data-service-specific defaults (max=10 vs 100, keepalive=5 vs 20).
+
     Attributes:
         max_connections: Maximum total connections in pool.
         max_keepalive_connections: Maximum idle connections to keep.
@@ -96,6 +112,10 @@ class RetryConfig:
 
     Per TDD-INSIGHTS-001 Section 7.1 and NFR-002: 2 retries with
     exponential backoff for transient failures.
+
+    Note: Shares field structure with autom8_asana.config.RetryConfig
+    but uses data-service-specific defaults (max=2 vs 5, base=1.0 vs 0.5,
+    max_delay=10 vs 60, includes 502 in retryable codes).
 
     Attributes:
         max_retries: Maximum retry attempts (default 2 per NFR-002).
@@ -144,6 +164,10 @@ class CircuitBreakerConfig:
     triggers open state to prevent cascading failures.
 
     Per ADR-INS-005: Composed with existing CircuitBreaker from transport layer.
+
+    Note: Shares field structure with autom8_asana.config.CircuitBreakerConfig
+    but uses data-service-specific defaults (enabled=True vs False,
+    recovery_timeout=30 vs 60).
 
     Attributes:
         enabled: Whether circuit breaker is active (default True for data service).

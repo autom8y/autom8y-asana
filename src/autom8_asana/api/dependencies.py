@@ -30,6 +30,7 @@ from autom8y_log import get_logger
 from fastapi import Depends, Header, HTTPException, Request
 
 from autom8_asana import AsanaClient
+from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator
 
 from ..auth.bot_pat import BotPATError, get_bot_pat
 from ..auth.dual_mode import AuthMode, detect_token_type
@@ -368,6 +369,31 @@ async def get_asana_client_from_context(
             await client.aclose()
 
 
+def get_mutation_invalidator(request: Request) -> MutationInvalidator:
+    """Get the shared MutationInvalidator from app state.
+
+    Per TDD-CACHE-INVALIDATION-001: The MutationInvalidator is created
+    once during app startup and stored on app.state. This dependency
+    provides access to it for route handlers.
+
+    Args:
+        request: FastAPI request (for app state access).
+
+    Returns:
+        MutationInvalidator instance, or a no-op instance if not initialized.
+    """
+    invalidator = getattr(request.app.state, "mutation_invalidator", None)
+    if invalidator is None:
+        # Graceful degradation: return a no-op invalidator
+        # This happens during testing or when cache is disabled
+        logger.warning("mutation_invalidator_not_initialized")
+        from autom8_asana._defaults.cache import NullCacheProvider
+        from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator as MI
+
+        return MI(cache_provider=NullCacheProvider())
+    return invalidator
+
+
 def get_request_id(request: Request) -> str:
     """Get request ID from request state.
 
@@ -388,6 +414,9 @@ AsanaPAT = Annotated[str, Depends(get_asana_pat)]
 AsanaClientDep = Annotated[AsanaClient, Depends(get_asana_client)]
 AsanaClientDualMode = Annotated[AsanaClient, Depends(get_asana_client_from_context)]
 AuthContextDep = Annotated[AuthContext, Depends(get_auth_context)]
+MutationInvalidatorDep = Annotated[
+    MutationInvalidator, Depends(get_mutation_invalidator)
+]
 RequestId = Annotated[str, Depends(get_request_id)]
 
 
@@ -396,6 +425,9 @@ __all__ = [
     "AuthContext",
     "get_auth_context",
     "get_asana_client_from_context",
+    # Cache invalidation
+    "get_mutation_invalidator",
+    "MutationInvalidatorDep",
     # Legacy dependencies (backward compatibility)
     "get_asana_client",
     "get_asana_pat",

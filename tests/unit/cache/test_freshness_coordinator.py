@@ -12,8 +12,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from autom8_asana.batch.models import BatchResult
-from autom8_asana.cache.entry import CacheEntry, EntryType
-from autom8_asana.cache.freshness_coordinator import (
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.integration.freshness_coordinator import (
     FreshnessCoordinator,
     FreshnessMode,
     FreshnessResult,
@@ -337,7 +337,7 @@ class TestFreshnessCoordinatorErrorHandling:
         """Test that batch API failure results in fetch action."""
         entry = make_entry("123", ttl=1, cached_ago_seconds=100)
 
-        mock_batch_client.execute_async.side_effect = Exception("Network error")
+        mock_batch_client.execute_async.side_effect = ConnectionError("Network error")
 
         results = await coordinator.check_batch_async(
             [entry], mode=FreshnessMode.STRICT
@@ -491,7 +491,7 @@ class TestFreshnessCoordinatorHierarchy:
         """Test hierarchy check handles API errors gracefully."""
         entry = make_entry("root-123", ttl=1, cached_ago_seconds=100)
 
-        mock_batch_client.execute_async.side_effect = Exception("Network error")
+        mock_batch_client.execute_async.side_effect = ConnectionError("Network error")
 
         result = await coordinator.check_hierarchy_async(
             "root-123", root_entry=entry, mode=FreshnessMode.EVENTUAL

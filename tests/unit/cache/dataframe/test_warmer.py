@@ -251,7 +251,7 @@ class TestCacheWarmer:
         # Mock strategy that fails
         mock_strategy = MagicMock()
         mock_strategy._build_dataframe = AsyncMock(
-            side_effect=Exception("Build failed")
+            side_effect=ConnectionError("Build failed")
         )
 
         with patch.object(
@@ -287,7 +287,7 @@ class TestCacheWarmer:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise Exception("Build failed")
+                raise ConnectionError("Build failed")
             return (
                 pl.DataFrame({"gid": ["1"], "name": ["Task"]}),
                 datetime.now(UTC),
@@ -506,7 +506,7 @@ class TestCacheWarmer:
             nonlocal call_count
             call_count += 1
             if call_count == 2:
-                raise Exception("Build failed")
+                raise ConnectionError("Build failed")
             return (sample_dataframe, datetime.now(UTC))
 
         mock_strategy = MagicMock()

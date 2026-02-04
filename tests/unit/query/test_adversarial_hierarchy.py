@@ -24,7 +24,7 @@ from autom8_asana.query.hierarchy import (
     get_join_key,
     get_joinable_types,
 )
-from autom8_asana.query.join import JoinResult, JoinSpec, execute_join
+from autom8_asana.query.join import JoinSpec, execute_join
 from autom8_asana.query.models import RowsRequest
 from autom8_asana.services.query_service import EntityQueryService
 

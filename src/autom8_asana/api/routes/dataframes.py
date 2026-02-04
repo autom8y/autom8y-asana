@@ -39,7 +39,7 @@ from autom8_asana.api.models import (
     ResponseMeta,
     build_success_response,
 )
-from autom8_asana.cache.unified import UnifiedTaskStore
+from autom8_asana.cache.providers.unified import UnifiedTaskStore
 from autom8_asana.dataframes import (
     DefaultCustomFieldResolver,
     SectionDataFrameBuilder,

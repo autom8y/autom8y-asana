@@ -136,7 +136,7 @@ class CacheInvalidator:
         Args:
             gids: Set of GIDs to invalidate.
         """
-        from autom8_asana.cache.entry import EntryType
+        from autom8_asana.cache.models.entry import EntryType
 
         for gid in gids:
             try:
@@ -167,7 +167,7 @@ class CacheInvalidator:
             gids: Set of GIDs to invalidate.
             gid_to_entity: Map of GID -> entity for membership lookup.
         """
-        from autom8_asana.cache.dataframes import invalidate_task_dataframes
+        from autom8_asana.cache.integration.dataframes import invalidate_task_dataframes
 
         for gid in gids:
             entity = gid_to_entity.get(gid)

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from autom8_asana.cache.metrics import CacheMetrics
+from autom8_asana.cache.models.metrics import CacheMetrics
 from autom8_asana.client import AsanaClient, _TokenAuthProvider
 from autom8_asana.clients.tasks import TasksClient
 from autom8_asana.config import AsanaConfig
@@ -370,7 +370,7 @@ class TestAsanaClientUnifiedStore:
     def test_unified_store_lazy_init(self) -> None:
         """unified_store property lazily initializes UnifiedTaskStore."""
         from autom8_asana._defaults.cache import InMemoryCacheProvider
-        from autom8_asana.cache.unified import UnifiedTaskStore
+        from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
         client = AsanaClient(token="test-token")
 
@@ -401,7 +401,7 @@ class TestAsanaClientUnifiedStore:
 
     def test_unified_store_uses_batch_client(self) -> None:
         """unified_store is wired with client's batch client."""
-        from autom8_asana.cache.unified import UnifiedTaskStore
+        from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
         client = AsanaClient(token="test-token")
 

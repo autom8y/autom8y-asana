@@ -15,8 +15,9 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from autom8y_log import get_logger
 from fastapi import HTTPException
 
+
 if TYPE_CHECKING:
-    from autom8_asana.cache.dataframe_cache import DataFrameCache
+    from autom8_asana.cache.integration.dataframe_cache import DataFrameCache
 
 logger = get_logger(__name__)
 

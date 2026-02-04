@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from autom8y_log import get_logger
 
 if TYPE_CHECKING:
-    from autom8_asana.cache.dataframe_cache import CacheEntry
+    from autom8_asana.cache.integration.dataframe_cache import CacheEntry
 
 logger = get_logger(__name__)
 

@@ -12,8 +12,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from autom8_asana.batch.models import BatchResult
-from autom8_asana.cache.entry import CacheEntry, EntryType
-from autom8_asana.cache.lightweight_checker import (
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.policies.lightweight_checker import (
     ASANA_BATCH_LIMIT,
     LightweightChecker,
     _chunk,
@@ -261,7 +261,7 @@ class TestLightweightChecker:
                 )
                 for i in range(10)
             ],
-            Exception("Network error"),
+            ConnectionError("Network error"),
         ]
 
         result = await checker.check_batch_async(entries)

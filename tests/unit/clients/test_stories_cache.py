@@ -12,8 +12,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.clients.stories import StoriesClient
+from autom8_asana.core.exceptions import CacheConnectionError
 from autom8_asana.config import AsanaConfig
 from autom8_asana.models.story import Story
 
@@ -56,6 +57,12 @@ class MockCacheProvider:
         self.set_versioned_calls.append((key, entry))
         self._cache[f"{key}:{entry.entry_type.value}"] = entry
 
+    def get_metrics(self) -> Any:
+        """Return a mock metrics object."""
+        from autom8_asana.cache.models.metrics import CacheMetrics
+
+        return CacheMetrics()
+
 
 class FailingCacheProvider:
     """Cache provider that always fails (for graceful degradation tests)."""
@@ -63,10 +70,10 @@ class FailingCacheProvider:
     def get_versioned(
         self, key: str, entry_type: EntryType, freshness: Any = None
     ) -> CacheEntry | None:
-        raise ConnectionError("Cache connection failed")
+        raise CacheConnectionError("Cache connection failed")
 
     def set_versioned(self, key: str, entry: CacheEntry) -> None:
-        raise ConnectionError("Cache connection failed")
+        raise CacheConnectionError("Cache connection failed")
 
 
 @pytest.fixture

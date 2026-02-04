@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from autom8_asana.lambda_handlers.cache_warmer import _self_invoke_continuation
 

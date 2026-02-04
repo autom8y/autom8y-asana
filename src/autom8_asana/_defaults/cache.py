@@ -8,9 +8,9 @@ from threading import Lock
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 if TYPE_CHECKING:
-    from autom8_asana.cache.entry import CacheEntry, EntryType
-    from autom8_asana.cache.freshness import Freshness
-    from autom8_asana.cache.metrics import CacheMetrics
+    from autom8_asana.cache.models.entry import CacheEntry, EntryType
+    from autom8_asana.cache.models.freshness import Freshness
+    from autom8_asana.cache.models.metrics import CacheMetrics
     from autom8_asana.protocols.cache import WarmResult
 
 
@@ -112,7 +112,7 @@ class NullCacheProvider:
 
     def get_metrics(self) -> CacheMetrics:
         """Returns a new empty CacheMetrics instance."""
-        from autom8_asana.cache.metrics import CacheMetrics
+        from autom8_asana.cache.models.metrics import CacheMetrics
 
         return CacheMetrics()
 
@@ -161,7 +161,7 @@ class InMemoryCacheProvider:
     def _get_metrics(self) -> CacheMetrics:
         """Lazily initialize metrics."""
         if self._metrics is None:
-            from autom8_asana.cache.metrics import CacheMetrics
+            from autom8_asana.cache.models.metrics import CacheMetrics
 
             self._metrics = CacheMetrics()
         return self._metrics
@@ -338,7 +338,7 @@ class InMemoryCacheProvider:
         Returns:
             True if fresh, False if stale or missing.
         """
-        from autom8_asana.cache.versioning import is_current
+        from autom8_asana.cache.models.versioning import is_current
 
         with self._lock:
             metadata = self._version_metadata.get(key)
@@ -362,7 +362,7 @@ class InMemoryCacheProvider:
             key: Cache key.
             entry_types: Specific types to invalidate. If None, all.
         """
-        from autom8_asana.cache.entry import EntryType
+        from autom8_asana.cache.models.entry import EntryType
 
         if entry_types is None:
             entry_types = list(EntryType)

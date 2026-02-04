@@ -3,9 +3,9 @@
 from datetime import UTC, datetime, timedelta
 
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
-from autom8_asana.cache.entry import CacheEntry, EntryType
-from autom8_asana.cache.freshness import Freshness
-from autom8_asana.cache.staleness import (
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.freshness import Freshness
+from autom8_asana.cache.policies.staleness import (
     check_batch_staleness,
     check_entry_staleness,
     partition_by_staleness,

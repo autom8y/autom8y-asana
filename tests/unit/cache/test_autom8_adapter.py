@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from autom8_asana.cache.autom8_adapter import (
+from autom8_asana.cache.integration.autom8_adapter import (
     MigrationResult,
     MissingConfigurationError,
     _parse_version,
@@ -18,7 +18,7 @@ from autom8_asana.cache.autom8_adapter import (
     warm_project_tasks,
 )
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
-from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
 
 
 class TestMigrationResult:
@@ -526,7 +526,7 @@ class TestCheckRedisHealth:
     def test_cache_exception(self) -> None:
         """Test health check when exception occurs."""
         mock_cache = MagicMock()
-        mock_cache.is_healthy.side_effect = Exception("Connection refused")
+        mock_cache.is_healthy.side_effect = ConnectionError("Connection refused")
 
         result = check_redis_health(mock_cache)
 

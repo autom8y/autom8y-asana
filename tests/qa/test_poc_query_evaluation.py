@@ -10,7 +10,7 @@ QA Adversary: Validates PRD-dynamic-query-service acceptance criteria.
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timezone
+from datetime import UTC, date, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -41,12 +41,11 @@ from autom8_asana.query.errors import (
 )
 from autom8_asana.query.guards import QueryLimits, predicate_depth
 from autom8_asana.query.hierarchy import (
-    ENTITY_RELATIONSHIPS,
     find_relationship,
     get_join_key,
     get_joinable_types,
 )
-from autom8_asana.query.join import JoinSpec, execute_join
+from autom8_asana.query.join import JoinSpec
 from autom8_asana.query.models import (
     AggFunction,
     AggregateMeta,

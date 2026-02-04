@@ -14,7 +14,7 @@ import pytest
 from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker
 from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
 from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
-from autom8_asana.cache.dataframe_cache import (
+from autom8_asana.cache.integration.dataframe_cache import (
     CacheEntry,
     DataFrameCache,
     FreshnessInfo,

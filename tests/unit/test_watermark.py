@@ -469,7 +469,7 @@ class TestPersistenceIntegration:
         repo = get_watermark_repo()
         mock_persistence = MagicMock()
         mock_persistence.save_watermark = AsyncMock(
-            side_effect=RuntimeError("S3 error")
+            side_effect=ConnectionError("S3 error")
         )
 
         wm = datetime(2024, 6, 15, tzinfo=UTC)
@@ -541,7 +541,7 @@ class TestPersistenceIntegration:
         repo = get_watermark_repo()
         mock_persistence = MagicMock()
         mock_persistence.load_all_watermarks = AsyncMock(
-            side_effect=RuntimeError("S3 error")
+            side_effect=ConnectionError("S3 error")
         )
 
         loaded = await repo.load_from_persistence(mock_persistence)

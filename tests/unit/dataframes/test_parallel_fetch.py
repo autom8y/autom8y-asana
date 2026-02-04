@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from autom8_asana.core.exceptions import RedisTransportError
 from autom8_asana.dataframes.builders.parallel_fetch import (
     FetchResult,
     ParallelFetchError,
@@ -1008,7 +1009,7 @@ class TestGidEnumerationCache:
         from datetime import datetime
         from unittest.mock import MagicMock
 
-        from autom8_asana.cache.entry import CacheEntry, EntryType
+        from autom8_asana.cache.models.entry import CacheEntry, EntryType
 
         sections_client = create_mock_sections_client(mock_sections)
         tasks_client = create_mock_tasks_client(mock_tasks_by_section)
@@ -1062,7 +1063,7 @@ class TestGidEnumerationCache:
         """Test section list cache is populated on miss (FR-SECTION-003)."""
         from unittest.mock import MagicMock
 
-        from autom8_asana.cache.entry import EntryType
+        from autom8_asana.cache.models.entry import EntryType
 
         sections_client = create_mock_sections_client(mock_sections)
         tasks_client = create_mock_tasks_client(mock_tasks_by_section)
@@ -1125,7 +1126,7 @@ class TestGidEnumerationCache:
         from datetime import datetime
         from unittest.mock import MagicMock
 
-        from autom8_asana.cache.entry import CacheEntry, EntryType
+        from autom8_asana.cache.models.entry import CacheEntry, EntryType
 
         sections_client = create_mock_sections_client(mock_sections)
         tasks_client = create_mock_tasks_client(mock_tasks_by_section)
@@ -1183,7 +1184,7 @@ class TestGidEnumerationCache:
         from datetime import datetime
         from unittest.mock import MagicMock
 
-        from autom8_asana.cache.entry import CacheEntry, EntryType
+        from autom8_asana.cache.models.entry import CacheEntry, EntryType
 
         sections_client = create_mock_sections_client(mock_sections)
         tasks_client = create_mock_tasks_client(mock_tasks_by_section)
@@ -1274,9 +1275,9 @@ class TestGidEnumerationCache:
 
         # Create mock cache provider that throws on all operations
         mock_cache = MagicMock()
-        mock_cache.get_versioned = MagicMock(side_effect=Exception("Cache unavailable"))
+        mock_cache.get_versioned = MagicMock(side_effect=RedisTransportError("Cache unavailable"))
         mock_cache.set_versioned = MagicMock(
-            side_effect=Exception("Cache write failed")
+            side_effect=RedisTransportError("Cache write failed")
         )
 
         fetcher = ParallelSectionFetcher(
@@ -1337,8 +1338,8 @@ class TestGidEnumerationCache:
 
         # Create mock cache provider that throws
         mock_cache = MagicMock()
-        mock_cache.get_versioned = MagicMock(side_effect=Exception("Test error"))
-        mock_cache.set_versioned = MagicMock(side_effect=Exception("Write error"))
+        mock_cache.get_versioned = MagicMock(side_effect=RedisTransportError("Test error"))
+        mock_cache.set_versioned = MagicMock(side_effect=RedisTransportError("Write error"))
 
         fetcher = ParallelSectionFetcher(
             sections_client=sections_client,

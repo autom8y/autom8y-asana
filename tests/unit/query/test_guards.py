@@ -18,10 +18,6 @@ from autom8_asana.query.errors import QueryTooComplexError
 from autom8_asana.query.guards import QueryLimits, predicate_depth
 from autom8_asana.query.models import (
     AndGroup,
-    Comparison,
-    NotGroup,
-    Op,
-    OrGroup,
     PredicateNode,
     RowsRequest,
 )

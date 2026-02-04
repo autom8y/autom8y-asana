@@ -12,8 +12,8 @@ from __future__ import annotations
 import pytest
 
 from autom8_asana._defaults.cache import InMemoryCacheProvider
-from autom8_asana.cache.entry import EntryType
-from autom8_asana.cache.unified import UnifiedTaskStore
+from autom8_asana.cache.models.entry import EntryType
+from autom8_asana.cache.providers.unified import UnifiedTaskStore
 from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
 
 # Test data: Simulated Business -> Unit hierarchy
@@ -209,8 +209,8 @@ class TestCascadeResolution:
 
         Per SC-004: "Integration test validates cascade resolution with real hierarchy"
         """
-        from autom8_asana.cache.completeness import STANDARD_FIELDS
-        from autom8_asana.cache.freshness_coordinator import FreshnessMode
+        from autom8_asana.cache.models.completeness import STANDARD_FIELDS
+        from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
         from autom8_asana.dataframes.views.dataframe_view import DataFrameViewPlugin
 
         # Setup
@@ -274,7 +274,7 @@ class TestWarmAncestorsAsync:
         Per TDD-unit-cascade-resolution-fix Fix 2: The cache check should
         trigger parent fetch when parent data is not cached.
         """
-        from autom8_asana.cache.hierarchy_warmer import warm_ancestors_async
+        from autom8_asana.cache.integration.hierarchy_warmer import warm_ancestors_async
 
         # Setup
         cache = InMemoryCacheProvider()
