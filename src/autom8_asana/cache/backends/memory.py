@@ -8,6 +8,7 @@ from threading import Lock
 from typing import Any, NamedTuple
 
 from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.errors import DegradedModeMixin
 from autom8_asana.cache.freshness import Freshness
 from autom8_asana.cache.metrics import CacheMetrics
 from autom8_asana.cache.settings import CacheSettings
@@ -29,7 +30,7 @@ class _VersionedCacheEntry(NamedTuple):
     expires_at: float | None
 
 
-class EnhancedInMemoryCacheProvider:
+class EnhancedInMemoryCacheProvider(DegradedModeMixin):
     """Thread-safe in-memory cache with versioning support.
 
     Implements the CacheProvider protocol using in-memory storage.
@@ -73,6 +74,11 @@ class EnhancedInMemoryCacheProvider:
         self._default_ttl = default_ttl
         self._max_size = max_size
         self._settings = settings or CacheSettings()
+
+        # DegradedModeMixin state (memory backend never degrades)
+        self._degraded = False
+        self._last_reconnect_attempt = 0.0
+        self._reconnect_interval = 30.0
 
         # Separate storage for simple and versioned entries
         self._simple_cache: dict[str, _SimpleCacheEntry] = {}
