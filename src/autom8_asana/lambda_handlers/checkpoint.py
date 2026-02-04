@@ -226,7 +226,7 @@ class CheckpointManager:
             )
             return None
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: catch-all-and-degrade -- S3 errors should not block warming
             # Graceful degradation: log warning and return None
             # Per ADR-0064: S3 errors should not block warming
             logger.warning(
@@ -293,7 +293,7 @@ class CheckpointManager:
             )
             return True
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: isolation -- checkpoint save failure returns False, does not propagate
             logger.error(
                 "checkpoint_save_error",
                 extra={
@@ -326,7 +326,7 @@ class CheckpointManager:
             )
             return True
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: isolation -- checkpoint clear failure returns False, expires naturally
             # Log warning but don't fail - checkpoint will expire naturally
             logger.warning(
                 "checkpoint_clear_error",

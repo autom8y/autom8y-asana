@@ -868,7 +868,7 @@ class SaveSession:
                     self._client,
                 )
                 crud_result.automation_results = automation_results
-            except Exception as e:
+            except Exception as e:  # BROAD-CATCH: isolation -- per NFR-003, automation failures must not fail commit
                 # Per NFR-003: Automation failures don't fail commit
                 from autom8y_log import get_logger
 

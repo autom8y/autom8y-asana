@@ -152,7 +152,7 @@ async def _invalidate_cache_async(
             invocation_id=invocation_id,
         )
 
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: boundary -- async function top-level catch, returns error response
         duration_ms = (time.monotonic() - start_time) * 1000
         logger.error(
             "cache_invalidate_failed",
@@ -235,7 +235,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 context=context,
             )
         )
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: boundary -- Lambda handler top-level catch
         logger.error(
             "cache_invalidate_handler_exception",
             extra={

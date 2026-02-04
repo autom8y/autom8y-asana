@@ -212,7 +212,7 @@ class SearchService:
                 from_cache=from_cache,
             )
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: catch-all-and-degrade -- returns empty results on error
             # Graceful degradation - return empty results on error
             logger.warning(
                 "search_error",

@@ -656,7 +656,7 @@ class RetryOrchestrator:
                     )
                 return result
 
-            except Exception as exc:
+            except Exception as exc:  # BROAD-CATCH: enrichment -- retry loop catches any error to decide retry vs re-raise
                 # 4. Record failure with circuit breaker
                 self._circuit_breaker.record_failure(exc)
 
@@ -753,7 +753,7 @@ class RetryOrchestrator:
                     )
                 return result
 
-            except Exception as exc:
+            except Exception as exc:  # BROAD-CATCH: enrichment -- async retry loop catches any error to decide retry vs re-raise
                 # 4. Record failure with circuit breaker
                 self._circuit_breaker.record_failure(exc)
 

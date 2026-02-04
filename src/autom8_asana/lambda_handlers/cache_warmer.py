@@ -232,8 +232,7 @@ def _emit_metric(
                 }
             ],
         )
-    except Exception as e:
-        # Graceful degradation: log warning but don't fail the warm
+    except Exception as e:  # BROAD-CATCH: metrics -- CloudWatch metric emission must not fail the warm
         logger.warning(
             "metric_emit_error",
             extra={
@@ -291,7 +290,7 @@ def _self_invoke_continuation(
             },
         )
         _emit_metric("SelfContinuationInvoked", 1)
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: isolation -- self-invoke failure must not fail current invocation
         logger.error(
             "self_invoke_failed",
             extra={
@@ -369,7 +368,7 @@ async def _warm_cache_async(
             from autom8_asana.services.discovery import discover_entity_projects_async
 
             await discover_entity_projects_async()
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: isolation -- discovery failure should not block warming
             logger.warning(
                 "cache_warmer_discovery_failed",
                 extra={"error": str(e), "invocation_id": invocation_id},
@@ -631,7 +630,7 @@ async def _warm_cache_async(
                         )
                         _emit_metric("CheckpointSaved", 1)
 
-                except Exception as e:
+                except Exception as e:  # BROAD-CATCH: isolation -- per-entity-type loop, single failure must not abort batch
                     logger.error(
                         "entity_warm_exception",
                         extra={
@@ -703,7 +702,7 @@ async def _warm_cache_async(
             invocation_id=invocation_id,
         )
 
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: boundary -- async function top-level catch, returns error response
         duration_ms = (time.monotonic() - start_time) * 1000
         logger.error(
             "cache_warmer_handler_error",
@@ -807,7 +806,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 context=context,
             )
         )
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: boundary -- Lambda handler top-level catch
         logger.error(
             "cache_warmer_handler_exception",
             extra={
