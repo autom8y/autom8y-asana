@@ -99,6 +99,7 @@ class S3CacheProvider(DegradedModeMixin):
         config: S3Config | None = None,
         settings: CacheSettings | None = None,
         *,
+        connection_manager: Any | None = None,
         bucket: str | None = None,
         prefix: str | None = None,
         region: str | None = None,
@@ -112,6 +113,10 @@ class S3CacheProvider(DegradedModeMixin):
         Args:
             config: S3 configuration object (preferred).
             settings: Cache settings for TTL and overflow thresholds.
+            connection_manager: Optional S3ConnectionManager for lifecycle
+                coordination. When provided, delegates client management
+                to the manager instead of managing boto3 client internally.
+                Per TDD-CONNECTION-LIFECYCLE-001 Phase 1.
             bucket: S3 bucket name (if config not provided).
             prefix: Key prefix (if config not provided).
             region: AWS region (if config not provided).
@@ -155,6 +160,9 @@ class S3CacheProvider(DegradedModeMixin):
         self._boto3_module: ModuleType | None = None
         self._botocore_module: ModuleType | None = None
 
+        # Connection manager delegation (per TDD-CONNECTION-LIFECYCLE-001)
+        self._connection_manager = connection_manager
+
         # Import boto3 to make it optional dependency
         try:
             import boto3
@@ -162,7 +170,8 @@ class S3CacheProvider(DegradedModeMixin):
 
             self._boto3_module = boto3
             self._botocore_module = botocore.exceptions
-            self._initialize_client()
+            if self._connection_manager is None:
+                self._initialize_client()
         except ImportError:
             logger.warning(
                 "boto3_package_not_installed",
@@ -202,12 +211,19 @@ class S3CacheProvider(DegradedModeMixin):
     def _get_client(self) -> Any:
         """Get S3 client, attempting reconnection if in degraded mode.
 
+        When a connection_manager is provided, delegates to it.
+        Otherwise uses the internal client (legacy path).
+
         Returns:
             boto3 S3 client instance.
 
         Raises:
             RuntimeError: If boto3 is not available or client cannot be created.
         """
+        # New path: delegate to connection manager
+        if self._connection_manager is not None:
+            return self._connection_manager.get_client()
+
         if self._boto3_module is None:
             raise RuntimeError("boto3 package not installed")
 
@@ -792,9 +808,17 @@ class S3CacheProvider(DegradedModeMixin):
     def is_healthy(self) -> bool:
         """Check if cache backend is operational.
 
+        When a connection_manager is provided, delegates health check to it.
+
         Returns:
             True if S3 is healthy and bucket is accessible.
         """
+        if self._connection_manager is not None:
+            from autom8_asana.core.connections import ConnectionState
+
+            result = self._connection_manager.health_check()
+            return result.state == ConnectionState.HEALTHY
+
         if self._degraded or self._boto3_module is None:
             return False
 

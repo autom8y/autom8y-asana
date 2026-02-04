@@ -7,7 +7,7 @@ initiative: 'Platform Maturity: Deferred Work Execution'
 complexity: MIGRATION
 active_rite: 10x-dev
 rite: 10x-dev
-current_phase: wave-2-execution
+current_phase: wave-3-execution
 ---
 
 # Session: Platform Maturity: Deferred Work Execution
@@ -123,10 +123,31 @@ None.
 - I4-S1 narrowed ~40 mechanical exception sites with clear type signatures
 - All changes validated against test suite with zero regressions
 
-### Wave 2 Plan
-- Sequential execution: I2 Service Layer Wiring first, then I4-S2/S3 Exception Narrowing
-- I2 will wire EntityService, TaskService, SectionService to API routes for 45% route code reduction
-- I4-S2/S3 will handle remaining ~118 bare-except sites requiring case-by-case analysis
+### I2 Service Layer Wiring Completion (2026-02-04)
+- I2-S1 + I2-S2 complete — EntityService, TaskService, SectionService fully wired to API routes
+- Commits: 5798611 (I2-S1), 3f221b7→3f13772 (I2-S2 query wiring)
+- Test results: 577 API/service tests passing
+- QA findings (P2+P3, deferred to I6): error format inconsistency on service handlers, missing ServiceError catches on read-only zone handlers
+- Target route code reduction (45%) validated in endpoint groups (auth, asana_project, graph, etc.)
+
+### I4-S2 Exception Narrowing Sprint 2 Completion (2026-02-04)
+- I4-S2 complete — 18 exception sites narrowed with specific types, 55 sites annotated with narrowing guidance
+- Commits: 8174430→dd34c26 (accumulated into Wave 2 execution phase)
+- Bare-except reduction: 120→104 sites (16 sites resolved)
+- Remaining 104 sites deferred to host initiatives (I3/I5/I6/I7) per error narrowing protocol
+- Wave 2 gate PASSED — all success criteria for I2 + I4-S1/S2 met
+
+### Wave 2 Completion Summary
+- I2 Service Layer Wiring: COMPLETE (45% route code reduction validated)
+- I4-S2 Exception Narrowing: COMPLETE (120→104 bare-except sites)
+- Sequential execution: I2 → I4-S2 (both complete)
+- Total Wave 2 work: Service layer fully wired + major exception narrowing progress
+
+### Wave 3 Transition Starting (2026-02-04)
+- Phase: wave-3-execution
+- Principal-engineer dispatched for I3-S1 (Storage Protocol + Connection Lifecycle wiring)
+- Wave 3 plan: I3-S1 → I3-S2 → I5-S1 (serial execution, I5 depends on I3 completion)
+- I3 targets: Full dataframes/storage.py wiring + cache/connections/ integration, ~2,000 LOC eliminated from S3 persistence consolidation
 
 ### General Notes
 - Rite switching: Session uses 10x-dev rite for I2, I3, I5, I6 and hygiene for I1, I4, I7 initiatives

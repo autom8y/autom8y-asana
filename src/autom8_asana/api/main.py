@@ -293,6 +293,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     extra={"error": str(e)},
                 )
 
+    # Close connection managers (ordered shutdown per TDD-CONNECTION-LIFECYCLE-001)
+    if hasattr(app.state, "connection_registry"):
+        try:
+            await app.state.connection_registry.close_all_async()
+            logger.info("connection_registry_shutdown_complete")
+        except Exception as e:
+            logger.warning(
+                "connection_registry_shutdown_error",
+                extra={"error": str(e)},
+            )
+
     # Shutdown
     logger.info(
         "api_stopping",
