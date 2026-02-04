@@ -87,6 +87,13 @@ class PersistenceConfig:
 class DataFramePersistence:
     """S3-based persistence for DataFrames and watermarks.
 
+    .. deprecated::
+        Per TDD-UNIFIED-DF-PERSISTENCE-001 (Phase 3): This class is being
+        superseded by ``S3DataFrameStorage`` in ``dataframes/storage.py``.
+        New consumers should use the ``DataFrameStorage`` protocol directly.
+        This class is retained as a backward-compatible wrapper during migration.
+        Removal is tracked as Phase 4 (deferred).
+
     Provides restart resilience by persisting DataFrame state to S3. Each project's
     DataFrame is stored as a Parquet file with an associated watermark JSON file.
 

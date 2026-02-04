@@ -132,6 +132,13 @@ class S3ReadResult:
 class AsyncS3Client(DegradedModeMixin):
     """Async S3 client wrapper using boto3 with asyncio.to_thread().
 
+    .. deprecated::
+        Per TDD-UNIFIED-DF-PERSISTENCE-001 (Phase 2): This class is being
+        superseded by ``S3DataFrameStorage`` in ``dataframes/storage.py``.
+        ``SectionPersistence`` now delegates to ``DataFrameStorage`` when
+        injected, falling back to this client only on the legacy path.
+        Removal is tracked as Phase 4 (deferred).
+
     Provides async S3 operations with retry logic, graceful degradation,
     and comprehensive metrics collection. Uses thread pool for non-blocking
     I/O which matches AWS best practices.

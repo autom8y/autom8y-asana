@@ -149,6 +149,19 @@ None.
 - Wave 3 plan: I3-S1 → I3-S2 → I5-S1 (serial execution, I5 depends on I3 completion)
 - I3 targets: Full dataframes/storage.py wiring + cache/connections/ integration, ~2,000 LOC eliminated from S3 persistence consolidation
 
+### I3-S1 Completion (2026-02-05)
+- DataFrameStorage protocol wired into SectionPersistence (c2f412b)
+- ConnectionManager wired into Redis/S3 backends + registry shutdown (75a5f9d)
+- Test results: 8561 tests passed, zero regressions
+- Wave 3 gate PASSED — all success criteria for I3-S1 met
+- Sprint status: COMPLETE
+
+### I3-S2 Starting (2026-02-05)
+- Initiative: S3 Persistence Consolidation (R14)
+- Scope: Consolidate 3 S3 implementations into S3DataFrameStorage
+- Dispatch: principal-engineer assigned
+- Sprint status: IN PROGRESS
+
 ### General Notes
 - Rite switching: Session uses 10x-dev rite for I2, I3, I5, I6 and hygiene for I1, I4, I7 initiatives
 - Read-only zones (api/main.py, lambda_handlers/, metrics/) remain read-only until lifted by their respective initiatives

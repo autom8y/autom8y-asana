@@ -53,6 +53,8 @@ def _build_patch_stack(
     env = {
         "ASANA_WORKSPACE_GID": "workspace-123",
         "ASANA_BOT_PAT": "test-pat",
+        "ASANA_CACHE_S3_BUCKET": "test-bucket",
+        "ASANA_CACHE_S3_REGION": "us-east-1",
     }
     if env_overrides:
         env.update(env_overrides)
@@ -98,6 +100,35 @@ def _build_patch_stack(
         patch(
             "autom8_asana.dataframes.persistence.DataFramePersistence",
             return_value=mock_df_persistence,
+        )
+    )
+    # Patch S3DataFrameStorage so the progressive preload uses our mock for
+    # the parquet fallback path (load_dataframe). The mock_df_persistence
+    # serves as the storage instance with .load_dataframe() support.
+    # Per TDD-UNIFIED-DF-PERSISTENCE-001 Phase 3: progressive preload now
+    # creates S3DataFrameStorage and injects it into SectionPersistence.
+    mock_storage_cls = MagicMock(return_value=mock_df_persistence)
+    stack.enter_context(
+        patch(
+            "autom8_asana.dataframes.storage.S3DataFrameStorage",
+            mock_storage_cls,
+        )
+    )
+    stack.enter_context(
+        patch(
+            "autom8_asana.dataframes.storage.create_s3_retry_orchestrator",
+            return_value=MagicMock(),
+        )
+    )
+    # Mock settings so S3 bucket is configured (needed for df_storage creation)
+    mock_settings = MagicMock()
+    mock_settings.s3.bucket = "test-bucket"
+    mock_settings.s3.region = "us-east-1"
+    mock_settings.s3.endpoint_url = None
+    stack.enter_context(
+        patch(
+            "autom8_asana.settings.get_settings",
+            return_value=mock_settings,
         )
     )
     # Also patch the builder (won't be called when parquet fallback succeeds)

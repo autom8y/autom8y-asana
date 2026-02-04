@@ -1085,8 +1085,32 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
             set_cache_ready(True)
             return
 
-        # Initialize section persistence
-        persistence = SectionPersistence()
+        # Initialize unified S3DataFrameStorage (Phase 2/3,
+        # TDD-UNIFIED-DF-PERSISTENCE-001): single S3 backend with
+        # RetryOrchestrator, shared by SectionPersistence and WatermarkRepo.
+        from autom8_asana.config import S3LocationConfig
+        from autom8_asana.dataframes.storage import (
+            S3DataFrameStorage,
+            create_s3_retry_orchestrator,
+        )
+
+        from autom8_asana.settings import get_settings as get_app_settings
+
+        app_settings = get_app_settings()
+        s3_location = S3LocationConfig(
+            bucket=app_settings.s3.bucket or "",
+            region=app_settings.s3.region,
+            endpoint_url=app_settings.s3.endpoint_url,
+        )
+        df_storage: S3DataFrameStorage | None = None
+        if s3_location.bucket:
+            df_storage = S3DataFrameStorage(
+                location=s3_location,
+                retry_orchestrator=create_s3_retry_orchestrator(),
+            )
+
+        # Initialize section persistence with unified storage delegate
+        persistence = SectionPersistence(storage=df_storage)
 
         # Create SHARED UnifiedTaskStore for cascade field resolution
         # Per cascade architecture: Business tasks must be available when Unit builds
@@ -1115,6 +1139,11 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
 
         # Get watermark repository and DataFrameCache singleton
         watermark_repo = get_watermark_repo()
+        # Wire unified storage into WatermarkRepository for write-through persistence.
+        # Per TDD-UNIFIED-DF-PERSISTENCE-001 Phase 3: WatermarkRepository uses
+        # S3DataFrameStorage via the DataFrameStorage protocol.
+        if df_storage is not None:
+            watermark_repo.set_persistence(df_storage)
         dataframe_cache = get_dataframe_cache()
 
         # Start heartbeat task
@@ -1160,15 +1189,28 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                 # Try loading existing dataframe.parquet from
                                 # S3 (Lambda writes this and deletes the
                                 # manifest after a successful warm).
-                                from autom8_asana.dataframes.persistence import (
-                                    DataFramePersistence,
-                                )
+                                # Per TDD-UNIFIED-DF-PERSISTENCE-001 Phase 3:
+                                # Use unified S3DataFrameStorage when available,
+                                # fall back to legacy DataFramePersistence.
+                                s3_df: pl.DataFrame | None = None
+                                s3_watermark: datetime | None = None
+                                if df_storage is not None:
+                                    (
+                                        s3_df,
+                                        s3_watermark,
+                                    ) = await df_storage.load_dataframe(project_gid)
+                                else:
+                                    from autom8_asana.dataframes.persistence import (
+                                        DataFramePersistence,
+                                    )
 
-                                df_persistence = DataFramePersistence()
-                                (
-                                    s3_df,
-                                    s3_watermark,
-                                ) = await df_persistence.load_dataframe(project_gid)
+                                    df_persistence = DataFramePersistence()
+                                    (
+                                        s3_df,
+                                        s3_watermark,
+                                    ) = await df_persistence.load_dataframe(
+                                        project_gid
+                                    )
 
                                 if s3_df is not None and len(s3_df) > 0:
                                     # Parquet exists — load directly into
