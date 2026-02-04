@@ -83,6 +83,20 @@ def _predicate_discriminator(v: Any) -> str:
     return "comparison"
 
 
+def _wrap_flat_array_to_and_group(v: Any) -> Any:
+    """Auto-wrap a bare list of predicates into an AND group.
+
+    Provides FR-001 syntactic sugar: callers can pass a flat array of
+    comparisons instead of an explicit ``{"and": [...]}`` wrapper.
+    An empty array becomes None (no filter, per EC-005).
+    """
+    if isinstance(v, list):
+        if len(v) == 0:
+            return None
+        return {"and": v}
+    return v
+
+
 PredicateNode = Annotated[
     Annotated[Comparison, Tag("comparison")]
     | Annotated[AndGroup, Tag("and")]
@@ -146,21 +160,13 @@ class AggregateRequest(BaseModel):
     @classmethod
     def wrap_flat_array(cls, v: Any) -> Any:
         """Auto-wrap bare list to AND group (reuse FR-001 sugar)."""
-        if isinstance(v, list):
-            if len(v) == 0:
-                return None
-            return {"and": v}
-        return v
+        return _wrap_flat_array_to_and_group(v)
 
     @field_validator("having", mode="before")
     @classmethod
     def wrap_having_flat_array(cls, v: Any) -> Any:
         """Auto-wrap bare list HAVING to AND group."""
-        if isinstance(v, list):
-            if len(v) == 0:
-                return None
-            return {"and": v}
-        return v
+        return _wrap_flat_array_to_and_group(v)
 
 
 class AggregateMeta(BaseModel):
@@ -206,15 +212,8 @@ class RowsRequest(BaseModel):
     @field_validator("where", mode="before")
     @classmethod
     def wrap_flat_array(cls, v: Any) -> Any:
-        """Auto-wrap bare list to AND group (FR-001 sugar).
-
-        An empty array becomes None (no filter, per EC-005).
-        """
-        if isinstance(v, list):
-            if len(v) == 0:
-                return None
-            return {"and": v}
-        return v
+        """Auto-wrap bare list to AND group (FR-001 sugar)."""
+        return _wrap_flat_array_to_and_group(v)
 
 
 class RowsMeta(BaseModel):
