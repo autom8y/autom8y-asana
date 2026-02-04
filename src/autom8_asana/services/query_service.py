@@ -37,6 +37,7 @@ __all__ = [
     "CacheNotWarmError",
     "QueryResult",
     "EntityQueryService",
+    "resolve_section",
     "validate_fields",
 ]
 
@@ -83,6 +84,64 @@ def validate_fields(
             invalid_fields=sorted(invalid_fields),
             available_fields=sorted(valid_fields),
         )
+
+
+async def resolve_section(
+    section_name: str,
+    entity_type: str,
+    project_gid: str,
+) -> str:
+    """Validate section name and return canonical name for filtering.
+
+    Resolution strategy:
+    1. Try SectionIndex.from_manifest_async() using SectionPersistence
+    2. Fall back to SectionIndex.from_enum_fallback(entity_type)
+    3. If neither resolves, raise UnknownSectionError
+
+    Args:
+        section_name: Section name to validate.
+        entity_type: Entity type for enum fallback.
+        project_gid: Project GID for manifest lookup.
+
+    Returns:
+        The section name as provided (for direct DataFrame column match).
+
+    Raises:
+        UnknownSectionError: If section cannot be resolved.
+    """
+    from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
+    from autom8_asana.metrics.resolve import SectionIndex
+    from autom8_asana.services.errors import UnknownSectionError
+
+    # Try manifest-based resolution first
+    try:
+        from autom8_asana.dataframes.section_persistence import SectionPersistence
+
+        persistence = SectionPersistence()
+        if persistence.is_available:
+            async with persistence:
+                index = await SectionIndex.from_manifest_async(
+                    persistence, project_gid
+                )
+                if index.resolve(section_name) is not None:
+                    return section_name
+    except S3_TRANSPORT_ERRORS:
+        logger.debug(
+            "manifest_section_resolution_failed",
+            exc_info=True,
+            extra={
+                "section_name": section_name,
+                "entity_type": entity_type,
+                "project_gid": project_gid,
+            },
+        )
+
+    # Enum fallback
+    index = SectionIndex.from_enum_fallback(entity_type)
+    if index.resolve(section_name) is not None:
+        return section_name
+
+    raise UnknownSectionError(section_name)
 
 
 class CacheNotWarmError(Exception):
