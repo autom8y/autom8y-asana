@@ -138,7 +138,7 @@ class TestRowsEndpointBasic:
             ),
             # Mock section resolution to succeed
             patch(
-                "autom8_asana.api.routes.query._resolve_section",
+                "autom8_asana.services.query_service.resolve_section",
                 new_callable=AsyncMock,
                 return_value="ACTIVE",
             ),
@@ -632,20 +632,13 @@ class TestRowsErrors:
                 new_callable=AsyncMock,
                 return_value=mock_df,
             ),
-            # Mock _resolve_section to raise UNKNOWN_SECTION
+            # Mock resolve_section to raise UnknownSectionError
             patch(
-                "autom8_asana.api.routes.query._resolve_section",
+                "autom8_asana.services.query_service.resolve_section",
                 new_callable=AsyncMock,
-                side_effect=lambda *args, **kwargs: (_ for _ in ()).throw(
-                    __import__("fastapi").HTTPException(
-                        status_code=422,
-                        detail={
-                            "error": "UNKNOWN_SECTION",
-                            "message": "Unknown section: 'Nonexistent'",
-                            "section": "Nonexistent",
-                        },
-                    )
-                ),
+                side_effect=__import__(
+                    "autom8_asana.services.errors", fromlist=["UnknownSectionError"]
+                ).UnknownSectionError("Nonexistent"),
             ),
         ):
             mock_client = MagicMock()

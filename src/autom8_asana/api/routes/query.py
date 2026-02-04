@@ -409,11 +409,9 @@ async def query_rows(
     request_body: RowsRequest,
     request: Request,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
+    entity_service: EntityServiceDep,
 ) -> RowsResponse:
     """Query entity rows with composable predicate trees.
-
-    Accepts a JSON predicate AST (AND/OR/NOT with leaf comparisons),
-    compiles it to a Polars expression, and filters the cached DataFrame.
 
     Authentication:
         Requires valid service token (S2S JWT).
@@ -431,7 +429,11 @@ async def query_rows(
         - 422 COERCION_FAILED: Value cannot be coerced to field dtype
         - 422 UNKNOWN_SECTION: Section name cannot be resolved
         - 503 CACHE_NOT_WARMED: DataFrame cache not available
+        - 503 SERVICE_NOT_CONFIGURED: Project or bot PAT not configured
     """
+    from autom8_asana.services.errors import UnknownSectionError as SvcUnknownSectionError
+    from autom8_asana.services.query_service import resolve_section
+
     start_time = time.monotonic()
     request_id = getattr(request.state, "request_id", "unknown")
 
@@ -450,75 +452,39 @@ async def query_rows(
         },
     )
 
-    # 2. Validate entity type
-    queryable_types = _get_queryable_entities()
-    if entity_type not in queryable_types:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": "UNKNOWN_ENTITY_TYPE",
-                "message": f"Unknown entity type: {entity_type}",
-                "available_types": sorted(queryable_types),
-            },
-        )
-
-    # 3. Get project GID
-    entity_registry: EntityProjectRegistry | None = getattr(
-        request.app.state, "entity_project_registry", None
-    )
-
-    if entity_registry is None or not entity_registry.is_ready():
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "PROJECT_NOT_CONFIGURED",
-                "message": "Entity project registry not initialized.",
-            },
-        )
-
-    project_gid = entity_registry.get_project_gid(entity_type)
-    if project_gid is None:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "PROJECT_NOT_CONFIGURED",
-                "message": f"No project configured for entity type: {entity_type}",
-            },
-        )
-
-    # 4. Get bot PAT
-    from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
-
+    # 2. Entity validation (replaces inline entity type + project + bot PAT logic)
     try:
-        bot_pat = get_bot_pat()
-    except BotPATError as e:
-        logger.error(
-            "bot_pat_unavailable",
-            extra={"request_id": request_id, "error": str(e)},
-        )
+        ctx = entity_service.validate_entity_type(entity_type)
+    except ServiceError as e:
         raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "SERVICE_NOT_CONFIGURED",
-                "message": "Bot PAT not configured for cache operations.",
-            },
+            status_code=get_status_for_error(e), detail=e.to_dict()
         )
 
-    # 5. Build section index for section validation (if needed)
+    # 3. Section resolution (if needed)
     section_index = None
     if request_body.section is not None:
-        # Validate section name
-        await _resolve_section(request_body.section, entity_type, project_gid)
+        try:
+            await resolve_section(
+                request_body.section, entity_type, ctx.project_gid
+            )
+        except SvcUnknownSectionError as e:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "UNKNOWN_SECTION",
+                    "message": f"Unknown section: '{e.section_name}'",
+                    "section": e.section_name,
+                },
+            )
         # Build section index for QueryEngine
         from autom8_asana.metrics.resolve import SectionIndex
 
         section_index = SectionIndex.from_enum_fallback(entity_type)
 
-    # 6. EC-006: If section param + section in predicate, strip conflicts
+    # 4. EC-006: If section param + section in predicate, strip conflicts
     if request_body.section is not None and request_body.where is not None:
         from autom8_asana.query.models import Comparison
 
-        # Check if any section predicates exist
         def _has_section_pred(node: Any) -> bool:
             if isinstance(node, Comparison):
                 return node.field == "section"
@@ -540,17 +506,16 @@ async def query_rows(
                 },
             )
             stripped = strip_section_predicates(request_body.where)
-            # Reconstruct the request with stripped predicates
             request_body = request_body.model_copy(update={"where": stripped})
 
-    # 7. Execute via QueryEngine (handles compilation, depth check, etc.)
+    # 5. Execute via QueryEngine
     engine = QueryEngine()
 
     try:
-        async with AsanaClient(token=bot_pat) as client:
+        async with AsanaClient(token=ctx.bot_pat) as client:
             response = await engine.execute_rows(
                 entity_type=entity_type,
-                project_gid=project_gid,
+                project_gid=ctx.project_gid,
                 client=client,
                 request=request_body,
                 section_index=section_index,
@@ -576,7 +541,7 @@ async def query_rows(
             },
         )
 
-    # 8. Log completion
+    # 6. Log completion
     elapsed_ms = (time.monotonic() - start_time) * 1000
 
     logger.info(
