@@ -25,9 +25,6 @@ from autom8_asana.api.routes.internal import (
     require_service_claims,
 )
 from autom8_asana.client import AsanaClient
-from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
-from autom8_asana.dataframes.exceptions import SchemaNotFoundError
-from autom8_asana.dataframes.models.registry import SchemaRegistry
 from autom8_asana.query.compiler import strip_section_predicates
 from autom8_asana.query.engine import QueryEngine
 from autom8_asana.query.errors import (
@@ -41,17 +38,14 @@ from autom8_asana.query.models import RowsRequest, RowsResponse
 from autom8_asana.services.errors import (
     InvalidFieldError,
     ServiceError,
+    UnknownSectionError as SvcUnknownSectionError,
     get_status_for_error,
 )
 from autom8_asana.services.query_service import (
     CacheNotWarmError,
     EntityQueryService,
+    resolve_section,
     validate_fields,
-)
-from autom8_asana.services.resolver import (
-    EntityProjectRegistry,
-    get_resolvable_entities,
-    to_pascal_case,
 )
 
 __all__ = [
@@ -66,24 +60,11 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/v1/query", tags=["query"])
 
 
-# Default fields when select is not specified
 DEFAULT_SELECT_FIELDS = ["gid", "name", "section"]
 
 
-# --- Request/Response Models ---
-
-
 class QueryRequest(BaseModel):
-    """Request body for entity query.
-
-    Per PRD FR-002: Unified where clause with AND semantics.
-
-    Attributes:
-        where: Filter criteria (field -> value, AND semantics).
-        select: Fields to include in response (default: gid, name, section).
-        limit: Max results per page (1-1000, default 100).
-        offset: Skip N results for pagination (default 0).
-    """
+    """Legacy query request with flat equality filtering (AND semantics)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -95,15 +76,13 @@ class QueryRequest(BaseModel):
     @field_validator("limit")
     @classmethod
     def validate_limit(cls, v: int) -> int:
-        """Enforce limit bounds (1-1000), clamp if exceeded."""
         if v < 1:
             raise ValueError("limit must be >= 1")
-        return min(v, 1000)  # Clamp to max
+        return min(v, 1000)
 
     @field_validator("offset")
     @classmethod
     def validate_offset(cls, v: int) -> int:
-        """Enforce non-negative offset."""
         if v < 0:
             raise ValueError("offset must be >= 0")
         return v
@@ -113,83 +92,39 @@ class QueryMeta(BaseModel):
     """Response metadata for pagination and context."""
 
     model_config = ConfigDict(extra="forbid")
-
-    total_count: int  # Total matching records (before pagination)
-    limit: int  # Limit used for this request
-    offset: int  # Offset used for this request
-    entity_type: str  # Entity type queried
-    project_gid: str  # Project GID used
+    total_count: int
+    limit: int
+    offset: int
+    entity_type: str
+    project_gid: str
 
 
 class QueryResponse(BaseModel):
-    """Response body for entity query.
-
-    Per PRD FR-003: Contains data array and metadata.
-    """
+    """Response body for entity query."""
 
     model_config = ConfigDict(extra="forbid")
-
-    data: list[dict[str, Any]]  # Matching records with selected fields
+    data: list[dict[str, Any]]
     meta: QueryMeta
 
 
-# --- Helper Functions ---
-
-
-def _get_queryable_entities() -> set[str]:
-    """Get entity types that support querying.
-
-    Returns entity types that have both a schema and registered project.
-    """
-    return get_resolvable_entities()
-
-
-def _validate_fields(
-    fields: list[str],
-    entity_type: str,
-    field_type: str,  # "where" or "select"
-) -> None:
-    """Validate fields against entity schema.
-
-    Args:
-        fields: Field names to validate.
-        entity_type: Entity type for schema lookup.
-        field_type: "where" or "select" for error message.
-
-    Raises:
-        HTTPException: 422 if any field is invalid.
-    """
-    registry = SchemaRegistry.get_instance()
-    schema_key = to_pascal_case(entity_type)
-
-    try:
-        schema = registry.get_schema(schema_key)
-    except SchemaNotFoundError:
-        schema = registry.get_schema("*")
-
-    valid_fields = set(schema.column_names())
-    invalid_fields = set(fields) - valid_fields
-
-    if invalid_fields:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "error": "INVALID_FIELD",
-                "message": f"Unknown field(s) in {field_type} clause: {sorted(invalid_fields)}",
-                "available_fields": sorted(valid_fields),
-            },
-        )
-
-
 def _get_query_service() -> EntityQueryService:
-    """Get EntityQueryService instance.
-
-    Factory function for dependency injection.
-    """
+    """Get EntityQueryService instance."""
     return EntityQueryService()
 
 
-# --- Endpoints ---
+def _has_section_pred(node: Any) -> bool:
+    """Check if a predicate tree contains any section comparisons."""
+    from autom8_asana.query.models import Comparison
+
+    if isinstance(node, Comparison):
+        return node.field == "section"
+    if hasattr(node, "and_"):
+        return any(_has_section_pred(c) for c in node.and_)
+    if hasattr(node, "or_"):
+        return any(_has_section_pred(c) for c in node.or_)
+    if hasattr(node, "not_"):
+        return _has_section_pred(node.not_)
+    return False
 
 
 @router.post("/{entity_type}", response_model=QueryResponse)
@@ -200,25 +135,7 @@ async def query_entities(
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
     entity_service: EntityServiceDep,
 ) -> JSONResponse:
-    """Query entities from DataFrame cache with full cache lifecycle.
-
-    Authentication:
-        Requires valid service token (S2S JWT).
-        PAT tokens are NOT supported.
-
-    Path Parameters:
-        entity_type: Entity type to query (unit, business, offer, etc.)
-
-    Error Responses:
-        - 401 MISSING_AUTH: No Authorization header
-        - 401 SERVICE_TOKEN_REQUIRED: PAT token provided (S2S only)
-        - 401 JWT_INVALID: JWT validation failed
-        - 404 UNKNOWN_ENTITY_TYPE: entity_type not in allowed values
-        - 422 INVALID_FIELD: Field in where/select not in schema
-        - 422 VALIDATION_ERROR: Invalid request body
-        - 503 CACHE_NOT_WARMED: DataFrame cache not available
-        - 503 SERVICE_NOT_CONFIGURED: Project or bot PAT not configured
-    """
+    """Query entities from DataFrame cache (deprecated -- use /rows)."""
     start_time = time.monotonic()
     request_id = getattr(request.state, "request_id", "unknown")
 
@@ -340,69 +257,6 @@ async def query_entities(
     return response_obj
 
 
-# --- Section Resolution Helper ---
-
-
-async def _resolve_section(
-    section_name: str,
-    entity_type: str,
-    project_gid: str,
-) -> str:
-    """Validate section name and return canonical name for filtering.
-
-    Strategy:
-    1. Try SectionIndex.from_manifest_async() using SectionPersistence
-    2. Fall back to SectionIndex.from_enum_fallback(entity_type)
-    3. If neither resolves, raise UNKNOWN_SECTION error
-
-    Returns:
-        The section name as provided (for direct DataFrame column match).
-
-    Raises:
-        HTTPException 422 UNKNOWN_SECTION
-    """
-    from autom8_asana.metrics.resolve import SectionIndex
-
-    # Try manifest-based resolution first
-    try:
-        from autom8_asana.dataframes.section_persistence import SectionPersistence
-
-        persistence = SectionPersistence()
-        if persistence.is_available:
-            async with persistence:
-                index = await SectionIndex.from_manifest_async(persistence, project_gid)
-                if index.resolve(section_name) is not None:
-                    return section_name
-    except S3_TRANSPORT_ERRORS:
-        # Manifest unavailable; fall through to enum fallback
-        logger.debug(
-            "manifest_section_resolution_failed",
-            exc_info=True,
-            extra={
-                "section_name": section_name,
-                "entity_type": entity_type,
-                "project_gid": project_gid,
-            },
-        )
-
-    # Enum fallback
-    index = SectionIndex.from_enum_fallback(entity_type)
-    if index.resolve(section_name) is not None:
-        return section_name
-
-    raise HTTPException(
-        status_code=422,
-        detail={
-            "error": "UNKNOWN_SECTION",
-            "message": f"Unknown section: '{section_name}'",
-            "section": section_name,
-        },
-    )
-
-
-# --- New /rows Endpoint ---
-
-
 @router.post("/{entity_type}/rows", response_model=RowsResponse)
 async def query_rows(
     entity_type: str,
@@ -411,29 +265,7 @@ async def query_rows(
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
     entity_service: EntityServiceDep,
 ) -> RowsResponse:
-    """Query entity rows with composable predicate trees.
-
-    Authentication:
-        Requires valid service token (S2S JWT).
-        PAT tokens are NOT supported.
-
-    Path Parameters:
-        entity_type: Entity type to query (unit, business, offer, etc.)
-
-    Error Responses:
-        - 400 QUERY_TOO_COMPLEX: Predicate depth exceeds MAX_PREDICATE_DEPTH
-        - 401 MISSING_AUTH / SERVICE_TOKEN_REQUIRED / JWT_INVALID
-        - 404 UNKNOWN_ENTITY_TYPE: entity_type not in allowed values
-        - 422 UNKNOWN_FIELD: Predicate references non-existent column
-        - 422 INVALID_OPERATOR: Operator incompatible with field dtype
-        - 422 COERCION_FAILED: Value cannot be coerced to field dtype
-        - 422 UNKNOWN_SECTION: Section name cannot be resolved
-        - 503 CACHE_NOT_WARMED: DataFrame cache not available
-        - 503 SERVICE_NOT_CONFIGURED: Project or bot PAT not configured
-    """
-    from autom8_asana.services.errors import UnknownSectionError as SvcUnknownSectionError
-    from autom8_asana.services.query_service import resolve_section
-
+    """Query entity rows with composable predicate trees."""
     start_time = time.monotonic()
     request_id = getattr(request.state, "request_id", "unknown")
 
@@ -483,19 +315,6 @@ async def query_rows(
 
     # 4. EC-006: If section param + section in predicate, strip conflicts
     if request_body.section is not None and request_body.where is not None:
-        from autom8_asana.query.models import Comparison
-
-        def _has_section_pred(node: Any) -> bool:
-            if isinstance(node, Comparison):
-                return node.field == "section"
-            if hasattr(node, "and_"):
-                return any(_has_section_pred(c) for c in node.and_)
-            if hasattr(node, "or_"):
-                return any(_has_section_pred(c) for c in node.or_)
-            if hasattr(node, "not_"):
-                return _has_section_pred(node.not_)
-            return False
-
         if _has_section_pred(request_body.where):
             logger.warning(
                 "section_parameter_conflicts_with_predicate",
