@@ -166,7 +166,10 @@ class TieredCacheProvider:
             try:
                 self._cold.delete(key)
             except Exception as e:
-                logger.warning(f"S3 delete failed for {key}, continuing: {e}")
+                logger.warning(
+                    "s3_delete_failed",
+                    extra={"key": key, "error": str(e)},
+                )
 
     # === Versioned methods with two-tier support ===
 
@@ -209,7 +212,10 @@ class TieredCacheProvider:
         try:
             entry = self._cold.get_versioned(key, entry_type, freshness)
         except Exception as e:
-            logger.warning(f"S3 get_versioned failed for {key}/{entry_type.value}: {e}")
+            logger.warning(
+                "s3_get_versioned_failed",
+                extra={"key": key, "entry_type": entry_type.value, "error": str(e)},
+            )
             return None
 
         if entry is None:
@@ -225,7 +231,10 @@ class TieredCacheProvider:
             )
         except Exception as e:
             # Promotion failure shouldn't fail the read
-            logger.warning(f"Promotion to Redis failed for {key}: {e}")
+            logger.warning(
+                "redis_promotion_failed",
+                extra={"key": key, "error": str(e)},
+            )
 
         return entry
 
@@ -255,7 +264,8 @@ class TieredCacheProvider:
             except Exception as e:
                 # S3 write failure - log but don't fail operation
                 logger.warning(
-                    f"S3 write-through failed for {key}/{entry.entry_type.value}: {e}"
+                    "s3_write_through_failed",
+                    extra={"key": key, "entry_type": entry.entry_type.value, "error": str(e)},
                 )
 
     def get_batch(
@@ -294,7 +304,10 @@ class TieredCacheProvider:
         try:
             cold_results = self._cold.get_batch(missed_keys, entry_type)
         except Exception as e:
-            logger.warning(f"S3 get_batch failed for {len(missed_keys)} keys: {e}")
+            logger.warning(
+                "s3_get_batch_failed",
+                extra={"key_count": len(missed_keys), "error": str(e)},
+            )
             return result
 
         # Promote cold hits to hot tier
@@ -315,7 +328,10 @@ class TieredCacheProvider:
                         entry_type=entry_type.value,
                     )
             except Exception as e:
-                logger.warning(f"Batch promotion to Redis failed: {e}")
+                logger.warning(
+                    "batch_promotion_to_redis_failed",
+                    extra={"error": str(e)},
+                )
 
         return result
 
@@ -342,7 +358,10 @@ class TieredCacheProvider:
             try:
                 self._cold.set_batch(entries)
             except Exception as e:
-                logger.warning(f"S3 batch write-through failed: {e}")
+                logger.warning(
+                    "s3_batch_write_through_failed",
+                    extra={"error": str(e)},
+                )
 
     def warm(
         self,
@@ -405,7 +424,10 @@ class TieredCacheProvider:
             try:
                 self._cold.invalidate(key, entry_types)
             except Exception as e:
-                logger.warning(f"S3 invalidate failed for {key}: {e}")
+                logger.warning(
+                    "s3_invalidate_failed",
+                    extra={"key": key, "error": str(e)},
+                )
 
     def is_healthy(self) -> bool:
         """Check if cache is operational.
@@ -457,7 +479,10 @@ class TieredCacheProvider:
             if clear_func is not None:
                 result["redis"] = clear_func()
         except Exception as e:
-            logger.warning(f"Redis clear_all_tasks failed: {e}")
+            logger.warning(
+                "redis_clear_all_tasks_failed",
+                extra={"error": str(e)},
+            )
 
         # Clear cold tier (S3) if enabled
         if self.s3_enabled and self._cold is not None:
@@ -467,7 +492,10 @@ class TieredCacheProvider:
                 if clear_func is not None:
                     result["s3"] = clear_func()
             except Exception as e:
-                logger.warning(f"S3 clear_all_tasks failed: {e}")
+                logger.warning(
+                    "s3_clear_all_tasks_failed",
+                    extra={"error": str(e)},
+                )
 
         logger.info(
             "tiered_clear_all_tasks_complete",

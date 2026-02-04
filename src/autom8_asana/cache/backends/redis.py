@@ -299,7 +299,10 @@ class RedisCacheProvider(DegradedModeMixin):
                 metadata=metadata,
             )
         except (json.JSONDecodeError, ValueError, KeyError) as e:
-            logger.warning(f"Failed to deserialize cache entry for {key}: {e}")
+            logger.warning(
+                "cache_entry_deserialize_failed",
+                extra={"key": key, "error": str(e)},
+            )
             return None
 
     # === Original methods (backward compatible) ===
@@ -621,7 +624,10 @@ class RedisCacheProvider(DegradedModeMixin):
         """
         # Phase 1: Warming requires integration with TasksClient
         # which is out of scope. Return placeholder.
-        logger.info(f"Cache warm requested for {len(gids)} GIDs (not yet implemented)")
+        logger.info(
+            "cache_warm_requested",
+            extra={"gid_count": len(gids), "status": "not_implemented"},
+        )
         return WarmResult(warmed=0, failed=0, skipped=len(gids))
 
     def check_freshness(
