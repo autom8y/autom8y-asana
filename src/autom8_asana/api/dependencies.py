@@ -420,6 +420,58 @@ MutationInvalidatorDep = Annotated[
 RequestId = Annotated[str, Depends(get_request_id)]
 
 
+# --- Service Factories (I2 additions) ---
+
+
+def get_task_service(
+    invalidator: MutationInvalidatorDep,
+) -> "TaskService":
+    """Get TaskService with MutationInvalidator.
+
+    Per TDD-I2-SERVICE-WIRING-001: TaskService is per-request,
+    receiving the MutationInvalidator via FastAPI's DI chain.
+
+    Args:
+        invalidator: MutationInvalidator from DI.
+
+    Returns:
+        TaskService instance.
+    """
+    from autom8_asana.services.task_service import TaskService
+
+    return TaskService(invalidator=invalidator)
+
+
+def get_section_service(
+    invalidator: MutationInvalidatorDep,
+) -> "SectionService":
+    """Get SectionService with MutationInvalidator.
+
+    Per TDD-I2-SERVICE-WIRING-001: SectionService is per-request,
+    receiving the MutationInvalidator via FastAPI's DI chain.
+
+    Args:
+        invalidator: MutationInvalidator from DI.
+
+    Returns:
+        SectionService instance.
+    """
+    from autom8_asana.services.section_service import SectionService
+
+    return SectionService(invalidator=invalidator)
+
+
+# Import types for Annotated aliases (lazy to avoid cycles)
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from autom8_asana.services.section_service import SectionService
+    from autom8_asana.services.task_service import TaskService
+
+TaskServiceDep = Annotated["TaskService", Depends(get_task_service)]
+SectionServiceDep = Annotated["SectionService", Depends(get_section_service)]
+
+
 __all__ = [
     # Auth context (new dual-mode)
     "AuthContext",
@@ -428,6 +480,11 @@ __all__ = [
     # Cache invalidation
     "get_mutation_invalidator",
     "MutationInvalidatorDep",
+    # Service factories (I2)
+    "get_task_service",
+    "get_section_service",
+    "TaskServiceDep",
+    "SectionServiceDep",
     # Legacy dependencies (backward compatibility)
     "get_asana_client",
     "get_asana_pat",

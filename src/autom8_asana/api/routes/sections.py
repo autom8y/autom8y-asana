@@ -1,10 +1,7 @@
-"""Sections REST endpoints with cache invalidation.
+"""Sections REST endpoints delegating to SectionService.
 
 This module provides REST endpoints for Asana Section operations,
-wrapping the SDK SectionsClient with thin API handlers.
-
-Per TDD-CACHE-INVALIDATION-001: Section mutation endpoints (S1-S4)
-fire MutationInvalidator.fire_and_forget() after successful Asana API calls.
+delegating business logic to SectionService per TDD-I2-SERVICE-WIRING-001.
 
 Endpoints:
 - GET /api/v1/sections/{gid} - Get section by GID
@@ -25,8 +22,8 @@ from fastapi import APIRouter, HTTPException, status
 
 from autom8_asana.api.dependencies import (
     AsanaClientDualMode,
-    MutationInvalidatorDep,
     RequestId,
+    SectionServiceDep,
 )
 from autom8_asana.api.models import (
     AddTaskToSectionRequest,
@@ -36,11 +33,7 @@ from autom8_asana.api.models import (
     UpdateSectionRequest,
     build_success_response,
 )
-from autom8_asana.cache.models.mutation_event import (
-    EntityKind,
-    MutationEvent,
-    MutationType,
-)
+from autom8_asana.services.errors import ServiceError, get_status_for_error
 
 router = APIRouter(prefix="/api/v1/sections", tags=["sections"])
 
@@ -57,10 +50,9 @@ async def get_section(
     gid: str,
     client: AsanaClientDualMode,
     request_id: RequestId,
+    section_service: SectionServiceDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Get a section by its GID.
-
-    Per FR-API-SECT-001: Get section by GID.
 
     Args:
         gid: Asana section GID.
@@ -68,7 +60,7 @@ async def get_section(
     Returns:
         Section data.
     """
-    section = await client.sections.get_async(gid, raw=True)
+    section = await section_service.get_section(client, gid)
     return build_success_response(data=section, request_id=request_id)
 
 
@@ -83,11 +75,9 @@ async def create_section(
     body: CreateSectionRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
-    invalidator: MutationInvalidatorDep,
+    section_service: SectionServiceDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Create a new section in a project.
-
-    Per FR-API-SECT-002: Create section with name and project.
 
     Args:
         body: Section creation parameters.
@@ -95,21 +85,9 @@ async def create_section(
     Returns:
         Created section data.
     """
-    section = await client.sections.create_async(
-        name=body.name,
-        project=body.project,
-        raw=True,
+    section = await section_service.create_section(
+        client, name=body.name, project=body.project
     )
-
-    # Fire-and-forget: new section affects project DataFrame
-    section_gid = section.get("gid", "") if isinstance(section, dict) else ""
-    invalidator.fire_and_forget(MutationEvent(
-        entity_kind=EntityKind.SECTION,
-        entity_gid=section_gid,
-        mutation_type=MutationType.CREATE,
-        project_gids=[body.project],
-    ))
-
     return build_success_response(data=section, request_id=request_id)
 
 
@@ -124,11 +102,9 @@ async def update_section(
     body: UpdateSectionRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
-    invalidator: MutationInvalidatorDep,
+    section_service: SectionServiceDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Update a section (rename).
-
-    Per FR-API-SECT-003: Update section name.
 
     Args:
         gid: Asana section GID.
@@ -137,23 +113,7 @@ async def update_section(
     Returns:
         Updated section data.
     """
-    section = await client.sections.update_async(gid, raw=True, name=body.name)
-
-    # Fire-and-forget: section rename affects DataFrame rows
-    # Extract project GID from response if available
-    project_gids: list[str] = []
-    if isinstance(section, dict):
-        project = section.get("project")
-        if isinstance(project, dict) and project.get("gid"):
-            project_gids = [project["gid"]]
-
-    invalidator.fire_and_forget(MutationEvent(
-        entity_kind=EntityKind.SECTION,
-        entity_gid=gid,
-        mutation_type=MutationType.UPDATE,
-        project_gids=project_gids,
-    ))
-
+    section = await section_service.update_section(client, gid, body.name)
     return build_success_response(data=section, request_id=request_id)
 
 
@@ -166,13 +126,9 @@ async def update_section(
 async def delete_section(
     gid: str,
     client: AsanaClientDualMode,
-    invalidator: MutationInvalidatorDep,
+    section_service: SectionServiceDep,
 ) -> None:
     """Delete a section.
-
-    Per FR-API-SECT-004: Delete section by GID.
-    Note: DELETE returns 204, no project context available from response.
-    Entity cache is invalidated; DataFrame invalidation skipped (no project GID).
 
     Args:
         gid: Asana section GID.
@@ -180,16 +136,7 @@ async def delete_section(
     Returns:
         No content on success.
     """
-    await client.sections.delete_async(gid)  # type: ignore[attr-defined]
-
-    # Fire-and-forget: section deleted, entity cache invalidated
-    # No project GID available from 204 response
-    invalidator.fire_and_forget(MutationEvent(
-        entity_kind=EntityKind.SECTION,
-        entity_gid=gid,
-        mutation_type=MutationType.DELETE,
-        project_gids=[],
-    ))
+    await section_service.delete_section(client, gid)
 
 
 # --- Task Operations ---
@@ -205,14 +152,9 @@ async def add_task_to_section(
     gid: str,
     body: AddTaskToSectionRequest,
     client: AsanaClientDualMode,
-    invalidator: MutationInvalidatorDep,
+    section_service: SectionServiceDep,
 ) -> None:
     """Add a task to a section.
-
-    Per FR-API-SECT-005: Add task to section.
-
-    Moves the task to the specified section. If the task is already
-    in another section of the same project, it will be moved.
 
     Args:
         gid: Section GID.
@@ -221,17 +163,7 @@ async def add_task_to_section(
     Returns:
         No content on success.
     """
-    await client.sections.add_task_async(gid, task=body.task_gid)  # type: ignore[attr-defined]
-
-    # Fire-and-forget: task added to section affects project DataFrame
-    # section_gid field carries the task_gid that was added (per TDD convention)
-    invalidator.fire_and_forget(MutationEvent(
-        entity_kind=EntityKind.SECTION,
-        entity_gid=gid,
-        mutation_type=MutationType.ADD_MEMBER,
-        project_gids=[],  # No project GID from 204 response
-        section_gid=body.task_gid,  # Task GID that was added
-    ))
+    await section_service.add_task(client, gid, body.task_gid)
 
 
 # --- Reorder Operations ---
@@ -246,11 +178,9 @@ async def reorder_section(
     gid: str,
     body: ReorderSectionRequest,
     client: AsanaClientDualMode,
+    section_service: SectionServiceDep,
 ) -> None:
     """Reorder a section within a project.
-
-    Per FR-API-SECT-006: Reorder section within project.
-    Note: Reorder does not affect cache (order is not cached).
 
     Moves the section to a new position. Exactly one of before_section
     or after_section must be provided.
@@ -265,24 +195,18 @@ async def reorder_section(
     Raises:
         400: Neither or both of before_section/after_section provided.
     """
-    if body.before_section is None and body.after_section is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Either 'before_section' or 'after_section' must be provided",
+    try:
+        await section_service.reorder(
+            client,
+            gid,
+            body.project_gid,
+            before_section=body.before_section,
+            after_section=body.after_section,
         )
-
-    if body.before_section is not None and body.after_section is not None:
+    except ServiceError as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only one of 'before_section' or 'after_section' may be specified",
+            status_code=get_status_for_error(e), detail=e.message
         )
-
-    await client.sections.insert_section_async(  # type: ignore[attr-defined]
-        body.project_gid,
-        section=gid,
-        before_section=body.before_section,
-        after_section=body.after_section,
-    )
 
 
 __all__ = ["router"]

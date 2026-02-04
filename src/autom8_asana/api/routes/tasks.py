@@ -1,10 +1,7 @@
-"""Tasks REST endpoints with cache invalidation.
+"""Tasks REST endpoints delegating to TaskService.
 
 This module provides REST endpoints for Asana Task operations,
-wrapping the SDK TasksClient with thin API handlers.
-
-Per TDD-CACHE-INVALIDATION-001: All 10 mutation endpoints (T1-T10)
-fire MutationInvalidator.fire_and_forget() after successful Asana API calls.
+delegating business logic to TaskService per TDD-I2-SERVICE-WIRING-001.
 
 Endpoints:
 - GET /api/v1/tasks?project={gid} - List tasks by project (paginated)
@@ -36,8 +33,8 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from autom8_asana.api.dependencies import (
     AsanaClientDualMode,
-    MutationInvalidatorDep,
     RequestId,
+    TaskServiceDep,
 )
 from autom8_asana.api.models import (
     AddTagRequest,
@@ -51,12 +48,8 @@ from autom8_asana.api.models import (
     UpdateTaskRequest,
     build_success_response,
 )
-from autom8_asana.cache.models.mutation_event import (
-    EntityKind,
-    MutationEvent,
-    MutationType,
-    extract_project_gids,
-)
+from autom8_asana.services.errors import ServiceError, get_status_for_error
+from autom8_asana.services.task_service import CreateTaskParams, UpdateTaskParams
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 
@@ -76,6 +69,7 @@ MAX_LIMIT = 100
 async def list_tasks(
     client: AsanaClientDualMode,
     request_id: RequestId,
+    task_service: TaskServiceDep,
     project: Annotated[
         str | None,
         Query(description="Project GID to list tasks from"),
@@ -95,14 +89,11 @@ async def list_tasks(
 ) -> SuccessResponse[list[dict[str, Any]]]:
     """List tasks by project or section with pagination.
 
-    Returns a paginated list of tasks from the specified project or section.
-    Either project or section must be provided (not both).
-
     Args:
-        project: Project GID to list tasks from (FR-API-TASK-006).
-        section: Section GID to list tasks from (FR-API-TASK-007).
+        project: Project GID to list tasks from.
+        section: Section GID to list tasks from.
         limit: Number of items per page (1-100, default 100).
-        offset: Pagination cursor from previous response (FR-API-TASK-008).
+        offset: Pagination cursor from previous response.
 
     Returns:
         List of tasks with pagination metadata.
@@ -110,41 +101,23 @@ async def list_tasks(
     Raises:
         400: Neither project nor section provided, or both provided.
     """
-    if project is None and section is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Either 'project' or 'section' query parameter is required",
+    try:
+        result = await task_service.list_tasks(
+            client, project=project, section=section, limit=limit, offset=offset
         )
-
-    if project is not None and section is not None:
+    except ServiceError as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only one of 'project' or 'section' may be specified",
+            status_code=get_status_for_error(e), detail=e.message
         )
-
-    # Build params for SDK call
-    params: dict[str, Any] = {"limit": min(limit, MAX_LIMIT)}
-    if offset:
-        params["offset"] = offset
-
-    # Use the HTTP client directly for paginated requests
-    if project:
-        endpoint = f"/projects/{project}/tasks"
-    else:
-        endpoint = f"/sections/{section}/tasks"
-
-    data, next_offset = await client._http.get_paginated(endpoint, params=params)
 
     pagination = PaginationMeta(
         limit=limit,
-        has_more=next_offset is not None,
-        next_offset=next_offset,
+        has_more=result.has_more,
+        next_offset=result.next_offset,
     )
 
     return build_success_response(
-        data=data,
-        request_id=request_id,
-        pagination=pagination,
+        data=result.data, request_id=request_id, pagination=pagination
     )
 
 
@@ -157,18 +130,16 @@ async def get_task(
     gid: str,
     client: AsanaClientDualMode,
     request_id: RequestId,
+    task_service: TaskServiceDep,
     opt_fields: Annotated[
         str | None,
         Query(
             description="Comma-separated list of fields to include",
-            example="name,notes,due_on,assignee",
+            examples=["name,notes,due_on,assignee"],
         ),
     ] = None,
 ) -> SuccessResponse[dict[str, Any]]:
     """Get a task by its GID.
-
-    Per FR-API-TASK-001: Get task by GID.
-    Per FR-API-TASK-002: Support opt_fields for field selection.
 
     Args:
         gid: Asana task GID.
@@ -177,12 +148,11 @@ async def get_task(
     Returns:
         Task data with requested fields.
     """
-    # Parse opt_fields if provided
     fields_list: list[str] | None = None
     if opt_fields:
         fields_list = [f.strip() for f in opt_fields.split(",")]
 
-    task = await client.tasks.get_async(gid, opt_fields=fields_list, raw=True)
+    task = await task_service.get_task(client, gid, opt_fields=fields_list)
     return build_success_response(data=task, request_id=request_id)
 
 
@@ -197,11 +167,9 @@ async def create_task(
     body: CreateTaskRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
-    invalidator: MutationInvalidatorDep,
+    task_service: TaskServiceDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Create a new task.
-
-    Per FR-API-TASK-003: Create task with name, notes, assignee, projects, due_on.
 
     Args:
         body: Task creation parameters.
@@ -212,39 +180,22 @@ async def create_task(
     Raises:
         400: Neither projects nor workspace provided.
     """
-    if body.projects is None and body.workspace is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Either 'projects' or 'workspace' must be provided",
+    try:
+        task = await task_service.create_task(
+            client,
+            CreateTaskParams(
+                name=body.name,
+                projects=body.projects,
+                workspace=body.workspace,
+                notes=body.notes,
+                assignee=body.assignee,
+                due_on=body.due_on,
+            ),
         )
-
-    # Build kwargs for SDK
-    kwargs: dict[str, Any] = {}
-    if body.notes:
-        kwargs["notes"] = body.notes
-    if body.assignee:
-        kwargs["assignee"] = body.assignee
-    if body.due_on:
-        kwargs["due_on"] = body.due_on
-
-    task = await client.tasks.create_async(
-        name=body.name,
-        projects=body.projects,
-        workspace=body.workspace,
-        raw=True,
-        **kwargs,
-    )
-
-    # Fire-and-forget: invalidate cache without blocking response
-    # Project GIDs from request body (task response may also include them)
-    project_gids = extract_project_gids(task) or (body.projects or [])
-    task_gid = task.get("gid", "") if isinstance(task, dict) else ""
-    invalidator.fire_and_forget(MutationEvent(
-        entity_kind=EntityKind.TASK,
-        entity_gid=task_gid,
-        mutation_type=MutationType.CREATE,
-        project_gids=list(project_gids),
-    ))
+    except ServiceError as e:
+        raise HTTPException(
+            status_code=get_status_for_error(e), detail=e.message
+        )
 
     return build_success_response(data=task, request_id=request_id)
 
@@ -260,11 +211,9 @@ async def update_task(
     body: UpdateTaskRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
-    invalidator: MutationInvalidatorDep,
+    task_service: TaskServiceDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Update an existing task.
-
-    Per FR-API-TASK-004: Update task fields.
 
     Only provided fields are updated; omitted fields retain their values.
 
@@ -275,32 +224,21 @@ async def update_task(
     Returns:
         Updated task data.
     """
-    # Build kwargs from non-None fields
-    kwargs: dict[str, Any] = {}
-    if body.name is not None:
-        kwargs["name"] = body.name
-    if body.notes is not None:
-        kwargs["notes"] = body.notes
-    if body.completed is not None:
-        kwargs["completed"] = body.completed
-    if body.due_on is not None:
-        kwargs["due_on"] = body.due_on
-
-    if not kwargs:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one field must be provided for update",
+    try:
+        task = await task_service.update_task(
+            client,
+            gid,
+            UpdateTaskParams(
+                name=body.name,
+                notes=body.notes,
+                completed=body.completed,
+                due_on=body.due_on,
+            ),
         )
-
-    task = await client.tasks.update_async(gid, raw=True, **kwargs)
-
-    # Fire-and-forget: invalidate cache without blocking response
-    invalidator.fire_and_forget(MutationEvent(
-        entity_kind=EntityKind.TASK,
-        entity_gid=gid,
-        mutation_type=MutationType.UPDATE,
-        project_gids=extract_project_gids(task),
-    ))
+    except ServiceError as e:
+        raise HTTPException(
+            status_code=get_status_for_error(e), detail=e.message
+        )
 
     return build_success_response(data=task, request_id=request_id)
 
@@ -314,13 +252,9 @@ async def update_task(
 async def delete_task(
     gid: str,
     client: AsanaClientDualMode,
-    invalidator: MutationInvalidatorDep,
+    task_service: TaskServiceDep,
 ) -> None:
     """Delete a task.
-
-    Per FR-API-TASK-005: Delete task by GID.
-    Per ADR-002: DELETE returns 204 with no body, so no project_gids available.
-    Entity cache is still invalidated; DataFrame invalidation skipped.
 
     Args:
         gid: Asana task GID.
@@ -328,15 +262,7 @@ async def delete_task(
     Returns:
         No content on success.
     """
-    await client.tasks.delete_async(gid)
-
-    # Fire-and-forget: entity cache invalidated, DataFrame skipped (no project context)
-    invalidator.fire_and_forget(MutationEvent(
-        entity_kind=EntityKind.TASK,
-        entity_gid=gid,
-        mutation_type=MutationType.DELETE,
-        project_gids=[],  # 204 No Content - no project GIDs available
-    ))
+    await task_service.delete_task(client, gid)
 
 
 # --- Related Operations ---
@@ -351,6 +277,7 @@ async def list_subtasks(
     gid: str,
     client: AsanaClientDualMode,
     request_id: RequestId,
+    task_service: TaskServiceDep,
     limit: Annotated[
         int,
         Query(ge=1, le=MAX_LIMIT, description="Number of items per page"),
@@ -362,8 +289,6 @@ async def list_subtasks(
 ) -> SuccessResponse[list[dict[str, Any]]]:
     """List subtasks of a task with pagination.
 
-    Per FR-API-TASK-009: List subtasks of a task.
-
     Args:
         gid: Parent task GID.
         limit: Number of items per page (1-100, default 100).
@@ -372,25 +297,18 @@ async def list_subtasks(
     Returns:
         List of subtasks with pagination metadata.
     """
-    params: dict[str, Any] = {"limit": min(limit, MAX_LIMIT)}
-    if offset:
-        params["offset"] = offset
-
-    data, next_offset = await client._http.get_paginated(
-        f"/tasks/{gid}/subtasks",
-        params=params,
+    result = await task_service.list_subtasks(
+        client, gid, limit=limit, offset=offset
     )
 
     pagination = PaginationMeta(
         limit=limit,
-        has_more=next_offset is not None,
-        next_offset=next_offset,
+        has_more=result.has_more,
+        next_offset=result.next_offset,
     )
 
     return build_success_response(
-        data=data,
-        request_id=request_id,
-        pagination=pagination,
+        data=result.data, request_id=request_id, pagination=pagination
     )
 
 
@@ -403,6 +321,7 @@ async def list_dependents(
     gid: str,
     client: AsanaClientDualMode,
     request_id: RequestId,
+    task_service: TaskServiceDep,
     limit: Annotated[
         int,
         Query(ge=1, le=MAX_LIMIT, description="Number of items per page"),
@@ -414,10 +333,6 @@ async def list_dependents(
 ) -> SuccessResponse[list[dict[str, Any]]]:
     """List tasks that depend on this task with pagination.
 
-    Per FR-API-TASK-010: List dependent tasks.
-
-    A dependent task is one that depends on this task to be completed first.
-
     Args:
         gid: Task GID to get dependents for.
         limit: Number of items per page (1-100, default 100).
@@ -426,25 +341,18 @@ async def list_dependents(
     Returns:
         List of dependent tasks with pagination metadata.
     """
-    params: dict[str, Any] = {"limit": min(limit, MAX_LIMIT)}
-    if offset:
-        params["offset"] = offset
-
-    data, next_offset = await client._http.get_paginated(
-        f"/tasks/{gid}/dependents",
-        params=params,
+    result = await task_service.list_dependents(
+        client, gid, limit=limit, offset=offset
     )
 
     pagination = PaginationMeta(
         limit=limit,
-        has_more=next_offset is not None,
-        next_offset=next_offset,
+        has_more=result.has_more,
+        next_offset=result.next_offset,
     )
 
     return build_success_response(
-        data=data,
-        request_id=request_id,
-        pagination=pagination,
+        data=result.data, request_id=request_id, pagination=pagination
     )
 
 
@@ -460,13 +368,9 @@ async def duplicate_task(
     body: DuplicateTaskRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
-    invalidator: MutationInvalidatorDep,
+    task_service: TaskServiceDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Duplicate a task.
-
-    Per FR-API-TASK-011: Duplicate task with a new name.
-
-    Creates a copy of the task with the specified name.
 
     Args:
         gid: GID of task to duplicate.
@@ -475,17 +379,7 @@ async def duplicate_task(
     Returns:
         New duplicated task data.
     """
-    task = await client.tasks.duplicate_async(gid, name=body.name, raw=True)
-
-    # Fire-and-forget: new task created via duplication
-    task_gid = task.get("gid", "") if isinstance(task, dict) else ""
-    invalidator.fire_and_forget(MutationEvent(
-        entity_kind=EntityKind.TASK,
-        entity_gid=task_gid,
-        mutation_type=MutationType.CREATE,
-        project_gids=extract_project_gids(task),
-    ))
-
+    task = await task_service.duplicate_task(client, gid, body.name)
     return build_success_response(data=task, request_id=request_id)
 
 
@@ -503,11 +397,9 @@ async def add_tag(
     body: AddTagRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
-    invalidator: MutationInvalidatorDep,
+    task_service: TaskServiceDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Add a tag to a task.
-
-    Per FR-API-TASK-012: Add tag to task.
 
     Args:
         gid: Task GID.
@@ -516,17 +408,7 @@ async def add_tag(
     Returns:
         Updated task data.
     """
-    task = await client.tasks.add_tag_async(gid, body.tag_gid)
-    task_data = task.model_dump()
-
-    # Fire-and-forget: tag change affects entity cache
-    invalidator.fire_and_forget(MutationEvent(
-        entity_kind=EntityKind.TASK,
-        entity_gid=gid,
-        mutation_type=MutationType.UPDATE,
-        project_gids=extract_project_gids(task_data),
-    ))
-
+    task_data = await task_service.add_tag(client, gid, body.tag_gid)
     return build_success_response(data=task_data, request_id=request_id)
 
 
@@ -541,11 +423,9 @@ async def remove_tag(
     tag_gid: str,
     client: AsanaClientDualMode,
     request_id: RequestId,
-    invalidator: MutationInvalidatorDep,
+    task_service: TaskServiceDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Remove a tag from a task.
-
-    Per FR-API-TASK-013: Remove tag from task.
 
     Args:
         gid: Task GID.
@@ -554,17 +434,7 @@ async def remove_tag(
     Returns:
         Updated task data.
     """
-    task = await client.tasks.remove_tag_async(gid, tag_gid)
-    task_data = task.model_dump()
-
-    # Fire-and-forget: tag change affects entity cache
-    invalidator.fire_and_forget(MutationEvent(
-        entity_kind=EntityKind.TASK,
-        entity_gid=gid,
-        mutation_type=MutationType.UPDATE,
-        project_gids=extract_project_gids(task_data),
-    ))
-
+    task_data = await task_service.remove_tag(client, gid, tag_gid)
     return build_success_response(data=task_data, request_id=request_id)
 
 
@@ -582,11 +452,9 @@ async def move_to_section(
     body: MoveSectionRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
-    invalidator: MutationInvalidatorDep,
+    task_service: TaskServiceDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Move a task to a section within a project.
-
-    Per FR-API-TASK-014: Move task to section.
 
     Args:
         gid: Task GID.
@@ -595,23 +463,9 @@ async def move_to_section(
     Returns:
         Updated task data.
     """
-    task = await client.tasks.move_to_section_async(
-        gid, body.section_gid, body.project_gid
+    task_data = await task_service.move_to_section(
+        client, gid, body.section_gid, body.project_gid
     )
-    task_data = task.model_dump()
-
-    # Fire-and-forget: section move is a structural change
-    # project_gid from request body covers both source and destination
-    # (within the same project). Cross-project moves would need both GIDs.
-    project_gids = extract_project_gids(task_data) or [body.project_gid]
-    invalidator.fire_and_forget(MutationEvent(
-        entity_kind=EntityKind.TASK,
-        entity_gid=gid,
-        mutation_type=MutationType.MOVE,
-        project_gids=project_gids,
-        section_gid=body.section_gid,
-    ))
-
     return build_success_response(data=task_data, request_id=request_id)
 
 
@@ -626,11 +480,9 @@ async def set_assignee(
     body: SetAssigneeRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
-    invalidator: MutationInvalidatorDep,
+    task_service: TaskServiceDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Set or clear the task assignee.
-
-    Per FR-API-TASK-015: Set task assignee.
 
     Args:
         gid: Task GID.
@@ -639,21 +491,7 @@ async def set_assignee(
     Returns:
         Updated task data.
     """
-    if body.assignee_gid is None:
-        # Use update to clear assignee
-        task = await client.tasks.update_async(gid, raw=True, assignee=None)
-    else:
-        task_obj = await client.tasks.set_assignee_async(gid, body.assignee_gid)
-        task = task_obj.model_dump()
-
-    # Fire-and-forget: assignee change affects entity cache
-    invalidator.fire_and_forget(MutationEvent(
-        entity_kind=EntityKind.TASK,
-        entity_gid=gid,
-        mutation_type=MutationType.UPDATE,
-        project_gids=extract_project_gids(task),
-    ))
-
+    task = await task_service.set_assignee(client, gid, body.assignee_gid)
     return build_success_response(data=task, request_id=request_id)
 
 
@@ -668,11 +506,9 @@ async def add_to_project(
     body: AddToProjectRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
-    invalidator: MutationInvalidatorDep,
+    task_service: TaskServiceDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Add a task to a project.
-
-    Per FR-API-TASK-016: Add task to project.
 
     Args:
         gid: Task GID.
@@ -681,17 +517,7 @@ async def add_to_project(
     Returns:
         Updated task data.
     """
-    task = await client.tasks.add_to_project_async(gid, body.project_gid)
-    task_data = task.model_dump()
-
-    # Fire-and-forget: membership change is structural
-    invalidator.fire_and_forget(MutationEvent(
-        entity_kind=EntityKind.TASK,
-        entity_gid=gid,
-        mutation_type=MutationType.ADD_MEMBER,
-        project_gids=[body.project_gid],
-    ))
-
+    task_data = await task_service.add_to_project(client, gid, body.project_gid)
     return build_success_response(data=task_data, request_id=request_id)
 
 
@@ -706,11 +532,9 @@ async def remove_from_project(
     project_gid: str,
     client: AsanaClientDualMode,
     request_id: RequestId,
-    invalidator: MutationInvalidatorDep,
+    task_service: TaskServiceDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Remove a task from a project.
-
-    Per FR-API-TASK-017: Remove task from project.
 
     Args:
         gid: Task GID.
@@ -719,17 +543,7 @@ async def remove_from_project(
     Returns:
         Updated task data.
     """
-    task = await client.tasks.remove_from_project_async(gid, project_gid)
-    task_data = task.model_dump()
-
-    # Fire-and-forget: membership removal is structural
-    invalidator.fire_and_forget(MutationEvent(
-        entity_kind=EntityKind.TASK,
-        entity_gid=gid,
-        mutation_type=MutationType.REMOVE_MEMBER,
-        project_gids=[project_gid],
-    ))
-
+    task_data = await task_service.remove_from_project(client, gid, project_gid)
     return build_success_response(data=task_data, request_id=request_id)
 
 
