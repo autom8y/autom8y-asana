@@ -93,6 +93,7 @@ class RedisCacheProvider(DegradedModeMixin):
         config: RedisConfig | None = None,
         settings: CacheSettings | None = None,
         *,
+        connection_manager: Any | None = None,
         host: str = "localhost",
         port: int = 6379,
         password: str | None = None,
@@ -106,6 +107,10 @@ class RedisCacheProvider(DegradedModeMixin):
         Args:
             config: Redis configuration object (preferred).
             settings: Cache settings for TTL and overflow thresholds.
+            connection_manager: Optional RedisConnectionManager for lifecycle
+                coordination. When provided, delegates connection management
+                to the manager instead of managing pool internally.
+                Per TDD-CONNECTION-LIFECYCLE-001 Phase 1.
             host: Redis host (if config not provided).
             port: Redis port (if config not provided).
             password: Redis password (if config not provided).
@@ -131,12 +136,16 @@ class RedisCacheProvider(DegradedModeMixin):
         self._reconnect_interval = float(self._settings.reconnect_interval)
         self._redis_module: ModuleType | None = None
 
+        # Connection manager delegation (per TDD-CONNECTION-LIFECYCLE-001)
+        self._connection_manager = connection_manager
+
         # Import redis here to make it optional dependency
         try:
             import redis
 
             self._redis_module = redis
-            self._initialize_pool()
+            if self._connection_manager is None:
+                self._initialize_pool()
         except ImportError:
             logger.warning(
                 "redis_package_not_installed",
@@ -175,12 +184,19 @@ class RedisCacheProvider(DegradedModeMixin):
     def _get_connection(self) -> Any:
         """Get a Redis connection from the pool.
 
+        When a connection_manager is provided, delegates to it.
+        Otherwise uses the internal pool (legacy path).
+
         Returns:
             Redis client instance.
 
         Raises:
             RuntimeError: If Redis is not available.
         """
+        # New path: delegate to connection manager
+        if self._connection_manager is not None:
+            return self._connection_manager.get_connection()
+
         if self._redis_module is None:
             raise RuntimeError("Redis package not installed")
 
@@ -743,9 +759,17 @@ class RedisCacheProvider(DegradedModeMixin):
     def is_healthy(self) -> bool:
         """Check if cache backend is operational.
 
+        When a connection_manager is provided, delegates health check to it.
+
         Returns:
             True if Redis is healthy and responding to PING.
         """
+        if self._connection_manager is not None:
+            from autom8_asana.core.connections import ConnectionState
+
+            result = self._connection_manager.health_check()
+            return result.state == ConnectionState.HEALTHY
+
         if self._degraded or self._redis_module is None:
             return False
 
