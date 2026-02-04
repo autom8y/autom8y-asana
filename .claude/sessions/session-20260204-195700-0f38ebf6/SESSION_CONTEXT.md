@@ -7,7 +7,7 @@ initiative: 'Platform Maturity: Deferred Work Execution'
 complexity: MIGRATION
 active_rite: 10x-dev
 rite: 10x-dev
-current_phase: wave-1-planning
+current_phase: wave-2-execution
 ---
 
 # Session: Platform Maturity: Deferred Work Execution
@@ -117,7 +117,18 @@ None.
 
 ## Notes
 
-- Rite switching: Session starts with 10x-dev rite, but will switch to hygiene for I1, I4, I7 initiatives
-- The Deep Hygiene Sprint left all 138 fix-now items uncommitted and ready for commit. Wave 1 will commit these changes as appropriate.
+### Wave 1 Completion (2026-02-04)
+- Wave 1 complete — I1 Quick Wins + I4-S1 Exception Narrowing committed (c4c8b77). 8523 tests green, bare-except 158→120.
+- I1 swept force-fixes, logging, docstrings, and magic numbers from triage manifest (B01, B08-B12)
+- I4-S1 narrowed ~40 mechanical exception sites with clear type signatures
+- All changes validated against test suite with zero regressions
+
+### Wave 2 Plan
+- Sequential execution: I2 Service Layer Wiring first, then I4-S2/S3 Exception Narrowing
+- I2 will wire EntityService, TaskService, SectionService to API routes for 45% route code reduction
+- I4-S2/S3 will handle remaining ~118 bare-except sites requiring case-by-case analysis
+
+### General Notes
+- Rite switching: Session uses 10x-dev rite for I2, I3, I5, I6 and hygiene for I1, I4, I7 initiatives
 - Read-only zones (api/main.py, lambda_handlers/, metrics/) remain read-only until lifted by their respective initiatives
-- All test changes from hygiene sprint should be verified before starting Wave 1
+- 4 backward-compat shims retained for read-only zone: cache/factory.py, cache/mutation_invalidator.py, cache/schema_providers.py, cache/tiered.py
