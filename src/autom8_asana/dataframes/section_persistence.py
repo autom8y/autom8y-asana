@@ -214,6 +214,12 @@ def _resolve_schema_version(entity_type: str | None) -> str | None:
 class SectionPersistenceConfig:
     """Configuration for section persistence.
 
+    .. deprecated::
+        Per TDD-UNIFIED-DF-PERSISTENCE-001: When ``DataFrameStorage`` is
+        injected into ``SectionPersistence``, this config is only used to
+        generate key prefixes. S3 location (bucket/region/endpoint) comes
+        from ``S3LocationConfig`` via the storage implementation.
+
     Attributes:
         bucket: S3 bucket name.
         prefix: Key prefix for persisted objects (default "dataframes/").

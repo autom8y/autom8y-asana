@@ -571,3 +571,88 @@ class TestPersistenceIntegration:
         # Both should exist
         assert repo.get_watermark("existing-proj") == existing_wm
         assert repo.get_watermark("new-proj") == new_wm
+
+
+class TestDataFrameStorageIntegration:
+    """Tests for WatermarkRepository with DataFrameStorage protocol.
+
+    Per TDD-UNIFIED-DF-PERSISTENCE-001 Phase 3: WatermarkRepository
+    accepts both DataFramePersistence (legacy) and S3DataFrameStorage
+    (unified protocol) as its persistence backend.
+    """
+
+    def setup_method(self) -> None:
+        WatermarkRepository.reset()
+
+    def teardown_method(self) -> None:
+        WatermarkRepository.reset()
+
+    def test_set_persistence_accepts_storage_protocol(self) -> None:
+        """set_persistence() accepts a DataFrameStorage implementation."""
+        from unittest.mock import MagicMock
+
+        repo = get_watermark_repo()
+        mock_storage = MagicMock()
+        mock_storage.is_available = True
+
+        repo.set_persistence(mock_storage)
+        assert repo._persistence is mock_storage
+
+    @pytest.mark.asyncio
+    async def test_persist_watermark_via_storage_protocol(self) -> None:
+        """_persist_watermark() calls storage.save_watermark()."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        repo = get_watermark_repo()
+        mock_storage = MagicMock()
+        mock_storage.save_watermark = AsyncMock(return_value=True)
+
+        wm = datetime(2026, 2, 4, tzinfo=UTC)
+        await repo._persist_watermark("proj_123", wm, mock_storage)
+
+        mock_storage.save_watermark.assert_awaited_once_with("proj_123", wm)
+
+    @pytest.mark.asyncio
+    async def test_load_from_persistence_via_storage_protocol(self) -> None:
+        """load_from_persistence() works with DataFrameStorage."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        repo = get_watermark_repo()
+        mock_storage = MagicMock()
+        wm1 = datetime(2026, 1, 1, tzinfo=UTC)
+        wm2 = datetime(2026, 2, 1, tzinfo=UTC)
+        mock_storage.load_all_watermarks = AsyncMock(
+            return_value={"proj_a": wm1, "proj_b": wm2}
+        )
+
+        loaded = await repo.load_from_persistence(mock_storage)
+
+        assert loaded == 2
+        assert repo.get_watermark("proj_a") == wm1
+        assert repo.get_watermark("proj_b") == wm2
+
+    @pytest.mark.asyncio
+    async def test_set_watermark_triggers_persist_via_storage(self) -> None:
+        """set_watermark() triggers persist through DataFrameStorage."""
+        from unittest.mock import MagicMock, patch
+
+        repo = get_watermark_repo()
+        mock_storage = MagicMock()
+        mock_storage.is_available = True
+        repo.set_persistence(mock_storage)
+
+        wm = datetime(2026, 2, 4, tzinfo=UTC)
+
+        with patch.object(repo, "_schedule_persist") as mock_schedule:
+            repo.set_watermark("proj_123", wm)
+            mock_schedule.assert_called_once_with("proj_123", wm, mock_storage)
+
+    def test_get_instance_accepts_storage_protocol(self) -> None:
+        """get_instance() accepts DataFrameStorage as persistence arg."""
+        from unittest.mock import MagicMock
+
+        mock_storage = MagicMock()
+        mock_storage.is_available = True
+
+        repo = WatermarkRepository.get_instance(persistence=mock_storage)
+        assert repo._persistence is mock_storage
