@@ -231,7 +231,7 @@ class TestSetAssigneeFromRepAsync:
     ) -> None:
         """Test FR-ASSIGN-006: Graceful degradation when set_assignee_async fails."""
         mock_client.tasks.set_assignee_async = AsyncMock(
-            side_effect=Exception("API Error: User not found")
+            side_effect=ConnectionError("API Error: User not found")
         )
         unit = MockUnit(rep=[{"gid": "unit_rep_123", "name": "Unit Rep"}])
         new_task = MockTask("new_task_gid")

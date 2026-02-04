@@ -72,8 +72,8 @@ class PhoneNormalizer:
             # Invalid number - fall through to digits-only
         except ImportError:
             pass  # phonenumbers not installed
-        except Exception:
-            pass  # Parse failed
+        except Exception:  # BROAD-CATCH: vendor-polymorphic -- phonenumbers raises diverse parsing errors
+            pass
 
         # Fallback: extract digits only
         digits = "".join(c for c in value if c.isdigit())

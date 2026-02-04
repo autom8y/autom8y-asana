@@ -222,7 +222,7 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
         if hydrate:
             try:
                 await business._fetch_holders_async(client)
-            except Exception as e:
+            except Exception as e:  # BROAD-CATCH: catch-all-and-degrade -- partial_ok catches any hydration failure
                 if partial_ok:
                     # Log and continue with partially hydrated business
                     from autom8y_log import get_logger

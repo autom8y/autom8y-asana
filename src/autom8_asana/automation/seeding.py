@@ -22,9 +22,14 @@ from typing import TYPE_CHECKING, Any
 import arrow
 from autom8y_log import get_logger
 
+from autom8_asana.exceptions import AsanaError
+
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
     from autom8_asana.models.business import Business, Process, Unit
+
+# Asana API call errors: AsanaError + builtin network errors
+_ASANA_API_ERRORS: tuple[type[Exception], ...] = (AsanaError, ConnectionError, TimeoutError)
 
 logger = get_logger(__name__)
 
@@ -545,7 +550,7 @@ class FieldSeeder:
                 fields_skipped=fields_skipped,
             )
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: boundary -- wraps API+accessor+resolution pipeline, must return WriteResult
             logger.error(
                 "seeding_write_failed",
                 task_gid=target_task_gid,
@@ -603,7 +608,7 @@ class FieldSeeder:
                     return normalized
                 # Fall through to try raw custom field access
                 logger.debug("seeding_descriptor_empty_trying_raw")
-            except Exception as e:
+            except (AttributeError, KeyError, TypeError, ValueError) as e:
                 logger.debug("seeding_descriptor_access_failed", error=str(e))
 
         # Try raw CustomFieldAccessor access (bypasses descriptors)
@@ -621,7 +626,7 @@ class FieldSeeder:
                         normalized=repr(normalized),
                     )
                     return normalized
-            except Exception as e:
+            except (AttributeError, KeyError, TypeError, ValueError) as e:
                 logger.debug("seeding_custom_fields_editor_failed", error=str(e))
 
         # Try direct attribute access (for non-descriptor fields)
@@ -638,7 +643,7 @@ class FieldSeeder:
                 )
                 if normalized is not None:
                     return normalized
-            except Exception as e:
+            except (AttributeError, KeyError, TypeError, ValueError) as e:
                 logger.debug("seeding_direct_attr_failed", error=str(e))
 
         # Special case: Business Name comes from task name

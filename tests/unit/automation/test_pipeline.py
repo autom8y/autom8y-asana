@@ -180,6 +180,17 @@ def create_mock_context(
     # Mock update_async for due date setting
     client.tasks.update_async = AsyncMock(return_value=None)
 
+    # Mock stories client for onboarding comment creation
+    client.stories.create_comment_async = AsyncMock(return_value=None)
+
+    # Mock tasks.get_async for seeding (field write needs to fetch target task)
+    client.tasks.get_async = AsyncMock(
+        return_value=MagicMock(custom_fields=[])
+    )
+
+    # Mock tasks.set_assignee_async for assignee setting
+    client.tasks.set_assignee_async = AsyncMock(return_value=None)
+
     return AutomationContext(
         client=client,
         config=config,
@@ -419,7 +430,7 @@ class TestExecuteAsync:
             pipeline_templates={"onboarding": "onboarding_project_123"},
         )
         client = MagicMock()
-        client.sections.list_for_project_async.side_effect = Exception("API Error")
+        client.sections.list_for_project_async.side_effect = ConnectionError("API Error")
 
         context = AutomationContext(
             client=client,
@@ -1198,7 +1209,7 @@ class TestDueDateHandling:
         )
 
         # Make update_async raise an exception
-        context.client.tasks.update_async.side_effect = Exception("API Error")
+        context.client.tasks.update_async.side_effect = ConnectionError("API Error")
 
         process = MockProcess(
             gid="process_123",
