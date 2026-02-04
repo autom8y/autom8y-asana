@@ -412,6 +412,24 @@ class EnhancedInMemoryCacheProvider:
         """Reset cache metrics to zero."""
         self._metrics.reset()
 
+    def clear_all_tasks(self) -> int:
+        """Clear all task entries from cache.
+
+        Removes all versioned entries with EntryType.TASK keys.
+
+        Returns:
+            Number of entries deleted.
+        """
+        deleted = 0
+        with self._lock:
+            task_keys = [
+                k for k in self._versioned_cache if k.endswith(":task")
+            ]
+            for k in task_keys:
+                del self._versioned_cache[k]
+                deleted += 1
+        return deleted
+
     def clear(self) -> None:
         """Clear all cache entries.
 
