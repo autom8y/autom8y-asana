@@ -205,6 +205,17 @@ class CacheProvider(Protocol):
         """Reset cache metrics to zero."""
         ...
 
+    def clear_all_tasks(self) -> int:
+        """Clear all task entries from cache.
+
+        Used for cache invalidation when cached data becomes stale
+        or corrupted (e.g., missing required fields like memberships).
+
+        Returns:
+            Number of entries deleted.
+        """
+        ...
+
 
 class WarmResult:
     """Result of cache warm operation.
