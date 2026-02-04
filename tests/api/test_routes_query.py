@@ -635,7 +635,16 @@ class TestQueryProjectNotConfigured:
                 assert data["detail"]["error"] == "UNKNOWN_ENTITY_TYPE"
 
     def test_registry_none_returns_503(self) -> None:
-        """Returns 503 when entity registry is None in app state."""
+        """Returns 503 when project not configured for entity type.
+
+        After I2-S2 wiring, EntityService handles entity validation
+        via validate_entity_type() which raises ServiceNotConfiguredError
+        when the project GID is None.
+        """
+        from autom8_asana.api.dependencies import get_entity_service
+        from autom8_asana.services.entity_service import EntityService
+        from autom8_asana.services.errors import ServiceNotConfiguredError
+
         EntityProjectRegistry.reset()
 
         with patch(
@@ -643,39 +652,47 @@ class TestQueryProjectNotConfigured:
             new_callable=AsyncMock,
         ) as mock_discover:
 
-            async def no_registry_setup(app):
+            async def partial_registry_setup(app):
                 EntityProjectRegistry.reset()
-                # Explicitly set to None (discovery failed)
-                app.state.entity_project_registry = None
+                registry = EntityProjectRegistry.get_instance()
+                app.state.entity_project_registry = registry
 
-            mock_discover.side_effect = no_registry_setup
+            mock_discover.side_effect = partial_registry_setup
             test_app = create_app()
 
             jwt_token = "header.payload.signature"
 
-            # For this test we need to skip entity type validation
-            # by mocking get_resolvable_entities to return the entity type
-            with TestClient(test_app) as test_client:
-                with (
-                    patch(
+            # Mock EntityService to raise ServiceNotConfiguredError
+            mock_entity_svc = MagicMock(spec=EntityService)
+            mock_entity_svc.validate_entity_type.side_effect = (
+                ServiceNotConfiguredError(
+                    "No project configured for entity type: offer"
+                )
+            )
+
+            # Use FastAPI's dependency override for the EntityService
+            test_app.dependency_overrides[get_entity_service] = (
+                lambda: mock_entity_svc
+            )
+
+            try:
+                with TestClient(test_app) as test_client:
+                    with patch(
                         "autom8_asana.api.routes.internal.validate_service_token",
                         _mock_jwt_validation(),
-                    ),
-                    patch(
-                        "autom8_asana.api.routes.query._get_queryable_entities",
-                        return_value={"offer"},
-                    ),
-                ):
-                    response = test_client.post(
-                        "/v1/query/offer",
-                        headers={"Authorization": f"Bearer {jwt_token}"},
-                        json={"limit": 100},
-                    )
+                    ):
+                        response = test_client.post(
+                            "/v1/query/offer",
+                            headers={"Authorization": f"Bearer {jwt_token}"},
+                            json={"limit": 100},
+                        )
 
-                # Registry is None - returns 503
-                assert response.status_code == 503
-                data = response.json()
-                assert data["detail"]["error"] == "PROJECT_NOT_CONFIGURED"
+                    # ServiceNotConfiguredError -> 503
+                    assert response.status_code == 503
+                    data = response.json()
+                    assert data["detail"]["error"] == "SERVICE_NOT_CONFIGURED"
+            finally:
+                test_app.dependency_overrides.clear()
 
 
 class TestQueryRequestValidation:

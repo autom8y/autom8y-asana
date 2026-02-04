@@ -423,6 +423,35 @@ RequestId = Annotated[str, Depends(get_request_id)]
 # --- Service Factories (I2 additions) ---
 
 
+def get_entity_service(request: Request) -> "EntityService":
+    """Get EntityService singleton from app state.
+
+    Lazy initialization: creates on first access, stores on app.state.
+    EntityService wraps singleton registries (EntityRegistry,
+    EntityProjectRegistry) and has no per-request state.
+
+    Per TDD-I2-SERVICE-WIRING-001: EntityService is a singleton.
+
+    Args:
+        request: FastAPI request (for app state access).
+
+    Returns:
+        EntityService instance.
+    """
+    entity_service = getattr(request.app.state, "entity_service", None)
+    if entity_service is None:
+        from autom8_asana.core.entity_registry import get_registry
+        from autom8_asana.services.entity_service import EntityService
+        from autom8_asana.services.resolver import EntityProjectRegistry
+
+        entity_service = EntityService(
+            entity_registry=get_registry(),
+            project_registry=EntityProjectRegistry.get_instance(),
+        )
+        request.app.state.entity_service = entity_service
+    return entity_service
+
+
 def get_task_service(
     invalidator: MutationInvalidatorDep,
 ) -> "TaskService":
@@ -465,9 +494,11 @@ def get_section_service(
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from autom8_asana.services.entity_service import EntityService
     from autom8_asana.services.section_service import SectionService
     from autom8_asana.services.task_service import TaskService
 
+EntityServiceDep = Annotated["EntityService", Depends(get_entity_service)]
 TaskServiceDep = Annotated["TaskService", Depends(get_task_service)]
 SectionServiceDep = Annotated["SectionService", Depends(get_section_service)]
 
@@ -481,8 +512,10 @@ __all__ = [
     "get_mutation_invalidator",
     "MutationInvalidatorDep",
     # Service factories (I2)
+    "get_entity_service",
     "get_task_service",
     "get_section_service",
+    "EntityServiceDep",
     "TaskServiceDep",
     "SectionServiceDep",
     # Legacy dependencies (backward compatibility)
