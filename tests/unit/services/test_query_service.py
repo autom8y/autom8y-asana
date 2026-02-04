@@ -6,12 +6,12 @@ extracted from query.py during I2-S2 wiring.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from autom8_asana.services.errors import InvalidFieldError
-from autom8_asana.services.query_service import validate_fields
+from autom8_asana.services.errors import InvalidFieldError, UnknownSectionError
+from autom8_asana.services.query_service import resolve_section, validate_fields
 
 
 class TestValidateFields:
@@ -94,3 +94,142 @@ class TestValidateFields:
             err = exc_info.value
             assert err.invalid_fields == ["aaa", "zzz"]
             assert err.available_fields == ["gid", "name", "section"]
+
+
+class TestResolveSection:
+    """Tests for resolve_section() function."""
+
+    @pytest.mark.asyncio
+    async def test_resolves_via_manifest(self) -> None:
+        """Section resolved via manifest returns the section name."""
+        mock_index = MagicMock()
+        mock_index.resolve.return_value = "gid-123"
+
+        mock_persistence = MagicMock()
+        mock_persistence.is_available = True
+        mock_persistence.__aenter__ = AsyncMock(return_value=mock_persistence)
+        mock_persistence.__aexit__ = AsyncMock(return_value=None)
+
+        with (
+            patch(
+                "autom8_asana.dataframes.section_persistence.SectionPersistence",
+                return_value=mock_persistence,
+            ),
+            patch(
+                "autom8_asana.metrics.resolve.SectionIndex.from_manifest_async",
+                new_callable=AsyncMock,
+                return_value=mock_index,
+            ),
+        ):
+            result = await resolve_section("ACTIVE", "offer", "proj-123")
+
+        assert result == "ACTIVE"
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_enum(self) -> None:
+        """Falls back to enum when manifest resolution returns None."""
+        # Manifest index returns None for the section
+        mock_manifest_index = MagicMock()
+        mock_manifest_index.resolve.return_value = None
+
+        mock_persistence = MagicMock()
+        mock_persistence.is_available = True
+        mock_persistence.__aenter__ = AsyncMock(return_value=mock_persistence)
+        mock_persistence.__aexit__ = AsyncMock(return_value=None)
+
+        # Enum index resolves it
+        mock_enum_index = MagicMock()
+        mock_enum_index.resolve.return_value = "gid-456"
+
+        with (
+            patch(
+                "autom8_asana.dataframes.section_persistence.SectionPersistence",
+                return_value=mock_persistence,
+            ),
+            patch(
+                "autom8_asana.metrics.resolve.SectionIndex.from_manifest_async",
+                new_callable=AsyncMock,
+                return_value=mock_manifest_index,
+            ),
+            patch(
+                "autom8_asana.metrics.resolve.SectionIndex.from_enum_fallback",
+                return_value=mock_enum_index,
+            ),
+        ):
+            result = await resolve_section("ACTIVE", "offer", "proj-123")
+
+        assert result == "ACTIVE"
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_enum_on_s3_error(self) -> None:
+        """Falls back to enum when S3 transport error occurs."""
+        mock_enum_index = MagicMock()
+        mock_enum_index.resolve.return_value = "gid-789"
+
+        mock_persistence = MagicMock()
+        mock_persistence.is_available = True
+        mock_persistence.__aenter__ = AsyncMock(return_value=mock_persistence)
+        mock_persistence.__aexit__ = AsyncMock(
+            side_effect=ConnectionError("S3 unavailable")
+        )
+
+        with (
+            patch(
+                "autom8_asana.dataframes.section_persistence.SectionPersistence",
+                return_value=mock_persistence,
+            ),
+            patch(
+                "autom8_asana.metrics.resolve.SectionIndex.from_enum_fallback",
+                return_value=mock_enum_index,
+            ),
+        ):
+            result = await resolve_section("ACTIVE", "offer", "proj-123")
+
+        assert result == "ACTIVE"
+
+    @pytest.mark.asyncio
+    async def test_raises_unknown_section_error(self) -> None:
+        """Raises UnknownSectionError when section cannot be resolved."""
+        mock_enum_index = MagicMock()
+        mock_enum_index.resolve.return_value = None
+
+        mock_persistence = MagicMock()
+        mock_persistence.is_available = False
+
+        with (
+            patch(
+                "autom8_asana.dataframes.section_persistence.SectionPersistence",
+                return_value=mock_persistence,
+            ),
+            patch(
+                "autom8_asana.metrics.resolve.SectionIndex.from_enum_fallback",
+                return_value=mock_enum_index,
+            ),
+        ):
+            with pytest.raises(UnknownSectionError) as exc_info:
+                await resolve_section("NONEXISTENT", "offer", "proj-123")
+
+            assert exc_info.value.section_name == "NONEXISTENT"
+
+    @pytest.mark.asyncio
+    async def test_persistence_not_available_uses_enum(self) -> None:
+        """When persistence is not available, falls through to enum."""
+        mock_enum_index = MagicMock()
+        mock_enum_index.resolve.return_value = "gid-000"
+
+        mock_persistence = MagicMock()
+        mock_persistence.is_available = False
+
+        with (
+            patch(
+                "autom8_asana.dataframes.section_persistence.SectionPersistence",
+                return_value=mock_persistence,
+            ),
+            patch(
+                "autom8_asana.metrics.resolve.SectionIndex.from_enum_fallback",
+                return_value=mock_enum_index,
+            ),
+        ):
+            result = await resolve_section("ACTIVE", "offer", "proj-123")
+
+        assert result == "ACTIVE"
