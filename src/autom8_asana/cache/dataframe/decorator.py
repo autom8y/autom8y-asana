@@ -222,7 +222,7 @@ def dataframe_cache(
                 # Re-raise HTTP exceptions as-is
                 raise
 
-            except Exception as e:
+            except Exception as e:  # BROAD-CATCH: boundary -- catch-all converts to HTTPException at API boundary
                 # Release lock with failure
                 await cache.release_build_lock_async(
                     project_gid, entity_type, success=False

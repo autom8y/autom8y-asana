@@ -907,7 +907,7 @@ class DataFrameCache:
                     "swr_refresh_no_callback",
                     extra={"project_gid": project_gid, "entity_type": entity_type},
                 )
-        except Exception:
+        except Exception:  # BROAD-CATCH: isolation -- SWR refresh callback can throw any error; must not crash background task
             logger.exception(
                 "swr_refresh_failed",
                 extra={"project_gid": project_gid, "entity_type": entity_type},

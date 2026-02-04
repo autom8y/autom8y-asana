@@ -24,6 +24,7 @@ from autom8_asana.cache.models.mutation_event import (
     MutationEvent,
     MutationType,
 )
+from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 
 if TYPE_CHECKING:
     from autom8_asana.cache.integration.dataframe_cache import DataFrameCache
@@ -108,8 +109,7 @@ class MutationInvalidator:
                     "mutation_invalidator_unsupported_kind",
                     extra={"entity_kind": event.entity_kind.value},
                 )
-        except Exception as exc:
-            # Never propagate -- this runs in a background task
+        except Exception as exc:  # BROAD-CATCH: isolation -- background task boundary, must never propagate
             logger.error(
                 "mutation_invalidation_failed",
                 extra={
@@ -192,7 +192,7 @@ class MutationInvalidator:
         # Step 1: Section entity cache
         try:
             self._cache.invalidate(gid, [EntryType.SECTION])
-        except Exception as exc:
+        except CACHE_TRANSIENT_ERRORS as exc:
             logger.warning(
                 "section_cache_invalidation_failed",
                 extra={"gid": gid, "error": str(exc)},
@@ -238,7 +238,7 @@ class MutationInvalidator:
         """Hard invalidate (evict) entity entries."""
         try:
             self._cache.invalidate(gid, _TASK_ENTRY_TYPES)
-        except Exception as exc:
+        except CACHE_TRANSIENT_ERRORS as exc:
             logger.warning(
                 "entity_cache_invalidation_failed",
                 extra={"gid": gid, "error": str(exc)},
@@ -294,7 +294,7 @@ class MutationInvalidator:
                     },
                 )
 
-            except Exception as exc:
+            except Exception as exc:  # BROAD-CATCH: isolation -- per-entry loop with fallback to hard invalidation
                 logger.warning(
                     "soft_invalidation_failed_falling_back",
                     extra={
@@ -306,7 +306,7 @@ class MutationInvalidator:
                 # Fallback: hard invalidate on any error
                 try:
                     self._cache.invalidate(gid, [entry_type])
-                except Exception:
+                except Exception:  # BROAD-CATCH: isolation -- last-resort fallback, must not fail
                     logger.warning(
                         "hard_invalidation_fallback_failed",
                         extra={
@@ -325,7 +325,7 @@ class MutationInvalidator:
 
         try:
             invalidate_task_dataframes(task_gid, project_gids, self._cache)
-        except Exception as exc:
+        except CACHE_TRANSIENT_ERRORS as exc:
             logger.warning(
                 "per_task_dataframe_invalidation_failed",
                 extra={
@@ -349,7 +349,7 @@ class MutationInvalidator:
         for project_gid in project_gids:
             try:
                 self._dataframe_cache.invalidate_project(project_gid)
-            except Exception as exc:
+            except Exception as exc:  # BROAD-CATCH: isolation -- per-project loop, single failure must not abort batch
                 logger.warning(
                     "project_dataframe_invalidation_failed",
                     extra={"project_gid": project_gid, "error": str(exc)},
