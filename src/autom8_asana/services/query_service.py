@@ -37,9 +37,52 @@ __all__ = [
     "CacheNotWarmError",
     "QueryResult",
     "EntityQueryService",
+    "validate_fields",
 ]
 
 logger = get_logger(__name__)
+
+
+def validate_fields(
+    fields: list[str],
+    entity_type: str,
+    field_type: str = "where",
+) -> None:
+    """Validate fields against entity schema.
+
+    Looks up the entity's schema in SchemaRegistry, falling back to the
+    wildcard ("*") schema if no entity-specific schema exists. Raises
+    InvalidFieldError if any field is not present in the schema.
+
+    Args:
+        fields: Field names to validate.
+        entity_type: Entity type for schema lookup (snake_case).
+        field_type: Context label for error messages ("where" or "select").
+
+    Raises:
+        InvalidFieldError: If any field is not in the schema.
+    """
+    from autom8_asana.dataframes.exceptions import SchemaNotFoundError
+    from autom8_asana.dataframes.models.registry import SchemaRegistry
+    from autom8_asana.services.errors import InvalidFieldError
+    from autom8_asana.services.resolver import to_pascal_case
+
+    registry = SchemaRegistry.get_instance()
+    schema_key = to_pascal_case(entity_type)
+
+    try:
+        schema = registry.get_schema(schema_key)
+    except SchemaNotFoundError:
+        schema = registry.get_schema("*")
+
+    valid_fields = set(schema.column_names())
+    invalid_fields = set(fields) - valid_fields
+
+    if invalid_fields:
+        raise InvalidFieldError(
+            invalid_fields=sorted(invalid_fields),
+            available_fields=sorted(valid_fields),
+        )
 
 
 class CacheNotWarmError(Exception):
