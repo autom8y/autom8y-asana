@@ -120,6 +120,10 @@ class NullCacheProvider:
         """Does nothing (no metrics to reset)."""
         pass
 
+    def clear_all_tasks(self) -> int:
+        """Does nothing (no cache to clear)."""
+        return 0
+
 
 class _VersionedEntry(NamedTuple):
     """Internal versioned cache entry."""
@@ -387,3 +391,19 @@ class InMemoryCacheProvider:
         """Reset cache metrics."""
         if self._metrics is not None:
             self._metrics.reset()
+
+    def clear_all_tasks(self) -> int:
+        """Clear all task entries from cache.
+
+        Returns:
+            Number of entries deleted.
+        """
+        deleted = 0
+        with self._lock:
+            task_keys = [
+                k for k in self._versioned_cache if k.endswith(":task")
+            ]
+            for k in task_keys:
+                del self._versioned_cache[k]
+                deleted += 1
+        return deleted
