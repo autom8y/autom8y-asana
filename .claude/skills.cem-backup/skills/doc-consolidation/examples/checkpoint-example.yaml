@@ -1,0 +1,219 @@
+# checkpoint-settings-merge.yaml Example
+# Purpose: Track consolidation progress for settings-merge topic
+# Location: .consolidation/checkpoint-settings-merge.yaml
+#
+# This example shows a checkpoint mid-way through the synthesis phase,
+# demonstrating how state is captured for resumable workflows.
+
+schema_version: "1.0"
+
+topic:
+  id: "settings-merge"
+  name: "Settings Merge Algorithm"
+
+status:
+  phase: synthesis
+  state: drafting
+  blocked_by: null
+  last_activity: "2024-12-25T14:30:00Z"
+
+sources:
+  - path: ".claude/skills/doc-ecosystem/SKILL.md"
+    hash: "a1b2c3d4e5f6789012345678901234567890123456789012345678901234abcd"
+    last_read: "2024-12-25T10:30:00Z"
+    status: current
+
+  - path: "docs/design/TDD-0042-settings.md"
+    hash: "b2c3d4e5f6789012345678901234567890123456789012345678901234bcde"
+    last_read: "2024-12-25T10:30:00Z"
+    status: current
+
+  - path: ".claude/skills/standards/SKILL.md"
+    hash: "c3d4e5f6789012345678901234567890123456789012345678901234cdef"
+    last_read: "2024-12-25T10:30:00Z"
+    status: current
+
+extraction:
+  path: ".consolidation/extraction-settings-merge.yaml"
+  hash: "d4e5f6789012345678901234567890123456789012345678901234def0"
+  created_at: "2024-12-25T10:30:00Z"
+  conflicts_resolved: 2
+  conflicts_pending: 0
+
+concepts:
+  - name: "tier precedence"
+    understanding: "Settings merge in strict order: skeleton < project < team < user. Higher tiers override lower for scalars. This creates a predictable cascade where user preferences always win."
+    confidence: high
+    source_refs:
+      - "tier-overview"
+      - "merge-algorithm"
+
+  - name: "array merge strategies"
+    understanding: "Arrays can merge via three strategies: replace (default, higher tier wins), append (concatenate), or merge (union/set semantics). Strategy is configured per-key in schema."
+    confidence: high
+    source_refs:
+      - "array-strategies"
+
+  - name: "recursive object merge"
+    understanding: "Nested objects merge recursively, applying tier precedence at each level. A user setting at any depth can override skeleton defaults."
+    confidence: medium
+    source_refs:
+      - "merge-algorithm"
+
+  - name: "null handling"
+    understanding: "Explicit null removes the key from merged result. This allows higher tiers to 'unset' lower tier values. Undefined (missing key) does not override."
+    confidence: high
+    source_refs:
+      - "conflict-resolution"
+
+synthesis:
+  status: in_progress
+  output_path: "docs/consolidated/210-settings-merge.md"
+  sections_complete:
+    - section_id: "tier-overview"
+      status: drafted
+      draft_location: "lines 15-55"
+
+    - section_id: "merge-algorithm"
+      status: drafted
+      draft_location: "lines 57-120"
+
+    - section_id: "array-strategies"
+      status: pending
+      draft_location: null
+
+    - section_id: "conflict-resolution"
+      status: pending
+      draft_location: null
+
+  current_section: "array-strategies"
+  notes: |
+    Tier overview and merge algorithm sections complete. Good flow between them.
+    Starting array strategies section now.
+
+    TODO for array-strategies:
+    - Include all three strategies with examples
+    - Add the schema configuration example from extraction
+    - Cross-reference back to merge-algorithm section
+
+    Consider adding a visual diagram for tier precedence - would help users
+    understand the cascade model.
+
+    Note: extraction conflict-001 was about default strategy being 'replace'.
+    Make sure this is clearly stated to avoid past documentation confusion.
+
+review:
+  reviewer: null
+  reviewed_at: null
+  status: pending
+  feedback: []
+
+activity_log:
+  - timestamp: "2024-12-25T09:00:00Z"
+    agent: "discovery-agent"
+    action: "topic_identified"
+    details: "Created manifest entry for settings-merge topic with 3 source files"
+
+  - timestamp: "2024-12-25T10:00:00Z"
+    agent: "discovery-agent"
+    action: "checkpoint_created"
+    details: "Initialized checkpoint for settings-merge topic"
+
+  - timestamp: "2024-12-25T10:30:00Z"
+    agent: "extractor-agent"
+    action: "extraction_started"
+    details: "Beginning extraction from 3 source files (~8300 tokens)"
+
+  - timestamp: "2024-12-25T10:45:00Z"
+    agent: "extractor-agent"
+    action: "conflict_detected"
+    details: "Found conflict-001: disagreement on default array strategy"
+
+  - timestamp: "2024-12-25T10:50:00Z"
+    agent: "extractor-agent"
+    action: "conflict_resolved"
+    details: "Resolved conflict-001: default is 'replace' per TDD implementation"
+
+  - timestamp: "2024-12-25T11:00:00Z"
+    agent: "extractor-agent"
+    action: "conflict_detected"
+    details: "Found conflict-002: null vs undefined handling unclear"
+
+  - timestamp: "2024-12-25T11:05:00Z"
+    agent: "extractor-agent"
+    action: "conflict_resolved"
+    details: "Resolved conflict-002: null removes key, undefined ignored"
+
+  - timestamp: "2024-12-25T11:15:00Z"
+    agent: "extractor-agent"
+    action: "extraction_complete"
+    details: "Created extraction with 4 sections, 2 conflicts resolved, 2 gaps identified"
+
+  - timestamp: "2024-12-25T11:20:00Z"
+    agent: "extractor-agent"
+    action: "phase_complete"
+    details: "Extraction phase complete, transitioning to synthesis"
+
+  - timestamp: "2024-12-25T12:00:00Z"
+    agent: "synthesis-agent"
+    action: "phase_started"
+    details: "Beginning synthesis phase, planning document structure"
+
+  - timestamp: "2024-12-25T12:15:00Z"
+    agent: "synthesis-agent"
+    action: "output_created"
+    details: "Created output file docs/consolidated/210-settings-merge.md with frontmatter"
+
+  - timestamp: "2024-12-25T12:30:00Z"
+    agent: "synthesis-agent"
+    action: "section_started"
+    details: "Beginning tier-overview section"
+
+  - timestamp: "2024-12-25T13:00:00Z"
+    agent: "synthesis-agent"
+    action: "section_drafted"
+    details: "Completed draft of tier-overview section (lines 15-55)"
+
+  - timestamp: "2024-12-25T13:15:00Z"
+    agent: "synthesis-agent"
+    action: "section_started"
+    details: "Beginning merge-algorithm section"
+
+  - timestamp: "2024-12-25T14:00:00Z"
+    agent: "synthesis-agent"
+    action: "section_drafted"
+    details: "Completed draft of merge-algorithm section (lines 57-120)"
+
+  - timestamp: "2024-12-25T14:30:00Z"
+    agent: "synthesis-agent"
+    action: "section_started"
+    details: "Beginning array-strategies section"
+
+dependencies: []
+
+# Example of how this checkpoint would look if blocked:
+#
+# status:
+#   phase: synthesis
+#   state: drafting
+#   blocked_by: "Waiting for gap-001 resolution (nested array behavior)"
+#   last_activity: "2024-12-25T15:00:00Z"
+#
+# This would trigger:
+# 1. Synthesis agent pauses on current section
+# 2. Escalation to human or investigation agent
+# 3. Resume after blocked_by is cleared
+
+# Example of stale source detection:
+#
+# sources:
+#   - path: "docs/design/TDD-0042-settings.md"
+#     hash: "NEW_HASH_DIFFERENT_FROM_EXTRACTION"
+#     last_read: "2024-12-25T10:30:00Z"
+#     status: stale  # Computed by comparing current file hash to stored hash
+#
+# This would trigger:
+# 1. Mark source as stale in checkpoint
+# 2. Determine which sections are affected
+# 3. Re-extract affected sections
+# 4. Update synthesis if already drafted
