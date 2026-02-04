@@ -573,8 +573,7 @@ class CacheMetrics:
             for callback in callbacks:
                 try:
                     callback(event)
-                except Exception:
-                    # Don't let callback errors break cache operations
+                except Exception:  # BROAD-CATCH: hook -- metrics callbacks must not break cache operations
                     logger.warning("Metrics callback failed", exc_info=True)
         finally:
             self._emitting.active = False

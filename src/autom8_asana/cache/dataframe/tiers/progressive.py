@@ -161,7 +161,7 @@ class ProgressiveTier:
         try:
             df = pl.read_parquet(io.BytesIO(df_result.data))
             self._stats["bytes_read"] += len(df_result.data)
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: vendor-polymorphic -- pl.read_parquet raises diverse polars-specific errors
             self._stats["read_errors"] += 1
             logger.warning(
                 "progressive_tier_parse_error",
