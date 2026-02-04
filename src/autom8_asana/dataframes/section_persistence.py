@@ -852,6 +852,108 @@ class SectionPersistence:
 
         return success
 
+    # ========== Checkpoint Operations ==========
+
+    async def write_checkpoint_async(
+        self,
+        project_gid: str,
+        section_gid: str,
+        df: pl.DataFrame,
+        *,
+        pages_fetched: int,
+        rows_fetched: int,
+    ) -> bool:
+        """Write a mid-fetch checkpoint parquet to S3 without marking complete.
+
+        Used during paced iteration of large sections to persist progress.
+        The section remains IN_PROGRESS so that resume can continue from
+        the checkpoint offset. Updates manifest with checkpoint metadata.
+
+        Args:
+            project_gid: Asana project GID.
+            section_gid: Section GID being fetched.
+            df: Checkpoint DataFrame with accumulated rows so far.
+            pages_fetched: Number of API pages consumed so far.
+            rows_fetched: Total rows accumulated so far.
+
+        Returns:
+            True if checkpoint written successfully.
+        """
+        if self._polars_module is None:
+            logger.warning("polars not available, cannot write checkpoint")
+            return False
+
+        # Serialize to parquet
+        buffer = io.BytesIO()
+        df.write_parquet(buffer)
+        buffer.seek(0)
+        parquet_bytes = buffer.read()
+
+        key = self._make_section_key(project_gid, section_gid)
+        result = await self._s3_client.put_object_async(
+            key=key,
+            body=parquet_bytes,
+            content_type="application/octet-stream",
+            metadata={
+                "project-gid": project_gid,
+                "section-gid": section_gid,
+                "row-count": str(len(df)),
+                "checkpoint": "true",
+                "pages-fetched": str(pages_fetched),
+            },
+        )
+
+        if result.success:
+            await self.update_checkpoint_metadata_async(
+                project_gid, section_gid, pages_fetched, rows_fetched
+            )
+        else:
+            logger.warning(
+                "checkpoint_write_failed",
+                extra={
+                    "project_gid": project_gid,
+                    "section_gid": section_gid,
+                    "error": result.error,
+                },
+            )
+
+        return result.success
+
+    async def update_checkpoint_metadata_async(
+        self,
+        project_gid: str,
+        section_gid: str,
+        pages_fetched: int,
+        rows_fetched: int,
+    ) -> None:
+        """Update manifest SectionInfo with checkpoint progress.
+
+        Uses the per-project manifest lock to safely update checkpoint
+        fields without race conditions.
+
+        Args:
+            project_gid: Asana project GID.
+            section_gid: Section GID being checkpointed.
+            pages_fetched: Total pages fetched so far.
+            rows_fetched: Total rows accumulated so far.
+        """
+        lock = self._get_manifest_lock(project_gid)
+        async with lock:
+            manifest = await self.get_manifest_async(project_gid)
+            if manifest is None:
+                return
+
+            section_info = manifest.sections.get(section_gid)
+            if section_info is None:
+                return
+
+            section_info.last_fetched_offset = pages_fetched
+            section_info.rows_fetched = rows_fetched
+            section_info.chunks_checkpointed += 1
+
+            self._manifest_cache[project_gid] = manifest
+            await self._save_manifest_async(manifest)
+
     # ========== Cleanup Operations ==========
 
     async def delete_section_files_async(self, project_gid: str) -> bool:

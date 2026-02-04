@@ -14,7 +14,6 @@ This builder enables:
 from __future__ import annotations
 
 import asyncio
-import io
 import os
 import time
 from dataclasses import dataclass
@@ -777,9 +776,9 @@ class ProgressiveProjectBuilder:
     ) -> bool:
         """Write accumulated tasks as a checkpoint parquet to S3.
 
-        Converts accumulated tasks to a DataFrame and writes to the
-        section's existing S3 key (atomic overwrite via PutObject).
-        Updates manifest with checkpoint metadata.
+        Converts accumulated tasks to a DataFrame and delegates to
+        SectionPersistence.write_checkpoint_async() for S3 write and
+        manifest metadata update.
 
         Per TDD-large-section-resilience section 3.2 / ADR-LSR-002.
 
@@ -799,41 +798,21 @@ class ProgressiveProjectBuilder:
                 coerced_rows, schema=self._schema.to_polars_schema()
             )
 
-            # Write to S3 at the section's key (atomic overwrite).
-            # We call the underlying S3 write directly, NOT
-            # write_section_async(), because that method marks
-            # the section COMPLETE. For checkpoints we need the
-            # section to remain IN_PROGRESS.
-            key = self._persistence._make_section_key(self._project_gid, section_gid)
-            buffer = io.BytesIO()
-            checkpoint_df.write_parquet(buffer)
-            buffer.seek(0)
-            parquet_bytes = buffer.read()
-
-            result = await self._persistence._s3_client.put_object_async(
-                key=key,
-                body=parquet_bytes,
-                content_type="application/octet-stream",
-                metadata={
-                    "project-gid": self._project_gid,
-                    "section-gid": section_gid,
-                    "row-count": str(len(checkpoint_df)),
-                    "checkpoint": "true",
-                    "pages-fetched": str(pages_fetched),
-                },
+            success = await self._persistence.write_checkpoint_async(
+                self._project_gid,
+                section_gid,
+                checkpoint_df,
+                pages_fetched=pages_fetched,
+                rows_fetched=len(checkpoint_df),
             )
 
-            if result.success:
-                await self._update_checkpoint_metadata(
-                    section_gid, pages_fetched, len(checkpoint_df)
-                )
+            if success:
                 logger.info(
                     "section_checkpoint_written",
                     extra={
                         "section_gid": section_gid,
                         "pages_fetched": pages_fetched,
                         "rows_checkpointed": len(checkpoint_df),
-                        "s3_key": key,
                     },
                 )
                 # Store in memory for fallback
@@ -843,11 +822,10 @@ class ProgressiveProjectBuilder:
                     "section_checkpoint_write_failed",
                     extra={
                         "section_gid": section_gid,
-                        "error": result.error,
                     },
                 )
 
-            return result.success
+            return success
 
         except Exception as e:
             logger.warning(
@@ -859,41 +837,6 @@ class ProgressiveProjectBuilder:
                 },
             )
             return False
-
-    async def _update_checkpoint_metadata(
-        self,
-        section_gid: str,
-        pages_fetched: int,
-        rows_fetched: int,
-    ) -> None:
-        """Update manifest SectionInfo with checkpoint progress.
-
-        Uses the per-project manifest lock to safely update checkpoint
-        fields without race conditions.
-
-        Per TDD-large-section-resilience section 3.3.
-
-        Args:
-            section_gid: Section GID being checkpointed.
-            pages_fetched: Total pages fetched so far.
-            rows_fetched: Total rows accumulated so far.
-        """
-        lock = self._persistence._get_manifest_lock(self._project_gid)
-        async with lock:
-            manifest = await self._persistence.get_manifest_async(self._project_gid)
-            if manifest is None:
-                return
-
-            section_info = manifest.sections.get(section_gid)
-            if section_info is None:
-                return
-
-            section_info.last_fetched_offset = pages_fetched
-            section_info.rows_fetched = rows_fetched
-            section_info.chunks_checkpointed += 1
-
-            self._persistence._manifest_cache[self._project_gid] = manifest
-            await self._persistence._save_manifest_async(manifest)
 
     def _task_to_dict(self, task: Task) -> dict[str, Any]:
         """Convert Task model to dict for DataFrameView extraction."""
