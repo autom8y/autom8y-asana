@@ -13,6 +13,7 @@ from typing import Any, cast
 from autom8y_log import get_logger
 
 from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.errors import DegradedModeMixin, is_connection_error
 from autom8_asana.cache.freshness import Freshness
 from autom8_asana.cache.metrics import CacheMetrics
 from autom8_asana.cache.settings import CacheSettings
@@ -55,7 +56,7 @@ class RedisConfig:
     decode_responses: bool = True
 
 
-class RedisCacheProvider:
+class RedisCacheProvider(DegradedModeMixin):
     """Redis-based cache provider with versioning support.
 
     Implements the CacheProvider protocol using Redis as the backend.
@@ -126,6 +127,7 @@ class RedisCacheProvider:
         self._pool_lock = Lock()
         self._degraded = False
         self._last_reconnect_attempt = 0.0
+        self._reconnect_interval = float(self._settings.reconnect_interval)
         self._redis_module: ModuleType | None = None
 
         # Import redis here to make it optional dependency
@@ -136,7 +138,8 @@ class RedisCacheProvider:
             self._initialize_pool()
         except ImportError:
             logger.warning(
-                "redis package not installed. RedisCacheProvider will operate in degraded mode."
+                "redis_package_not_installed",
+                extra={"fallback": "degraded_mode"},
             )
             self._degraded = True
 
@@ -162,7 +165,10 @@ class RedisCacheProvider:
             )
             self._degraded = False
         except Exception as e:
-            logger.error(f"Failed to initialize Redis pool: {e}")
+            logger.error(
+                "redis_pool_init_failed",
+                extra={"error": str(e), "error_type": type(e).__name__},
+            )
             self._degraded = True
 
     def _get_connection(self) -> Any:
@@ -187,22 +193,24 @@ class RedisCacheProvider:
 
     def _attempt_reconnect(self) -> None:
         """Attempt to reconnect to Redis if in degraded mode."""
-        now = time.time()
-        if now - self._last_reconnect_attempt < self._settings.reconnect_interval:
+        if not self.should_attempt_reconnect():
             return
 
         with self._pool_lock:
-            self._last_reconnect_attempt = now
+            self.record_reconnect_attempt()
             try:
                 self._initialize_pool()
                 if self._pool is not None and self._redis_module is not None:
                     redis_cls = self._redis_module.Redis
                     conn = redis_cls(connection_pool=self._pool)
                     conn.ping()
-                    self._degraded = False
+                    self.exit_degraded_mode()
                     logger.info("Redis connection restored")
             except Exception as e:
-                logger.warning(f"Redis reconnect failed: {e}")
+                logger.warning(
+                    "redis_reconnect_failed",
+                    extra={"error": str(e)},
+                )
 
     def _make_key(self, key: str, entry_type: EntryType) -> str:
         """Generate Redis key for a cache entry.
@@ -728,31 +736,22 @@ class RedisCacheProvider:
         Args:
             error: The exception that occurred.
         """
-        error_types: tuple[type[Exception], ...] = (
-            ConnectionError,
-            TimeoutError,
-            OSError,
-        )
-
-        # Check for redis-specific errors
+        extra_types: tuple[type[Exception], ...] = ()
         if self._redis_module is not None:
             redis_connection_error = getattr(
                 self._redis_module, "ConnectionError", Exception
             )
             redis_timeout_error = getattr(self._redis_module, "TimeoutError", Exception)
             redis_error = getattr(self._redis_module, "RedisError", Exception)
-            error_types = error_types + (
-                redis_connection_error,
-                redis_timeout_error,
-                redis_error,
-            )
+            extra_types = (redis_connection_error, redis_timeout_error, redis_error)
 
-        if isinstance(error, error_types):
-            if not self._degraded:
-                logger.warning(f"Redis error, entering degraded mode: {error}")
-                self._degraded = True
+        if is_connection_error(error, extra_types=extra_types):
+            self.enter_degraded_mode(str(error))
         else:
-            logger.error(f"Redis error: {error}")
+            logger.error(
+                "redis_error",
+                extra={"error": str(error), "error_type": type(error).__name__},
+            )
 
     def clear_all_tasks(self) -> int:
         """Clear all task entries from Redis cache.

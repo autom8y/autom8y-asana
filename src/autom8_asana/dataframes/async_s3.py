@@ -37,6 +37,12 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
+from autom8_asana.cache.errors import (
+    DegradedModeMixin,
+    is_s3_not_found_error,
+    is_s3_retryable_error,
+)
+
 if TYPE_CHECKING:
     from mypy_boto3_s3 import S3Client
 
@@ -122,7 +128,7 @@ class S3ReadResult:
     not_found: bool = False
 
 
-class AsyncS3Client:
+class AsyncS3Client(DegradedModeMixin):
     """Async S3 client wrapper using boto3 with asyncio.to_thread().
 
     Provides async S3 operations with retry logic, graceful degradation,
@@ -186,7 +192,8 @@ class AsyncS3Client:
         self._client: S3Client | None = None
         self._degraded = False
         self._last_error_time: float = 0.0
-        self._degraded_backoff = 60.0  # seconds before retry in degraded mode
+        self._last_reconnect_attempt = 0.0
+        self._reconnect_interval = 60.0  # seconds before retry in degraded mode
         self._initialized = False
 
     async def __aenter__(self) -> AsyncS3Client:
@@ -257,7 +264,7 @@ class AsyncS3Client:
 
         if self._degraded:
             # Check if we should retry
-            if time.time() - self._last_error_time > self._degraded_backoff:
+            if time.time() - self._last_error_time > self._reconnect_interval:
                 self._degraded = False
             else:
                 raise RuntimeError("AsyncS3Client in degraded mode")
@@ -585,63 +592,11 @@ class AsyncS3Client:
 
     def _is_not_found_error(self, error: Exception) -> bool:
         """Check if error indicates object not found."""
-        error_str = str(error).lower()
-        error_class = type(error).__name__
-
-        # Check common patterns
-        if "nosuchkey" in error_str or "not found" in error_str:
-            return True
-        if "404" in error_str:
-            return True
-        if error_class in ("NoSuchKey", "NotFound"):
-            return True
-
-        # Check botocore ClientError
-        if hasattr(error, "response"):
-            error_code = error.response.get("Error", {}).get("Code", "")
-            return error_code in ("NoSuchKey", "404", "NotFound")
-
-        return False
+        return is_s3_not_found_error(error)
 
     def _is_retryable_error(self, error: Exception) -> bool:
         """Check if error is transient and should be retried."""
-        error_str = str(error).lower()
-
-        # Network errors are retryable
-        retryable_patterns = [
-            "timeout",
-            "connection",
-            "throttl",
-            "slowdown",
-            "503",
-            "500",
-            "serviceunav",
-        ]
-        for pattern in retryable_patterns:
-            if pattern in error_str:
-                return True
-
-        # Specific exception types
-        retryable_types = (
-            ConnectionError,
-            TimeoutError,
-            asyncio.TimeoutError,
-            OSError,
-        )
-        if isinstance(error, retryable_types):
-            return True
-
-        # Check botocore error codes
-        if hasattr(error, "response"):
-            error_code = error.response.get("Error", {}).get("Code", "")
-            return error_code in (
-                "SlowDown",
-                "ServiceUnavailable",
-                "InternalError",
-                "RequestTimeout",
-            )
-
-        return False
+        return is_s3_retryable_error(error)
 
     def _handle_error(self, error: Exception, operation: str, key: str) -> None:
         """Handle S3 errors and potentially enter degraded mode."""
@@ -649,32 +604,20 @@ class AsyncS3Client:
         if hasattr(error, "response"):
             error_code = error.response.get("Error", {}).get("Code", "")
             if error_code in ("AccessDenied", "NoSuchBucket"):
-                if not self._degraded:
-                    logger.warning(
-                        "s3_access_error_degraded_mode",
-                        operation=operation,
-                        key=key,
-                        error=str(error),
-                    )
-                    self._degraded = True
-                    self._last_error_time = time.time()
+                self.enter_degraded_mode(str(error))
+                self._last_error_time = time.time()
                 return
 
         # Network/connection errors trigger degraded mode
         if isinstance(error, (ConnectionError, TimeoutError, asyncio.TimeoutError)):
-            if not self._degraded:
-                logger.warning(
-                    "s3_connectivity_error_degraded_mode",
-                    operation=operation,
-                    key=key,
-                    error=str(error),
-                )
-                self._degraded = True
-                self._last_error_time = time.time()
+            self.enter_degraded_mode(str(error))
+            self._last_error_time = time.time()
         else:
             logger.error(
                 "s3_error",
-                operation=operation,
-                key=key,
-                error=str(error),
+                extra={
+                    "operation": operation,
+                    "key": key,
+                    "error": str(error),
+                },
             )
