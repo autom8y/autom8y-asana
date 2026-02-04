@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from autom8_asana.api.dependencies import EntityServiceDep
 from autom8_asana.api.routes.internal import (
     ServiceClaims,
     require_service_claims,
@@ -37,7 +38,16 @@ from autom8_asana.query.errors import (
     UnknownSectionError,
 )
 from autom8_asana.query.models import RowsRequest, RowsResponse
-from autom8_asana.services.query_service import CacheNotWarmError, EntityQueryService
+from autom8_asana.services.errors import (
+    InvalidFieldError,
+    ServiceError,
+    get_status_for_error,
+)
+from autom8_asana.services.query_service import (
+    CacheNotWarmError,
+    EntityQueryService,
+    validate_fields,
+)
 from autom8_asana.services.resolver import (
     EntityProjectRegistry,
     get_resolvable_entities,
@@ -188,15 +198,9 @@ async def query_entities(
     request_body: QueryRequest,
     request: Request,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
+    entity_service: EntityServiceDep,
 ) -> JSONResponse:
     """Query entities from DataFrame cache with full cache lifecycle.
-
-    CRITICAL: This endpoint uses EntityQueryService which routes through
-    UniversalResolutionStrategy._get_dataframe(). This ensures:
-    - Cache hit: Returns immediately from Memory/S3 tier
-    - Cache miss: Triggers self-refresh via legacy strategy
-    - Concurrent misses: Coalesced (first builds, others wait)
-    - Repeated failures: Circuit breaker protects system
 
     Authentication:
         Requires valid service token (S2S JWT).
@@ -204,21 +208,6 @@ async def query_entities(
 
     Path Parameters:
         entity_type: Entity type to query (unit, business, offer, etc.)
-
-    Request:
-        POST /v1/query/offer
-        {
-            "where": {"section": "ACTIVE"},
-            "select": ["gid", "name", "office_phone"],
-            "limit": 100,
-            "offset": 0
-        }
-
-    Response:
-        {
-            "data": [{"gid": "123", "name": "...", "office_phone": "..."}],
-            "meta": {"total_count": 47, "limit": 100, "offset": 0, ...}
-        }
 
     Error Responses:
         - 401 MISSING_AUTH: No Authorization header
@@ -228,7 +217,7 @@ async def query_entities(
         - 422 INVALID_FIELD: Field in where/select not in schema
         - 422 VALIDATION_ERROR: Invalid request body
         - 503 CACHE_NOT_WARMED: DataFrame cache not available
-        - 503 PROJECT_NOT_CONFIGURED: No project configured for entity
+        - 503 SERVICE_NOT_CONFIGURED: Project or bot PAT not configured
     """
     start_time = time.monotonic()
     request_id = getattr(request.state, "request_id", "unknown")
@@ -246,97 +235,38 @@ async def query_entities(
         },
     )
 
-    # Validate entity type
-    queryable_types = _get_queryable_entities()
-    if entity_type not in queryable_types:
-        logger.warning(
-            "unknown_entity_type",
-            extra={
-                "request_id": request_id,
-                "entity_type": entity_type,
-                "available": sorted(queryable_types),
-            },
-        )
+    # 1. Entity validation (replaces inline entity type + project + bot PAT logic)
+    try:
+        ctx = entity_service.validate_entity_type(entity_type)
+    except ServiceError as e:
         raise HTTPException(
-            status_code=404,
-            detail={
-                "error": "UNKNOWN_ENTITY_TYPE",
-                "message": f"Unknown entity type: {entity_type}",
-                "available_types": sorted(queryable_types),
-            },
+            status_code=get_status_for_error(e), detail=e.to_dict()
         )
 
-    # Validate where fields
+    # 2. Field validation (replaces _validate_fields())
     if request_body.where:
-        _validate_fields(
-            list(request_body.where.keys()),
-            entity_type,
-            "where",
-        )
+        try:
+            validate_fields(
+                list(request_body.where.keys()), entity_type, "where"
+            )
+        except InvalidFieldError as e:
+            raise HTTPException(status_code=422, detail=e.to_dict())
 
-    # Determine select fields
     select_fields = request_body.select or DEFAULT_SELECT_FIELDS
 
-    # Validate select fields
-    _validate_fields(select_fields, entity_type, "select")
-
-    # Get project GID from EntityProjectRegistry
-    entity_registry: EntityProjectRegistry | None = getattr(
-        request.app.state, "entity_project_registry", None
-    )
-
-    if entity_registry is None or not entity_registry.is_ready():
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "PROJECT_NOT_CONFIGURED",
-                "message": "Entity project registry not initialized.",
-            },
-        )
-
-    project_gid = entity_registry.get_project_gid(entity_type)
-
-    if project_gid is None:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "PROJECT_NOT_CONFIGURED",
-                "message": f"No project configured for entity type: {entity_type}",
-            },
-        )
-
-    # Get AsanaClient for potential cache build operations
-    # Uses bot PAT from environment (same as resolve endpoint)
-    from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
-
     try:
-        bot_pat = get_bot_pat()
-    except BotPATError as e:
-        logger.error(
-            "bot_pat_unavailable",
-            extra={
-                "request_id": request_id,
-                "error": str(e),
-            },
-        )
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "SERVICE_NOT_CONFIGURED",
-                "message": "Bot PAT not configured for cache operations.",
-            },
-        )
+        validate_fields(select_fields, entity_type, "select")
+    except InvalidFieldError as e:
+        raise HTTPException(status_code=422, detail=e.to_dict())
 
-    # Execute query via EntityQueryService
-    # This routes through UniversalResolutionStrategy._get_dataframe()
-    # which provides full cache lifecycle (self-refresh, coalescing, circuit breaker)
+    # 3. Execute query via EntityQueryService
     query_service = _get_query_service()
 
     try:
-        async with AsanaClient(token=bot_pat) as client:
+        async with AsanaClient(token=ctx.bot_pat) as client:
             result = await query_service.query(
                 entity_type=entity_type,
-                project_gid=project_gid,
+                project_gid=ctx.project_gid,
                 client=client,
                 where=request_body.where,
                 select=select_fields,
@@ -349,7 +279,7 @@ async def query_entities(
             extra={
                 "request_id": request_id,
                 "entity_type": entity_type,
-                "project_gid": project_gid,
+                "project_gid": ctx.project_gid,
                 "error": str(e),
             },
         )
@@ -363,7 +293,7 @@ async def query_entities(
             },
         )
 
-    # Build response
+    # 4. Build response
     response = QueryResponse(
         data=result.data,
         meta=QueryMeta(
@@ -375,7 +305,6 @@ async def query_entities(
         ),
     )
 
-    # Log completion
     elapsed_ms = (time.monotonic() - start_time) * 1000
 
     logger.info(
