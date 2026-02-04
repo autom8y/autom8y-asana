@@ -52,6 +52,7 @@ from autom8_asana.api.routes.internal import (
     ServiceClaims,
     require_service_claims,
 )
+from autom8_asana.core.entity_types import ENTITY_TYPES
 from autom8_asana.services.resolver import (
     EntityProjectRegistry,
     filter_result_fields,
@@ -249,12 +250,9 @@ class ResolutionResponse(BaseModel):
 
 # --- Supported Entity Types ---
 
-# DEPRECATED: Use get_resolvable_entities() instead (TASK-004)
-# This constant is preserved for backwards compatibility but will be removed
-# in a future release. The dynamic discovery function derives resolvable
-# entities from SchemaRegistry + EntityProjectRegistry at runtime.
-# Note: See core.entity_types.ENTITY_TYPES for canonical list.
-SUPPORTED_ENTITY_TYPES = {"unit", "business", "offer", "contact"}
+# Fallback entity types derived from the canonical source.
+# Used only when dynamic discovery (get_resolvable_entities) fails.
+SUPPORTED_ENTITY_TYPES: set[str] = set(ENTITY_TYPES)
 
 
 def _get_supported_entity_types() -> set[str]:
