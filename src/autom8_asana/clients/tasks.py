@@ -154,7 +154,7 @@ class TasksClient(BaseClient):
         Raises:
             ValidationError: If task_gid is invalid.
         """
-        from autom8_asana.cache.entry import EntryType
+        from autom8_asana.cache.models.entry import EntryType
         from autom8_asana.persistence.validation import validate_gid
 
         validate_gid(task_gid, "task_gid")

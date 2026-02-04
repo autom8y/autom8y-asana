@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.cache.completeness import CompletenessLevel
+from autom8_asana.cache.models.completeness import CompletenessLevel
 
 # Per TDD-registry-consolidation: Import from package to ensure bootstrap runs
 from autom8_asana.models.business import (
@@ -24,7 +24,7 @@ from autom8_asana.models.business import (
 )
 
 if TYPE_CHECKING:
-    from autom8_asana.cache.unified import UnifiedTaskStore
+    from autom8_asana.cache.providers.unified import UnifiedTaskStore
     from autom8_asana.clients.tasks import TasksClient
     from autom8_asana.models.task import Task
 

@@ -32,7 +32,7 @@ Example:
     ...     persistence=persistence,
     ... )
     >>> result = await builder.build_progressive_async()
-    >>> result.df.shape
+    >>> result.dataframe.shape
     (500, 23)
 """
 
@@ -50,6 +50,13 @@ from autom8_asana.dataframes.builders.parallel_fetch import (
     ParallelFetchError,
     ParallelSectionFetcher,
 )
+from autom8_asana.dataframes.builders.build_result import (
+    BuildQuality,
+    BuildResult,
+    BuildStatus,
+    SectionOutcome,
+    SectionResult,
+)
 from autom8_asana.dataframes.builders.progressive import (
     ProgressiveBuildResult,
     ProgressiveProjectBuilder,
@@ -57,7 +64,7 @@ from autom8_asana.dataframes.builders.progressive import (
 from autom8_asana.dataframes.builders.section import SectionDataFrameBuilder
 
 if TYPE_CHECKING:
-    from autom8_asana.cache.unified import UnifiedTaskStore
+    from autom8_asana.cache.providers.unified import UnifiedTaskStore
     from autom8_asana.clients.tasks import TasksClient
 
 
@@ -110,7 +117,13 @@ __all__ = [
     # Concrete builders
     "ProgressiveProjectBuilder",
     "SectionDataFrameBuilder",
-    # Progressive builder results
+    # Build result types (C2)
+    "BuildResult",
+    "BuildStatus",
+    "BuildQuality",
+    "SectionResult",
+    "SectionOutcome",
+    # Legacy builder results
     "ProgressiveBuildResult",
     # Parallel fetch
     "FetchResult",

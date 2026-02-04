@@ -102,8 +102,10 @@ async def _invalidate_cache_async(
     try:
         if clear_tasks:
             # Initialize tiered cache provider
-            # TODO: Fix this - TieredCacheProvider requires hot_tier argument
-            cache = TieredCacheProvider()  # type: ignore[call-arg]
+            from autom8_asana.cache.backends.redis import RedisCacheProvider
+
+            hot_tier = RedisCacheProvider()
+            cache = TieredCacheProvider(hot_tier=hot_tier)
 
             logger.info(
                 "cache_invalidate_starting",

@@ -10,8 +10,10 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
+from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
+
 if TYPE_CHECKING:
-    from autom8_asana.cache.entry import CacheEntry, EntryType
+    from autom8_asana.cache.models.entry import CacheEntry, EntryType
     from autom8_asana.config import AsanaConfig
     from autom8_asana.protocols.auth import AuthProvider
     from autom8_asana.protocols.cache import CacheProvider
@@ -110,7 +112,7 @@ class BaseClient:
                 )
                 return entry
             return None
-        except Exception as exc:
+        except CACHE_TRANSIENT_ERRORS as exc:
             # NFR-DEGRADE-001: Log and continue
             logger.warning(
                 "cache_get_failed",
@@ -142,7 +144,7 @@ class BaseClient:
             return
 
         try:
-            from autom8_asana.cache.entry import CacheEntry
+            from autom8_asana.cache.models.entry import CacheEntry
 
             # Extract version from modified_at if present
             modified_at = data.get("modified_at")
@@ -170,7 +172,7 @@ class BaseClient:
                 key=key,
                 ttl=ttl,
             )
-        except Exception as exc:
+        except CACHE_TRANSIENT_ERRORS as exc:
             # NFR-DEGRADE-004: Log and continue
             logger.warning(
                 "cache_set_failed",
@@ -202,7 +204,7 @@ class BaseClient:
                 key=key,
                 types=[t.value for t in entry_types] if entry_types else "all",
             )
-        except Exception as exc:
+        except CACHE_TRANSIENT_ERRORS as exc:
             logger.warning(
                 "cache_invalidate_failed",
                 key=key,

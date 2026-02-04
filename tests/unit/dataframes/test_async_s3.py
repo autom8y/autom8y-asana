@@ -10,6 +10,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from botocore.exceptions import ClientError
+
 from autom8_asana.dataframes.async_s3 import (
     AsyncS3Client,
     AsyncS3Config,
@@ -373,8 +375,9 @@ class TestAsyncS3ClientOperations:
         client = AsyncS3Client(bucket="test-bucket")
 
         mock_s3 = MagicMock()
-        mock_s3.get_object.side_effect = Exception(
-            "NoSuchKey: The specified key does not exist"
+        mock_s3.get_object.side_effect = ClientError(
+            {"Error": {"Code": "NoSuchKey", "Message": "The specified key does not exist"}},
+            "GetObject",
         )
 
         with patch("boto3.client", return_value=mock_s3):

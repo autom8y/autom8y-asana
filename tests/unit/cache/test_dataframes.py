@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from autom8_asana.cache.dataframes import (
+from autom8_asana.cache.integration.dataframes import (
     invalidate_dataframe,
     invalidate_task_dataframes,
     load_batch_dataframes_cached,
@@ -14,7 +14,7 @@ from autom8_asana.cache.dataframes import (
     make_dataframe_key,
     parse_dataframe_key,
 )
-from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
 
 
 class MockCacheProvider:

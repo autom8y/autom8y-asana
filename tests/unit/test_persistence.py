@@ -609,6 +609,7 @@ class TestLoadIndex:
         with patch.object(DataFramePersistence, "_initialize_modules"):
             persistence = DataFramePersistence(config=config)
             persistence._degraded = False
+            persistence._boto3_module = MagicMock()
             persistence._botocore_module = botocore.exceptions
 
         # Mock S3 client that returns NoSuchKey

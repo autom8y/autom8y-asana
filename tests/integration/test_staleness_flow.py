@@ -14,9 +14,9 @@ import pytest
 
 from autom8_asana.batch.models import BatchResult
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
-from autom8_asana.cache.entry import CacheEntry, EntryType
-from autom8_asana.cache.staleness_coordinator import StalenessCheckCoordinator
-from autom8_asana.cache.staleness_settings import StalenessCheckSettings
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.integration.staleness_coordinator import StalenessCheckCoordinator
+from autom8_asana.cache.models.staleness_settings import StalenessCheckSettings
 
 
 def make_mock_batch_client() -> MagicMock:

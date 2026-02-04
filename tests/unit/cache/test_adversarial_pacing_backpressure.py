@@ -13,14 +13,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from autom8_asana.cache.entry import EntryType
-from autom8_asana.cache.freshness_coordinator import FreshnessMode
-from autom8_asana.cache.hierarchy import HierarchyIndex
-from autom8_asana.cache.hierarchy_warmer import (
+from autom8_asana.cache.models.entry import EntryType
+from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+from autom8_asana.cache.policies.hierarchy import HierarchyIndex
+from autom8_asana.cache.integration.hierarchy_warmer import (
     _fetch_parent,
     warm_ancestors_async,
 )
-from autom8_asana.cache.unified import UnifiedTaskStore
+from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -113,7 +113,7 @@ class TestBoundaryConditions:
         tasks = [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(100)]
 
         with patch(
-            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
         ) as mock_sleep:
             await store.put_batch_async(
                 tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
@@ -130,7 +130,7 @@ class TestBoundaryConditions:
         tasks = [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(101)]
 
         with patch(
-            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
         ) as mock_sleep:
             await store.put_batch_async(
                 tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
@@ -148,7 +148,7 @@ class TestBoundaryConditions:
         tasks = [_make_task(f"t-{i}") for i in range(10)]  # no parent_gid
 
         with patch(
-            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
         ) as mock_sleep:
             await store.put_batch_async(
                 tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
@@ -165,7 +165,7 @@ class TestBoundaryConditions:
         tasks = [_make_task("only-task", parent_gid="only-parent")]
 
         with patch(
-            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
         ) as mock_sleep:
             await store.put_batch_async(
                 tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
@@ -191,7 +191,7 @@ class TestBatchEdgeCases:
         tasks = [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(150)]
 
         with patch(
-            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
         ) as mock_sleep:
             await store.put_batch_async(
                 tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
@@ -208,7 +208,7 @@ class TestBatchEdgeCases:
         tasks = [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(151)]
 
         with patch(
-            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
         ) as mock_sleep:
             await store.put_batch_async(
                 tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
@@ -227,7 +227,7 @@ class TestBatchEdgeCases:
 
         with (
             patch(
-                "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+                "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
             ) as mock_sleep,
             patch("autom8_asana.config.HIERARCHY_BATCH_SIZE", 200),
         ):
@@ -245,7 +245,7 @@ class TestBatchEdgeCases:
         n = 250
         tasks = [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(n)]
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock):
+        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
             await store.put_batch_async(
                 tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
             )
@@ -285,14 +285,14 @@ class TestErrorResilience:
             call_count += 1
             # Fail every 3rd fetch
             if call_count % 3 == 0:
-                raise Exception("Simulated transient error")
+                raise ConnectionError("Simulated transient error")
             return _make_parent_response(gid)
 
         client = MagicMock()
         client.get_async = AsyncMock(side_effect=_flaky_get)
 
         with patch(
-            "autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock
+            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
         ) as mock_sleep:
             await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=client)
             # Pacing activated (120 > 100), 2 pauses expected in Phase 1
@@ -312,9 +312,9 @@ class TestErrorResilience:
         tasks = [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(110)]
 
         client = MagicMock()
-        client.get_async = AsyncMock(side_effect=Exception("Total failure"))
+        client.get_async = AsyncMock(side_effect=ConnectionError("Total failure"))
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock):
+        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
             # Should NOT raise
             await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=client)
 
@@ -339,13 +339,13 @@ class TestErrorResilience:
             call_index += 1
             # Fail everything in batch 3 (items 101-110) during Phase 1
             if call_index > 100 and call_index <= 110:
-                raise Exception("Last batch explodes")
+                raise ConnectionError("Last batch explodes")
             return _make_parent_response(gid)
 
         client = MagicMock()
         client.get_async = AsyncMock(side_effect=_fail_last_batch)
 
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock):
+        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
             await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=client)
 
         # Phase 1: 110 calls. Phase 2: re-attempts for 10 failed + uncached parents.
@@ -385,7 +385,7 @@ class TestConcurrencyInteraction:
         client.get_async = AsyncMock(side_effect=_tracking_get)
 
         # Use a store with semaphore of 10 (default)
-        with patch("autom8_asana.cache.unified.asyncio.sleep", new_callable=AsyncMock):
+        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
             await store.put_batch_async(
                 [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(120)],
                 warm_hierarchy=True,
@@ -427,7 +427,7 @@ class TestDeadCodeRemoval:
 
     def test_is_rate_limit_error_removed(self) -> None:
         """_is_rate_limit_error should no longer exist in hierarchy_warmer module."""
-        import autom8_asana.cache.hierarchy_warmer as hw
+        import autom8_asana.cache.integration.hierarchy_warmer as hw
 
         assert not hasattr(hw, "_is_rate_limit_error"), (
             "_is_rate_limit_error still present -- dead code not removed"
@@ -435,8 +435,8 @@ class TestDeadCodeRemoval:
 
     def test_no_backoff_event_references_in_source(self) -> None:
         """No references to backoff_event in the production source tree."""
-        import autom8_asana.cache.hierarchy_warmer as hw
-        import autom8_asana.cache.unified as uf
+        import autom8_asana.cache.integration.hierarchy_warmer as hw
+        import autom8_asana.cache.providers.unified as uf
 
         hw_src = inspect.getsource(hw)
         uf_src = inspect.getsource(uf)
@@ -589,7 +589,7 @@ class TestPhase2Unaffected:
         hierarchy_index.register({"gid": "u-1", "parent": {"gid": "b-1"}})
 
         client = MagicMock()
-        client.get_async = AsyncMock(side_effect=Exception("Network down"))
+        client.get_async = AsyncMock(side_effect=ConnectionError("Network down"))
 
         warmed = await warm_ancestors_async(
             gids=["u-1"],

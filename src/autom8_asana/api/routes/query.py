@@ -24,6 +24,8 @@ from autom8_asana.api.routes.internal import (
     require_service_claims,
 )
 from autom8_asana.client import AsanaClient
+from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
+from autom8_asana.dataframes.exceptions import SchemaNotFoundError
 from autom8_asana.dataframes.models.registry import SchemaRegistry
 from autom8_asana.query.compiler import strip_section_predicates
 from autom8_asana.query.engine import QueryEngine
@@ -152,7 +154,7 @@ def _validate_fields(
 
     try:
         schema = registry.get_schema(schema_key)
-    except Exception:
+    except SchemaNotFoundError:
         schema = registry.get_schema("*")
 
     valid_fields = set(schema.column_names())
@@ -442,9 +444,17 @@ async def _resolve_section(
                 index = await SectionIndex.from_manifest_async(persistence, project_gid)
                 if index.resolve(section_name) is not None:
                     return section_name
-    except Exception:
+    except S3_TRANSPORT_ERRORS:
         # Manifest unavailable; fall through to enum fallback
-        pass
+        logger.debug(
+            "manifest_section_resolution_failed",
+            exc_info=True,
+            extra={
+                "section_name": section_name,
+                "entity_type": entity_type,
+                "project_gid": project_gid,
+            },
+        )
 
     # Enum fallback
     index = SectionIndex.from_enum_fallback(entity_type)

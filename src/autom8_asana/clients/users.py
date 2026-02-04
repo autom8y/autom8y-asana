@@ -14,6 +14,10 @@ from autom8_asana.models.user import User
 from autom8_asana.observability import error_handler
 from autom8_asana.transport.sync import sync_wrapper
 
+# Cache TTL for user metadata (1 hour)
+# User profiles change infrequently (name, email rarely modified)
+USER_CACHE_TTL = 3600
+
 
 class UsersClient(BaseClient):
     """Client for Asana User operations.
@@ -67,7 +71,7 @@ class UsersClient(BaseClient):
         Raises:
             GidValidationError: If user_gid is invalid.
         """
-        from autom8_asana.cache.entry import EntryType
+        from autom8_asana.cache.models.entry import EntryType
         from autom8_asana.persistence.validation import validate_gid
 
         # Step 1: Validate GID
@@ -86,8 +90,8 @@ class UsersClient(BaseClient):
         params = self._build_opt_fields(opt_fields)
         data = await self._http.get(f"/users/{user_gid}", params=params)
 
-        # Step 5: Store in cache (1 hour TTL)
-        self._cache_set(user_gid, data, EntryType.USER, ttl=3600)
+        # Step 5: Store in cache
+        self._cache_set(user_gid, data, EntryType.USER, ttl=USER_CACHE_TTL)
 
         # Step 6: Return model or raw dict
         if raw:

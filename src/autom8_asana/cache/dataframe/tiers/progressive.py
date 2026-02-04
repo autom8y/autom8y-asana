@@ -28,8 +28,10 @@ from typing import TYPE_CHECKING
 import polars as pl
 from autom8y_log import get_logger
 
+from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
+
 if TYPE_CHECKING:
-    from autom8_asana.cache.dataframe_cache import CacheEntry
+    from autom8_asana.cache.integration.dataframe_cache import CacheEntry
     from autom8_asana.dataframes.section_persistence import SectionPersistence
 
 __all__ = ["ProgressiveTier"]
@@ -122,7 +124,7 @@ class ProgressiveTier:
             4. Construct CacheEntry with metadata from watermark
             5. Return None on any error (graceful degradation)
         """
-        from autom8_asana.cache.dataframe_cache import CacheEntry
+        from autom8_asana.cache.integration.dataframe_cache import CacheEntry
 
         try:
             entity_type, project_gid = self._parse_key(key)
@@ -176,8 +178,9 @@ class ProgressiveTier:
                 watermark_data = json.loads(wm_result.data.decode("utf-8"))
                 watermark = self._parse_datetime(watermark_data.get("watermark"))
                 schema_version = watermark_data.get("schema_version", "unknown")
-            except Exception:
+            except (ValueError, TypeError):
                 # Fallback to current time if watermark parsing fails
+                logger.warning("Watermark parse failed, defaulting to now()", exc_info=True)
                 watermark = datetime.now(UTC)
                 schema_version = "unknown"
         else:
@@ -262,7 +265,7 @@ class ProgressiveTier:
 
             return success
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             self._stats["write_errors"] += 1
             logger.error(
                 "progressive_tier_put_exception",

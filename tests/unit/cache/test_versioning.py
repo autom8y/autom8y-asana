@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from autom8_asana.cache.versioning import (
+from autom8_asana.cache.models.versioning import (
     compare_versions,
     format_version,
     is_current,

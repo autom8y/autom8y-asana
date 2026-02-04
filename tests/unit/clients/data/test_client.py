@@ -78,7 +78,7 @@ class TestDataServiceClientInit:
 
     def test_accepts_staleness_settings(self) -> None:
         """Accepts optional staleness_settings parameter."""
-        from autom8_asana.cache.staleness_settings import StalenessCheckSettings
+        from autom8_asana.cache.models.staleness_settings import StalenessCheckSettings
 
         settings = StalenessCheckSettings(base_ttl=600)
 
@@ -412,7 +412,7 @@ class TestDataServiceClientGetAuthToken:
     def test_falls_back_to_env_var_on_provider_error(self) -> None:
         """Falls back to environment variable when auth_provider raises."""
         mock_auth = MagicMock()
-        mock_auth.get_secret.side_effect = Exception("Provider error")
+        mock_auth.get_secret.side_effect = KeyError("Provider error")
         mock_logger = MagicMock()
 
         config = DataServiceConfig(
@@ -2324,7 +2324,7 @@ class TestCacheFailureGracefulDegradation:
         import respx
 
         mock_cache = MagicMock()
-        mock_cache.set.side_effect = Exception("Cache write failed")
+        mock_cache.set.side_effect = ConnectionError("Cache write failed")
 
         client = DataServiceClient(cache_provider=mock_cache)
 
@@ -2363,7 +2363,7 @@ class TestCacheFailureGracefulDegradation:
         from autom8_asana.exceptions import InsightsServiceError
 
         mock_cache = MagicMock()
-        mock_cache.get.side_effect = Exception("Cache read failed")
+        mock_cache.get.side_effect = ConnectionError("Cache read failed")
 
         client = DataServiceClient(cache_provider=mock_cache)
 
@@ -2391,7 +2391,7 @@ class TestCacheFailureGracefulDegradation:
         import respx
 
         mock_cache = MagicMock()
-        mock_cache.set.side_effect = Exception("Cache write failed")
+        mock_cache.set.side_effect = ConnectionError("Cache write failed")
         mock_logger = MagicMock()
 
         client = DataServiceClient(cache_provider=mock_cache, logger=mock_logger)
@@ -2604,14 +2604,14 @@ class TestEntryTypeInsights:
 
     def test_insights_entry_type_exists(self) -> None:
         """EntryType.INSIGHTS is defined."""
-        from autom8_asana.cache.entry import EntryType
+        from autom8_asana.cache.models.entry import EntryType
 
         assert hasattr(EntryType, "INSIGHTS")
         assert EntryType.INSIGHTS.value == "insights"
 
     def test_insights_entry_type_is_string_enum(self) -> None:
         """EntryType.INSIGHTS is a string enum value."""
-        from autom8_asana.cache.entry import EntryType
+        from autom8_asana.cache.models.entry import EntryType
 
         assert isinstance(EntryType.INSIGHTS.value, str)
         assert EntryType.INSIGHTS == "insights"

@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 from autom8y_log import get_logger
 
 if TYPE_CHECKING:
-    from autom8_asana.cache.dataframe_cache import DataFrameCache
+    from autom8_asana.cache.integration.dataframe_cache import DataFrameCache
 
 logger = get_logger(__name__)
 
@@ -85,7 +85,7 @@ async def _swr_build_callback(
             await cache.put_async(
                 project_gid,
                 entity_type,
-                result.df,
+                result.dataframe,
                 result.watermark,
             )
 
@@ -118,11 +118,11 @@ def initialize_dataframe_cache() -> DataFrameCache | None:
     from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
     from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
     from autom8_asana.cache.dataframe.tiers.progressive import ProgressiveTier
-    from autom8_asana.cache.dataframe_cache import (
+    from autom8_asana.cache.integration.dataframe_cache import (
         DataFrameCache,
         set_dataframe_cache,
     )
-    from autom8_asana.cache.dataframe_cache import (
+    from autom8_asana.cache.integration.dataframe_cache import (
         get_dataframe_cache as _get_cache,
     )
     from autom8_asana.dataframes.section_persistence import SectionPersistence
@@ -230,7 +230,7 @@ def get_dataframe_cache_provider() -> DataFrameCache | None:
         ... class OfferResolutionStrategy:
         ...     ...
     """
-    from autom8_asana.cache.dataframe_cache import (
+    from autom8_asana.cache.integration.dataframe_cache import (
         get_dataframe_cache as _get_cache,
     )
 
@@ -244,7 +244,7 @@ def get_dataframe_cache() -> DataFrameCache | None:
     Returns:
         DataFrameCache if initialized, None otherwise.
     """
-    from autom8_asana.cache.dataframe_cache import (
+    from autom8_asana.cache.integration.dataframe_cache import (
         get_dataframe_cache as _get_cache,
     )
 
@@ -256,7 +256,7 @@ def reset_dataframe_cache() -> None:
 
     Clears the singleton instance so next initialization creates fresh cache.
     """
-    from autom8_asana.cache.dataframe_cache import (
+    from autom8_asana.cache.integration.dataframe_cache import (
         reset_dataframe_cache as _reset,
     )
 

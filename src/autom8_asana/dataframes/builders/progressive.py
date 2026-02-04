@@ -29,6 +29,13 @@ from autom8_asana.config import (
     PACE_PAGES_PER_PAUSE,
 )
 from autom8_asana.dataframes.builders.base import gather_with_limit
+from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
+from autom8_asana.dataframes.builders.build_result import (
+    BuildResult,
+    BuildStatus,
+    SectionOutcome,
+    SectionResult,
+)
 from autom8_asana.dataframes.builders.fields import (
     BASE_OPT_FIELDS,
     coerce_rows_to_schema,
@@ -370,14 +377,17 @@ class ProgressiveProjectBuilder:
     async def build_progressive_async(
         self,
         resume: bool = True,
-    ) -> ProgressiveBuildResult:
+    ) -> BuildResult:
         """Build DataFrame with progressive section writes to S3.
+
+        Per TDD-PARTIAL-FAILURE-SIGNALING-001: Returns BuildResult with
+        per-section outcomes and aggregate status classification.
 
         Args:
             resume: If True, check manifest and skip completed sections.
 
         Returns:
-            ProgressiveBuildResult with merged DataFrame and metrics.
+            BuildResult with classified status and per-section detail.
         """
         start_time = time.perf_counter()
 
@@ -392,14 +402,15 @@ class ProgressiveProjectBuilder:
                 "progressive_build_no_sections",
                 extra={"project_gid": self._project_gid},
             )
-            return ProgressiveBuildResult(
-                df=pl.DataFrame(schema=self._schema.to_polars_schema()),
+            return BuildResult(
+                status=BuildStatus.SUCCESS,
+                sections=(),
+                dataframe=pl.DataFrame(schema=self._schema.to_polars_schema()),
                 watermark=datetime.now(UTC),
-                total_rows=0,
-                sections_fetched=0,
-                sections_resumed=0,
-                fetch_time_ms=0.0,
+                project_gid=self._project_gid,
+                entity_type=self._entity_type,
                 total_time_ms=(time.perf_counter() - start_time) * 1000,
+                fetch_time_ms=0.0,
             )
 
         # Step 2: Check resume and probe freshness
@@ -422,16 +433,26 @@ class ProgressiveProjectBuilder:
             },
         )
 
+        # Collect SectionResults for resumed sections
+        section_results: list[SectionResult] = []
+        for gid in section_gids:
+            if gid not in resume_result.sections_to_fetch:
+                section_results.append(
+                    SectionResult(
+                        section_gid=gid,
+                        outcome=SectionOutcome.SKIPPED,
+                        resumed=True,
+                    )
+                )
+
         # Step 4: Fetch and persist incomplete sections
         fetch_time = 0.0
-        sections_fetched = 0
         if resume_result.sections_to_fetch:
             fetch_start = time.perf_counter()
 
-            # Use as_completed for streaming results
             section_map = {s.gid: s for s in sections}
             fetch_tasks = [
-                self._fetch_and_persist_section(
+                self._fetch_and_persist_section_with_result(
                     section_gid,
                     section_map.get(section_gid),
                     idx,
@@ -441,12 +462,11 @@ class ProgressiveProjectBuilder:
             ]
 
             # Process sections with bounded concurrency
-            results = await gather_with_limit(
+            fetch_results = await gather_with_limit(
                 fetch_tasks,
                 max_concurrent=self._max_concurrent,
             )
-
-            sections_fetched = sum(1 for r in results if r)
+            section_results.extend(fetch_results)
             fetch_time = (time.perf_counter() - fetch_start) * 1000
 
         # Step 5: Merge sections
@@ -456,7 +476,6 @@ class ProgressiveProjectBuilder:
 
         # Step 6: Write final artifacts
         if total_rows > 0:
-            # Build GidLookupIndex from merged DataFrame
             index_data = self._build_index_data(merged_df)
 
             await self._persistence.write_final_artifacts_async(
@@ -469,14 +488,28 @@ class ProgressiveProjectBuilder:
 
         total_time = (time.perf_counter() - start_time) * 1000
 
+        # Classify and log build result
+        build_result = BuildResult.from_section_results(
+            section_results=section_results,
+            dataframe=merged_df,
+            watermark=watermark,
+            project_gid=self._project_gid,
+            entity_type=self._entity_type,
+            total_time_ms=total_time,
+            fetch_time_ms=fetch_time,
+            sections_probed=resume_result.sections_probed,
+            sections_delta_updated=resume_result.sections_delta_updated,
+        )
+
         logger.info(
-            "progressive_build_complete",
+            "build_result_classified",
             extra={
                 "project_gid": self._project_gid,
                 "entity_type": self._entity_type,
-                "total_rows": total_rows,
-                "sections_fetched": sections_fetched,
-                "sections_resumed": resume_result.sections_resumed,
+                "status": build_result.status.value,
+                "sections_succeeded": build_result.sections_succeeded,
+                "sections_failed": build_result.sections_failed,
+                "total_rows": build_result.total_rows,
                 "sections_probed": resume_result.sections_probed,
                 "sections_delta_updated": resume_result.sections_delta_updated,
                 "fetch_time_ms": round(fetch_time, 2),
@@ -484,20 +517,30 @@ class ProgressiveProjectBuilder:
             },
         )
 
+        if build_result.status == BuildStatus.PARTIAL:
+            logger.warning(
+                "build_partial_failure",
+                extra={
+                    "project_gid": self._project_gid,
+                    "entity_type": self._entity_type,
+                    "failed_section_gids": build_result.failed_section_gids,
+                    "error_summary": build_result.error_summary,
+                },
+            )
+        elif build_result.status == BuildStatus.FAILURE:
+            logger.error(
+                "build_total_failure",
+                extra={
+                    "project_gid": self._project_gid,
+                    "entity_type": self._entity_type,
+                    "error_summary": build_result.error_summary,
+                },
+            )
+
         # Release in-memory section DataFrames
         self._section_dfs.clear()
 
-        return ProgressiveBuildResult(
-            df=merged_df,
-            watermark=watermark,
-            total_rows=total_rows,
-            sections_fetched=sections_fetched,
-            sections_resumed=resume_result.sections_resumed,
-            fetch_time_ms=fetch_time,
-            total_time_ms=total_time,
-            sections_probed=resume_result.sections_probed,
-            sections_delta_updated=resume_result.sections_delta_updated,
-        )
+        return build_result
 
     async def _ensure_dataframe_view(self) -> None:
         """Initialize DataFrameView for row extraction."""
@@ -628,6 +671,85 @@ class ProgressiveProjectBuilder:
             )
 
             return False
+
+    async def _fetch_and_persist_section_with_result(
+        self,
+        section_gid: str,
+        section: Section | None,
+        section_index: int,
+        total_sections: int,
+    ) -> SectionResult:
+        """Fetch, build, and persist a section, returning a SectionResult.
+
+        Per ADR-C2-003: Wrapper around _fetch_and_persist_section that
+        captures the outcome as a structured SectionResult instead of
+        a boolean. The underlying method is unchanged.
+
+        Args:
+            section_gid: Section GID to fetch.
+            section: Section object (may be None).
+            section_index: Index for progress logging.
+            total_sections: Total sections being fetched.
+
+        Returns:
+            SectionResult with outcome, row count, timing, and error detail.
+        """
+        section_start = time.perf_counter()
+
+        try:
+            success = await self._fetch_and_persist_section(
+                section_gid, section, section_index, total_sections
+            )
+
+            fetch_time_ms = (time.perf_counter() - section_start) * 1000
+
+            if success:
+                # Get row count from in-memory section DF
+                row_count = 0
+                section_df = self._section_dfs.get(section_gid)
+                if section_df is not None:
+                    row_count = len(section_df)
+
+                # Get watermark from manifest
+                watermark = None
+                if self._manifest is not None:
+                    info = self._manifest.sections.get(section_gid)
+                    if info is not None:
+                        watermark = info.watermark
+
+                return SectionResult(
+                    section_gid=section_gid,
+                    outcome=SectionOutcome.SUCCESS,
+                    row_count=row_count,
+                    fetch_time_ms=fetch_time_ms,
+                    watermark=watermark,
+                )
+            else:
+                # _fetch_and_persist_section returned False
+                # Error was logged and manifest updated inside the method
+                error_msg = None
+                if self._manifest is not None:
+                    info = self._manifest.sections.get(section_gid)
+                    if info is not None and info.error:
+                        error_msg = info.error
+
+                return SectionResult(
+                    section_gid=section_gid,
+                    outcome=SectionOutcome.ERROR,
+                    fetch_time_ms=fetch_time_ms,
+                    error_message=error_msg or "Section fetch returned False",
+                    error_type="UnknownError",
+                )
+
+        except Exception as e:
+            fetch_time_ms = (time.perf_counter() - section_start) * 1000
+            return SectionResult(
+                section_gid=section_gid,
+                outcome=SectionOutcome.ERROR,
+                fetch_time_ms=fetch_time_ms,
+                error_message=str(e),
+                error_type=type(e).__name__,
+            )
 
     async def _load_checkpoint(self, section_gid: str) -> int:
         """Attempt to load a checkpoint for resume and return the page offset.
@@ -914,7 +1036,7 @@ class ProgressiveProjectBuilder:
 
             return success
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             logger.warning(
                 "section_checkpoint_failed",
                 extra={
@@ -1074,7 +1196,7 @@ async def build_project_progressive_async(
     resolver: CustomFieldResolver | None = None,
     store: Any | None = None,
     resume: bool = True,
-) -> ProgressiveBuildResult:
+) -> BuildResult:
     """Convenience function for progressive project build.
 
     Args:
@@ -1088,7 +1210,7 @@ async def build_project_progressive_async(
         resume: If True, resume from existing manifest.
 
     Returns:
-        ProgressiveBuildResult with DataFrame and metrics.
+        BuildResult with classified status and per-section detail.
     """
     builder = ProgressiveProjectBuilder(
         client=client,

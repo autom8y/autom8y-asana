@@ -13,7 +13,7 @@ import pytest
 from fastapi import HTTPException
 
 from autom8_asana.cache.dataframe.decorator import dataframe_cache
-from autom8_asana.cache.dataframe_cache import (
+from autom8_asana.cache.integration.dataframe_cache import (
     CacheEntry,
     DataFrameCache,
     reset_dataframe_cache,

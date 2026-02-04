@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
-from autom8_asana.cache.metrics import CacheEvent, CacheMetrics
+from autom8_asana.cache.models.metrics import CacheEvent, CacheMetrics
 
 
 class TestCacheEvent:

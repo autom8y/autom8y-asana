@@ -18,7 +18,8 @@ from typing import TYPE_CHECKING, ClassVar
 
 from autom8y_log import get_logger
 
-from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 from autom8_asana.dataframes.exceptions import DataFrameError
 
 if TYPE_CHECKING:
@@ -283,7 +284,7 @@ class ParallelSectionFetcher:
             )
             return sections
 
-        except Exception as e:
+        except CACHE_TRANSIENT_ERRORS as e:
             # FR-DEGRADE-001: Graceful degradation
             logger.warning(
                 "section_list_cache_lookup_failed",
@@ -329,7 +330,7 @@ class ParallelSectionFetcher:
                 },
             )
 
-        except Exception as e:
+        except CACHE_TRANSIENT_ERRORS as e:
             # FR-DEGRADE-002: Cache failure does not prevent operation
             logger.warning(
                 "section_list_cache_population_failed",
@@ -451,7 +452,7 @@ class ParallelSectionFetcher:
             )
             return section_gids
 
-        except Exception as e:
+        except CACHE_TRANSIENT_ERRORS as e:
             # FR-DEGRADE-001: Graceful degradation
             logger.warning(
                 "gid_enumeration_cache_lookup_failed",
@@ -506,7 +507,7 @@ class ParallelSectionFetcher:
                 },
             )
 
-        except Exception as e:
+        except CACHE_TRANSIENT_ERRORS as e:
             # FR-DEGRADE-002: Cache failure does not prevent operation
             logger.warning(
                 "gid_enumeration_cache_population_failed",

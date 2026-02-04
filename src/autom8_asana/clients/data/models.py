@@ -20,6 +20,10 @@ if TYPE_CHECKING:
 # Import PhoneVerticalPair at runtime for Pydantic model resolution
 # This is needed for BatchInsightsResult and BatchInsightsResponse models
 from autom8_asana.models.contracts import PhoneVerticalPair
+from autom8y_log import get_logger
+
+logger = get_logger(__name__)
+
 
 
 class InsightsRequest(BaseModel):
@@ -265,10 +269,10 @@ class InsightsResponse(BaseModel):
                 if target_dtype is not None:
                     try:
                         df = df.with_columns(pl.col(col_info.name).cast(target_dtype))
-                    except Exception:
+                    except (ValueError, TypeError):
                         # Log warning and continue with original dtype
                         # This handles cases where the data cannot be cast
-                        pass
+                        logger.warning("dtype cast failed", exc_info=True)
 
         return df
 

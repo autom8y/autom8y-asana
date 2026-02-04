@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.models.business.detection.config import (
     HOLDER_NAME_MAP,
     get_holder_attr,
@@ -107,6 +107,7 @@ def _get_cached_detection(
         )
     except Exception:
         # Per FR-DEGRADE-001: Cache lookup failures don't prevent detection
+        logger.debug("Detection cache lookup failed", exc_info=True)
         return None
 
 
@@ -166,6 +167,14 @@ def _cache_detection_result(
         cache.set(task.gid, entry)  # type: ignore[attr-defined]
     except Exception:
         # Per FR-DEGRADE-002: Cache storage failures don't prevent detection
+        logger.warning(
+            "detection_cache_store_failed_silent",
+            extra={
+                "task_gid": task.gid,
+                "entry_type": EntryType.DETECTION.value,
+            },
+            exc_info=True,
+        )
         pass
 
 
@@ -202,6 +211,7 @@ def detect_entity_type_from_dict(data: dict[str, Any]) -> str | None:
     except ImportError:
         return None
     except Exception:
+        logger.debug("Detection result fetch failed", exc_info=True)
         return None
 
 

@@ -26,6 +26,8 @@ try:
 except ImportError:
     HierarchyAwareResolver = None  # type: ignore[assignment, misc]
 
+from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
+
 # Per TDD-registry-consolidation: Import from package to ensure bootstrap runs
 from autom8_asana.models.business import (
     STANDARD_TASK_OPT_FIELDS,
@@ -92,7 +94,7 @@ class TaskParentFetcher:
                     opt_fields=list(STANDARD_TASK_OPT_FIELDS),
                 )
                 return (gid, task)
-            except Exception as e:
+            except S3_TRANSPORT_ERRORS as e:
                 logger.warning(
                     "task_fetch_error",
                     extra={"task_gid": gid, "error": str(e)},
@@ -512,7 +514,7 @@ class CascadingFieldResolver:
                 if parent is not None:
                     self._parent_cache[parent_gid] = parent
                 return parent
-            except Exception as e:
+            except S3_TRANSPORT_ERRORS as e:
                 logger.warning(
                     "cascade_parent_fetch_error",
                     extra={"parent_gid": parent_gid, "error": str(e)},
@@ -533,7 +535,7 @@ class CascadingFieldResolver:
             if fetched_parent is not None:
                 self._parent_cache[parent_gid] = fetched_parent
             return fetched_parent
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             logger.warning(
                 "cascade_parent_fetch_error",
                 extra={"parent_gid": parent_gid, "error": str(e)},

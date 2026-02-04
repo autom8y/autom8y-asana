@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from autom8_asana.cache.batch import (
+from autom8_asana.cache.integration.batch import (
     DEFAULT_MODIFICATION_CHECK_TTL,
     ModificationCheck,
     ModificationCheckCache,

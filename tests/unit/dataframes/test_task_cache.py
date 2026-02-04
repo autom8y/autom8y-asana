@@ -17,7 +17,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvider
-from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.core.exceptions import RedisTransportError
 from autom8_asana.dataframes.builders.task_cache import (
     TaskCacheCoordinator,
     TaskCacheResult,
@@ -316,7 +317,7 @@ class TestTaskCacheCoordinatorLookup:
         """Test lookup handles cache errors gracefully."""
         # Create a failing cache
         failing_cache = MagicMock()
-        failing_cache.get_batch = MagicMock(side_effect=Exception("Redis down"))
+        failing_cache.get_batch = MagicMock(side_effect=RedisTransportError("Redis down"))
 
         coordinator = TaskCacheCoordinator(cache_provider=failing_cache)
 
@@ -394,7 +395,7 @@ class TestTaskCacheCoordinatorPopulate:
     async def test_populate_graceful_degradation(self, sample_task: Task) -> None:
         """Test populate handles cache errors gracefully."""
         failing_cache = MagicMock()
-        failing_cache.set_batch = MagicMock(side_effect=Exception("Redis down"))
+        failing_cache.set_batch = MagicMock(side_effect=RedisTransportError("Redis down"))
 
         coordinator = TaskCacheCoordinator(cache_provider=failing_cache)
 
@@ -837,7 +838,7 @@ class TestTaskCacheCoordinatorIntegration:
         """Test workflow continues when cache fails."""
         # Create a cache that fails on lookup but not populate
         failing_cache = MagicMock()
-        failing_cache.get_batch = MagicMock(side_effect=Exception("Lookup failed"))
+        failing_cache.get_batch = MagicMock(side_effect=RedisTransportError("Lookup failed"))
         failing_cache.set_batch = MagicMock()  # Works fine
 
         coordinator = TaskCacheCoordinator(cache_provider=failing_cache)

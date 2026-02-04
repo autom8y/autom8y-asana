@@ -641,7 +641,7 @@ class TestCacheConfigEntityTTL:
 
     def test_get_entity_ttl_uses_ttl_settings_default(self) -> None:
         """get_entity_ttl uses TTLSettings.default_ttl for unknown entities."""
-        from autom8_asana.cache.settings import TTLSettings
+        from autom8_asana.cache.models.settings import TTLSettings
         from autom8_asana.config import CacheConfig
 
         config = CacheConfig()

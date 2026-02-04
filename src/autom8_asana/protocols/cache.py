@@ -6,9 +6,9 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
-    from autom8_asana.cache.entry import CacheEntry, EntryType
-    from autom8_asana.cache.freshness import Freshness
-    from autom8_asana.cache.metrics import CacheMetrics
+    from autom8_asana.cache.models.entry import CacheEntry, EntryType
+    from autom8_asana.cache.models.freshness import Freshness
+    from autom8_asana.cache.models.metrics import CacheMetrics
 
 
 class CacheProvider(Protocol):

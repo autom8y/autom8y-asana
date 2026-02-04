@@ -48,6 +48,8 @@ from typing import TYPE_CHECKING, ClassVar
 
 from autom8y_log import get_logger
 
+from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
+
 if TYPE_CHECKING:
     from autom8_asana.dataframes.persistence import DataFramePersistence
 
@@ -216,7 +218,7 @@ class WatermarkRepository:
                     "watermark_persist_returned_false",
                     project_gid=project_gid,
                 )
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             logger.warning(
                 "watermark_persist_failed",
                 project_gid=project_gid,
@@ -284,7 +286,7 @@ class WatermarkRepository:
             )
             return len(watermarks)
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             logger.warning(
                 "watermarks_load_failed",
                 error=str(e),

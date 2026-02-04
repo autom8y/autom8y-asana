@@ -211,6 +211,8 @@ class TestProgressiveBuild:
 
     async def test_build_no_sections(self) -> None:
         """Build with no sections returns empty result."""
+        from autom8_asana.dataframes.builders.build_result import BuildStatus
+
         mock_client = MagicMock()
         mock_client.sections.list_for_project_async.return_value.collect = AsyncMock(
             return_value=[]
@@ -231,9 +233,11 @@ class TestProgressiveBuild:
 
         result = await builder.build_progressive_async()
 
-        assert len(result.df) == 0
+        assert result.status == BuildStatus.SUCCESS
+        assert result.dataframe is not None
+        assert len(result.dataframe) == 0
         assert result.total_rows == 0
-        assert result.sections_fetched == 0
+        assert result.sections_succeeded == 0
         assert result.sections_resumed == 0
 
     async def test_build_with_resume(self) -> None:
@@ -284,7 +288,7 @@ class TestProgressiveBuild:
 
         # Should resume, not fetch
         assert result.sections_resumed == 1
-        assert result.sections_fetched == 0
+        assert result.sections_succeeded == 0
 
     async def test_build_fresh_start(self) -> None:
         """Build starts fresh when no manifest exists."""
@@ -492,7 +496,7 @@ class TestPopulateStoreWithTasks:
         mock_schema = MagicMock()
         mock_persistence = MagicMock(spec=SectionPersistence)
         mock_store = AsyncMock()
-        mock_store.put_batch_async = AsyncMock(side_effect=Exception("S3 error"))
+        mock_store.put_batch_async = AsyncMock(side_effect=ConnectionError("S3 error"))
 
         builder = ProgressiveProjectBuilder(
             client=mock_client,

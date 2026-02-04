@@ -10,9 +10,10 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvider
-from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.clients.base import BaseClient
 from autom8_asana.config import AsanaConfig, CacheConfig
+from autom8_asana.core.exceptions import CacheConnectionError
 
 
 class TestBaseClientCacheGet:
@@ -88,7 +89,7 @@ class TestBaseClientCacheGet:
     def test_graceful_degradation_on_exception(self) -> None:
         """Returns None and logs warning when cache raises exception."""
         mock_cache = MagicMock()
-        mock_cache.get_versioned.side_effect = Exception("Cache connection failed")
+        mock_cache.get_versioned.side_effect = CacheConnectionError("Cache connection failed")
 
         client = BaseClient(
             http=self.mock_http,
@@ -207,7 +208,7 @@ class TestBaseClientCacheSet:
     def test_graceful_degradation_on_exception(self) -> None:
         """Logs warning and continues when cache raises exception."""
         mock_cache = MagicMock()
-        mock_cache.set_versioned.side_effect = Exception("Cache write failed")
+        mock_cache.set_versioned.side_effect = CacheConnectionError("Cache write failed")
 
         client = BaseClient(
             http=self.mock_http,
@@ -301,7 +302,7 @@ class TestBaseClientCacheInvalidate:
     def test_graceful_degradation_on_exception(self) -> None:
         """Logs warning and continues when cache raises exception."""
         mock_cache = MagicMock()
-        mock_cache.invalidate.side_effect = Exception("Cache invalidate failed")
+        mock_cache.invalidate.side_effect = CacheConnectionError("Cache invalidate failed")
 
         client = BaseClient(
             http=self.mock_http,

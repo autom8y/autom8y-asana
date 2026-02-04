@@ -14,7 +14,7 @@ import polars as pl
 import pytest
 
 from autom8_asana.cache.dataframe.tiers.progressive import ProgressiveTier
-from autom8_asana.cache.dataframe_cache import CacheEntry
+from autom8_asana.cache.integration.dataframe_cache import CacheEntry
 from autom8_asana.dataframes.async_s3 import S3ReadResult
 
 
@@ -318,7 +318,7 @@ class TestProgressiveTierPut:
     async def test_put_async_handles_exception(self) -> None:
         """Put returns False on exception."""
         persistence = make_mock_persistence()
-        persistence.write_final_artifacts_async.side_effect = Exception("S3 error")
+        persistence.write_final_artifacts_async.side_effect = ConnectionError("S3 error")
 
         tier = ProgressiveTier(persistence=persistence)
 

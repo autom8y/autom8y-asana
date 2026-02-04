@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 from autom8y_log import get_logger
 
-from autom8_asana.cache.freshness_coordinator import FreshnessMode
+from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
 from autom8_asana.dataframes.builders.base import gather_with_limit
 from autom8_asana.dataframes.views.cascade_view import CascadeViewPlugin
 
@@ -22,7 +22,7 @@ from autom8_asana.dataframes.views.cascade_view import CascadeViewPlugin
 ROW_EXTRACTION_CONCURRENCY = 50
 
 if TYPE_CHECKING:
-    from autom8_asana.cache.unified import UnifiedTaskStore
+    from autom8_asana.cache.providers.unified import UnifiedTaskStore
     from autom8_asana.dataframes.cache_integration import DataFrameCacheIntegration
     from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
     from autom8_asana.dataframes.resolver.protocol import CustomFieldResolver
@@ -303,7 +303,7 @@ class DataFrameViewPlugin:
             try:
                 value = await self._extract_column_async(task_data, col, project_gid)
                 row[col.name] = value
-            except Exception as e:
+            except (KeyError, ValueError, TypeError) as e:
                 # Log and continue with None
                 logger.debug(
                     "dataframe_view_extraction_error",
@@ -437,7 +437,7 @@ class DataFrameViewPlugin:
                         },
                     )
                     # Try to get parent directly from cache with upgrade
-                    from autom8_asana.cache.completeness import CompletenessLevel
+                    from autom8_asana.cache.models.completeness import CompletenessLevel
 
                     parent_data = await self._store.get_with_upgrade_async(
                         parent_gid,

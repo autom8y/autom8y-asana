@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from autom8_asana.cache.entry import CacheEntry, EntryType, _parse_datetime
+from autom8_asana.cache.models.entry import CacheEntry, EntryType, _parse_datetime
 
 
 class TestEntryType:

@@ -336,7 +336,7 @@ class TestManifestUpdateFailureDuringCheckpoint:
 
         # Make save_manifest fail
         builder._persistence._save_manifest_async = AsyncMock(
-            side_effect=Exception("Manifest save failed")
+            side_effect=ConnectionError("Manifest save failed")
         )
 
         # 5000 tasks = 50 pages -> 1 checkpoint at page 50

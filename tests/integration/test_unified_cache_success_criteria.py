@@ -23,10 +23,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import polars as pl
 import pytest
 
-from autom8_asana.cache.entry import CacheEntry, EntryType
-from autom8_asana.cache.freshness_coordinator import FreshnessMode
-from autom8_asana.cache.hierarchy import HierarchyIndex
-from autom8_asana.cache.unified import UnifiedTaskStore
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+from autom8_asana.cache.policies.hierarchy import HierarchyIndex
+from autom8_asana.cache.providers.unified import UnifiedTaskStore
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.dataframes.views.cascade_view import CascadeViewPlugin
 from autom8_asana.dataframes.views.dataframe_view import DataFrameViewPlugin
@@ -122,7 +122,7 @@ def make_task(
 
 def make_cache_entry(task_data: dict[str, Any]) -> CacheEntry:
     """Create a cache entry from task data with proper completeness metadata."""
-    from autom8_asana.cache.completeness import CompletenessLevel
+    from autom8_asana.cache.models.completeness import CompletenessLevel
 
     modified_at = task_data.get("modified_at", "2025-01-02T00:00:00.000Z")
     version = datetime.fromisoformat(modified_at.replace("Z", "+00:00"))

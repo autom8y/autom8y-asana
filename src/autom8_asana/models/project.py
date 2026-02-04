@@ -222,7 +222,7 @@ class Project(AsanaResource):
             )
 
             result = await builder.build_progressive_async(resume=use_cache)
-            return result.df
+            return result.dataframe
 
     async def to_dataframe_parallel_async(
         self,
@@ -314,4 +314,4 @@ class Project(AsanaResource):
             )
 
             result = await builder.build_progressive_async(resume=resume)
-            return result.df
+            return result.dataframe

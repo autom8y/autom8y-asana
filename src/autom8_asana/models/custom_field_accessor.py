@@ -353,7 +353,7 @@ class CustomFieldAccessor:
                 resolved = self._resolver.resolve(name_or_gid)
                 if resolved:
                     return resolved
-            except (KeyError, AttributeError, Exception):
+            except (KeyError, AttributeError, TypeError, ValueError, RuntimeError):
                 # Resolver failed, continue to strict mode check
                 pass
 

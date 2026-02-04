@@ -13,8 +13,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.clients.users import UsersClient
+from autom8_asana.core.exceptions import CacheConnectionError
 from autom8_asana.config import AsanaConfig
 from autom8_asana.models.user import User
 from autom8_asana.persistence.exceptions import GidValidationError
@@ -73,13 +74,13 @@ class FailingCacheProvider:
     """Cache provider that always fails (for graceful degradation tests)."""
 
     def get_versioned(self, key: str, entry_type: EntryType) -> CacheEntry | None:
-        raise ConnectionError("Cache connection failed")
+        raise CacheConnectionError("Cache connection failed")
 
     def set_versioned(self, key: str, entry: CacheEntry) -> None:
-        raise ConnectionError("Cache connection failed")
+        raise CacheConnectionError("Cache connection failed")
 
     def invalidate(self, key: str, entry_types: list[EntryType] | None = None) -> None:
-        raise ConnectionError("Cache connection failed")
+        raise CacheConnectionError("Cache connection failed")
 
 
 @pytest.fixture

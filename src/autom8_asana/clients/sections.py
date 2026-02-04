@@ -11,10 +11,15 @@ from datetime import UTC
 from typing import Any, Literal, overload
 
 from autom8_asana.clients.base import BaseClient
+from autom8_asana.core.exceptions import CacheError
 from autom8_asana.models import PageIterator
 from autom8_asana.models.section import Section
 from autom8_asana.observability import error_handler
 from autom8_asana.patterns import async_method
+from autom8y_log import get_logger
+
+logger = get_logger(__name__)
+
 
 
 class SectionsClient(BaseClient):
@@ -35,7 +40,9 @@ class SectionsClient(BaseClient):
         *,
         raw: Literal[False] = ...,
         opt_fields: list[str] | None = ...,
-    ) -> Section: ...
+    ) -> Section:
+        """Get a section by GID, returning a Section model."""
+        ...
 
     @overload
     async def get_async(
@@ -44,7 +51,9 @@ class SectionsClient(BaseClient):
         *,
         raw: Literal[True],
         opt_fields: list[str] | None = ...,
-    ) -> dict[str, Any]: ...
+    ) -> dict[str, Any]:
+        """Get a section by GID, returning a raw dict."""
+        ...
 
     @overload
     def get(
@@ -53,7 +62,9 @@ class SectionsClient(BaseClient):
         *,
         raw: Literal[False] = ...,
         opt_fields: list[str] | None = ...,
-    ) -> Section: ...
+    ) -> Section:
+        """Get a section by GID (sync), returning a Section model."""
+        ...
 
     @overload
     def get(
@@ -62,7 +73,9 @@ class SectionsClient(BaseClient):
         *,
         raw: Literal[True],
         opt_fields: list[str] | None = ...,
-    ) -> dict[str, Any]: ...
+    ) -> dict[str, Any]:
+        """Get a section by GID (sync), returning a raw dict."""
+        ...
 
     @async_method  # type: ignore[arg-type, operator, misc]
     @error_handler
@@ -89,7 +102,7 @@ class SectionsClient(BaseClient):
         Raises:
             GidValidationError: If section_gid is invalid.
         """
-        from autom8_asana.cache.entry import EntryType
+        from autom8_asana.cache.models.entry import EntryType
         from autom8_asana.persistence.validation import validate_gid
 
         # Step 1: Validate GID
@@ -126,7 +139,9 @@ class SectionsClient(BaseClient):
         raw: Literal[False] = ...,
         insert_before: str | None = ...,
         insert_after: str | None = ...,
-    ) -> Section: ...
+    ) -> Section:
+        """Create a new section, returning a Section model."""
+        ...
 
     @overload
     async def create_async(
@@ -137,7 +152,9 @@ class SectionsClient(BaseClient):
         raw: Literal[True],
         insert_before: str | None = ...,
         insert_after: str | None = ...,
-    ) -> dict[str, Any]: ...
+    ) -> dict[str, Any]:
+        """Create a new section, returning a raw dict."""
+        ...
 
     @overload
     def create(
@@ -148,7 +165,9 @@ class SectionsClient(BaseClient):
         raw: Literal[False] = ...,
         insert_before: str | None = ...,
         insert_after: str | None = ...,
-    ) -> Section: ...
+    ) -> Section:
+        """Create a new section (sync), returning a Section model."""
+        ...
 
     @overload
     def create(
@@ -159,7 +178,9 @@ class SectionsClient(BaseClient):
         raw: Literal[True],
         insert_before: str | None = ...,
         insert_after: str | None = ...,
-    ) -> dict[str, Any]: ...
+    ) -> dict[str, Any]:
+        """Create a new section (sync), returning a raw dict."""
+        ...
 
     @async_method  # type: ignore[arg-type, operator, misc]
     @error_handler
@@ -206,7 +227,9 @@ class SectionsClient(BaseClient):
         *,
         raw: Literal[False] = ...,
         **kwargs: Any,
-    ) -> Section: ...
+    ) -> Section:
+        """Update a section, returning a Section model."""
+        ...
 
     @overload
     async def update_async(
@@ -215,7 +238,9 @@ class SectionsClient(BaseClient):
         *,
         raw: Literal[True],
         **kwargs: Any,
-    ) -> dict[str, Any]: ...
+    ) -> dict[str, Any]:
+        """Update a section, returning a raw dict."""
+        ...
 
     @overload
     def update(
@@ -224,7 +249,9 @@ class SectionsClient(BaseClient):
         *,
         raw: Literal[False] = ...,
         **kwargs: Any,
-    ) -> Section: ...
+    ) -> Section:
+        """Update a section (sync), returning a Section model."""
+        ...
 
     @overload
     def update(
@@ -233,7 +260,9 @@ class SectionsClient(BaseClient):
         *,
         raw: Literal[True],
         **kwargs: Any,
-    ) -> dict[str, Any]: ...
+    ) -> dict[str, Any]:
+        """Update a section (sync), returning a raw dict."""
+        ...
 
     @async_method  # type: ignore[arg-type, operator, misc]
     @error_handler
@@ -297,7 +326,7 @@ class SectionsClient(BaseClient):
         """
         from datetime import datetime
 
-        from autom8_asana.cache.entry import CacheEntry, EntryType
+        from autom8_asana.cache.models.entry import CacheEntry, EntryType
 
         self._log_operation("list_for_project_async", project_gid)
 
@@ -333,9 +362,9 @@ class SectionsClient(BaseClient):
                             entries[gid] = entry
                     if entries:
                         cache.set_batch(entries)
-                except Exception:
+                except (ConnectionError, TimeoutError, OSError, ValueError, TypeError, CacheError):
                     # Per ADR-0127: Graceful degradation - log and continue
-                    pass
+                    logger.warning("Section cache degradation", exc_info=True)
 
             sections = [Section.model_validate(s) for s in data]
             return sections, next_offset

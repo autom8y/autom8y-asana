@@ -16,20 +16,18 @@ Test target areas:
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import polars as pl
 import pytest
-from pydantic import TypeAdapter, ValidationError
+from pydantic import ValidationError
 
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.query.aggregator import (
-    AGG_COMPATIBILITY,
     AggregationCompiler,
     build_post_agg_schema,
     validate_alias_uniqueness,
 )
-from autom8_asana.query.compiler import PredicateCompiler
 from autom8_asana.query.engine import QueryEngine
 from autom8_asana.query.errors import (
     AggregateGroupLimitError,
@@ -42,7 +40,6 @@ from autom8_asana.query.models import (
     AggFunction,
     AggregateRequest,
     AggSpec,
-    PredicateNode,
 )
 from autom8_asana.services.query_service import EntityQueryService
 

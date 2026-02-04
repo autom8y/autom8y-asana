@@ -10,8 +10,8 @@ from autom8_asana._defaults.auth import EnvAuthProvider
 from autom8_asana._defaults.log import DefaultLogProvider
 from autom8_asana._defaults.observability import NullObservabilityHook
 from autom8_asana.batch.client import BatchClient
-from autom8_asana.cache.entry import EntryType
-from autom8_asana.cache.factory import create_cache_provider
+from autom8_asana.cache.models.entry import EntryType
+from autom8_asana.cache.integration.factory import create_cache_provider
 from autom8_asana.clients.attachments import AttachmentsClient
 from autom8_asana.clients.custom_fields import CustomFieldsClient
 from autom8_asana.clients.goals import GoalsClient
@@ -26,7 +26,11 @@ from autom8_asana.clients.users import UsersClient
 from autom8_asana.clients.webhooks import WebhooksClient
 from autom8_asana.clients.workspaces import WorkspacesClient
 from autom8_asana.config import AsanaConfig
-from autom8_asana.exceptions import AuthenticationError, ConfigurationError
+from autom8_asana.exceptions import AsanaError, AuthenticationError, ConfigurationError
+from autom8y_log import get_logger
+
+logger = get_logger(__name__)
+
 from autom8_asana.persistence import SaveSession
 from autom8_asana.protocols.cache import WarmResult
 from autom8_asana.settings import get_settings
@@ -34,8 +38,8 @@ from autom8_asana.transport.asana_http import AsanaHttpClient
 
 if TYPE_CHECKING:
     from autom8_asana.automation.engine import AutomationEngine
-    from autom8_asana.cache.metrics import CacheMetrics
-    from autom8_asana.cache.unified import UnifiedTaskStore
+    from autom8_asana.cache.models.metrics import CacheMetrics
+    from autom8_asana.cache.providers.unified import UnifiedTaskStore
     from autom8_asana.protocols.auth import AuthProvider
     from autom8_asana.protocols.cache import CacheProvider
     from autom8_asana.protocols.log import LogProvider
@@ -695,7 +699,7 @@ class AsanaClient:
         with self._unified_store_lock:
             # Double-check after acquiring lock
             if self._unified_store is None:
-                from autom8_asana.cache.factory import CacheProviderFactory
+                from autom8_asana.cache.integration.factory import CacheProviderFactory
 
                 self._unified_store = CacheProviderFactory.create_unified_store(
                     config=self._config.cache,
@@ -888,8 +892,9 @@ class AsanaClient:
                         failed += 1
                         continue
                 warmed += 1
-            except Exception:
+            except (AsanaError, ConnectionError, TimeoutError) as exc:
                 # API error or other failure - continue with remaining GIDs
+                logger.debug("Bulk API call failed", exc_info=True)
                 failed += 1
 
         return WarmResult(warmed=warmed, failed=failed, skipped=skipped)

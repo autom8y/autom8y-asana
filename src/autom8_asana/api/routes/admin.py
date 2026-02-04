@@ -290,7 +290,7 @@ async def _perform_incremental_rebuild(
                     )
 
                     build_result = await builder.build_progressive_async(resume=True)
-                    df = build_result.df
+                    df = build_result.dataframe
                     watermark = build_result.watermark
 
                 # Update cache and watermark

@@ -1,7 +1,10 @@
-"""Sections REST endpoints.
+"""Sections REST endpoints with cache invalidation.
 
 This module provides REST endpoints for Asana Section operations,
 wrapping the SDK SectionsClient with thin API handlers.
+
+Per TDD-CACHE-INVALIDATION-001: Section mutation endpoints (S1-S4)
+fire MutationInvalidator.fire_and_forget() after successful Asana API calls.
 
 Endpoints:
 - GET /api/v1/sections/{gid} - Get section by GID
@@ -20,7 +23,11 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
 
-from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
+from autom8_asana.api.dependencies import (
+    AsanaClientDualMode,
+    MutationInvalidatorDep,
+    RequestId,
+)
 from autom8_asana.api.models import (
     AddTaskToSectionRequest,
     CreateSectionRequest,
@@ -28,6 +35,11 @@ from autom8_asana.api.models import (
     SuccessResponse,
     UpdateSectionRequest,
     build_success_response,
+)
+from autom8_asana.cache.models.mutation_event import (
+    EntityKind,
+    MutationEvent,
+    MutationType,
 )
 
 router = APIRouter(prefix="/api/v1/sections", tags=["sections"])
@@ -60,6 +72,7 @@ async def get_section(
     return build_success_response(data=section, request_id=request_id)
 
 
+# S1: POST /sections - Create section
 @router.post(
     "",
     summary="Create a new section",
@@ -70,6 +83,7 @@ async def create_section(
     body: CreateSectionRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
+    invalidator: MutationInvalidatorDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Create a new section in a project.
 
@@ -86,9 +100,20 @@ async def create_section(
         project=body.project,
         raw=True,
     )
+
+    # Fire-and-forget: new section affects project DataFrame
+    section_gid = section.get("gid", "") if isinstance(section, dict) else ""
+    invalidator.fire_and_forget(MutationEvent(
+        entity_kind=EntityKind.SECTION,
+        entity_gid=section_gid,
+        mutation_type=MutationType.CREATE,
+        project_gids=[body.project],
+    ))
+
     return build_success_response(data=section, request_id=request_id)
 
 
+# S2: PUT /sections/{gid} - Update section
 @router.put(
     "/{gid}",
     summary="Update a section",
@@ -99,6 +124,7 @@ async def update_section(
     body: UpdateSectionRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
+    invalidator: MutationInvalidatorDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Update a section (rename).
 
@@ -112,9 +138,26 @@ async def update_section(
         Updated section data.
     """
     section = await client.sections.update_async(gid, raw=True, name=body.name)
+
+    # Fire-and-forget: section rename affects DataFrame rows
+    # Extract project GID from response if available
+    project_gids: list[str] = []
+    if isinstance(section, dict):
+        project = section.get("project")
+        if isinstance(project, dict) and project.get("gid"):
+            project_gids = [project["gid"]]
+
+    invalidator.fire_and_forget(MutationEvent(
+        entity_kind=EntityKind.SECTION,
+        entity_gid=gid,
+        mutation_type=MutationType.UPDATE,
+        project_gids=project_gids,
+    ))
+
     return build_success_response(data=section, request_id=request_id)
 
 
+# S3: DELETE /sections/{gid} - Delete section
 @router.delete(
     "/{gid}",
     summary="Delete a section",
@@ -123,10 +166,13 @@ async def update_section(
 async def delete_section(
     gid: str,
     client: AsanaClientDualMode,
+    invalidator: MutationInvalidatorDep,
 ) -> None:
     """Delete a section.
 
     Per FR-API-SECT-004: Delete section by GID.
+    Note: DELETE returns 204, no project context available from response.
+    Entity cache is invalidated; DataFrame invalidation skipped (no project GID).
 
     Args:
         gid: Asana section GID.
@@ -136,10 +182,20 @@ async def delete_section(
     """
     await client.sections.delete_async(gid)  # type: ignore[attr-defined]
 
+    # Fire-and-forget: section deleted, entity cache invalidated
+    # No project GID available from 204 response
+    invalidator.fire_and_forget(MutationEvent(
+        entity_kind=EntityKind.SECTION,
+        entity_gid=gid,
+        mutation_type=MutationType.DELETE,
+        project_gids=[],
+    ))
+
 
 # --- Task Operations ---
 
 
+# S4: POST /sections/{gid}/tasks - Add task to section
 @router.post(
     "/{gid}/tasks",
     summary="Add task to section",
@@ -149,6 +205,7 @@ async def add_task_to_section(
     gid: str,
     body: AddTaskToSectionRequest,
     client: AsanaClientDualMode,
+    invalidator: MutationInvalidatorDep,
 ) -> None:
     """Add a task to a section.
 
@@ -165,6 +222,16 @@ async def add_task_to_section(
         No content on success.
     """
     await client.sections.add_task_async(gid, task=body.task_gid)  # type: ignore[attr-defined]
+
+    # Fire-and-forget: task added to section affects project DataFrame
+    # section_gid field carries the task_gid that was added (per TDD convention)
+    invalidator.fire_and_forget(MutationEvent(
+        entity_kind=EntityKind.SECTION,
+        entity_gid=gid,
+        mutation_type=MutationType.ADD_MEMBER,
+        project_gids=[],  # No project GID from 204 response
+        section_gid=body.task_gid,  # Task GID that was added
+    ))
 
 
 # --- Reorder Operations ---
@@ -183,6 +250,7 @@ async def reorder_section(
     """Reorder a section within a project.
 
     Per FR-API-SECT-006: Reorder section within project.
+    Note: Reorder does not affect cache (order is not cached).
 
     Moves the section to a new position. Exactly one of before_section
     or after_section must be provided.

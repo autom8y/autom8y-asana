@@ -624,7 +624,7 @@ class TestDataFrameCacheIntegration:
         """Test graceful degradation on cache errors."""
         # Create a failing cache
         failing_cache = MagicMock()
-        failing_cache.get_versioned = MagicMock(side_effect=Exception("Redis down"))
+        failing_cache.get_versioned = MagicMock(side_effect=ConnectionError("Redis down"))
 
         integration = DataFrameCacheIntegration(
             cache=failing_cache,
@@ -650,7 +650,7 @@ class TestDataFrameCacheIntegration:
     ) -> None:
         """Test graceful degradation on cache write errors."""
         failing_cache = MagicMock()
-        failing_cache.set_versioned = MagicMock(side_effect=Exception("Redis down"))
+        failing_cache.set_versioned = MagicMock(side_effect=ConnectionError("Redis down"))
 
         integration = DataFrameCacheIntegration(
             cache=failing_cache,
@@ -1163,7 +1163,7 @@ class TestCacheIntegrationErrorHandling:
     ) -> None:
         """Test cache_batch handles exceptions gracefully."""
         failing_cache = MagicMock()
-        failing_cache.set_batch = MagicMock(side_effect=Exception("Redis down"))
+        failing_cache.set_batch = MagicMock(side_effect=ConnectionError("Redis down"))
 
         integration = DataFrameCacheIntegration(
             cache=failing_cache,
@@ -1188,7 +1188,7 @@ class TestCacheIntegrationErrorHandling:
     ) -> None:
         """Test warm_struc handles exceptions gracefully."""
         failing_cache = MagicMock()
-        failing_cache.warm = MagicMock(side_effect=Exception("Redis down"))
+        failing_cache.warm = MagicMock(side_effect=ConnectionError("Redis down"))
 
         integration = DataFrameCacheIntegration(
             cache=failing_cache,
@@ -1211,7 +1211,7 @@ class TestCacheIntegrationErrorHandling:
     ) -> None:
         """Test invalidate handles exceptions gracefully."""
         failing_cache = MagicMock()
-        failing_cache.invalidate = MagicMock(side_effect=Exception("Redis down"))
+        failing_cache.invalidate = MagicMock(side_effect=ConnectionError("Redis down"))
 
         integration = DataFrameCacheIntegration(
             cache=failing_cache,
@@ -1274,7 +1274,7 @@ class TestCacheIntegrationLogging:
         del basic_logger.log_cache_event
 
         failing_cache = MagicMock()
-        failing_cache.get_versioned = MagicMock(side_effect=Exception("Error"))
+        failing_cache.get_versioned = MagicMock(side_effect=ConnectionError("Error"))
 
         integration = DataFrameCacheIntegration(
             cache=failing_cache,

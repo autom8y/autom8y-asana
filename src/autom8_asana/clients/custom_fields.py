@@ -18,6 +18,10 @@ from autom8_asana.models.custom_field import (
 from autom8_asana.observability import error_handler
 from autom8_asana.transport.sync import sync_wrapper
 
+# Cache TTL for custom field metadata (30 minutes)
+# Custom fields change infrequently (structure/enum options rarely modified)
+CUSTOM_FIELD_CACHE_TTL = 1800
+
 
 class CustomFieldsClient(BaseClient):
     """Client for Asana Custom Field operations.
@@ -73,7 +77,7 @@ class CustomFieldsClient(BaseClient):
         Raises:
             GidValidationError: If custom_field_gid is invalid.
         """
-        from autom8_asana.cache.entry import EntryType
+        from autom8_asana.cache.models.entry import EntryType
         from autom8_asana.persistence.validation import validate_gid
 
         # Step 1: Validate GID
@@ -92,8 +96,8 @@ class CustomFieldsClient(BaseClient):
         params = self._build_opt_fields(opt_fields)
         data = await self._http.get(f"/custom_fields/{custom_field_gid}", params=params)
 
-        # Step 5: Store in cache (30 min TTL)
-        self._cache_set(custom_field_gid, data, EntryType.CUSTOM_FIELD, ttl=1800)
+        # Step 5: Store in cache
+        self._cache_set(custom_field_gid, data, EntryType.CUSTOM_FIELD, ttl=CUSTOM_FIELD_CACHE_TTL)
 
         # Step 6: Return model or raw dict
         if raw:

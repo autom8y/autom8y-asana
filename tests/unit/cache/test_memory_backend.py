@@ -7,7 +7,7 @@ import pytest
 
 from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvider
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
-from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.protocols.cache import WarmResult
 
 

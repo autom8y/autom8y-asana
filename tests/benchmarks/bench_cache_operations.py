@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from typing import NamedTuple
 
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
-from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
 
 
 class BenchmarkResult(NamedTuple):

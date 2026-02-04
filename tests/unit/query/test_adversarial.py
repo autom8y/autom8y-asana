@@ -8,7 +8,7 @@ payloads to verify the implementation fails safely and predictably.
 from __future__ import annotations
 
 import math
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl

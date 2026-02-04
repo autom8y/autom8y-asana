@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import polars as pl
 import pytest
@@ -20,11 +20,8 @@ from autom8_asana.query.errors import (
     UnknownFieldError,
 )
 from autom8_asana.query.models import (
-    AndGroup,
     Comparison,
-    NotGroup,
     Op,
-    OrGroup,
     PredicateNode,
 )
 

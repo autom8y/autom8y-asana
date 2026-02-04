@@ -12,7 +12,7 @@ from unittest.mock import patch
 import pytest
 
 from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvider
-from autom8_asana.cache.factory import CacheProviderFactory, create_cache_provider
+from autom8_asana.cache.integration.factory import CacheProviderFactory, create_cache_provider
 from autom8_asana.config import CacheConfig
 from autom8_asana.exceptions import ConfigurationError
 
@@ -335,8 +335,8 @@ class TestCacheProviderFactoryCreateUnifiedStore:
 
     def test_creates_unified_store_with_memory_provider(self) -> None:
         """Creates UnifiedTaskStore with InMemoryCacheProvider."""
-        from autom8_asana.cache.freshness_coordinator import FreshnessMode
-        from autom8_asana.cache.unified import UnifiedTaskStore
+        from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+        from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
         config = CacheConfig(enabled=True, provider="memory")
 
@@ -349,7 +349,7 @@ class TestCacheProviderFactoryCreateUnifiedStore:
 
     def test_creates_unified_store_with_null_provider_when_disabled(self) -> None:
         """Creates UnifiedTaskStore with NullCacheProvider when cache disabled."""
-        from autom8_asana.cache.unified import UnifiedTaskStore
+        from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
         config = CacheConfig(enabled=False)
 
@@ -362,7 +362,7 @@ class TestCacheProviderFactoryCreateUnifiedStore:
         """Creates UnifiedTaskStore with provided batch_client."""
         from unittest.mock import MagicMock
 
-        from autom8_asana.cache.unified import UnifiedTaskStore
+        from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
         config = CacheConfig(enabled=True, provider="memory")
         mock_batch_client = MagicMock()
@@ -376,8 +376,8 @@ class TestCacheProviderFactoryCreateUnifiedStore:
 
     def test_creates_unified_store_with_freshness_mode(self) -> None:
         """Creates UnifiedTaskStore with specified freshness mode."""
-        from autom8_asana.cache.freshness_coordinator import FreshnessMode
-        from autom8_asana.cache.unified import UnifiedTaskStore
+        from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+        from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
         config = CacheConfig(enabled=True, provider="memory")
 
@@ -390,8 +390,8 @@ class TestCacheProviderFactoryCreateUnifiedStore:
 
     def test_defaults_to_eventual_freshness_mode(self) -> None:
         """Defaults to EVENTUAL freshness mode when not specified."""
-        from autom8_asana.cache.freshness_coordinator import FreshnessMode
-        from autom8_asana.cache.unified import UnifiedTaskStore
+        from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+        from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
         config = CacheConfig(enabled=True, provider="memory")
 
@@ -435,7 +435,7 @@ class TestCacheConfigDefaults:
 
     def test_freshness_lazy_loaded(self) -> None:
         """Freshness mode is lazy-loaded."""
-        from autom8_asana.cache.freshness import Freshness
+        from autom8_asana.cache.models.freshness import Freshness
 
         config = CacheConfig()
         # Access triggers lazy load
@@ -444,7 +444,7 @@ class TestCacheConfigDefaults:
 
     def test_ttl_setter(self) -> None:
         """TTL can be set."""
-        from autom8_asana.cache.settings import TTLSettings
+        from autom8_asana.cache.models.settings import TTLSettings
 
         config = CacheConfig()
         new_ttl = TTLSettings(default_ttl=600)
@@ -453,7 +453,7 @@ class TestCacheConfigDefaults:
 
     def test_overflow_setter(self) -> None:
         """Overflow can be set."""
-        from autom8_asana.cache.settings import OverflowSettings
+        from autom8_asana.cache.models.settings import OverflowSettings
 
         config = CacheConfig()
         new_overflow = OverflowSettings(subtasks=100)
@@ -462,7 +462,7 @@ class TestCacheConfigDefaults:
 
     def test_freshness_setter(self) -> None:
         """Freshness can be set."""
-        from autom8_asana.cache.freshness import Freshness
+        from autom8_asana.cache.models.freshness import Freshness
 
         config = CacheConfig()
         config.freshness = Freshness.STRICT

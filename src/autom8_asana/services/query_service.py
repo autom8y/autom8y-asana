@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 from autom8y_log import get_logger
 
-from autom8_asana.cache.dataframe_cache import FreshnessInfo
+from autom8_asana.cache.integration.dataframe_cache import FreshnessInfo
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient

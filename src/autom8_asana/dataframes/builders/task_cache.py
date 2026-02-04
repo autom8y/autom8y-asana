@@ -25,10 +25,11 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.cache.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 
 if TYPE_CHECKING:
-    from autom8_asana.cache.unified import UnifiedTaskStore
+    from autom8_asana.cache.providers.unified import UnifiedTaskStore
     from autom8_asana.models import Task
     from autom8_asana.protocols.cache import CacheProvider
 
@@ -211,7 +212,7 @@ class TaskCacheCoordinator:
 
             return result
 
-        except Exception as exc:
+        except CACHE_TRANSIENT_ERRORS as exc:
             # FR-DEGRADE-001: Log and continue without cache
             logger.warning(
                 "task_cache_lookup_failed",
@@ -299,7 +300,7 @@ class TaskCacheCoordinator:
 
             return len(entries)
 
-        except Exception as exc:
+        except CACHE_TRANSIENT_ERRORS as exc:
             # FR-DEGRADE-002: Log and continue
             logger.warning(
                 "task_cache_population_failed",

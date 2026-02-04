@@ -1,7 +1,10 @@
-"""Tasks REST endpoints.
+"""Tasks REST endpoints with cache invalidation.
 
 This module provides REST endpoints for Asana Task operations,
 wrapping the SDK TasksClient with thin API handlers.
+
+Per TDD-CACHE-INVALIDATION-001: All 10 mutation endpoints (T1-T10)
+fire MutationInvalidator.fire_and_forget() after successful Asana API calls.
 
 Endpoints:
 - GET /api/v1/tasks?project={gid} - List tasks by project (paginated)
@@ -31,7 +34,11 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
+from autom8_asana.api.dependencies import (
+    AsanaClientDualMode,
+    MutationInvalidatorDep,
+    RequestId,
+)
 from autom8_asana.api.models import (
     AddTagRequest,
     AddToProjectRequest,
@@ -43,6 +50,12 @@ from autom8_asana.api.models import (
     SuccessResponse,
     UpdateTaskRequest,
     build_success_response,
+)
+from autom8_asana.cache.models.mutation_event import (
+    EntityKind,
+    MutationEvent,
+    MutationType,
+    extract_project_gids,
 )
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
@@ -173,6 +186,7 @@ async def get_task(
     return build_success_response(data=task, request_id=request_id)
 
 
+# T1: POST /tasks - Create task
 @router.post(
     "",
     summary="Create a new task",
@@ -183,6 +197,7 @@ async def create_task(
     body: CreateTaskRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
+    invalidator: MutationInvalidatorDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Create a new task.
 
@@ -219,9 +234,22 @@ async def create_task(
         raw=True,
         **kwargs,
     )
+
+    # Fire-and-forget: invalidate cache without blocking response
+    # Project GIDs from request body (task response may also include them)
+    project_gids = extract_project_gids(task) or (body.projects or [])
+    task_gid = task.get("gid", "") if isinstance(task, dict) else ""
+    invalidator.fire_and_forget(MutationEvent(
+        entity_kind=EntityKind.TASK,
+        entity_gid=task_gid,
+        mutation_type=MutationType.CREATE,
+        project_gids=list(project_gids),
+    ))
+
     return build_success_response(data=task, request_id=request_id)
 
 
+# T2: PUT /tasks/{gid} - Update task
 @router.put(
     "/{gid}",
     summary="Update a task",
@@ -232,6 +260,7 @@ async def update_task(
     body: UpdateTaskRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
+    invalidator: MutationInvalidatorDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Update an existing task.
 
@@ -264,9 +293,19 @@ async def update_task(
         )
 
     task = await client.tasks.update_async(gid, raw=True, **kwargs)
+
+    # Fire-and-forget: invalidate cache without blocking response
+    invalidator.fire_and_forget(MutationEvent(
+        entity_kind=EntityKind.TASK,
+        entity_gid=gid,
+        mutation_type=MutationType.UPDATE,
+        project_gids=extract_project_gids(task),
+    ))
+
     return build_success_response(data=task, request_id=request_id)
 
 
+# T3: DELETE /tasks/{gid} - Delete task
 @router.delete(
     "/{gid}",
     summary="Delete a task",
@@ -275,10 +314,13 @@ async def update_task(
 async def delete_task(
     gid: str,
     client: AsanaClientDualMode,
+    invalidator: MutationInvalidatorDep,
 ) -> None:
     """Delete a task.
 
     Per FR-API-TASK-005: Delete task by GID.
+    Per ADR-002: DELETE returns 204 with no body, so no project_gids available.
+    Entity cache is still invalidated; DataFrame invalidation skipped.
 
     Args:
         gid: Asana task GID.
@@ -287,6 +329,14 @@ async def delete_task(
         No content on success.
     """
     await client.tasks.delete_async(gid)
+
+    # Fire-and-forget: entity cache invalidated, DataFrame skipped (no project context)
+    invalidator.fire_and_forget(MutationEvent(
+        entity_kind=EntityKind.TASK,
+        entity_gid=gid,
+        mutation_type=MutationType.DELETE,
+        project_gids=[],  # 204 No Content - no project GIDs available
+    ))
 
 
 # --- Related Operations ---
@@ -398,6 +448,7 @@ async def list_dependents(
     )
 
 
+# T4: POST /tasks/{gid}/duplicate - Duplicate task
 @router.post(
     "/{gid}/duplicate",
     summary="Duplicate a task",
@@ -409,6 +460,7 @@ async def duplicate_task(
     body: DuplicateTaskRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
+    invalidator: MutationInvalidatorDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Duplicate a task.
 
@@ -424,12 +476,23 @@ async def duplicate_task(
         New duplicated task data.
     """
     task = await client.tasks.duplicate_async(gid, name=body.name, raw=True)
+
+    # Fire-and-forget: new task created via duplication
+    task_gid = task.get("gid", "") if isinstance(task, dict) else ""
+    invalidator.fire_and_forget(MutationEvent(
+        entity_kind=EntityKind.TASK,
+        entity_gid=task_gid,
+        mutation_type=MutationType.CREATE,
+        project_gids=extract_project_gids(task),
+    ))
+
     return build_success_response(data=task, request_id=request_id)
 
 
 # --- Tags ---
 
 
+# T5: POST /tasks/{gid}/tags - Add tag
 @router.post(
     "/{gid}/tags",
     summary="Add tag to task",
@@ -440,6 +503,7 @@ async def add_tag(
     body: AddTagRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
+    invalidator: MutationInvalidatorDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Add a tag to a task.
 
@@ -453,10 +517,20 @@ async def add_tag(
         Updated task data.
     """
     task = await client.tasks.add_tag_async(gid, body.tag_gid)
-    # Return raw dict for consistency
-    return build_success_response(data=task.model_dump(), request_id=request_id)
+    task_data = task.model_dump()
+
+    # Fire-and-forget: tag change affects entity cache
+    invalidator.fire_and_forget(MutationEvent(
+        entity_kind=EntityKind.TASK,
+        entity_gid=gid,
+        mutation_type=MutationType.UPDATE,
+        project_gids=extract_project_gids(task_data),
+    ))
+
+    return build_success_response(data=task_data, request_id=request_id)
 
 
+# T6: DELETE /tasks/{gid}/tags/{tag_gid} - Remove tag
 @router.delete(
     "/{gid}/tags/{tag_gid}",
     summary="Remove tag from task",
@@ -467,6 +541,7 @@ async def remove_tag(
     tag_gid: str,
     client: AsanaClientDualMode,
     request_id: RequestId,
+    invalidator: MutationInvalidatorDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Remove a tag from a task.
 
@@ -480,13 +555,23 @@ async def remove_tag(
         Updated task data.
     """
     task = await client.tasks.remove_tag_async(gid, tag_gid)
-    # Return raw dict for consistency
-    return build_success_response(data=task.model_dump(), request_id=request_id)
+    task_data = task.model_dump()
+
+    # Fire-and-forget: tag change affects entity cache
+    invalidator.fire_and_forget(MutationEvent(
+        entity_kind=EntityKind.TASK,
+        entity_gid=gid,
+        mutation_type=MutationType.UPDATE,
+        project_gids=extract_project_gids(task_data),
+    ))
+
+    return build_success_response(data=task_data, request_id=request_id)
 
 
 # --- Membership ---
 
 
+# T7: POST /tasks/{gid}/section - Move to section
 @router.post(
     "/{gid}/section",
     summary="Move task to section",
@@ -497,6 +582,7 @@ async def move_to_section(
     body: MoveSectionRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
+    invalidator: MutationInvalidatorDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Move a task to a section within a project.
 
@@ -512,10 +598,24 @@ async def move_to_section(
     task = await client.tasks.move_to_section_async(
         gid, body.section_gid, body.project_gid
     )
-    # Return raw dict for consistency
-    return build_success_response(data=task.model_dump(), request_id=request_id)
+    task_data = task.model_dump()
+
+    # Fire-and-forget: section move is a structural change
+    # project_gid from request body covers both source and destination
+    # (within the same project). Cross-project moves would need both GIDs.
+    project_gids = extract_project_gids(task_data) or [body.project_gid]
+    invalidator.fire_and_forget(MutationEvent(
+        entity_kind=EntityKind.TASK,
+        entity_gid=gid,
+        mutation_type=MutationType.MOVE,
+        project_gids=project_gids,
+        section_gid=body.section_gid,
+    ))
+
+    return build_success_response(data=task_data, request_id=request_id)
 
 
+# T8: PUT /tasks/{gid}/assignee - Set assignee
 @router.put(
     "/{gid}/assignee",
     summary="Set task assignee",
@@ -526,6 +626,7 @@ async def set_assignee(
     body: SetAssigneeRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
+    invalidator: MutationInvalidatorDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Set or clear the task assignee.
 
@@ -544,9 +645,19 @@ async def set_assignee(
     else:
         task_obj = await client.tasks.set_assignee_async(gid, body.assignee_gid)
         task = task_obj.model_dump()
+
+    # Fire-and-forget: assignee change affects entity cache
+    invalidator.fire_and_forget(MutationEvent(
+        entity_kind=EntityKind.TASK,
+        entity_gid=gid,
+        mutation_type=MutationType.UPDATE,
+        project_gids=extract_project_gids(task),
+    ))
+
     return build_success_response(data=task, request_id=request_id)
 
 
+# T9: POST /tasks/{gid}/projects - Add to project
 @router.post(
     "/{gid}/projects",
     summary="Add task to project",
@@ -557,6 +668,7 @@ async def add_to_project(
     body: AddToProjectRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
+    invalidator: MutationInvalidatorDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Add a task to a project.
 
@@ -570,10 +682,20 @@ async def add_to_project(
         Updated task data.
     """
     task = await client.tasks.add_to_project_async(gid, body.project_gid)
-    # Return raw dict for consistency
-    return build_success_response(data=task.model_dump(), request_id=request_id)
+    task_data = task.model_dump()
+
+    # Fire-and-forget: membership change is structural
+    invalidator.fire_and_forget(MutationEvent(
+        entity_kind=EntityKind.TASK,
+        entity_gid=gid,
+        mutation_type=MutationType.ADD_MEMBER,
+        project_gids=[body.project_gid],
+    ))
+
+    return build_success_response(data=task_data, request_id=request_id)
 
 
+# T10: DELETE /tasks/{gid}/projects/{project_gid} - Remove from project
 @router.delete(
     "/{gid}/projects/{project_gid}",
     summary="Remove task from project",
@@ -584,6 +706,7 @@ async def remove_from_project(
     project_gid: str,
     client: AsanaClientDualMode,
     request_id: RequestId,
+    invalidator: MutationInvalidatorDep,
 ) -> SuccessResponse[dict[str, Any]]:
     """Remove a task from a project.
 
@@ -597,8 +720,17 @@ async def remove_from_project(
         Updated task data.
     """
     task = await client.tasks.remove_from_project_async(gid, project_gid)
-    # Return raw dict for consistency
-    return build_success_response(data=task.model_dump(), request_id=request_id)
+    task_data = task.model_dump()
+
+    # Fire-and-forget: membership removal is structural
+    invalidator.fire_and_forget(MutationEvent(
+        entity_kind=EntityKind.TASK,
+        entity_gid=gid,
+        mutation_type=MutationType.REMOVE_MEMBER,
+        project_gids=[project_gid],
+    ))
+
+    return build_success_response(data=task_data, request_id=request_id)
 
 
 __all__ = ["router"]

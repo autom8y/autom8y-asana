@@ -7,7 +7,6 @@ section 9.3.
 
 from __future__ import annotations
 
-import pytest
 
 from autom8_asana.dataframes.section_persistence import (
     SectionInfo,

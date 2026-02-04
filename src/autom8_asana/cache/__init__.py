@@ -69,30 +69,8 @@ Example:
 # Import subpackage to expose for test patching (e.g., autom8_asana.cache.dataframe.factory)
 from autom8_asana.cache import dataframe  # noqa: F401
 
-# autom8 integration adapter (ADR-0025)
-from autom8_asana.cache.autom8_adapter import (
-    MigrationResult,
-    MissingConfigurationError,
-    check_redis_health,
-    create_autom8_cache_provider,
-    migrate_task_collection_loading,
-    warm_project_tasks,
-)
-from autom8_asana.cache.batch import (
-    DEFAULT_MODIFICATION_CHECK_TTL,
-    ModificationCheck,
-    ModificationCheckCache,
-    fetch_task_modifications,
-    get_modification_cache,
-    reset_modification_cache,
-    ttl_cached_modifications,
-)
-
-# Lightweight staleness detection (TDD-CACHE-LIGHTWEIGHT-STALENESS)
-from autom8_asana.cache.coalescer import RequestCoalescer
-
-# Completeness tracking (TDD-CACHE-COMPLETENESS-001)
-from autom8_asana.cache.completeness import (
+# --- Tier 0: Models ---
+from autom8_asana.cache.models.completeness import (
     FULL_FIELDS,
     MINIMAL_FIELDS,
     STANDARD_FIELDS,
@@ -103,7 +81,57 @@ from autom8_asana.cache.completeness import (
     infer_completeness_level,
     is_entry_sufficient,
 )
-from autom8_asana.cache.dataframes import (
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.events import (
+    create_metrics_callback,
+    has_cache_logging,
+    setup_cache_logging,
+)
+from autom8_asana.cache.models.freshness import Freshness
+from autom8_asana.cache.models.metrics import CacheEvent, CacheMetrics
+from autom8_asana.cache.models.settings import CacheSettings, OverflowSettings, TTLSettings
+from autom8_asana.cache.models.staleness_settings import StalenessCheckSettings
+from autom8_asana.cache.models.versioning import (
+    compare_versions,
+    format_version,
+    is_current,
+    is_stale,
+    parse_version,
+)
+
+# --- Tier 1: Policies ---
+from autom8_asana.cache.policies.coalescer import RequestCoalescer
+from autom8_asana.cache.policies.hierarchy import HierarchyIndex
+from autom8_asana.cache.policies.lightweight_checker import LightweightChecker
+from autom8_asana.cache.policies.staleness import (
+    check_batch_staleness,
+    check_entry_staleness,
+    partition_by_staleness,
+)
+
+# --- Tier 2: Providers ---
+from autom8_asana.cache.providers.tiered import TieredCacheProvider, TieredConfig
+from autom8_asana.cache.providers.unified import UnifiedTaskStore
+
+# --- Tier 3: Integration ---
+from autom8_asana.cache.integration.autom8_adapter import (
+    MigrationResult,
+    MissingConfigurationError,
+    check_redis_health,
+    create_autom8_cache_provider,
+    migrate_task_collection_loading,
+    warm_project_tasks,
+)
+from autom8_asana.cache.integration.batch import (
+    DEFAULT_MODIFICATION_CHECK_TTL,
+    ModificationCheck,
+    ModificationCheckCache,
+    fetch_task_modifications,
+    get_modification_cache,
+    reset_modification_cache,
+    ttl_cached_modifications,
+)
+from autom8_asana.cache.integration.dataframes import (
     invalidate_dataframe,
     invalidate_task_dataframes,
     load_batch_dataframes_cached,
@@ -111,48 +139,28 @@ from autom8_asana.cache.dataframes import (
     make_dataframe_key,
     parse_dataframe_key,
 )
-from autom8_asana.cache.entry import CacheEntry, EntryType
-from autom8_asana.cache.events import (
-    create_metrics_callback,
-    has_cache_logging,
-    setup_cache_logging,
-)
-from autom8_asana.cache.freshness import Freshness
-
-# Unified cache (TDD-UNIFIED-CACHE-001, MIGRATION-PLAN-legacy-cache-elimination RF-003)
-from autom8_asana.cache.freshness_coordinator import FreshnessMode
-from autom8_asana.cache.hierarchy import HierarchyIndex
-from autom8_asana.cache.lightweight_checker import LightweightChecker
-from autom8_asana.cache.loader import (
+from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+from autom8_asana.cache.integration.loader import (
     load_batch_entries,
     load_task_entries,
     load_task_entry,
 )
-from autom8_asana.cache.metrics import CacheEvent, CacheMetrics
-from autom8_asana.cache.settings import CacheSettings, OverflowSettings, TTLSettings
-from autom8_asana.cache.staleness import (
-    check_batch_staleness,
-    check_entry_staleness,
-    partition_by_staleness,
-)
-from autom8_asana.cache.staleness_settings import StalenessCheckSettings
-from autom8_asana.cache.stories import (
+from autom8_asana.cache.integration.stories import (
     DEFAULT_STORY_TYPES,
     filter_relevant_stories,
     get_latest_story_timestamp,
     load_stories_incremental,
 )
+from autom8_asana.cache.integration.upgrader import AsanaTaskUpgrader
 
-# Two-tier caching (ADR-0026)
-from autom8_asana.cache.tiered import TieredCacheProvider, TieredConfig
-from autom8_asana.cache.unified import UnifiedTaskStore
-from autom8_asana.cache.versioning import (
-    compare_versions,
-    format_version,
-    is_current,
-    is_stale,
-    parse_version,
-)
+# --- Re-exports for Read-Only Zone (api/main.py) ---
+# These symbols are imported directly by read-only zone code that cannot be modified.
+# api/main.py imports: CacheProviderFactory, MutationInvalidator, register_asana_schemas
+from autom8_asana.cache.integration.factory import CacheProviderFactory
+from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator
+
+# IMPORTANT: register_asana_schemas is defined via __getattr__ below to avoid circular import
+# (schema_providers -> dataframes -> models.business -> cache)
 
 # SDK Primitives (TDD-CACHE-SDK-PRIMITIVES-001)
 # Re-export SDK HierarchyTracker for advanced use cases
@@ -162,9 +170,6 @@ try:
     from autom8y_cache import HierarchyTracker
 except ImportError:
     HierarchyTracker = None  # type: ignore[misc, assignment]
-
-# Completeness upgrader implementation
-from autom8_asana.cache.upgrader import AsanaTaskUpgrader
 
 __all__ = [
     # Entry types
@@ -248,4 +253,52 @@ __all__ = [
     # SDK Primitives (TDD-CACHE-SDK-PRIMITIVES-001)
     "HierarchyTracker",
     "AsanaTaskUpgrader",
+    # Re-exports for Read-Only Zone (api/main.py)
+    "CacheProviderFactory",
+    "MutationInvalidator",
+    "register_asana_schemas",
 ]
+
+
+def __getattr__(name: str):
+    """Lazy import to avoid circular dependency with schema_providers.
+
+    schema_providers -> dataframes -> models.business -> cache
+
+    By deferring the import until first access, we break the cycle.
+
+    Also provides backward compatibility for read-only zone (api/main.py,
+    lambda_handlers/) that imports from pre-reorganization paths.
+    """
+    if name == "register_asana_schemas":
+        from autom8_asana.cache.integration.schema_providers import (
+            register_asana_schemas,
+        )
+
+        return register_asana_schemas
+    elif name == "dataframe_cache":
+        # Provide the moved module for backward compatibility
+        from autom8_asana.cache.integration import dataframe_cache
+
+        return dataframe_cache
+    elif name == "factory":
+        # api/main.py imports CacheProviderFactory from cache.factory
+        from autom8_asana.cache import integration
+
+        return integration.factory
+    elif name == "mutation_invalidator":
+        # api/main.py imports MutationInvalidator from cache.mutation_invalidator
+        from autom8_asana.cache import integration
+
+        return integration.mutation_invalidator
+    elif name == "schema_providers":
+        # api/main.py imports register_asana_schemas from cache.schema_providers
+        from autom8_asana.cache import integration
+
+        return integration.schema_providers
+    elif name == "tiered":
+        # lambda_handlers/cache_invalidate.py imports TieredCacheProvider from cache.tiered
+        from autom8_asana.cache import providers
+
+        return providers.tiered
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -13,16 +13,17 @@ from typing import Any, cast
 
 from autom8y_log import get_logger
 
-from autom8_asana.cache.entry import CacheEntry, EntryType
-from autom8_asana.cache.errors import (
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.errors import (
     DegradedModeMixin,
     is_connection_error,
     is_s3_not_found_error,
 )
-from autom8_asana.cache.freshness import Freshness
-from autom8_asana.cache.metrics import CacheMetrics
-from autom8_asana.cache.settings import CacheSettings
-from autom8_asana.cache.versioning import format_version, is_current, parse_version
+from autom8_asana.cache.models.freshness import Freshness
+from autom8_asana.cache.models.metrics import CacheMetrics
+from autom8_asana.cache.models.settings import CacheSettings
+from autom8_asana.cache.models.versioning import format_version, is_current, parse_version
+from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS, S3TransportError
 from autom8_asana.protocols.cache import WarmResult
 
 logger = get_logger(__name__)
@@ -39,6 +40,14 @@ class S3Config:
         endpoint_url: Custom endpoint URL for LocalStack or S3-compatible storage.
         compress_threshold: Compress objects larger than this size in bytes (default 1024).
         default_ttl: Default TTL in seconds (default 604800 = 7 days).
+
+    Note:
+        Per B4 Config Consolidation audit: bucket/region/endpoint_url fields
+        follow the same pattern as PersistenceConfig, SectionPersistenceConfig,
+        and AsyncS3Config. The shared S3LocationConfig primitive is available in
+        autom8_asana.config for new code that needs S3 location without
+        backend-specific fields. These existing configs retain their direct
+        fields for backward compatibility with ~40+ call sites.
     """
 
     bucket: str
@@ -183,7 +192,7 @@ class S3CacheProvider(DegradedModeMixin):
 
             self._client = self._boto3_module.client("s3", **client_kwargs)
             self._degraded = False
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             logger.error(
                 "s3_client_init_failed",
                 extra={"error": str(e), "error_type": type(e).__name__},
@@ -224,7 +233,7 @@ class S3CacheProvider(DegradedModeMixin):
                     self._client.head_bucket(Bucket=self._config.bucket)
                     self.exit_degraded_mode()
                     logger.info("S3 connection restored")
-            except Exception as e:
+            except S3_TRANSPORT_ERRORS as e:
                 logger.warning(
                     "s3_reconnect_failed",
                     extra={"error": str(e)},
@@ -265,6 +274,17 @@ class S3CacheProvider(DegradedModeMixin):
         Returns:
             Tuple of (body bytes, metadata dict, is_compressed).
         """
+        # Serialize freshness stamp if present
+        stamp_data = None
+        if entry.freshness_stamp is not None:
+            stamp_data = {
+                "last_verified_at": format_version(
+                    entry.freshness_stamp.last_verified_at
+                ),
+                "source": entry.freshness_stamp.source.value,
+                "staleness_hint": entry.freshness_stamp.staleness_hint,
+            }
+
         data = {
             "data": entry.data,
             "entry_type": entry.entry_type.value,
@@ -274,6 +294,7 @@ class S3CacheProvider(DegradedModeMixin):
             "project_gid": entry.project_gid,
             "metadata": entry.metadata,
             "key": entry.key,
+            "freshness_stamp": stamp_data,
         }
 
         body = json.dumps(data).encode("utf-8")
@@ -333,6 +354,23 @@ class S3CacheProvider(DegradedModeMixin):
                 parse_version(cached_at_str) if cached_at_str else datetime.now(UTC)
             )
 
+            # Deserialize freshness stamp if present
+            freshness_stamp = None
+            raw_stamp = data.get("freshness_stamp")
+            if raw_stamp and isinstance(raw_stamp, dict):
+                from autom8_asana.cache.models.freshness_stamp import (
+                    FreshnessStamp,
+                    VerificationSource,
+                )
+
+                freshness_stamp = FreshnessStamp(
+                    last_verified_at=parse_version(raw_stamp["last_verified_at"]),
+                    source=VerificationSource(
+                        raw_stamp.get("source", "unknown")
+                    ),
+                    staleness_hint=raw_stamp.get("staleness_hint"),
+                )
+
             return CacheEntry(
                 key=key,
                 data=entry_data,
@@ -342,6 +380,7 @@ class S3CacheProvider(DegradedModeMixin):
                 ttl=ttl,
                 project_gid=project_gid,
                 metadata=entry_metadata,
+                freshness_stamp=freshness_stamp,
             )
         except (json.JSONDecodeError, ValueError, KeyError, gzip.BadGzipFile) as e:
             logger.warning(
@@ -387,13 +426,13 @@ class S3CacheProvider(DegradedModeMixin):
             self._metrics.record_hit(latency, key=key)
             return cast(dict[str, Any], json.loads(body.decode("utf-8")))
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             latency = (time.perf_counter() - start) * 1000
             if self._is_not_found_error(e):
                 self._metrics.record_miss(latency, key=key)
                 return None
             self._metrics.record_error(key=key, error_message=str(e))
-            self._handle_s3_error(e)
+            self._handle_s3_error(e, operation="get", key=key)
             return None
 
     def set(self, key: str, value: dict[str, Any], ttl: int | None = None) -> None:
@@ -435,9 +474,9 @@ class S3CacheProvider(DegradedModeMixin):
             latency = (time.perf_counter() - start) * 1000
             self._metrics.record_write(latency, key=key)
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             self._metrics.record_error(key=key, error_message=str(e))
-            self._handle_s3_error(e)
+            self._handle_s3_error(e, operation="set", key=key)
 
     def delete(self, key: str) -> None:
         """Remove value from cache.
@@ -458,9 +497,9 @@ class S3CacheProvider(DegradedModeMixin):
             )
             self._metrics.record_eviction(key=key)
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             self._metrics.record_error(key=key, error_message=str(e))
-            self._handle_s3_error(e)
+            self._handle_s3_error(e, operation="delete", key=key)
 
     # === Versioned methods ===
 
@@ -512,8 +551,12 @@ class S3CacheProvider(DegradedModeMixin):
                 # Delete expired entry asynchronously (best effort)
                 try:
                     client.delete_object(Bucket=self._config.bucket, Key=s3_key)
-                except Exception:
-                    pass  # Ignore deletion errors
+                except S3_TRANSPORT_ERRORS:
+                    logger.debug(
+                        "s3_expired_entry_delete_failed",
+                        exc_info=True,
+                        extra={"key": key, "s3_key": s3_key},
+                    )
                 self._metrics.record_miss(latency, key=key, entry_type=entry_type_str)
                 return None
 
@@ -521,7 +564,7 @@ class S3CacheProvider(DegradedModeMixin):
             self._metrics.record_hit(latency, key=key, entry_type=entry_type_str)
             return entry
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             latency = (time.perf_counter() - start) * 1000
             if self._is_not_found_error(e):
                 self._metrics.record_miss(latency, key=key, entry_type=entry_type_str)
@@ -529,7 +572,7 @@ class S3CacheProvider(DegradedModeMixin):
             self._metrics.record_error(
                 key=key, entry_type=entry_type_str, error_message=str(e)
             )
-            self._handle_s3_error(e)
+            self._handle_s3_error(e, operation="get_versioned", key=key)
             return None
 
     def set_versioned(
@@ -573,11 +616,11 @@ class S3CacheProvider(DegradedModeMixin):
             latency = (time.perf_counter() - start) * 1000
             self._metrics.record_write(latency, key=key, entry_type=entry_type_str)
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             self._metrics.record_error(
                 key=key, entry_type=entry_type_str, error_message=str(e)
             )
-            self._handle_s3_error(e)
+            self._handle_s3_error(e, operation="set_versioned", key=key)
 
     def get_batch(
         self,
@@ -696,10 +739,10 @@ class S3CacheProvider(DegradedModeMixin):
             cached_version = parse_version(cached_version_str)
             return is_current(cached_version, current_version)
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             if self._is_not_found_error(e):
                 return False
-            self._handle_s3_error(e)
+            self._handle_s3_error(e, operation="check_freshness", key=key)
             return False
 
     def invalidate(
@@ -730,13 +773,21 @@ class S3CacheProvider(DegradedModeMixin):
                         Key=s3_key,
                     )
                     self._metrics.record_eviction(key=key, entry_type=entry_type.value)
-                except Exception:
+                except S3_TRANSPORT_ERRORS:
                     # Continue with other entry types even if one fails
-                    pass
+                    logger.warning(
+                        "s3_invalidate_entry_delete_failed",
+                        exc_info=True,
+                        extra={
+                            "key": key,
+                            "entry_type": entry_type.value,
+                            "s3_key": s3_key,
+                        },
+                    )
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             self._metrics.record_error(key=key, error_message=str(e))
-            self._handle_s3_error(e)
+            self._handle_s3_error(e, operation="invalidate", key=key)
 
     def is_healthy(self) -> bool:
         """Check if cache backend is operational.
@@ -751,7 +802,7 @@ class S3CacheProvider(DegradedModeMixin):
             client = self._get_client()
             client.head_bucket(Bucket=self._config.bucket)
             return True
-        except Exception:
+        except S3_TRANSPORT_ERRORS:
             return False
 
     def get_metrics(self) -> CacheMetrics:
@@ -770,12 +821,24 @@ class S3CacheProvider(DegradedModeMixin):
         """Check if error indicates object not found."""
         return is_s3_not_found_error(error)
 
-    def _handle_s3_error(self, error: Exception) -> None:
+    def _handle_s3_error(
+        self, error: Exception, *, operation: str = "unknown", key: str | None = None
+    ) -> None:
         """Handle S3 errors and potentially enter degraded mode.
+
+        Wraps vendor exceptions into S3TransportError for structured context.
+        Does not change control flow -- degraded mode transitions remain the same.
 
         Args:
             error: The exception that occurred.
+            operation: The S3 operation that failed (get, set, delete, etc.).
+            key: The S3 key involved, if applicable.
         """
+        # Wrap into domain exception for structured context
+        wrapped = S3TransportError.from_boto_error(
+            error, operation=operation, bucket=self._config.bucket, key=key
+        )
+
         extra_types: tuple[type[Exception], ...] = ()
 
         # Check for boto3-specific errors
@@ -820,7 +883,11 @@ class S3CacheProvider(DegradedModeMixin):
         else:
             logger.error(
                 "s3_error",
-                extra={"error": str(error), "error_type": type(error).__name__},
+                extra={
+                    "error": str(error),
+                    "error_type": type(error).__name__,
+                    **wrapped.context,
+                },
             )
 
     def clear_all_tasks(self) -> int:
@@ -886,10 +953,10 @@ class S3CacheProvider(DegradedModeMixin):
 
             return deleted_count
 
-        except Exception as e:
+        except S3_TRANSPORT_ERRORS as e:
             logger.error(
                 "s3_clear_all_tasks_failed",
                 extra={"error": str(e), "error_type": type(e).__name__},
             )
-            self._handle_s3_error(e)
+            self._handle_s3_error(e, operation="clear_all_tasks")
             return 0

@@ -12,9 +12,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from autom8_asana.batch.models import BatchResult
-from autom8_asana.cache.entry import CacheEntry, EntryType
-from autom8_asana.cache.freshness_coordinator import FreshnessMode
-from autom8_asana.cache.unified import UnifiedTaskStore
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
 
 @pytest.fixture
@@ -678,7 +678,7 @@ class TestUnifiedTaskStoreCompleteness:
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
         """TC-001: MINIMAL entry with STANDARD required returns None."""
-        from autom8_asana.cache.completeness import CompletenessLevel
+        from autom8_asana.cache.models.completeness import CompletenessLevel
 
         # Create entry with MINIMAL completeness (level=10)
         entry = make_entry("task-123")
@@ -708,7 +708,7 @@ class TestUnifiedTaskStoreCompleteness:
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
         """TC-002: STANDARD entry with STANDARD required returns data."""
-        from autom8_asana.cache.completeness import CompletenessLevel
+        from autom8_asana.cache.models.completeness import CompletenessLevel
 
         entry = make_entry("task-123")
         # Add STANDARD completeness metadata
@@ -738,7 +738,7 @@ class TestUnifiedTaskStoreCompleteness:
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
         """TC-003: FULL entry with STANDARD required returns data."""
-        from autom8_asana.cache.completeness import CompletenessLevel
+        from autom8_asana.cache.models.completeness import CompletenessLevel
 
         entry = make_entry("task-123")
         # Add FULL completeness metadata
@@ -768,7 +768,7 @@ class TestUnifiedTaskStoreCompleteness:
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
         """TC-004: UNKNOWN (legacy) entry with MINIMAL required returns data."""
-        from autom8_asana.cache.completeness import CompletenessLevel
+        from autom8_asana.cache.models.completeness import CompletenessLevel
 
         # Entry without completeness metadata (legacy)
         entry = make_entry("task-123", completeness_level=None)
@@ -789,7 +789,7 @@ class TestUnifiedTaskStoreCompleteness:
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
         """TC-005: UNKNOWN (legacy) entry with STANDARD required returns None."""
-        from autom8_asana.cache.completeness import CompletenessLevel
+        from autom8_asana.cache.models.completeness import CompletenessLevel
 
         # Entry without completeness metadata (legacy)
         entry = make_entry("task-123", completeness_level=None)
@@ -809,7 +809,7 @@ class TestUnifiedTaskStoreCompleteness:
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
         """Test put_async stores completeness metadata based on opt_fields."""
-        from autom8_asana.cache.completeness import CompletenessLevel
+        from autom8_asana.cache.models.completeness import CompletenessLevel
 
         task = make_task("task-123")
 
@@ -828,7 +828,7 @@ class TestUnifiedTaskStoreCompleteness:
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
         """Test put_async with standard fields stores STANDARD level."""
-        from autom8_asana.cache.completeness import CompletenessLevel
+        from autom8_asana.cache.models.completeness import CompletenessLevel
 
         task = make_task("task-123")
 
@@ -847,7 +847,7 @@ class TestUnifiedTaskStoreCompleteness:
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
         """Test put_async without opt_fields stores UNKNOWN level."""
-        from autom8_asana.cache.completeness import CompletenessLevel
+        from autom8_asana.cache.models.completeness import CompletenessLevel
 
         task = make_task("task-123")
 
@@ -865,7 +865,7 @@ class TestUnifiedTaskStoreCompleteness:
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
         """Test put_batch_async stores completeness for all entries."""
-        from autom8_asana.cache.completeness import CompletenessLevel
+        from autom8_asana.cache.models.completeness import CompletenessLevel
 
         tasks = [make_task("task-1"), make_task("task-2")]
 
@@ -885,7 +885,7 @@ class TestUnifiedTaskStoreCompleteness:
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
         """Test get_batch_async returns None for insufficient entries."""
-        from autom8_asana.cache.completeness import CompletenessLevel
+        from autom8_asana.cache.models.completeness import CompletenessLevel
 
         # Create two entries: one MINIMAL, one STANDARD
         minimal_entry = CacheEntry(
@@ -927,7 +927,7 @@ class TestUnifiedTaskStoreCompleteness:
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
         """Test that default required_level is STANDARD to preserve behavior."""
-        from autom8_asana.cache.completeness import CompletenessLevel
+        from autom8_asana.cache.models.completeness import CompletenessLevel
 
         # MINIMAL entry should fail with default (STANDARD)
         minimal_entry = CacheEntry(
@@ -952,7 +952,7 @@ class TestUnifiedTaskStoreCompleteness:
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
         """Test completeness_misses stat is properly tracked."""
-        from autom8_asana.cache.completeness import CompletenessLevel
+        from autom8_asana.cache.models.completeness import CompletenessLevel
 
         minimal_entry = CacheEntry(
             key="task-123",

@@ -215,7 +215,7 @@ class SectionFreshnessProber:
                 current_gid_hash=current_hash,
             )
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: api-boundary -- probe calls Asana API which can throw diverse HTTP errors
             logger.warning(
                 "freshness_probe_section_failed",
                 extra={
@@ -257,7 +257,7 @@ class SectionFreshnessProber:
                 success = await self._apply_section_delta(result, view)
                 if success:
                     updated_count += 1
-            except Exception as e:
+            except Exception as e:  # BROAD-CATCH: mixed-boundary -- delta merge calls API + S3
                 logger.error(
                     "freshness_delta_section_failed",
                     extra={
@@ -342,7 +342,7 @@ class SectionFreshnessProber:
                         gid, opt_fields=BASE_OPT_FIELDS
                     )
                     delta_tasks.append(task)
-                except Exception as e:
+                except Exception as e:  # BROAD-CATCH: api-boundary -- individual task fetch via Asana API
                     logger.warning(
                         "freshness_delta_fetch_added_failed",
                         extra={

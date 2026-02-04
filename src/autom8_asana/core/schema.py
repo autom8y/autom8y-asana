@@ -29,7 +29,7 @@ def get_schema_version(entity_type: str | None) -> str | None:
         registry_key = to_pascal_case(entity_type)
         schema = registry.get_schema(registry_key)
         return schema.version if schema else None
-    except Exception as e:
+    except (ValueError, KeyError, TypeError, AttributeError, RuntimeError) as e:
         logger.warning(
             "schema_version_lookup_failed",
             extra={"entity_type": entity_type, "error": str(e)},

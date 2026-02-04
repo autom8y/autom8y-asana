@@ -36,15 +36,15 @@ For full details: `docs/guides/knossos-integration.md` and `docs/decisions/ADR-0
 <!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
-This project uses a 5-agent workflow (hygiene):
+This project uses a 5-agent workflow (10x-dev):
 
 | Agent | Role | Produces |
 | ----- | ---- | -------- |
-| **orchestrator** | Coordinates code hygiene initiative phases |  |
-| **code-smeller** | Detects code smells and quality issues across codebase |  |
-| **architect-enforcer** | Plans refactoring approach and enforces architecture standards |  |
-| **janitor** | Executes code cleanup and improvements |  |
-| **audit-lead** | Audits cleanup results and provides quality signoff |  |
+| **orchestrator** | Coordinates development lifecycle phases and routes work to specialists |  |
+| **requirements-analyst** | Gathers requirements and produces PRD artifacts |  |
+| **architect** | Creates technical design documents and architecture decisions |  |
+| **principal-engineer** | Implements code according to design specifications |  |
+| **qa-adversary** | Validates implementation through adversarial testing |  |
 
 **New here?** Use the `prompting` skill for copy-paste patterns, or `initiative-scoping` to start a new project.
 <!-- KNOSSOS:END quick-start -->
@@ -63,16 +63,16 @@ For routing guidance: `/consult`
 Skills are invoked via the **Skill tool**. Key skills: `orchestration` (workflow coordination), `documentation` (templates), `prompting` (agent invocation), `standards` (conventions), `ecosystem-ref` (roster ecosystem patterns). See `.claude/skills/` and `~/.claude/skills/` for full list.
 <!-- KNOSSOS:END skills -->
 
-<!-- KNOSSOS:START agent-configurations regenerate=true source=agents/*.md -->
+<!-- KNOSSOS:START agent-configurations source=agents/*.md regenerate=true -->
 ## Agent Configurations
 
 Full agent prompts live in `.claude/agents/`:
 
-- `orchestrator.md` - Coordinates code hygiene initiative phases
-- `code-smeller.md` - Detects code smells and quality issues across codebase
-- `architect-enforcer.md` - Plans refactoring approach and enforces architecture standards
-- `janitor.md` - Executes code cleanup and improvements
-- `audit-lead.md` - Audits cleanup results and provides quality signoff
+- `orchestrator.md` - Coordinates development lifecycle phases and routes work to specialists
+- `requirements-analyst.md` - Gathers requirements and produces PRD artifacts
+- `architect.md` - Creates technical design documents and architecture decisions
+- `principal-engineer.md` - Implements code according to design specifications
+- `qa-adversary.md` - Validates implementation through adversarial testing
 <!-- KNOSSOS:END agent-configurations -->
 
 <!-- KNOSSOS:START hooks -->
