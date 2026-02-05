@@ -419,7 +419,7 @@ class TestResolveDiscoveryIncomplete:
         EntityProjectRegistry.reset()
 
         with patch(
-            "autom8_asana.api.main._discover_entity_projects",
+            "autom8_asana.api.lifespan._discover_entity_projects",
             new_callable=AsyncMock,
         ) as mock_discover:
 

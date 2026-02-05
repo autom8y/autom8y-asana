@@ -1,14 +1,8 @@
-"""FastAPI application factory with lifespan management.
+"""FastAPI application factory.
 
-This module provides the main FastAPI application factory with:
-- Lifespan context manager for startup/shutdown
-- CORS middleware (configurable)
-- Rate limiting middleware (SlowAPI)
-- Request ID middleware for correlation
-- Request logging middleware
-- Route registration
-- Exception handler registration
-- Entity resolver startup discovery
+Per TDD-I5: This module is the thin app factory shell after decomposition.
+Startup/shutdown logic lives in lifespan.py, initialization in startup.py,
+and preload subsystem in preload/.
 
 Per TDD-ASANA-SATELLITE:
 - FR-SVC-001: FastAPI application factory with lifespan
@@ -16,11 +10,6 @@ Per TDD-ASANA-SATELLITE:
 - FR-SVC-003: Request logging middleware
 - FR-SVC-004: CORS middleware with configurable origins
 - FR-SVC-005: Service-level rate limiting via SlowAPI
-
-Per TDD-entity-resolver:
-- Entity resolver discovers project GIDs at startup
-- Fail-fast if discovery fails
-- Store EntityProjectRegistry in app.state
 
 Per ADR-ASANA-007:
 - SDK client lifecycle is per-request (via dependencies)
@@ -33,9 +22,6 @@ Design Principles:
 - Structured JSON logging
 """
 
-import asyncio
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
 from autom8y_log import get_logger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -50,10 +36,10 @@ import autom8_asana.models.business  # noqa: F401 - side effect import for boots
 
 from .config import get_settings
 from .errors import register_exception_handlers
+from .lifespan import lifespan  # noqa: F401
 from .middleware import (
     RequestIDMiddleware,
     RequestLoggingMiddleware,
-    configure_structlog,
 )
 from .rate_limit import limiter
 from .routes import (
@@ -71,154 +57,13 @@ from .routes import (
     workspaces_router,
 )
 
-
-# Re-exports from startup.py for backward compatibility (removed in C4)
+# Re-exports for backward compatibility (removed in C4)
 from .startup import (  # noqa: F401
     _discover_entity_projects,
     _initialize_dataframe_cache,
     _initialize_mutation_invalidator,
     _register_schema_providers,
 )
-
-
-logger = get_logger(__name__)
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Manage application lifecycle.
-
-    Per FR-SVC-001: Application factory with lifespan context manager.
-
-    Startup:
-    - Configure structured logging
-    - Log startup event
-    - Entity resolver discovery (FR-004, FR-005 per TDD-entity-resolver)
-    - DataFrame cache preload from S3 (FR-003 per sprint-materialization-002)
-
-    Shutdown:
-    - Log shutdown event
-    - Clean up resources (if any)
-
-    Per ADR-ASANA-007: SDK client lifecycle is per-request,
-    so no persistent client initialization needed here.
-
-    Per ADR-0060: Entity resolver discovers project GIDs at startup.
-
-    Per sprint-materialization-002 FR-003, FR-004:
-    - Pre-warm DataFrame cache before accepting traffic
-    - Health check returns 503 until cache is ready
-
-    Args:
-        app: FastAPI application instance.
-
-    Yields:
-        None (no persistent state stored on app.state for SDK).
-    """
-    # Startup
-    configure_structlog()
-    settings = get_settings()
-
-    logger.info(
-        "api_starting",
-        extra={
-            "service": "autom8_asana",
-            "log_level": settings.log_level,
-            "debug": settings.debug,
-            "rate_limit_rpm": settings.rate_limit_rpm,
-        },
-    )
-
-    # Entity resolver startup discovery (FR-004, FR-005)
-    try:
-        await _discover_entity_projects(app)
-    except Exception as e:
-        logger.error(
-            "entity_resolver_discovery_failed",
-            extra={
-                "error": str(e),
-                "remediation": (
-                    "Ensure workspace contains projects with names: "
-                    "Business Units. Check ASANA_BOT_PAT is configured."
-                ),
-            },
-        )
-        # Per ADR-0060: Fail-fast on discovery failure
-        raise RuntimeError(f"Entity resolver discovery failed: {e}") from e
-
-    # Initialize DataFrameCache for Offer/Contact resolution strategies
-    # Per TDD-DATAFRAME-CACHE-001: Provides tiered caching (Memory + S3)
-    _initialize_dataframe_cache()
-
-    # Register schema providers with SDK for cache compatibility checks
-    # Per SDK Phase 1: Bridges satellite SchemaRegistry to SDK registry
-    _register_schema_providers()
-
-    # Initialize MutationInvalidator for REST cache invalidation
-    # Per TDD-CACHE-INVALIDATION-001: Wire cache invalidation into REST routes
-    _initialize_mutation_invalidator(app)
-
-    # DataFrame cache preload (FR-003 per sprint-materialization-002)
-    # Runs after entity discovery so we know which projects exist
-    # Per progressive cache warming architecture: use progressive preload with
-    # parallel project processing, resume capability, and heartbeat monitoring
-    #
-    # IMPORTANT: Run cache warming as background task to not block startup.
-    # This allows /health to return 200 immediately while cache warms.
-    # The /health/ready endpoint returns 503 until cache is warm.
-    # Per ECS health check fix: blocking startup causes health check failures
-    # when rate limiting or other errors slow down cache warming.
-    background_task = asyncio.create_task(
-        _preload_dataframe_cache_progressive(app),
-        name="cache_warming",
-    )
-
-    # Store task reference to cancel on shutdown
-    app.state.cache_warming_task = background_task
-
-    logger.info(
-        "cache_warming_started_background",
-        extra={"task_name": "cache_warming"},
-    )
-
-    yield
-
-    # Cancel background cache warming if still running
-    if hasattr(app.state, "cache_warming_task"):
-        task = app.state.cache_warming_task
-        if not task.done():
-            logger.info("cache_warming_cancelling")
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                logger.info("cache_warming_cancelled")
-            except Exception as e:
-                logger.warning(
-                    "cache_warming_cancel_error",
-                    extra={"error": str(e)},
-                )
-
-    # Close connection managers (ordered shutdown per TDD-CONNECTION-LIFECYCLE-001)
-    if hasattr(app.state, "connection_registry"):
-        try:
-            await app.state.connection_registry.close_all_async()
-            logger.info("connection_registry_shutdown_complete")
-        except Exception as e:
-            logger.warning(
-                "connection_registry_shutdown_error",
-                extra={"error": str(e)},
-            )
-
-    # Shutdown
-    logger.info(
-        "api_stopping",
-        extra={"service": "autom8_asana"},
-    )
-
-
-
-# Re-exports from preload/ subpackage for backward compatibility (removed in C4)
 from .preload.legacy import (  # noqa: F401
     _do_full_rebuild,
     _do_incremental_catchup,
@@ -228,6 +73,8 @@ from .preload.progressive import (  # noqa: F401
     _invoke_cache_warmer_lambda_from_preload,
     _preload_dataframe_cache_progressive,
 )
+
+logger = get_logger(__name__)
 
 
 def create_app() -> FastAPI:
