@@ -112,7 +112,7 @@ class TestWarmerManifestPreservation:
                 "autom8_asana.cache.dataframe.warmer.WarmResult",
             ) as mock_warm_result,
             patch("autom8_asana.AsanaClient"),
-            patch("autom8_asana.lambda_handlers.cache_warmer._emit_metric"),
+            patch("autom8_asana.lambda_handlers.cache_warmer.emit_metric"),
             patch(
                 "autom8_asana.dataframes.section_persistence.SectionPersistence",
                 return_value=mock_section_persistence,
@@ -195,7 +195,7 @@ class TestWarmerManifestPreservation:
                 "autom8_asana.cache.dataframe.warmer.WarmResult",
             ) as mock_warm_result,
             patch("autom8_asana.AsanaClient"),
-            patch("autom8_asana.lambda_handlers.cache_warmer._emit_metric"),
+            patch("autom8_asana.lambda_handlers.cache_warmer.emit_metric"),
             patch(
                 "autom8_asana.dataframes.section_persistence.SectionPersistence",
                 return_value=mock_section_persistence,

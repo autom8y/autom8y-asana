@@ -43,7 +43,8 @@ class TestAsanaSettings:
         with patch.dict(os.environ, env, clear=True):
             settings = AsanaSettings()
 
-        assert settings.pat == "test_token_123"
+        assert settings.pat is not None
+        assert settings.pat.get_secret_value() == "test_token_123"
         assert settings.workspace_gid == "1234567890123456"
         assert settings.base_url == "https://custom.api.com/v1"
         assert settings.strict_config is True
@@ -136,7 +137,8 @@ class TestRedisSettings:
 
         assert settings.host == "redis.example.com"
         assert settings.port == 6380
-        assert settings.password == "secret123"
+        assert settings.password is not None
+        assert settings.password.get_secret_value() == "secret123"
         assert settings.ssl is False
 
     def test_ssl_parsing_variants(self) -> None:
@@ -280,13 +282,15 @@ class TestSingleton:
 
         with patch.dict(os.environ, {"ASANA_PAT": "token_a"}, clear=True):
             settings = get_settings()
-            assert settings.asana.pat == "token_a"
+            assert settings.asana.pat is not None
+            assert settings.asana.pat.get_secret_value() == "token_a"
 
         # Change env and reset
         reset_settings()
         with patch.dict(os.environ, {"ASANA_PAT": "token_b"}, clear=True):
             settings = get_settings()
-            assert settings.asana.pat == "token_b"
+            assert settings.asana.pat is not None
+            assert settings.asana.pat.get_secret_value() == "token_b"
 
 
 class TestS3Settings:
@@ -538,7 +542,8 @@ class TestIntegration:
         with patch.dict(os.environ, env, clear=True):
             settings = Settings()
 
-        assert settings.asana.pat == "xoxp-test-token"
+        assert settings.asana.pat is not None
+        assert settings.asana.pat.get_secret_value() == "xoxp-test-token"
         assert settings.asana.workspace_gid == "9876543210"
         assert settings.env.environment == "production"
         assert settings.is_production is True
