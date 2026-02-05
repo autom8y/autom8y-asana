@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from autom8_asana.api.main import (
+from autom8_asana.api.preload.progressive import (
     _invoke_cache_warmer_lambda_from_preload,
 )
 

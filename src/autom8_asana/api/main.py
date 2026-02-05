@@ -57,23 +57,6 @@ from .routes import (
     workspaces_router,
 )
 
-# Re-exports for backward compatibility (removed in C4)
-from .startup import (  # noqa: F401
-    _discover_entity_projects,
-    _initialize_dataframe_cache,
-    _initialize_mutation_invalidator,
-    _register_schema_providers,
-)
-from .preload.legacy import (  # noqa: F401
-    _do_full_rebuild,
-    _do_incremental_catchup,
-    _preload_dataframe_cache,
-)
-from .preload.progressive import (  # noqa: F401
-    _invoke_cache_warmer_lambda_from_preload,
-    _preload_dataframe_cache_progressive,
-)
-
 logger = get_logger(__name__)
 
 
