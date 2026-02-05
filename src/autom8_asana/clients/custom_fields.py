@@ -99,7 +99,9 @@ class CustomFieldsClient(BaseClient):
         data = await self._http.get(f"/custom_fields/{custom_field_gid}", params=params)
 
         # Step 5: Store in cache
-        self._cache_set(custom_field_gid, data, EntryType.CUSTOM_FIELD, ttl=CUSTOM_FIELD_CACHE_TTL)
+        self._cache_set(
+            custom_field_gid, data, EntryType.CUSTOM_FIELD, ttl=CUSTOM_FIELD_CACHE_TTL
+        )
 
         # Step 6: Return model or raw dict
         if raw:

@@ -12,16 +12,19 @@ from unittest.mock import Mock
 
 import pytest
 
-from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8_asana.cache.models.freshness_stamp import FreshnessStamp, VerificationSource
-from autom8_asana.cache.models.mutation_event import EntityKind, MutationEvent, MutationType
 from autom8_asana.cache.integration.mutation_invalidator import (
+    _TASK_ENTRY_TYPES,
     MutationInvalidator,
     SoftInvalidationConfig,
-    _TASK_ENTRY_TYPES,
+)
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.freshness_stamp import FreshnessStamp, VerificationSource
+from autom8_asana.cache.models.mutation_event import (
+    EntityKind,
+    MutationEvent,
+    MutationType,
 )
 from autom8_asana.protocols.cache import CacheProvider
-
 
 # ============================================================================
 # Fixtures
@@ -122,7 +125,9 @@ class TestSoftInvalidationMarksStamp:
         marked_entry = set_call[0][1]
         assert marked_entry.freshness_stamp is not None
         assert marked_entry.freshness_stamp.staleness_hint is not None
-        assert "mutation:task:update:123456" in marked_entry.freshness_stamp.staleness_hint
+        assert (
+            "mutation:task:update:123456" in marked_entry.freshness_stamp.staleness_hint
+        )
         # Source should be preserved
         assert marked_entry.freshness_stamp.source == VerificationSource.API_FETCH
 
@@ -194,9 +199,7 @@ class TestSoftInvalidationFallback:
 class TestSoftInvalidationEntityFilter:
     """Entity kind filtering for soft invalidation."""
 
-    def test_soft_invalidation_config_entity_filter(
-        self, mock_cache: Mock
-    ) -> None:
+    def test_soft_invalidation_config_entity_filter(self, mock_cache: Mock) -> None:
         """Only configured entity kinds get soft invalidation."""
         # Config only allows "section" for soft invalidation
         config = SoftInvalidationConfig(
@@ -217,9 +220,7 @@ class TestSoftInvalidationEntityFilter:
         mock_cache.invalidate.assert_called_once_with("123", _TASK_ENTRY_TYPES)
         mock_cache.get_versioned.assert_not_called()
 
-    def test_soft_invalidation_mutation_type_filter(
-        self, mock_cache: Mock
-    ) -> None:
+    def test_soft_invalidation_mutation_type_filter(self, mock_cache: Mock) -> None:
         """Only configured mutation types get soft invalidation."""
         config = SoftInvalidationConfig(
             enabled=True,

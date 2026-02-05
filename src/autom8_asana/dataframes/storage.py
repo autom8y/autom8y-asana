@@ -31,7 +31,7 @@ import polars as pl
 from autom8y_log import get_logger
 
 from autom8_asana.config import S3LocationConfig
-from autom8_asana.core.exceptions import S3TransportError, S3_TRANSPORT_ERRORS
+from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS, S3TransportError
 from autom8_asana.core.retry import (
     BackoffType,
     BudgetConfig,
@@ -131,9 +131,7 @@ class DataFrameStorage(Protocol):
 
     # ---- GidLookupIndex operations ----
 
-    async def save_index(
-        self, project_gid: str, index_data: dict[str, Any]
-    ) -> bool:
+    async def save_index(self, project_gid: str, index_data: dict[str, Any]) -> bool:
         """Persist serialized GidLookupIndex."""
         ...
 
@@ -166,9 +164,7 @@ class DataFrameStorage(Protocol):
         """Load a section-level parquet file."""
         ...
 
-    async def delete_section(
-        self, project_gid: str, section_gid: str
-    ) -> bool:
+    async def delete_section(self, project_gid: str, section_gid: str) -> bool:
         """Delete a section-level parquet file."""
         ...
 
@@ -465,7 +461,9 @@ class S3DataFrameStorage:
                     reason=f"permanent_error:{wrapped.error_code}",
                 )
             else:
-                logger.error("s3_storage_error", key=key, operation="put", error=str(wrapped))
+                logger.error(
+                    "s3_storage_error", key=key, operation="put", error=str(wrapped)
+                )
             return False
 
     async def _get_object(self, key: str) -> bytes | None:
@@ -490,7 +488,8 @@ class S3DataFrameStorage:
                     Bucket=self._location.bucket,
                     Key=key,
                 )
-                return response["Body"].read()
+                body_bytes: bytes = response["Body"].read()
+                return body_bytes
 
             data = await self._retry.execute_with_retry_async(
                 lambda: asyncio.to_thread(_do_get),
@@ -524,7 +523,9 @@ class S3DataFrameStorage:
                     reason=f"permanent_error:{wrapped.error_code}",
                 )
             else:
-                logger.error("s3_storage_error", key=key, operation="get", error=str(wrapped))
+                logger.error(
+                    "s3_storage_error", key=key, operation="get", error=str(wrapped)
+                )
             return None
 
     async def _delete_s3_object(self, key: str) -> bool:
@@ -566,7 +567,9 @@ class S3DataFrameStorage:
                 return True  # Already gone
             if not wrapped.transient:
                 self._degraded = True
-            logger.error("s3_storage_error", key=key, operation="delete", error=str(wrapped))
+            logger.error(
+                "s3_storage_error", key=key, operation="delete", error=str(wrapped)
+            )
             return False
 
     async def _list_common_prefixes(self, prefix: str) -> list[str]:
@@ -690,7 +693,9 @@ class S3DataFrameStorage:
             raise ValueError("Watermark timestamp must be timezone-aware")
 
         if self._degraded:
-            logger.debug("s3_storage_skip", operation="save_dataframe", project_gid=project_gid)
+            logger.debug(
+                "s3_storage_skip", operation="save_dataframe", project_gid=project_gid
+            )
             return False
 
         # Serialize DataFrame to Parquet
@@ -743,7 +748,9 @@ class S3DataFrameStorage:
             Tuple of (DataFrame, watermark) if found, (None, None) otherwise.
         """
         if self._degraded:
-            logger.debug("s3_storage_skip", operation="load_dataframe", project_gid=project_gid)
+            logger.debug(
+                "s3_storage_skip", operation="load_dataframe", project_gid=project_gid
+            )
             return None, None
 
         # Load watermark first (fast existence check)
@@ -864,9 +871,7 @@ class S3DataFrameStorage:
 
     # ---- GidLookupIndex operations ----
 
-    async def save_index(
-        self, project_gid: str, index_data: dict[str, Any]
-    ) -> bool:
+    async def save_index(self, project_gid: str, index_data: dict[str, Any]) -> bool:
         """Persist serialized GidLookupIndex to S3 as JSON.
 
         Per ADR-B6-004: Accepts dict, not GidLookupIndex. Serialization
@@ -901,7 +906,8 @@ class S3DataFrameStorage:
         data = await self._get_object(self._index_key(project_gid))
         if data is None:
             return None
-        return json.loads(data.decode("utf-8"))
+        result: dict[str, Any] = json.loads(data.decode("utf-8"))
+        return result
 
     async def delete_index(self, project_gid: str) -> bool:
         """Delete GidLookupIndex from S3.
@@ -965,9 +971,7 @@ class S3DataFrameStorage:
             return None
         return self._deserialize_parquet(data)
 
-    async def delete_section(
-        self, project_gid: str, section_gid: str
-    ) -> bool:
+    async def delete_section(self, project_gid: str, section_gid: str) -> bool:
         """Delete a section-level parquet file.
 
         Args:

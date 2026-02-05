@@ -12,10 +12,8 @@ import asyncio
 import time
 from unittest.mock import AsyncMock, MagicMock, PropertyMock
 
-
 from autom8_asana.cache.connections.registry import ConnectionRegistry
 from autom8_asana.core.connections import ConnectionState, HealthCheckResult
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -130,9 +128,7 @@ class TestRegistryHealthReport:
         registry.register(_make_mock_manager("redis"))
         registry.register(_make_mock_manager("s3"))
 
-        report = asyncio.run(
-            registry.health_report_async()
-        )
+        report = asyncio.run(registry.health_report_async())
         assert len(report) == 2
         assert report["redis"].state == ConnectionState.HEALTHY
 
@@ -144,9 +140,7 @@ class TestRegistryHealthReport:
         )
         registry.register(bad_mgr)
 
-        report = asyncio.run(
-            registry.health_report_async()
-        )
+        report = asyncio.run(registry.health_report_async())
         assert report["redis"].state == ConnectionState.DISCONNECTED
 
 

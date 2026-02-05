@@ -146,7 +146,9 @@ async def _ensure_units_hydrated(business: Business, client: AsanaClient) -> Non
     # Fetch full hierarchy to populate units
     try:
         await business._fetch_holders_async(client)
-    except Exception as e:  # BROAD-CATCH: enrichment -- logs then re-raises for caller to handle
+    except (
+        Exception
+    ) as e:  # BROAD-CATCH: enrichment -- logs then re-raises for caller to handle
         logger.warning(
             "Failed to hydrate business units",
             extra={"business_gid": business.gid, "error": str(e)},

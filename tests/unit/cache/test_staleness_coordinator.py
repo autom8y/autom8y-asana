@@ -11,10 +11,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from autom8_asana.cache.integration.staleness_coordinator import (
+    StalenessCheckCoordinator,
+)
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8_asana.core.exceptions import CacheConnectionError
-from autom8_asana.cache.integration.staleness_coordinator import StalenessCheckCoordinator
 from autom8_asana.cache.models.staleness_settings import StalenessCheckSettings
+from autom8_asana.core.exceptions import CacheConnectionError
 
 
 @pytest.fixture
@@ -215,7 +217,9 @@ class TestStalenessCheckCoordinator:
     ) -> None:
         """Test that cache update failure still returns extended entry."""
         entry = make_entry("123", modified_at="2025-12-23T10:00:00.000Z")
-        mock_cache_provider.set_versioned.side_effect = CacheConnectionError("Cache error")
+        mock_cache_provider.set_versioned.side_effect = CacheConnectionError(
+            "Cache error"
+        )
 
         with patch.object(
             coordinator._coalescer,

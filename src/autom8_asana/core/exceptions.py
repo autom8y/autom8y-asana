@@ -323,7 +323,9 @@ except ImportError:
     pass
 
 # All transport errors (union of S3 + Redis)
-ALL_TRANSPORT_ERRORS: tuple[type[Exception], ...] = S3_TRANSPORT_ERRORS + REDIS_TRANSPORT_ERRORS
+ALL_TRANSPORT_ERRORS: tuple[type[Exception], ...] = (
+    S3_TRANSPORT_ERRORS + REDIS_TRANSPORT_ERRORS
+)
 
 # Cache-layer errors (transport + semantic)
 CACHE_TRANSIENT_ERRORS: tuple[type[Exception], ...] = ALL_TRANSPORT_ERRORS + (

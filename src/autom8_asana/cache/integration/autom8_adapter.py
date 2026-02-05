@@ -42,7 +42,10 @@ from typing import TYPE_CHECKING, Any
 from autom8_asana.cache.integration.batch import fetch_task_modifications
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.settings import CacheSettings
-from autom8_asana.cache.policies.staleness import check_batch_staleness, partition_by_staleness
+from autom8_asana.cache.policies.staleness import (
+    check_batch_staleness,
+    partition_by_staleness,
+)
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 from autom8_asana.settings import get_settings
 
@@ -141,8 +144,14 @@ def create_autom8_cache_provider(
         )
 
     port = redis_port if redis_port is not None else redis_settings.port
-    password = redis_password if redis_password is not None else (
-        redis_settings.password.get_secret_value() if redis_settings.password else None
+    password = (
+        redis_password
+        if redis_password is not None
+        else (
+            redis_settings.password.get_secret_value()
+            if redis_settings.password
+            else None
+        )
     )
     ssl = redis_ssl if redis_ssl is not None else redis_settings.ssl
 

@@ -12,12 +12,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from autom8_asana.batch.models import BatchResult
-from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.integration.freshness_coordinator import (
     FreshnessCoordinator,
     FreshnessMode,
     FreshnessResult,
 )
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
 
 
 @pytest.fixture

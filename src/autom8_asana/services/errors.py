@@ -155,9 +155,7 @@ class InvalidFieldError(EntityValidationError):
         available_fields: Sorted list of valid schema fields.
     """
 
-    def __init__(
-        self, invalid_fields: list[str], available_fields: list[str]
-    ) -> None:
+    def __init__(self, invalid_fields: list[str], available_fields: list[str]) -> None:
         self.invalid_fields = invalid_fields
         self.available_fields = available_fields
         super().__init__(f"Invalid fields: {invalid_fields}")

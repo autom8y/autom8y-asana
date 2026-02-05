@@ -168,9 +168,7 @@ class TaskService:
         else:
             endpoint = f"/sections/{section}/tasks"
 
-        data, next_offset = await client._http.get_paginated(
-            endpoint, params=params
-        )
+        data, next_offset = await client._http.get_paginated(endpoint, params=params)
 
         return ServiceListResult(
             data=data,
@@ -197,9 +195,7 @@ class TaskService:
         Returns:
             Task data dict from Asana API.
         """
-        return await client.tasks.get_async(
-            gid, opt_fields=opt_fields, raw=True
-        )
+        return await client.tasks.get_async(gid, opt_fields=opt_fields, raw=True)
 
     # --- Create (T1) ---
 
@@ -493,9 +489,7 @@ class TaskService:
         Returns:
             Updated task data dict.
         """
-        task = await client.tasks.move_to_section_async(
-            gid, section_gid, project_gid
-        )
+        task = await client.tasks.move_to_section_async(gid, section_gid, project_gid)
         task_data = task.model_dump()
 
         project_gids = extract_project_gids(task_data) or [project_gid]
@@ -528,13 +522,9 @@ class TaskService:
             Updated task data dict.
         """
         if assignee_gid is None:
-            task = await client.tasks.update_async(
-                gid, raw=True, assignee=None
-            )
+            task = await client.tasks.update_async(gid, raw=True, assignee=None)
         else:
-            task_obj = await client.tasks.set_assignee_async(
-                gid, assignee_gid
-            )
+            task_obj = await client.tasks.set_assignee_async(gid, assignee_gid)
             task = task_obj.model_dump()
 
         self._fire_invalidation(

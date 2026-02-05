@@ -12,16 +12,31 @@ All code now uses canonical paths. Root __init__.py re-exports for public API.
 
 def test_root_imports():
     """Root __init__.py exports are accessible."""
-    from autom8_asana.cache import CacheEntry, EntryType, Freshness
-    from autom8_asana.cache import TieredCacheProvider, TieredConfig
-    from autom8_asana.cache import CacheMetrics, CacheEvent
-    from autom8_asana.cache import CacheSettings, TTLSettings, OverflowSettings
-    from autom8_asana.cache import StalenessCheckSettings
-    from autom8_asana.cache import UnifiedTaskStore, FreshnessMode, HierarchyIndex
-    from autom8_asana.cache import LightweightChecker, RequestCoalescer
-    from autom8_asana.cache import check_entry_staleness, check_batch_staleness
-    from autom8_asana.cache import load_task_entry, load_task_entries, load_batch_entries
-    from autom8_asana.cache import CompletenessLevel, AsanaTaskUpgrader
+    from autom8_asana.cache import (
+        AsanaTaskUpgrader,
+        CacheEntry,
+        CacheEvent,
+        CacheMetrics,
+        CacheSettings,
+        CompletenessLevel,
+        EntryType,
+        Freshness,
+        FreshnessMode,
+        HierarchyIndex,
+        LightweightChecker,
+        OverflowSettings,
+        RequestCoalescer,
+        StalenessCheckSettings,
+        TieredCacheProvider,
+        TieredConfig,
+        TTLSettings,
+        UnifiedTaskStore,
+        check_batch_staleness,
+        check_entry_staleness,
+        load_batch_entries,
+        load_task_entries,
+        load_task_entry,
+    )
 
     assert CacheEntry is not None
     assert TieredCacheProvider is not None
@@ -37,28 +52,25 @@ def test_root_imports():
 
 def test_canonical_imports():
     """New canonical paths work."""
-    from autom8_asana.cache.models.entry import CacheEntry, EntryType
-    from autom8_asana.cache.models.freshness import Freshness
-    from autom8_asana.cache.models.freshness_stamp import FreshnessStamp
-    from autom8_asana.cache.models.metrics import CacheMetrics, CacheEvent
-    from autom8_asana.cache.models.settings import CacheSettings
-    from autom8_asana.cache.models.errors import DegradedModeMixin
-    from autom8_asana.cache.models.completeness import CompletenessLevel
-    from autom8_asana.cache.models.versioning import compare_versions
-    from autom8_asana.cache.models.mutation_event import MutationEvent
-
-    from autom8_asana.cache.policies.freshness_policy import FreshnessPolicy
-    from autom8_asana.cache.policies.staleness import check_entry_staleness
-    from autom8_asana.cache.policies.lightweight_checker import LightweightChecker
-    from autom8_asana.cache.policies.coalescer import RequestCoalescer
-    from autom8_asana.cache.policies.hierarchy import HierarchyIndex
-
-    from autom8_asana.cache.providers.tiered import TieredCacheProvider
-    from autom8_asana.cache.providers.unified import UnifiedTaskStore
-
-    from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator
     from autom8_asana.cache.integration.factory import CacheProviderFactory
     from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+    from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator
+    from autom8_asana.cache.models.completeness import CompletenessLevel
+    from autom8_asana.cache.models.entry import CacheEntry, EntryType
+    from autom8_asana.cache.models.errors import DegradedModeMixin
+    from autom8_asana.cache.models.freshness import Freshness
+    from autom8_asana.cache.models.freshness_stamp import FreshnessStamp
+    from autom8_asana.cache.models.metrics import CacheEvent, CacheMetrics
+    from autom8_asana.cache.models.mutation_event import MutationEvent
+    from autom8_asana.cache.models.settings import CacheSettings
+    from autom8_asana.cache.models.versioning import compare_versions
+    from autom8_asana.cache.policies.coalescer import RequestCoalescer
+    from autom8_asana.cache.policies.freshness_policy import FreshnessPolicy
+    from autom8_asana.cache.policies.hierarchy import HierarchyIndex
+    from autom8_asana.cache.policies.lightweight_checker import LightweightChecker
+    from autom8_asana.cache.policies.staleness import check_entry_staleness
+    from autom8_asana.cache.providers.tiered import TieredCacheProvider
+    from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
     assert CacheEntry is not None
     assert FreshnessStamp is not None
@@ -73,10 +85,10 @@ def test_canonical_imports():
 
 def test_subpackage_imports():
     """Subpackage __init__.py re-exports work."""
-    from autom8_asana.cache.models import CacheEntry, FreshnessStamp, CacheMetrics
+    from autom8_asana.cache.integration import FreshnessMode, MutationInvalidator
+    from autom8_asana.cache.models import CacheEntry, CacheMetrics, FreshnessStamp
     from autom8_asana.cache.policies import FreshnessPolicy, LightweightChecker
     from autom8_asana.cache.providers import TieredCacheProvider, UnifiedTaskStore
-    from autom8_asana.cache.integration import MutationInvalidator, FreshnessMode
 
     assert CacheEntry is not None
     assert FreshnessPolicy is not None

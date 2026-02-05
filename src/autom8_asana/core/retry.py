@@ -23,10 +23,9 @@ import random
 import threading
 import time
 from collections import deque
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import (
-    Awaitable,
-    Callable,
     Protocol,
     TypeVar,
     runtime_checkable,
@@ -418,7 +417,9 @@ class CircuitBreaker:
         if self._state == CBState.OPEN:
             elapsed = time.monotonic() - self._opened_at
             if elapsed >= self._config.recovery_timeout:
-                self._transition_to(CBState.HALF_OPEN, reason="recovery_timeout_elapsed")
+                self._transition_to(
+                    CBState.HALF_OPEN, reason="recovery_timeout_elapsed"
+                )
         return self._state
 
     def allow_request(self) -> bool:

@@ -400,9 +400,7 @@ class InMemoryCacheProvider:
         """
         deleted = 0
         with self._lock:
-            task_keys = [
-                k for k in self._versioned_cache if k.endswith(":task")
-            ]
+            task_keys = [k for k in self._versioned_cache if k.endswith(":task")]
             for k in task_keys:
                 del self._versioned_cache[k]
                 deleted += 1

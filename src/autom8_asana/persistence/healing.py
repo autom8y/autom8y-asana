@@ -366,7 +366,9 @@ async def heal_entity_async(
             dry_run=False,
             error=None,
         )
-    except Exception as e:  # BROAD-CATCH: isolation -- returns error result, never propagates
+    except (
+        Exception
+    ) as e:  # BROAD-CATCH: isolation -- returns error result, never propagates
         logger.warning(
             "Failed to heal entity",
             extra={

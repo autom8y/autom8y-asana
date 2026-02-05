@@ -280,14 +280,20 @@ async def get_asana_pat(
     if authorization is None:
         raise HTTPException(
             status_code=401,
-            detail={"error": "MISSING_AUTH", "message": "Authorization header required"},
+            detail={
+                "error": "MISSING_AUTH",
+                "message": "Authorization header required",
+            },
             headers={"WWW-Authenticate": "Bearer"},
         )
 
     if not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=401,
-            detail={"error": "INVALID_SCHEME", "message": "Invalid authorization scheme. Use: Bearer <token>"},
+            detail={
+                "error": "INVALID_SCHEME",
+                "message": "Invalid authorization scheme. Use: Bearer <token>",
+            },
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -388,10 +394,13 @@ def get_mutation_invalidator(request: Request) -> MutationInvalidator:
         # This happens during testing or when cache is disabled
         logger.warning("mutation_invalidator_not_initialized")
         from autom8_asana._defaults.cache import NullCacheProvider
-        from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator as MI
+        from autom8_asana.cache.integration.mutation_invalidator import (
+            MutationInvalidator as MI,
+        )
 
         return MI(cache_provider=NullCacheProvider())
-    return invalidator
+    result: MutationInvalidator = invalidator
+    return result
 
 
 def get_request_id(request: Request) -> str:
@@ -423,7 +432,7 @@ RequestId = Annotated[str, Depends(get_request_id)]
 # --- Service Factories (I2 additions) ---
 
 
-def get_entity_service(request: Request) -> "EntityService":
+def get_entity_service(request: Request) -> EntityService:
     """Get EntityService singleton from app state.
 
     Lazy initialization: creates on first access, stores on app.state.
@@ -454,7 +463,7 @@ def get_entity_service(request: Request) -> "EntityService":
 
 def get_task_service(
     invalidator: MutationInvalidatorDep,
-) -> "TaskService":
+) -> TaskService:
     """Get TaskService with MutationInvalidator.
 
     Per TDD-I2-SERVICE-WIRING-001: TaskService is per-request,
@@ -473,7 +482,7 @@ def get_task_service(
 
 def get_section_service(
     invalidator: MutationInvalidatorDep,
-) -> "SectionService":
+) -> SectionService:
     """Get SectionService with MutationInvalidator.
 
     Per TDD-I2-SERVICE-WIRING-001: SectionService is per-request,

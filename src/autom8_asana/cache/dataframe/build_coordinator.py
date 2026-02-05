@@ -13,10 +13,11 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
@@ -178,7 +179,11 @@ class BuildCoordinator:
         Returns:
             BuildResult with outcome, DataFrame, and metadata.
         """
-        timeout = timeout_seconds if timeout_seconds is not None else self.default_timeout_seconds
+        timeout = (
+            timeout_seconds
+            if timeout_seconds is not None
+            else self.default_timeout_seconds
+        )
         future: asyncio.Future[BuildResult] | None = None
 
         async with self._lock:
@@ -278,7 +283,7 @@ class BuildCoordinator:
                 waiter_count=result.waiter_count,
             )
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._stats["builds_timed_out"] += 1
             async with self._lock:
                 if key in self._in_flight:

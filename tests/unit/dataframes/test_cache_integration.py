@@ -624,7 +624,9 @@ class TestDataFrameCacheIntegration:
         """Test graceful degradation on cache errors."""
         # Create a failing cache
         failing_cache = MagicMock()
-        failing_cache.get_versioned = MagicMock(side_effect=ConnectionError("Redis down"))
+        failing_cache.get_versioned = MagicMock(
+            side_effect=ConnectionError("Redis down")
+        )
 
         integration = DataFrameCacheIntegration(
             cache=failing_cache,
@@ -650,7 +652,9 @@ class TestDataFrameCacheIntegration:
     ) -> None:
         """Test graceful degradation on cache write errors."""
         failing_cache = MagicMock()
-        failing_cache.set_versioned = MagicMock(side_effect=ConnectionError("Redis down"))
+        failing_cache.set_versioned = MagicMock(
+            side_effect=ConnectionError("Redis down")
+        )
 
         integration = DataFrameCacheIntegration(
             cache=failing_cache,

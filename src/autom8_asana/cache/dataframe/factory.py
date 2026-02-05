@@ -81,7 +81,7 @@ async def _swr_build_callback(
             )
             result = await builder.build_progressive_async(resume=True)
 
-        if result.total_rows > 0:
+        if result.total_rows > 0 and result.dataframe is not None:
             await cache.put_async(
                 project_gid,
                 entity_type,

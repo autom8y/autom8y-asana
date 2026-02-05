@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
 from autom8_asana.cache.integration.autom8_adapter import (
     MigrationResult,
     MissingConfigurationError,
@@ -17,7 +18,6 @@ from autom8_asana.cache.integration.autom8_adapter import (
     migrate_task_collection_loading,
     warm_project_tasks,
 )
-from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 
 

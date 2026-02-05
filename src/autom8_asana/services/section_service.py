@@ -94,9 +94,7 @@ class SectionService:
             raw=True,
         )
 
-        section_gid = (
-            section.get("gid", "") if isinstance(section, dict) else ""
-        )
+        section_gid = section.get("gid", "") if isinstance(section, dict) else ""
         self._fire_invalidation(
             entity_gid=section_gid,
             mutation_type=MutationType.CREATE,
@@ -123,9 +121,7 @@ class SectionService:
         Returns:
             Updated section data dict.
         """
-        section = await client.sections.update_async(
-            gid, raw=True, name=name
-        )
+        section = await client.sections.update_async(gid, raw=True, name=name)
 
         # Extract project GID from response if available
         project_gids = self._extract_section_project_gids(section)

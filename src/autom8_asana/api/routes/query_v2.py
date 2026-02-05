@@ -119,7 +119,9 @@ async def query_rows(
     # Build section index (manifest-first, enum fallback)
     section_index = None
     if request_body.section is not None:
-        from autom8_asana.dataframes.section_persistence import create_section_persistence
+        from autom8_asana.dataframes.section_persistence import (
+            create_section_persistence,
+        )
         from autom8_asana.metrics.resolve import SectionIndex
 
         persistence = create_section_persistence()
@@ -236,7 +238,9 @@ async def query_aggregate(
     # Build section index
     section_index = None
     if request_body.section is not None:
-        from autom8_asana.dataframes.section_persistence import create_section_persistence
+        from autom8_asana.dataframes.section_persistence import (
+            create_section_persistence,
+        )
         from autom8_asana.metrics.resolve import SectionIndex
 
         persistence = create_section_persistence()

@@ -142,7 +142,8 @@ class EntityDescriptor:
         import importlib
 
         module = importlib.import_module(parts[0])
-        return getattr(module, parts[1])
+        result: type | None = getattr(module, parts[1])
+        return result
 
 
 class EntityRegistry:
@@ -203,9 +204,7 @@ class EntityRegistry:
         desc = self._by_name.get(name)
         if desc is None:
             available = sorted(self._by_name.keys())
-            raise KeyError(
-                f"Unknown entity type: {name!r}. Available: {available}"
-            )
+            raise KeyError(f"Unknown entity type: {name!r}. Available: {available}")
         return desc
 
     def get_by_gid(self, project_gid: str) -> EntityDescriptor | None:
@@ -642,8 +641,7 @@ def _validate_registry_integrity(registry: EntityRegistry) -> None:
     for desc in registry.holders():
         if desc.holder_for and desc.holder_for not in names:
             raise ValueError(
-                f"Holder {desc.name!r} references unknown entity "
-                f"{desc.holder_for!r}"
+                f"Holder {desc.name!r} references unknown entity {desc.holder_for!r}"
             )
 
     # Check 3: No duplicate pascal_names
@@ -662,16 +660,14 @@ def _validate_registry_integrity(registry: EntityRegistry) -> None:
         for target, _key in desc.join_keys:
             if target not in names:
                 raise ValueError(
-                    f"Entity {desc.name!r} has join_key to unknown "
-                    f"target {target!r}"
+                    f"Entity {desc.name!r} has join_key to unknown target {target!r}"
                 )
 
     # Check 5: Parent entity references exist
     for desc in registry.all_descriptors():
         if desc.parent_entity and desc.parent_entity not in names:
             raise ValueError(
-                f"Entity {desc.name!r} references unknown parent "
-                f"{desc.parent_entity!r}"
+                f"Entity {desc.name!r} references unknown parent {desc.parent_entity!r}"
             )
 
 

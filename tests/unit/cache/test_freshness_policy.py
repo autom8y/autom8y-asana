@@ -8,15 +8,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8_asana.cache.policies.freshness_policy import FreshnessPolicy
 from autom8_asana.cache.models.freshness_stamp import (
     FreshnessClassification,
     FreshnessStamp,
     VerificationSource,
 )
-
+from autom8_asana.cache.policies.freshness_policy import FreshnessPolicy
 
 # ============================================================================
 # Fixtures
@@ -142,9 +140,7 @@ class TestFreshnessPolicyRegistryTTL:
 
         # Unknown entity type falls back to entry TTL (200)
         # 100s / 200s = 50% -> FRESH
-        result = policy.evaluate(
-            entry, entity_type="nonexistent_entity_xyz", now=now
-        )
+        result = policy.evaluate(entry, entity_type="nonexistent_entity_xyz", now=now)
         assert result == FreshnessClassification.FRESH
 
     def test_evaluate_metadata_entity_type(self) -> None:
@@ -155,9 +151,7 @@ class TestFreshnessPolicyRegistryTTL:
             source=VerificationSource.API_FETCH,
         )
         # "business" has 3600s TTL, 100s is well within FRESH
-        entry = _make_entry(
-            stamp=stamp, ttl=300, metadata={"entity_type": "business"}
-        )
+        entry = _make_entry(stamp=stamp, ttl=300, metadata={"entity_type": "business"})
         policy = FreshnessPolicy()
 
         result = policy.evaluate(entry, now=now)

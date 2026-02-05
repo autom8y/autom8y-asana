@@ -39,7 +39,6 @@ from autom8y_http import (
 )
 from autom8y_log import get_logger
 
-from autom8_asana.core.exceptions import CacheError
 from autom8_asana.clients.data.config import DataServiceConfig
 from autom8_asana.clients.data.models import (
     BatchInsightsResponse,
@@ -49,6 +48,7 @@ from autom8_asana.clients.data.models import (
     InsightsRequest,
     InsightsResponse,
 )
+from autom8_asana.core.exceptions import CacheError
 from autom8_asana.exceptions import (
     InsightsError,
     InsightsNotFoundError,
@@ -585,7 +585,14 @@ class DataServiceClient:
                     f"DataServiceClient: Cached response for {cache_key}",
                     extra={"cache_key": cache_key, "ttl": self._config.cache_ttl},
                 )
-        except (ConnectionError, TimeoutError, OSError, ValueError, TypeError, CacheError) as e:
+        except (
+            ConnectionError,
+            TimeoutError,
+            OSError,
+            ValueError,
+            TypeError,
+            CacheError,
+        ) as e:
             # Graceful degradation: cache failures don't break requests
             if self._log:
                 self._log.warning(
@@ -670,7 +677,15 @@ class DataServiceClient:
 
             return stale_response
 
-        except (ConnectionError, TimeoutError, OSError, ValueError, KeyError, TypeError, CacheError) as e:
+        except (
+            ConnectionError,
+            TimeoutError,
+            OSError,
+            ValueError,
+            KeyError,
+            TypeError,
+            CacheError,
+        ) as e:
             # Graceful degradation: cache read failures return None
             if self._log:
                 self._log.warning(

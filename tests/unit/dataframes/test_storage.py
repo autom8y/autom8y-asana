@@ -22,7 +22,6 @@ from autom8_asana.core.retry import (
     BudgetConfig,
     CBState,
     CircuitBreaker,
-    CircuitBreakerOpenError,
     CircuitBreakerConfig,
     CircuitBreakerOpenError,
     DefaultRetryPolicy,
@@ -36,7 +35,6 @@ from autom8_asana.dataframes.storage import (
     S3DataFrameStorage,
     create_s3_retry_orchestrator,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -223,12 +221,17 @@ class TestKeyFormatting:
     def test_watermark_key(self) -> None:
         """Watermark key matches the established key format."""
         storage = _make_storage()
-        assert storage._watermark_key("proj_123") == "dataframes/proj_123/watermark.json"
+        assert (
+            storage._watermark_key("proj_123") == "dataframes/proj_123/watermark.json"
+        )
 
     def test_index_key(self) -> None:
         """Index key matches the established key format."""
         storage = _make_storage()
-        assert storage._index_key("proj_123") == "dataframes/proj_123/gid_lookup_index.json"
+        assert (
+            storage._index_key("proj_123")
+            == "dataframes/proj_123/gid_lookup_index.json"
+        )
 
     def test_section_key(self) -> None:
         """Section key matches SectionPersistence key format."""
@@ -251,7 +254,10 @@ class TestKeyFormatting:
             retry_orchestrator=_make_orchestrator(),
         )
         assert storage._df_key("proj_123") == "custom/prefix/proj_123/dataframe.parquet"
-        assert storage._watermark_key("proj_123") == "custom/prefix/proj_123/watermark.json"
+        assert (
+            storage._watermark_key("proj_123")
+            == "custom/prefix/proj_123/watermark.json"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -734,9 +740,7 @@ class TestSectionOperations:
         """save_section passes metadata to S3."""
         df = _make_df()
         meta = {"section-name": "Backlog", "task-count": "42"}
-        await storage_with_mock.save_section(
-            "proj_123", "sec_456", df, metadata=meta
-        )
+        await storage_with_mock.save_section("proj_123", "sec_456", df, metadata=meta)
 
         call = mock_s3.put_object.call_args
         assert call.kwargs["Metadata"] == meta
@@ -1010,9 +1014,7 @@ class TestErrorWrapping:
         """Circuit breaker opens after threshold failures, entering degraded mode."""
         # Use real circuit breaker with low threshold
         budget = RetryBudget(BudgetConfig(per_subsystem_max=100, global_max=200))
-        policy = DefaultRetryPolicy(
-            RetryPolicyConfig(max_attempts=1, base_delay=0.0)
-        )
+        policy = DefaultRetryPolicy(RetryPolicyConfig(max_attempts=1, base_delay=0.0))
         cb = CircuitBreaker(
             CircuitBreakerConfig(
                 failure_threshold=3,

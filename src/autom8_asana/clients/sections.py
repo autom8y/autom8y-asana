@@ -10,6 +10,8 @@ from __future__ import annotations
 from datetime import UTC
 from typing import Any, Literal, overload
 
+from autom8y_log import get_logger
+
 from autom8_asana.clients.base import BaseClient
 from autom8_asana.core.exceptions import CacheError
 from autom8_asana.models import PageIterator
@@ -17,14 +19,12 @@ from autom8_asana.models.section import Section
 from autom8_asana.observability import error_handler
 from autom8_asana.patterns import async_method
 from autom8_asana.settings import get_settings
-from autom8y_log import get_logger
 
 logger = get_logger(__name__)
 
 # Cache TTL for section data (30 minutes)
 # Configurable via ASANA_CACHE_TTL_SECTION environment variable
 SECTION_CACHE_TTL = get_settings().cache.ttl_section
-
 
 
 class SectionsClient(BaseClient):
@@ -367,7 +367,14 @@ class SectionsClient(BaseClient):
                             entries[gid] = entry
                     if entries:
                         cache.set_batch(entries)
-                except (ConnectionError, TimeoutError, OSError, ValueError, TypeError, CacheError):
+                except (
+                    ConnectionError,
+                    TimeoutError,
+                    OSError,
+                    ValueError,
+                    TypeError,
+                    CacheError,
+                ):
                     # Per ADR-0127: Graceful degradation - log and continue
                     logger.warning("Section cache degradation", exc_info=True)
 

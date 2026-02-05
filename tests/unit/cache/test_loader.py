@@ -6,13 +6,13 @@ from unittest.mock import AsyncMock
 import pytest
 
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
-from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8_asana.cache.models.freshness import Freshness
 from autom8_asana.cache.integration.loader import (
     load_batch_entries,
     load_task_entries,
     load_task_entry,
 )
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.freshness import Freshness
 
 
 class TestLoadTaskEntry:

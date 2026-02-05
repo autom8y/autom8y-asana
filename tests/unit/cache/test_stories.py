@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.integration.stories import (
     DEFAULT_STORY_TYPES,
     _extract_stories_list,
@@ -15,6 +14,7 @@ from autom8_asana.cache.integration.stories import (
     get_latest_story_timestamp,
     load_stories_incremental,
 )
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
 
 
 class MockCacheProvider:

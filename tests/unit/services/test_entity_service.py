@@ -22,7 +22,6 @@ from autom8_asana.services.errors import (
     UnknownEntityError,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -61,11 +60,13 @@ def entity_registry() -> EntityRegistry:
 
 @pytest.fixture()
 def project_registry() -> MagicMock:
-    return _make_project_registry({
-        "unit": "proj-unit",
-        "offer": "proj-offer",
-        "business": "proj-business",
-    })
+    return _make_project_registry(
+        {
+            "unit": "proj-unit",
+            "offer": "proj-offer",
+            "business": "proj-business",
+        }
+    )
 
 
 @pytest.fixture()

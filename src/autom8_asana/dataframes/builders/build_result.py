@@ -18,7 +18,6 @@ Components:
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -251,12 +250,8 @@ class BuildResult:
         Returns:
             BuildResult with classified status.
         """
-        has_success = any(
-            s.outcome == SectionOutcome.SUCCESS for s in section_results
-        )
-        has_error = any(
-            s.outcome == SectionOutcome.ERROR for s in section_results
-        )
+        has_success = any(s.outcome == SectionOutcome.SUCCESS for s in section_results)
+        has_error = any(s.outcome == SectionOutcome.ERROR for s in section_results)
 
         if dataframe is None or (not has_success and has_error):
             status = BuildStatus.FAILURE

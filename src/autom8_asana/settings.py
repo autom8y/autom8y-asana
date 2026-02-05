@@ -71,8 +71,8 @@ from __future__ import annotations
 import os
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator, model_validator
 from autom8y_config import Autom8yBaseSettings
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import SettingsConfigDict
 
 
@@ -98,7 +98,9 @@ class AsanaSettings(Autom8yBaseSettings):
         case_sensitive=False,
     )
 
-    pat: SecretStr | None = Field(default=None, description="Asana Personal Access Token")
+    pat: SecretStr | None = Field(
+        default=None, description="Asana Personal Access Token"
+    )
     workspace_gid: str | None = Field(default=None, description="Default workspace GID")
     base_url: str = Field(
         default="https://app.asana.com/api/1.0",

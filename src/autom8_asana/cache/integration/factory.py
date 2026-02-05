@@ -193,7 +193,9 @@ class CacheProviderFactory:
         Returns:
             RedisCacheProvider instance.
         """
-        from autom8_asana.cache.integration.autom8_adapter import create_autom8_cache_provider
+        from autom8_asana.cache.integration.autom8_adapter import (
+            create_autom8_cache_provider,
+        )
 
         logger.info("Creating Redis cache provider from environment")
         return create_autom8_cache_provider()

@@ -190,7 +190,6 @@ class SectionManifest(BaseModel):
         }
 
 
-
 class SectionPersistence:
     """Section-level S3 persistence for progressive DataFrame cache warming.
 
@@ -670,8 +669,7 @@ class SectionPersistence:
 
         # Ensure watermark is timezone-aware for save_dataframe
         if watermark.tzinfo is None:
-            from datetime import timezone
-            watermark = watermark.replace(tzinfo=timezone.utc)
+            watermark = watermark.replace(tzinfo=UTC)
 
         df_ok = await self._storage.save_dataframe(
             project_gid, df, watermark, entity_type=entity_type

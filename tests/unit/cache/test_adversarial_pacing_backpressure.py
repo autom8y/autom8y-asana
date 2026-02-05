@@ -13,13 +13,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
-from autom8_asana.cache.policies.hierarchy import HierarchyIndex
 from autom8_asana.cache.integration.hierarchy_warmer import (
     _fetch_parent,
     warm_ancestors_async,
 )
+from autom8_asana.cache.models.entry import EntryType
+from autom8_asana.cache.policies.hierarchy import HierarchyIndex
 from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
 # ---------------------------------------------------------------------------
@@ -227,7 +227,8 @@ class TestBatchEdgeCases:
 
         with (
             patch(
-                "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
+                "autom8_asana.cache.providers.unified.asyncio.sleep",
+                new_callable=AsyncMock,
             ) as mock_sleep,
             patch("autom8_asana.config.HIERARCHY_BATCH_SIZE", 200),
         ):
@@ -245,7 +246,9 @@ class TestBatchEdgeCases:
         n = 250
         tasks = [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(n)]
 
-        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
+        with patch(
+            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
+        ):
             await store.put_batch_async(
                 tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
             )
@@ -314,7 +317,9 @@ class TestErrorResilience:
         client = MagicMock()
         client.get_async = AsyncMock(side_effect=ConnectionError("Total failure"))
 
-        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
+        with patch(
+            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
+        ):
             # Should NOT raise
             await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=client)
 
@@ -345,7 +350,9 @@ class TestErrorResilience:
         client = MagicMock()
         client.get_async = AsyncMock(side_effect=_fail_last_batch)
 
-        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
+        with patch(
+            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
+        ):
             await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=client)
 
         # Phase 1: 110 calls. Phase 2: re-attempts for 10 failed + uncached parents.
@@ -385,7 +392,9 @@ class TestConcurrencyInteraction:
         client.get_async = AsyncMock(side_effect=_tracking_get)
 
         # Use a store with semaphore of 10 (default)
-        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
+        with patch(
+            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
+        ):
             await store.put_batch_async(
                 [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(120)],
                 warm_hierarchy=True,

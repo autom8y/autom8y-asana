@@ -244,7 +244,9 @@ class TestPlaceInHierarchyAsync:
             mock_session = MagicMock()
             mock_session.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session.__aexit__ = AsyncMock(return_value=None)
-            mock_session.commit_async = AsyncMock(side_effect=ConnectionError("API Error"))
+            mock_session.commit_async = AsyncMock(
+                side_effect=ConnectionError("API Error")
+            )
             mock_session.set_parent = MagicMock()
             mock_session_class.return_value = mock_session
 

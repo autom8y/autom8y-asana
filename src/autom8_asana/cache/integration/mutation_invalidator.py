@@ -204,10 +204,7 @@ class MutationInvalidator:
 
         # Step 3: If a task was added to this section, invalidate the task too
         # section_gid is reused to carry the task_gid that was added
-        if (
-            event.mutation_type == MutationType.ADD_MEMBER
-            and event.section_gid
-        ):
+        if event.mutation_type == MutationType.ADD_MEMBER and event.section_gid:
             self._invalidate_entity_entries(event.section_gid)
 
         logger.debug(
@@ -257,9 +254,7 @@ class MutationInvalidator:
             return False
         return True
 
-    def _soft_invalidate_entity_entries(
-        self, gid: str, event: MutationEvent
-    ) -> None:
+    def _soft_invalidate_entity_entries(self, gid: str, event: MutationEvent) -> None:
         """Mark entries stale without evicting.
 
         Reads each entry, applies a staleness hint to its stamp,
@@ -306,7 +301,9 @@ class MutationInvalidator:
                 # Fallback: hard invalidate on any error
                 try:
                     self._cache.invalidate(gid, [entry_type])
-                except Exception:  # BROAD-CATCH: isolation -- last-resort fallback, must not fail
+                except (
+                    Exception
+                ):  # BROAD-CATCH: isolation -- last-resort fallback, must not fail
                     logger.warning(
                         "hard_invalidation_fallback_failed",
                         extra={
@@ -335,9 +332,7 @@ class MutationInvalidator:
                 },
             )
 
-    async def _invalidate_project_dataframes(
-        self, project_gids: list[str]
-    ) -> None:
+    async def _invalidate_project_dataframes(self, project_gids: list[str]) -> None:
         """Invalidate DataFrameCache for entire projects.
 
         When a task is created, moved, or removed from a project,

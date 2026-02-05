@@ -38,8 +38,10 @@ from autom8_asana.query.models import RowsRequest, RowsResponse
 from autom8_asana.services.errors import (
     InvalidFieldError,
     ServiceError,
-    UnknownSectionError as SvcUnknownSectionError,
     get_status_for_error,
+)
+from autom8_asana.services.errors import (
+    UnknownSectionError as SvcUnknownSectionError,
 )
 from autom8_asana.services.query_service import (
     CacheNotWarmError,
@@ -156,16 +158,12 @@ async def query_entities(
     try:
         ctx = entity_service.validate_entity_type(entity_type)
     except ServiceError as e:
-        raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.to_dict()
-        )
+        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
 
     # 2. Field validation via QueryService
     if request_body.where:
         try:
-            validate_fields(
-                list(request_body.where.keys()), entity_type, "where"
-            )
+            validate_fields(list(request_body.where.keys()), entity_type, "where")
         except InvalidFieldError as e:
             raise HTTPException(status_code=422, detail=e.to_dict())
 
@@ -288,17 +286,13 @@ async def query_rows(
     try:
         ctx = entity_service.validate_entity_type(entity_type)
     except ServiceError as e:
-        raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.to_dict()
-        )
+        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
 
     # 3. Section resolution (if needed)
     section_index = None
     if request_body.section is not None:
         try:
-            await resolve_section(
-                request_body.section, entity_type, ctx.project_gid
-            )
+            await resolve_section(request_body.section, entity_type, ctx.project_gid)
         except SvcUnknownSectionError as e:
             raise HTTPException(
                 status_code=422,

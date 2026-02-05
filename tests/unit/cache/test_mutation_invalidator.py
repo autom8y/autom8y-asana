@@ -11,15 +11,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from autom8_asana.cache.integration.mutation_invalidator import (
+    MutationInvalidator,
+    _log_task_exception,
+)
 from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.cache.models.mutation_event import (
     EntityKind,
     MutationEvent,
     MutationType,
-)
-from autom8_asana.cache.integration.mutation_invalidator import (
-    MutationInvalidator,
-    _log_task_exception,
 )
 
 
@@ -50,9 +50,7 @@ def invalidator_with_df(
     mock_cache: MagicMock, mock_df_cache: MagicMock
 ) -> MutationInvalidator:
     """Create a MutationInvalidator with both cache backends."""
-    return MutationInvalidator(
-        cache_provider=mock_cache, dataframe_cache=mock_df_cache
-    )
+    return MutationInvalidator(cache_provider=mock_cache, dataframe_cache=mock_df_cache)
 
 
 class TestTaskMutationInvalidation:
@@ -92,7 +90,9 @@ class TestTaskMutationInvalidation:
             await invalidator.invalidate_async(event)
 
         # Per-task DataFrame invalidation called with correct args
-        mock_df_inv.assert_called_once_with("12345", ["proj1", "proj2"], invalidator._cache)
+        mock_df_inv.assert_called_once_with(
+            "12345", ["proj1", "proj2"], invalidator._cache
+        )
         # Entity cache still invalidated
         mock_cache.invalidate.assert_called_once()
 
@@ -225,9 +225,7 @@ class TestSectionMutationInvalidation:
         )
         await invalidator_with_df.invalidate_async(event)
 
-        mock_cache.invalidate.assert_called_once_with(
-            "sect1", [EntryType.SECTION]
-        )
+        mock_cache.invalidate.assert_called_once_with("sect1", [EntryType.SECTION])
 
     @pytest.mark.asyncio
     async def test_section_create_invalidates_project_dataframes(
@@ -262,9 +260,7 @@ class TestSectionMutationInvalidation:
         )
         await invalidator_with_df.invalidate_async(event)
 
-        mock_cache.invalidate.assert_called_once_with(
-            "sect1", [EntryType.SECTION]
-        )
+        mock_cache.invalidate.assert_called_once_with("sect1", [EntryType.SECTION])
         mock_df_cache.invalidate_project.assert_called_once_with("proj1")
 
     @pytest.mark.asyncio
@@ -281,9 +277,7 @@ class TestSectionMutationInvalidation:
         )
         await invalidator.invalidate_async(event)
 
-        mock_cache.invalidate.assert_called_once_with(
-            "sect1", [EntryType.SECTION]
-        )
+        mock_cache.invalidate.assert_called_once_with("sect1", [EntryType.SECTION])
 
     @pytest.mark.asyncio
     async def test_add_task_to_section_invalidates_task_entity(
@@ -308,7 +302,11 @@ class TestSectionMutationInvalidation:
         assert calls[0].args[1] == [EntryType.SECTION]
         # Second call: task entity
         assert calls[1].args[0] == "task_gid_123"
-        assert calls[1].args[1] == [EntryType.TASK, EntryType.SUBTASKS, EntryType.DETECTION]
+        assert calls[1].args[1] == [
+            EntryType.TASK,
+            EntryType.SUBTASKS,
+            EntryType.DETECTION,
+        ]
 
 
 class TestGracefulDegradation:
@@ -426,12 +424,11 @@ class TestFireAndForget:
             entity_gid="12345",
             mutation_type=MutationType.UPDATE,
         )
+
         async def noop_invalidate(evt: MutationEvent) -> None:
             pass
 
-        with patch.object(
-            invalidator, "invalidate_async", side_effect=noop_invalidate
-        ):
+        with patch.object(invalidator, "invalidate_async", side_effect=noop_invalidate):
             invalidator.fire_and_forget(event)
             await asyncio.sleep(0.01)
 

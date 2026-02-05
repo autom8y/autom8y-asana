@@ -22,7 +22,11 @@ from autom8_asana.cache.models.errors import (
 from autom8_asana.cache.models.freshness import Freshness
 from autom8_asana.cache.models.metrics import CacheMetrics
 from autom8_asana.cache.models.settings import CacheSettings
-from autom8_asana.cache.models.versioning import format_version, is_current, parse_version
+from autom8_asana.cache.models.versioning import (
+    format_version,
+    is_current,
+    parse_version,
+)
 from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS, S3TransportError
 from autom8_asana.protocols.cache import WarmResult
 
@@ -138,7 +142,9 @@ class S3CacheProvider(DegradedModeMixin):
             if not resolved_bucket:
                 logger.warning(
                     "s3_bucket_not_configured",
-                    extra={"message": "Set ASANA_CACHE_S3_BUCKET or pass bucket parameter"},
+                    extra={
+                        "message": "Set ASANA_CACHE_S3_BUCKET or pass bucket parameter"
+                    },
                 )
 
             config = S3Config(
@@ -380,9 +386,7 @@ class S3CacheProvider(DegradedModeMixin):
 
                 freshness_stamp = FreshnessStamp(
                     last_verified_at=parse_version(raw_stamp["last_verified_at"]),
-                    source=VerificationSource(
-                        raw_stamp.get("source", "unknown")
-                    ),
+                    source=VerificationSource(raw_stamp.get("source", "unknown")),
                     staleness_hint=raw_stamp.get("staleness_hint"),
                 )
 
@@ -816,7 +820,8 @@ class S3CacheProvider(DegradedModeMixin):
             from autom8_asana.core.connections import ConnectionState
 
             result = self._connection_manager.health_check()
-            return result.state == ConnectionState.HEALTHY
+            is_healthy: bool = result.state == ConnectionState.HEALTHY
+            return is_healthy
 
         if self._degraded or self._boto3_module is None:
             return False

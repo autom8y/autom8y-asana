@@ -671,9 +671,7 @@ class TestQueryProjectNotConfigured:
             )
 
             # Use FastAPI's dependency override for the EntityService
-            test_app.dependency_overrides[get_entity_service] = (
-                lambda: mock_entity_svc
-            )
+            test_app.dependency_overrides[get_entity_service] = lambda: mock_entity_svc
 
             try:
                 with TestClient(test_app) as test_client:

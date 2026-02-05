@@ -26,7 +26,6 @@ from autom8_asana.services.task_service import (
     UpdateTaskParams,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -112,9 +111,7 @@ class TestListTasks:
         self, service: TaskService, mock_client: AsyncMock
     ) -> None:
         with pytest.raises(InvalidParameterError, match="Only one"):
-            await service.list_tasks(
-                mock_client, project="p", section="s"
-            )
+            await service.list_tasks(mock_client, project="p", section="s")
 
     @pytest.mark.asyncio()
     async def test_limit_and_offset(
@@ -122,9 +119,7 @@ class TestListTasks:
     ) -> None:
         mock_client._http.get_paginated.return_value = ([], None)
 
-        await service.list_tasks(
-            mock_client, project="p", limit=50, offset="cursor"
-        )
+        await service.list_tasks(mock_client, project="p", limit=50, offset="cursor")
 
         mock_client._http.get_paginated.assert_called_once_with(
             "/projects/p/tasks", params={"limit": 50, "offset": "cursor"}
@@ -138,9 +133,7 @@ class TestListTasks:
 
 class TestGetTask:
     @pytest.mark.asyncio()
-    async def test_get_task(
-        self, service: TaskService, mock_client: AsyncMock
-    ) -> None:
+    async def test_get_task(self, service: TaskService, mock_client: AsyncMock) -> None:
         mock_client.tasks.get_async.return_value = {"gid": "123", "name": "Test"}
 
         result = await service.get_task(mock_client, "123")
@@ -198,9 +191,7 @@ class TestCreateTask:
         self, service: TaskService, mock_client: AsyncMock
     ) -> None:
         with pytest.raises(InvalidParameterError, match="projects.*workspace"):
-            await service.create_task(
-                mock_client, CreateTaskParams(name="Test")
-            )
+            await service.create_task(mock_client, CreateTaskParams(name="Test"))
 
     @pytest.mark.asyncio()
     async def test_create_with_optional_fields(
@@ -277,9 +268,7 @@ class TestUpdateTask:
         self, service: TaskService, mock_client: AsyncMock
     ) -> None:
         with pytest.raises(InvalidParameterError, match="At least one field"):
-            await service.update_task(
-                mock_client, "123", UpdateTaskParams()
-            )
+            await service.update_task(mock_client, "123", UpdateTaskParams())
 
 
 # ---------------------------------------------------------------------------
@@ -389,9 +378,7 @@ class TestMembershipOperations:
         mock_task.model_dump.return_value = {"gid": "123"}
         mock_client.tasks.move_to_section_async.return_value = mock_task
 
-        result = await service.move_to_section(
-            mock_client, "123", "sec-1", "proj-1"
-        )
+        result = await service.move_to_section(mock_client, "123", "sec-1", "proj-1")
 
         assert result["gid"] == "123"
         event = _last_event(mock_invalidator)
@@ -462,9 +449,7 @@ class TestMembershipOperations:
         mock_task.model_dump.return_value = {"gid": "123"}
         mock_client.tasks.remove_from_project_async.return_value = mock_task
 
-        result = await service.remove_from_project(
-            mock_client, "123", "proj-2"
-        )
+        result = await service.remove_from_project(mock_client, "123", "proj-2")
 
         assert result["gid"] == "123"
         event = _last_event(mock_invalidator)

@@ -205,7 +205,10 @@ async def update_project(
     if not kwargs:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": "INVALID_PARAMETER", "message": "At least one field must be provided for update"},
+            detail={
+                "error": "INVALID_PARAMETER",
+                "message": "At least one field must be provided for update",
+            },
         )
 
     project = await client.projects.update_async(gid, raw=True, **kwargs)

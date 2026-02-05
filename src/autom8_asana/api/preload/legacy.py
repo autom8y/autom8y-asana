@@ -17,7 +17,7 @@ from fastapi import FastAPI
 if TYPE_CHECKING:
     import polars as pl
 
-    from autom8_asana.dataframes.storage import DataFrameStorage, S3DataFrameStorage
+    from autom8_asana.dataframes.storage import S3DataFrameStorage
     from autom8_asana.services.gid_lookup import GidLookupIndex
 
 logger = get_logger(__name__)
@@ -168,7 +168,15 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
 
             try:
                 # Step 1: Try loading persisted index from S3
-                index = await persistence.load_index(project_gid)
+                from autom8_asana.services.gid_lookup import GidLookupIndex
+
+                index_data = await persistence.load_index(project_gid)
+                if index_data is None:
+                    index: GidLookupIndex | None = None
+                elif isinstance(index_data, GidLookupIndex):
+                    index = index_data
+                else:
+                    index = GidLookupIndex.deserialize(index_data)
                 df, persisted_watermark = await persistence.load_dataframe(project_gid)
                 watermark = watermark_repo.get_watermark(project_gid)
 
@@ -325,7 +333,9 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                             new_index = GidLookupIndex.from_dataframe(new_df)
 
                             # Persist new index (DataFrame saved by builder)
-                            await persistence.save_index(project_gid, new_index.serialize())
+                            await persistence.save_index(
+                                project_gid, new_index.serialize()
+                            )
                             watermark_repo.set_watermark(project_gid, new_watermark)
 
                             # Store in DataFrameCache singleton for @dataframe_cache decorator
@@ -488,6 +498,10 @@ async def _do_incremental_catchup(
                 build_result = await builder.build_progressive_async(resume=True)
                 updated_df = build_result.dataframe
                 new_watermark = build_result.watermark
+
+            # If build produced no DataFrame, fall back to existing
+            if updated_df is None:
+                return existing_df, watermark, False
 
             # Check if DataFrame actually changed
             was_incremental = True

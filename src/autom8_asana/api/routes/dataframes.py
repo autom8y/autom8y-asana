@@ -438,7 +438,10 @@ async def get_section_dataframe(
     if not project_gid:
         raise HTTPException(
             status_code=404,
-            detail={"error": "NOT_FOUND", "message": "Section not found or has no parent project"},
+            detail={
+                "error": "NOT_FOUND",
+                "message": "Section not found or has no parent project",
+            },
         )
 
     # Build opt_fields for custom field data needed by extractors

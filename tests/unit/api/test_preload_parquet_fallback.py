@@ -88,7 +88,9 @@ def _build_patch_stack(
     stack.enter_context(
         patch("autom8_asana.dataframes.resolver.DefaultCustomFieldResolver")
     )
-    stack.enter_context(patch("autom8_asana.cache.integration.factory.CacheProviderFactory"))
+    stack.enter_context(
+        patch("autom8_asana.cache.integration.factory.CacheProviderFactory")
+    )
     stack.enter_context(
         patch(
             "autom8_asana.dataframes.section_persistence.SectionPersistence",
@@ -146,7 +148,9 @@ class TestPreloadParquetFallback:
     @pytest.mark.asyncio
     async def test_loads_parquet_when_manifest_missing(self) -> None:
         """When manifest is None but dataframe.parquet exists, load it directly."""
-        from autom8_asana.api.preload.progressive import _preload_dataframe_cache_progressive
+        from autom8_asana.api.preload.progressive import (
+            _preload_dataframe_cache_progressive,
+        )
 
         app, registry = _make_mock_app_and_registry()
 
@@ -192,7 +196,9 @@ class TestPreloadParquetFallback:
     @pytest.mark.asyncio
     async def test_delegates_to_lambda_when_no_parquet_either(self) -> None:
         """When both manifest and parquet are missing, delegate to Lambda."""
-        from autom8_asana.api.preload.progressive import _preload_dataframe_cache_progressive
+        from autom8_asana.api.preload.progressive import (
+            _preload_dataframe_cache_progressive,
+        )
 
         app, registry = _make_mock_app_and_registry()
 
@@ -231,7 +237,9 @@ class TestPreloadParquetFallback:
     @pytest.mark.asyncio
     async def test_skips_empty_parquet(self) -> None:
         """When parquet exists but has 0 rows, delegate to Lambda."""
-        from autom8_asana.api.preload.progressive import _preload_dataframe_cache_progressive
+        from autom8_asana.api.preload.progressive import (
+            _preload_dataframe_cache_progressive,
+        )
 
         app, registry = _make_mock_app_and_registry()
 
@@ -271,7 +279,9 @@ class TestPreloadParquetFallback:
     @pytest.mark.asyncio
     async def test_parquet_load_error_falls_through_to_lambda(self) -> None:
         """When parquet load raises an exception, delegate to Lambda."""
-        from autom8_asana.api.preload.progressive import _preload_dataframe_cache_progressive
+        from autom8_asana.api.preload.progressive import (
+            _preload_dataframe_cache_progressive,
+        )
 
         app, registry = _make_mock_app_and_registry()
 

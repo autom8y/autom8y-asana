@@ -29,7 +29,11 @@ if TYPE_CHECKING:
     from autom8_asana.models.business import Business, Process, Unit
 
 # Asana API call errors: AsanaError + builtin network errors
-_ASANA_API_ERRORS: tuple[type[Exception], ...] = (AsanaError, ConnectionError, TimeoutError)
+_ASANA_API_ERRORS: tuple[type[Exception], ...] = (
+    AsanaError,
+    ConnectionError,
+    TimeoutError,
+)
 
 logger = get_logger(__name__)
 

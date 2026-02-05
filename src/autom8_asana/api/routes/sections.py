@@ -63,9 +63,7 @@ async def get_section(
     try:
         section = await section_service.get_section(client, gid)
     except ServiceError as e:
-        raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.to_dict()
-        )
+        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
     return build_success_response(data=section, request_id=request_id)
 
 
@@ -95,9 +93,7 @@ async def create_section(
             client, name=body.name, project=body.project
         )
     except ServiceError as e:
-        raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.to_dict()
-        )
+        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
     return build_success_response(data=section, request_id=request_id)
 
 
@@ -126,9 +122,7 @@ async def update_section(
     try:
         section = await section_service.update_section(client, gid, body.name)
     except ServiceError as e:
-        raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.to_dict()
-        )
+        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
     return build_success_response(data=section, request_id=request_id)
 
 
@@ -154,9 +148,7 @@ async def delete_section(
     try:
         await section_service.delete_section(client, gid)
     except ServiceError as e:
-        raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.to_dict()
-        )
+        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
 
 
 # --- Task Operations ---
@@ -186,9 +178,7 @@ async def add_task_to_section(
     try:
         await section_service.add_task(client, gid, body.task_gid)
     except ServiceError as e:
-        raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.to_dict()
-        )
+        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
 
 
 # --- Reorder Operations ---
@@ -229,9 +219,7 @@ async def reorder_section(
             after_section=body.after_section,
         )
     except ServiceError as e:
-        raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.to_dict()
-        )
+        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
 
 
 __all__ = ["router"]

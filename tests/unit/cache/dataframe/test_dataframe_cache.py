@@ -920,9 +920,7 @@ class TestMaxStalenessEnforcement:
 
         cache = make_cache(memory_tier=memory)
 
-        with patch(
-            "autom8_asana.config.LKG_MAX_STALENESS_MULTIPLIER", 10.0
-        ):
+        with patch("autom8_asana.config.LKG_MAX_STALENESS_MULTIPLIER", 10.0):
             with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task"):
                 result = await cache.get_async("proj-1", "unit")
 
@@ -942,9 +940,7 @@ class TestMaxStalenessEnforcement:
 
         cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
-        with patch(
-            "autom8_asana.config.LKG_MAX_STALENESS_MULTIPLIER", 5.0
-        ):
+        with patch("autom8_asana.config.LKG_MAX_STALENESS_MULTIPLIER", 5.0):
             result = await cache.get_async("proj-1", "unit")
 
         assert result is None
@@ -961,9 +957,7 @@ class TestMaxStalenessEnforcement:
 
         cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
-        with patch(
-            "autom8_asana.config.LKG_MAX_STALENESS_MULTIPLIER", 5.0
-        ):
+        with patch("autom8_asana.config.LKG_MAX_STALENESS_MULTIPLIER", 5.0):
             await cache.get_async("proj-1", "unit")
 
         # Should be evicted from memory
@@ -989,9 +983,7 @@ class TestMaxStalenessEnforcement:
         cache = make_cache(memory_tier=memory)
 
         # With a very restrictive multiplier (1.0 = only serve up to 1x TTL)
-        with patch(
-            "autom8_asana.config.LKG_MAX_STALENESS_MULTIPLIER", 1.0
-        ):
+        with patch("autom8_asana.config.LKG_MAX_STALENESS_MULTIPLIER", 1.0):
             fresh_result = await cache.get_async("proj-fresh", "unit")
             with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task"):
                 swr_result = await cache.get_async("proj-swr", "unit")

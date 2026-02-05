@@ -105,7 +105,7 @@ class ConnectionRegistry:
         )
         report: dict[str, HealthCheckResult] = {}
         for mgr, result in zip(self._managers, results):
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 report[mgr.name] = HealthCheckResult(
                     state=ConnectionState.DISCONNECTED,
                     checked_at=time.monotonic(),

@@ -17,7 +17,6 @@ from autom8_asana.cache.models.metrics import CacheMetrics
 from autom8_asana.cache.providers.tiered import TieredCacheProvider, TieredConfig
 from autom8_asana.protocols.cache import CacheProvider
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================
