@@ -10,7 +10,7 @@ Per SDK Phase 1:
 - register_schema_provider() registers providers with the SDK registry
 
 Example:
-    >>> from autom8_asana.cache.schema_providers import register_asana_schemas
+    >>> from autom8_asana.cache.integration.schema_providers import register_asana_schemas
     >>> register_asana_schemas()  # Call during app startup
 
 Note:
