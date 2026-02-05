@@ -300,7 +300,9 @@ class TestReorderSection:
         )
 
         assert response.status_code == 400
-        assert "only one" in response.json()["detail"].lower()
+        detail = response.json()["detail"]
+        assert detail["error"] == "INVALID_PARAMETER"
+        assert "only one" in detail["message"].lower()
 
     def test_reorder_section_project_gid_required(
         self, authed_client: tuple[TestClient, MagicMock]

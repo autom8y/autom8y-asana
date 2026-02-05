@@ -18,6 +18,36 @@ Environment Variables:
     ASANA_CACHE_S3_PREFIX: S3 key prefix (default: asana-cache)
     ASANA_CACHE_S3_REGION: AWS region (default: us-east-1)
     ASANA_CACHE_S3_ENDPOINT_URL: Custom S3 endpoint (for LocalStack)
+    ASANA_CACHE_TTL_USER: User metadata cache TTL (default: 3600)
+    ASANA_CACHE_TTL_CUSTOM_FIELD: Custom field cache TTL (default: 1800)
+    ASANA_CACHE_TTL_SECTION: Section cache TTL (default: 1800)
+    ASANA_CACHE_TTL_PROJECT: Project cache TTL (default: 900)
+    ASANA_CACHE_TTL_DETECTION: Detection result cache TTL (default: 300)
+    ASANA_CACHE_TTL_DYNAMIC_INDEX: Dynamic index cache TTL (default: 3600)
+    ASANA_CACHE_MODIFICATION_CHECK_TTL: Batch modification check TTL (default: 25.0)
+    ASANA_CACHE_COALESCE_WINDOW_MS: Freshness coalescing window in ms (default: 50)
+    ASANA_CACHE_MAX_BATCH_SIZE: Max entries per batch freshness check (default: 100)
+    ASANA_CACHE_DYNAMIC_INDEX_MAX_PER_ENTITY: Max dynamic indexes per entity (default: 5)
+    ASANA_CACHE_REDIS_MAX_CONNECTIONS: Redis adapter max connections (default: 20)
+    ASANA_CACHE_DF_COALESCER_MAX_WAIT: DataFrame coalescer max wait secs (default: 60.0)
+    ASANA_CACHE_DF_CB_FAILURE_THRESHOLD: DataFrame circuit breaker failures (default: 3)
+    ASANA_CACHE_DF_CB_RESET_TIMEOUT: DataFrame circuit breaker reset secs (default: 60)
+    ASANA_CACHE_DF_CB_SUCCESS_THRESHOLD: DataFrame circuit breaker successes (default: 1)
+    ASANA_PACING_PAGES_PER_PAUSE: Pages fetched before pausing (default: 25)
+    ASANA_PACING_DELAY_SECONDS: Seconds to sleep between page batches (default: 2.0)
+    ASANA_PACING_CHECKPOINT_EVERY_N_PAGES: Pages between checkpoint writes (default: 50)
+    ASANA_PACING_HIERARCHY_THRESHOLD: Parent GIDs above which batched pacing activates (default: 100)
+    ASANA_PACING_HIERARCHY_BATCH_SIZE: Parent GIDs per batch (default: 50)
+    ASANA_PACING_HIERARCHY_BATCH_DELAY: Seconds between hierarchy batches (default: 1.0)
+    ASANA_S3_RETRY_MAX_ATTEMPTS: S3 retry max attempts (default: 3)
+    ASANA_S3_RETRY_BASE_DELAY: S3 retry base delay in seconds (default: 0.5)
+    ASANA_S3_RETRY_MAX_DELAY: S3 retry max delay in seconds (default: 10.0)
+    ASANA_S3_BUDGET_PER_SUBSYSTEM_MAX: S3 retry budget per subsystem (default: 20)
+    ASANA_S3_BUDGET_GLOBAL_MAX: S3 retry budget global max (default: 50)
+    ASANA_S3_BUDGET_WINDOW_SECONDS: S3 retry budget window in seconds (default: 60.0)
+    ASANA_S3_CB_FAILURE_THRESHOLD: S3 circuit breaker failure threshold (default: 5)
+    ASANA_S3_CB_RECOVERY_TIMEOUT: S3 circuit breaker recovery timeout (default: 60.0)
+    ASANA_S3_CB_HALF_OPEN_MAX_PROBES: S3 circuit breaker half-open probes (default: 2)
     REDIS_HOST: Redis host for cache
     REDIS_PORT: Redis port (default: 6379)
     REDIS_PASSWORD: Redis password (optional)
@@ -117,6 +147,88 @@ class CacheSettings(BaseSettings):
     dataframe_max_entries: int = Field(
         default=100,
         description="Max DataFrame entries in memory tier",
+        ge=1,
+    )
+
+    # --- Entity-specific cache TTLs ---
+    # Per I12: Extracted from scattered module-level constants
+    ttl_user: int = Field(
+        default=3600,
+        description="Cache TTL for user metadata in seconds (1 hour)",
+        ge=0,
+    )
+    ttl_custom_field: int = Field(
+        default=1800,
+        description="Cache TTL for custom field metadata in seconds (30 min)",
+        ge=0,
+    )
+    ttl_section: int = Field(
+        default=1800,
+        description="Cache TTL for section data in seconds (30 min)",
+        ge=0,
+    )
+    ttl_project: int = Field(
+        default=900,
+        description="Cache TTL for project data in seconds (15 min)",
+        ge=0,
+    )
+    ttl_detection: int = Field(
+        default=300,
+        description="Cache TTL for entity detection results in seconds (5 min)",
+        ge=0,
+    )
+    ttl_dynamic_index: int = Field(
+        default=3600,
+        description="Cache TTL for dynamic resolution indexes in seconds (1 hour)",
+        ge=0,
+    )
+
+    # --- Cache operational constants ---
+    modification_check_ttl: float = Field(
+        default=25.0,
+        description="TTL for in-memory batch modification check cache in seconds",
+        ge=0.0,
+    )
+    coalesce_window_ms: int = Field(
+        default=50,
+        description="Freshness coordinator coalescing window in milliseconds",
+        ge=0,
+    )
+    max_batch_size: int = Field(
+        default=100,
+        description="Maximum entries per batch freshness check",
+        ge=1,
+    )
+    dynamic_index_max_per_entity: int = Field(
+        default=5,
+        description="Maximum dynamic indexes kept per entity type (LRU eviction)",
+        ge=1,
+    )
+    redis_max_connections: int = Field(
+        default=20,
+        description="Maximum connections in Redis adapter connection pool",
+        ge=1,
+    )
+
+    # --- DataFrame cache factory constants ---
+    df_coalescer_max_wait: float = Field(
+        default=60.0,
+        description="Maximum seconds waiters will wait for DataFrame coalescer",
+        gt=0.0,
+    )
+    df_cb_failure_threshold: int = Field(
+        default=3,
+        description="DataFrame cache circuit breaker failure threshold",
+        ge=1,
+    )
+    df_cb_reset_timeout: int = Field(
+        default=60,
+        description="DataFrame cache circuit breaker reset timeout in seconds",
+        ge=1,
+    )
+    df_cb_success_threshold: int = Field(
+        default=1,
+        description="DataFrame cache circuit breaker success threshold to close",
         ge=1,
     )
 
@@ -276,6 +388,147 @@ class S3Settings(BaseSettings):
     )
 
 
+class PacingSettings(BaseSettings):
+    """Pacing configuration for large section and hierarchy fetches.
+
+    Per TDD-large-section-resilience / FR-004 and ADR-hierarchy-backpressure-hardening.
+
+    Environment Variables:
+        ASANA_PACING_PAGES_PER_PAUSE: Pages before pausing (default: 25)
+        ASANA_PACING_DELAY_SECONDS: Sleep between page batches (default: 2.0)
+        ASANA_PACING_CHECKPOINT_EVERY_N_PAGES: Pages between checkpoint writes (default: 50)
+        ASANA_PACING_HIERARCHY_THRESHOLD: Parent count threshold for batching (default: 100)
+        ASANA_PACING_HIERARCHY_BATCH_SIZE: Parents per batch (default: 50)
+        ASANA_PACING_HIERARCHY_BATCH_DELAY: Sleep between hierarchy batches (default: 1.0)
+
+    Attributes:
+        pages_per_pause: Pages to fetch before pausing.
+        delay_seconds: Seconds to sleep between page batches.
+        checkpoint_every_n_pages: Pages between checkpoint writes to S3.
+        hierarchy_threshold: Parent GIDs above which batched pacing activates.
+        hierarchy_batch_size: Parent GIDs to fetch per batch when pacing.
+        hierarchy_batch_delay: Seconds to sleep between hierarchy batches.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="ASANA_PACING_",
+        extra="ignore",
+        case_sensitive=False,
+    )
+
+    pages_per_pause: int = Field(
+        default=25,
+        description="Pages to fetch before pausing (must be >= 1)",
+        ge=1,
+    )
+    delay_seconds: float = Field(
+        default=2.0,
+        description="Seconds to sleep between page batches",
+        ge=0.0,
+    )
+    checkpoint_every_n_pages: int = Field(
+        default=50,
+        description="Pages between checkpoint writes to S3 (must be >= 1)",
+        ge=1,
+    )
+    hierarchy_threshold: int = Field(
+        default=100,
+        description="Parent GID count above which batched pacing activates",
+        ge=1,
+    )
+    hierarchy_batch_size: int = Field(
+        default=50,
+        description="Parent GIDs to fetch per batch when pacing is active",
+        ge=1,
+    )
+    hierarchy_batch_delay: float = Field(
+        default=1.0,
+        description="Seconds to sleep between hierarchy parent fetch batches",
+        ge=0.0,
+    )
+
+
+class S3RetrySettings(BaseSettings):
+    """S3 storage retry, budget, and circuit breaker configuration.
+
+    Per dataframes/storage.py: Controls resilience for S3 DataFrame persistence.
+
+    Environment Variables:
+        ASANA_S3_RETRY_MAX_ATTEMPTS: Max retry attempts (default: 3)
+        ASANA_S3_RETRY_BASE_DELAY: Base delay for exponential backoff (default: 0.5)
+        ASANA_S3_RETRY_MAX_DELAY: Max delay cap in seconds (default: 10.0)
+        ASANA_S3_BUDGET_PER_SUBSYSTEM_MAX: Per-subsystem retry budget (default: 20)
+        ASANA_S3_BUDGET_GLOBAL_MAX: Global retry budget (default: 50)
+        ASANA_S3_BUDGET_WINDOW_SECONDS: Budget window in seconds (default: 60.0)
+        ASANA_S3_CB_FAILURE_THRESHOLD: Failures before opening circuit (default: 5)
+        ASANA_S3_CB_RECOVERY_TIMEOUT: Recovery timeout in seconds (default: 60.0)
+        ASANA_S3_CB_HALF_OPEN_MAX_PROBES: Half-open probes before closing (default: 2)
+
+    Attributes:
+        retry_max_attempts: Maximum retry attempts for S3 operations.
+        retry_base_delay: Base delay for exponential backoff in seconds.
+        retry_max_delay: Maximum delay cap in seconds.
+        budget_per_subsystem_max: Per-subsystem retry budget.
+        budget_global_max: Global retry budget across all subsystems.
+        budget_window_seconds: Budget window in seconds.
+        cb_failure_threshold: Consecutive failures before opening circuit.
+        cb_recovery_timeout: Seconds to wait before half-open probe.
+        cb_half_open_max_probes: Successful probes before closing circuit.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="ASANA_S3_",
+        extra="ignore",
+        case_sensitive=False,
+    )
+
+    retry_max_attempts: int = Field(
+        default=3,
+        description="Maximum retry attempts for S3 operations",
+        ge=1,
+    )
+    retry_base_delay: float = Field(
+        default=0.5,
+        description="Base delay for exponential backoff in seconds",
+        ge=0.0,
+    )
+    retry_max_delay: float = Field(
+        default=10.0,
+        description="Maximum delay cap in seconds",
+        gt=0.0,
+    )
+    budget_per_subsystem_max: int = Field(
+        default=20,
+        description="Per-subsystem retry budget",
+        ge=1,
+    )
+    budget_global_max: int = Field(
+        default=50,
+        description="Global retry budget across all subsystems",
+        ge=1,
+    )
+    budget_window_seconds: float = Field(
+        default=60.0,
+        description="Budget window in seconds",
+        gt=0.0,
+    )
+    cb_failure_threshold: int = Field(
+        default=5,
+        description="Consecutive failures before opening circuit",
+        ge=1,
+    )
+    cb_recovery_timeout: float = Field(
+        default=60.0,
+        description="Seconds to wait before half-open probe",
+        gt=0.0,
+    )
+    cb_half_open_max_probes: int = Field(
+        default=2,
+        description="Successful probes required to close circuit",
+        ge=1,
+    )
+
+
 class ProjectOverrideSettings(BaseSettings):
     """Validation-only settings for ASANA_PROJECT_* env vars.
 
@@ -383,6 +636,8 @@ class Settings(BaseSettings):
     redis: RedisSettings = Field(default_factory=RedisSettings)
     s3: S3Settings = Field(default_factory=S3Settings)
     env: EnvironmentSettings = Field(default_factory=EnvironmentSettings)
+    pacing: PacingSettings = Field(default_factory=PacingSettings)
+    s3_retry: S3RetrySettings = Field(default_factory=S3RetrySettings)
     # Validation-only settings (triggers validation at startup)
     project_overrides: ProjectOverrideSettings = Field(
         default_factory=ProjectOverrideSettings

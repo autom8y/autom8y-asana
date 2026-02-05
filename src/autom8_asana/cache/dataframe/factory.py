@@ -47,7 +47,7 @@ async def _swr_build_callback(
     from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
     from autom8_asana.dataframes.models.registry import SchemaRegistry
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
-    from autom8_asana.dataframes.section_persistence import SectionPersistence
+    from autom8_asana.dataframes.section_persistence import create_section_persistence
     from autom8_asana.services.resolver import to_pascal_case
 
     try:
@@ -67,7 +67,7 @@ async def _swr_build_callback(
         task_type = to_pascal_case(entity_type)
         schema = SchemaRegistry.get_instance().get_schema(task_type)
         resolver = DefaultCustomFieldResolver()
-        section_persistence = SectionPersistence()
+        section_persistence = create_section_persistence()
 
         async with section_persistence:
             builder = ProgressiveProjectBuilder(
@@ -125,7 +125,7 @@ def initialize_dataframe_cache() -> DataFrameCache | None:
     from autom8_asana.cache.integration.dataframe_cache import (
         get_dataframe_cache as _get_cache,
     )
-    from autom8_asana.dataframes.section_persistence import SectionPersistence
+    from autom8_asana.dataframes.section_persistence import create_section_persistence
     from autom8_asana.settings import get_settings
 
     # Check if already initialized
@@ -158,12 +158,7 @@ def initialize_dataframe_cache() -> DataFrameCache | None:
 
     # Create SectionPersistence for ProgressiveTier
     # Uses the standard "dataframes/" prefix to match ProgressiveProjectBuilder
-    persistence = SectionPersistence(
-        bucket=settings.s3.bucket,
-        prefix="dataframes/",
-        region=settings.s3.region,
-        endpoint_url=settings.s3.endpoint_url,
-    )
+    persistence = create_section_persistence()
 
     progressive_tier = ProgressiveTier(
         persistence=persistence,

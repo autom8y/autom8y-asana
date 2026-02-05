@@ -95,13 +95,6 @@ def _build_patch_stack(
             return_value=mock_persistence,
         )
     )
-    # Patch DataFramePersistence in the module where it's imported (api.main)
-    stack.enter_context(
-        patch(
-            "autom8_asana.dataframes.persistence.DataFramePersistence",
-            return_value=mock_df_persistence,
-        )
-    )
     # Patch S3DataFrameStorage so the progressive preload uses our mock for
     # the parquet fallback path (load_dataframe). The mock_df_persistence
     # serves as the storage instance with .load_dataframe() support.

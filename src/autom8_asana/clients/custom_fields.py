@@ -16,11 +16,13 @@ from autom8_asana.models.custom_field import (
     CustomFieldSetting,
 )
 from autom8_asana.observability import error_handler
+from autom8_asana.settings import get_settings
 from autom8_asana.transport.sync import sync_wrapper
 
 # Cache TTL for custom field metadata (30 minutes)
 # Custom fields change infrequently (structure/enum options rarely modified)
-CUSTOM_FIELD_CACHE_TTL = 1800
+# Configurable via ASANA_CACHE_TTL_CUSTOM_FIELD environment variable
+CUSTOM_FIELD_CACHE_TTL = get_settings().cache.ttl_custom_field
 
 
 class CustomFieldsClient(BaseClient):

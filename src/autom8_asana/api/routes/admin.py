@@ -115,12 +115,12 @@ async def _perform_force_rebuild(
     import os
 
     from autom8_asana.cache.dataframe.factory import get_dataframe_cache
-    from autom8_asana.dataframes.section_persistence import SectionPersistence
+    from autom8_asana.dataframes.section_persistence import create_section_persistence
     from autom8_asana.services.resolver import EntityProjectRegistry
 
     registry = EntityProjectRegistry.get_instance()
     dataframe_cache = get_dataframe_cache()
-    persistence = SectionPersistence()
+    persistence = create_section_persistence()
 
     for entity_type in entity_types:
         try:
@@ -217,7 +217,7 @@ async def _perform_incremental_rebuild(
     from autom8_asana.dataframes.builders.progressive import ProgressiveProjectBuilder
     from autom8_asana.dataframes.models.registry import SchemaRegistry
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
-    from autom8_asana.dataframes.section_persistence import SectionPersistence
+    from autom8_asana.dataframes.section_persistence import create_section_persistence
     from autom8_asana.dataframes.watermark import get_watermark_repo
     from autom8_asana.services.resolver import EntityProjectRegistry, to_pascal_case
 
@@ -241,7 +241,7 @@ async def _perform_incremental_rebuild(
     registry = EntityProjectRegistry.get_instance()
     dataframe_cache = get_dataframe_cache()
     watermark_repo = get_watermark_repo()
-    persistence = SectionPersistence()
+    persistence = create_section_persistence()
 
     for entity_type in entity_types:
         try:

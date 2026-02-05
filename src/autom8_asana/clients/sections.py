@@ -16,9 +16,14 @@ from autom8_asana.models import PageIterator
 from autom8_asana.models.section import Section
 from autom8_asana.observability import error_handler
 from autom8_asana.patterns import async_method
+from autom8_asana.settings import get_settings
 from autom8y_log import get_logger
 
 logger = get_logger(__name__)
+
+# Cache TTL for section data (30 minutes)
+# Configurable via ASANA_CACHE_TTL_SECTION environment variable
+SECTION_CACHE_TTL = get_settings().cache.ttl_section
 
 
 
