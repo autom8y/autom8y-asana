@@ -149,8 +149,12 @@ class TestVerificationSourceEnum:
     def test_source_values(self) -> None:
         """Verify expected source values exist."""
         expected = {
-            "api_fetch", "batch_check", "mutation_event",
-            "cache_warm", "promotion", "unknown",
+            "api_fetch",
+            "batch_check",
+            "mutation_event",
+            "cache_warm",
+            "promotion",
+            "unknown",
         }
         actual = {s.value for s in VerificationSource}
         assert actual == expected

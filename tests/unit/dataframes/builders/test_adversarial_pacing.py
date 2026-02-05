@@ -90,15 +90,13 @@ def _make_builder(
     if s3_put_side_effect is not None:
         # Map side_effect to True/False based on .success attribute
         checkpoint_results = [
-            r.success if hasattr(r, 'success') else bool(r) for r in s3_put_side_effect
+            r.success if hasattr(r, "success") else bool(r) for r in s3_put_side_effect
         ]
         mock_persistence.write_checkpoint_async = AsyncMock(
             side_effect=checkpoint_results
         )
     else:
-        mock_persistence.write_checkpoint_async = AsyncMock(
-            return_value=s3_put_success
-        )
+        mock_persistence.write_checkpoint_async = AsyncMock(return_value=s3_put_success)
 
     mock_persistence._get_manifest_lock = MagicMock(return_value=asyncio.Lock())
     mock_persistence.get_manifest_async = AsyncMock(return_value=manifest)

@@ -232,13 +232,12 @@ class CacheEntry:
         """
         entry_type_str = data.get("_type") or data.get("entry_type")
         target_cls = (
-            cls._type_registry.get(entry_type_str, cls)
-            if entry_type_str
-            else cls
+            cls._type_registry.get(entry_type_str, cls) if entry_type_str else cls
         )
         # Delegate to subclass from_dict_impl if registered
         if target_cls is not cls and hasattr(target_cls, "_from_dict_impl"):
-            return target_cls._from_dict_impl(data)
+            result: CacheEntry = target_cls._from_dict_impl(data)
+            return result
         # Base CacheEntry construction (legacy path)
         return _deserialize_base(data)
 
@@ -308,8 +307,10 @@ def _deserialize_base(data: dict[str, Any]) -> CacheEntry:
     entry_type = EntryType(entry_type_str)
 
     version_raw = data.get("version")
-    version = (
-        _parse_datetime(version_raw) if isinstance(version_raw, str) else version_raw
+    version: datetime = (
+        _parse_datetime(version_raw)
+        if isinstance(version_raw, str)
+        else (version_raw if isinstance(version_raw, datetime) else datetime.now(UTC))
     )
 
     cached_at_raw = data.get("cached_at")

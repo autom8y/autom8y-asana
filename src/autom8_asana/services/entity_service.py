@@ -142,9 +142,7 @@ class EntityService:
         try:
             return get_bot_pat()
         except BotPATError as e:
-            raise ServiceNotConfiguredError(
-                f"Bot PAT not configured: {e}"
-            ) from e
+            raise ServiceNotConfiguredError(f"Bot PAT not configured: {e}") from e
 
 
 __all__ = ["EntityService"]

@@ -27,6 +27,7 @@ def _get_cloudwatch_client() -> Any:
     global _cloudwatch_client
     if _cloudwatch_client is None:
         import boto3
+
         _cloudwatch_client = boto3.client("cloudwatch")
     return _cloudwatch_client
 
@@ -60,12 +61,14 @@ def emit_metric(
     try:
         client.put_metric_data(
             Namespace=ns,
-            MetricData=[{
-                "MetricName": metric_name,
-                "Value": value,
-                "Unit": unit,
-                "Dimensions": metric_dimensions,
-            }],
+            MetricData=[
+                {
+                    "MetricName": metric_name,
+                    "Value": value,
+                    "Unit": unit,
+                    "Dimensions": metric_dimensions,
+                }
+            ],
         )
     except Exception as e:  # BROAD-CATCH: metrics -- CloudWatch metric emission must not fail the handler
         logger.warning(

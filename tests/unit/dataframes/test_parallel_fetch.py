@@ -1275,7 +1275,9 @@ class TestGidEnumerationCache:
 
         # Create mock cache provider that throws on all operations
         mock_cache = MagicMock()
-        mock_cache.get_versioned = MagicMock(side_effect=RedisTransportError("Cache unavailable"))
+        mock_cache.get_versioned = MagicMock(
+            side_effect=RedisTransportError("Cache unavailable")
+        )
         mock_cache.set_versioned = MagicMock(
             side_effect=RedisTransportError("Cache write failed")
         )
@@ -1337,8 +1339,12 @@ class TestGidEnumerationCache:
 
         # Create mock cache provider that throws
         mock_cache = MagicMock()
-        mock_cache.get_versioned = MagicMock(side_effect=RedisTransportError("Test error"))
-        mock_cache.set_versioned = MagicMock(side_effect=RedisTransportError("Write error"))
+        mock_cache.get_versioned = MagicMock(
+            side_effect=RedisTransportError("Test error")
+        )
+        mock_cache.set_versioned = MagicMock(
+            side_effect=RedisTransportError("Write error")
+        )
 
         fetcher = ParallelSectionFetcher(
             sections_client=sections_client,

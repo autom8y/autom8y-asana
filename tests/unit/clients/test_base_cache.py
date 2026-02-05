@@ -89,7 +89,9 @@ class TestBaseClientCacheGet:
     def test_graceful_degradation_on_exception(self) -> None:
         """Returns None and logs warning when cache raises exception."""
         mock_cache = MagicMock()
-        mock_cache.get_versioned.side_effect = CacheConnectionError("Cache connection failed")
+        mock_cache.get_versioned.side_effect = CacheConnectionError(
+            "Cache connection failed"
+        )
 
         client = BaseClient(
             http=self.mock_http,
@@ -208,7 +210,9 @@ class TestBaseClientCacheSet:
     def test_graceful_degradation_on_exception(self) -> None:
         """Logs warning and continues when cache raises exception."""
         mock_cache = MagicMock()
-        mock_cache.set_versioned.side_effect = CacheConnectionError("Cache write failed")
+        mock_cache.set_versioned.side_effect = CacheConnectionError(
+            "Cache write failed"
+        )
 
         client = BaseClient(
             http=self.mock_http,
@@ -302,7 +306,9 @@ class TestBaseClientCacheInvalidate:
     def test_graceful_degradation_on_exception(self) -> None:
         """Logs warning and continues when cache raises exception."""
         mock_cache = MagicMock()
-        mock_cache.invalidate.side_effect = CacheConnectionError("Cache invalidate failed")
+        mock_cache.invalidate.side_effect = CacheConnectionError(
+            "Cache invalidate failed"
+        )
 
         client = BaseClient(
             http=self.mock_http,

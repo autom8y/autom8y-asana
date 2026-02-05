@@ -21,10 +21,10 @@ from autom8_asana.cache.dataframe.build_coordinator import (
     make_coalescing_key,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_df(rows: int = 5) -> pl.DataFrame:
     """Create a small test DataFrame."""
@@ -36,7 +36,9 @@ def _make_key(project: str = "proj-1", entity: str = "unit") -> CoalescingKey:
     return make_coalescing_key(project, entity)
 
 
-async def _slow_build(delay: float = 0.1, rows: int = 5) -> tuple[pl.DataFrame, datetime]:
+async def _slow_build(
+    delay: float = 0.1, rows: int = 5
+) -> tuple[pl.DataFrame, datetime]:
     """Simulate a build that takes time."""
     await asyncio.sleep(delay)
     return _make_df(rows), datetime.now(UTC)
@@ -56,6 +58,7 @@ async def _failing_build() -> tuple[pl.DataFrame, datetime]:
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def coordinator() -> BuildCoordinator:
     """Create a BuildCoordinator with sensible test defaults."""
@@ -69,11 +72,14 @@ def coordinator() -> BuildCoordinator:
 # Unit Tests: Basic Operations
 # ---------------------------------------------------------------------------
 
+
 class TestBuildCoordinatorBasic:
     """Basic functionality tests."""
 
     @pytest.mark.asyncio
-    async def test_single_build_no_coalescing(self, coordinator: BuildCoordinator) -> None:
+    async def test_single_build_no_coalescing(
+        self, coordinator: BuildCoordinator
+    ) -> None:
         """One caller, no contention: outcome is BUILT."""
         key = _make_key()
         result = await coordinator.build_or_wait_async(key, _instant_build)
@@ -109,7 +115,9 @@ class TestBuildCoordinatorBasic:
             assert r.dataframe.shape[0] == 5
 
     @pytest.mark.asyncio
-    async def test_different_keys_independent(self, coordinator: BuildCoordinator) -> None:
+    async def test_different_keys_independent(
+        self, coordinator: BuildCoordinator
+    ) -> None:
         """Two callers with different keys: both BUILT independently."""
         key1 = _make_key("proj-1", "unit")
         key2 = _make_key("proj-2", "offer")
@@ -131,7 +139,9 @@ class TestBuildCoordinatorBasic:
         assert build_count == 2
 
     @pytest.mark.asyncio
-    async def test_is_building_during_build(self, coordinator: BuildCoordinator) -> None:
+    async def test_is_building_during_build(
+        self, coordinator: BuildCoordinator
+    ) -> None:
         """is_building returns True during build, False after."""
         key = _make_key()
         build_started = asyncio.Event()
@@ -142,9 +152,7 @@ class TestBuildCoordinatorBasic:
             await proceed.wait()
             return _make_df(), datetime.now(UTC)
 
-        task = asyncio.create_task(
-            coordinator.build_or_wait_async(key, gated_build)
-        )
+        task = asyncio.create_task(coordinator.build_or_wait_async(key, gated_build))
 
         await build_started.wait()
         assert coordinator.is_building(key) is True
@@ -155,7 +163,9 @@ class TestBuildCoordinatorBasic:
         assert coordinator.is_building(key) is False
 
     @pytest.mark.asyncio
-    async def test_cleanup_after_completion(self, coordinator: BuildCoordinator) -> None:
+    async def test_cleanup_after_completion(
+        self, coordinator: BuildCoordinator
+    ) -> None:
         """After build completes, key is removed from _in_flight."""
         key = _make_key()
         await coordinator.build_or_wait_async(key, _instant_build)
@@ -175,11 +185,14 @@ class TestBuildCoordinatorBasic:
 # Unit Tests: Timeout Behavior
 # ---------------------------------------------------------------------------
 
+
 class TestBuildCoordinatorTimeout:
     """Timeout behavior tests."""
 
     @pytest.mark.asyncio
-    async def test_timeout_returns_timed_out(self, coordinator: BuildCoordinator) -> None:
+    async def test_timeout_returns_timed_out(
+        self, coordinator: BuildCoordinator
+    ) -> None:
         """Waiter that exceeds timeout gets TIMED_OUT outcome."""
         key = _make_key()
         build_started = asyncio.Event()
@@ -211,7 +224,9 @@ class TestBuildCoordinatorTimeout:
         assert builder_result.outcome == BuildOutcome.BUILT
 
     @pytest.mark.asyncio
-    async def test_timeout_does_not_cancel_build(self, coordinator: BuildCoordinator) -> None:
+    async def test_timeout_does_not_cancel_build(
+        self, coordinator: BuildCoordinator
+    ) -> None:
         """Timed-out waiter does not cancel the in-flight build."""
         key = _make_key()
         build_completed = asyncio.Event()
@@ -240,7 +255,9 @@ class TestBuildCoordinatorTimeout:
     @pytest.mark.asyncio
     async def test_timeout_under_slow_build(self) -> None:
         """build_fn sleeps 2s, waiter timeout 0.2s: waiter gets TIMED_OUT, builder completes."""
-        coordinator = BuildCoordinator(default_timeout_seconds=5.0, max_concurrent_builds=4)
+        coordinator = BuildCoordinator(
+            default_timeout_seconds=5.0, max_concurrent_builds=4
+        )
         key = _make_key()
         build_started = asyncio.Event()
 
@@ -266,6 +283,7 @@ class TestBuildCoordinatorTimeout:
 # ---------------------------------------------------------------------------
 # Unit Tests: Error Propagation
 # ---------------------------------------------------------------------------
+
 
 class TestBuildCoordinatorErrors:
     """Error propagation tests."""
@@ -326,9 +344,7 @@ class TestBuildCoordinatorErrors:
         assert key not in coordinator._in_flight
 
     @pytest.mark.asyncio
-    async def test_new_build_after_failure(
-        self, coordinator: BuildCoordinator
-    ) -> None:
+    async def test_new_build_after_failure(self, coordinator: BuildCoordinator) -> None:
         """A new build can start after a previous failure for the same key."""
         key = _make_key()
 
@@ -345,6 +361,7 @@ class TestBuildCoordinatorErrors:
 # ---------------------------------------------------------------------------
 # Unit Tests: Staleness Gate
 # ---------------------------------------------------------------------------
+
 
 class TestBuildCoordinatorStaleness:
     """Staleness-aware coalescing tests."""
@@ -497,9 +514,7 @@ class TestBuildCoordinatorStaleness:
             await proceed.wait()
             return _make_df(), datetime.now(UTC)
 
-        task = asyncio.create_task(
-            coordinator.build_or_wait_async(key, gated_build)
-        )
+        task = asyncio.create_task(coordinator.build_or_wait_async(key, gated_build))
         await build_started.wait()
 
         # Multiple invalidation calls -- should be idempotent
@@ -567,7 +582,9 @@ class TestBuildCoordinatorStaleness:
         assert result.outcome == BuildOutcome.FAILED
 
         # Should be able to start a fresh build
-        result2 = await coordinator.build_or_wait_async(key, _instant_build, caller="second")
+        result2 = await coordinator.build_or_wait_async(
+            key, _instant_build, caller="second"
+        )
         assert result2.outcome == BuildOutcome.BUILT
         assert result2.dataframe is not None
 
@@ -575,6 +592,7 @@ class TestBuildCoordinatorStaleness:
 # ---------------------------------------------------------------------------
 # Unit Tests: Concurrency Limiting
 # ---------------------------------------------------------------------------
+
 
 class TestBuildCoordinatorConcurrency:
     """Concurrency limit (semaphore) tests."""
@@ -605,10 +623,7 @@ class TestBuildCoordinatorConcurrency:
         # Start 6 builds with different keys
         keys = [_make_key(f"proj-{i}", "unit") for i in range(6)]
         results = await asyncio.gather(
-            *[
-                coordinator.build_or_wait_async(key, tracking_build)
-                for key in keys
-            ]
+            *[coordinator.build_or_wait_async(key, tracking_build) for key in keys]
         )
 
         assert all(r.outcome == BuildOutcome.BUILT for r in results)
@@ -627,10 +642,7 @@ class TestBuildCoordinatorConcurrency:
 
         # Launch many requests for same key -- only one should acquire semaphore
         results = await asyncio.gather(
-            *[
-                coordinator.build_or_wait_async(key, slow_build)
-                for _ in range(10)
-            ]
+            *[coordinator.build_or_wait_async(key, slow_build) for _ in range(10)]
         )
 
         built_count = sum(1 for r in results if r.outcome == BuildOutcome.BUILT)
@@ -643,6 +655,7 @@ class TestBuildCoordinatorConcurrency:
 # ---------------------------------------------------------------------------
 # Unit Tests: Cancellation Isolation
 # ---------------------------------------------------------------------------
+
 
 class TestBuildCoordinatorCancellation:
     """Cancellation isolation tests (asyncio.shield)."""
@@ -697,6 +710,7 @@ class TestBuildCoordinatorCancellation:
 # Unit Tests: Statistics
 # ---------------------------------------------------------------------------
 
+
 class TestBuildCoordinatorStats:
     """Statistics tracking tests."""
 
@@ -747,6 +761,7 @@ class TestBuildCoordinatorStats:
 # Unit Tests: Force Cleanup
 # ---------------------------------------------------------------------------
 
+
 class TestBuildCoordinatorForceCleanup:
     """force_cleanup tests."""
 
@@ -763,9 +778,7 @@ class TestBuildCoordinatorForceCleanup:
             await asyncio.sleep(100)  # Effectively hangs forever
             return _make_df(), datetime.now(UTC)
 
-        task = asyncio.create_task(
-            coordinator.build_or_wait_async(key, hanging_build)
-        )
+        task = asyncio.create_task(coordinator.build_or_wait_async(key, hanging_build))
         await build_started.wait()
 
         assert coordinator.is_building(key)
@@ -795,6 +808,7 @@ class TestBuildCoordinatorForceCleanup:
 # ---------------------------------------------------------------------------
 # Concurrent Stress Tests
 # ---------------------------------------------------------------------------
+
 
 class TestBuildCoordinatorStress:
     """Concurrent stress tests per TDD test strategy."""
@@ -859,7 +873,9 @@ class TestBuildCoordinatorStress:
 
             # Start build
             task = asyncio.create_task(
-                coordinator.build_or_wait_async(key, cycle_build, caller=f"cycle-{cycle}")
+                coordinator.build_or_wait_async(
+                    key, cycle_build, caller=f"cycle-{cycle}"
+                )
             )
             await build_started.wait()
 
@@ -910,7 +926,9 @@ class TestBuildCoordinatorStress:
         for i, key in enumerate(keys):
             key_results = results[i * 10 : (i + 1) * 10]
             built = sum(1 for r in key_results if r.outcome == BuildOutcome.BUILT)
-            coalesced = sum(1 for r in key_results if r.outcome == BuildOutcome.COALESCED)
+            coalesced = sum(
+                1 for r in key_results if r.outcome == BuildOutcome.COALESCED
+            )
             assert built == 1, f"Key {key}: expected 1 BUILT, got {built}"
             assert coalesced == 9, f"Key {key}: expected 9 COALESCED, got {coalesced}"
 
@@ -922,6 +940,7 @@ class TestBuildCoordinatorStress:
 # ---------------------------------------------------------------------------
 # Unit Tests: Default Configuration
 # ---------------------------------------------------------------------------
+
 
 class TestBuildCoordinatorConfiguration:
     """Configuration tests."""

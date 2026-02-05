@@ -6,12 +6,14 @@ import asyncio
 import threading
 from typing import TYPE_CHECKING, Any
 
+from autom8y_log import get_logger
+
 from autom8_asana._defaults.auth import EnvAuthProvider
 from autom8_asana._defaults.log import DefaultLogProvider
 from autom8_asana._defaults.observability import NullObservabilityHook
 from autom8_asana.batch.client import BatchClient
-from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.cache.integration.factory import create_cache_provider
+from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.clients.attachments import AttachmentsClient
 from autom8_asana.clients.custom_fields import CustomFieldsClient
 from autom8_asana.clients.goals import GoalsClient
@@ -27,7 +29,6 @@ from autom8_asana.clients.webhooks import WebhooksClient
 from autom8_asana.clients.workspaces import WorkspacesClient
 from autom8_asana.config import AsanaConfig
 from autom8_asana.exceptions import AsanaError, AuthenticationError, ConfigurationError
-from autom8y_log import get_logger
 
 logger = get_logger(__name__)
 
@@ -892,7 +893,7 @@ class AsanaClient:
                         failed += 1
                         continue
                 warmed += 1
-            except (AsanaError, ConnectionError, TimeoutError) as exc:
+            except (AsanaError, ConnectionError, TimeoutError):
                 # API error or other failure - continue with remaining GIDs
                 logger.debug("Bulk API call failed", exc_info=True)
                 failed += 1

@@ -19,11 +19,11 @@ if TYPE_CHECKING:
 
 # Import PhoneVerticalPair at runtime for Pydantic model resolution
 # This is needed for BatchInsightsResult and BatchInsightsResponse models
-from autom8_asana.models.contracts import PhoneVerticalPair
 from autom8y_log import get_logger
 
-logger = get_logger(__name__)
+from autom8_asana.models.contracts import PhoneVerticalPair
 
+logger = get_logger(__name__)
 
 
 class InsightsRequest(BaseModel):

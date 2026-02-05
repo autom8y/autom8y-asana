@@ -115,14 +115,14 @@ async def resolve_section(
 
     # Try manifest-based resolution first
     try:
-        from autom8_asana.dataframes.section_persistence import create_section_persistence
+        from autom8_asana.dataframes.section_persistence import (
+            create_section_persistence,
+        )
 
         persistence = create_section_persistence()
         if persistence.is_available:
             async with persistence:
-                index = await SectionIndex.from_manifest_async(
-                    persistence, project_gid
-                )
+                index = await SectionIndex.from_manifest_async(persistence, project_gid)
                 if index.resolve(section_name) is not None:
                     return section_name
     except S3_TRANSPORT_ERRORS:
@@ -218,7 +218,9 @@ class EntityQueryService:
     )
 
     # Freshness info from last get_dataframe() call
-    _last_freshness_info: FreshnessInfo | None = field(default=None, init=False, repr=False)
+    _last_freshness_info: FreshnessInfo | None = field(
+        default=None, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         """Initialize default strategy factory."""

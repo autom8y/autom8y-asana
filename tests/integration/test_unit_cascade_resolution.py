@@ -209,8 +209,8 @@ class TestCascadeResolution:
 
         Per SC-004: "Integration test validates cascade resolution with real hierarchy"
         """
-        from autom8_asana.cache.models.completeness import STANDARD_FIELDS
         from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+        from autom8_asana.cache.models.completeness import STANDARD_FIELDS
         from autom8_asana.dataframes.views.dataframe_view import DataFrameViewPlugin
 
         # Setup

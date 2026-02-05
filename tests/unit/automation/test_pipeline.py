@@ -184,9 +184,7 @@ def create_mock_context(
     client.stories.create_comment_async = AsyncMock(return_value=None)
 
     # Mock tasks.get_async for seeding (field write needs to fetch target task)
-    client.tasks.get_async = AsyncMock(
-        return_value=MagicMock(custom_fields=[])
-    )
+    client.tasks.get_async = AsyncMock(return_value=MagicMock(custom_fields=[]))
 
     # Mock tasks.set_assignee_async for assignee setting
     client.tasks.set_assignee_async = AsyncMock(return_value=None)
@@ -430,7 +428,9 @@ class TestExecuteAsync:
             pipeline_templates={"onboarding": "onboarding_project_123"},
         )
         client = MagicMock()
-        client.sections.list_for_project_async.side_effect = ConnectionError("API Error")
+        client.sections.list_for_project_async.side_effect = ConnectionError(
+            "API Error"
+        )
 
         context = AutomationContext(
             client=client,

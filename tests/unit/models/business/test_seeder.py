@@ -279,9 +279,7 @@ class TestBusinessSeeder:
         # Mock search service to return no matches
         client.search.find_one_async = AsyncMock(return_value=None)
         # Mock find_async for composite matching (returns empty results)
-        client.search.find_async = AsyncMock(
-            return_value=MagicMock(hits=[])
-        )
+        client.search.find_async = AsyncMock(return_value=MagicMock(hits=[]))
 
         seeder = BusinessSeeder(client)
 

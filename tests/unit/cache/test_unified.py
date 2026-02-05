@@ -12,8 +12,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from autom8_asana.batch.models import BatchResult
-from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
 

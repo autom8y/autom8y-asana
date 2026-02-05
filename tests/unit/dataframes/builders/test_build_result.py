@@ -20,7 +20,6 @@ from autom8_asana.dataframes.builders.build_result import (
     SectionResult,
 )
 
-
 # ---------------------------------------------------------------------------
 # SectionResult unit tests
 # ---------------------------------------------------------------------------
@@ -128,9 +127,7 @@ class TestBuildResult:
     def now(self) -> datetime:
         return datetime.now(UTC)
 
-    def _make_success(
-        self, gid: str, row_count: int = 10
-    ) -> SectionResult:
+    def _make_success(self, gid: str, row_count: int = 10) -> SectionResult:
         return SectionResult(
             section_gid=gid,
             outcome=SectionOutcome.SUCCESS,
@@ -138,9 +135,7 @@ class TestBuildResult:
             fetch_time_ms=100.0,
         )
 
-    def _make_error(
-        self, gid: str, error_type: str = "AsanaAPIError"
-    ) -> SectionResult:
+    def _make_error(self, gid: str, error_type: str = "AsanaAPIError") -> SectionResult:
         return SectionResult(
             section_gid=gid,
             outcome=SectionOutcome.ERROR,
@@ -525,9 +520,7 @@ class TestBuildResult:
         assert result.sections_probed == 5
         assert result.sections_delta_updated == 2
 
-    def test_build_result_frozen(
-        self, sample_df: pl.DataFrame, now: datetime
-    ) -> None:
+    def test_build_result_frozen(self, sample_df: pl.DataFrame, now: datetime) -> None:
         """Cannot mutate fields."""
         result = BuildResult(
             status=BuildStatus.SUCCESS,

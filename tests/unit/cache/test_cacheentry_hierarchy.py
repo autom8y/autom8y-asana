@@ -34,7 +34,6 @@ from autom8_asana.cache.models.freshness_stamp import (
     VerificationSource,
 )
 
-
 # ---------------------------------------------------------------------------
 # Test Isolation: Prevent _type_registry pollution
 # ---------------------------------------------------------------------------
@@ -113,7 +112,9 @@ class TestSubclassRegistration:
             assert CacheEntry._type_registry[et.value] is DataFrameMetaCacheEntry
 
     def test_detection_type_registered(self) -> None:
-        assert CacheEntry._type_registry[EntryType.DETECTION.value] is DetectionCacheEntry
+        assert (
+            CacheEntry._type_registry[EntryType.DETECTION.value] is DetectionCacheEntry
+        )
 
     def test_insights_not_registered(self) -> None:
         """INSIGHTS has no subclass; should not be in registry."""
@@ -266,9 +267,12 @@ class TestFrozenImmutability:
     )
     def test_frozen(self, cls: type, extra_kwargs: dict) -> None:
         kwargs = _base_kwargs(
-            EntryType.TASK if cls == EntityCacheEntry
-            else EntryType.SUBTASKS if cls == RelationshipCacheEntry
-            else EntryType.DATAFRAME if cls == DataFrameMetaCacheEntry
+            EntryType.TASK
+            if cls == EntityCacheEntry
+            else EntryType.SUBTASKS
+            if cls == RelationshipCacheEntry
+            else EntryType.DATAFRAME
+            if cls == DataFrameMetaCacheEntry
             else EntryType.DETECTION,
             **extra_kwargs,
         )
@@ -540,7 +544,11 @@ class TestRoundTrip:
     @pytest.mark.parametrize(
         "cls,entry_type,extra",
         [
-            (EntityCacheEntry, EntryType.TASK, {"completeness_level": "full", "opt_fields": ("gid",)}),
+            (
+                EntityCacheEntry,
+                EntryType.TASK,
+                {"completeness_level": "full", "opt_fields": ("gid",)},
+            ),
             (EntityCacheEntry, EntryType.PROJECT, {}),
             (EntityCacheEntry, EntryType.SECTION, {}),
             (EntityCacheEntry, EntryType.USER, {}),
@@ -548,8 +556,16 @@ class TestRoundTrip:
             (RelationshipCacheEntry, EntryType.SUBTASKS, {"parent_gid": "p1"}),
             (RelationshipCacheEntry, EntryType.DEPENDENCIES, {}),
             (RelationshipCacheEntry, EntryType.STORIES, {}),
-            (DataFrameMetaCacheEntry, EntryType.DATAFRAME, {"project_gid": "proj", "schema_version": "1.0"}),
-            (DataFrameMetaCacheEntry, EntryType.PROJECT_SECTIONS, {"project_gid": "proj"}),
+            (
+                DataFrameMetaCacheEntry,
+                EntryType.DATAFRAME,
+                {"project_gid": "proj", "schema_version": "1.0"},
+            ),
+            (
+                DataFrameMetaCacheEntry,
+                EntryType.PROJECT_SECTIONS,
+                {"project_gid": "proj"},
+            ),
             (DetectionCacheEntry, EntryType.DETECTION, {"detection_type": "unit"}),
         ],
     )
@@ -572,10 +588,21 @@ class TestRoundTrip:
 class TestEntryTypeEnum:
     def test_all_15_members_present(self) -> None:
         expected = {
-            "task", "subtasks", "dependencies", "dependents", "stories",
-            "attachments", "dataframe", "project", "section", "user",
-            "custom_field", "detection", "project_sections",
-            "gid_enumeration", "insights",
+            "task",
+            "subtasks",
+            "dependencies",
+            "dependents",
+            "stories",
+            "attachments",
+            "dataframe",
+            "project",
+            "section",
+            "user",
+            "custom_field",
+            "detection",
+            "project_sections",
+            "gid_enumeration",
+            "insights",
         }
         actual = {et.value for et in EntryType}
         assert actual == expected

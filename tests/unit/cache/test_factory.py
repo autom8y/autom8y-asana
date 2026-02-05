@@ -12,7 +12,10 @@ from unittest.mock import patch
 import pytest
 
 from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvider
-from autom8_asana.cache.integration.factory import CacheProviderFactory, create_cache_provider
+from autom8_asana.cache.integration.factory import (
+    CacheProviderFactory,
+    create_cache_provider,
+)
 from autom8_asana.config import CacheConfig
 from autom8_asana.exceptions import ConfigurationError
 

@@ -27,13 +27,20 @@ from autom8_asana.cache.integration.batch import (
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.freshness import Freshness
 from autom8_asana.cache.models.metrics import CacheEvent, CacheMetrics
-from autom8_asana.cache.models.settings import CacheSettings, OverflowSettings, TTLSettings
-from autom8_asana.cache.policies.staleness import check_entry_staleness, partition_by_staleness
+from autom8_asana.cache.models.settings import (
+    CacheSettings,
+    OverflowSettings,
+    TTLSettings,
+)
 from autom8_asana.cache.models.versioning import (
     compare_versions,
     is_current,
     is_stale,
     parse_version,
+)
+from autom8_asana.cache.policies.staleness import (
+    check_entry_staleness,
+    partition_by_staleness,
 )
 
 

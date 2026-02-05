@@ -17,7 +17,6 @@ from autom8_asana.cache.backends.redis import RedisCacheProvider, RedisConfig
 from autom8_asana.cache.backends.s3 import S3CacheProvider, S3Config
 from autom8_asana.core.connections import ConnectionState, HealthCheckResult
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -100,9 +99,7 @@ class TestRedisCacheProviderWithManager:
         assert conn == manager.get_connection.return_value
 
     @patch("redis.ConnectionPool")
-    def test_is_healthy_delegates_to_manager(
-        self, mock_pool: MagicMock
-    ) -> None:
+    def test_is_healthy_delegates_to_manager(self, mock_pool: MagicMock) -> None:
         """is_healthy delegates to manager.health_check when provided."""
         manager = _make_redis_manager_mock(state=ConnectionState.HEALTHY)
 
@@ -129,9 +126,7 @@ class TestRedisCacheProviderWithManager:
         assert provider.is_healthy() is False
 
     @patch("redis.ConnectionPool")
-    def test_no_pool_created_when_manager_provided(
-        self, mock_pool: MagicMock
-    ) -> None:
+    def test_no_pool_created_when_manager_provided(self, mock_pool: MagicMock) -> None:
         """No internal pool is created when connection_manager is provided."""
         manager = _make_redis_manager_mock()
 
@@ -165,9 +160,7 @@ class TestS3CacheProviderWithManager:
     """Test S3CacheProvider with injected S3ConnectionManager."""
 
     @patch("boto3.client")
-    def test_get_client_delegates_to_manager(
-        self, mock_boto: MagicMock
-    ) -> None:
+    def test_get_client_delegates_to_manager(self, mock_boto: MagicMock) -> None:
         """_get_client delegates to manager.get_client when provided."""
         manager = _make_s3_manager_mock()
 
@@ -181,9 +174,7 @@ class TestS3CacheProviderWithManager:
         assert client == manager.get_client.return_value
 
     @patch("boto3.client")
-    def test_is_healthy_delegates_to_manager(
-        self, mock_boto: MagicMock
-    ) -> None:
+    def test_is_healthy_delegates_to_manager(self, mock_boto: MagicMock) -> None:
         """is_healthy delegates to manager.health_check when provided."""
         manager = _make_s3_manager_mock(state=ConnectionState.HEALTHY)
 

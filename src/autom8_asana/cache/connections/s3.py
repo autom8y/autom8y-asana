@@ -243,7 +243,9 @@ class S3ConnectionManager:
             return HealthCheckResult(
                 state=ConnectionState.DISCONNECTED,
                 checked_at=time.monotonic(),
-                detail="boto3_not_available" if not self._boto3_module else "no_bucket_configured",
+                detail="boto3_not_available"
+                if not self._boto3_module
+                else "no_bucket_configured",
             )
 
         start = time.monotonic()

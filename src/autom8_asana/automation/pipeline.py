@@ -34,7 +34,11 @@ from autom8_asana.persistence.models import AutomationResult
 from autom8_asana.persistence.session import SaveSession
 
 # Asana API call errors: AsanaError + builtin network errors
-_ASANA_API_ERRORS: tuple[type[Exception], ...] = (AsanaError, ConnectionError, TimeoutError)
+_ASANA_API_ERRORS: tuple[type[Exception], ...] = (
+    AsanaError,
+    ConnectionError,
+    TimeoutError,
+)
 
 if TYPE_CHECKING:
     from autom8_asana.automation.context import AutomationContext

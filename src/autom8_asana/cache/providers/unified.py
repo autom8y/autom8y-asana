@@ -14,6 +14,10 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
+from autom8_asana.cache.integration.freshness_coordinator import (
+    FreshnessCoordinator,
+    FreshnessMode,
+)
 from autom8_asana.cache.models.completeness import (
     CompletenessLevel,
     create_completeness_metadata,
@@ -22,10 +26,6 @@ from autom8_asana.cache.models.completeness import (
     is_entry_sufficient,
 )
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8_asana.cache.integration.freshness_coordinator import (
-    FreshnessCoordinator,
-    FreshnessMode,
-)
 from autom8_asana.cache.policies.hierarchy import HierarchyIndex
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 
@@ -561,7 +561,9 @@ class UnifiedTaskStore:
 
         Returns count of parents successfully fetched.
         """
-        from autom8_asana.cache.integration.hierarchy_warmer import _HIERARCHY_OPT_FIELDS
+        from autom8_asana.cache.integration.hierarchy_warmer import (
+            _HIERARCHY_OPT_FIELDS,
+        )
         from autom8_asana.config import (
             HIERARCHY_BATCH_DELAY,
             HIERARCHY_BATCH_SIZE,
@@ -597,7 +599,9 @@ class UnifiedTaskStore:
                     if parent_task:
                         parent_dict = parent_task.model_dump(exclude_none=True)
                         self._hierarchy.register(parent_dict)
-                        await self.put_async(parent_dict, opt_fields=_HIERARCHY_OPT_FIELDS)
+                        await self.put_async(
+                            parent_dict, opt_fields=_HIERARCHY_OPT_FIELDS
+                        )
                         return True
                 except CACHE_TRANSIENT_ERRORS as e:
                     logger.warning(
@@ -632,7 +636,9 @@ class UnifiedTaskStore:
             )
         else:
             for batch_start in range(0, len(parent_gid_list), HIERARCHY_BATCH_SIZE):
-                batch = parent_gid_list[batch_start : batch_start + HIERARCHY_BATCH_SIZE]
+                batch = parent_gid_list[
+                    batch_start : batch_start + HIERARCHY_BATCH_SIZE
+                ]
                 batch_results = await asyncio.gather(
                     *[_fetch_immediate_parent(gid) for gid in batch]
                 )

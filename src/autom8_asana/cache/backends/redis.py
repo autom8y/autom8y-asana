@@ -17,7 +17,11 @@ from autom8_asana.cache.models.errors import DegradedModeMixin, is_connection_er
 from autom8_asana.cache.models.freshness import Freshness
 from autom8_asana.cache.models.metrics import CacheMetrics
 from autom8_asana.cache.models.settings import CacheSettings
-from autom8_asana.cache.models.versioning import format_version, is_current, parse_version
+from autom8_asana.cache.models.versioning import (
+    format_version,
+    is_current,
+    parse_version,
+)
 from autom8_asana.core.exceptions import REDIS_TRANSPORT_ERRORS, RedisTransportError
 from autom8_asana.protocols.cache import WarmResult
 
@@ -277,13 +281,15 @@ class RedisCacheProvider(DegradedModeMixin):
 
         # Serialize freshness stamp if present
         if entry.freshness_stamp is not None:
-            result["freshness_stamp"] = json.dumps({
-                "last_verified_at": format_version(
-                    entry.freshness_stamp.last_verified_at
-                ),
-                "source": entry.freshness_stamp.source.value,
-                "staleness_hint": entry.freshness_stamp.staleness_hint,
-            })
+            result["freshness_stamp"] = json.dumps(
+                {
+                    "last_verified_at": format_version(
+                        entry.freshness_stamp.last_verified_at
+                    ),
+                    "source": entry.freshness_stamp.source.value,
+                    "staleness_hint": entry.freshness_stamp.staleness_hint,
+                }
+            )
         else:
             result["freshness_stamp"] = ""
 
@@ -331,9 +337,7 @@ class RedisCacheProvider(DegradedModeMixin):
                 stamp_data = json.loads(stamp_str)
                 freshness_stamp = FreshnessStamp(
                     last_verified_at=parse_version(stamp_data["last_verified_at"]),
-                    source=VerificationSource(
-                        stamp_data.get("source", "unknown")
-                    ),
+                    source=VerificationSource(stamp_data.get("source", "unknown")),
                     staleness_hint=stamp_data.get("staleness_hint"),
                 )
 
@@ -768,7 +772,8 @@ class RedisCacheProvider(DegradedModeMixin):
             from autom8_asana.core.connections import ConnectionState
 
             result = self._connection_manager.health_check()
-            return result.state == ConnectionState.HEALTHY
+            is_healthy: bool = result.state == ConnectionState.HEALTHY
+            return is_healthy
 
         if self._degraded or self._redis_module is None:
             return False
@@ -776,7 +781,8 @@ class RedisCacheProvider(DegradedModeMixin):
         try:
             conn = self._get_connection()
             try:
-                return bool(conn.ping())
+                ping_result: bool = bool(conn.ping())
+                return ping_result
             finally:
                 conn.close()
         except REDIS_TRANSPORT_ERRORS:

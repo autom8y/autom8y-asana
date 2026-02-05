@@ -317,7 +317,9 @@ class TestTaskCacheCoordinatorLookup:
         """Test lookup handles cache errors gracefully."""
         # Create a failing cache
         failing_cache = MagicMock()
-        failing_cache.get_batch = MagicMock(side_effect=RedisTransportError("Redis down"))
+        failing_cache.get_batch = MagicMock(
+            side_effect=RedisTransportError("Redis down")
+        )
 
         coordinator = TaskCacheCoordinator(cache_provider=failing_cache)
 
@@ -395,7 +397,9 @@ class TestTaskCacheCoordinatorPopulate:
     async def test_populate_graceful_degradation(self, sample_task: Task) -> None:
         """Test populate handles cache errors gracefully."""
         failing_cache = MagicMock()
-        failing_cache.set_batch = MagicMock(side_effect=RedisTransportError("Redis down"))
+        failing_cache.set_batch = MagicMock(
+            side_effect=RedisTransportError("Redis down")
+        )
 
         coordinator = TaskCacheCoordinator(cache_provider=failing_cache)
 
@@ -838,7 +842,9 @@ class TestTaskCacheCoordinatorIntegration:
         """Test workflow continues when cache fails."""
         # Create a cache that fails on lookup but not populate
         failing_cache = MagicMock()
-        failing_cache.get_batch = MagicMock(side_effect=RedisTransportError("Lookup failed"))
+        failing_cache.get_batch = MagicMock(
+            side_effect=RedisTransportError("Lookup failed")
+        )
         failing_cache.set_batch = MagicMock()  # Works fine
 
         coordinator = TaskCacheCoordinator(cache_provider=failing_cache)

@@ -23,8 +23,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import polars as pl
 import pytest
 
-from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.policies.hierarchy import HierarchyIndex
 from autom8_asana.cache.providers.unified import UnifiedTaskStore
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema

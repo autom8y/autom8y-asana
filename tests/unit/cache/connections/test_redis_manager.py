@@ -19,7 +19,6 @@ from autom8_asana.core.connections import ConnectionManager, ConnectionState
 from autom8_asana.core.exceptions import CacheConnectionError
 from autom8_asana.core.retry import CBState, CircuitBreaker, CircuitBreakerConfig
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -225,14 +224,19 @@ class TestRedisHealthCheck:
         call_count_after_first = mock_redis_module.Redis.return_value.ping.call_count
 
         mgr.health_check(force=True)
-        assert mock_redis_module.Redis.return_value.ping.call_count > call_count_after_first
+        assert (
+            mock_redis_module.Redis.return_value.ping.call_count
+            > call_count_after_first
+        )
 
     def test_health_check_returns_disconnected_on_ping_failure(
         self, make_manager: object, mock_redis_module: MagicMock
     ) -> None:
         import redis
 
-        mock_redis_module.Redis.return_value.ping.side_effect = redis.RedisError("conn refused")
+        mock_redis_module.Redis.return_value.ping.side_effect = redis.RedisError(
+            "conn refused"
+        )
         mgr = make_manager()
         result = mgr.health_check()
         assert result.state == ConnectionState.DISCONNECTED

@@ -19,7 +19,6 @@ from autom8_asana.core.entity_registry import (
     get_registry,
 )
 
-
 # =============================================================================
 # EntityDescriptor Unit Tests
 # =============================================================================
@@ -30,9 +29,7 @@ class TestEntityDescriptor:
 
     def test_descriptor_is_frozen(self) -> None:
         """Cannot mutate after creation."""
-        desc = EntityDescriptor(
-            name="test", pascal_name="Test", display_name="Test"
-        )
+        desc = EntityDescriptor(name="test", pascal_name="Test", display_name="Test")
         with pytest.raises(AttributeError):
             desc.name = "modified"  # type: ignore[misc]
 
@@ -65,9 +62,7 @@ class TestEntityDescriptor:
 
     def test_is_holder_false_for_leaves(self) -> None:
         """Category LEAF returns False."""
-        desc = EntityDescriptor(
-            name="test", pascal_name="Test", display_name="Test"
-        )
+        desc = EntityDescriptor(name="test", pascal_name="Test", display_name="Test")
         assert desc.is_holder is False
 
     def test_is_holder_false_for_root(self) -> None:
@@ -92,9 +87,7 @@ class TestEntityDescriptor:
 
     def test_has_project_false(self) -> None:
         """False when primary_project_gid is None."""
-        desc = EntityDescriptor(
-            name="test", pascal_name="Test", display_name="Test"
-        )
+        desc = EntityDescriptor(name="test", pascal_name="Test", display_name="Test")
         assert desc.has_project is False
 
     def test_get_join_key_found(self) -> None:
@@ -120,9 +113,7 @@ class TestEntityDescriptor:
 
     def test_get_model_class_none_when_unset(self) -> None:
         """Returns None when model_class_path is None."""
-        desc = EntityDescriptor(
-            name="test", pascal_name="Test", display_name="Test"
-        )
+        desc = EntityDescriptor(name="test", pascal_name="Test", display_name="Test")
         assert desc.get_model_class() is None
 
     def test_get_model_class_lazy_import(self) -> None:
@@ -139,9 +130,7 @@ class TestEntityDescriptor:
 
     def test_default_values(self) -> None:
         """Verify all default field values."""
-        desc = EntityDescriptor(
-            name="test", pascal_name="Test", display_name="Test"
-        )
+        desc = EntityDescriptor(name="test", pascal_name="Test", display_name="Test")
         assert desc.entity_type is None
         assert desc.category == EntityCategory.LEAF
         assert desc.primary_project_gid is None
@@ -214,9 +203,7 @@ class TestEntityRegistry:
         """Create a test registry."""
         return EntityRegistry(sample_descriptors)
 
-    def test_get_by_name_returns_descriptor(
-        self, registry: EntityRegistry
-    ) -> None:
+    def test_get_by_name_returns_descriptor(self, registry: EntityRegistry) -> None:
         """Primary lookup returns correct descriptor."""
         desc = registry.get("alpha")
         assert desc is not None
@@ -229,23 +216,17 @@ class TestEntityRegistry:
         """Unknown name returns None."""
         assert registry.get("nonexistent") is None
 
-    def test_require_returns_descriptor(
-        self, registry: EntityRegistry
-    ) -> None:
+    def test_require_returns_descriptor(self, registry: EntityRegistry) -> None:
         """require() returns descriptor for valid name."""
         desc = registry.require("alpha")
         assert desc.name == "alpha"
 
-    def test_require_raises_for_unknown(
-        self, registry: EntityRegistry
-    ) -> None:
+    def test_require_raises_for_unknown(self, registry: EntityRegistry) -> None:
         """require() raises KeyError with helpful message."""
         with pytest.raises(KeyError, match="Unknown entity type"):
             registry.require("nonexistent")
 
-    def test_get_by_gid_returns_descriptor(
-        self, registry: EntityRegistry
-    ) -> None:
+    def test_get_by_gid_returns_descriptor(self, registry: EntityRegistry) -> None:
         """GID lookup returns correct descriptor."""
         desc = registry.get_by_gid("gid_alpha")
         assert desc is not None
@@ -273,9 +254,7 @@ class TestEntityRegistry:
         """Unknown EntityType returns None (test registry has no types)."""
         assert registry.get_by_type("fake_type") is None
 
-    def test_all_names_preserves_order(
-        self, registry: EntityRegistry
-    ) -> None:
+    def test_all_names_preserves_order(self, registry: EntityRegistry) -> None:
         """all_names() matches definition order."""
         names = registry.all_names()
         assert names == ["alpha", "beta", "gamma_holder"]
@@ -288,9 +267,7 @@ class TestEntityRegistry:
         """all_descriptors() returns the original tuple."""
         assert registry.all_descriptors() == sample_descriptors
 
-    def test_warmable_sorted_by_priority(
-        self, registry: EntityRegistry
-    ) -> None:
+    def test_warmable_sorted_by_priority(self, registry: EntityRegistry) -> None:
         """warmable_entities() returns ascending priority."""
         warmable = registry.warmable_entities()
         assert len(warmable) == 2
@@ -308,9 +285,7 @@ class TestEntityRegistry:
         assert len(holders) == 1
         assert holders[0].name == "gamma_holder"
 
-    def test_get_join_key_both_directions(
-        self, registry: EntityRegistry
-    ) -> None:
+    def test_get_join_key_both_directions(self, registry: EntityRegistry) -> None:
         """Join key lookup works source->target and reverse."""
         # Forward: alpha has join_key to beta
         assert registry.get_join_key("alpha", "beta") == "shared_key"
@@ -326,15 +301,11 @@ class TestEntityRegistry:
         assert registry.get_entity_ttl("alpha") == 600
         assert registry.get_entity_ttl("beta") == 120
 
-    def test_get_entity_ttl_case_insensitive(
-        self, registry: EntityRegistry
-    ) -> None:
+    def test_get_entity_ttl_case_insensitive(self, registry: EntityRegistry) -> None:
         """TTL lookup is case-insensitive."""
         assert registry.get_entity_ttl("Alpha") == 600
 
-    def test_get_entity_ttl_fallback(
-        self, registry: EntityRegistry
-    ) -> None:
+    def test_get_entity_ttl_fallback(self, registry: EntityRegistry) -> None:
         """Unknown entity returns default TTL."""
         assert registry.get_entity_ttl("unknown") == 300
         assert registry.get_entity_ttl("unknown", default=999) == 999
@@ -440,9 +411,7 @@ class TestGlobalRegistry:
             if et == EntityType.UNKNOWN:
                 continue
             desc = registry.get_by_type(et)
-            assert desc is not None, (
-                f"EntityType.{et.name} has no registry entry"
-            )
+            assert desc is not None, f"EntityType.{et.name} has no registry entry"
 
     def test_descriptor_count(self) -> None:
         """Registry has expected number of descriptors."""
@@ -604,12 +573,8 @@ class TestIntegrityValidation:
         from autom8_asana.core.entity_registry import _validate_registry_integrity
 
         descriptors = (
-            EntityDescriptor(
-                name="alpha", pascal_name="Same", display_name="A"
-            ),
-            EntityDescriptor(
-                name="beta", pascal_name="Same", display_name="B"
-            ),
+            EntityDescriptor(name="alpha", pascal_name="Same", display_name="A"),
+            EntityDescriptor(name="beta", pascal_name="Same", display_name="B"),
         )
         registry = EntityRegistry(descriptors)
         with pytest.raises(ValueError, match="Duplicate pascal_name"):
@@ -652,8 +617,7 @@ class TestEntityDescriptorData:
             if holder.holder_for is not None:
                 leaf = registry.get(holder.holder_for)
                 assert leaf is not None, (
-                    f"Holder {holder.name} references "
-                    f"unknown leaf {holder.holder_for}"
+                    f"Holder {holder.name} references unknown leaf {holder.holder_for}"
                 )
 
     def test_pascal_names_are_unique(self) -> None:

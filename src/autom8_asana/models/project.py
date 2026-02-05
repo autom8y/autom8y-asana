@@ -196,7 +196,9 @@ class Project(AsanaResource):
         """
         from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
         from autom8_asana.dataframes.models.registry import SchemaRegistry
-        from autom8_asana.dataframes.section_persistence import create_section_persistence
+        from autom8_asana.dataframes.section_persistence import (
+            create_section_persistence,
+        )
 
         if client is None:
             raise ValueError(
@@ -222,6 +224,7 @@ class Project(AsanaResource):
             )
 
             result = await builder.build_progressive_async(resume=use_cache)
+            assert result.dataframe is not None, "Build produced no DataFrame"
             return result.dataframe
 
     async def to_dataframe_parallel_async(
@@ -283,7 +286,9 @@ class Project(AsanaResource):
         """
         from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
         from autom8_asana.dataframes.models.registry import SchemaRegistry
-        from autom8_asana.dataframes.section_persistence import create_section_persistence
+        from autom8_asana.dataframes.section_persistence import (
+            create_section_persistence,
+        )
 
         # Auto-detect schema if not provided
         if schema is None:
@@ -314,4 +319,5 @@ class Project(AsanaResource):
             )
 
             result = await builder.build_progressive_async(resume=resume)
+            assert result.dataframe is not None, "Build produced no DataFrame"
             return result.dataframe

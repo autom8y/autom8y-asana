@@ -19,7 +19,6 @@ from autom8_asana.core.connections import ConnectionManager, ConnectionState
 from autom8_asana.core.exceptions import CacheConnectionError
 from autom8_asana.core.retry import CBState, CircuitBreaker, CircuitBreakerConfig
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -211,7 +210,9 @@ class TestS3HealthCheck:
         call_count = mock_boto3_module.client.return_value.head_bucket.call_count
 
         mgr.health_check()
-        assert mock_boto3_module.client.return_value.head_bucket.call_count == call_count
+        assert (
+            mock_boto3_module.client.return_value.head_bucket.call_count == call_count
+        )
 
     def test_health_check_force_bypasses_cache(
         self, make_manager: object, mock_boto3_module: MagicMock
@@ -222,7 +223,10 @@ class TestS3HealthCheck:
         count_after_first = mock_boto3_module.client.return_value.head_bucket.call_count
 
         mgr.health_check(force=True)
-        assert mock_boto3_module.client.return_value.head_bucket.call_count > count_after_first
+        assert (
+            mock_boto3_module.client.return_value.head_bucket.call_count
+            > count_after_first
+        )
 
     def test_health_check_returns_disconnected_on_failure(
         self, make_manager: object, mock_boto3_module: MagicMock
@@ -274,7 +278,9 @@ class TestS3HealthCheck:
 class TestS3ManagerClose:
     """Verify close behavior and idempotency."""
 
-    def test_close_nulls_client(self, make_manager: object, mock_boto3_module: MagicMock) -> None:
+    def test_close_nulls_client(
+        self, make_manager: object, mock_boto3_module: MagicMock
+    ) -> None:
         mgr = make_manager()
         mgr.get_client()  # Create client
         assert mgr._client is not None
@@ -318,9 +324,7 @@ class TestS3ManagerClose:
 class TestS3HealthCheckAsync:
     """Verify async health check variant."""
 
-    def test_health_check_async_returns_result(
-        self, make_manager: object
-    ) -> None:
+    def test_health_check_async_returns_result(self, make_manager: object) -> None:
         mgr = make_manager()
         result = asyncio.run(mgr.health_check_async())
         assert result.state == ConnectionState.HEALTHY

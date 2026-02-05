@@ -18,11 +18,11 @@ from autom8y_log import get_logger
 
 try:
     from autom8_asana.api.metrics import (
-        record_build_duration,
         record_cache_op,
         record_rows_cached,
         record_swr_refresh,
     )
+
     _HAS_METRICS = True
 except ImportError:
     # Catches: prometheus_client not installed (Lambda), or circular import when

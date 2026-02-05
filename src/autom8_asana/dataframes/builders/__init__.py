@@ -44,18 +44,18 @@ from autom8_asana.dataframes.builders.base import (
     LAZY_THRESHOLD,
     DataFrameBuilder,
 )
-from autom8_asana.dataframes.builders.fields import BASE_OPT_FIELDS
-from autom8_asana.dataframes.builders.parallel_fetch import (
-    FetchResult,
-    ParallelFetchError,
-    ParallelSectionFetcher,
-)
 from autom8_asana.dataframes.builders.build_result import (
     BuildQuality,
     BuildResult,
     BuildStatus,
     SectionOutcome,
     SectionResult,
+)
+from autom8_asana.dataframes.builders.fields import BASE_OPT_FIELDS
+from autom8_asana.dataframes.builders.parallel_fetch import (
+    FetchResult,
+    ParallelFetchError,
+    ParallelSectionFetcher,
 )
 from autom8_asana.dataframes.builders.progressive import (
     ProgressiveBuildResult,

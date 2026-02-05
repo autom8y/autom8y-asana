@@ -69,50 +69,6 @@ Example:
 # Import subpackage to expose for test patching (e.g., autom8_asana.cache.dataframe.factory)
 from autom8_asana.cache import dataframe  # noqa: F401
 
-# --- Tier 0: Models ---
-from autom8_asana.cache.models.completeness import (
-    FULL_FIELDS,
-    MINIMAL_FIELDS,
-    STANDARD_FIELDS,
-    CompletenessLevel,
-    create_completeness_metadata,
-    get_entry_completeness,
-    get_fields_for_level,
-    infer_completeness_level,
-    is_entry_sufficient,
-)
-from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8_asana.cache.models.events import (
-    create_metrics_callback,
-    has_cache_logging,
-    setup_cache_logging,
-)
-from autom8_asana.cache.models.freshness import Freshness
-from autom8_asana.cache.models.metrics import CacheEvent, CacheMetrics
-from autom8_asana.cache.models.settings import CacheSettings, OverflowSettings, TTLSettings
-from autom8_asana.cache.models.staleness_settings import StalenessCheckSettings
-from autom8_asana.cache.models.versioning import (
-    compare_versions,
-    format_version,
-    is_current,
-    is_stale,
-    parse_version,
-)
-
-# --- Tier 1: Policies ---
-from autom8_asana.cache.policies.coalescer import RequestCoalescer
-from autom8_asana.cache.policies.hierarchy import HierarchyIndex
-from autom8_asana.cache.policies.lightweight_checker import LightweightChecker
-from autom8_asana.cache.policies.staleness import (
-    check_batch_staleness,
-    check_entry_staleness,
-    partition_by_staleness,
-)
-
-# --- Tier 2: Providers ---
-from autom8_asana.cache.providers.tiered import TieredCacheProvider, TieredConfig
-from autom8_asana.cache.providers.unified import UnifiedTaskStore
-
 # --- Tier 3: Integration ---
 from autom8_asana.cache.integration.autom8_adapter import (
     MigrationResult,
@@ -139,12 +95,17 @@ from autom8_asana.cache.integration.dataframes import (
     make_dataframe_key,
     parse_dataframe_key,
 )
+
+# --- Re-exports ---
+# CacheProviderFactory and MutationInvalidator are public API surface of the cache package.
+from autom8_asana.cache.integration.factory import CacheProviderFactory
 from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
 from autom8_asana.cache.integration.loader import (
     load_batch_entries,
     load_task_entries,
     load_task_entry,
 )
+from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator
 from autom8_asana.cache.integration.stories import (
     DEFAULT_STORY_TYPES,
     filter_relevant_stories,
@@ -153,10 +114,53 @@ from autom8_asana.cache.integration.stories import (
 )
 from autom8_asana.cache.integration.upgrader import AsanaTaskUpgrader
 
-# --- Re-exports ---
-# CacheProviderFactory and MutationInvalidator are public API surface of the cache package.
-from autom8_asana.cache.integration.factory import CacheProviderFactory
-from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator
+# --- Tier 0: Models ---
+from autom8_asana.cache.models.completeness import (
+    FULL_FIELDS,
+    MINIMAL_FIELDS,
+    STANDARD_FIELDS,
+    CompletenessLevel,
+    create_completeness_metadata,
+    get_entry_completeness,
+    get_fields_for_level,
+    infer_completeness_level,
+    is_entry_sufficient,
+)
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.events import (
+    create_metrics_callback,
+    has_cache_logging,
+    setup_cache_logging,
+)
+from autom8_asana.cache.models.freshness import Freshness
+from autom8_asana.cache.models.metrics import CacheEvent, CacheMetrics
+from autom8_asana.cache.models.settings import (
+    CacheSettings,
+    OverflowSettings,
+    TTLSettings,
+)
+from autom8_asana.cache.models.staleness_settings import StalenessCheckSettings
+from autom8_asana.cache.models.versioning import (
+    compare_versions,
+    format_version,
+    is_current,
+    is_stale,
+    parse_version,
+)
+
+# --- Tier 1: Policies ---
+from autom8_asana.cache.policies.coalescer import RequestCoalescer
+from autom8_asana.cache.policies.hierarchy import HierarchyIndex
+from autom8_asana.cache.policies.lightweight_checker import LightweightChecker
+from autom8_asana.cache.policies.staleness import (
+    check_batch_staleness,
+    check_entry_staleness,
+    partition_by_staleness,
+)
+
+# --- Tier 2: Providers ---
+from autom8_asana.cache.providers.tiered import TieredCacheProvider, TieredConfig
+from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
 # IMPORTANT: register_asana_schemas is defined via __getattr__ below to avoid circular import
 # (schema_providers -> dataframes -> models.business -> cache)
@@ -259,7 +263,7 @@ __all__ = [
 ]
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> object:
     """Lazy import to avoid circular dependency with schema_providers.
 
     schema_providers -> dataframes -> models.business -> cache

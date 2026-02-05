@@ -21,7 +21,6 @@ from autom8_asana.cache.models.mutation_event import (
 from autom8_asana.services.errors import InvalidParameterError
 from autom8_asana.services.section_service import SectionService
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -73,9 +72,7 @@ class TestGetSection:
         result = await service.get_section(mock_client, "sec-1")
 
         assert result["gid"] == "sec-1"
-        mock_client.sections.get_async.assert_called_once_with(
-            "sec-1", raw=True
-        )
+        mock_client.sections.get_async.assert_called_once_with("sec-1", raw=True)
 
 
 # ---------------------------------------------------------------------------
@@ -116,9 +113,7 @@ class TestCreateSection:
     ) -> None:
         mock_client.sections.create_async.return_value = {"gid": "x"}
 
-        await service.create_section(
-            mock_client, name="Test", project="proj-2"
-        )
+        await service.create_section(mock_client, name="Test", project="proj-2")
 
         mock_client.sections.create_async.assert_called_once_with(
             name="Test", project="proj-2", raw=True
@@ -144,9 +139,7 @@ class TestUpdateSection:
             "project": {"gid": "proj-1"},
         }
 
-        result = await service.update_section(
-            mock_client, "sec-1", name="Renamed"
-        )
+        result = await service.update_section(mock_client, "sec-1", name="Renamed")
 
         assert result["name"] == "Renamed"
         event = _last_event(mock_invalidator)
@@ -230,9 +223,7 @@ class TestReorder:
     async def test_reorder_before(
         self, service: SectionService, mock_client: AsyncMock
     ) -> None:
-        await service.reorder(
-            mock_client, "sec-1", "proj-1", before_section="sec-2"
-        )
+        await service.reorder(mock_client, "sec-1", "proj-1", before_section="sec-2")
 
         mock_client.sections.insert_section_async.assert_called_once_with(
             "proj-1",
@@ -245,9 +236,7 @@ class TestReorder:
     async def test_reorder_after(
         self, service: SectionService, mock_client: AsyncMock
     ) -> None:
-        await service.reorder(
-            mock_client, "sec-1", "proj-1", after_section="sec-0"
-        )
+        await service.reorder(mock_client, "sec-1", "proj-1", after_section="sec-0")
 
         mock_client.sections.insert_section_async.assert_called_once_with(
             "proj-1",
@@ -260,7 +249,9 @@ class TestReorder:
     async def test_reorder_neither_raises(
         self, service: SectionService, mock_client: AsyncMock
     ) -> None:
-        with pytest.raises(InvalidParameterError, match="before_section.*after_section"):
+        with pytest.raises(
+            InvalidParameterError, match="before_section.*after_section"
+        ):
             await service.reorder(mock_client, "sec-1", "proj-1")
 
     @pytest.mark.asyncio()

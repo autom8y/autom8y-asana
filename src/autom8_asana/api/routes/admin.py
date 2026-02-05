@@ -294,7 +294,7 @@ async def _perform_incremental_rebuild(
                     watermark = build_result.watermark
 
                 # Update cache and watermark
-                if dataframe_cache is not None and len(df) > 0:
+                if dataframe_cache is not None and df is not None and len(df) > 0:
                     await dataframe_cache.put_async(
                         project_gid, entity_type, df, watermark
                     )
@@ -306,7 +306,7 @@ async def _perform_incremental_rebuild(
                         "refresh_id": refresh_id,
                         "entity_type": entity_type,
                         "project_gid": project_gid,
-                        "rows": len(df),
+                        "rows": len(df) if df is not None else 0,
                     },
                 )
 

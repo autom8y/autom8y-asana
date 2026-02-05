@@ -214,7 +214,9 @@ class TestPreloadDataframeCacheFunction:
                 mock_watermark_repo.set_persistence = MagicMock()
                 mock_watermark_repo_fn.return_value = mock_watermark_repo
 
-                with patch("autom8_asana.api.preload.legacy._do_full_rebuild") as mock_rebuild:
+                with patch(
+                    "autom8_asana.api.preload.legacy._do_full_rebuild"
+                ) as mock_rebuild:
                     new_watermark = datetime.now(UTC)
                     mock_rebuild.return_value = (sample_dataframe, new_watermark)
 

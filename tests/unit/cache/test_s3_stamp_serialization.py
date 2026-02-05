@@ -78,17 +78,19 @@ class TestS3DeserializeLegacy:
 
     def test_s3_deserialize_legacy(self) -> None:
         """Legacy S3 data without freshness_stamp deserializes with stamp=None."""
-        legacy_body = json.dumps({
-            "data": {"gid": "123"},
-            "entry_type": "task",
-            "version": "2025-01-01T00:00:00+00:00",
-            "cached_at": "2025-01-01T00:00:00+00:00",
-            "ttl": 300,
-            "project_gid": None,
-            "metadata": {},
-            "key": "123",
-            # No freshness_stamp
-        }).encode("utf-8")
+        legacy_body = json.dumps(
+            {
+                "data": {"gid": "123"},
+                "entry_type": "task",
+                "version": "2025-01-01T00:00:00+00:00",
+                "cached_at": "2025-01-01T00:00:00+00:00",
+                "ttl": 300,
+                "project_gid": None,
+                "metadata": {},
+                "key": "123",
+                # No freshness_stamp
+            }
+        ).encode("utf-8")
 
         provider = _make_s3_provider()
         entry = provider._deserialize_entry(
@@ -102,17 +104,19 @@ class TestS3DeserializeLegacy:
 
     def test_s3_deserialize_null_stamp(self) -> None:
         """S3 data with null freshness_stamp deserializes with stamp=None."""
-        body = json.dumps({
-            "data": {"gid": "123"},
-            "entry_type": "task",
-            "version": "2025-01-01T00:00:00+00:00",
-            "cached_at": "2025-01-01T00:00:00+00:00",
-            "ttl": 300,
-            "project_gid": None,
-            "metadata": {},
-            "key": "123",
-            "freshness_stamp": None,
-        }).encode("utf-8")
+        body = json.dumps(
+            {
+                "data": {"gid": "123"},
+                "entry_type": "task",
+                "version": "2025-01-01T00:00:00+00:00",
+                "cached_at": "2025-01-01T00:00:00+00:00",
+                "ttl": 300,
+                "project_gid": None,
+                "metadata": {},
+                "key": "123",
+                "freshness_stamp": None,
+            }
+        ).encode("utf-8")
 
         provider = _make_s3_provider()
         entry = provider._deserialize_entry(
@@ -130,21 +134,23 @@ class TestS3DeserializeWithStamp:
 
     def test_s3_deserialize_with_stamp(self) -> None:
         """S3 deserialization reconstructs stamp from nested dict."""
-        body = json.dumps({
-            "data": {"gid": "123"},
-            "entry_type": "task",
-            "version": "2025-01-01T00:00:00+00:00",
-            "cached_at": "2025-01-01T00:00:00+00:00",
-            "ttl": 300,
-            "project_gid": None,
-            "metadata": {},
-            "key": "123",
-            "freshness_stamp": {
-                "last_verified_at": "2025-06-01T12:00:00+00:00",
-                "source": "batch_check",
-                "staleness_hint": "mutation:task:update:999",
-            },
-        }).encode("utf-8")
+        body = json.dumps(
+            {
+                "data": {"gid": "123"},
+                "entry_type": "task",
+                "version": "2025-01-01T00:00:00+00:00",
+                "cached_at": "2025-01-01T00:00:00+00:00",
+                "ttl": 300,
+                "project_gid": None,
+                "metadata": {},
+                "key": "123",
+                "freshness_stamp": {
+                    "last_verified_at": "2025-06-01T12:00:00+00:00",
+                    "source": "batch_check",
+                    "staleness_hint": "mutation:task:update:999",
+                },
+            }
+        ).encode("utf-8")
 
         provider = _make_s3_provider()
         entry = provider._deserialize_entry(

@@ -12,8 +12,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from autom8_asana.cache.policies.coalescer import RequestCoalescer
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.policies.coalescer import RequestCoalescer
 
 
 @pytest.fixture

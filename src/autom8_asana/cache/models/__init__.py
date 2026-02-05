@@ -46,7 +46,11 @@ from autom8_asana.cache.models.mutation_event import (
     MutationEvent,
     MutationType,
 )
-from autom8_asana.cache.models.settings import CacheSettings, OverflowSettings, TTLSettings
+from autom8_asana.cache.models.settings import (
+    CacheSettings,
+    OverflowSettings,
+    TTLSettings,
+)
 from autom8_asana.cache.models.staleness_settings import StalenessCheckSettings
 from autom8_asana.cache.models.versioning import (
     compare_versions,

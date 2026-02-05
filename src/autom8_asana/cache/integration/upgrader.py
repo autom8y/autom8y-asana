@@ -16,8 +16,6 @@ from typing import TYPE_CHECKING
 from autom8y_cache import CacheEntry
 from autom8y_log import get_logger
 
-from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
-
 from autom8_asana.cache.models.completeness import (
     FULL_FIELDS,
     MINIMAL_FIELDS,
@@ -26,6 +24,7 @@ from autom8_asana.cache.models.completeness import (
     create_completeness_metadata,
 )
 from autom8_asana.cache.models.entry import EntryType
+from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 
 if TYPE_CHECKING:
     from autom8_asana.clients.tasks import TasksClient

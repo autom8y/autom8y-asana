@@ -507,7 +507,9 @@ class UniversalResolutionStrategy:
         """
         # Import builders and schemas based on entity type
         from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
-        from autom8_asana.dataframes.section_persistence import create_section_persistence
+        from autom8_asana.dataframes.section_persistence import (
+            create_section_persistence,
+        )
 
         try:
             # Get schema for entity type
@@ -545,7 +547,7 @@ class UniversalResolutionStrategy:
                 extra={
                     "entity_type": self.entity_type,
                     "project_gid": project_gid,
-                    "row_count": len(df),
+                    "row_count": len(df) if df is not None else 0,
                 },
             )
 
@@ -576,7 +578,7 @@ class UniversalResolutionStrategy:
 
         try:
             return registry.get_schema(schema_key)
-        except Exception as e:  # BROAD-CATCH: degrade
+        except Exception:  # BROAD-CATCH: degrade
             # Fall back to base schema
             logger.warning("Custom field resolver fallback", exc_info=True)
             return registry.get_schema("*")

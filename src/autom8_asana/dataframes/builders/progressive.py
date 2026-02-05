@@ -28,8 +28,8 @@ from autom8_asana.config import (
     PACE_DELAY_SECONDS,
     PACE_PAGES_PER_PAUSE,
 )
-from autom8_asana.dataframes.builders.base import gather_with_limit
 from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
+from autom8_asana.dataframes.builders.base import gather_with_limit
 from autom8_asana.dataframes.builders.build_result import (
     BuildResult,
     BuildStatus,
@@ -904,9 +904,7 @@ class ProgressiveProjectBuilder:
 
                 # Checkpoint: persist every N pages
                 if pages_fetched % CHECKPOINT_EVERY_N_PAGES == 0:
-                    await self._write_checkpoint(
-                        section_gid, all_tasks, pages_fetched
-                    )
+                    await self._write_checkpoint(section_gid, all_tasks, pages_fetched)
 
         # Account for final partial page
         if current_page_task_count > 0:
@@ -932,9 +930,7 @@ class ProgressiveProjectBuilder:
         task_dicts = [self._task_to_dict(task) for task in tasks]
         rows = await self._extract_rows(task_dicts)
         coerced_rows = coerce_rows_to_schema(rows, self._schema)
-        section_df = pl.DataFrame(
-            coerced_rows, schema=self._schema.to_polars_schema()
-        )
+        section_df = pl.DataFrame(coerced_rows, schema=self._schema.to_polars_schema())
 
         from autom8_asana.dataframes.builders.freshness import compute_gid_hash
 

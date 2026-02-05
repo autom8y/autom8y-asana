@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import warnings
 
-
 from autom8_asana.models import Task
 from autom8_asana.models.custom_field_accessor import CustomFieldAccessor
 

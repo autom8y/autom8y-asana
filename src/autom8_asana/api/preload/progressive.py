@@ -211,7 +211,6 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
             S3DataFrameStorage,
             create_s3_retry_orchestrator,
         )
-
         from autom8_asana.settings import get_settings as get_app_settings
 
         app_settings = get_app_settings()
@@ -228,6 +227,9 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
             )
 
         # Initialize section persistence with unified storage delegate
+        if df_storage is None:
+            logger.warning("progressive_preload_no_s3_storage")
+            return
         persistence = SectionPersistence(storage=df_storage)
 
         # Create SHARED UnifiedTaskStore for cascade field resolution
@@ -392,7 +394,10 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                 )
 
                                 # Store in DataFrameCache singleton
-                                if dataframe_cache is not None:
+                                if (
+                                    dataframe_cache is not None
+                                    and result.dataframe is not None
+                                ):
                                     await dataframe_cache.put_async(
                                         project_gid,
                                         entity_type,

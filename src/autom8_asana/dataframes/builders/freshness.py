@@ -257,7 +257,9 @@ class SectionFreshnessProber:
                 success = await self._apply_section_delta(result, view)
                 if success:
                     updated_count += 1
-            except Exception as e:  # BROAD-CATCH: mixed-boundary -- delta merge calls API + S3
+            except (
+                Exception
+            ) as e:  # BROAD-CATCH: mixed-boundary -- delta merge calls API + S3
                 logger.error(
                     "freshness_delta_section_failed",
                     extra={

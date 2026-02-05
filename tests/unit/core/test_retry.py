@@ -38,7 +38,6 @@ from autom8_asana.core.retry import (
     Subsystem,
 )
 
-
 # ---------------------------------------------------------------------------
 # DefaultRetryPolicy tests
 # ---------------------------------------------------------------------------
@@ -125,9 +124,9 @@ class TestDefaultRetryPolicy:
             jitter=False,
         )
         policy = DefaultRetryPolicy(config)
-        assert policy.delay_for(1) == pytest.approx(0.5)   # 0.5 * 2^0
-        assert policy.delay_for(2) == pytest.approx(1.0)   # 0.5 * 2^1
-        assert policy.delay_for(3) == pytest.approx(2.0)   # 0.5 * 2^2
+        assert policy.delay_for(1) == pytest.approx(0.5)  # 0.5 * 2^0
+        assert policy.delay_for(2) == pytest.approx(1.0)  # 0.5 * 2^1
+        assert policy.delay_for(3) == pytest.approx(2.0)  # 0.5 * 2^2
 
     def test_linear_backoff_delay(self) -> None:
         config = RetryPolicyConfig(
@@ -173,7 +172,9 @@ class TestDefaultRetryPolicy:
         policy = DefaultRetryPolicy(config)
         delays = [policy.delay_for(1) for _ in range(100)]
         # attempt=1: base * 2^0 = 1.0, with jitter: [0.5, 1.5]
-        assert all(0.5 <= d <= 1.5 for d in delays), f"Out of bounds: {min(delays)}-{max(delays)}"
+        assert all(0.5 <= d <= 1.5 for d in delays), (
+            f"Out of bounds: {min(delays)}-{max(delays)}"
+        )
         # Should have some variance (not all identical)
         assert len(set(round(d, 6) for d in delays)) > 1
 
@@ -217,11 +218,13 @@ class TestRetryBudget:
 
     def test_window_expiration_replenishes(self) -> None:
         """Tokens older than window_seconds are evicted."""
-        budget = RetryBudget(BudgetConfig(
-            per_subsystem_max=2,
-            global_max=10,
-            window_seconds=0.1,  # 100ms window for testing
-        ))
+        budget = RetryBudget(
+            BudgetConfig(
+                per_subsystem_max=2,
+                global_max=10,
+                window_seconds=0.1,  # 100ms window for testing
+            )
+        )
         assert budget.try_acquire(Subsystem.S3) is True
         assert budget.try_acquire(Subsystem.S3) is True
         assert budget.try_acquire(Subsystem.S3) is False
@@ -850,6 +853,7 @@ class TestRetryOrchestratorIntegration:
             async def op() -> str:
                 call_counts[idx] += 1
                 raise TransportError("fail")
+
             return op
 
         async def run_one(idx: int) -> None:

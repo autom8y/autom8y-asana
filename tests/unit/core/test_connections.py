@@ -19,7 +19,6 @@ from autom8_asana.core.connections import (
     HealthCheckResult,
 )
 
-
 # ---------------------------------------------------------------------------
 # ConnectionState enum tests
 # ---------------------------------------------------------------------------
@@ -175,10 +174,20 @@ class TestConnectionManagerProtocol:
 
     def test_mock_satisfies_protocol(self) -> None:
         """A properly configured MagicMock satisfies the protocol for testing."""
-        mock = MagicMock(spec_set=["name", "state", "health_check", "health_check_async",
-                                    "close", "close_async",
-                                    "__enter__", "__exit__",
-                                    "__aenter__", "__aexit__"])
+        mock = MagicMock(
+            spec_set=[
+                "name",
+                "state",
+                "health_check",
+                "health_check_async",
+                "close",
+                "close_async",
+                "__enter__",
+                "__exit__",
+                "__aenter__",
+                "__aexit__",
+            ]
+        )
         mock.name = "mock"
         mock.state = ConnectionState.HEALTHY
         # MagicMock satisfies the callable attributes

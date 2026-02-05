@@ -266,7 +266,11 @@ class TieredCacheProvider:
                 # S3 write failure - log but don't fail operation
                 logger.warning(
                     "s3_write_through_failed",
-                    extra={"key": key, "entry_type": entry.entry_type.value, "error": str(e)},
+                    extra={
+                        "key": key,
+                        "entry_type": entry.entry_type.value,
+                        "error": str(e),
+                    },
                 )
 
     def get_batch(
