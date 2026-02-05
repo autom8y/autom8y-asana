@@ -16,12 +16,12 @@ import pytest
 from autom8_asana.lambda_handlers.cache_warmer import (
     TIMEOUT_BUFFER_MS,
     WarmResponse,
-    _emit_metric,
     _should_exit_early,
     _warm_cache_async,
     handler,
     handler_async,
 )
+from autom8_asana.lambda_handlers.cloudwatch import emit_metric
 
 
 class TestWarmResponse:
@@ -454,7 +454,7 @@ class TestShouldExitEarly:
 
 
 class TestEmitMetric:
-    """Tests for _emit_metric CloudWatch helper."""
+    """Tests for emit_metric CloudWatch helper (shared cloudwatch module)."""
 
     def test_emits_metric_with_dimensions(self) -> None:
         """Metric is emitted with environment and custom dimensions."""
@@ -462,15 +462,15 @@ class TestEmitMetric:
 
         with (
             patch(
-                "autom8_asana.lambda_handlers.cache_warmer._get_cloudwatch_client",
+                "autom8_asana.lambda_handlers.cloudwatch._get_cloudwatch_client",
                 return_value=mock_client,
             ),
             patch(
-                "autom8_asana.lambda_handlers.cache_warmer.ENVIRONMENT",
+                "autom8_asana.lambda_handlers.cloudwatch.ENVIRONMENT",
                 "test-env",
             ),
         ):
-            _emit_metric(
+            emit_metric(
                 metric_name="WarmSuccess",
                 value=1,
                 dimensions={"entity_type": "unit"},
@@ -494,10 +494,10 @@ class TestEmitMetric:
         mock_client = MagicMock()
 
         with patch(
-            "autom8_asana.lambda_handlers.cache_warmer._get_cloudwatch_client",
+            "autom8_asana.lambda_handlers.cloudwatch._get_cloudwatch_client",
             return_value=mock_client,
         ):
-            _emit_metric(
+            emit_metric(
                 metric_name="TotalDuration",
                 value=5000.5,
                 unit="Milliseconds",
@@ -518,11 +518,11 @@ class TestEmitMetric:
         mock_client.put_metric_data.side_effect = Exception("CloudWatch error")
 
         with patch(
-            "autom8_asana.lambda_handlers.cache_warmer._get_cloudwatch_client",
+            "autom8_asana.lambda_handlers.cloudwatch._get_cloudwatch_client",
             return_value=mock_client,
         ):
             # Should not raise
-            _emit_metric(metric_name="WarmSuccess", value=1)
+            emit_metric(metric_name="WarmSuccess", value=1)
 
         mock_client.put_metric_data.assert_called_once()
 
@@ -625,7 +625,7 @@ class TestCheckpointIntegration:
                 "autom8_asana.AsanaClient",
             ),
             patch(
-                "autom8_asana.lambda_handlers.cache_warmer._emit_metric",
+                "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
             ),
         ):
             await _warm_cache_async(
@@ -697,7 +697,7 @@ class TestCheckpointIntegration:
                 "autom8_asana.AsanaClient",
             ),
             patch(
-                "autom8_asana.lambda_handlers.cache_warmer._emit_metric",
+                "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
             ),
         ):
             response = await _warm_cache_async(
@@ -773,7 +773,7 @@ class TestCheckpointIntegration:
                 "autom8_asana.AsanaClient",
             ),
             patch(
-                "autom8_asana.lambda_handlers.cache_warmer._emit_metric",
+                "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
             ),
         ):
             # Make WarmResult.SUCCESS comparison work
