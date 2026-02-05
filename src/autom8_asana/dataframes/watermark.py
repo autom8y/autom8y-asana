@@ -19,7 +19,7 @@ Thread Safety:
     - Consistent with EntityProjectRegistry pattern
 
 Persistence:
-    - Optional S3 persistence via DataFramePersistence
+    - Optional S3 persistence via DataFrameStorage
     - Write-through: set_watermark() persists asynchronously
     - Startup: load_from_persistence() hydrates from S3
     - Graceful degradation when S3 unavailable
@@ -51,13 +51,7 @@ from autom8y_log import get_logger
 from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
 
 if TYPE_CHECKING:
-    from autom8_asana.dataframes.persistence import DataFramePersistence
     from autom8_asana.dataframes.storage import DataFrameStorage
-
-# Union type for persistence layer: supports both legacy DataFramePersistence
-# and unified DataFrameStorage protocol (Phase 3, TDD-UNIFIED-DF-PERSISTENCE-001).
-# Both provide save_watermark(project_gid, timestamp) and load_all_watermarks().
-PersistenceBackend = "DataFramePersistence | DataFrameStorage"
 
 __all__ = ["WatermarkRepository", "get_watermark_repo"]
 
@@ -79,7 +73,7 @@ class WatermarkRepository:
     Attributes:
         _watermarks: Dict mapping project_gid to last sync datetime.
         _instance_lock: Threading lock for thread-safe watermark access.
-        _persistence: Optional DataFramePersistence for S3 write-through.
+        _persistence: Optional DataFrameStorage for S3 write-through.
 
     Example:
         >>> repo = WatermarkRepository.get_instance()
@@ -99,9 +93,7 @@ class WatermarkRepository:
     # Instance attributes (declared for pyright, initialized in __new__)
     _watermarks: dict[str, datetime]
     _instance_lock: threading.Lock
-    # Accepts DataFramePersistence (legacy) or DataFrameStorage (unified protocol).
-    # Both provide save_watermark() and load_all_watermarks() with compatible signatures.
-    _persistence: DataFramePersistence | DataFrameStorage | None
+    _persistence: DataFrameStorage | None
 
     def __new__(cls) -> WatermarkRepository:
         """Get or create singleton instance (thread-safe).
@@ -121,14 +113,12 @@ class WatermarkRepository:
     @classmethod
     def get_instance(
         cls,
-        persistence: DataFramePersistence | DataFrameStorage | None = None,
+        persistence: DataFrameStorage | None = None,
     ) -> WatermarkRepository:
         """Get singleton instance, optionally configuring persistence.
 
         Args:
-            persistence: Optional persistence backend for S3 write-through.
-                Accepts DataFramePersistence (legacy) or DataFrameStorage
-                (unified protocol per TDD-UNIFIED-DF-PERSISTENCE-001).
+            persistence: Optional DataFrameStorage backend for S3 write-through.
                 Only applied on first call or after reset().
 
         Returns:
@@ -142,7 +132,7 @@ class WatermarkRepository:
 
     def set_persistence(
         self,
-        persistence: DataFramePersistence | DataFrameStorage | None,
+        persistence: DataFrameStorage | None,
     ) -> None:
         """Configure persistence layer after initialization.
 
@@ -150,8 +140,7 @@ class WatermarkRepository:
         useful for dependency injection patterns.
 
         Args:
-            persistence: DataFramePersistence (legacy), DataFrameStorage
-                (unified protocol), or None to disable persistence.
+            persistence: DataFrameStorage instance, or None to disable persistence.
         """
         with self._instance_lock:
             self._persistence = persistence
@@ -197,7 +186,7 @@ class WatermarkRepository:
         self,
         project_gid: str,
         timestamp: datetime,
-        persistence: DataFramePersistence | DataFrameStorage,
+        persistence: DataFrameStorage,
     ) -> None:
         """Schedule async persistence without blocking.
 
@@ -219,7 +208,7 @@ class WatermarkRepository:
         self,
         project_gid: str,
         timestamp: datetime,
-        persistence: DataFramePersistence | DataFrameStorage,
+        persistence: DataFrameStorage,
     ) -> None:
         """Persist watermark to S3 asynchronously.
 
@@ -261,7 +250,7 @@ class WatermarkRepository:
 
     async def load_from_persistence(
         self,
-        persistence: DataFramePersistence | DataFrameStorage | None = None,
+        persistence: DataFrameStorage | None = None,
     ) -> int:
         """Load all persisted watermarks from S3 into memory.
 
@@ -270,16 +259,16 @@ class WatermarkRepository:
         syncs after container restarts.
 
         Args:
-            persistence: DataFramePersistence instance. If None, uses the
+            persistence: DataFrameStorage instance. If None, uses the
                          instance's configured persistence.
 
         Returns:
             Number of watermarks loaded from persistence.
 
         Example:
-            >>> persistence = DataFramePersistence()
+            >>> from autom8_asana.dataframes.storage import S3DataFrameStorage
             >>> repo = get_watermark_repo()
-            >>> loaded = await repo.load_from_persistence(persistence)
+            >>> loaded = await repo.load_from_persistence(storage)
             >>> print(f"Loaded {loaded} watermarks from S3")
         """
         persistence = persistence or self._persistence

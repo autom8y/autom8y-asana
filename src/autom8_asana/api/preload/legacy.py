@@ -17,7 +17,7 @@ from fastapi import FastAPI
 if TYPE_CHECKING:
     import polars as pl
 
-    from autom8_asana.dataframes.persistence import DataFramePersistence
+    from autom8_asana.dataframes.storage import DataFrameStorage, S3DataFrameStorage
     from autom8_asana.services.gid_lookup import GidLookupIndex
 
 logger = get_logger(__name__)
@@ -59,10 +59,15 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
 
     from autom8_asana.api.routes.health import set_cache_ready
     from autom8_asana.cache.dataframe.factory import get_dataframe_cache
-    from autom8_asana.dataframes.persistence import DataFramePersistence
+    from autom8_asana.config import S3LocationConfig
+    from autom8_asana.dataframes.storage import (
+        S3DataFrameStorage,
+        create_s3_retry_orchestrator,
+    )
     from autom8_asana.dataframes.watermark import get_watermark_repo
     from autom8_asana.services.gid_lookup import GidLookupIndex
     from autom8_asana.services.resolver import EntityProjectRegistry
+    from autom8_asana.settings import get_settings as get_app_settings
 
     start_time = time.perf_counter()
     loaded_count = 0
@@ -115,8 +120,17 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
             },
         )
 
-        # Initialize persistence layer
-        persistence = DataFramePersistence()
+        # Initialize persistence layer (unified S3DataFrameStorage)
+        app_settings = get_app_settings()
+        s3_location = S3LocationConfig(
+            bucket=app_settings.s3.bucket or "",
+            region=app_settings.s3.region,
+            endpoint_url=app_settings.s3.endpoint_url,
+        )
+        persistence = S3DataFrameStorage(
+            location=s3_location,
+            retry_orchestrator=create_s3_retry_orchestrator(),
+        )
 
         if not persistence.is_available:
             logger.warning(
@@ -179,7 +193,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                     try:
                         index = GidLookupIndex.from_dataframe(df)
                         # Persist the recovered index for next startup
-                        await persistence.save_index(project_gid, index)
+                        await persistence.save_index(project_gid, index.serialize())
                         logger.info(
                             "dataframe_preload_index_recovered",
                             extra={
@@ -258,7 +272,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                             await persistence.save_dataframe(
                                 project_gid, updated_df, new_watermark
                             )
-                        await persistence.save_index(project_gid, index)
+                        await persistence.save_index(project_gid, index.serialize())
                         watermark_repo.set_watermark(project_gid, new_watermark)
 
                     # Store in DataFrameCache singleton for @dataframe_cache decorator
@@ -311,7 +325,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                             new_index = GidLookupIndex.from_dataframe(new_df)
 
                             # Persist new index (DataFrame saved by builder)
-                            await persistence.save_index(project_gid, new_index)
+                            await persistence.save_index(project_gid, new_index.serialize())
                             watermark_repo.set_watermark(project_gid, new_watermark)
 
                             # Store in DataFrameCache singleton for @dataframe_cache decorator
@@ -403,7 +417,7 @@ async def _do_incremental_catchup(
     existing_df: "pl.DataFrame",
     existing_index: "GidLookupIndex",
     watermark: "datetime",
-    persistence: "DataFramePersistence | None" = None,
+    persistence: "S3DataFrameStorage | None" = None,
 ) -> tuple["pl.DataFrame", "datetime", bool]:
     """Perform incremental catch-up for a project.
 
@@ -416,7 +430,7 @@ async def _do_incremental_catchup(
         existing_df: Persisted DataFrame.
         existing_index: Persisted GidLookupIndex.
         watermark: Last sync timestamp.
-        persistence: Optional DataFramePersistence (legacy, unused).
+        persistence: Optional S3DataFrameStorage (unused).
 
     Returns:
         Tuple of (updated_df, new_watermark, was_incremental).
@@ -427,7 +441,7 @@ async def _do_incremental_catchup(
     from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
     from autom8_asana.dataframes.models.registry import SchemaRegistry
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
-    from autom8_asana.dataframes.section_persistence import SectionPersistence
+    from autom8_asana.dataframes.section_persistence import create_section_persistence
     from autom8_asana.services.resolver import to_pascal_case
 
     # Get bot PAT for API access
@@ -458,7 +472,7 @@ async def _do_incremental_catchup(
             schema = SchemaRegistry.get_instance().get_schema(task_type)
 
             resolver = DefaultCustomFieldResolver()
-            section_persistence = SectionPersistence()
+            section_persistence = create_section_persistence()
 
             async with section_persistence:
                 builder = ProgressiveProjectBuilder(
@@ -506,7 +520,7 @@ async def _do_incremental_catchup(
 async def _do_full_rebuild(
     project_gid: str,
     entity_type: str,
-    persistence: "DataFramePersistence | None" = None,
+    persistence: "S3DataFrameStorage | None" = None,
 ) -> tuple["pl.DataFrame | None", "datetime"]:
     """Perform full DataFrame rebuild for a project.
 
@@ -515,7 +529,7 @@ async def _do_full_rebuild(
     Args:
         project_gid: Asana project GID.
         entity_type: Entity type (e.g., "unit").
-        persistence: Optional DataFramePersistence (legacy, unused).
+        persistence: Optional S3DataFrameStorage (unused).
 
     Returns:
         Tuple of (new_df, new_watermark). new_df may be None on failure.
@@ -525,7 +539,7 @@ async def _do_full_rebuild(
     from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
     from autom8_asana.dataframes.models.registry import SchemaRegistry
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
-    from autom8_asana.dataframes.section_persistence import SectionPersistence
+    from autom8_asana.dataframes.section_persistence import create_section_persistence
     from autom8_asana.services.resolver import to_pascal_case
 
     now = datetime.now(UTC)
@@ -557,7 +571,7 @@ async def _do_full_rebuild(
             schema = SchemaRegistry.get_instance().get_schema(task_type)
 
             resolver = DefaultCustomFieldResolver()
-            section_persistence = SectionPersistence()
+            section_persistence = create_section_persistence()
 
             async with section_persistence:
                 builder = ProgressiveProjectBuilder(

@@ -22,49 +22,46 @@ Thread Safety:
     An in-memory cache eliminates redundant S3 reads within the same event loop.
 
 Example:
+    >>> from autom8_asana.dataframes.storage import S3DataFrameStorage
+    >>> from autom8_asana.config import S3LocationConfig
     >>> from autom8_asana.dataframes.section_persistence import SectionPersistence
     >>> import polars as pl
     >>>
-    >>> persistence = SectionPersistence(bucket="my-bucket")
-    >>> async with persistence:
-    ...     # Start a new project build
-    ...     await persistence.create_manifest_async("proj_123", "offer", ["sec_1", "sec_2"])
-    ...
-    ...     # Write sections as they complete
-    ...     df = pl.DataFrame({"gid": ["123"], "name": ["Task"]})
-    ...     await persistence.write_section_async("proj_123", "sec_1", df)
-    ...
-    ...     # Resume after restart
-    ...     incomplete = await persistence.get_incomplete_sections("proj_123")
-    ...     print(f"Need to fetch: {incomplete}")
+    >>> location = S3LocationConfig(bucket="my-bucket")
+    >>> storage = S3DataFrameStorage(location=location)
+    >>> persistence = SectionPersistence(storage=storage)
+    >>> # Start a new project build
+    >>> await persistence.create_manifest_async("proj_123", "offer", ["sec_1", "sec_2"])
+    >>> # Write sections as they complete
+    >>> df = pl.DataFrame({"gid": ["123"], "name": ["Task"]})
+    >>> await persistence.write_section_async("proj_123", "sec_1", df)
+    >>> # Resume after restart
+    >>> incomplete = await persistence.get_incomplete_sections("proj_123")
+    >>> print(f"Need to fetch: {incomplete}")
 """
 
 from __future__ import annotations
 
 import asyncio
-import io
 import json
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
-from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 from pydantic import BaseModel, Field
 
-from autom8_asana.dataframes.async_s3 import AsyncS3Client, AsyncS3Config
-
 if TYPE_CHECKING:
     import polars as pl
 
-    from autom8_asana.dataframes.storage import DataFrameStorage
+from autom8_asana.dataframes.storage import DataFrameStorage
 
 __all__ = [
     "SectionPersistence",
     "SectionManifest",
     "SectionStatus",
     "SectionInfo",
+    "create_section_persistence",
 ]
 
 logger = get_logger(__name__)
@@ -193,118 +190,40 @@ class SectionManifest(BaseModel):
         }
 
 
-def _resolve_schema_version(entity_type: str | None) -> str | None:
-    """Resolve schema version for an entity type.
-
-    Uses SchemaRegistry to look up the current schema version,
-    avoiding circular imports with cache/dataframe_cache.py.
-
-    Args:
-        entity_type: Entity type identifier (e.g., "offer").
-
-    Returns:
-        Schema version string if found, None otherwise.
-    """
-    from autom8_asana.core.schema import get_schema_version
-
-    return get_schema_version(entity_type)
-
-
-@dataclass
-class SectionPersistenceConfig:
-    """Configuration for section persistence.
-
-    .. deprecated::
-        Per TDD-UNIFIED-DF-PERSISTENCE-001: When ``DataFrameStorage`` is
-        injected into ``SectionPersistence``, this config is only used to
-        generate key prefixes. S3 location (bucket/region/endpoint) comes
-        from ``S3LocationConfig`` via the storage implementation.
-
-    Attributes:
-        bucket: S3 bucket name.
-        prefix: Key prefix for persisted objects (default "dataframes/").
-        region: AWS region (default "us-east-1").
-        endpoint_url: Custom endpoint URL for LocalStack or S3-compatible storage.
-    """
-
-    bucket: str
-    prefix: str = "dataframes/"
-    region: str = "us-east-1"
-    endpoint_url: str | None = None
-
 
 class SectionPersistence:
     """Section-level S3 persistence for progressive DataFrame cache warming.
 
     Provides granular persistence at the section level with manifest tracking
-    for resume capability.
+    for resume capability. All S3 I/O is delegated to a DataFrameStorage
+    implementation (per TDD-I11, ADR-I11-001).
 
     Example:
-        >>> config = SectionPersistenceConfig(bucket="my-bucket")
-        >>> persistence = SectionPersistence(config=config)
-        >>> async with persistence:
-        ...     manifest = await persistence.get_manifest_async("proj_123")
-        ...     if manifest:
-        ...         incomplete = manifest.get_incomplete_section_gids()
+        >>> from autom8_asana.dataframes.storage import S3DataFrameStorage
+        >>> from autom8_asana.config import S3LocationConfig
+        >>> location = S3LocationConfig(bucket="my-bucket")
+        >>> storage = S3DataFrameStorage(location=location)
+        >>> persistence = SectionPersistence(storage=storage)
+        >>> manifest = await persistence.get_manifest_async("proj_123")
+        >>> if manifest:
+        ...     incomplete = manifest.get_incomplete_section_gids()
     """
 
     def __init__(
         self,
-        config: SectionPersistenceConfig | None = None,
+        storage: DataFrameStorage,
         *,
-        storage: DataFrameStorage | None = None,
-        bucket: str | None = None,
         prefix: str = "dataframes/",
-        region: str | None = None,
-        endpoint_url: str | None = None,
     ) -> None:
         """Initialize section persistence.
 
         Args:
-            config: Persistence configuration object (preferred).
             storage: DataFrameStorage protocol implementation for S3 I/O.
-                When provided, delegates all S3 operations to this storage
-                instead of creating an internal AsyncS3Client.
-                Per TDD-UNIFIED-DF-PERSISTENCE-001 Phase 2.
-            bucket: S3 bucket name (if config not provided).
-            prefix: Key prefix (if config not provided).
-            region: AWS region (if config not provided).
-            endpoint_url: Custom endpoint URL (if config not provided).
+                All S3 operations are delegated to this storage backend.
+            prefix: Key prefix for S3 objects (default "dataframes/").
         """
-        # Store the DataFrameStorage delegate (Phase 2 wiring path)
-        self._storage: DataFrameStorage | None = storage
-
-        if config is None:
-            from autom8_asana.settings import get_settings
-
-            s3_settings = get_settings().s3
-
-            resolved_bucket = bucket if bucket is not None else s3_settings.bucket
-            resolved_region = region if region is not None else s3_settings.region
-            resolved_endpoint = (
-                endpoint_url if endpoint_url is not None else s3_settings.endpoint_url
-            )
-
-            config = SectionPersistenceConfig(
-                bucket=resolved_bucket or "",
-                prefix=prefix,
-                region=resolved_region,
-                endpoint_url=resolved_endpoint,
-            )
-
-        self._config = config
-
-        # Legacy path: create AsyncS3Client only if no storage provided
-        if self._storage is not None:
-            self._s3_client: AsyncS3Client | None = None
-        else:
-            self._s3_client = AsyncS3Client(
-                config=AsyncS3Config(
-                    bucket=config.bucket,
-                    region=config.region,
-                    endpoint_url=config.endpoint_url,
-                )
-            )
+        self._storage: DataFrameStorage = storage
+        self._prefix = prefix
 
         # In-memory manifest cache + per-project locks to prevent
         # read-modify-write races during concurrent section updates.
@@ -314,21 +233,26 @@ class SectionPersistence:
         self._polars_module: Any = None
         self._initialize_polars()
 
+    @property
+    def storage(self) -> DataFrameStorage:
+        """Public access to the underlying DataFrameStorage.
+
+        Per ADR-I11-003: Exposes storage for consumers that need direct
+        S3 I/O (e.g., ProgressiveTier read path).
+        """
+        return self._storage
+
     async def __aenter__(self) -> SectionPersistence:
-        """Async context manager entry."""
-        if self._s3_client is not None:
-            await self._s3_client.__aenter__()
+        """Async context manager entry (no-op, storage manages its own lifecycle)."""
         return self
 
     async def __aexit__(
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
+        exc_tb: Any | None,
     ) -> None:
-        """Async context manager exit."""
-        if self._s3_client is not None:
-            await self._s3_client.__aexit__(exc_type, exc_val, exc_tb)
+        """Async context manager exit (no-op)."""
 
     def _initialize_polars(self) -> None:
         """Initialize polars module."""
@@ -353,35 +277,29 @@ class SectionPersistence:
     def is_available(self) -> bool:
         """Check if persistence can potentially be available.
 
-        Uses can_be_available for pre-initialization check (bucket configured).
-        Full availability (initialized, not degraded) checked at operation time.
-        When using DataFrameStorage, delegates to storage.is_available.
+        Delegates to storage.is_available and checks polars availability.
         """
-        if self._storage is not None:
-            return self._storage.is_available and self._polars_module is not None
-        if self._s3_client is not None:
-            return self._s3_client.can_be_available and self._polars_module is not None
-        return False
+        return self._storage.is_available and self._polars_module is not None
 
     def _make_manifest_key(self, project_gid: str) -> str:
         """Generate S3 key for manifest."""
-        return f"{self._config.prefix}{project_gid}/manifest.json"
+        return f"{self._prefix}{project_gid}/manifest.json"
 
     def _make_section_key(self, project_gid: str, section_gid: str) -> str:
         """Generate S3 key for section parquet."""
-        return f"{self._config.prefix}{project_gid}/sections/{section_gid}.parquet"
+        return f"{self._prefix}{project_gid}/sections/{section_gid}.parquet"
 
     def _make_dataframe_key(self, project_gid: str) -> str:
         """Generate S3 key for final merged DataFrame."""
-        return f"{self._config.prefix}{project_gid}/dataframe.parquet"
+        return f"{self._prefix}{project_gid}/dataframe.parquet"
 
     def _make_watermark_key(self, project_gid: str) -> str:
         """Generate S3 key for watermark."""
-        return f"{self._config.prefix}{project_gid}/watermark.json"
+        return f"{self._prefix}{project_gid}/watermark.json"
 
     def _make_index_key(self, project_gid: str) -> str:
         """Generate S3 key for GID lookup index."""
-        return f"{self._config.prefix}{project_gid}/gid_lookup_index.json"
+        return f"{self._prefix}{project_gid}/gid_lookup_index.json"
 
     # ========== Manifest Operations ==========
 
@@ -445,36 +363,11 @@ class SectionPersistence:
 
         key = self._make_manifest_key(project_gid)
 
-        # New path: use DataFrameStorage for raw JSON I/O
-        if self._storage is not None:
-            raw_bytes = await self._storage.load_json(key)
-            if raw_bytes is None:
-                return None
-            try:
-                data = json.loads(raw_bytes.decode("utf-8"))
-                manifest = SectionManifest.model_validate(data)
-                self._manifest_cache[project_gid] = manifest
-                return manifest
-            except Exception as e:  # BROAD-CATCH: vendor-polymorphic
-                logger.error("manifest_parse_failed", project_gid=project_gid, error=str(e))
-                return None
-
-        # Legacy path: use AsyncS3Client
-        assert self._s3_client is not None
-        result = await self._s3_client.get_object_async(key)
-
-        if not result.success:
-            if result.not_found:
-                return None
-            logger.warning(
-                "manifest_get_failed",
-                project_gid=project_gid,
-                error=result.error,
-            )
+        raw_bytes = await self._storage.load_json(key)
+        if raw_bytes is None:
             return None
-
         try:
-            data = json.loads(result.data.decode("utf-8"))
+            data = json.loads(raw_bytes.decode("utf-8"))
             manifest = SectionManifest.model_validate(data)
             self._manifest_cache[project_gid] = manifest
             return manifest
@@ -487,31 +380,13 @@ class SectionPersistence:
         key = self._make_manifest_key(manifest.project_gid)
         data = manifest.model_dump_json(indent=2).encode("utf-8")
 
-        # New path: use DataFrameStorage for raw JSON I/O
-        if self._storage is not None:
-            success = await self._storage.save_json(key, data)
-            if not success:
-                logger.error(
-                    "manifest_save_failed",
-                    project_gid=manifest.project_gid,
-                )
-            return success
-
-        # Legacy path: use AsyncS3Client
-        assert self._s3_client is not None
-        result = await self._s3_client.put_object_async(
-            key=key,
-            body=data,
-            content_type="application/json",
-        )
-
-        if not result.success:
+        success = await self._storage.save_json(key, data)
+        if not success:
             logger.error(
                 "manifest_save_failed",
                 project_gid=manifest.project_gid,
-                error=result.error,
             )
-        return result.success
+        return success
 
     async def update_manifest_section_async(
         self,
@@ -617,68 +492,10 @@ class SectionPersistence:
             logger.warning("polars not available, cannot write section")
             return False
 
-        # New path: delegate to DataFrameStorage
-        if self._storage is not None:
-            success = await self._storage.save_section(
-                project_gid,
-                section_gid,
-                df,
-                metadata={
-                    "project-gid": project_gid,
-                    "section-gid": section_gid,
-                    "row-count": str(len(df)),
-                },
-            )
-
-            if success:
-                logger.info(
-                    "section_s3_write_completed",
-                    extra={
-                        "project_gid": project_gid,
-                        "section_gid": section_gid,
-                        "row_count": len(df),
-                        "via": "storage_protocol",
-                    },
-                )
-                await self.update_manifest_section_async(
-                    project_gid,
-                    section_gid,
-                    SectionStatus.COMPLETE,
-                    rows=len(df),
-                    watermark=watermark,
-                    gid_hash=gid_hash,
-                )
-            else:
-                logger.error(
-                    "section_s3_write_failed",
-                    extra={
-                        "project_gid": project_gid,
-                        "section_gid": section_gid,
-                        "via": "storage_protocol",
-                    },
-                )
-                await self.update_manifest_section_async(
-                    project_gid,
-                    section_gid,
-                    SectionStatus.FAILED,
-                    error="storage_write_failed",
-                )
-            return success
-
-        # Legacy path: use AsyncS3Client
-        assert self._s3_client is not None
-
-        # Serialize to parquet
-        buffer = io.BytesIO()
-        df.write_parquet(buffer)
-        buffer.seek(0)
-        parquet_bytes = buffer.read()
-
-        key = self._make_section_key(project_gid, section_gid)
-        result = await self._s3_client.put_object_async(
-            key=key,
-            body=parquet_bytes,
-            content_type="application/octet-stream",
+        success = await self._storage.save_section(
+            project_gid,
+            section_gid,
+            df,
             metadata={
                 "project-gid": project_gid,
                 "section-gid": section_gid,
@@ -686,21 +503,15 @@ class SectionPersistence:
             },
         )
 
-        if result.success:
+        if success:
             logger.info(
                 "section_s3_write_completed",
                 extra={
                     "project_gid": project_gid,
                     "section_gid": section_gid,
-                    "s3_key": key,
-                    "size_bytes": result.size_bytes,
-                    "write_time_ms": round(result.duration_ms, 2),
-                    "throughput_mbps": round(result.throughput_mbps, 2),
                     "row_count": len(df),
                 },
             )
-
-            # Update manifest
             await self.update_manifest_section_async(
                 project_gid,
                 section_gid,
@@ -715,19 +526,15 @@ class SectionPersistence:
                 extra={
                     "project_gid": project_gid,
                     "section_gid": section_gid,
-                    "error": result.error,
                 },
             )
-
-            # Mark as failed in manifest
             await self.update_manifest_section_async(
                 project_gid,
                 section_gid,
                 SectionStatus.FAILED,
-                error=result.error,
+                error="storage_write_failed",
             )
-
-        return result.success
+        return success
 
     async def read_section_async(
         self,
@@ -747,39 +554,7 @@ class SectionPersistence:
             logger.warning("polars not available, cannot read section")
             return None
 
-        # New path: delegate to DataFrameStorage
-        if self._storage is not None:
-            return await self._storage.load_section(project_gid, section_gid)
-
-        # Legacy path: use AsyncS3Client
-        assert self._s3_client is not None
-        key = self._make_section_key(project_gid, section_gid)
-        result = await self._s3_client.get_object_async(key)
-
-        if not result.success:
-            if result.not_found:
-                return None
-            logger.warning(
-                "section_read_failed",
-                project_gid=project_gid,
-                section_gid=section_gid,
-                error=result.error,
-            )
-            return None
-
-        try:
-            buffer = io.BytesIO(result.data)
-            df: pl.DataFrame = self._polars_module.read_parquet(buffer)
-            return df
-        except Exception as e:  # BROAD-CATCH: vendor-polymorphic
-            # polars deserialization can raise various internal errors
-            logger.error(
-                "section_parquet_parse_failed",
-                project_gid=project_gid,
-                section_gid=section_gid,
-                error=str(e),
-            )
-            return None
+        return await self._storage.load_section(project_gid, section_gid)
 
     async def read_all_sections_async(
         self,
@@ -893,109 +668,29 @@ class SectionPersistence:
             logger.warning("polars not available, cannot write final artifacts")
             return False
 
-        # New path: delegate to DataFrameStorage
-        if self._storage is not None:
-            # Ensure watermark is timezone-aware for save_dataframe
-            if watermark.tzinfo is None:
-                from datetime import timezone
-                watermark = watermark.replace(tzinfo=timezone.utc)
+        # Ensure watermark is timezone-aware for save_dataframe
+        if watermark.tzinfo is None:
+            from datetime import timezone
+            watermark = watermark.replace(tzinfo=timezone.utc)
 
-            df_ok = await self._storage.save_dataframe(
-                project_gid, df, watermark, entity_type=entity_type
-            )
-
-            idx_ok = True
-            if index_data is not None:
-                idx_ok = await self._storage.save_index(project_gid, index_data)
-
-            success = df_ok and idx_ok
-            if success:
-                logger.info(
-                    "final_artifacts_written",
-                    extra={
-                        "project_gid": project_gid,
-                        "row_count": len(df),
-                        "watermark": watermark.isoformat(),
-                        "index_written": index_data is not None,
-                        "entity_type": entity_type,
-                        "via": "storage_protocol",
-                    },
-                )
-            else:
-                logger.error(
-                    "final_artifacts_write_failed",
-                    extra={
-                        "project_gid": project_gid,
-                        "df_success": df_ok,
-                        "idx_success": idx_ok,
-                        "via": "storage_protocol",
-                    },
-                )
-            return success
-
-        # Legacy path: use AsyncS3Client
-        assert self._s3_client is not None
-        success = True
-
-        # 1. Write DataFrame
-        buffer = io.BytesIO()
-        df.write_parquet(buffer)
-        buffer.seek(0)
-        parquet_bytes = buffer.read()
-
-        df_key = self._make_dataframe_key(project_gid)
-        df_result = await self._s3_client.put_object_async(
-            key=df_key,
-            body=parquet_bytes,
-            content_type="application/octet-stream",
-            metadata={
-                "project-gid": project_gid,
-                "row-count": str(len(df)),
-                "watermark": watermark.isoformat(),
-            },
+        df_ok = await self._storage.save_dataframe(
+            project_gid, df, watermark, entity_type=entity_type
         )
-        success = success and df_result.success
 
-        # 2. Write watermark
-        watermark_data: dict[str, Any] = {
-            "project_gid": project_gid,
-            "watermark": watermark.isoformat(),
-            "row_count": len(df),
-            "columns": df.columns,
-            "saved_at": datetime.now(UTC).isoformat(),
-            "entity_type": entity_type,
-            "schema_version": _resolve_schema_version(entity_type),
-        }
-        wm_key = self._make_watermark_key(project_gid)
-        wm_result = await self._s3_client.put_object_async(
-            key=wm_key,
-            body=json.dumps(watermark_data).encode("utf-8"),
-            content_type="application/json",
-        )
-        success = success and wm_result.success
-
-        # 3. Write index if provided
+        idx_ok = True
         if index_data is not None:
-            idx_key = self._make_index_key(project_gid)
-            idx_result = await self._s3_client.put_object_async(
-                key=idx_key,
-                body=json.dumps(index_data).encode("utf-8"),
-                content_type="application/json",
-            )
-            success = success and idx_result.success
+            idx_ok = await self._storage.save_index(project_gid, index_data)
 
+        success = df_ok and idx_ok
         if success:
             logger.info(
                 "final_artifacts_written",
                 extra={
                     "project_gid": project_gid,
-                    "dataframe_key": df_key,
-                    "watermark_key": wm_key,
                     "row_count": len(df),
                     "watermark": watermark.isoformat(),
                     "index_written": index_data is not None,
                     "entity_type": entity_type,
-                    "schema_version": watermark_data.get("schema_version"),
                 },
             )
         else:
@@ -1003,11 +698,10 @@ class SectionPersistence:
                 "final_artifacts_write_failed",
                 extra={
                     "project_gid": project_gid,
-                    "df_success": df_result.success,
-                    "wm_success": wm_result.success,
+                    "df_success": df_ok,
+                    "idx_success": idx_ok,
                 },
             )
-
         return success
 
     # ========== Checkpoint Operations ==========
@@ -1041,50 +735,10 @@ class SectionPersistence:
             logger.warning("polars not available, cannot write checkpoint")
             return False
 
-        # New path: delegate to DataFrameStorage
-        if self._storage is not None:
-            success = await self._storage.save_section(
-                project_gid,
-                section_gid,
-                df,
-                metadata={
-                    "project-gid": project_gid,
-                    "section-gid": section_gid,
-                    "row-count": str(len(df)),
-                    "checkpoint": "true",
-                    "pages-fetched": str(pages_fetched),
-                },
-            )
-
-            if success:
-                await self.update_checkpoint_metadata_async(
-                    project_gid, section_gid, pages_fetched, rows_fetched
-                )
-            else:
-                logger.warning(
-                    "checkpoint_write_failed",
-                    extra={
-                        "project_gid": project_gid,
-                        "section_gid": section_gid,
-                        "via": "storage_protocol",
-                    },
-                )
-            return success
-
-        # Legacy path: use AsyncS3Client
-        assert self._s3_client is not None
-
-        # Serialize to parquet
-        buffer = io.BytesIO()
-        df.write_parquet(buffer)
-        buffer.seek(0)
-        parquet_bytes = buffer.read()
-
-        key = self._make_section_key(project_gid, section_gid)
-        result = await self._s3_client.put_object_async(
-            key=key,
-            body=parquet_bytes,
-            content_type="application/octet-stream",
+        success = await self._storage.save_section(
+            project_gid,
+            section_gid,
+            df,
             metadata={
                 "project-gid": project_gid,
                 "section-gid": section_gid,
@@ -1094,7 +748,7 @@ class SectionPersistence:
             },
         )
 
-        if result.success:
+        if success:
             await self.update_checkpoint_metadata_async(
                 project_gid, section_gid, pages_fetched, rows_fetched
             )
@@ -1104,11 +758,9 @@ class SectionPersistence:
                 extra={
                     "project_gid": project_gid,
                     "section_gid": section_gid,
-                    "error": result.error,
                 },
             )
-
-        return result.success
+        return success
 
     async def update_checkpoint_metadata_async(
         self,
@@ -1165,14 +817,8 @@ class SectionPersistence:
 
         success = True
         for section_gid in manifest.sections:
-            if self._storage is not None:
-                if not await self._storage.delete_section(project_gid, section_gid):
-                    success = False
-            else:
-                assert self._s3_client is not None
-                key = self._make_section_key(project_gid, section_gid)
-                if not await self._s3_client.delete_object_async(key):
-                    success = False
+            if not await self._storage.delete_section(project_gid, section_gid):
+                success = False
 
         logger.info(
             "section_files_deleted",
@@ -1196,9 +842,39 @@ class SectionPersistence:
         """
         self._manifest_cache.pop(project_gid, None)
         key = self._make_manifest_key(project_gid)
+        return await self._storage.delete_object(key)
 
-        if self._storage is not None:
-            return await self._storage.delete_object(key)
 
-        assert self._s3_client is not None
-        return await self._s3_client.delete_object_async(key)
+def create_section_persistence(
+    *,
+    storage: DataFrameStorage | None = None,
+    prefix: str = "dataframes/",
+) -> SectionPersistence:
+    """Factory to create a SectionPersistence with default S3DataFrameStorage.
+
+    Constructs an S3DataFrameStorage from application settings when no
+    storage is explicitly provided. This replaces the old pattern of
+    calling ``SectionPersistence()`` with no arguments.
+
+    Args:
+        storage: Optional DataFrameStorage instance. If None, creates
+            an S3DataFrameStorage from ``get_settings().s3``.
+        prefix: S3 key prefix (default "dataframes/").
+
+    Returns:
+        Configured SectionPersistence instance.
+    """
+    if storage is None:
+        from autom8_asana.config import S3LocationConfig
+        from autom8_asana.dataframes.storage import S3DataFrameStorage
+        from autom8_asana.settings import get_settings
+
+        s3_settings = get_settings().s3
+        location = S3LocationConfig(
+            bucket=s3_settings.bucket or "",
+            region=s3_settings.region,
+            endpoint_url=s3_settings.endpoint_url,
+        )
+        storage = S3DataFrameStorage(location=location)
+
+    return SectionPersistence(storage=storage, prefix=prefix)

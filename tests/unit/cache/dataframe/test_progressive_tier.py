@@ -1,21 +1,22 @@
 """Unit tests for ProgressiveTier.
 
 Per TDD-UNIFIED-PROGRESSIVE-CACHE-001: Tests for reading/writing via
-SectionPersistence storage location, key parsing, error handling,
+SectionPersistence storage delegation, key parsing, error handling,
 and statistics tracking.
+
+Refactored for I11: Uses DataFrameStorage protocol mocks instead of
+AsyncS3Client / S3ReadResult.
 """
 
-import io
 import json
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, PropertyMock
 
 import polars as pl
 import pytest
 
 from autom8_asana.cache.dataframe.tiers.progressive import ProgressiveTier
 from autom8_asana.cache.integration.dataframe_cache import CacheEntry
-from autom8_asana.dataframes.async_s3 import S3ReadResult
 
 
 def make_entry(project_gid: str = "proj-1") -> CacheEntry:
@@ -38,15 +39,6 @@ def make_entry(project_gid: str = "proj-1") -> CacheEntry:
     )
 
 
-def make_parquet_bytes(df: pl.DataFrame | None = None) -> bytes:
-    """Create parquet bytes from a DataFrame."""
-    if df is None:
-        df = pl.DataFrame({"gid": ["gid-1", "gid-2"], "name": ["A", "B"]})
-    buffer = io.BytesIO()
-    df.write_parquet(buffer)
-    return buffer.getvalue()
-
-
 def make_watermark_json(watermark: str = "2024-01-15T12:00:00+00:00") -> bytes:
     """Create watermark JSON bytes."""
     return json.dumps(
@@ -61,15 +53,26 @@ def make_watermark_json(watermark: str = "2024-01-15T12:00:00+00:00") -> bytes:
     ).encode("utf-8")
 
 
+def make_mock_storage() -> MagicMock:
+    """Create a mock DataFrameStorage with async methods."""
+    storage = MagicMock()
+    storage.is_available = True
+    storage.load_dataframe = AsyncMock(return_value=(None, None))
+    storage.save_dataframe = AsyncMock(return_value=True)
+    storage.load_json = AsyncMock(return_value=None)
+    storage.delete_dataframe = AsyncMock(return_value=True)
+    return storage
+
+
 def make_mock_persistence(
-    s3_client: AsyncMock | None = None,
+    storage: MagicMock | None = None,
     prefix: str = "dataframes/",
 ) -> MagicMock:
-    """Create a mock SectionPersistence with configured S3 client."""
+    """Create a mock SectionPersistence with configured storage."""
     persistence = MagicMock()
-    persistence._config = MagicMock()
-    persistence._config.prefix = prefix
-    persistence._s3_client = s3_client if s3_client else AsyncMock()
+    persistence._prefix = prefix
+    mock_storage = storage if storage else make_mock_storage()
+    type(persistence).storage = PropertyMock(return_value=mock_storage)
     persistence.write_final_artifacts_async = AsyncMock(return_value=True)
     return persistence
 
@@ -124,30 +127,16 @@ class TestProgressiveTierGet:
     """Tests for get_async method."""
 
     @pytest.mark.asyncio
-    async def test_get_async_reads_from_correct_location(self) -> None:
-        """Get reads dataframe.parquet from correct project directory."""
-        s3_client = AsyncMock()
+    async def test_get_async_reads_from_storage(self) -> None:
+        """Get reads DataFrame and watermark via DataFrameStorage."""
+        df = pl.DataFrame({"gid": ["gid-1", "gid-2"], "name": ["A", "B"]})
+        watermark = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
 
-        # Mock successful DataFrame read
-        parquet_bytes = make_parquet_bytes()
-        s3_client.get_object_async.side_effect = [
-            # First call: dataframe.parquet
-            S3ReadResult(
-                success=True,
-                key="dataframes/proj-123/dataframe.parquet",
-                data=parquet_bytes,
-                size_bytes=len(parquet_bytes),
-            ),
-            # Second call: watermark.json
-            S3ReadResult(
-                success=True,
-                key="dataframes/proj-123/watermark.json",
-                data=make_watermark_json(),
-                size_bytes=100,
-            ),
-        ]
+        storage = make_mock_storage()
+        storage.load_dataframe = AsyncMock(return_value=(df, watermark))
+        storage.load_json = AsyncMock(return_value=make_watermark_json())
 
-        persistence = make_mock_persistence(s3_client=s3_client)
+        persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
 
         result = await tier.get_async("unit:proj-123")
@@ -156,24 +145,15 @@ class TestProgressiveTierGet:
         assert result.project_gid == "proj-123"
         assert result.entity_type == "unit"
         assert result.row_count == 2
-
-        # Verify correct S3 key was used
-        calls = s3_client.get_object_async.call_args_list
-        assert calls[0][0][0] == "dataframes/proj-123/dataframe.parquet"
-        assert calls[1][0][0] == "dataframes/proj-123/watermark.json"
+        storage.load_dataframe.assert_called_once_with("proj-123")
 
     @pytest.mark.asyncio
     async def test_get_async_returns_none_on_missing(self) -> None:
-        """Get returns None when dataframe.parquet doesn't exist."""
-        s3_client = AsyncMock()
-        s3_client.get_object_async.return_value = S3ReadResult(
-            success=False,
-            key="dataframes/proj-123/dataframe.parquet",
-            not_found=True,
-            error="Object not found",
-        )
+        """Get returns None when DataFrame doesn't exist."""
+        storage = make_mock_storage()
+        storage.load_dataframe = AsyncMock(return_value=(None, None))
 
-        persistence = make_mock_persistence(s3_client=s3_client)
+        persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
 
         result = await tier.get_async("unit:proj-123")
@@ -186,28 +166,13 @@ class TestProgressiveTierGet:
 
     @pytest.mark.asyncio
     async def test_get_async_handles_missing_watermark(self) -> None:
-        """Get uses fallback watermark when watermark.json is missing."""
-        s3_client = AsyncMock()
-        parquet_bytes = make_parquet_bytes()
+        """Get uses fallback watermark when watermark is None."""
+        df = pl.DataFrame({"gid": ["gid-1", "gid-2"], "name": ["A", "B"]})
 
-        s3_client.get_object_async.side_effect = [
-            # DataFrame read succeeds
-            S3ReadResult(
-                success=True,
-                key="dataframes/proj-123/dataframe.parquet",
-                data=parquet_bytes,
-                size_bytes=len(parquet_bytes),
-            ),
-            # Watermark read fails (not found)
-            S3ReadResult(
-                success=False,
-                key="dataframes/proj-123/watermark.json",
-                not_found=True,
-                error="Object not found",
-            ),
-        ]
+        storage = make_mock_storage()
+        storage.load_dataframe = AsyncMock(return_value=(df, None))
 
-        persistence = make_mock_persistence(s3_client=s3_client)
+        persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
 
         result = await tier.get_async("unit:proj-123")
@@ -219,37 +184,12 @@ class TestProgressiveTierGet:
         assert result.schema_version == "unknown"
 
     @pytest.mark.asyncio
-    async def test_get_async_handles_corrupted_parquet(self) -> None:
-        """Get returns None when parquet parsing fails."""
-        s3_client = AsyncMock()
-        s3_client.get_object_async.return_value = S3ReadResult(
-            success=True,
-            key="dataframes/proj-123/dataframe.parquet",
-            data=b"not valid parquet data",
-            size_bytes=22,
-        )
+    async def test_get_async_handles_storage_error(self) -> None:
+        """Get returns None on storage read error."""
+        storage = make_mock_storage()
+        storage.load_dataframe = AsyncMock(side_effect=ConnectionError("S3 timeout"))
 
-        persistence = make_mock_persistence(s3_client=s3_client)
-        tier = ProgressiveTier(persistence=persistence)
-
-        result = await tier.get_async("unit:proj-123")
-
-        assert result is None
-
-        stats = tier.get_stats()
-        assert stats["read_errors"] == 1
-
-    @pytest.mark.asyncio
-    async def test_get_async_handles_s3_error(self) -> None:
-        """Get returns None on S3 read error."""
-        s3_client = AsyncMock()
-        s3_client.get_object_async.return_value = S3ReadResult(
-            success=False,
-            key="dataframes/proj-123/dataframe.parquet",
-            error="Connection timeout",
-        )
-
-        persistence = make_mock_persistence(s3_client=s3_client)
+        persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
 
         result = await tier.get_async("unit:proj-123")
@@ -318,7 +258,9 @@ class TestProgressiveTierPut:
     async def test_put_async_handles_exception(self) -> None:
         """Put returns False on exception."""
         persistence = make_mock_persistence()
-        persistence.write_final_artifacts_async.side_effect = ConnectionError("S3 error")
+        persistence.write_final_artifacts_async.side_effect = ConnectionError(
+            "S3 error"
+        )
 
         tier = ProgressiveTier(persistence=persistence)
 
@@ -349,31 +291,28 @@ class TestProgressiveTierExists:
     """Tests for exists_async method."""
 
     @pytest.mark.asyncio
-    async def test_exists_async_checks_dataframe_file(self) -> None:
-        """Exists checks for dataframe.parquet presence."""
-        s3_client = AsyncMock()
-        s3_client.head_object_async.return_value = {
-            "content_length": 1234,
-            "etag": "abc123",
-        }
+    async def test_exists_async_returns_true_when_found(self) -> None:
+        """Exists returns True when DataFrame exists."""
+        df = pl.DataFrame({"gid": ["gid-1"], "name": ["A"]})
+        storage = make_mock_storage()
+        storage.load_dataframe = AsyncMock(
+            return_value=(df, datetime.now(UTC))
+        )
 
-        persistence = make_mock_persistence(s3_client=s3_client)
+        persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
 
         result = await tier.exists_async("unit:proj-123")
 
         assert result is True
-        s3_client.head_object_async.assert_called_once_with(
-            "dataframes/proj-123/dataframe.parquet"
-        )
 
     @pytest.mark.asyncio
     async def test_exists_async_returns_false_when_missing(self) -> None:
         """Exists returns False when file doesn't exist."""
-        s3_client = AsyncMock()
-        s3_client.head_object_async.return_value = None
+        storage = make_mock_storage()
+        storage.load_dataframe = AsyncMock(return_value=(None, None))
 
-        persistence = make_mock_persistence(s3_client=s3_client)
+        persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
 
         result = await tier.exists_async("unit:proj-123")
@@ -395,31 +334,26 @@ class TestProgressiveTierDelete:
     """Tests for delete_async method."""
 
     @pytest.mark.asyncio
-    async def test_delete_async_removes_artifacts(self) -> None:
-        """Delete removes dataframe and watermark files."""
-        s3_client = AsyncMock()
-        s3_client.delete_object_async.return_value = True
+    async def test_delete_async_delegates_to_storage(self) -> None:
+        """Delete calls storage.delete_dataframe."""
+        storage = make_mock_storage()
+        storage.delete_dataframe = AsyncMock(return_value=True)
 
-        persistence = make_mock_persistence(s3_client=s3_client)
+        persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
 
         result = await tier.delete_async("unit:proj-123")
 
         assert result is True
-
-        # Should delete both dataframe and watermark
-        calls = s3_client.delete_object_async.call_args_list
-        assert len(calls) == 2
-        assert calls[0][0][0] == "dataframes/proj-123/dataframe.parquet"
-        assert calls[1][0][0] == "dataframes/proj-123/watermark.json"
+        storage.delete_dataframe.assert_called_once_with("proj-123")
 
     @pytest.mark.asyncio
-    async def test_delete_async_returns_false_on_partial_failure(self) -> None:
-        """Delete returns False if any deletion fails."""
-        s3_client = AsyncMock()
-        s3_client.delete_object_async.side_effect = [True, False]
+    async def test_delete_async_returns_false_on_failure(self) -> None:
+        """Delete returns False if storage deletion fails."""
+        storage = make_mock_storage()
+        storage.delete_dataframe = AsyncMock(return_value=False)
 
-        persistence = make_mock_persistence(s3_client=s3_client)
+        persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
 
         result = await tier.delete_async("unit:proj-123")
@@ -458,26 +392,14 @@ class TestProgressiveTierStats:
     @pytest.mark.asyncio
     async def test_stats_tracking(self) -> None:
         """Stats correctly track reads, writes, errors."""
-        s3_client = AsyncMock()
-        parquet_bytes = make_parquet_bytes()
+        df = pl.DataFrame({"gid": ["gid-1", "gid-2"], "name": ["A", "B"]})
+        watermark = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
 
-        # Set up successful read
-        s3_client.get_object_async.side_effect = [
-            S3ReadResult(
-                success=True,
-                key="dataframes/proj-1/dataframe.parquet",
-                data=parquet_bytes,
-                size_bytes=len(parquet_bytes),
-            ),
-            S3ReadResult(
-                success=True,
-                key="dataframes/proj-1/watermark.json",
-                data=make_watermark_json(),
-                size_bytes=100,
-            ),
-        ]
+        storage = make_mock_storage()
+        storage.load_dataframe = AsyncMock(return_value=(df, watermark))
+        storage.load_json = AsyncMock(return_value=make_watermark_json())
 
-        persistence = make_mock_persistence(s3_client=s3_client)
+        persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
 
         # Perform read
@@ -485,7 +407,7 @@ class TestProgressiveTierStats:
 
         stats = tier.get_stats()
         assert stats["reads"] == 1
-        assert stats["bytes_read"] == len(parquet_bytes)
+        assert stats["bytes_read"] > 0
 
         # Perform write
         entry = make_entry()

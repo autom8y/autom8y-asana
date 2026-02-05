@@ -114,7 +114,7 @@ class TestPreloadDataframeCacheFunction:
         mock_app.state.entity_project_registry = mock_entity_registry
 
         with patch(
-            "autom8_asana.dataframes.persistence.DataFramePersistence"
+            "autom8_asana.dataframes.storage.S3DataFrameStorage"
         ) as mock_persistence_class:
             mock_persistence = MagicMock()
             mock_persistence.is_available = False
@@ -143,7 +143,7 @@ class TestPreloadDataframeCacheFunction:
         watermark = datetime.now(UTC)
 
         with patch(
-            "autom8_asana.dataframes.persistence.DataFramePersistence"
+            "autom8_asana.dataframes.storage.S3DataFrameStorage"
         ) as mock_persistence_class:
             mock_persistence = MagicMock()
             mock_persistence.is_available = True
@@ -193,7 +193,7 @@ class TestPreloadDataframeCacheFunction:
         mock_app.state.entity_project_registry = mock_entity_registry
 
         with patch(
-            "autom8_asana.dataframes.persistence.DataFramePersistence"
+            "autom8_asana.dataframes.storage.S3DataFrameStorage"
         ) as mock_persistence_class:
             mock_persistence = MagicMock()
             mock_persistence.is_available = True
@@ -354,7 +354,7 @@ class TestGracefulDegradation:
         mock_app.state.entity_project_registry = mock_entity_registry
 
         with patch(
-            "autom8_asana.dataframes.persistence.DataFramePersistence"
+            "autom8_asana.dataframes.storage.S3DataFrameStorage"
         ) as mock_persistence_class:
             mock_persistence = MagicMock()
             mock_persistence.is_available = True
@@ -425,7 +425,7 @@ class TestCacheIntegration:
         watermark = datetime.now(UTC)
 
         with patch(
-            "autom8_asana.dataframes.persistence.DataFramePersistence"
+            "autom8_asana.dataframes.storage.S3DataFrameStorage"
         ) as mock_persistence_class:
             mock_persistence = MagicMock()
             mock_persistence.is_available = True
@@ -483,7 +483,7 @@ class TestCacheIntegration:
         )
 
         with patch(
-            "autom8_asana.dataframes.persistence.DataFramePersistence"
+            "autom8_asana.dataframes.storage.S3DataFrameStorage"
         ) as mock_persistence_class:
             mock_persistence = MagicMock()
             mock_persistence.is_available = True
