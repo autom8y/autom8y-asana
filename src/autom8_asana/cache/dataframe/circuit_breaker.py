@@ -10,8 +10,8 @@ States:
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from enum import Enum
 
 from autom8y_log import get_logger
@@ -33,8 +33,8 @@ class ProjectCircuit:
 
     state: CircuitState = CircuitState.CLOSED
     failure_count: int = 0
-    last_failure: datetime | None = None
-    last_success: datetime | None = None
+    last_failure: float | None = None  # time.monotonic() timestamp
+    last_success: float | None = None  # time.monotonic() timestamp
 
 
 @dataclass
@@ -121,8 +121,8 @@ class CircuitBreaker:
 
         # OPEN state - check if reset timeout elapsed
         if circuit.last_failure is not None:
-            elapsed = datetime.now(UTC) - circuit.last_failure
-            if elapsed.total_seconds() >= self.reset_timeout_seconds:
+            elapsed = time.monotonic() - circuit.last_failure
+            if elapsed >= self.reset_timeout_seconds:
                 # Transition to half-open
                 circuit.state = CircuitState.HALF_OPEN
                 logger.info(
@@ -150,7 +150,7 @@ class CircuitBreaker:
 
         circuit = self._circuits[project_gid]
         circuit.failure_count += 1
-        circuit.last_failure = datetime.now(UTC)
+        circuit.last_failure = time.monotonic()
 
         # Check if should open circuit
         if (
@@ -189,7 +189,7 @@ class CircuitBreaker:
             return
 
         circuit = self._circuits[project_gid]
-        circuit.last_success = datetime.now(UTC)
+        circuit.last_success = time.monotonic()
 
         if circuit.state == CircuitState.HALF_OPEN:
             circuit.state = CircuitState.CLOSED
