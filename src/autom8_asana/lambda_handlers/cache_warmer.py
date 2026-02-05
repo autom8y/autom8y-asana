@@ -232,7 +232,9 @@ def _emit_metric(
                 }
             ],
         )
-    except Exception as e:  # BROAD-CATCH: metrics -- CloudWatch metric emission must not fail the warm
+    except (
+        Exception
+    ) as e:  # BROAD-CATCH: metrics -- CloudWatch metric emission must not fail the warm
         logger.warning(
             "metric_emit_error",
             extra={
@@ -368,7 +370,9 @@ async def _warm_cache_async(
             from autom8_asana.services.discovery import discover_entity_projects_async
 
             await discover_entity_projects_async()
-        except Exception as e:  # BROAD-CATCH: isolation -- discovery failure should not block warming
+        except (
+            Exception
+        ) as e:  # BROAD-CATCH: isolation -- discovery failure should not block warming
             logger.warning(
                 "cache_warmer_discovery_failed",
                 extra={"error": str(e), "invocation_id": invocation_id},
@@ -390,6 +394,7 @@ async def _warm_cache_async(
         "contact",
         "asset_edit",
         "asset_edit_holder",
+        "unit_holder",
     ]
     if entity_types:
         # Validate entity types

@@ -164,15 +164,32 @@ class TestProgressiveTierGet:
         assert stats["reads"] == 1
 
     @pytest.mark.asyncio
-    async def test_get_async_handles_missing_watermark(self) -> None:
-        """Get uses fallback watermark when watermark is None."""
+    async def test_get_async_handles_missing_watermark(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Get uses fallback watermark and SchemaRegistry when watermark is None."""
         df = pl.DataFrame({"gid": ["gid-1", "gid-2"], "name": ["A", "B"]})
 
         storage = make_mock_storage()
         storage.load_dataframe = AsyncMock(return_value=(df, None))
+        # load_json returns None → watermark.json missing → falls back to registry
+        storage.load_json = AsyncMock(return_value=None)
 
         persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
+
+        # Mock SchemaRegistry to return a known version
+        monkeypatch.setattr(
+            "autom8_asana.cache.dataframe.tiers.progressive.get_schema_version",
+            lambda entity_type: "1.1.0",
+            raising=False,
+        )
+        # The import happens inside the function, so we patch the module-level import target
+        import autom8_asana.core.schema
+
+        monkeypatch.setattr(
+            autom8_asana.core.schema, "get_schema_version", lambda entity_type: "1.1.0"
+        )
 
         result = await tier.get_async("unit:proj-123")
 
@@ -180,7 +197,37 @@ class TestProgressiveTierGet:
         assert result.project_gid == "proj-123"
         # Watermark should be recent (fallback to current time)
         assert result.watermark.tzinfo is not None
-        assert result.schema_version == "unknown"
+        # Schema version should come from registry, NOT "unknown"
+        assert result.schema_version == "1.1.0"
+
+    @pytest.mark.asyncio
+    async def test_get_async_watermark_json_failure_uses_registry(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When watermark.json load raises, schema_version falls back to SchemaRegistry."""
+        df = pl.DataFrame({"gid": ["gid-1", "gid-2"], "name": ["A", "B"]})
+        watermark = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
+
+        storage = make_mock_storage()
+        storage.load_dataframe = AsyncMock(return_value=(df, watermark))
+        # load_json raises → watermark metadata unavailable
+        storage.load_json = AsyncMock(side_effect=ConnectionError("S3 timeout"))
+
+        persistence = make_mock_persistence(storage=storage)
+        tier = ProgressiveTier(persistence=persistence)
+
+        # Mock SchemaRegistry
+        import autom8_asana.core.schema
+
+        monkeypatch.setattr(
+            autom8_asana.core.schema, "get_schema_version", lambda entity_type: "1.1.0"
+        )
+
+        result = await tier.get_async("unit:proj-123")
+
+        assert result is not None
+        assert result.schema_version == "1.1.0"
+        assert result.watermark == watermark
 
     @pytest.mark.asyncio
     async def test_get_async_handles_storage_error(self) -> None:
@@ -294,9 +341,7 @@ class TestProgressiveTierExists:
         """Exists returns True when DataFrame exists."""
         df = pl.DataFrame({"gid": ["gid-1"], "name": ["A"]})
         storage = make_mock_storage()
-        storage.load_dataframe = AsyncMock(
-            return_value=(df, datetime.now(UTC))
-        )
+        storage.load_dataframe = AsyncMock(return_value=(df, datetime.now(UTC)))
 
         persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
