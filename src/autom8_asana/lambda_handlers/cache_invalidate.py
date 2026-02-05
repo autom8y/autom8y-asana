@@ -31,12 +31,11 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from autom8y_log import get_logger
 
-if TYPE_CHECKING:
-    pass
+from autom8_asana.lambda_handlers.cloudwatch import emit_metric
 
 logger = get_logger(__name__)
 
@@ -119,6 +118,23 @@ async def _invalidate_cache_async(
             # Clear task cache
             tasks_cleared = cache.clear_all_tasks()
 
+            # Emit CloudWatch metrics for task cache invalidation
+            emit_metric(
+                "InvalidateSuccess",
+                1,
+                dimensions={"type": "tasks"},
+            )
+            emit_metric(
+                "KeysCleared",
+                tasks_cleared["redis"],
+                dimensions={"tier": "redis"},
+            )
+            emit_metric(
+                "KeysCleared",
+                tasks_cleared["s3"],
+                dimensions={"tier": "s3"},
+            )
+
         if clear_dataframes:
             # Clear dataframe cache if requested
             from autom8_asana.cache.dataframe.factory import get_dataframe_cache
@@ -129,7 +145,20 @@ async def _invalidate_cache_async(
                 df_cache.invalidate_on_schema_change(f"invalidate-{invocation_id}")
                 dataframes_cleared = 1  # Approximate - entire memory tier cleared
 
+                emit_metric(
+                    "InvalidateSuccess",
+                    1,
+                    dimensions={"type": "dataframes"},
+                )
+
         duration_ms = (time.monotonic() - start_time) * 1000
+
+        # Emit total invalidation duration
+        emit_metric(
+            "InvalidateDuration",
+            duration_ms,
+            unit="Milliseconds",
+        )
 
         message = f"Cache invalidation complete: {tasks_cleared['redis']} Redis keys, {tasks_cleared['s3']} S3 objects cleared"
 
@@ -154,6 +183,8 @@ async def _invalidate_cache_async(
 
     except Exception as e:  # BROAD-CATCH: boundary -- async function top-level catch, returns error response
         duration_ms = (time.monotonic() - start_time) * 1000
+        emit_metric("InvalidateFailure", 1)
+        emit_metric("InvalidateDuration", duration_ms, unit="Milliseconds")
         logger.error(
             "cache_invalidate_failed",
             extra={

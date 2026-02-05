@@ -55,12 +55,13 @@ class EnvAuthProvider:
         # Check Pydantic Settings first for known keys
         settings = get_settings()
         if key == "ASANA_PAT" and settings.asana.pat:
+            pat_value = settings.asana.pat.get_secret_value()
             # Validate that the value isn't just whitespace
-            if not settings.asana.pat.strip():
+            if not pat_value.strip():
                 raise AuthenticationError(
                     f"Environment variable '{key}' is empty. Provide a valid token value."
                 )
-            return settings.asana.pat
+            return pat_value
         if key == "ASANA_WORKSPACE_GID" and settings.asana.workspace_gid:
             # Validate that the value isn't just whitespace
             if not settings.asana.workspace_gid.strip():

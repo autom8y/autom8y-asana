@@ -6,11 +6,12 @@ All thresholds configurable via SEEDER_* environment variables.
 
 from __future__ import annotations
 
+from autom8y_config import Autom8yBaseSettings
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 
 
-class MatchingConfig(BaseSettings):
+class MatchingConfig(Autom8yBaseSettings):
     """Configuration for composite matching engine.
 
     All thresholds configurable via SEEDER_* environment variables.
