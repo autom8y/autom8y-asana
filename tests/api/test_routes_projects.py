@@ -552,7 +552,9 @@ class TestUpdateProject:
         )
 
         assert response.status_code == 400
-        assert "at least one field" in response.json()["detail"].lower()
+        detail = response.json()["detail"]
+        assert detail["error"] == "INVALID_PARAMETER"
+        assert "at least one field" in detail["message"].lower()
 
     def test_update_project_empty_name_returns_422(
         self, authed_client: tuple[TestClient, MagicMock]

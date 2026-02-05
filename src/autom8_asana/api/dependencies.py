@@ -280,14 +280,14 @@ async def get_asana_pat(
     if authorization is None:
         raise HTTPException(
             status_code=401,
-            detail="Authorization header required",
+            detail={"error": "MISSING_AUTH", "message": "Authorization header required"},
             headers={"WWW-Authenticate": "Bearer"},
         )
 
     if not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=401,
-            detail="Invalid authorization scheme. Use: Bearer <token>",
+            detail={"error": "INVALID_SCHEME", "message": "Invalid authorization scheme. Use: Bearer <token>"},
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -296,14 +296,14 @@ async def get_asana_pat(
     if not token:
         raise HTTPException(
             status_code=401,
-            detail="Token is required",
+            detail={"error": "MISSING_TOKEN", "message": "Token is required"},
             headers={"WWW-Authenticate": "Bearer"},
         )
 
     if len(token) < 10:
         raise HTTPException(
             status_code=401,
-            detail="Invalid token format",
+            detail={"error": "INVALID_TOKEN", "message": "Invalid token format"},
             headers={"WWW-Authenticate": "Bearer"},
         )
 
