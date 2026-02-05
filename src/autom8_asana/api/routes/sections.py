@@ -60,7 +60,12 @@ async def get_section(
     Returns:
         Section data.
     """
-    section = await section_service.get_section(client, gid)
+    try:
+        section = await section_service.get_section(client, gid)
+    except ServiceError as e:
+        raise HTTPException(
+            status_code=get_status_for_error(e), detail=e.message
+        )
     return build_success_response(data=section, request_id=request_id)
 
 
@@ -85,9 +90,14 @@ async def create_section(
     Returns:
         Created section data.
     """
-    section = await section_service.create_section(
-        client, name=body.name, project=body.project
-    )
+    try:
+        section = await section_service.create_section(
+            client, name=body.name, project=body.project
+        )
+    except ServiceError as e:
+        raise HTTPException(
+            status_code=get_status_for_error(e), detail=e.message
+        )
     return build_success_response(data=section, request_id=request_id)
 
 
@@ -113,7 +123,12 @@ async def update_section(
     Returns:
         Updated section data.
     """
-    section = await section_service.update_section(client, gid, body.name)
+    try:
+        section = await section_service.update_section(client, gid, body.name)
+    except ServiceError as e:
+        raise HTTPException(
+            status_code=get_status_for_error(e), detail=e.message
+        )
     return build_success_response(data=section, request_id=request_id)
 
 
@@ -136,7 +151,12 @@ async def delete_section(
     Returns:
         No content on success.
     """
-    await section_service.delete_section(client, gid)
+    try:
+        await section_service.delete_section(client, gid)
+    except ServiceError as e:
+        raise HTTPException(
+            status_code=get_status_for_error(e), detail=e.message
+        )
 
 
 # --- Task Operations ---
@@ -163,7 +183,12 @@ async def add_task_to_section(
     Returns:
         No content on success.
     """
-    await section_service.add_task(client, gid, body.task_gid)
+    try:
+        await section_service.add_task(client, gid, body.task_gid)
+    except ServiceError as e:
+        raise HTTPException(
+            status_code=get_status_for_error(e), detail=e.message
+        )
 
 
 # --- Reorder Operations ---
