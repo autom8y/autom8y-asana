@@ -16,6 +16,21 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 from autom8y_log import get_logger
 
+try:
+    from autom8_asana.api.metrics import (
+        record_build_duration,
+        record_cache_op,
+        record_rows_cached,
+        record_swr_refresh,
+    )
+    _HAS_METRICS = True
+except ImportError:
+    # Catches: prometheus_client not installed (Lambda), or circular import when
+    # dataframe_cache is imported before api.__init__ finishes (standalone SDK).
+    # In the ECS FastAPI path, create_app() imports api.metrics first, so this
+    # import succeeds and _HAS_METRICS is True by the time requests arrive.
+    _HAS_METRICS = False
+
 if TYPE_CHECKING:
     from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker
     from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
@@ -297,6 +312,8 @@ class DataFrameCache:
                 return result
 
         self._stats[entity_type]["memory_misses"] += 1
+        if _HAS_METRICS:
+            record_cache_op(entity_type, "memory", "miss")
 
         # Try progressive tier (S3 via SectionPersistence)
         entry = await self.progressive_tier.get_async(cache_key)
@@ -311,6 +328,8 @@ class DataFrameCache:
                 return result
 
         self._stats[entity_type]["s3_misses"] += 1
+        if _HAS_METRICS:
+            record_cache_op(entity_type, "s3", "miss")
         return None
 
     async def _get_circuit_lkg(
@@ -417,6 +436,8 @@ class DataFrameCache:
 
         if status == FreshnessStatus.FRESH:
             self._stats[entity_type][f"{tier}_hits"] += 1
+            if _HAS_METRICS:
+                record_cache_op(entity_type, tier, "hit")
             logger.debug(
                 f"dataframe_cache_{tier}_hit",
                 extra={
@@ -431,6 +452,8 @@ class DataFrameCache:
         if status == FreshnessStatus.STALE_SERVABLE:
             assert info is not None  # Guaranteed by status check above
             self._stats[entity_type][f"{tier}_hits"] += 1
+            if _HAS_METRICS:
+                record_cache_op(entity_type, tier, "hit")
             self._stats[entity_type]["swr_serves"] += 1
             logger.info(
                 f"dataframe_cache_{tier}_swr_serve",
@@ -470,6 +493,8 @@ class DataFrameCache:
 
             # LKG: Serve expired entry with warning, trigger refresh
             self._stats[entity_type][f"{tier}_hits"] += 1
+            if _HAS_METRICS:
+                record_cache_op(entity_type, tier, "hit")
             self._stats[entity_type]["lkg_serves"] += 1
             logger.warning(
                 f"dataframe_cache_{tier}_lkg_serve",
@@ -562,6 +587,10 @@ class DataFrameCache:
 
         # Clear circuit breaker on successful write
         self.circuit_breaker.close(project_gid)
+
+        # Record Prometheus metrics for cache write
+        if _HAS_METRICS:
+            record_rows_cached(entity_type, entry.row_count)
 
         logger.info(
             "dataframe_cache_put",
@@ -925,8 +954,12 @@ class DataFrameCache:
                 "swr_refresh_failed",
                 extra={"project_gid": project_gid, "entity_type": entity_type},
             )
+            if _HAS_METRICS:
+                record_swr_refresh(entity_type, "failure")
             await self.release_build_lock_async(project_gid, entity_type, success=False)
         else:
+            if _HAS_METRICS:
+                record_swr_refresh(entity_type, "success")
             await self.release_build_lock_async(project_gid, entity_type, success=True)
 
 

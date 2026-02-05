@@ -28,11 +28,12 @@ Per TDD-S2S-001:
 
 from functools import lru_cache
 
+from autom8y_config import Autom8yBaseSettings
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 
 
-class ApiSettings(BaseSettings):
+class ApiSettings(Autom8yBaseSettings):
     """API configuration settings.
 
     All settings are loaded from environment variables with ASANA_API_ prefix.

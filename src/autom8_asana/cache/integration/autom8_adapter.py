@@ -141,7 +141,9 @@ def create_autom8_cache_provider(
         )
 
     port = redis_port if redis_port is not None else redis_settings.port
-    password = redis_password if redis_password is not None else redis_settings.password
+    password = redis_password if redis_password is not None else (
+        redis_settings.password.get_secret_value() if redis_settings.password else None
+    )
     ssl = redis_ssl if redis_ssl is not None else redis_settings.ssl
 
     config = RedisConfig(

@@ -39,12 +39,11 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from autom8y_log import get_logger
 
-if TYPE_CHECKING:
-    pass
+from autom8_asana.lambda_handlers.cloudwatch import emit_metric
 
 logger = get_logger(__name__)
 
@@ -80,15 +79,6 @@ def _ensure_bootstrap() -> None:
 
 # Timeout buffer: exit 2 minutes before Lambda timeout (per PRD FR-001)
 TIMEOUT_BUFFER_MS = 120_000
-
-# CloudWatch namespace for cache warmer metrics
-CLOUDWATCH_NAMESPACE = os.environ.get("CLOUDWATCH_NAMESPACE", "autom8/cache-warmer")
-
-# Environment for metric dimensions
-ENVIRONMENT = os.environ.get("ENVIRONMENT", "staging")
-
-# Lazy-initialized CloudWatch client
-_cloudwatch_client: Any = None
 
 
 @dataclass
@@ -167,84 +157,6 @@ def _should_exit_early(context: Any) -> bool:
         return False
 
 
-# ============================================================================
-# CloudWatch Metric Emission (per TDD-lambda-cache-warmer Section 5.2)
-# ============================================================================
-
-
-def _get_cloudwatch_client() -> Any:
-    """Lazily initialize CloudWatch client.
-
-    Uses module-level caching to avoid repeated client creation.
-
-    Returns:
-        boto3 CloudWatch client.
-    """
-    global _cloudwatch_client
-    if _cloudwatch_client is None:
-        import boto3
-
-        _cloudwatch_client = boto3.client("cloudwatch")
-    return _cloudwatch_client
-
-
-def _emit_metric(
-    metric_name: str,
-    value: float,
-    unit: str = "Count",
-    dimensions: dict[str, str] | None = None,
-) -> None:
-    """Emit CloudWatch metric with graceful degradation.
-
-    Per TDD-lambda-cache-warmer Section 5.2: Emits metrics to the
-    CLOUDWATCH_NAMESPACE with environment dimension always included.
-
-    Args:
-        metric_name: Name of the metric (e.g., "WarmSuccess", "WarmDuration").
-        value: Metric value.
-        unit: CloudWatch unit (Count, Milliseconds, etc.).
-        dimensions: Optional additional dimensions (e.g., {"entity_type": "unit"}).
-
-    Note:
-        Failures are logged as warnings but do not raise exceptions.
-        Per ADR-0064: CloudWatch errors should not block warming.
-    """
-    client = _get_cloudwatch_client()
-
-    # Build dimensions list with environment always first
-    metric_dimensions = [
-        {"Name": "environment", "Value": ENVIRONMENT},
-    ]
-
-    if dimensions:
-        for dim_name, dim_value in dimensions.items():
-            metric_dimensions.append({"Name": dim_name, "Value": dim_value})
-
-    try:
-        client.put_metric_data(
-            Namespace=CLOUDWATCH_NAMESPACE,
-            MetricData=[
-                {
-                    "MetricName": metric_name,
-                    "Value": value,
-                    "Unit": unit,
-                    "Dimensions": metric_dimensions,
-                }
-            ],
-        )
-    except (
-        Exception
-    ) as e:  # BROAD-CATCH: metrics -- CloudWatch metric emission must not fail the warm
-        logger.warning(
-            "metric_emit_error",
-            extra={
-                "metric": metric_name,
-                "error": str(e),
-                "error_type": type(e).__name__,
-            },
-        )
-
-
 def _self_invoke_continuation(
     context: Any,
     pending_entities: list[str],
@@ -291,7 +203,7 @@ def _self_invoke_continuation(
                 "parent_invocation_id": parent_invocation_id,
             },
         )
-        _emit_metric("SelfContinuationInvoked", 1)
+        emit_metric("SelfContinuationInvoked", 1)
     except Exception as e:  # BROAD-CATCH: isolation -- self-invoke failure must not fail current invocation
         logger.error(
             "self_invoke_failed",
@@ -435,7 +347,7 @@ async def _warm_cache_async(
             )
 
             # Emit checkpoint resumed metric
-            _emit_metric("CheckpointResumed", 1)
+            emit_metric("CheckpointResumed", 1)
 
     # Get Asana client credentials
     try:
@@ -502,7 +414,7 @@ async def _warm_cache_async(
                         pending_entities=pending,
                         entity_results=entity_results,
                     )
-                    _emit_metric("CheckpointSaved", 1)
+                    emit_metric("CheckpointSaved", 1)
 
                     # Self-invoke with remaining entities
                     _self_invoke_continuation(context, pending, invocation_id)
@@ -553,18 +465,18 @@ async def _warm_cache_async(
                             )
 
                         # Emit success metrics
-                        _emit_metric(
+                        emit_metric(
                             "WarmSuccess",
                             1,
                             dimensions={"entity_type": entity_type},
                         )
-                        _emit_metric(
+                        emit_metric(
                             "WarmDuration",
                             entity_duration_ms,
                             unit="Milliseconds",
                             dimensions={"entity_type": entity_type},
                         )
-                        _emit_metric(
+                        emit_metric(
                             "RowsWarmed",
                             status.row_count,
                             dimensions={"entity_type": entity_type},
@@ -581,7 +493,7 @@ async def _warm_cache_async(
                         )
                     else:
                         # Failure for this entity
-                        _emit_metric(
+                        emit_metric(
                             "WarmFailure",
                             1,
                             dimensions={"entity_type": entity_type},
@@ -609,7 +521,7 @@ async def _warm_cache_async(
                                 pending_entities=pending,
                                 entity_results=entity_results,
                             )
-                            _emit_metric("CheckpointSaved", 1)
+                            emit_metric("CheckpointSaved", 1)
 
                             return WarmResponse(
                                 success=False,
@@ -633,7 +545,7 @@ async def _warm_cache_async(
                             pending_entities=pending,
                             entity_results=entity_results,
                         )
-                        _emit_metric("CheckpointSaved", 1)
+                        emit_metric("CheckpointSaved", 1)
 
                 except Exception as e:  # BROAD-CATCH: isolation -- per-entity-type loop, single failure must not abort batch
                     logger.error(
@@ -654,7 +566,7 @@ async def _warm_cache_async(
                         }
                     )
 
-                    _emit_metric(
+                    emit_metric(
                         "WarmFailure",
                         1,
                         dimensions={"entity_type": entity_type},
@@ -670,7 +582,7 @@ async def _warm_cache_async(
                             pending_entities=pending,
                             entity_results=entity_results,
                         )
-                        _emit_metric("CheckpointSaved", 1)
+                        emit_metric("CheckpointSaved", 1)
                         raise
 
         # All entities completed - clear checkpoint
@@ -680,7 +592,7 @@ async def _warm_cache_async(
         duration_ms = (time.monotonic() - start_time) * 1000
 
         # Emit total duration metric
-        _emit_metric("TotalDuration", duration_ms, unit="Milliseconds")
+        emit_metric("TotalDuration", duration_ms, unit="Milliseconds")
 
         # Count successes/failures for message
         success_count = sum(1 for r in entity_results if r.get("result") == "success")

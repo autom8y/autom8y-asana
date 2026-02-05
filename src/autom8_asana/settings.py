@@ -71,11 +71,12 @@ from __future__ import annotations
 import os
 from typing import Literal
 
-from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, SecretStr, field_validator, model_validator
+from autom8y_config import Autom8yBaseSettings
+from pydantic_settings import SettingsConfigDict
 
 
-class AsanaSettings(BaseSettings):
+class AsanaSettings(Autom8yBaseSettings):
     """Core Asana API settings.
 
     Environment Variables:
@@ -97,7 +98,7 @@ class AsanaSettings(BaseSettings):
         case_sensitive=False,
     )
 
-    pat: str | None = Field(default=None, description="Asana Personal Access Token")
+    pat: SecretStr | None = Field(default=None, description="Asana Personal Access Token")
     workspace_gid: str | None = Field(default=None, description="Default workspace GID")
     base_url: str = Field(
         default="https://app.asana.com/api/1.0",
@@ -108,7 +109,7 @@ class AsanaSettings(BaseSettings):
     )
 
 
-class CacheSettings(BaseSettings):
+class CacheSettings(Autom8yBaseSettings):
     """Cache configuration settings.
 
     Environment Variables:
@@ -268,7 +269,7 @@ class CacheSettings(BaseSettings):
         return 300
 
 
-class RedisSettings(BaseSettings):
+class RedisSettings(Autom8yBaseSettings):
     """Redis connection settings.
 
     Environment Variables:
@@ -299,7 +300,7 @@ class RedisSettings(BaseSettings):
 
     host: str | None = Field(default=None, description="Redis host")
     port: int = Field(default=6379, description="Redis port")
-    password: str | None = Field(default=None, description="Redis password")
+    password: SecretStr | None = Field(default=None, description="Redis password")
     ssl: bool = Field(default=True, description="Enable Redis SSL/TLS")
     socket_timeout: float = Field(
         default=2.0, description="Redis socket timeout in seconds"
@@ -321,7 +322,7 @@ class RedisSettings(BaseSettings):
         return bool(v)
 
 
-class EnvironmentSettings(BaseSettings):
+class EnvironmentSettings(Autom8yBaseSettings):
     """Environment detection settings.
 
     Environment Variables:
@@ -356,7 +357,7 @@ class EnvironmentSettings(BaseSettings):
         return normalized  # type: ignore[return-value]
 
 
-class S3Settings(BaseSettings):
+class S3Settings(Autom8yBaseSettings):
     """S3 cache backend configuration.
 
     Environment Variables:
@@ -388,7 +389,7 @@ class S3Settings(BaseSettings):
     )
 
 
-class PacingSettings(BaseSettings):
+class PacingSettings(Autom8yBaseSettings):
     """Pacing configuration for large section and hierarchy fetches.
 
     Per TDD-large-section-resilience / FR-004 and ADR-hierarchy-backpressure-hardening.
@@ -448,7 +449,7 @@ class PacingSettings(BaseSettings):
     )
 
 
-class S3RetrySettings(BaseSettings):
+class S3RetrySettings(Autom8yBaseSettings):
     """S3 storage retry, budget, and circuit breaker configuration.
 
     Per dataframes/storage.py: Controls resilience for S3 DataFrame persistence.
@@ -529,7 +530,7 @@ class S3RetrySettings(BaseSettings):
     )
 
 
-class ProjectOverrideSettings(BaseSettings):
+class ProjectOverrideSettings(Autom8yBaseSettings):
     """Validation-only settings for ASANA_PROJECT_* env vars.
 
     These are validated at startup but not stored as explicit fields
@@ -601,7 +602,7 @@ class ProjectOverrideSettings(BaseSettings):
         return self
 
 
-class Settings(BaseSettings):
+class Settings(Autom8yBaseSettings):
     """Combined settings container for autom8_asana SDK.
 
     Aggregates all configuration subsections into a single object.
@@ -695,3 +696,4 @@ def reset_settings() -> None:
     """
     global _settings
     _settings = None
+    Autom8yBaseSettings.reset_resolver()
