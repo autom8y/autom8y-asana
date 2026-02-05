@@ -54,7 +54,7 @@ def _invoke_cache_warmer_lambda_from_preload(
                 "entity_types": entity_types,
             },
         )
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: degrade
         logger.error(
             "preload_lambda_invoke_failed",
             extra={
@@ -412,7 +412,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
 
                             return True
 
-                except Exception as e:
+                except Exception as e:  # BROAD-CATCH: isolation
                     logger.error(
                         "progressive_preload_project_failed",
                         extra={
@@ -475,7 +475,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                     lambda_arn, projects_needing_lambda
                 )
 
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: degrade
         logger.error(
             "progressive_preload_failed",
             extra={

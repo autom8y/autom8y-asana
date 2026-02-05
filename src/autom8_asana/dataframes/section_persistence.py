@@ -455,7 +455,7 @@ class SectionPersistence:
                 manifest = SectionManifest.model_validate(data)
                 self._manifest_cache[project_gid] = manifest
                 return manifest
-            except Exception as e:
+            except Exception as e:  # BROAD-CATCH: vendor-polymorphic
                 logger.error("manifest_parse_failed", project_gid=project_gid, error=str(e))
                 return None
 
@@ -478,7 +478,7 @@ class SectionPersistence:
             manifest = SectionManifest.model_validate(data)
             self._manifest_cache[project_gid] = manifest
             return manifest
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: vendor-polymorphic
             logger.error("manifest_parse_failed", project_gid=project_gid, error=str(e))
             return None
 
@@ -771,8 +771,8 @@ class SectionPersistence:
             buffer = io.BytesIO(result.data)
             df: pl.DataFrame = self._polars_module.read_parquet(buffer)
             return df
-        except Exception as e:
-            # BROAD-CATCH: polars deserialization can raise various internal errors
+        except Exception as e:  # BROAD-CATCH: vendor-polymorphic
+            # polars deserialization can raise various internal errors
             logger.error(
                 "section_parquet_parse_failed",
                 project_gid=project_gid,
@@ -861,7 +861,7 @@ class SectionPersistence:
             )
 
             return merged
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: vendor-polymorphic
             logger.error("sections_merge_failed", project_gid=project_gid, error=str(e))
             return None
 

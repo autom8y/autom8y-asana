@@ -93,7 +93,7 @@ def _initialize_mutation_invalidator(app: FastAPI) -> None:
                 "has_dataframe_cache": dataframe_cache is not None,
             },
         )
-    except Exception as exc:
+    except Exception as exc:  # BROAD-CATCH: startup
         # Graceful degradation: invalidation disabled but app still works
         logger.warning(
             "mutation_invalidator_init_failed",

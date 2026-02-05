@@ -144,7 +144,7 @@ async def require_service_claims(request: Request) -> ServiceClaims:
                 "message": "Service-to-service authentication is not available",
             },
         )
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: boundary
         # Try to get error code from autom8y_auth exceptions
         error_code = getattr(e, "code", "UNKNOWN_ERROR")
         logger.warning(

@@ -75,7 +75,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Entity resolver startup discovery (FR-004, FR-005)
     try:
         await _discover_entity_projects(app)
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: startup
         logger.error(
             "entity_resolver_discovery_failed",
             extra={
@@ -136,7 +136,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 await task
             except asyncio.CancelledError:
                 logger.info("cache_warming_cancelled")
-            except Exception as e:
+            except Exception as e:  # BROAD-CATCH: degrade
                 logger.warning(
                     "cache_warming_cancel_error",
                     extra={"error": str(e)},
@@ -147,7 +147,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         try:
             await app.state.connection_registry.close_all_async()
             logger.info("connection_registry_shutdown_complete")
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: degrade
             logger.warning(
                 "connection_registry_shutdown_error",
                 extra={"error": str(e)},

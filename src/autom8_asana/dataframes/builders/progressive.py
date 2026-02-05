@@ -304,7 +304,7 @@ class ProgressiveProjectBuilder:
 
             return sections_probed, sections_delta_updated
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: degrade
             logger.warning(
                 "progressive_build_freshness_probe_failed",
                 extra={
@@ -652,7 +652,7 @@ class ProgressiveProjectBuilder:
                 section_gid, section_df, gid_hash, watermark
             )
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: isolation
             logger.error(
                 "section_fetch_failed",
                 extra={
@@ -741,7 +741,7 @@ class ProgressiveProjectBuilder:
                     error_type="UnknownError",
                 )
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: isolation
             fetch_time_ms = (time.perf_counter() - section_start) * 1000
             return SectionResult(
                 section_gid=section_gid,
@@ -790,7 +790,7 @@ class ProgressiveProjectBuilder:
                     },
                 )
                 return section_info.last_fetched_offset
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: degrade
             logger.warning(
                 "section_checkpoint_resume_failed",
                 extra={
@@ -1130,7 +1130,7 @@ class ProgressiveProjectBuilder:
                 warm_hierarchy=True,
             )
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: enrichment
             # Don't fail build if store population fails
             logger.warning(
                 "store_populate_batch_failed",
@@ -1151,7 +1151,7 @@ class ProgressiveProjectBuilder:
             key_columns = DEFAULT_KEY_COLUMNS.get(self._entity_type, ["gid"])
             index = GidLookupIndex.from_dataframe(df, key_columns=key_columns)
             return index.serialize()
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: enrichment
             logger.warning(
                 "progressive_build_index_failed",
                 extra={
