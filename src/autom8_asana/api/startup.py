@@ -52,7 +52,7 @@ def _register_schema_providers() -> None:
 
     This is called during application startup, after entity project discovery.
     """
-    from autom8_asana.cache.schema_providers import register_asana_schemas
+    from autom8_asana.cache.integration.schema_providers import register_asana_schemas
 
     register_asana_schemas()
 
@@ -73,8 +73,8 @@ def _initialize_mutation_invalidator(app: FastAPI) -> None:
     from autom8_asana.cache.dataframe.factory import (
         get_dataframe_cache as get_df_cache,
     )
-    from autom8_asana.cache.factory import CacheProviderFactory
-    from autom8_asana.cache.mutation_invalidator import MutationInvalidator
+    from autom8_asana.cache.integration.factory import CacheProviderFactory
+    from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator
     from autom8_asana.config import CacheConfig
 
     try:

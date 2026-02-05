@@ -88,7 +88,7 @@ def _build_patch_stack(
     stack.enter_context(
         patch("autom8_asana.dataframes.resolver.DefaultCustomFieldResolver")
     )
-    stack.enter_context(patch("autom8_asana.cache.factory.CacheProviderFactory"))
+    stack.enter_context(patch("autom8_asana.cache.integration.factory.CacheProviderFactory"))
     stack.enter_context(
         patch(
             "autom8_asana.dataframes.section_persistence.SectionPersistence",
