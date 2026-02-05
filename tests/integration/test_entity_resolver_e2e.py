@@ -180,12 +180,12 @@ class TestEntityResolverE2E:
 
         with (
             patch(
-                "autom8_asana.api.main._discover_entity_projects",
+                "autom8_asana.api.lifespan._discover_entity_projects",
                 new_callable=AsyncMock,
                 side_effect=mock_discovery,
             ),
             patch(
-                "autom8_asana.api.main._preload_dataframe_cache",
+                "autom8_asana.api.lifespan._preload_dataframe_cache_progressive",
                 new_callable=AsyncMock,
             ),
             patch(
@@ -270,12 +270,12 @@ class TestEntityResolverE2E:
 
         with (
             patch(
-                "autom8_asana.api.main._discover_entity_projects",
+                "autom8_asana.api.lifespan._discover_entity_projects",
                 new_callable=AsyncMock,
                 side_effect=mock_discovery,
             ),
             patch(
-                "autom8_asana.api.main._preload_dataframe_cache",
+                "autom8_asana.api.lifespan._preload_dataframe_cache_progressive",
                 new_callable=AsyncMock,
             ),
             patch(
@@ -348,12 +348,12 @@ class TestEntityResolverE2E:
 
         with (
             patch(
-                "autom8_asana.api.main._discover_entity_projects",
+                "autom8_asana.api.lifespan._discover_entity_projects",
                 new_callable=AsyncMock,
                 side_effect=mock_discovery,
             ),
             patch(
-                "autom8_asana.api.main._preload_dataframe_cache",
+                "autom8_asana.api.lifespan._preload_dataframe_cache_progressive",
                 new_callable=AsyncMock,
             ),
             patch(
@@ -491,12 +491,12 @@ class TestHealthEndpoint:
 
         with (
             patch(
-                "autom8_asana.api.main._discover_entity_projects",
+                "autom8_asana.api.lifespan._discover_entity_projects",
                 new_callable=AsyncMock,
                 side_effect=mock_discovery,
             ),
             patch(
-                "autom8_asana.api.main._preload_dataframe_cache",
+                "autom8_asana.api.lifespan._preload_dataframe_cache_progressive",
                 new_callable=AsyncMock,
                 side_effect=mock_preload,
             ),
@@ -530,12 +530,12 @@ class TestAuthenticationEnforcement:
 
         with (
             patch(
-                "autom8_asana.api.main._discover_entity_projects",
+                "autom8_asana.api.lifespan._discover_entity_projects",
                 new_callable=AsyncMock,
                 side_effect=mock_discovery,
             ),
             patch(
-                "autom8_asana.api.main._preload_dataframe_cache",
+                "autom8_asana.api.lifespan._preload_dataframe_cache_progressive",
                 new_callable=AsyncMock,
             ),
         ):

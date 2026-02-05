@@ -23,7 +23,7 @@ from autom8_asana.services.resolver import EntityProjectRegistry
 def app():
     """Create a test application instance with mocked discovery."""
     with patch(
-        "autom8_asana.api.main._discover_entity_projects",
+        "autom8_asana.api.lifespan._discover_entity_projects",
         new_callable=AsyncMock,
     ) as mock_discover:
 
