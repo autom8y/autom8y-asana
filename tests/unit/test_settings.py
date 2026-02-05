@@ -421,7 +421,7 @@ class TestProjectOverrideSettings:
             assert settings is not None
 
     def test_invalid_gid_warns_in_default_mode(
-        self, caplog: pytest.LogCaptureFixture
+        self, capfd: pytest.CaptureFixture[str]
     ) -> None:
         """Test invalid ASANA_PROJECT_* GID logs warning in default mode."""
         from autom8_asana.settings import ProjectOverrideSettings
@@ -434,9 +434,11 @@ class TestProjectOverrideSettings:
             settings = ProjectOverrideSettings()
             assert settings is not None
 
-        # Verify warning was logged
-        assert "Invalid GID format" in caplog.text
-        assert "ASANA_PROJECT_INVALID" in caplog.text
+        # structlog output captured at fd level to handle stdlib interception
+        captured = capfd.readouterr()
+        output = captured.out + captured.err
+        assert "Invalid GID format" in output
+        assert "ASANA_PROJECT_INVALID" in output
 
     def test_invalid_gid_raises_in_strict_mode(self) -> None:
         """Test invalid ASANA_PROJECT_* GID raises ValueError in strict mode."""

@@ -1327,10 +1327,9 @@ class TestGidEnumerationCache:
         self,
         mock_sections: list[Section],
         mock_tasks_by_section: dict[str, list[Task]],
-        caplog: pytest.LogCaptureFixture,
+        capfd: pytest.CaptureFixture[str],
     ) -> None:
         """Test cache errors are logged as warnings (FR-DEGRADE-004)."""
-        import logging
         from unittest.mock import MagicMock
 
         sections_client = create_mock_sections_client(mock_sections)
@@ -1348,15 +1347,12 @@ class TestGidEnumerationCache:
             cache_provider=mock_cache,
         )
 
-        with caplog.at_level(logging.WARNING):
-            await fetcher.fetch_section_task_gids_async()
+        await fetcher.fetch_section_task_gids_async()
 
-        # Verify warning was logged
-        warning_messages = [
-            r.message for r in caplog.records if r.levelno == logging.WARNING
-        ]
-        assert len(warning_messages) >= 1
-        assert any("cache" in msg.lower() for msg in warning_messages)
+        # structlog output captured at fd level to handle stdlib interception
+        captured = capfd.readouterr()
+        output = captured.out + captured.err
+        assert "gid_enumeration_cache_lookup_failed" in output
 
     # -------------------------------------------------------------------------
     # TTL Constant Tests
