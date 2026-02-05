@@ -5,6 +5,7 @@ Tests for tiered caching, cache validation, build lock management,
 statistics, and entity-level TTL with SWR.
 """
 
+import time
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -258,9 +259,7 @@ class TestDataFrameCache:
         circuit.record_failure("proj-1")
 
         # Simulate timeout so circuit is half-open
-        circuit._circuits["proj-1"].last_failure = datetime.now(UTC) - timedelta(
-            seconds=120
-        )
+        circuit._circuits["proj-1"].last_failure = time.monotonic() - 120
         circuit.is_open("proj-1")  # Triggers half-open
 
         progressive_tier = AsyncMock()

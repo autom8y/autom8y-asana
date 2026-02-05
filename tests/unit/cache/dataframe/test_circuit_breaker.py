@@ -4,7 +4,7 @@ Per TDD-DATAFRAME-CACHE-001: Tests for circuit states, failure threshold,
 reset timeout, and per-project isolation.
 """
 
-from datetime import UTC, datetime, timedelta
+import time
 
 from autom8_asana.cache.dataframe.circuit_breaker import (
     CircuitBreaker,
@@ -77,7 +77,7 @@ class TestCircuitBreaker:
 
         # Simulate time passing
         circuit = breaker._circuits["proj-1"]
-        circuit.last_failure = datetime.now(UTC) - timedelta(seconds=2)
+        circuit.last_failure = time.monotonic() - 2
 
         # Should now be half-open
         assert not breaker.is_open("proj-1")
@@ -93,7 +93,7 @@ class TestCircuitBreaker:
 
         # Move to half-open
         circuit = breaker._circuits["proj-1"]
-        circuit.last_failure = datetime.now(UTC) - timedelta(seconds=2)
+        circuit.last_failure = time.monotonic() - 2
         breaker.is_open("proj-1")  # Triggers half-open transition
 
         # Record success
@@ -112,7 +112,7 @@ class TestCircuitBreaker:
 
         # Move to half-open
         circuit = breaker._circuits["proj-1"]
-        circuit.last_failure = datetime.now(UTC) - timedelta(seconds=2)
+        circuit.last_failure = time.monotonic() - 2
         breaker.is_open("proj-1")  # Triggers half-open transition
 
         # Record another failure
