@@ -43,11 +43,10 @@ class S3Config:
 
     Note:
         Per B4 Config Consolidation audit: bucket/region/endpoint_url fields
-        follow the same pattern as PersistenceConfig, SectionPersistenceConfig,
-        and AsyncS3Config. The shared S3LocationConfig primitive is available in
-        autom8_asana.config for new code that needs S3 location without
-        backend-specific fields. These existing configs retain their direct
-        fields for backward compatibility with ~40+ call sites.
+        follow the same pattern as S3LocationConfig. The shared S3LocationConfig
+        primitive is available in autom8_asana.config for new code that needs
+        S3 location without backend-specific fields. S3Config retains its direct
+        fields for backward compatibility with existing call sites.
     """
 
     bucket: str

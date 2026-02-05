@@ -576,9 +576,8 @@ class TestPersistenceIntegration:
 class TestDataFrameStorageIntegration:
     """Tests for WatermarkRepository with DataFrameStorage protocol.
 
-    Per TDD-UNIFIED-DF-PERSISTENCE-001 Phase 3: WatermarkRepository
-    accepts both DataFramePersistence (legacy) and S3DataFrameStorage
-    (unified protocol) as its persistence backend.
+    Per TDD-UNIFIED-DF-PERSISTENCE-001: WatermarkRepository
+    accepts S3DataFrameStorage as its persistence backend.
     """
 
     def setup_method(self) -> None:

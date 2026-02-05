@@ -1,7 +1,7 @@
 """Shared error classification and degraded mode handling for cache backends.
 
-Extracted from redis.py, s3.py, and async_s3.py to eliminate duplicated
-degraded-mode state machines and error classification logic.
+Extracted from cache backends to eliminate duplicated degraded-mode
+state machines and error classification logic.
 """
 
 from __future__ import annotations
@@ -60,7 +60,7 @@ def is_s3_not_found_error(error: Exception) -> bool:
     if type(error).__name__ in ("NoSuchKey", "NotFound"):
         return True
 
-    # Check string patterns (used by async_s3.py)
+    # Check string patterns for S3 not-found errors
     error_str = str(error).lower()
     if "nosuchkey" in error_str or "not found" in error_str or "404" in error_str:
         return True

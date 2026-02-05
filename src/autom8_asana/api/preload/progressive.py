@@ -309,9 +309,8 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                 # Try loading existing dataframe.parquet from
                                 # S3 (Lambda writes this and deletes the
                                 # manifest after a successful warm).
-                                # Per TDD-UNIFIED-DF-PERSISTENCE-001 Phase 3:
-                                # Use unified S3DataFrameStorage when available,
-                                # fall back to legacy DataFramePersistence.
+                                # Per TDD-UNIFIED-DF-PERSISTENCE-001:
+                                # Use S3DataFrameStorage when available.
                                 s3_df: pl.DataFrame | None = None
                                 s3_watermark: datetime | None = None
                                 if df_storage is not None:

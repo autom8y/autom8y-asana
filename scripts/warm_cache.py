@@ -51,24 +51,43 @@ async def warm_all_projects(
     """
     from autom8_asana import AsanaClient
     from autom8_asana.auth.bot_pat import get_bot_pat
+    from autom8_asana.config import S3LocationConfig
     from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
     from autom8_asana.dataframes.models.registry import SchemaRegistry
-    from autom8_asana.dataframes.persistence import DataFramePersistence
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
     from autom8_asana.dataframes.section_persistence import SectionPersistence
+    from autom8_asana.dataframes.storage import (
+        S3DataFrameStorage,
+        create_s3_retry_orchestrator,
+    )
     from autom8_asana.services.discovery import discover_entity_projects_async
     from autom8_asana.services.resolver import to_pascal_case
 
     start_time = time.perf_counter()
 
     try:
-        # Initialize persistence
-        persistence = DataFramePersistence()
-
-        if not persistence.is_available:
+        # Initialize S3DataFrameStorage
+        bucket = os.environ.get("ASANA_CACHE_S3_BUCKET", "")
+        if not bucket:
             logger.error(
                 "S3 persistence not available. "
                 "Check ASANA_CACHE_S3_BUCKET environment variable."
+            )
+            return 1
+
+        location = S3LocationConfig(
+            bucket=bucket,
+            region=os.environ.get("ASANA_CACHE_S3_REGION", "us-east-1"),
+        )
+        retry_orchestrator = create_s3_retry_orchestrator()
+        df_storage = S3DataFrameStorage(
+            location=location, retry=retry_orchestrator,
+        )
+
+        if not await df_storage.is_available():
+            logger.error(
+                "S3 persistence not available. "
+                "Check S3 bucket access and credentials."
             )
             return 1
 
@@ -123,7 +142,7 @@ async def warm_all_projects(
                 schema = schema_registry.get_schema(task_type)
 
                 resolver = DefaultCustomFieldResolver()
-                section_persistence = SectionPersistence()
+                section_persistence = SectionPersistence(storage=df_storage)
 
                 async with section_persistence:
                     async with AsanaClient(
