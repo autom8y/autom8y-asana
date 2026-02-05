@@ -196,7 +196,7 @@ class Project(AsanaResource):
         """
         from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
         from autom8_asana.dataframes.models.registry import SchemaRegistry
-        from autom8_asana.dataframes.section_persistence import SectionPersistence
+        from autom8_asana.dataframes.section_persistence import create_section_persistence
 
         if client is None:
             raise ValueError(
@@ -208,7 +208,7 @@ class Project(AsanaResource):
         entity_type = task_type.lower() if task_type != "*" else "task"
 
         # Create section persistence for S3 storage
-        persistence = SectionPersistence()
+        persistence = create_section_persistence()
 
         async with persistence:
             builder = ProgressiveProjectBuilder(
@@ -283,7 +283,7 @@ class Project(AsanaResource):
         """
         from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
         from autom8_asana.dataframes.models.registry import SchemaRegistry
-        from autom8_asana.dataframes.section_persistence import SectionPersistence
+        from autom8_asana.dataframes.section_persistence import create_section_persistence
 
         # Auto-detect schema if not provided
         if schema is None:
@@ -292,7 +292,7 @@ class Project(AsanaResource):
         entity_type = task_type.lower() if task_type != "*" else "task"
 
         # Create section persistence for S3 storage
-        persistence = SectionPersistence()
+        persistence = create_section_persistence()
 
         # Extract kwargs for ProgressiveProjectBuilder
         max_concurrent = kwargs.pop("max_concurrent_sections", 5)

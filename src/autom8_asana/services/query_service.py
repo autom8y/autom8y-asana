@@ -115,9 +115,9 @@ async def resolve_section(
 
     # Try manifest-based resolution first
     try:
-        from autom8_asana.dataframes.section_persistence import SectionPersistence
+        from autom8_asana.dataframes.section_persistence import create_section_persistence
 
-        persistence = SectionPersistence()
+        persistence = create_section_persistence()
         if persistence.is_available:
             async with persistence:
                 index = await SectionIndex.from_manifest_async(

@@ -26,6 +26,8 @@ if TYPE_CHECKING:
 
     from autom8_asana.client import AsanaClient
 
+from autom8_asana.settings import get_settings
+
 logger = get_logger(__name__)
 
 __all__ = [
@@ -34,7 +36,8 @@ __all__ = [
 
 # Cache TTL for shared dynamic index (1 hour)
 # Balances memory vs. rebuild cost for entity resolution indexes
-DYNAMIC_INDEX_CACHE_TTL = 3600
+# Configurable via ASANA_CACHE_TTL_DYNAMIC_INDEX environment variable
+DYNAMIC_INDEX_CACHE_TTL = get_settings().cache.ttl_dynamic_index
 
 
 # FACADE: Delegates to EntityRegistry. Preserves existing import path.
@@ -504,7 +507,7 @@ class UniversalResolutionStrategy:
         """
         # Import builders and schemas based on entity type
         from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
-        from autom8_asana.dataframes.section_persistence import SectionPersistence
+        from autom8_asana.dataframes.section_persistence import create_section_persistence
 
         try:
             # Get schema for entity type
@@ -517,7 +520,7 @@ class UniversalResolutionStrategy:
                 return None
 
             # Create persistence layer
-            persistence = SectionPersistence()
+            persistence = create_section_persistence()
 
             # Create resolver if needed (for custom fields)
             resolver = self._get_custom_field_resolver()

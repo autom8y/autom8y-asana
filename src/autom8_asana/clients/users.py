@@ -12,11 +12,13 @@ from autom8_asana.clients.base import BaseClient
 from autom8_asana.models import PageIterator
 from autom8_asana.models.user import User
 from autom8_asana.observability import error_handler
+from autom8_asana.settings import get_settings
 from autom8_asana.transport.sync import sync_wrapper
 
 # Cache TTL for user metadata (1 hour)
 # User profiles change infrequently (name, email rarely modified)
-USER_CACHE_TTL = 3600
+# Configurable via ASANA_CACHE_TTL_USER environment variable
+USER_CACHE_TTL = get_settings().cache.ttl_user
 
 
 class UsersClient(BaseClient):

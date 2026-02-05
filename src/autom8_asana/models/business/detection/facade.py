@@ -62,10 +62,13 @@ __all__ = [
     "_matches_holder_pattern",
 ]
 
+from autom8_asana.settings import get_settings
+
 logger = get_logger(__name__)
 
 # Per PRD-CACHE-PERF-DETECTION FR-VERSION-003: TTL matches task cache (300s)
-DETECTION_CACHE_TTL = 300
+# Configurable via ASANA_CACHE_TTL_DETECTION environment variable
+DETECTION_CACHE_TTL = get_settings().cache.ttl_detection
 
 
 # --- Detection Cache Helpers ---
