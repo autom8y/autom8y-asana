@@ -68,6 +68,10 @@ class EntityNotFoundError(ServiceError):
     """Entity or resource not found. Maps to HTTP 404."""
 
     @property
+    def error_code(self) -> str:
+        return "NOT_FOUND"
+
+    @property
     def status_hint(self) -> int:
         return 404
 
@@ -133,6 +137,10 @@ class UnknownSectionError(EntityNotFoundError):
 
 class EntityValidationError(ServiceError):
     """Validation error for entity operations. Maps to HTTP 400 or 422."""
+
+    @property
+    def error_code(self) -> str:
+        return "VALIDATION_ERROR"
 
     @property
     def status_hint(self) -> int:
