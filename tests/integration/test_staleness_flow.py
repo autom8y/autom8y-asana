@@ -301,7 +301,9 @@ class TestGracefulDegradation:
         entry = make_entry("123", expired=True)
 
         # Mock API error
-        batch_client.execute_async.side_effect = Exception("Network timeout")
+        from autom8_asana.core.exceptions import CacheConnectionError
+
+        batch_client.execute_async.side_effect = CacheConnectionError("Network timeout")
 
         result = await coordinator.check_and_get_async(entry)
 

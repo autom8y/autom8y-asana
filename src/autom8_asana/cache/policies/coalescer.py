@@ -207,8 +207,10 @@ class RequestCoalescer:
 
             # Distribute results to waiting futures
             self._distribute_results(batch, results)
-        except CACHE_TRANSIENT_ERRORS as e:
+        except Exception as e:
             # Batch failed - set all futures to None
+            # Widen from CACHE_TRANSIENT_ERRORS to prevent unresolved futures
+            # causing indefinite hangs on unexpected exception types
             logger.warning(
                 "coalescer_batch_failure",
                 extra={
