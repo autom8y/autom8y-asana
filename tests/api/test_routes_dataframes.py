@@ -589,7 +589,9 @@ class TestGetSectionDataframe:
         )
 
         assert response.status_code == 404
-        assert "Section not found" in response.json()["detail"]
+        detail = response.json()["detail"]
+        assert detail["error"] == "NOT_FOUND"
+        assert "Section not found" in detail["message"]
 
     def test_get_section_dataframe_no_project_returns_404(
         self, authed_client: tuple[TestClient, MagicMock]

@@ -29,7 +29,8 @@ class TestGetAsanaPat:
             await get_asana_pat(None)
 
         assert exc_info.value.status_code == 401
-        assert "Authorization header required" in exc_info.value.detail
+        assert exc_info.value.detail["error"] == "MISSING_AUTH"
+        assert "Authorization header required" in exc_info.value.detail["message"]
 
     @pytest.mark.asyncio
     async def test_invalid_scheme_basic(self) -> None:
@@ -40,7 +41,8 @@ class TestGetAsanaPat:
             await get_asana_pat("Basic dXNlcjpwYXNz")
 
         assert exc_info.value.status_code == 401
-        assert "Invalid authorization scheme" in exc_info.value.detail
+        assert exc_info.value.detail["error"] == "INVALID_SCHEME"
+        assert "Invalid authorization scheme" in exc_info.value.detail["message"]
 
     @pytest.mark.asyncio
     async def test_invalid_scheme_no_space(self) -> None:
@@ -51,7 +53,8 @@ class TestGetAsanaPat:
             await get_asana_pat("BearerTokenWithoutSpace")
 
         assert exc_info.value.status_code == 401
-        assert "Invalid authorization scheme" in exc_info.value.detail
+        assert exc_info.value.detail["error"] == "INVALID_SCHEME"
+        assert "Invalid authorization scheme" in exc_info.value.detail["message"]
 
     @pytest.mark.asyncio
     async def test_empty_token(self) -> None:
@@ -62,7 +65,8 @@ class TestGetAsanaPat:
             await get_asana_pat("Bearer ")
 
         assert exc_info.value.status_code == 401
-        assert "Token is required" in exc_info.value.detail
+        assert exc_info.value.detail["error"] == "MISSING_TOKEN"
+        assert "Token is required" in exc_info.value.detail["message"]
 
     @pytest.mark.asyncio
     async def test_short_token(self) -> None:
@@ -73,7 +77,8 @@ class TestGetAsanaPat:
             await get_asana_pat("Bearer short")
 
         assert exc_info.value.status_code == 401
-        assert "Invalid token format" in exc_info.value.detail
+        assert exc_info.value.detail["error"] == "INVALID_TOKEN"
+        assert "Invalid token format" in exc_info.value.detail["message"]
 
     @pytest.mark.asyncio
     async def test_minimum_valid_token_length(self) -> None:
