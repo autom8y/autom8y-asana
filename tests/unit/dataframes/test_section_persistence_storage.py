@@ -18,19 +18,7 @@ import pytest
 from autom8_asana.dataframes.section_persistence import (
     SectionManifest,
     SectionPersistence,
-    SectionPersistenceConfig,
     SectionStatus,
-)
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-CONFIG = SectionPersistenceConfig(
-    bucket="test-bucket",
-    prefix="dataframes/",
-    region="us-east-1",
 )
 
 
@@ -57,8 +45,10 @@ def _make_df() -> pl.DataFrame:
 def _make_persistence(
     storage: MagicMock | None = None,
 ) -> SectionPersistence:
-    """Create SectionPersistence with optional storage injection."""
-    return SectionPersistence(config=CONFIG, storage=storage)
+    """Create SectionPersistence with storage injection."""
+    if storage is None:
+        storage = _make_mock_storage()
+    return SectionPersistence(storage=storage)
 
 
 # ---------------------------------------------------------------------------
@@ -69,23 +59,15 @@ def _make_persistence(
 class TestStorageConstruction:
     """Test that SectionPersistence correctly accepts storage parameter."""
 
-    def test_with_storage_no_s3_client_created(self) -> None:
-        """When storage is provided, no AsyncS3Client is created."""
+    def test_with_storage_assigned(self) -> None:
+        """Storage is assigned to _storage on construction."""
         storage = _make_mock_storage()
         persistence = _make_persistence(storage=storage)
 
         assert persistence._storage is storage
-        assert persistence._s3_client is None
-
-    def test_without_storage_creates_s3_client(self) -> None:
-        """When no storage is provided, AsyncS3Client is created (legacy path)."""
-        persistence = _make_persistence(storage=None)
-
-        assert persistence._storage is None
-        assert persistence._s3_client is not None
 
     def test_is_available_delegates_to_storage(self) -> None:
-        """is_available checks storage.is_available when storage is provided."""
+        """is_available checks storage.is_available."""
         storage = _make_mock_storage()
         persistence = _make_persistence(storage=storage)
 
@@ -104,13 +86,13 @@ class TestStorageContextManager:
     """Test async context manager with storage path."""
 
     @pytest.mark.asyncio()
-    async def test_context_manager_no_s3_client_interaction(self) -> None:
-        """Context manager does not call s3_client when using storage."""
+    async def test_context_manager_noop(self) -> None:
+        """Context manager enter/exit are no-ops (storage manages lifecycle)."""
         storage = _make_mock_storage()
         persistence = _make_persistence(storage=storage)
 
         async with persistence as p:
-            assert p._s3_client is None
+            assert p._storage is storage
 
 
 # ---------------------------------------------------------------------------

@@ -8,9 +8,8 @@ Key format translation:
 
 Read path:
     1. Parse cache key to extract project_gid
-    2. Read dataframes/{project_gid}/dataframe.parquet
-    3. Read dataframes/{project_gid}/watermark.json for metadata
-    4. Construct CacheEntry with DataFrame and metadata
+    2. Delegate to DataFrameStorage.load_dataframe(project_gid)
+    3. Construct CacheEntry with DataFrame and metadata
 
 Write path:
     1. Delegate to SectionPersistence.write_final_artifacts_async()
@@ -19,13 +18,10 @@ Write path:
 
 from __future__ import annotations
 
-import io
-import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-import polars as pl
 from autom8y_log import get_logger
 
 from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
@@ -51,9 +47,8 @@ class ProgressiveTier:
 
     Read path:
         1. Parse cache key to extract project_gid
-        2. Read dataframes/{project_gid}/dataframe.parquet
-        3. Read dataframes/{project_gid}/watermark.json for metadata
-        4. Construct CacheEntry with DataFrame and metadata
+        2. Load DataFrame and watermark via DataFrameStorage protocol
+        3. Construct CacheEntry with metadata
 
     Write path:
         1. Delegate to SectionPersistence.write_final_artifacts_async()
@@ -64,11 +59,10 @@ class ProgressiveTier:
         _stats: Operation statistics (reads, writes, errors, etc.).
 
     Example:
-        >>> from autom8_asana.dataframes.section_persistence import SectionPersistence
-        >>> persistence = SectionPersistence(bucket="my-bucket")
+        >>> from autom8_asana.dataframes.section_persistence import create_section_persistence
+        >>> persistence = create_section_persistence()
         >>> tier = ProgressiveTier(persistence=persistence)
-        >>> async with persistence:
-        ...     entry = await tier.get_async("unit:proj-123")
+        >>> entry = await tier.get_async("unit:proj-123")
     """
 
     persistence: SectionPersistence
@@ -119,10 +113,9 @@ class ProgressiveTier:
 
         Algorithm:
             1. Parse key: "unit:1234567890" -> project_gid="1234567890"
-            2. Read dataframe: dataframes/1234567890/dataframe.parquet
-            3. Read watermark: dataframes/1234567890/watermark.json
-            4. Construct CacheEntry with metadata from watermark
-            5. Return None on any error (graceful degradation)
+            2. Load via DataFrameStorage.load_dataframe(project_gid)
+            3. Construct CacheEntry with metadata
+            4. Return None on any error (graceful degradation)
         """
         from autom8_asana.cache.integration.dataframe_cache import CacheEntry
 
@@ -138,30 +131,17 @@ class ProgressiveTier:
 
         self._stats["reads"] += 1
 
-        # Read DataFrame parquet via SectionPersistence's internal S3 client
-        df_key = f"{self.persistence._config.prefix}{project_gid}/dataframe.parquet"
-        df_result = await self.persistence._s3_client.get_object_async(df_key)
-
-        if not df_result.success:
-            if df_result.not_found:
-                self._stats["not_found"] += 1
-                logger.debug(
-                    "progressive_tier_not_found",
-                    extra={"key": key, "s3_key": df_key},
-                )
-                return None
+        try:
+            storage = self.persistence.storage
+            df, watermark = await storage.load_dataframe(project_gid)
+        except S3_TRANSPORT_ERRORS as e:
             self._stats["read_errors"] += 1
             logger.warning(
                 "progressive_tier_read_error",
-                extra={"key": key, "s3_key": df_key, "error": df_result.error},
+                extra={"key": key, "project_gid": project_gid, "error": str(e)},
             )
             return None
-
-        # Parse DataFrame from parquet bytes
-        try:
-            df = pl.read_parquet(io.BytesIO(df_result.data))
-            self._stats["bytes_read"] += len(df_result.data)
-        except Exception as e:  # BROAD-CATCH: vendor-polymorphic -- pl.read_parquet raises diverse polars-specific errors
+        except Exception as e:  # BROAD-CATCH: vendor-polymorphic -- load_dataframe may raise diverse errors
             self._stats["read_errors"] += 1
             logger.warning(
                 "progressive_tier_parse_error",
@@ -169,24 +149,36 @@ class ProgressiveTier:
             )
             return None
 
-        # Read watermark metadata
-        wm_key = f"{self.persistence._config.prefix}{project_gid}/watermark.json"
-        wm_result = await self.persistence._s3_client.get_object_async(wm_key)
+        if df is None:
+            self._stats["not_found"] += 1
+            logger.debug(
+                "progressive_tier_not_found",
+                extra={"key": key, "project_gid": project_gid},
+            )
+            return None
 
-        if wm_result.success:
-            try:
-                watermark_data = json.loads(wm_result.data.decode("utf-8"))
-                watermark = self._parse_datetime(watermark_data.get("watermark"))
-                schema_version = watermark_data.get("schema_version", "unknown")
-            except (ValueError, TypeError):
-                # Fallback to current time if watermark parsing fails
-                logger.warning("Watermark parse failed, defaulting to now()", exc_info=True)
-                watermark = datetime.now(UTC)
-                schema_version = "unknown"
-        else:
-            # No watermark file - use current time
+        # Estimate bytes read from DataFrame memory footprint
+        estimated_bytes = int(df.estimated_size())
+        self._stats["bytes_read"] += estimated_bytes
+
+        # Use watermark from storage, or fall back to current time
+        if watermark is None:
             watermark = datetime.now(UTC)
             schema_version = "unknown"
+        else:
+            # Try to get schema_version from watermark metadata via storage
+            try:
+                wm_key = f"{self.persistence._prefix}{project_gid}/watermark.json"
+                wm_bytes = await storage.load_json(wm_key)
+                if wm_bytes is not None:
+                    import json
+
+                    wm_data = json.loads(wm_bytes.decode("utf-8"))
+                    schema_version = wm_data.get("schema_version", "unknown")
+                else:
+                    schema_version = "unknown"
+            except Exception:  # BROAD-CATCH: graceful degradation for metadata
+                schema_version = "unknown"
 
         entry = CacheEntry(
             project_gid=project_gid,
@@ -202,8 +194,7 @@ class ProgressiveTier:
             extra={
                 "key": key,
                 "row_count": entry.row_count,
-                "bytes_read": len(df_result.data),
-                "duration_ms": df_result.duration_ms,
+                "bytes_read": estimated_bytes,
             },
         )
 
@@ -274,22 +265,25 @@ class ProgressiveTier:
             return False
 
     async def exists_async(self, key: str) -> bool:
-        """Check if entry exists.
+        """Check if entry exists by attempting to load the watermark.
 
         Args:
             key: Cache key in format "{entity_type}:{project_gid}".
 
         Returns:
-            True if dataframe.parquet exists for project.
+            True if dataframe data exists for project.
         """
         try:
-            entity_type, project_gid = self._parse_key(key)
+            _entity_type, project_gid = self._parse_key(key)
         except ValueError:
             return False
 
-        df_key = f"{self.persistence._config.prefix}{project_gid}/dataframe.parquet"
-        result = await self.persistence._s3_client.head_object_async(df_key)
-        return result is not None
+        try:
+            storage = self.persistence.storage
+            df, _wm = await storage.load_dataframe(project_gid)
+            return df is not None
+        except Exception:  # BROAD-CATCH: graceful degradation
+            return False
 
     async def delete_async(self, key: str) -> bool:
         """Delete entry (dataframe + watermark files).
@@ -303,7 +297,7 @@ class ProgressiveTier:
             True if deleted or didn't exist.
         """
         try:
-            entity_type, project_gid = self._parse_key(key)
+            _entity_type, project_gid = self._parse_key(key)
         except ValueError as e:
             logger.warning(
                 "progressive_tier_delete_invalid_key",
@@ -311,30 +305,29 @@ class ProgressiveTier:
             )
             return False
 
-        success = True
+        try:
+            storage = self.persistence.storage
+            success = await storage.delete_dataframe(project_gid)
 
-        # Delete dataframe.parquet
-        df_key = f"{self.persistence._config.prefix}{project_gid}/dataframe.parquet"
-        if not await self.persistence._s3_client.delete_object_async(df_key):
-            success = False
+            if success:
+                logger.info(
+                    "progressive_tier_delete_success",
+                    extra={"key": key, "project_gid": project_gid},
+                )
+            else:
+                logger.warning(
+                    "progressive_tier_delete_partial",
+                    extra={"key": key, "project_gid": project_gid},
+                )
 
-        # Delete watermark.json
-        wm_key = f"{self.persistence._config.prefix}{project_gid}/watermark.json"
-        if not await self.persistence._s3_client.delete_object_async(wm_key):
-            success = False
+            return success
 
-        if success:
-            logger.info(
-                "progressive_tier_delete_success",
-                extra={"key": key, "project_gid": project_gid},
-            )
-        else:
+        except S3_TRANSPORT_ERRORS as e:
             logger.warning(
-                "progressive_tier_delete_partial",
-                extra={"key": key, "project_gid": project_gid},
+                "progressive_tier_delete_error",
+                extra={"key": key, "error": str(e)},
             )
-
-        return success
+            return False
 
     def get_stats(self) -> dict[str, int]:
         """Get tier statistics.

@@ -8,30 +8,34 @@ overwrote each other's completion statuses.
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from autom8_asana.dataframes.async_s3 import S3ReadResult, S3WriteResult
 from autom8_asana.dataframes.section_persistence import (
     SectionManifest,
     SectionPersistence,
-    SectionPersistenceConfig,
     SectionStatus,
 )
 
 
+def _make_mock_storage() -> MagicMock:
+    """Create a mock DataFrameStorage with async methods."""
+    storage = MagicMock()
+    storage.is_available = True
+    storage.save_json = AsyncMock(return_value=True)
+    storage.load_json = AsyncMock(return_value=None)
+    storage.save_section = AsyncMock(return_value=True)
+    storage.load_section = AsyncMock(return_value=None)
+    storage.delete_section = AsyncMock(return_value=True)
+    storage.delete_object = AsyncMock(return_value=True)
+    return storage
+
+
 def _make_persistence() -> SectionPersistence:
-    """Create a SectionPersistence with mocked S3."""
-    config = SectionPersistenceConfig(bucket="test-bucket")
-    persistence = SectionPersistence(config=config)
-    persistence._s3_client = AsyncMock()
-    persistence._s3_client.put_object_async = AsyncMock(
-        return_value=S3WriteResult(
-            success=True, key="test", size_bytes=100, duration_ms=10.0
-        )
-    )
-    return persistence
+    """Create a SectionPersistence with mocked storage."""
+    storage = _make_mock_storage()
+    return SectionPersistence(storage=storage)
 
 
 @pytest.mark.asyncio
@@ -85,25 +89,25 @@ async def test_create_manifest_populates_cache() -> None:
 
 @pytest.mark.asyncio
 async def test_get_manifest_returns_cached() -> None:
-    """Cache hit skips S3 call."""
+    """Cache hit skips storage call."""
     persistence = _make_persistence()
 
     await persistence.create_manifest_async("proj_1", "offer", ["sec_1"])
 
     # Reset mock to track new calls
-    persistence._s3_client.get_object_async = AsyncMock()
+    persistence._storage.load_json.reset_mock()
 
     result = await persistence.get_manifest_async("proj_1")
 
     assert result is not None
     assert result.project_gid == "proj_1"
-    # S3 should NOT have been called
-    persistence._s3_client.get_object_async.assert_not_called()
+    # Storage should NOT have been called (cache hit)
+    persistence._storage.load_json.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_get_manifest_falls_through_to_s3() -> None:
-    """Cache miss reads from S3 and populates cache."""
+async def test_get_manifest_falls_through_to_storage() -> None:
+    """Cache miss reads from storage and populates cache."""
     persistence = _make_persistence()
 
     manifest = SectionManifest(
@@ -113,21 +117,13 @@ async def test_get_manifest_falls_through_to_s3() -> None:
     )
     manifest_json = manifest.model_dump_json().encode("utf-8")
 
-    persistence._s3_client.get_object_async = AsyncMock(
-        return_value=S3ReadResult(
-            success=True,
-            key="test",
-            data=manifest_json,
-            size_bytes=len(manifest_json),
-            duration_ms=5.0,
-        )
-    )
+    persistence._storage.load_json = AsyncMock(return_value=manifest_json)
 
     result = await persistence.get_manifest_async("proj_1")
 
     assert result is not None
     assert result.project_gid == "proj_1"
-    persistence._s3_client.get_object_async.assert_called_once()
+    persistence._storage.load_json.assert_called_once()
     # Should now be cached
     assert "proj_1" in persistence._manifest_cache
 
@@ -136,7 +132,6 @@ async def test_get_manifest_falls_through_to_s3() -> None:
 async def test_delete_manifest_invalidates_cache() -> None:
     """Cache is cleared on delete."""
     persistence = _make_persistence()
-    persistence._s3_client.delete_object_async = AsyncMock(return_value=True)
 
     await persistence.create_manifest_async("proj_1", "offer", ["sec_1"])
     assert "proj_1" in persistence._manifest_cache
@@ -186,15 +181,15 @@ async def test_concurrent_mixed_statuses() -> None:
 
 
 @pytest.mark.asyncio
-async def test_s3_write_still_called_per_update() -> None:
-    """Each update flushes to S3 for durability."""
+async def test_storage_write_called_per_update() -> None:
+    """Each update flushes to storage for durability."""
     persistence = _make_persistence()
     section_gids = [f"sec_{i}" for i in range(4)]
 
     await persistence.create_manifest_async("proj_1", "offer", section_gids)
 
     # Reset to count only update-related writes
-    persistence._s3_client.put_object_async.reset_mock()
+    persistence._storage.save_json.reset_mock()
 
     tasks = [
         persistence.update_manifest_section_async(
@@ -204,5 +199,5 @@ async def test_s3_write_still_called_per_update() -> None:
     ]
     await asyncio.gather(*tasks)
 
-    # One S3 write per update
-    assert persistence._s3_client.put_object_async.call_count == 4
+    # One storage write per update
+    assert persistence._storage.save_json.call_count == 4

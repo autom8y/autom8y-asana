@@ -320,17 +320,9 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                         s3_watermark,
                                     ) = await df_storage.load_dataframe(project_gid)
                                 else:
-                                    from autom8_asana.dataframes.persistence import (
-                                        DataFramePersistence,
-                                    )
-
-                                    df_persistence = DataFramePersistence()
-                                    (
-                                        s3_df,
-                                        s3_watermark,
-                                    ) = await df_persistence.load_dataframe(
-                                        project_gid
-                                    )
+                                    # No storage available -- cannot load parquet
+                                    s3_df = None
+                                    s3_watermark = None
 
                                 if s3_df is not None and len(s3_df) > 0:
                                     # Parquet exists — load directly into
