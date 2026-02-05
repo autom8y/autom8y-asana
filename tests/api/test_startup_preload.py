@@ -74,7 +74,7 @@ class TestPreloadDataframeCacheFunction:
     @pytest.mark.asyncio
     async def test_preload_skips_when_registry_not_ready(self) -> None:
         """Preload skips when entity registry is not ready."""
-        from autom8_asana.api.main import _preload_dataframe_cache
+        from autom8_asana.api.preload.legacy import _preload_dataframe_cache
 
         mock_app = MagicMock()
         mock_app.state.entity_project_registry = None
@@ -91,7 +91,7 @@ class TestPreloadDataframeCacheFunction:
         self, mock_entity_registry: MagicMock
     ) -> None:
         """Preload skips when no projects are registered."""
-        from autom8_asana.api.main import _preload_dataframe_cache
+        from autom8_asana.api.preload.legacy import _preload_dataframe_cache
 
         mock_entity_registry.get_all_entity_types.return_value = []
         mock_app = MagicMock()
@@ -108,7 +108,7 @@ class TestPreloadDataframeCacheFunction:
         self, mock_entity_registry: MagicMock
     ) -> None:
         """Preload skips when S3 persistence is unavailable."""
-        from autom8_asana.api.main import _preload_dataframe_cache
+        from autom8_asana.api.preload.legacy import _preload_dataframe_cache
 
         mock_app = MagicMock()
         mock_app.state.entity_project_registry = mock_entity_registry
@@ -135,7 +135,7 @@ class TestPreloadDataframeCacheFunction:
         sample_index: GidLookupIndex,
     ) -> None:
         """Preload loads persisted index and runs incremental catch-up."""
-        from autom8_asana.api.main import _preload_dataframe_cache
+        from autom8_asana.api.preload.legacy import _preload_dataframe_cache
 
         mock_app = MagicMock()
         mock_app.state.entity_project_registry = mock_entity_registry
@@ -187,7 +187,7 @@ class TestPreloadDataframeCacheFunction:
         sample_dataframe: pl.DataFrame,
     ) -> None:
         """Preload does full rebuild when no persisted state exists."""
-        from autom8_asana.api.main import _preload_dataframe_cache
+        from autom8_asana.api.preload.legacy import _preload_dataframe_cache
 
         mock_app = MagicMock()
         mock_app.state.entity_project_registry = mock_entity_registry
@@ -238,7 +238,7 @@ class TestDoIncrementalCatchup:
         sample_index: GidLookupIndex,
     ) -> None:
         """Incremental catch-up returns existing state when bot PAT unavailable."""
-        from autom8_asana.api.main import _do_incremental_catchup
+        from autom8_asana.api.preload.legacy import _do_incremental_catchup
         from autom8_asana.auth.bot_pat import BotPATError
 
         watermark = datetime.now(UTC)
@@ -265,7 +265,7 @@ class TestDoIncrementalCatchup:
         sample_index: GidLookupIndex,
     ) -> None:
         """Incremental catch-up returns existing state when workspace not configured."""
-        from autom8_asana.api.main import _do_incremental_catchup
+        from autom8_asana.api.preload.legacy import _do_incremental_catchup
 
         watermark = datetime.now(UTC)
 
@@ -292,7 +292,7 @@ class TestDoFullRebuild:
     @pytest.mark.asyncio
     async def test_full_rebuild_returns_none_when_no_bot_pat(self) -> None:
         """Full rebuild returns None DataFrame when bot PAT unavailable."""
-        from autom8_asana.api.main import _do_full_rebuild
+        from autom8_asana.api.preload.legacy import _do_full_rebuild
         from autom8_asana.auth.bot_pat import BotPATError
 
         with patch("autom8_asana.auth.bot_pat.get_bot_pat") as mock_get_pat:
@@ -309,7 +309,7 @@ class TestDoFullRebuild:
     @pytest.mark.asyncio
     async def test_full_rebuild_returns_none_when_no_workspace(self) -> None:
         """Full rebuild returns None DataFrame when workspace not configured."""
-        from autom8_asana.api.main import _do_full_rebuild
+        from autom8_asana.api.preload.legacy import _do_full_rebuild
 
         with patch("autom8_asana.auth.bot_pat.get_bot_pat") as mock_get_pat:
             mock_get_pat.return_value = "test_pat"
@@ -332,7 +332,7 @@ class TestGracefulDegradation:
         self, mock_entity_registry: MagicMock
     ) -> None:
         """Preload continues with other projects when one fails."""
-        from autom8_asana.api.main import _preload_dataframe_cache
+        from autom8_asana.api.preload.legacy import _preload_dataframe_cache
         from autom8_asana.services.resolver import EntityProjectConfig
 
         # Configure two projects
@@ -387,7 +387,7 @@ class TestGracefulDegradation:
     @pytest.mark.asyncio
     async def test_preload_sets_cache_ready_on_exception(self) -> None:
         """Preload sets cache ready even when exception occurs."""
-        from autom8_asana.api.main import _preload_dataframe_cache
+        from autom8_asana.api.preload.legacy import _preload_dataframe_cache
 
         mock_app = MagicMock()
         # Simulate exception by having getattr raise
@@ -417,7 +417,7 @@ class TestCacheIntegration:
         sample_index: GidLookupIndex,
     ) -> None:
         """Index is persisted to S3 after successful preload."""
-        from autom8_asana.api.main import _preload_dataframe_cache
+        from autom8_asana.api.preload.legacy import _preload_dataframe_cache
 
         mock_app = MagicMock()
         mock_app.state.entity_project_registry = mock_entity_registry
@@ -465,7 +465,7 @@ class TestCacheIntegration:
         sample_index: GidLookupIndex,
     ) -> None:
         """State is persisted to S3 after incremental catch-up with changes."""
-        from autom8_asana.api.main import _preload_dataframe_cache
+        from autom8_asana.api.preload.legacy import _preload_dataframe_cache
 
         mock_app = MagicMock()
         mock_app.state.entity_project_registry = mock_entity_registry
