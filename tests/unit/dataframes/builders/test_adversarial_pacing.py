@@ -86,18 +86,18 @@ def _make_builder(
     mock_persistence._make_section_key = MagicMock(
         return_value="dataframes/proj/sections/sec.parquet"
     )
-    mock_persistence._s3_client = MagicMock()
 
     if s3_put_side_effect is not None:
-        mock_persistence._s3_client.put_object_async = AsyncMock(
-            side_effect=s3_put_side_effect
+        # Map side_effect to True/False based on .success attribute
+        checkpoint_results = [
+            r.success if hasattr(r, 'success') else bool(r) for r in s3_put_side_effect
+        ]
+        mock_persistence.write_checkpoint_async = AsyncMock(
+            side_effect=checkpoint_results
         )
     else:
-        mock_s3_result = MagicMock()
-        mock_s3_result.success = s3_put_success
-        mock_s3_result.error = None if s3_put_success else "S3 write failed"
-        mock_persistence._s3_client.put_object_async = AsyncMock(
-            return_value=mock_s3_result
+        mock_persistence.write_checkpoint_async = AsyncMock(
+            return_value=s3_put_success
         )
 
     mock_persistence._get_manifest_lock = MagicMock(return_value=asyncio.Lock())
@@ -281,7 +281,7 @@ class TestSectionSizeBoundaries:
         assert mock_sleep.call_count == 4
 
         # Checkpoints at pages_fetched % 50 == 0: 50, 100 => 2 checkpoints
-        assert builder._persistence._s3_client.put_object_async.call_count == 2
+        assert builder._persistence.write_checkpoint_async.call_count == 2
 
 
 # ===================================================================
@@ -640,7 +640,7 @@ class TestConfigurationBoundaries:
 
         assert result is True
         # Checkpoint at every page: pages_fetched 2 and 3, both % 1 == 0
-        assert builder._persistence._s3_client.put_object_async.call_count == 2
+        assert builder._persistence.write_checkpoint_async.call_count == 2
 
     async def test_pace_delay_zero(self) -> None:
         """pace_delay_seconds=0: no actual delay but sleep still called."""
@@ -733,7 +733,7 @@ class TestDataIntegrity:
 
         assert result is True
         # Verify checkpoint was attempted (S3 put called)
-        assert builder._persistence._s3_client.put_object_async.call_count >= 1
+        assert builder._persistence.write_checkpoint_async.call_count >= 1
 
     async def test_final_write_replaces_all_checkpoint_data(self) -> None:
         """Final write via write_section_async has ALL rows, not just new ones."""
@@ -809,7 +809,7 @@ class TestMixedCheckpointResults:
         assert len(written_df) == 10000
 
         # Both checkpoints were attempted
-        assert builder._persistence._s3_client.put_object_async.call_count == 2
+        assert builder._persistence.write_checkpoint_async.call_count == 2
 
 
 # ===================================================================

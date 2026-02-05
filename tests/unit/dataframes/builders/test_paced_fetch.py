@@ -66,20 +66,14 @@ def _make_builder(
     mock_persistence = MagicMock(spec=SectionPersistence)
     mock_persistence.update_manifest_section_async = AsyncMock(return_value=manifest)
     mock_persistence.write_section_async = AsyncMock(return_value=True)
+    mock_persistence.write_checkpoint_async = AsyncMock(return_value=True)
+    mock_persistence.update_checkpoint_metadata_async = AsyncMock(return_value=None)
     mock_persistence._make_section_key = MagicMock(
         return_value="dataframes/proj/sections/sec.parquet"
-    )
-    mock_persistence._s3_client = MagicMock()
-    mock_s3_result = MagicMock()
-    mock_s3_result.success = True
-    mock_s3_result.error = None
-    mock_persistence._s3_client.put_object_async = AsyncMock(
-        return_value=mock_s3_result
     )
     mock_persistence._get_manifest_lock = MagicMock(return_value=asyncio.Lock())
     mock_persistence.get_manifest_async = AsyncMock(return_value=manifest)
     mock_persistence._manifest_cache = {}
-    mock_persistence._save_manifest_async = AsyncMock(return_value=True)
 
     builder = ProgressiveProjectBuilder(
         client=mock_client,
@@ -129,7 +123,7 @@ class TestSmallSectionNoPacing:
         assert result is True
         mock_sleep.assert_not_called()
         # No checkpoint writes for small sections
-        builder._persistence._s3_client.put_object_async.assert_not_called()
+        builder._persistence.write_checkpoint_async.assert_not_called()
         # Final write should go through write_section_async
         builder._persistence.write_section_async.assert_called_once()
 
@@ -244,7 +238,7 @@ class TestCheckpointWriteAtIntervals:
         assert result is True
         # Checkpoint writes go directly to S3 client (not write_section_async)
         # 2 checkpoints at pages 50 and 100
-        assert builder._persistence._s3_client.put_object_async.call_count == 2
+        assert builder._persistence.write_checkpoint_async.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -282,8 +276,8 @@ class TestCheckpointMetadataUpdated:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
-        # _update_checkpoint_metadata was called, which saves manifest
-        builder._persistence._save_manifest_async.assert_called()
+        # write_checkpoint_async internally updates metadata and saves manifest
+        builder._persistence.write_checkpoint_async.assert_called()
 
 
 @pytest.mark.asyncio
