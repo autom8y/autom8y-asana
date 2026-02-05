@@ -152,7 +152,12 @@ async def get_task(
     if opt_fields:
         fields_list = [f.strip() for f in opt_fields.split(",")]
 
-    task = await task_service.get_task(client, gid, opt_fields=fields_list)
+    try:
+        task = await task_service.get_task(client, gid, opt_fields=fields_list)
+    except ServiceError as e:
+        raise HTTPException(
+            status_code=get_status_for_error(e), detail=e.message
+        )
     return build_success_response(data=task, request_id=request_id)
 
 
@@ -262,7 +267,12 @@ async def delete_task(
     Returns:
         No content on success.
     """
-    await task_service.delete_task(client, gid)
+    try:
+        await task_service.delete_task(client, gid)
+    except ServiceError as e:
+        raise HTTPException(
+            status_code=get_status_for_error(e), detail=e.message
+        )
 
 
 # --- Related Operations ---
@@ -297,9 +307,14 @@ async def list_subtasks(
     Returns:
         List of subtasks with pagination metadata.
     """
-    result = await task_service.list_subtasks(
-        client, gid, limit=limit, offset=offset
-    )
+    try:
+        result = await task_service.list_subtasks(
+            client, gid, limit=limit, offset=offset
+        )
+    except ServiceError as e:
+        raise HTTPException(
+            status_code=get_status_for_error(e), detail=e.message
+        )
 
     pagination = PaginationMeta(
         limit=limit,
@@ -341,9 +356,14 @@ async def list_dependents(
     Returns:
         List of dependent tasks with pagination metadata.
     """
-    result = await task_service.list_dependents(
-        client, gid, limit=limit, offset=offset
-    )
+    try:
+        result = await task_service.list_dependents(
+            client, gid, limit=limit, offset=offset
+        )
+    except ServiceError as e:
+        raise HTTPException(
+            status_code=get_status_for_error(e), detail=e.message
+        )
 
     pagination = PaginationMeta(
         limit=limit,
@@ -379,7 +399,12 @@ async def duplicate_task(
     Returns:
         New duplicated task data.
     """
-    task = await task_service.duplicate_task(client, gid, body.name)
+    try:
+        task = await task_service.duplicate_task(client, gid, body.name)
+    except ServiceError as e:
+        raise HTTPException(
+            status_code=get_status_for_error(e), detail=e.message
+        )
     return build_success_response(data=task, request_id=request_id)
 
 
@@ -408,7 +433,12 @@ async def add_tag(
     Returns:
         Updated task data.
     """
-    task_data = await task_service.add_tag(client, gid, body.tag_gid)
+    try:
+        task_data = await task_service.add_tag(client, gid, body.tag_gid)
+    except ServiceError as e:
+        raise HTTPException(
+            status_code=get_status_for_error(e), detail=e.message
+        )
     return build_success_response(data=task_data, request_id=request_id)
 
 
@@ -434,7 +464,12 @@ async def remove_tag(
     Returns:
         Updated task data.
     """
-    task_data = await task_service.remove_tag(client, gid, tag_gid)
+    try:
+        task_data = await task_service.remove_tag(client, gid, tag_gid)
+    except ServiceError as e:
+        raise HTTPException(
+            status_code=get_status_for_error(e), detail=e.message
+        )
     return build_success_response(data=task_data, request_id=request_id)
 
 
@@ -463,9 +498,14 @@ async def move_to_section(
     Returns:
         Updated task data.
     """
-    task_data = await task_service.move_to_section(
-        client, gid, body.section_gid, body.project_gid
-    )
+    try:
+        task_data = await task_service.move_to_section(
+            client, gid, body.section_gid, body.project_gid
+        )
+    except ServiceError as e:
+        raise HTTPException(
+            status_code=get_status_for_error(e), detail=e.message
+        )
     return build_success_response(data=task_data, request_id=request_id)
 
 
@@ -491,7 +531,12 @@ async def set_assignee(
     Returns:
         Updated task data.
     """
-    task = await task_service.set_assignee(client, gid, body.assignee_gid)
+    try:
+        task = await task_service.set_assignee(client, gid, body.assignee_gid)
+    except ServiceError as e:
+        raise HTTPException(
+            status_code=get_status_for_error(e), detail=e.message
+        )
     return build_success_response(data=task, request_id=request_id)
 
 
@@ -517,7 +562,12 @@ async def add_to_project(
     Returns:
         Updated task data.
     """
-    task_data = await task_service.add_to_project(client, gid, body.project_gid)
+    try:
+        task_data = await task_service.add_to_project(client, gid, body.project_gid)
+    except ServiceError as e:
+        raise HTTPException(
+            status_code=get_status_for_error(e), detail=e.message
+        )
     return build_success_response(data=task_data, request_id=request_id)
 
 
@@ -543,7 +593,12 @@ async def remove_from_project(
     Returns:
         Updated task data.
     """
-    task_data = await task_service.remove_from_project(client, gid, project_gid)
+    try:
+        task_data = await task_service.remove_from_project(client, gid, project_gid)
+    except ServiceError as e:
+        raise HTTPException(
+            status_code=get_status_for_error(e), detail=e.message
+        )
     return build_success_response(data=task_data, request_id=request_id)
 
 
