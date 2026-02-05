@@ -91,7 +91,7 @@ async def _invalidate_cache_async(
     Returns:
         InvalidateResponse with detailed results.
     """
-    from autom8_asana.cache.tiered import TieredCacheProvider
+    from autom8_asana.cache.providers.tiered import TieredCacheProvider
 
     start_time = time.monotonic()
     invocation_id = getattr(context, "aws_request_id", None) or str(uuid.uuid4())

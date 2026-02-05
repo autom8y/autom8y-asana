@@ -6,7 +6,7 @@ Implements the architecture defined in ADR-0026:
 - Graceful degradation: S3 failures don't break Redis operations
 
 Example:
-    >>> from autom8_asana.cache.tiered import TieredCacheProvider, TieredConfig
+    >>> from autom8_asana.cache.providers.tiered import TieredCacheProvider, TieredConfig
     >>> from autom8_asana.cache.backends.redis import RedisCacheProvider
     >>> from autom8_asana.cache.backends.s3 import S3CacheProvider
     >>>

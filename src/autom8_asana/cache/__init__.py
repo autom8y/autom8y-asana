@@ -153,9 +153,8 @@ from autom8_asana.cache.integration.stories import (
 )
 from autom8_asana.cache.integration.upgrader import AsanaTaskUpgrader
 
-# --- Re-exports for Read-Only Zone (api/main.py) ---
-# These symbols are imported directly by read-only zone code that cannot be modified.
-# api/main.py imports: CacheProviderFactory, MutationInvalidator, register_asana_schemas
+# --- Re-exports ---
+# CacheProviderFactory and MutationInvalidator are public API surface of the cache package.
 from autom8_asana.cache.integration.factory import CacheProviderFactory
 from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator
 
@@ -266,9 +265,6 @@ def __getattr__(name: str):
     schema_providers -> dataframes -> models.business -> cache
 
     By deferring the import until first access, we break the cycle.
-
-    Also provides backward compatibility for read-only zone (api/main.py,
-    lambda_handlers/) that imports from pre-reorganization paths.
     """
     if name == "register_asana_schemas":
         from autom8_asana.cache.integration.schema_providers import (
@@ -281,24 +277,4 @@ def __getattr__(name: str):
         from autom8_asana.cache.integration import dataframe_cache
 
         return dataframe_cache
-    elif name == "factory":
-        # api/main.py imports CacheProviderFactory from cache.factory
-        from autom8_asana.cache import integration
-
-        return integration.factory
-    elif name == "mutation_invalidator":
-        # api/main.py imports MutationInvalidator from cache.mutation_invalidator
-        from autom8_asana.cache import integration
-
-        return integration.mutation_invalidator
-    elif name == "schema_providers":
-        # api/main.py imports register_asana_schemas from cache.schema_providers
-        from autom8_asana.cache import integration
-
-        return integration.schema_providers
-    elif name == "tiered":
-        # lambda_handlers/cache_invalidate.py imports TieredCacheProvider from cache.tiered
-        from autom8_asana.cache import providers
-
-        return providers.tiered
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
