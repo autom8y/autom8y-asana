@@ -233,7 +233,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
         # Create SHARED UnifiedTaskStore for cascade field resolution
         # Per cascade architecture: Business tasks must be available when Unit builds
         # Each AsanaClient creates its own store, but cascade needs cross-project access
-        from autom8_asana.cache.factory import CacheProviderFactory
+        from autom8_asana.cache.integration.factory import CacheProviderFactory
         from autom8_asana.config import CacheConfig
 
         shared_store = CacheProviderFactory.create_unified_store(
