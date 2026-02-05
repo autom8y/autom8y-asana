@@ -337,7 +337,9 @@ class DataFrameCache:
         if entry is not None and self._schema_is_valid(entry):
             self._stats[entity_type]["lkg_circuit_serves"] += 1
             self._stats[entity_type]["memory_hits"] += 1
-            info = self._build_freshness_info(entry, FreshnessStatus.CIRCUIT_LKG, cache_key)
+            info = self._build_freshness_info(
+                entry, FreshnessStatus.CIRCUIT_LKG, cache_key
+            )
             logger.info(
                 "dataframe_cache_circuit_lkg_serve",
                 extra={
@@ -356,7 +358,9 @@ class DataFrameCache:
             self.memory_tier.put(cache_key, entry)
             self._stats[entity_type]["lkg_circuit_serves"] += 1
             self._stats[entity_type]["s3_hits"] += 1
-            info = self._build_freshness_info(entry, FreshnessStatus.CIRCUIT_LKG, cache_key)
+            info = self._build_freshness_info(
+                entry, FreshnessStatus.CIRCUIT_LKG, cache_key
+            )
             logger.info(
                 "dataframe_cache_circuit_lkg_serve",
                 extra={
@@ -481,6 +485,15 @@ class DataFrameCache:
             return entry
 
         # SCHEMA_MISMATCH or WATERMARK_STALE — hard reject, remove from memory
+        logger.warning(
+            f"dataframe_cache_{tier}_hard_reject",
+            extra={
+                "project_gid": project_gid,
+                "entity_type": entity_type,
+                "freshness_status": status.value,
+                "entry_schema_version": entry.schema_version,
+            },
+        )
         if tier == "memory":
             self.memory_tier.remove(cache_key)
         return None

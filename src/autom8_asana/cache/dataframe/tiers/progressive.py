@@ -164,21 +164,24 @@ class ProgressiveTier:
         # Use watermark from storage, or fall back to current time
         if watermark is None:
             watermark = datetime.now(UTC)
-            schema_version = "unknown"
-        else:
-            # Try to get schema_version from watermark metadata via storage
-            try:
-                wm_key = f"{self.persistence._prefix}{project_gid}/watermark.json"
-                wm_bytes = await storage.load_json(wm_key)
-                if wm_bytes is not None:
-                    import json
 
-                    wm_data = json.loads(wm_bytes.decode("utf-8"))
-                    schema_version = wm_data.get("schema_version", "unknown")
-                else:
-                    schema_version = "unknown"
-            except Exception:  # BROAD-CATCH: graceful degradation for metadata
-                schema_version = "unknown"
+        # Schema version: try watermark.json first, fall back to SchemaRegistry
+        schema_version = None
+        try:
+            wm_key = f"{self.persistence._prefix}{project_gid}/watermark.json"
+            wm_bytes = await storage.load_json(wm_key)
+            if wm_bytes is not None:
+                import json
+
+                wm_data = json.loads(wm_bytes.decode("utf-8"))
+                schema_version = wm_data.get("schema_version")
+        except Exception:  # BROAD-CATCH: graceful degradation for metadata
+            pass
+
+        if schema_version is None:
+            from autom8_asana.core.schema import get_schema_version
+
+            schema_version = get_schema_version(entity_type) or "unknown"
 
         entry = CacheEntry(
             project_gid=project_gid,
