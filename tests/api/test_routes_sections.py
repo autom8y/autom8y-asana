@@ -279,7 +279,9 @@ class TestReorderSection:
         )
 
         assert response.status_code == 400
-        assert "before_section" in response.json()["detail"].lower()
+        detail = response.json()["detail"]
+        assert detail["error"] == "INVALID_PARAMETER"
+        assert "before_section" in detail["message"].lower()
 
     def test_reorder_section_rejects_both_positions(
         self, authed_client: tuple[TestClient, MagicMock]
