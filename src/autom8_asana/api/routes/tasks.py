@@ -107,7 +107,7 @@ async def list_tasks(
         )
     except ServiceError as e:
         raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.message
+            status_code=get_status_for_error(e), detail=e.to_dict()
         )
 
     pagination = PaginationMeta(
@@ -156,7 +156,7 @@ async def get_task(
         task = await task_service.get_task(client, gid, opt_fields=fields_list)
     except ServiceError as e:
         raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.message
+            status_code=get_status_for_error(e), detail=e.to_dict()
         )
     return build_success_response(data=task, request_id=request_id)
 
@@ -199,7 +199,7 @@ async def create_task(
         )
     except ServiceError as e:
         raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.message
+            status_code=get_status_for_error(e), detail=e.to_dict()
         )
 
     return build_success_response(data=task, request_id=request_id)
@@ -242,7 +242,7 @@ async def update_task(
         )
     except ServiceError as e:
         raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.message
+            status_code=get_status_for_error(e), detail=e.to_dict()
         )
 
     return build_success_response(data=task, request_id=request_id)
@@ -271,7 +271,7 @@ async def delete_task(
         await task_service.delete_task(client, gid)
     except ServiceError as e:
         raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.message
+            status_code=get_status_for_error(e), detail=e.to_dict()
         )
 
 
@@ -313,7 +313,7 @@ async def list_subtasks(
         )
     except ServiceError as e:
         raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.message
+            status_code=get_status_for_error(e), detail=e.to_dict()
         )
 
     pagination = PaginationMeta(
@@ -362,7 +362,7 @@ async def list_dependents(
         )
     except ServiceError as e:
         raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.message
+            status_code=get_status_for_error(e), detail=e.to_dict()
         )
 
     pagination = PaginationMeta(
@@ -403,7 +403,7 @@ async def duplicate_task(
         task = await task_service.duplicate_task(client, gid, body.name)
     except ServiceError as e:
         raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.message
+            status_code=get_status_for_error(e), detail=e.to_dict()
         )
     return build_success_response(data=task, request_id=request_id)
 
@@ -437,7 +437,7 @@ async def add_tag(
         task_data = await task_service.add_tag(client, gid, body.tag_gid)
     except ServiceError as e:
         raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.message
+            status_code=get_status_for_error(e), detail=e.to_dict()
         )
     return build_success_response(data=task_data, request_id=request_id)
 
@@ -468,7 +468,7 @@ async def remove_tag(
         task_data = await task_service.remove_tag(client, gid, tag_gid)
     except ServiceError as e:
         raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.message
+            status_code=get_status_for_error(e), detail=e.to_dict()
         )
     return build_success_response(data=task_data, request_id=request_id)
 
@@ -504,7 +504,7 @@ async def move_to_section(
         )
     except ServiceError as e:
         raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.message
+            status_code=get_status_for_error(e), detail=e.to_dict()
         )
     return build_success_response(data=task_data, request_id=request_id)
 
@@ -535,7 +535,7 @@ async def set_assignee(
         task = await task_service.set_assignee(client, gid, body.assignee_gid)
     except ServiceError as e:
         raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.message
+            status_code=get_status_for_error(e), detail=e.to_dict()
         )
     return build_success_response(data=task, request_id=request_id)
 
@@ -566,7 +566,7 @@ async def add_to_project(
         task_data = await task_service.add_to_project(client, gid, body.project_gid)
     except ServiceError as e:
         raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.message
+            status_code=get_status_for_error(e), detail=e.to_dict()
         )
     return build_success_response(data=task_data, request_id=request_id)
 
@@ -597,7 +597,7 @@ async def remove_from_project(
         task_data = await task_service.remove_from_project(client, gid, project_gid)
     except ServiceError as e:
         raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.message
+            status_code=get_status_for_error(e), detail=e.to_dict()
         )
     return build_success_response(data=task_data, request_id=request_id)
 
