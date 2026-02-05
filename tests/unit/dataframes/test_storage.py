@@ -216,17 +216,17 @@ class TestKeyFormatting:
     """Verify key formatting matches legacy schemes exactly."""
 
     def test_df_key(self) -> None:
-        """DataFrame key matches DataFramePersistence._make_dataframe_key."""
+        """DataFrame key matches the established key format."""
         storage = _make_storage()
         assert storage._df_key("proj_123") == "dataframes/proj_123/dataframe.parquet"
 
     def test_watermark_key(self) -> None:
-        """Watermark key matches DataFramePersistence._make_watermark_key."""
+        """Watermark key matches the established key format."""
         storage = _make_storage()
         assert storage._watermark_key("proj_123") == "dataframes/proj_123/watermark.json"
 
     def test_index_key(self) -> None:
-        """Index key matches DataFramePersistence._make_index_key."""
+        """Index key matches the established key format."""
         storage = _make_storage()
         assert storage._index_key("proj_123") == "dataframes/proj_123/gid_lookup_index.json"
 

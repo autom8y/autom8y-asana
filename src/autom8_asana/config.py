@@ -282,9 +282,9 @@ class S3LocationConfig:
     """Shared S3 location configuration primitive.
 
     Per B4 Config Consolidation: Extracted from duplicate S3 location fields
-    that appeared in S3Config, PersistenceConfig, SectionPersistenceConfig,
-    and AsyncS3Config. Backend-specific configs compose from this primitive
-    rather than redefining bucket/region/endpoint_url independently.
+    that appeared in S3Config and other backend configs. Backend-specific
+    configs compose from this primitive rather than redefining
+    bucket/region/endpoint_url independently.
 
     Attributes:
         bucket: S3 bucket name.

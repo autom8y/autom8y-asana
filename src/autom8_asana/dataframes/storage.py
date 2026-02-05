@@ -1,12 +1,8 @@
 """Unified DataFrame persistence via the DataFrameStorage protocol.
 
 Per TDD-UNIFIED-DF-PERSISTENCE-001 (S4-007/B6):
-Consolidates three independent S3 persistence implementations
-(DataFramePersistence, AsyncS3Client, SectionPersistence S3 I/O)
-behind a single protocol with unified retry, error handling, and
-configuration.
-
-Phase 1: Additive introduction. No existing consumers are modified.
+Single protocol with unified retry, error handling, and configuration
+for all DataFrame S3 persistence operations.
 
 Components:
 - DataFrameStorage: @runtime_checkable Protocol for all persistence ops
@@ -72,8 +68,7 @@ class DataFrameStorage(Protocol):
     storage backend.
 
     Per TDD-UNIFIED-DF-PERSISTENCE-001 Section 5: Single protocol covering
-    all operations from DataFramePersistence, AsyncS3Client, and
-    SectionPersistence S3 I/O.
+    all S3 persistence operations.
     """
 
     # ---- Availability ----
@@ -262,8 +257,7 @@ def create_s3_retry_orchestrator(
 class S3DataFrameStorage:
     """S3 implementation of DataFrameStorage protocol.
 
-    Consolidates DataFramePersistence, AsyncS3Client, and the S3 I/O
-    portions of SectionPersistence into a single implementation with:
+    Single S3 persistence implementation with:
     - RetryOrchestrator for coordinated retry with budget enforcement
     - S3LocationConfig for configuration
     - S3TransportError for error classification
@@ -644,7 +638,7 @@ class S3DataFrameStorage:
     ) -> bytes:
         """Serialize watermark metadata to JSON bytes.
 
-        Format matches existing DataFramePersistence watermark JSON.
+        Format matches the established watermark JSON schema.
         """
         watermark_data: dict[str, Any] = {
             "project_gid": project_gid,

@@ -2,7 +2,7 @@
 
 Wraps a shared boto3 S3 client with explicit lifecycle management,
 cached health checks, and circuit breaker integration. Provides a
-single boto3 client for both S3CacheProvider and AsyncS3Client.
+single boto3 client for S3CacheProvider and S3DataFrameStorage.
 
 Thread Safety:
     Client creation is protected by a Lock. The boto3 S3 client

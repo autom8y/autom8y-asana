@@ -4,8 +4,7 @@ Per TDD-UNIFIED-PROGRESSIVE-CACHE-001: Tests for reading/writing via
 SectionPersistence storage delegation, key parsing, error handling,
 and statistics tracking.
 
-Refactored for I11: Uses DataFrameStorage protocol mocks instead of
-AsyncS3Client / S3ReadResult.
+Uses DataFrameStorage protocol mocks for S3 persistence operations.
 """
 
 import json
