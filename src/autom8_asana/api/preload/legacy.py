@@ -188,7 +188,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                                 "index_entries": len(index),
                             },
                         )
-                    except Exception as e:
+                    except Exception as e:  # BROAD-CATCH: degrade
                         logger.warning(
                             "dataframe_preload_index_recovery_failed",
                             extra={
@@ -354,7 +354,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                             extra={"project_gid": project_gid},
                         )
 
-            except Exception as e:
+            except Exception as e:  # BROAD-CATCH: isolation
                 # Graceful degradation - continue with other projects
                 logger.warning(
                     "dataframe_preload_project_failed",
@@ -365,7 +365,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                     },
                 )
 
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: degrade
         # Graceful degradation - log and continue
         logger.error(
             "dataframe_preload_failed",
@@ -489,7 +489,7 @@ async def _do_incremental_catchup(
 
             return updated_df, new_watermark, was_incremental
 
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: degrade
         logger.warning(
             "incremental_catchup_failed",
             extra={
@@ -575,7 +575,7 @@ async def _do_full_rebuild(
 
                 return result.dataframe, result.watermark
 
-    except Exception as e:
+    except Exception as e:  # BROAD-CATCH: degrade
         logger.warning(
             "full_rebuild_failed",
             extra={

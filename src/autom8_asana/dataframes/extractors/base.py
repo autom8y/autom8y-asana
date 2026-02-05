@@ -152,7 +152,7 @@ class BaseExtractor(ABC):
             try:
                 value = self._extract_column(task, col, project_gid)
                 data[col.name] = value
-            except Exception as e:
+            except Exception as e:  # BROAD-CATCH: isolation
                 # Per FR-ERROR-005: Continue on individual failures
                 task_gid = getattr(task, "gid", "unknown")
                 errors.append(ExtractionError(task_gid, col.name, e))
@@ -188,7 +188,7 @@ class BaseExtractor(ABC):
             try:
                 value = await self._extract_column_async(task, col, project_gid)
                 data[col.name] = value
-            except Exception as e:
+            except Exception as e:  # BROAD-CATCH: isolation
                 # Per FR-ERROR-005: Continue on individual failures
                 task_gid = getattr(task, "gid", "unknown")
                 errors.append(ExtractionError(task_gid, col.name, e))

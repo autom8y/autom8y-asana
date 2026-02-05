@@ -180,7 +180,7 @@ class UniversalResolutionStrategy:
 
                 results.append(ResolutionResult.from_gids(gids, context=context))
 
-            except Exception as e:
+            except Exception as e:  # BROAD-CATCH: isolation
                 logger.warning(
                     "resolution_lookup_failed",
                     extra={
@@ -363,7 +363,7 @@ class UniversalResolutionStrategy:
             # Return in same order as input GIDs
             return [result_map.get(gid, {"gid": gid}) for gid in gids]
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: degrade
             logger.warning(
                 "enrichment_extraction_failed",
                 extra={
@@ -419,7 +419,7 @@ class UniversalResolutionStrategy:
                         project_gid, self.entity_type
                     )
                     return entry.dataframe
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: degrade
             logger.warning(
                 "dataframe_cache_fetch_failed",
                 extra={
@@ -450,7 +450,7 @@ class UniversalResolutionStrategy:
                     entry = await cache.get_async(project_gid, self.entity_type)
                     if entry is not None:
                         return entry.dataframe
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: degrade
             logger.warning(
                 "legacy_strategy_build_failed",
                 extra={
@@ -548,7 +548,7 @@ class UniversalResolutionStrategy:
 
             return df
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: degrade
             logger.warning(
                 "entity_dataframe_build_failed",
                 extra={
@@ -573,7 +573,7 @@ class UniversalResolutionStrategy:
 
         try:
             return registry.get_schema(schema_key)
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: degrade
             # Fall back to base schema
             logger.warning("Custom field resolver fallback", exc_info=True)
             return registry.get_schema("*")
