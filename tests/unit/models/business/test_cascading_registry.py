@@ -46,6 +46,8 @@ class TestCascadingFieldRegistry:
             "platforms",
             "vertical",
             "booking type",
+            "mrr",
+            "weekly ad spend",
         ]
 
         for field_name in expected_unit_fields:
@@ -55,9 +57,9 @@ class TestCascadingFieldRegistry:
             assert isinstance(field_def, CascadingFieldDef)
 
     def test_registry_field_count(self) -> None:
-        """Registry contains expected total field count (4 Business + 3 Unit)."""
+        """Registry contains expected total field count (4 Business + 5 Unit)."""
         registry = get_cascading_field_registry()
-        assert len(registry) == 7
+        assert len(registry) == 9
 
     def test_registry_is_cached(self) -> None:
         """Registry is built once and cached for subsequent calls."""

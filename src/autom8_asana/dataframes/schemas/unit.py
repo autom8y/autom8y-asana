@@ -93,5 +93,5 @@ UNIT_SCHEMA = DataFrameSchema(
         *BASE_COLUMNS,
         *[c for c in UNIT_COLUMNS if c not in BASE_COLUMNS],
     ],
-    version="1.2.0",  # Bump to force rebuild with cascade:Office Phone resolution
+    version="1.3.0",  # Bump to force rebuild with generalized cascade resolution fix
 )

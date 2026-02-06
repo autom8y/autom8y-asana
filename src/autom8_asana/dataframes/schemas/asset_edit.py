@@ -189,5 +189,5 @@ ASSET_EDIT_SCHEMA = DataFrameSchema(
             if c.name not in {col.name for col in BASE_COLUMNS}
         ],
     ],
-    version="1.1.0",
+    version="1.2.0",  # Bump to force rebuild with generalized cascade resolution fix
 )
