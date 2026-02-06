@@ -1329,10 +1329,9 @@ class TestGidEnumerationCache:
         self,
         mock_sections: list[Section],
         mock_tasks_by_section: dict[str, list[Task]],
-        capfd: pytest.CaptureFixture[str],
     ) -> None:
         """Test cache errors are logged as warnings (FR-DEGRADE-004)."""
-        from unittest.mock import MagicMock
+        from unittest.mock import MagicMock, patch
 
         sections_client = create_mock_sections_client(mock_sections)
         tasks_client = create_mock_tasks_client(mock_tasks_by_section)
@@ -1353,12 +1352,17 @@ class TestGidEnumerationCache:
             cache_provider=mock_cache,
         )
 
-        await fetcher.fetch_section_task_gids_async()
+        # Patch the logger to verify the warning call directly, avoiding
+        # structlog configuration pollution from test ordering in full suite
+        with patch(
+            "autom8_asana.dataframes.builders.parallel_fetch.logger"
+        ) as mock_logger:
+            await fetcher.fetch_section_task_gids_async()
 
-        # structlog output captured at fd level to handle stdlib interception
-        captured = capfd.readouterr()
-        output = captured.out + captured.err
-        assert "gid_enumeration_cache_lookup_failed" in output
+            # Verify warning was emitted with the expected event name
+            warning_calls = mock_logger.warning.call_args_list
+            event_names = [call[0][0] for call in warning_calls]
+            assert "gid_enumeration_cache_lookup_failed" in event_names
 
     # -------------------------------------------------------------------------
     # TTL Constant Tests

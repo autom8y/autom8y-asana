@@ -412,7 +412,7 @@ class TestRowExtractionExceptionAtCheckpoint:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise RuntimeError("Extract rows failed at checkpoint")
+                raise ConnectionError("Extract rows failed at checkpoint")
             return original_side_effect(dicts, **kw)
 
         builder._dataframe_view._extract_rows_async = AsyncMock(

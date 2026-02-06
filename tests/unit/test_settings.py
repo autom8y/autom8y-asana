@@ -420,25 +420,32 @@ class TestProjectOverrideSettings:
             settings = ProjectOverrideSettings()
             assert settings is not None
 
-    def test_invalid_gid_warns_in_default_mode(
-        self, capfd: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_invalid_gid_warns_in_default_mode(self) -> None:
         """Test invalid ASANA_PROJECT_* GID logs warning in default mode."""
+        from unittest.mock import MagicMock
+
         from autom8_asana.settings import ProjectOverrideSettings
 
         env = {
             "ASANA_PROJECT_INVALID": "not-a-gid",
         }
-        with patch.dict(os.environ, env, clear=True):
+        # Patch get_logger to capture warning calls directly, avoiding
+        # structlog configuration pollution from test ordering in full suite
+        mock_logger = MagicMock()
+        with (
+            patch.dict(os.environ, env, clear=True),
+            patch("autom8y_log.get_logger", return_value=mock_logger),
+        ):
             # Should NOT raise in default (non-strict) mode
             settings = ProjectOverrideSettings()
             assert settings is not None
 
-        # structlog output captured at fd level to handle stdlib interception
-        captured = capfd.readouterr()
-        output = captured.out + captured.err
-        assert "Invalid GID format" in output
-        assert "ASANA_PROJECT_INVALID" in output
+        # Verify warning was emitted with the expected content
+        warning_calls = mock_logger.warning.call_args_list
+        warning_messages = [str(call[0][0]) for call in warning_calls]
+        combined = " ".join(warning_messages)
+        assert "Invalid GID format" in combined
+        assert "ASANA_PROJECT_INVALID" in combined
 
     def test_invalid_gid_raises_in_strict_mode(self) -> None:
         """Test invalid ASANA_PROJECT_* GID raises ValueError in strict mode."""
