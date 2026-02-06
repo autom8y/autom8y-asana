@@ -184,10 +184,28 @@ class Unit(
             # allow_override=False is DEFAULT
         )
 
+        MRR = CascadingFieldDef(
+            name="MRR",
+            target_types={"Offer"},
+            # allow_override=False is DEFAULT
+        )
+
+        WEEKLY_AD_SPEND = CascadingFieldDef(
+            name="Weekly Ad Spend",
+            target_types={"Offer"},
+            # allow_override=False is DEFAULT
+        )
+
         @classmethod
         def all(cls) -> list[CascadingFieldDef]:
             """Get all cascading field definitions."""
-            return [cls.PLATFORMS, cls.VERTICAL, cls.BOOKING_TYPE]
+            return [
+                cls.PLATFORMS,
+                cls.VERTICAL,
+                cls.BOOKING_TYPE,
+                cls.MRR,
+                cls.WEEKLY_AD_SPEND,
+            ]
 
         @classmethod
         def get(cls, field_name: str) -> CascadingFieldDef | None:

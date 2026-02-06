@@ -99,5 +99,5 @@ OFFER_SCHEMA = DataFrameSchema(
         *BASE_COLUMNS,
         *[c for c in OFFER_COLUMNS if c.name not in {col.name for col in BASE_COLUMNS}],
     ],
-    version="1.1.0",  # Bumped version for schema change
+    version="1.2.0",  # Bump to force rebuild with generalized cascade resolution fix
 )

@@ -112,5 +112,5 @@ CONTACT_SCHEMA = DataFrameSchema(
             if c.name not in {col.name for col in BASE_COLUMNS}
         ],
     ],
-    version="1.2.0",  # Bumped version: added nickname, employee_id, contact_url, city columns
+    version="1.3.0",  # Bump to force rebuild with generalized cascade resolution fix
 )

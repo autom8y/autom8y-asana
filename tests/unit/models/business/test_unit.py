@@ -147,11 +147,13 @@ class TestUnitCascadingFields:
     def test_cascading_fields_all(self) -> None:
         """CascadingFields.all() returns all definitions."""
         all_fields = Unit.CascadingFields.all()
-        assert len(all_fields) == 3
+        assert len(all_fields) == 5
         names = [f.name for f in all_fields]
         assert "Platforms" in names
         assert "Vertical" in names
         assert "Booking Type" in names
+        assert "MRR" in names
+        assert "Weekly Ad Spend" in names
 
     def test_cascading_fields_get(self) -> None:
         """CascadingFields.get() returns field by name."""
