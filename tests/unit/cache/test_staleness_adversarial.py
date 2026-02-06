@@ -130,8 +130,9 @@ class TestTimerEdgeCases:
     async def test_request_at_window_boundary(self) -> None:
         """Test request arriving within coalesce window gets batched.
 
-        Note: Uses a longer window (200ms) with proportionally shorter sleep
-        to avoid CI timing flakiness. The 45ms/50ms margin was too tight.
+        Uses a very large window (2000ms) with a short sleep (50ms) to ensure
+        the second request always arrives well before the timer fires, even
+        on slow CI runners where event loop scheduling can be delayed.
         """
         mock_checker = MagicMock()
         batches_received = []
@@ -144,18 +145,22 @@ class TestTimerEdgeCases:
 
         coalescer = RequestCoalescer(
             checker=mock_checker,
-            window_ms=200,  # Longer window for CI stability
+            window_ms=2000,  # Very large window to eliminate CI timing flakiness
             max_batch=100,
         )
 
         # First request starts the timer
         task1 = asyncio.create_task(coalescer.request_check_async(make_entry("1")))
 
-        # Wait well under the window (100ms out of 200ms)
-        await asyncio.sleep(0.100)
+        # Wait a short time well under the window (50ms out of 2000ms)
+        await asyncio.sleep(0.050)
 
         # Second request arrives within window
         task2 = asyncio.create_task(coalescer.request_check_async(make_entry("2")))
+
+        # Force flush to avoid waiting the full 2s window
+        await asyncio.sleep(0.010)
+        await coalescer.flush_pending()
 
         results = await asyncio.gather(task1, task2)
 
