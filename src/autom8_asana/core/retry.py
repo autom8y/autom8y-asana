@@ -177,6 +177,24 @@ class DefaultRetryPolicy:
     - Unknown exceptions: not retried (fail-fast)
     """
 
+    # Permanent AWS error codes that should NEVER be retried.
+    # These indicate deterministic conditions (not-found, access denied, etc.)
+    # rather than transient backend failures.
+    # Mirrors S3TransportError.transient (exceptions.py:119-127) plus additional
+    # deterministic codes (InvalidObjectState, NoSuchUpload, MethodNotAllowed).
+    _PERMANENT_S3_ERROR_CODES: frozenset[str] = frozenset({
+        "NoSuchKey",
+        "NoSuchBucket",
+        "AccessDenied",
+        "InvalidAccessKeyId",
+        "SignatureDoesNotMatch",
+        "AllAccessDisabled",
+        "InvalidBucketName",
+        "InvalidObjectState",
+        "NoSuchUpload",
+        "MethodNotAllowed",
+    })
+
     def __init__(self, config: RetryPolicyConfig | None = None) -> None:
         self._config = config or RetryPolicyConfig()
 
@@ -216,13 +234,23 @@ class DefaultRetryPolicy:
 
         Priority:
         1. Autom8Error.transient property (authoritative)
-        2. Known transient error tuples (migration compatibility)
-        3. Default: not transient (fail-fast)
+        2. ClientError code inspection for known-permanent AWS error codes
+        3. Known transient error tuples (migration compatibility)
+        4. Default: not transient (fail-fast)
         """
         from autom8_asana.core.exceptions import Autom8Error
 
         if isinstance(error, Autom8Error):
             return error.transient
+
+        # Inspect ClientError error codes BEFORE the tuple-based check.
+        # ClientError encompasses both transient (Throttling, InternalError)
+        # and permanent (NoSuchKey, AccessDenied) errors. The isinstance
+        # check below would classify ALL ClientError as transient.
+        if hasattr(error, "response"):
+            error_code = error.response.get("Error", {}).get("Code", "")
+            if error_code in DefaultRetryPolicy._PERMANENT_S3_ERROR_CODES:
+                return False
 
         # Migration compatibility: check error tuple membership
         from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
@@ -658,11 +686,17 @@ class RetryOrchestrator:
                 return result
 
             except Exception as exc:  # BROAD-CATCH: enrichment -- retry loop catches any error to decide retry vs re-raise
-                # 4. Record failure with circuit breaker
-                self._circuit_breaker.record_failure(exc)
+                # 4. Check if retryable via policy (BEFORE recording CB failure)
+                is_retryable = self._policy.should_retry(exc, attempt)
 
-                # 5. Check if retryable via policy
-                if not self._policy.should_retry(exc, attempt):
+                # 5. Record failure with circuit breaker ONLY for transient errors.
+                # Non-transient errors (NoSuchKey, AccessDenied) are application-level
+                # conditions, not backend failures. They should not count toward
+                # the CB failure threshold.
+                if is_retryable or self._policy._is_transient(exc):
+                    self._circuit_breaker.record_failure(exc)
+
+                if not is_retryable:
                     duration_ms = (time.monotonic() - start_time) * 1000
                     logger.error(
                         "retry_exhausted",
@@ -755,11 +789,17 @@ class RetryOrchestrator:
                 return result
 
             except Exception as exc:  # BROAD-CATCH: enrichment -- async retry loop catches any error to decide retry vs re-raise
-                # 4. Record failure with circuit breaker
-                self._circuit_breaker.record_failure(exc)
+                # 4. Check if retryable via policy (BEFORE recording CB failure)
+                is_retryable = self._policy.should_retry(exc, attempt)
 
-                # 5. Check if retryable via policy
-                if not self._policy.should_retry(exc, attempt):
+                # 5. Record failure with circuit breaker ONLY for transient errors.
+                # Non-transient errors (NoSuchKey, AccessDenied) are application-level
+                # conditions, not backend failures. They should not count toward
+                # the CB failure threshold.
+                if is_retryable or self._policy._is_transient(exc):
+                    self._circuit_breaker.record_failure(exc)
+
+                if not is_retryable:
                     duration_ms = (time.monotonic() - start_time) * 1000
                     logger.error(
                         "retry_exhausted",

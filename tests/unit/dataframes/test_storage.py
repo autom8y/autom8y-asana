@@ -304,10 +304,16 @@ class TestAvailability:
         storage = _make_storage(location=_make_location(bucket=""))
         assert storage.is_available is False
 
-    def test_not_available_when_degraded(self) -> None:
-        """is_available returns False when in degraded mode."""
+    def test_not_available_when_permanently_disabled(self) -> None:
+        """is_available returns False when permanently disabled."""
         storage = _make_storage()
-        storage._degraded = True
+        storage._permanently_disabled = True
+        assert storage.is_available is False
+
+    def test_not_available_when_cb_open(self) -> None:
+        """is_available returns False when circuit breaker is open."""
+        storage = _make_storage()
+        storage._retry.circuit_breaker.force_open("test")
         assert storage.is_available is False
 
 
@@ -316,87 +322,87 @@ class TestAvailability:
 # ---------------------------------------------------------------------------
 
 
-class TestDegradedMode:
-    """Test degraded mode behavior across all operations."""
+class TestPermanentlyDisabledMode:
+    """Test permanently disabled mode behavior across all operations."""
 
     @pytest.fixture()
-    def degraded_storage(self) -> S3DataFrameStorage:
-        """Create storage in degraded mode."""
+    def disabled_storage(self) -> S3DataFrameStorage:
+        """Create storage in permanently disabled mode."""
         storage = _make_storage()
-        storage._degraded = True
+        storage._permanently_disabled = True
         return storage
 
     @pytest.mark.asyncio()
-    async def test_save_dataframe_skips_when_degraded(
-        self, degraded_storage: S3DataFrameStorage
+    async def test_save_dataframe_skips_when_disabled(
+        self, disabled_storage: S3DataFrameStorage
     ) -> None:
-        result = await degraded_storage.save_dataframe(
+        result = await disabled_storage.save_dataframe(
             "proj_123", _make_df(), _make_watermark()
         )
         assert result is False
 
     @pytest.mark.asyncio()
-    async def test_load_dataframe_skips_when_degraded(
-        self, degraded_storage: S3DataFrameStorage
+    async def test_load_dataframe_skips_when_disabled(
+        self, disabled_storage: S3DataFrameStorage
     ) -> None:
-        df, wm = await degraded_storage.load_dataframe("proj_123")
+        df, wm = await disabled_storage.load_dataframe("proj_123")
         assert df is None
         assert wm is None
 
     @pytest.mark.asyncio()
-    async def test_save_watermark_skips_when_degraded(
-        self, degraded_storage: S3DataFrameStorage
+    async def test_save_watermark_skips_when_disabled(
+        self, disabled_storage: S3DataFrameStorage
     ) -> None:
-        result = await degraded_storage.save_watermark("proj_123", _make_watermark())
+        result = await disabled_storage.save_watermark("proj_123", _make_watermark())
         assert result is False
 
     @pytest.mark.asyncio()
-    async def test_get_watermark_skips_when_degraded(
-        self, degraded_storage: S3DataFrameStorage
+    async def test_get_watermark_skips_when_disabled(
+        self, disabled_storage: S3DataFrameStorage
     ) -> None:
-        result = await degraded_storage.get_watermark("proj_123")
+        result = await disabled_storage.get_watermark("proj_123")
         assert result is None
 
     @pytest.mark.asyncio()
-    async def test_save_index_skips_when_degraded(
-        self, degraded_storage: S3DataFrameStorage
+    async def test_save_index_skips_when_disabled(
+        self, disabled_storage: S3DataFrameStorage
     ) -> None:
-        result = await degraded_storage.save_index("proj_123", {"key": "val"})
+        result = await disabled_storage.save_index("proj_123", {"key": "val"})
         assert result is False
 
     @pytest.mark.asyncio()
-    async def test_load_index_skips_when_degraded(
-        self, degraded_storage: S3DataFrameStorage
+    async def test_load_index_skips_when_disabled(
+        self, disabled_storage: S3DataFrameStorage
     ) -> None:
-        result = await degraded_storage.load_index("proj_123")
+        result = await disabled_storage.load_index("proj_123")
         assert result is None
 
     @pytest.mark.asyncio()
-    async def test_list_projects_skips_when_degraded(
-        self, degraded_storage: S3DataFrameStorage
+    async def test_list_projects_skips_when_disabled(
+        self, disabled_storage: S3DataFrameStorage
     ) -> None:
-        result = await degraded_storage.list_projects()
+        result = await disabled_storage.list_projects()
         assert result == []
 
     @pytest.mark.asyncio()
-    async def test_load_all_watermarks_skips_when_degraded(
-        self, degraded_storage: S3DataFrameStorage
+    async def test_load_all_watermarks_skips_when_disabled(
+        self, disabled_storage: S3DataFrameStorage
     ) -> None:
-        result = await degraded_storage.load_all_watermarks()
+        result = await disabled_storage.load_all_watermarks()
         assert result == {}
 
     @pytest.mark.asyncio()
-    async def test_save_section_skips_when_degraded(
-        self, degraded_storage: S3DataFrameStorage
+    async def test_save_section_skips_when_disabled(
+        self, disabled_storage: S3DataFrameStorage
     ) -> None:
-        result = await degraded_storage.save_section("proj_123", "sec_456", _make_df())
+        result = await disabled_storage.save_section("proj_123", "sec_456", _make_df())
         assert result is False
 
     @pytest.mark.asyncio()
-    async def test_delete_dataframe_skips_when_degraded(
-        self, degraded_storage: S3DataFrameStorage
+    async def test_delete_dataframe_skips_when_disabled(
+        self, disabled_storage: S3DataFrameStorage
     ) -> None:
-        result = await degraded_storage.delete_dataframe("proj_123")
+        result = await disabled_storage.delete_dataframe("proj_123")
         assert result is False
 
 
@@ -983,8 +989,8 @@ class TestRetryIntegration:
 
         result = await storage.get_watermark("proj_missing")
         assert result is None
-        # Storage should NOT enter degraded mode for not-found
-        assert storage._degraded is False
+        # Storage should NOT be permanently disabled for not-found
+        assert storage._permanently_disabled is False
 
 
 # ---------------------------------------------------------------------------
@@ -996,22 +1002,32 @@ class TestErrorWrapping:
     """Test that S3 errors are wrapped as S3TransportError at the boundary."""
 
     @pytest.mark.asyncio()
-    async def test_permanent_errors_enter_degraded(self) -> None:
-        """AccessDenied errors enter degraded mode."""
+    async def test_permanent_errors_do_not_permanently_disable(self) -> None:
+        """AccessDenied errors fail the operation but do not permanently disable storage.
+
+        Per B3 fix: permanent errors are specific to the operation, not indicative
+        of global S3 failure. The circuit breaker handles transient degradation.
+        """
         storage = _make_storage()
         mock_client = _make_mock_client()
         storage._client = mock_client
 
         mock_client.put_object.side_effect = _client_error("AccessDenied")
 
-        assert storage._degraded is False
+        assert storage._permanently_disabled is False
         result = await storage.save_watermark("proj_123", _make_watermark())
         assert result is False
-        assert storage._degraded is True
+        # Permanent errors no longer set _permanently_disabled
+        assert storage._permanently_disabled is False
 
     @pytest.mark.asyncio()
     async def test_circuit_breaker_opens_on_repeated_failure(self) -> None:
-        """Circuit breaker opens after threshold failures, entering degraded mode."""
+        """Circuit breaker opens after threshold failures.
+
+        Per B3 fix: CB open state blocks operations via allow_request(),
+        but does NOT permanently disable the storage. Recovery is automatic
+        via HALF_OPEN after recovery_timeout.
+        """
         # Use real circuit breaker with low threshold
         budget = RetryBudget(BudgetConfig(per_subsystem_max=100, global_max=200))
         policy = DefaultRetryPolicy(RetryPolicyConfig(max_attempts=1, base_delay=0.0))
@@ -1039,7 +1055,10 @@ class TestErrorWrapping:
 
         # After enough failures, circuit breaker should be open
         assert cb.state == CBState.OPEN
-        assert storage._degraded is True
+        # Storage is NOT permanently disabled -- CB handles recovery
+        assert storage._permanently_disabled is False
+        # But is_available reflects CB state
+        assert storage.is_available is False
 
     @pytest.mark.asyncio()
     async def test_budget_exhaustion_fails_fast(self) -> None:
@@ -1174,8 +1193,194 @@ class TestAsyncContextManager:
         assert storage._client is None
 
     @pytest.mark.asyncio()
-    async def test_context_manager_degraded_skips_init(self) -> None:
-        """Context manager skips client init when degraded."""
+    async def test_context_manager_permanently_disabled_skips_init(self) -> None:
+        """Context manager skips client init when permanently disabled."""
         storage = _make_storage(enabled=False)
         async with storage as s:
             assert s._client is None
+
+
+# ---------------------------------------------------------------------------
+# Layer 2 Tests: Degradation Model Fix (B3)
+# ---------------------------------------------------------------------------
+
+
+class TestDegradationModelFix:
+    """Test that the degradation model uses CB recovery, not permanent latch.
+
+    Per TDD Section 4.3: Replace _degraded sticky latch with
+    _permanently_disabled (config-time only) + CB-based health checks.
+    """
+
+    @pytest.mark.asyncio()
+    async def test_storage_recovers_after_cb_open(self) -> None:
+        """After CB opens from transient failures, storage recovers via HALF_OPEN.
+
+        Verifies: B3 fix -- no permanent latch, CB recovery works.
+        """
+        budget = RetryBudget(BudgetConfig(per_subsystem_max=100, global_max=200))
+        policy = DefaultRetryPolicy(
+            RetryPolicyConfig(max_attempts=1, base_delay=0.0, jitter=False)
+        )
+        cb = CircuitBreaker(
+            CircuitBreakerConfig(
+                failure_threshold=3,
+                recovery_timeout=0.1,  # 100ms for testing
+                half_open_max_probes=1,
+                name="test-recovery",
+            )
+        )
+        orchestrator = RetryOrchestrator(
+            policy=policy, budget=budget, circuit_breaker=cb, subsystem=Subsystem.S3
+        )
+        storage = _make_storage(orchestrator=orchestrator)
+        mock_client = _make_mock_client()
+        storage._client = mock_client
+
+        # Phase 1: Force CB open with transient failures
+        mock_client.put_object.side_effect = ConnectionError("Connection reset")
+        for _ in range(4):
+            await storage.save_watermark("proj_123", _make_watermark())
+
+        assert cb.state == CBState.OPEN
+        assert storage.is_available is False
+
+        # Phase 2: Wait for recovery timeout
+        import time
+
+        time.sleep(0.15)
+
+        assert cb.state == CBState.HALF_OPEN
+
+        # Phase 3: Successful probe closes CB
+        mock_client.put_object.side_effect = None
+        mock_client.put_object.return_value = {"ETag": '"ok"'}
+
+        result = await storage.save_watermark("proj_123", _make_watermark())
+        assert result is True
+        assert cb.state == CBState.CLOSED
+        assert storage.is_available is True
+
+    @pytest.mark.asyncio()
+    async def test_permanently_disabled_never_attempts_s3(self) -> None:
+        """Storage with enabled=False never makes boto3 calls.
+
+        Verifies: B3 regression test (config-time permanent disable path).
+        """
+        storage = _make_storage(enabled=False)
+        mock_client = _make_mock_client()
+        # Set the client to verify it's never called
+        storage._client = mock_client
+
+        assert storage._permanently_disabled is True
+        assert storage.is_available is False
+
+        # All operations should return failure without touching boto3
+        assert await storage.save_watermark("p", _make_watermark()) is False
+        assert await storage.get_watermark("p") is None
+        df, wm = await storage.load_dataframe("p")
+        assert df is None
+        assert wm is None
+        assert await storage.save_index("p", {}) is False
+        assert await storage.load_index("p") is None
+
+        # Verify no boto3 calls were made
+        mock_client.put_object.assert_not_called()
+        mock_client.get_object.assert_not_called()
+        mock_client.delete_object.assert_not_called()
+
+    @pytest.mark.asyncio()
+    async def test_cb_open_returns_none_not_permanent_death(self) -> None:
+        """CB open returns None/False but recovery is possible.
+
+        Verifies: B3 fix -- CB open is not permanent death.
+        """
+        budget = RetryBudget(BudgetConfig(per_subsystem_max=100, global_max=200))
+        policy = DefaultRetryPolicy(
+            RetryPolicyConfig(max_attempts=1, base_delay=0.0, jitter=False)
+        )
+        cb = CircuitBreaker(
+            CircuitBreakerConfig(
+                failure_threshold=2,
+                recovery_timeout=0.1,
+                half_open_max_probes=1,
+                name="test-cb-recovery",
+            )
+        )
+        orchestrator = RetryOrchestrator(
+            policy=policy, budget=budget, circuit_breaker=cb, subsystem=Subsystem.S3
+        )
+        storage = _make_storage(orchestrator=orchestrator)
+        mock_client = _make_mock_client()
+        storage._client = mock_client
+
+        # Force CB open
+        mock_client.get_object.side_effect = ConnectionError("Connection reset")
+        for _ in range(3):
+            await storage.get_watermark("proj_123")
+
+        assert cb.state == CBState.OPEN
+
+        # CB open -> returns None (not permanent death)
+        result = await storage.get_watermark("proj_123")
+        assert result is None
+        assert storage._permanently_disabled is False
+
+        # Wait for recovery
+        import time
+
+        time.sleep(0.15)
+        assert cb.state == CBState.HALF_OPEN
+
+        # Successful probe
+        wm_bytes = json.dumps({"watermark": _make_watermark().isoformat()}).encode()
+        body = MagicMock()
+        body.read.return_value = wm_bytes
+        mock_client.get_object.side_effect = None
+        mock_client.get_object.return_value = {"Body": body}
+
+        result = await storage.get_watermark("proj_123")
+        assert result is not None
+        assert cb.state == CBState.CLOSED
+
+    @pytest.mark.asyncio()
+    async def test_nosuchkey_does_not_set_permanently_disabled(self) -> None:
+        """NoSuchKey in _get_object does not set _permanently_disabled.
+
+        Verifies: B3 fix -- not-found is a normal condition, not degradation.
+        """
+        orchestrator = _make_orchestrator(max_attempts=1)
+        storage = _make_storage(orchestrator=orchestrator)
+        mock_client = _make_mock_client()
+        storage._client = mock_client
+
+        mock_client.get_object.side_effect = _client_error("NoSuchKey")
+
+        result = await storage.get_watermark("proj_missing")
+        assert result is None
+        assert storage._permanently_disabled is False
+        # CB should also not be affected
+        assert orchestrator.circuit_breaker.state == CBState.CLOSED
+        assert orchestrator.circuit_breaker._failure_count == 0
+
+    def test_is_available_reflects_cb_state(self) -> None:
+        """is_available returns True (CB CLOSED), False (CB OPEN), True (recovered).
+
+        Verifies: B3 fix -- is_available delegates to CB, not sticky latch.
+        """
+        storage = _make_storage()
+        cb = storage._retry.circuit_breaker
+
+        # CLOSED -> available
+        assert cb.state == CBState.CLOSED
+        assert storage.is_available is True
+
+        # Force OPEN -> not available
+        cb.force_open("test")
+        assert cb.state == CBState.OPEN
+        assert storage.is_available is False
+
+        # Reset (simulates recovery) -> available again
+        cb.reset()
+        assert cb.state == CBState.CLOSED
+        assert storage.is_available is True
