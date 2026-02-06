@@ -305,14 +305,14 @@ class S3DataFrameStorage:
 
         self._client: Any = None
         self._client_lock = threading.Lock()
-        self._degraded = False
+        self._permanently_disabled = False
 
         if not self._enabled:
             logger.info("s3_storage_disabled")
-            self._degraded = True
+            self._permanently_disabled = True
         elif not self._location.bucket:
             logger.warning("s3_storage_no_bucket", prefix=self._prefix)
-            self._degraded = True
+            self._permanently_disabled = True
 
     # ---- Key formatting (consolidated from 3 implementations) ----
 
@@ -388,11 +388,13 @@ class S3DataFrameStorage:
     def is_available(self) -> bool:
         """Whether the storage backend is currently healthy.
 
-        Returns False if disabled, degraded, or no bucket configured.
+        Returns False if permanently disabled (no bucket, disabled by config)
+        or if the circuit breaker is open (transient S3 outage).
+        Returns True when the circuit breaker allows requests (CLOSED or HALF_OPEN).
         """
-        if not self._enabled or self._degraded or not self._location.bucket:
+        if self._permanently_disabled:
             return False
-        return self._client is not None or True  # Lazy init means potentially available
+        return self._retry.circuit_breaker.allow_request()
 
     # ---- Core S3 operations (all go through RetryOrchestrator) ----
 
@@ -416,7 +418,10 @@ class S3DataFrameStorage:
         Returns:
             True on success, False on failure.
         """
-        if self._degraded:
+        if self._permanently_disabled:
+            return False
+        if not self._retry.circuit_breaker.allow_request():
+            logger.warning("s3_storage_circuit_open", key=key, operation="put")
             return False
 
         try:
@@ -446,23 +451,30 @@ class S3DataFrameStorage:
             return True
 
         except CircuitBreakerOpenError:
-            logger.warning("s3_storage_degraded", key=key, reason="circuit_open")
-            self._degraded = True
+            # CB is already open; recovery happens automatically via
+            # HALF_OPEN after recovery_timeout.
+            logger.warning("s3_storage_circuit_open", key=key, operation="put")
             return False
         except S3_TRANSPORT_ERRORS as e:
             wrapped = S3TransportError.from_boto_error(
                 e, operation="put_object", bucket=self._location.bucket, key=key
             )
             if not wrapped.transient:
-                self._degraded = True
-                logger.warning(
-                    "s3_storage_degraded",
+                # Permanent errors like AccessDenied indicate config issues, not
+                # transient degradation. Log at ERROR but do not latch -- the
+                # error is specific to this operation, not all future operations.
+                logger.error(
+                    "s3_storage_permanent_error",
                     key=key,
-                    reason=f"permanent_error:{wrapped.error_code}",
+                    error_code=wrapped.error_code,
+                    error=str(wrapped),
                 )
             else:
                 logger.error(
-                    "s3_storage_error", key=key, operation="put", error=str(wrapped)
+                    "s3_storage_transient_error_exhausted",
+                    key=key,
+                    operation="put",
+                    error=str(wrapped),
                 )
             return False
 
@@ -477,7 +489,10 @@ class S3DataFrameStorage:
         Returns:
             Raw bytes if found, None if not found or on error.
         """
-        if self._degraded:
+        if self._permanently_disabled:
+            return None
+        if not self._retry.circuit_breaker.allow_request():
+            logger.warning("s3_storage_circuit_open", key=key, operation="get")
             return None
 
         try:
@@ -504,27 +519,33 @@ class S3DataFrameStorage:
             return data
 
         except CircuitBreakerOpenError:
-            logger.warning("s3_storage_degraded", key=key, reason="circuit_open")
-            self._degraded = True
+            # CB is already open; recovery happens automatically via
+            # HALF_OPEN after recovery_timeout.
+            logger.warning("s3_storage_circuit_open", key=key, operation="get")
             return None
         except S3_TRANSPORT_ERRORS as e:
             wrapped = S3TransportError.from_boto_error(
                 e, operation="get_object", bucket=self._location.bucket, key=key
             )
-            # Not-found is a normal case, not an error
+            # Not-found is a normal application condition, not an error.
+            # With _is_transient() fix (B1), NoSuchKey is not retried and
+            # does not feed the CB. Handle it cleanly at debug level.
             if wrapped.error_code in ("NoSuchKey", "404", "NotFound"):
                 logger.debug("s3_storage_not_found", key=key)
                 return None
             if not wrapped.transient:
-                self._degraded = True
-                logger.warning(
-                    "s3_storage_degraded",
+                logger.error(
+                    "s3_storage_permanent_error",
                     key=key,
-                    reason=f"permanent_error:{wrapped.error_code}",
+                    error_code=wrapped.error_code,
+                    error=str(wrapped),
                 )
             else:
                 logger.error(
-                    "s3_storage_error", key=key, operation="get", error=str(wrapped)
+                    "s3_storage_transient_error_exhausted",
+                    key=key,
+                    operation="get",
+                    error=str(wrapped),
                 )
             return None
 
@@ -537,7 +558,10 @@ class S3DataFrameStorage:
         Returns:
             True on success (including not-found), False on error.
         """
-        if self._degraded:
+        if self._permanently_disabled:
+            return False
+        if not self._retry.circuit_breaker.allow_request():
+            logger.warning("s3_storage_circuit_open", key=key, operation="delete")
             return False
 
         try:
@@ -556,8 +580,7 @@ class S3DataFrameStorage:
             return True
 
         except CircuitBreakerOpenError:
-            logger.warning("s3_storage_degraded", key=key, reason="circuit_open")
-            self._degraded = True
+            logger.warning("s3_storage_circuit_open", key=key, operation="delete")
             return False
         except S3_TRANSPORT_ERRORS as e:
             wrapped = S3TransportError.from_boto_error(
@@ -566,10 +589,19 @@ class S3DataFrameStorage:
             if wrapped.error_code in ("NoSuchKey", "404", "NotFound"):
                 return True  # Already gone
             if not wrapped.transient:
-                self._degraded = True
-            logger.error(
-                "s3_storage_error", key=key, operation="delete", error=str(wrapped)
-            )
+                logger.error(
+                    "s3_storage_permanent_error",
+                    key=key,
+                    error_code=wrapped.error_code,
+                    error=str(wrapped),
+                )
+            else:
+                logger.error(
+                    "s3_storage_transient_error_exhausted",
+                    key=key,
+                    operation="delete",
+                    error=str(wrapped),
+                )
             return False
 
     async def _list_common_prefixes(self, prefix: str) -> list[str]:
@@ -581,7 +613,10 @@ class S3DataFrameStorage:
         Returns:
             List of prefix strings, or empty on error.
         """
-        if self._degraded:
+        if self._permanently_disabled:
+            return []
+        if not self._retry.circuit_breaker.allow_request():
+            logger.warning("s3_storage_circuit_open", operation="list")
             return []
 
         try:
@@ -605,16 +640,25 @@ class S3DataFrameStorage:
             )
 
         except CircuitBreakerOpenError:
-            logger.warning("s3_storage_degraded", reason="circuit_open")
-            self._degraded = True
+            logger.warning("s3_storage_circuit_open", operation="list")
             return []
         except S3_TRANSPORT_ERRORS as e:
             wrapped = S3TransportError.from_boto_error(
                 e, operation="list_objects", bucket=self._location.bucket
             )
             if not wrapped.transient:
-                self._degraded = True
-            logger.error("s3_storage_error", operation="list", error=str(wrapped))
+                logger.error(
+                    "s3_storage_permanent_error",
+                    operation="list",
+                    error_code=wrapped.error_code,
+                    error=str(wrapped),
+                )
+            else:
+                logger.error(
+                    "s3_storage_transient_error_exhausted",
+                    operation="list",
+                    error=str(wrapped),
+                )
             return []
 
     # ---- Serialization helpers ----
@@ -692,7 +736,7 @@ class S3DataFrameStorage:
         if watermark.tzinfo is None:
             raise ValueError("Watermark timestamp must be timezone-aware")
 
-        if self._degraded:
+        if self._permanently_disabled:
             logger.debug(
                 "s3_storage_skip", operation="save_dataframe", project_gid=project_gid
             )
@@ -747,7 +791,7 @@ class S3DataFrameStorage:
         Returns:
             Tuple of (DataFrame, watermark) if found, (None, None) otherwise.
         """
-        if self._degraded:
+        if self._permanently_disabled:
             logger.debug(
                 "s3_storage_skip", operation="load_dataframe", project_gid=project_gid
             )
@@ -790,7 +834,7 @@ class S3DataFrameStorage:
         Returns:
             True if all deletes succeed, False on error.
         """
-        if self._degraded:
+        if self._permanently_disabled:
             return False
 
         keys = [
@@ -820,7 +864,7 @@ class S3DataFrameStorage:
         if watermark.tzinfo is None:
             raise ValueError("Watermark timestamp must be timezone-aware")
 
-        if self._degraded:
+        if self._permanently_disabled:
             return False
 
         wm_bytes = self._serialize_watermark(project_gid, watermark)
@@ -853,7 +897,7 @@ class S3DataFrameStorage:
         Returns:
             Dict mapping project_gid to watermark datetime.
         """
-        if self._degraded:
+        if self._permanently_disabled:
             return {}
 
         project_gids = await self.list_projects()
@@ -884,7 +928,7 @@ class S3DataFrameStorage:
         Returns:
             True on success, False on failure.
         """
-        if self._degraded:
+        if self._permanently_disabled:
             return False
 
         json_bytes = json.dumps(index_data).encode("utf-8")
@@ -1035,7 +1079,7 @@ class S3DataFrameStorage:
         Returns:
             Sorted list of project GID strings.
         """
-        if self._degraded:
+        if self._permanently_disabled:
             return []
 
         prefixes = await self._list_common_prefixes(self._prefix)
@@ -1054,7 +1098,7 @@ class S3DataFrameStorage:
 
     async def __aenter__(self) -> S3DataFrameStorage:
         """Initialize boto3 client eagerly."""
-        if not self._degraded:
+        if not self._permanently_disabled:
             await asyncio.to_thread(self._get_client)
         return self
 

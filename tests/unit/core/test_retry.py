@@ -991,3 +991,224 @@ class TestEnums:
         assert CBState.CLOSED.value == "closed"
         assert CBState.OPEN.value == "open"
         assert CBState.HALF_OPEN.value == "half_open"
+
+
+# ---------------------------------------------------------------------------
+# Layer 1 Tests: Error Classification Fix (B1+B2)
+# ---------------------------------------------------------------------------
+
+
+class TestIsTransientClientErrorCodes:
+    """Test _is_transient() classification of raw ClientError by error code.
+
+    Per TDD Section 4.2.1: ClientError instances with permanent error codes
+    (NoSuchKey, AccessDenied, etc.) must be classified as non-transient, even
+    though ClientError is in CACHE_TRANSIENT_ERRORS.
+    """
+
+    @staticmethod
+    def _make_client_error(code: str) -> Exception:
+        """Create a mock ClientError with the given AWS error code."""
+        from botocore.exceptions import ClientError
+
+        return ClientError(
+            error_response={"Error": {"Code": code, "Message": "test"}},
+            operation_name="TestOp",
+        )
+
+    def test_is_transient_nosuchkey_returns_false(self) -> None:
+        """NoSuchKey is a permanent error -- file does not exist."""
+        error = self._make_client_error("NoSuchKey")
+        assert DefaultRetryPolicy._is_transient(error) is False
+
+    def test_is_transient_access_denied_returns_false(self) -> None:
+        """AccessDenied is a permanent error -- credentials/permissions."""
+        error = self._make_client_error("AccessDenied")
+        assert DefaultRetryPolicy._is_transient(error) is False
+
+    def test_is_transient_nosuchbucket_returns_false(self) -> None:
+        """NoSuchBucket is a permanent error -- bucket does not exist."""
+        error = self._make_client_error("NoSuchBucket")
+        assert DefaultRetryPolicy._is_transient(error) is False
+
+    def test_is_transient_invalid_access_key_returns_false(self) -> None:
+        """InvalidAccessKeyId is a permanent error -- bad credentials."""
+        error = self._make_client_error("InvalidAccessKeyId")
+        assert DefaultRetryPolicy._is_transient(error) is False
+
+    def test_is_transient_signature_mismatch_returns_false(self) -> None:
+        """SignatureDoesNotMatch is a permanent error."""
+        error = self._make_client_error("SignatureDoesNotMatch")
+        assert DefaultRetryPolicy._is_transient(error) is False
+
+    def test_is_transient_method_not_allowed_returns_false(self) -> None:
+        """MethodNotAllowed is a permanent error."""
+        error = self._make_client_error("MethodNotAllowed")
+        assert DefaultRetryPolicy._is_transient(error) is False
+
+    def test_is_transient_throttling_returns_true(self) -> None:
+        """Throttling is a transient error -- backend is rate-limiting."""
+        error = self._make_client_error("Throttling")
+        assert DefaultRetryPolicy._is_transient(error) is True
+
+    def test_is_transient_internal_error_returns_true(self) -> None:
+        """InternalError is a transient error -- backend hiccup."""
+        error = self._make_client_error("InternalError")
+        assert DefaultRetryPolicy._is_transient(error) is True
+
+    def test_is_transient_slow_down_returns_true(self) -> None:
+        """SlowDown is a transient error -- rate limiting."""
+        error = self._make_client_error("SlowDown")
+        assert DefaultRetryPolicy._is_transient(error) is True
+
+    def test_is_transient_service_unavailable_returns_true(self) -> None:
+        """ServiceUnavailable is a transient error."""
+        error = self._make_client_error("ServiceUnavailable")
+        assert DefaultRetryPolicy._is_transient(error) is True
+
+
+class TestCBNotIncrementedForPermanentErrors:
+    """Test that permanent errors do not feed the circuit breaker.
+
+    Per TDD Section 4.2.2: record_failure() is called ONLY for transient
+    errors. NoSuchKey, AccessDenied, etc. should not increment the CB
+    failure counter.
+    """
+
+    @staticmethod
+    def _make_client_error(code: str) -> Exception:
+        from botocore.exceptions import ClientError
+
+        return ClientError(
+            error_response={"Error": {"Code": code, "Message": "test"}},
+            operation_name="TestOp",
+        )
+
+    def _make_orchestrator(
+        self,
+        *,
+        max_attempts: int = 3,
+        failure_threshold: int = 5,
+    ) -> RetryOrchestrator:
+        policy = DefaultRetryPolicy(
+            RetryPolicyConfig(
+                backoff_type=BackoffType.IMMEDIATE,
+                max_attempts=max_attempts,
+                jitter=False,
+            )
+        )
+        budget = RetryBudget(BudgetConfig())
+        cb = CircuitBreaker(
+            config=CircuitBreakerConfig(
+                failure_threshold=failure_threshold,
+                name="test",
+            )
+        )
+        return RetryOrchestrator(
+            policy=policy,
+            budget=budget,
+            circuit_breaker=cb,
+            subsystem=Subsystem.S3,
+        )
+
+    def test_cb_not_incremented_for_permanent_error(self) -> None:
+        """NoSuchKey does not increment CB failure count."""
+        orch = self._make_orchestrator(max_attempts=1)
+        error = self._make_client_error("NoSuchKey")
+
+        with pytest.raises(Exception):  # noqa: B017
+            orch.execute_with_retry(
+                lambda: (_ for _ in ()).throw(error),
+                operation_name="test",
+            )
+
+        assert orch.circuit_breaker._failure_count == 0
+        assert orch.circuit_breaker.state == CBState.CLOSED
+
+    def test_cb_incremented_for_transient_error(self) -> None:
+        """Throttling increments CB failure count."""
+        orch = self._make_orchestrator(max_attempts=1)
+        error = self._make_client_error("Throttling")
+
+        with pytest.raises(Exception):  # noqa: B017
+            orch.execute_with_retry(
+                lambda: (_ for _ in ()).throw(error),
+                operation_name="test",
+            )
+
+        assert orch.circuit_breaker._failure_count == 1
+
+    def test_nosuchkey_raises_immediately_no_retry(self) -> None:
+        """NoSuchKey raises immediately without retry (called exactly once)."""
+        orch = self._make_orchestrator(max_attempts=3)
+        call_count = 0
+
+        def op() -> str:
+            nonlocal call_count
+            call_count += 1
+            raise self._make_client_error("NoSuchKey")
+
+        with pytest.raises(Exception):  # noqa: B017
+            orch.execute_with_retry(op, operation_name="test")
+
+        assert call_count == 1  # No retry
+
+    def test_throttling_retried_up_to_max(self) -> None:
+        """Throttling is retried up to max_attempts."""
+        orch = self._make_orchestrator(max_attempts=3)
+        call_count = 0
+
+        def op() -> str:
+            nonlocal call_count
+            call_count += 1
+            raise self._make_client_error("Throttling")
+
+        with pytest.raises(Exception):  # noqa: B017
+            orch.execute_with_retry(op, operation_name="test")
+
+        assert call_count == 3  # Retried up to max
+
+    def test_access_denied_does_not_open_cb(self) -> None:
+        """10 AccessDenied errors should NOT open the CB (failure_threshold=5)."""
+        orch = self._make_orchestrator(max_attempts=1, failure_threshold=5)
+
+        for _ in range(10):
+            with pytest.raises(Exception):  # noqa: B017
+                orch.execute_with_retry(
+                    lambda: (_ for _ in ()).throw(
+                        self._make_client_error("AccessDenied")
+                    ),
+                    operation_name="test",
+                )
+
+        assert orch.circuit_breaker.state == CBState.CLOSED
+        assert orch.circuit_breaker._failure_count == 0
+
+    @pytest.mark.asyncio
+    async def test_cb_not_incremented_for_permanent_error_async(self) -> None:
+        """Async: NoSuchKey does not increment CB failure count."""
+        orch = self._make_orchestrator(max_attempts=1)
+        error = self._make_client_error("NoSuchKey")
+
+        async def op() -> str:
+            raise error
+
+        with pytest.raises(Exception):  # noqa: B017
+            await orch.execute_with_retry_async(op, operation_name="test")
+
+        assert orch.circuit_breaker._failure_count == 0
+        assert orch.circuit_breaker.state == CBState.CLOSED
+
+    @pytest.mark.asyncio
+    async def test_cb_incremented_for_transient_error_async(self) -> None:
+        """Async: Throttling increments CB failure count."""
+        orch = self._make_orchestrator(max_attempts=1)
+        error = self._make_client_error("Throttling")
+
+        async def op() -> str:
+            raise error
+
+        with pytest.raises(Exception):  # noqa: B017
+            await orch.execute_with_retry_async(op, operation_name="test")
+
+        assert orch.circuit_breaker._failure_count == 1
