@@ -330,9 +330,15 @@ class TestQueryEndpoint:
         """TC-006: Invalid field in where clause returns 422 INVALID_FIELD."""
         jwt_token = "header.payload.signature"
 
-        with patch(
-            "autom8_asana.api.routes.internal.validate_service_token",
-            _mock_jwt_validation(),
+        with (
+            patch(
+                "autom8_asana.api.routes.internal.validate_service_token",
+                _mock_jwt_validation(),
+            ),
+            patch(
+                "autom8_asana.auth.bot_pat.get_bot_pat",
+                return_value="test_bot_pat",
+            ),
         ):
             response = client.post(
                 "/v1/query/offer",
@@ -353,9 +359,15 @@ class TestQueryEndpoint:
         """TC-007: Invalid field in select returns 422 INVALID_FIELD."""
         jwt_token = "header.payload.signature"
 
-        with patch(
-            "autom8_asana.api.routes.internal.validate_service_token",
-            _mock_jwt_validation(),
+        with (
+            patch(
+                "autom8_asana.api.routes.internal.validate_service_token",
+                _mock_jwt_validation(),
+            ),
+            patch(
+                "autom8_asana.auth.bot_pat.get_bot_pat",
+                return_value="test_bot_pat",
+            ),
         ):
             response = client.post(
                 "/v1/query/offer",
