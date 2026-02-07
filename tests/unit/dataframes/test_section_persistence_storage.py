@@ -8,7 +8,7 @@ when the storage parameter is provided at construction.
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -16,6 +16,7 @@ import polars as pl
 import pytest
 
 from autom8_asana.dataframes.section_persistence import (
+    SectionInfo,
     SectionManifest,
     SectionPersistence,
     SectionStatus,
@@ -374,3 +375,156 @@ class TestDeleteViaStorage:
 
         assert result is True
         assert storage.delete_section.call_count == 2
+
+
+# ---------------------------------------------------------------------------
+# Hotfix: IN_PROGRESS stale timeout (ADR-HOTFIX-001)
+# ---------------------------------------------------------------------------
+
+
+class TestIncompleteGidsStaleInProgress:
+    """Tests for get_incomplete_section_gids with stale IN_PROGRESS recovery."""
+
+    def test_get_incomplete_section_gids_includes_stale_in_progress(self) -> None:
+        """IN_PROGRESS section with in_progress_since 10 min ago appears in results."""
+        manifest = SectionManifest(
+            project_gid="proj_123",
+            entity_type="offer",
+            total_sections=2,
+            sections={
+                "sec_ok": SectionInfo(status=SectionStatus.COMPLETE, rows=10),
+                "sec_stuck": SectionInfo(
+                    status=SectionStatus.IN_PROGRESS,
+                    in_progress_since=datetime.now(UTC) - timedelta(minutes=10),
+                ),
+            },
+        )
+        incomplete = manifest.get_incomplete_section_gids()
+        assert "sec_stuck" in incomplete
+
+    def test_get_incomplete_section_gids_excludes_fresh_in_progress(self) -> None:
+        """IN_PROGRESS section with in_progress_since 30 sec ago is NOT in results."""
+        manifest = SectionManifest(
+            project_gid="proj_123",
+            entity_type="offer",
+            total_sections=2,
+            sections={
+                "sec_ok": SectionInfo(status=SectionStatus.COMPLETE, rows=10),
+                "sec_fresh": SectionInfo(
+                    status=SectionStatus.IN_PROGRESS,
+                    in_progress_since=datetime.now(UTC) - timedelta(seconds=30),
+                ),
+            },
+        )
+        incomplete = manifest.get_incomplete_section_gids()
+        assert "sec_fresh" not in incomplete
+
+    def test_get_incomplete_section_gids_includes_legacy_in_progress(self) -> None:
+        """IN_PROGRESS with in_progress_since=None (legacy) appears in results."""
+        manifest = SectionManifest(
+            project_gid="proj_123",
+            entity_type="offer",
+            total_sections=2,
+            sections={
+                "sec_ok": SectionInfo(status=SectionStatus.COMPLETE, rows=10),
+                "sec_legacy": SectionInfo(
+                    status=SectionStatus.IN_PROGRESS,
+                    in_progress_since=None,
+                ),
+            },
+        )
+        incomplete = manifest.get_incomplete_section_gids()
+        assert "sec_legacy" in incomplete
+
+    def test_pending_and_failed_still_included(self) -> None:
+        """PENDING and FAILED sections remain in results (existing behavior)."""
+        manifest = SectionManifest(
+            project_gid="proj_123",
+            entity_type="offer",
+            total_sections=3,
+            sections={
+                "sec_pending": SectionInfo(status=SectionStatus.PENDING),
+                "sec_failed": SectionInfo(
+                    status=SectionStatus.FAILED, error="timeout"
+                ),
+                "sec_ok": SectionInfo(status=SectionStatus.COMPLETE, rows=5),
+            },
+        )
+        incomplete = manifest.get_incomplete_section_gids()
+        assert "sec_pending" in incomplete
+        assert "sec_failed" in incomplete
+        assert "sec_ok" not in incomplete
+
+
+class TestMarkSectionInProgressTimestamp:
+    """Tests for mark_section_in_progress setting in_progress_since."""
+
+    def test_mark_section_in_progress_sets_timestamp(self) -> None:
+        """Verify in_progress_since is set to approximately now."""
+        manifest = SectionManifest(
+            project_gid="proj_123",
+            entity_type="offer",
+            total_sections=1,
+            sections={"sec_1": SectionInfo(status=SectionStatus.PENDING)},
+        )
+        before = datetime.now(UTC)
+        manifest.mark_section_in_progress("sec_1")
+        after = datetime.now(UTC)
+
+        info = manifest.sections["sec_1"]
+        assert info.status == SectionStatus.IN_PROGRESS
+        assert info.in_progress_since is not None
+        assert before <= info.in_progress_since <= after
+
+    def test_mark_section_in_progress_new_section_sets_timestamp(self) -> None:
+        """New section (not already in manifest) also gets in_progress_since."""
+        manifest = SectionManifest(
+            project_gid="proj_123",
+            entity_type="offer",
+            total_sections=1,
+            sections={},
+        )
+        before = datetime.now(UTC)
+        manifest.mark_section_in_progress("sec_new")
+        after = datetime.now(UTC)
+
+        info = manifest.sections["sec_new"]
+        assert info.status == SectionStatus.IN_PROGRESS
+        assert info.in_progress_since is not None
+        assert before <= info.in_progress_since <= after
+
+
+class TestSectionInfoBackwardCompat:
+    """Tests for SectionInfo backward compatibility with legacy manifests."""
+
+    def test_section_info_backward_compat(self) -> None:
+        """Deserialize JSON without in_progress_since loads as None."""
+        legacy_data = {
+            "status": "in_progress",
+            "rows": 0,
+            "written_at": None,
+            "error": None,
+            "watermark": None,
+            "gid_hash": None,
+            "name": "Sales Process",
+            "last_fetched_offset": 5,
+            "rows_fetched": 100,
+            "chunks_checkpointed": 2,
+        }
+        info = SectionInfo.model_validate(legacy_data)
+        assert info.in_progress_since is None
+        assert info.status == SectionStatus.IN_PROGRESS
+        assert info.name == "Sales Process"
+
+    def test_section_info_with_in_progress_since(self) -> None:
+        """Deserialize JSON with in_progress_since roundtrips correctly."""
+        now = datetime.now(UTC)
+        info = SectionInfo(
+            status=SectionStatus.IN_PROGRESS,
+            in_progress_since=now,
+        )
+        dumped = json.loads(info.model_dump_json())
+        restored = SectionInfo.model_validate(dumped)
+        assert restored.in_progress_since is not None
+        # Timestamps may lose microsecond precision in JSON roundtrip
+        assert abs((restored.in_progress_since - now).total_seconds()) < 1
