@@ -444,9 +444,7 @@ class TestIncompleteGidsStaleInProgress:
             total_sections=3,
             sections={
                 "sec_pending": SectionInfo(status=SectionStatus.PENDING),
-                "sec_failed": SectionInfo(
-                    status=SectionStatus.FAILED, error="timeout"
-                ),
+                "sec_failed": SectionInfo(status=SectionStatus.FAILED, error="timeout"),
                 "sec_ok": SectionInfo(status=SectionStatus.COMPLETE, rows=5),
             },
         )

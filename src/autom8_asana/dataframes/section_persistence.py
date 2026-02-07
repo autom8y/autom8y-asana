@@ -151,7 +151,9 @@ class SectionManifest(BaseModel):
                 # Treat as stuck if no timestamp (legacy) or older than threshold
                 if info.in_progress_since is None:
                     result.append(gid)
-                elif (now - info.in_progress_since).total_seconds() > stale_timeout_seconds:
+                elif (
+                    now - info.in_progress_since
+                ).total_seconds() > stale_timeout_seconds:
                     result.append(gid)
         return result
 

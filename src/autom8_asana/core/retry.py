@@ -182,18 +182,20 @@ class DefaultRetryPolicy:
     # rather than transient backend failures.
     # Mirrors S3TransportError.transient (exceptions.py:119-127) plus additional
     # deterministic codes (InvalidObjectState, NoSuchUpload, MethodNotAllowed).
-    _PERMANENT_S3_ERROR_CODES: frozenset[str] = frozenset({
-        "NoSuchKey",
-        "NoSuchBucket",
-        "AccessDenied",
-        "InvalidAccessKeyId",
-        "SignatureDoesNotMatch",
-        "AllAccessDisabled",
-        "InvalidBucketName",
-        "InvalidObjectState",
-        "NoSuchUpload",
-        "MethodNotAllowed",
-    })
+    _PERMANENT_S3_ERROR_CODES: frozenset[str] = frozenset(
+        {
+            "NoSuchKey",
+            "NoSuchBucket",
+            "AccessDenied",
+            "InvalidAccessKeyId",
+            "SignatureDoesNotMatch",
+            "AllAccessDisabled",
+            "InvalidBucketName",
+            "InvalidObjectState",
+            "NoSuchUpload",
+            "MethodNotAllowed",
+        }
+    )
 
     def __init__(self, config: RetryPolicyConfig | None = None) -> None:
         self._config = config or RetryPolicyConfig()

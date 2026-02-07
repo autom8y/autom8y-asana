@@ -279,8 +279,7 @@ class TestForceRebuildDeletesMergedArtifacts:
 
         # Verify correct project GIDs
         delete_calls = [
-            c.args[0]
-            for c in mock_persistence.storage.delete_dataframe.call_args_list
+            c.args[0] for c in mock_persistence.storage.delete_dataframe.call_args_list
         ]
         assert "proj-unit" in delete_calls
         assert "proj-contact" in delete_calls
