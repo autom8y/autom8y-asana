@@ -731,6 +731,26 @@ class DataServiceClient:
         }
     )
 
+    # Factory to frame_type mapping for autom8_data API
+    # Per docs/design/factory-to-frame-type-mapping.md
+    # Maps autom8_asana factory names to autom8_data frame_type values
+    FACTORY_TO_FRAME_TYPE: dict[str, str] = {
+        "account": "business",
+        "ads": "offer",
+        "adsets": "offer",
+        "campaigns": "offer",
+        "spend": "offer",
+        "leads": "offer",
+        "appts": "offer",
+        "assets": "asset",
+        "targeting": "offer",
+        "payments": "business",
+        "business_offers": "offer",
+        "ad_questions": "offer",
+        "ad_tests": "offer",
+        "base": "unit",
+    }
+
     async def get_insights_async(
         self,
         factory: str,
@@ -1072,6 +1092,45 @@ class DataServiceClient:
             failure_count=failure_count,
         )
 
+    def _normalize_period(self, insights_period: str | None) -> str:
+        """Normalize insights_period to autom8_data's period format.
+
+        Maps autom8_asana's period values to autom8_data's expected format:
+        - "lifetime" -> "LIFETIME"
+        - "t7", "l7" -> "T7"
+        - "t14", "l14" -> "T14"
+        - "t30", "l30" -> "T30"
+
+        Args:
+            insights_period: Period value from InsightsRequest.
+
+        Returns:
+            Normalized period string for autom8_data API.
+
+        Note:
+            autom8_data supports T7, T14, T30, LIFETIME.
+            Other period values default to T30 for backward compatibility.
+        """
+        if insights_period is None:
+            return "LIFETIME"
+
+        period_lower = insights_period.lower()
+
+        # Handle lifetime case-insensitively
+        if period_lower == "lifetime":
+            return "LIFETIME"
+
+        # Map trailing/last day periods to autom8_data format
+        if period_lower in ("t7", "l7"):
+            return "T7"
+        elif period_lower in ("t14", "l14"):
+            return "T14"
+        elif period_lower in ("t30", "l30"):
+            return "T30"
+
+        # Default to T30 for other values (backward compatibility)
+        return "T30"
+
     async def _execute_insights_request(
         self,
         factory: str,
@@ -1132,11 +1191,47 @@ class DataServiceClient:
             ) from e
 
         client = await self._get_client()
-        path = f"/api/v1/factory/{factory}"
+        path = "/api/v1/data-service/insights"
 
         # Build PII-safe canonical key for logging (Story 1.9)
         pvp_canonical_key = f"pv1:{request.office_phone}:{request.vertical}"
         masked_pvp_key = _mask_canonical_key(pvp_canonical_key)
+
+        # Map factory to frame_type
+        frame_type = self.FACTORY_TO_FRAME_TYPE[factory]
+
+        # Normalize period to autom8_data format
+        period = self._normalize_period(request.insights_period)
+
+        # Transform request body to autom8_data format
+        request_body = {
+            "frame_type": frame_type,
+            "phone_vertical_pairs": [
+                {
+                    "phone": request.office_phone,
+                    "vertical": request.vertical,
+                }
+            ],
+            "period": period,
+        }
+
+        # Add optional parameters if present
+        if request.start_date is not None:
+            request_body["start_date"] = request.start_date.isoformat()
+        if request.end_date is not None:
+            request_body["end_date"] = request.end_date.isoformat()
+        if request.metrics is not None:
+            request_body["metrics"] = request.metrics
+        if request.dimensions is not None:
+            request_body["dimensions"] = request.dimensions
+        if request.groups is not None:
+            request_body["groups"] = request.groups
+        if request.break_down is not None:
+            request_body["break_down"] = request.break_down
+        if request.refresh:
+            request_body["refresh"] = request.refresh
+        if request.filters:
+            request_body["filters"] = request.filters
 
         # Start timing for latency metrics (Story 1.9)
         start_time = time.monotonic()
@@ -1147,7 +1242,8 @@ class DataServiceClient:
                 "insights_request_started",
                 extra={
                     "factory": factory,
-                    "period": request.insights_period,
+                    "frame_type": frame_type,
+                    "period": period,
                     "pvp_canonical_key": masked_pvp_key,
                     "request_id": request_id,
                 },
@@ -1159,10 +1255,9 @@ class DataServiceClient:
 
         while True:
             try:
-                # Use mode="json" to serialize dates as ISO strings
                 response = await client.post(
                     path,
-                    json=request.model_dump(mode="json", exclude_none=True),
+                    json=request_body,
                     headers={"X-Request-Id": request_id},
                 )
 

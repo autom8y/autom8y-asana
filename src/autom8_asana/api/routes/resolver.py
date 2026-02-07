@@ -395,6 +395,34 @@ async def resolve_entities(
     resolved_count = sum(1 for r in results if r.gid is not None)
     unresolved_count = len(results) - resolved_count
 
+    # Get available fields from schema registry
+    from autom8_asana.dataframes.models.registry import SchemaRegistry
+
+    available_fields: list[str] = []
+    try:
+        registry = SchemaRegistry.get_instance()
+        schema = registry.get_schema(entity_type.capitalize())
+        if schema is not None:
+            # Include queryable fields (those with a source or core fields)
+            available_fields = [
+                col.name
+                for col in schema.columns
+                if col.source is not None or col.name in {"gid", "name", "parent_gid"}
+            ]
+    except Exception:  # BROAD-CATCH: non-critical metadata
+        # If schema lookup fails, leave available_fields empty
+        # This is metadata, not critical to resolution success
+        pass
+
+    # Extract criteria_schema from request
+    criteria_schema: list[str] = []
+    if criteria_dicts:
+        # Collect all unique keys used across all criteria
+        all_keys = set()
+        for criterion in criteria_dicts:
+            all_keys.update(criterion.keys())
+        criteria_schema = sorted(all_keys)
+
     # Build response
     response = ResolutionResponse(
         results=results,
@@ -403,6 +431,8 @@ async def resolve_entities(
             unresolved_count=unresolved_count,
             entity_type=entity_type,
             project_gid=project_gid,
+            available_fields=available_fields,
+            criteria_schema=criteria_schema,
         ),
     )
 

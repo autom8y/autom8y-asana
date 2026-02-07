@@ -36,6 +36,7 @@ __all__ = [
     "CriterionValidationResult",
     "ENTITY_ALIASES",
     "to_pascal_case",
+    "_clear_resolvable_cache",
 ]
 
 logger = get_logger(__name__)
@@ -233,8 +234,10 @@ class EntityProjectRegistry:
         """Reset for testing.
 
         Clears the singleton instance so next access creates a fresh registry.
+        Also clears the resolvable entities cache.
         """
         cls._instance = None
+        _clear_resolvable_cache()
         logger.debug("EntityProjectRegistry reset")
 
 
@@ -259,6 +262,20 @@ ENTITY_ALIASES: dict[str, list[str]] = {
 
 
 # --- Schema-Driven Entity Discovery (FR-001, FR-002) ---
+
+# Module-level cache for resolvable entities
+# Cleared on registry reset (see EntityProjectRegistry.reset())
+_cached_entities: set[str] | None = None
+
+
+def _clear_resolvable_cache() -> None:
+    """Clear the cached resolvable entities set.
+
+    Called by registry reset methods to invalidate the cache.
+    Thread-safe: cache reads/writes are atomic for set objects in Python.
+    """
+    global _cached_entities
+    _cached_entities = None
 
 
 @dataclass
@@ -294,6 +311,10 @@ def get_resolvable_entities(
     1. It has a schema registered in SchemaRegistry
     2. It has a project registered in EntityProjectRegistry
 
+    Caching:
+        Results are cached after first computation when using singleton registries.
+        Cache is cleared on registry reset via _clear_resolvable_cache().
+
     Args:
         schema_registry: SchemaRegistry instance (uses singleton if None).
         project_registry: EntityProjectRegistry instance (uses singleton if None).
@@ -308,6 +329,18 @@ def get_resolvable_entities(
         >>> "unknown" in entities
         False
     """
+    global _cached_entities
+
+    # Use cache only when called with singletons (no custom registries)
+    using_singletons = schema_registry is None and project_registry is None
+
+    if using_singletons and _cached_entities is not None:
+        logger.debug(
+            "resolvable_entities_cache_hit",
+            extra={"count": len(_cached_entities)},
+        )
+        return _cached_entities
+
     from autom8_asana.dataframes.models.registry import SchemaRegistry
 
     if schema_registry is None:
@@ -341,6 +374,10 @@ def get_resolvable_entities(
             "entities": sorted(resolvable),
         },
     )
+
+    # Cache result when using singletons
+    if using_singletons:
+        _cached_entities = resolvable
 
     return resolvable
 

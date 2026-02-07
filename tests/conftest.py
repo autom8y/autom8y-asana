@@ -108,18 +108,26 @@ def reset_registries():
     This ensures test isolation for:
     - ProjectTypeRegistry (entity type detection)
     - WorkspaceProjectRegistry (project discovery)
+    - SchemaRegistry (task-type to schema mapping)
+    - EntityProjectRegistry (entity-type to project mapping)
     """
+    from autom8_asana.dataframes.models.registry import SchemaRegistry
     from autom8_asana.models.business.registry import (
         ProjectTypeRegistry,
         WorkspaceProjectRegistry,
     )
+    from autom8_asana.services.resolver import EntityProjectRegistry
 
     # Reset before test - use classmethod to clear singletons
     ProjectTypeRegistry.reset()
     WorkspaceProjectRegistry.reset()
+    SchemaRegistry.reset()
+    EntityProjectRegistry.reset()
 
     yield
 
     # Reset after test
     ProjectTypeRegistry.reset()
     WorkspaceProjectRegistry.reset()
+    SchemaRegistry.reset()
+    EntityProjectRegistry.reset()

@@ -10,6 +10,7 @@ This module provides schema-driven resolution using DynamicIndex for O(1) lookup
 from __future__ import annotations
 
 import time
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -38,6 +39,12 @@ __all__ = [
 # Balances memory vs. rebuild cost for entity resolution indexes
 # Configurable via ASANA_CACHE_TTL_DYNAMIC_INDEX environment variable
 DYNAMIC_INDEX_CACHE_TTL = get_settings().cache.ttl_dynamic_index
+
+# Maximum concurrent index builds during batch resolution.
+# Lower than builder's DEFAULT_MAX_CONCURRENT (25) because index builds
+# are heavier (DataFrame fetch + DynamicIndex construction).
+# Configurable if needed via future settings extension.
+RESOLVE_MAX_CONCURRENT = 10
 
 
 # FACADE: Delegates to EntityRegistry. Preserves existing import path.
@@ -103,13 +110,13 @@ class UniversalResolutionStrategy:
         Per FR-005: Schema-driven resolution for any entity type.
         Per TDD-FIELDS-ENRICHMENT-001: When requested_fields is provided,
         returns field values from the DataFrame for each matched GID via match_context.
+        Per TDD-B03: Group-and-gather parallel execution for batch resolution.
 
-        Resolution flow:
-        1. Validate and normalize criteria against schema
-        2. Get or build DynamicIndex for criterion columns
-        3. Perform O(1) lookups for each criterion
-        4. If fields requested, enrich from DataFrame
-        5. Return ResolutionResult with all matches
+        Resolution flow (3-phase):
+        1. Validate + Group: Validate criteria, group by key_columns
+        2. Parallel Index Build + Lookups: Build each distinct index once,
+           execute groups concurrently via gather_with_limit
+        3. Log + Return: Finalize results in input order
 
         Args:
             criteria: List of criterion dicts.
@@ -126,13 +133,16 @@ class UniversalResolutionStrategy:
         if not criteria:
             return []
 
-        results: list[ResolutionResult] = []
+        # --- Phase 1: Validate + Group ---
+        # Import here to avoid circular imports
+        from autom8_asana.services.resolver import validate_criterion_for_entity
 
-        for criterion in criteria:
-            # Import here to avoid circular imports
-            from autom8_asana.services.resolver import validate_criterion_for_entity
+        results: list[ResolutionResult | None] = [None] * len(criteria)
+        groups: dict[tuple[str, ...], list[tuple[int, dict[str, Any]]]] = defaultdict(
+            list
+        )
 
-            # Validate criterion
+        for i, criterion in enumerate(criteria):
             validation = validate_criterion_for_entity(self.entity_type, criterion)
 
             if not validation.is_valid:
@@ -143,63 +153,44 @@ class UniversalResolutionStrategy:
                         "errors": validation.errors,
                     },
                 )
-                results.append(ResolutionResult.error_result("INVALID_CRITERIA"))
+                results[i] = ResolutionResult.error_result("INVALID_CRITERIA")
                 continue
 
-            # Get normalized criterion (with legacy field mapping applied)
             normalized = validation.normalized_criterion
+            key_columns = tuple(sorted(normalized.keys()))
+            groups[key_columns].append((i, normalized))
 
-            # Determine key columns from criterion fields
-            key_columns = sorted(normalized.keys())
+        # --- Phase 2: Parallel Index Build + Lookups ---
+        if groups:
+            from autom8_asana.dataframes.builders.base import gather_with_limit
 
-            try:
-                # Get or build index for this column combination
-                index = await self._get_or_build_index(
+            coros = [
+                self._resolve_group(
+                    key_columns=list(kc),
+                    entries=entries,
                     project_gid=project_gid,
-                    key_columns=key_columns,
                     client=client,
+                    requested_fields=requested_fields,
+                    results=results,
                 )
+                for kc, entries in groups.items()
+            ]
 
-                if index is None:
-                    results.append(ResolutionResult.error_result("INDEX_UNAVAILABLE"))
-                    continue
+            await gather_with_limit(coros, max_concurrent=RESOLVE_MAX_CONCURRENT)
 
-                # Perform lookup
-                gids = index.lookup(normalized)
-
-                # Enrich if fields requested and GIDs found
-                context: list[dict[str, Any]] | None = None
-                if requested_fields and gids:
-                    # Use cached DataFrame if available, otherwise fetch
-                    df = (
-                        self._cached_dataframe
-                        if self._cached_dataframe is not None
-                        else await self._get_dataframe(project_gid, client)
-                    )
-                    if df is not None:
-                        context = self._enrich_from_dataframe(
-                            df, gids, requested_fields
-                        )
-
-                results.append(ResolutionResult.from_gids(gids, context=context))
-
-            except Exception as e:  # BROAD-CATCH: isolation
-                logger.warning(
-                    "resolution_lookup_failed",
-                    extra={
-                        "entity_type": self.entity_type,
-                        "criterion": criterion,
-                        "error": str(e),
-                    },
-                )
-                results.append(ResolutionResult.error_result("LOOKUP_ERROR"))
+        # --- Phase 3: Convert to final list ---
+        # Any None slots are defensive (should not happen if logic is correct)
+        final_results: list[ResolutionResult] = [
+            r if r is not None else ResolutionResult.error_result("INTERNAL_ERROR")
+            for r in results
+        ]
 
         # Log batch completion
         elapsed_ms = (time.monotonic() - start_time) * 1000
         resolved_count = sum(
-            1 for r in results if r.gid is not None and r.error is None
+            1 for r in final_results if r.gid is not None and r.error is None
         )
-        multi_match_count = sum(1 for r in results if r.is_ambiguous)
+        multi_match_count = sum(1 for r in final_results if r.is_ambiguous)
 
         logger.info(
             "universal_resolution_complete",
@@ -210,10 +201,100 @@ class UniversalResolutionStrategy:
                 "multi_match_count": multi_match_count,
                 "duration_ms": round(elapsed_ms, 2),
                 "project_gid": project_gid,
+                "group_count": len(groups),
             },
         )
 
-        return results
+        return final_results
+
+    async def _resolve_group(
+        self,
+        key_columns: list[str],
+        entries: list[tuple[int, dict[str, Any]]],
+        project_gid: str,
+        client: AsanaClient,
+        requested_fields: list[str] | None,
+        results: list[ResolutionResult | None],
+    ) -> None:
+        """Resolve all criteria in a single key_columns group.
+
+        Builds the index once, then runs O(1) lookups for each entry.
+        Writes results directly into the shared results list by original index.
+
+        Per TDD-B03: Each group builds its index once, then processes all
+        criteria sharing those key_columns sequentially (lookups are O(1)).
+
+        Args:
+            key_columns: Column names for the index.
+            entries: List of (original_index, normalized_criterion) pairs.
+            project_gid: Target project GID.
+            client: AsanaClient for DataFrame building.
+            requested_fields: Optional list of field names to return.
+            results: Shared results list for direct slot writes.
+        """
+        # Build index once for the group
+        try:
+            index = await self._get_or_build_index(
+                project_gid=project_gid,
+                key_columns=key_columns,
+                client=client,
+            )
+        except Exception as e:
+            # Index build failure -> all criteria in this group get INDEX_UNAVAILABLE
+            logger.warning(
+                "group_index_build_failed",
+                extra={
+                    "entity_type": self.entity_type,
+                    "key_columns": key_columns,
+                    "error": str(e),
+                    "criteria_count": len(entries),
+                },
+            )
+            for original_idx, _normalized in entries:
+                results[original_idx] = ResolutionResult.error_result(
+                    "INDEX_UNAVAILABLE"
+                )
+            return
+
+        if index is None:
+            for original_idx, _normalized in entries:
+                results[original_idx] = ResolutionResult.error_result(
+                    "INDEX_UNAVAILABLE"
+                )
+            return
+
+        # Process each criterion in the group (sync, O(1) each)
+        for original_idx, normalized in entries:
+            try:
+                gids = index.lookup(normalized)
+
+                # Enrich if fields requested and GIDs found
+                context: list[dict[str, Any]] | None = None
+                if requested_fields and gids:
+                    df = (
+                        self._cached_dataframe
+                        if self._cached_dataframe is not None
+                        else await self._get_dataframe(project_gid, client)
+                    )
+                    if df is not None:
+                        context = self._enrich_from_dataframe(
+                            df, gids, requested_fields
+                        )
+
+                results[original_idx] = ResolutionResult.from_gids(
+                    gids, context=context
+                )
+
+            except Exception as e:  # BROAD-CATCH: per-criterion isolation
+                logger.warning(
+                    "resolution_lookup_failed",
+                    extra={
+                        "entity_type": self.entity_type,
+                        "criterion_index": original_idx,
+                        "error": str(e),
+                    },
+                )
+                results[original_idx] = ResolutionResult.error_result("LOOKUP_ERROR")
 
     def validate_criterion(self, criterion: dict[str, Any]) -> list[str]:
         """Validate criterion fields against entity schema.
@@ -382,17 +463,20 @@ class UniversalResolutionStrategy:
         project_gid: str,
         client: AsanaClient,
     ) -> pl.DataFrame | None:
-        """Get DataFrame for entity type.
+        """Get DataFrame from cache, return None on miss.
 
         Uses injected _cached_dataframe if available (from @dataframe_cache decorator),
         otherwise attempts to retrieve from DataFrameCache.
+
+        Note: DataFrame builds happen at warmup, not request-time.
+        This method does NOT trigger builds on cache miss.
 
         Args:
             project_gid: Project GID.
             client: AsanaClient.
 
         Returns:
-            Polars DataFrame or None.
+            Polars DataFrame or None if not cached.
         """
         # Use cached DataFrame from @dataframe_cache decorator if available
         if self._cached_dataframe is not None:
@@ -425,37 +509,6 @@ class UniversalResolutionStrategy:
         except Exception as e:  # BROAD-CATCH: degrade
             logger.warning(
                 "dataframe_cache_fetch_failed",
-                extra={
-                    "entity_type": self.entity_type,
-                    "project_gid": project_gid,
-                    "error": str(e),
-                },
-            )
-
-        # Cache miss - trigger build via legacy strategy if available
-        # This maintains compatibility with existing @dataframe_cache decorator pattern
-        try:
-            from autom8_asana.services.resolver import get_strategy
-
-            legacy_strategy = get_strategy(self.entity_type)
-            if legacy_strategy is not None:
-                # Use strategy's resolve with empty criteria to trigger cache population
-                # The @dataframe_cache decorator will build and cache the DataFrame
-                await legacy_strategy.resolve([], project_gid, client)
-
-                # Try cache again
-                from autom8_asana.cache.dataframe.factory import (
-                    get_dataframe_cache_provider,
-                )
-
-                cache = get_dataframe_cache_provider()
-                if cache is not None:
-                    entry = await cache.get_async(project_gid, self.entity_type)
-                    if entry is not None:
-                        return entry.dataframe
-        except Exception as e:  # BROAD-CATCH: degrade
-            logger.warning(
-                "legacy_strategy_build_failed",
                 extra={
                     "entity_type": self.entity_type,
                     "project_gid": project_gid,

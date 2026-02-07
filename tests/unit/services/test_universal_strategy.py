@@ -7,7 +7,7 @@ per-entity strategies with a single flexible approach.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
 import pytest
@@ -950,3 +950,511 @@ class TestResolveWithFields:
         names = [item["name"] for item in result.match_context]
         assert "Contact A" in names
         assert "Contact C" in names
+
+
+# --- Batch Parallelization Tests (TDD-B03) ---
+
+
+class TestBatchParallelization:
+    """Tests for group-and-gather parallel batch resolution.
+
+    Per TDD-B03: Verifies that resolve() groups criteria by key_columns,
+    builds each index once, executes groups concurrently, and preserves
+    result ordering and error isolation.
+    """
+
+    @pytest.mark.asyncio
+    async def test_multi_group_parallel_execution(
+        self, index_cache: DynamicIndexCache
+    ) -> None:
+        """Criteria with different key_columns produce distinct groups.
+
+        Submits criteria mixing phone+vertical lookups with offer_id lookups.
+        Asserts _get_or_build_index is called exactly once per distinct key_columns.
+        """
+        df = pl.DataFrame(
+            {
+                "gid": ["unit-1", "unit-2", "offer-1"],
+                "office_phone": ["+11111111111", "+12222222222", "+13333333333"],
+                "vertical": ["dental", "medical", "dental"],
+                "offer_id": ["OID001", "OID002", "OID003"],
+            }
+        )
+
+        strategy = UniversalResolutionStrategy(
+            entity_type="unit",
+            index_cache=index_cache,
+        )
+        strategy._cached_dataframe = df
+
+        # Track _get_or_build_index calls with key_columns recorded
+        build_calls: list[list[str]] = []
+        original_get_or_build = strategy._get_or_build_index
+
+        async def tracking_get_or_build(
+            project_gid: str, key_columns: list[str], client: object
+        ):
+            build_calls.append(key_columns)
+            return await original_get_or_build(
+                project_gid=project_gid, key_columns=key_columns, client=client
+            )
+
+        with patch(
+            "autom8_asana.services.resolver.validate_criterion_for_entity"
+        ) as mock_validate:
+            # Return different normalized criteria to produce 2 groups
+            mock_validate.side_effect = [
+                MagicMock(
+                    is_valid=True,
+                    errors=[],
+                    normalized_criterion={
+                        "office_phone": "+11111111111",
+                        "vertical": "dental",
+                    },
+                ),
+                MagicMock(
+                    is_valid=True,
+                    errors=[],
+                    normalized_criterion={"offer_id": "OID003"},
+                ),
+                MagicMock(
+                    is_valid=True,
+                    errors=[],
+                    normalized_criterion={
+                        "office_phone": "+12222222222",
+                        "vertical": "medical",
+                    },
+                ),
+            ]
+
+            with patch.object(
+                strategy, "_get_or_build_index", side_effect=tracking_get_or_build
+            ):
+                results = await strategy.resolve(
+                    criteria=[
+                        {"office_phone": "+11111111111", "vertical": "dental"},
+                        {"offer_id": "OID003"},
+                        {"office_phone": "+12222222222", "vertical": "medical"},
+                    ],
+                    project_gid="test-project",
+                    client=MagicMock(),
+                )
+
+        # Two distinct groups: (office_phone, vertical) and (offer_id,)
+        assert len(build_calls) == 2
+        sorted_calls = sorted([tuple(sorted(c)) for c in build_calls])
+        assert ("offer_id",) in sorted_calls
+        assert ("office_phone", "vertical") in sorted_calls
+
+        # All 3 criteria should have results
+        assert len(results) == 3
+
+    @pytest.mark.asyncio
+    async def test_result_ordering_preserved(
+        self, index_cache: DynamicIndexCache
+    ) -> None:
+        """Results match input order regardless of group execution order.
+
+        Submits 5 criteria with alternating key_columns patterns and verifies
+        results[i] corresponds to criteria[i].
+        """
+        df = pl.DataFrame(
+            {
+                "gid": ["g-0", "g-1", "g-2", "g-3", "g-4"],
+                "office_phone": ["p0", "p1", "p2", "p3", "p4"],
+                "vertical": ["v0", "v1", "v2", "v3", "v4"],
+                "offer_id": ["oid-0", "oid-1", "oid-2", "oid-3", "oid-4"],
+            }
+        )
+
+        strategy = UniversalResolutionStrategy(
+            entity_type="unit",
+            index_cache=index_cache,
+        )
+        strategy._cached_dataframe = df
+
+        with patch(
+            "autom8_asana.services.resolver.validate_criterion_for_entity"
+        ) as mock_validate:
+            # Alternating: phone+vertical, offer_id, phone+vertical, offer_id, phone+vertical
+            mock_validate.side_effect = [
+                MagicMock(
+                    is_valid=True,
+                    errors=[],
+                    normalized_criterion={"office_phone": "p0", "vertical": "v0"},
+                ),
+                MagicMock(
+                    is_valid=True,
+                    errors=[],
+                    normalized_criterion={"offer_id": "oid-1"},
+                ),
+                MagicMock(
+                    is_valid=True,
+                    errors=[],
+                    normalized_criterion={"office_phone": "p2", "vertical": "v2"},
+                ),
+                MagicMock(
+                    is_valid=True,
+                    errors=[],
+                    normalized_criterion={"offer_id": "oid-3"},
+                ),
+                MagicMock(
+                    is_valid=True,
+                    errors=[],
+                    normalized_criterion={"office_phone": "p4", "vertical": "v4"},
+                ),
+            ]
+
+            results = await strategy.resolve(
+                criteria=[
+                    {"office_phone": "p0", "vertical": "v0"},
+                    {"offer_id": "oid-1"},
+                    {"office_phone": "p2", "vertical": "v2"},
+                    {"offer_id": "oid-3"},
+                    {"office_phone": "p4", "vertical": "v4"},
+                ],
+                project_gid="test-project",
+                client=MagicMock(),
+            )
+
+        assert len(results) == 5
+        assert results[0].gid == "g-0"
+        assert results[1].gid == "g-1"
+        assert results[2].gid == "g-2"
+        assert results[3].gid == "g-3"
+        assert results[4].gid == "g-4"
+
+    @pytest.mark.asyncio
+    async def test_per_criterion_error_isolation(
+        self, index_cache: DynamicIndexCache
+    ) -> None:
+        """One criterion's lookup error does not affect others in same group.
+
+        Uses a mock index where one lookup raises an exception, verifying
+        that sibling criteria in the same group still resolve correctly.
+        """
+        from autom8_asana.services.dynamic_index import DynamicIndex
+
+        df = pl.DataFrame(
+            {
+                "gid": ["g-0", "g-1", "g-2"],
+                "office_phone": ["p0", "p1", "p2"],
+                "vertical": ["v0", "v1", "v2"],
+            }
+        )
+
+        strategy = UniversalResolutionStrategy(
+            entity_type="unit",
+            index_cache=index_cache,
+        )
+        strategy._cached_dataframe = df
+
+        # Create a real index, then patch its lookup to fail on specific input
+        real_index = DynamicIndex.from_dataframe(
+            df=df,
+            key_columns=["office_phone", "vertical"],
+            value_column="gid",
+        )
+
+        original_lookup = real_index.lookup
+
+        def failing_lookup(criterion: dict) -> list[str]:
+            if criterion.get("office_phone") == "p1":
+                raise RuntimeError("Simulated lookup failure")
+            return original_lookup(criterion)
+
+        real_index.lookup = failing_lookup  # type: ignore[method-assign]
+
+        with patch(
+            "autom8_asana.services.resolver.validate_criterion_for_entity"
+        ) as mock_validate:
+            mock_validate.side_effect = [
+                MagicMock(
+                    is_valid=True,
+                    errors=[],
+                    normalized_criterion={"office_phone": "p0", "vertical": "v0"},
+                ),
+                MagicMock(
+                    is_valid=True,
+                    errors=[],
+                    normalized_criterion={"office_phone": "p1", "vertical": "v1"},
+                ),
+                MagicMock(
+                    is_valid=True,
+                    errors=[],
+                    normalized_criterion={"office_phone": "p2", "vertical": "v2"},
+                ),
+            ]
+
+            with patch.object(
+                strategy,
+                "_get_or_build_index",
+                new_callable=AsyncMock,
+                return_value=real_index,
+            ):
+                results = await strategy.resolve(
+                    criteria=[
+                        {"office_phone": "p0", "vertical": "v0"},
+                        {"office_phone": "p1", "vertical": "v1"},
+                        {"office_phone": "p2", "vertical": "v2"},
+                    ],
+                    project_gid="test-project",
+                    client=MagicMock(),
+                )
+
+        assert len(results) == 3
+        # First and third succeed
+        assert results[0].gid == "g-0"
+        assert results[0].error is None
+        assert results[2].gid == "g-2"
+        assert results[2].error is None
+        # Second has LOOKUP_ERROR
+        assert results[1].error == "LOOKUP_ERROR"
+        assert results[1].gid is None
+
+    @pytest.mark.asyncio
+    async def test_cross_group_error_isolation(
+        self, index_cache: DynamicIndexCache
+    ) -> None:
+        """One group's index build failure does not affect other groups.
+
+        Mocks _get_or_build_index to raise for one key_columns group
+        but succeed for another, verifying independent error handling.
+        """
+        from autom8_asana.services.dynamic_index import DynamicIndex
+
+        df = pl.DataFrame(
+            {
+                "gid": ["g-0", "g-1"],
+                "office_phone": ["p0", "p1"],
+                "vertical": ["v0", "v1"],
+                "offer_id": ["oid-0", "oid-1"],
+            }
+        )
+
+        strategy = UniversalResolutionStrategy(
+            entity_type="unit",
+            index_cache=index_cache,
+        )
+        strategy._cached_dataframe = df
+
+        # Build a real index for phone+vertical only
+        phone_index = DynamicIndex.from_dataframe(
+            df=df,
+            key_columns=["office_phone", "vertical"],
+            value_column="gid",
+        )
+
+        async def selective_build(
+            project_gid: str, key_columns: list[str], client: object
+        ):
+            if sorted(key_columns) == ["offer_id"]:
+                raise ConnectionError("Simulated index build failure")
+            return phone_index
+
+        with patch(
+            "autom8_asana.services.resolver.validate_criterion_for_entity"
+        ) as mock_validate:
+            mock_validate.side_effect = [
+                MagicMock(
+                    is_valid=True,
+                    errors=[],
+                    normalized_criterion={"office_phone": "p0", "vertical": "v0"},
+                ),
+                MagicMock(
+                    is_valid=True,
+                    errors=[],
+                    normalized_criterion={"offer_id": "oid-1"},
+                ),
+            ]
+
+            with patch.object(
+                strategy, "_get_or_build_index", side_effect=selective_build
+            ):
+                results = await strategy.resolve(
+                    criteria=[
+                        {"office_phone": "p0", "vertical": "v0"},
+                        {"offer_id": "oid-1"},
+                    ],
+                    project_gid="test-project",
+                    client=MagicMock(),
+                )
+
+        assert len(results) == 2
+        # Phone+vertical group succeeded
+        assert results[0].gid == "g-0"
+        assert results[0].error is None
+        # Offer group failed with INDEX_UNAVAILABLE
+        assert results[1].error == "INDEX_UNAVAILABLE"
+        assert results[1].gid is None
+
+    @pytest.mark.asyncio
+    async def test_single_criterion_no_regression(
+        self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
+    ) -> None:
+        """Single criterion works identically to before parallelization.
+
+        Verifies the group-and-gather path does not regress single-criterion
+        behavior -- the most common production case.
+        """
+        strategy = UniversalResolutionStrategy(
+            entity_type="unit",
+            index_cache=index_cache,
+        )
+        strategy._cached_dataframe = unit_dataframe
+
+        results = await strategy.resolve(
+            criteria=[{"office_phone": "+11234567890", "vertical": "dental"}],
+            project_gid="test-project",
+            client=MagicMock(),
+        )
+
+        assert len(results) == 1
+        assert results[0].gid == "unit-1"
+        assert results[0].error is None
+        assert results[0].is_unique
+
+    @pytest.mark.asyncio
+    async def test_all_same_key_columns_single_group(
+        self, index_cache: DynamicIndexCache
+    ) -> None:
+        """Homogeneous batch creates single group with 1 index build.
+
+        Submits 10 criteria all with same key_columns (office_phone+vertical).
+        Verifies _get_or_build_index is called exactly once.
+        """
+        # Build a DataFrame with 10 rows
+        df = pl.DataFrame(
+            {
+                "gid": [f"g-{i}" for i in range(10)],
+                "office_phone": [f"p{i}" for i in range(10)],
+                "vertical": [f"v{i}" for i in range(10)],
+            }
+        )
+
+        strategy = UniversalResolutionStrategy(
+            entity_type="unit",
+            index_cache=index_cache,
+        )
+        strategy._cached_dataframe = df
+
+        build_call_count = 0
+        original_get_or_build = strategy._get_or_build_index
+
+        async def counting_get_or_build(
+            project_gid: str, key_columns: list[str], client: object
+        ):
+            nonlocal build_call_count
+            build_call_count += 1
+            return await original_get_or_build(
+                project_gid=project_gid, key_columns=key_columns, client=client
+            )
+
+        with patch(
+            "autom8_asana.services.resolver.validate_criterion_for_entity"
+        ) as mock_validate:
+            mock_validate.side_effect = [
+                MagicMock(
+                    is_valid=True,
+                    errors=[],
+                    normalized_criterion={"office_phone": f"p{i}", "vertical": f"v{i}"},
+                )
+                for i in range(10)
+            ]
+
+            with patch.object(
+                strategy, "_get_or_build_index", side_effect=counting_get_or_build
+            ):
+                results = await strategy.resolve(
+                    criteria=[
+                        {"office_phone": f"p{i}", "vertical": f"v{i}"}
+                        for i in range(10)
+                    ],
+                    project_gid="test-project",
+                    client=MagicMock(),
+                )
+
+        # Only 1 index build call (single group)
+        assert build_call_count == 1
+
+        # All 10 results present and correct
+        assert len(results) == 10
+        for i in range(10):
+            assert results[i].gid == f"g-{i}"
+            assert results[i].error is None
+
+    @pytest.mark.asyncio
+    async def test_validation_failures_excluded_from_groups(
+        self, index_cache: DynamicIndexCache
+    ) -> None:
+        """Invalid criteria get INVALID_CRITERIA, valid ones resolve normally.
+
+        Mixes valid and invalid criteria to verify Phase 1 validation
+        correctly separates invalid results from grouped resolution.
+        """
+        df = pl.DataFrame(
+            {
+                "gid": ["g-0", "g-1"],
+                "office_phone": ["p0", "p1"],
+                "vertical": ["v0", "v1"],
+            }
+        )
+
+        strategy = UniversalResolutionStrategy(
+            entity_type="unit",
+            index_cache=index_cache,
+        )
+        strategy._cached_dataframe = df
+
+        with patch(
+            "autom8_asana.services.resolver.validate_criterion_for_entity"
+        ) as mock_validate:
+            mock_validate.side_effect = [
+                # criteria[0]: valid
+                MagicMock(
+                    is_valid=True,
+                    errors=[],
+                    normalized_criterion={"office_phone": "p0", "vertical": "v0"},
+                ),
+                # criteria[1]: invalid
+                MagicMock(
+                    is_valid=False,
+                    errors=["Unknown field: bad_field"],
+                    normalized_criterion={},
+                ),
+                # criteria[2]: valid
+                MagicMock(
+                    is_valid=True,
+                    errors=[],
+                    normalized_criterion={"office_phone": "p1", "vertical": "v1"},
+                ),
+                # criteria[3]: invalid
+                MagicMock(
+                    is_valid=False,
+                    errors=["Empty criterion"],
+                    normalized_criterion={},
+                ),
+            ]
+
+            results = await strategy.resolve(
+                criteria=[
+                    {"office_phone": "p0", "vertical": "v0"},
+                    {"bad_field": "value"},
+                    {"office_phone": "p1", "vertical": "v1"},
+                    {},
+                ],
+                project_gid="test-project",
+                client=MagicMock(),
+            )
+
+        assert len(results) == 4
+        # Valid criteria resolved correctly
+        assert results[0].gid == "g-0"
+        assert results[0].error is None
+        assert results[2].gid == "g-1"
+        assert results[2].error is None
+        # Invalid criteria have INVALID_CRITERIA errors
+        assert results[1].error == "INVALID_CRITERIA"
+        assert results[1].gid is None
+        assert results[3].error == "INVALID_CRITERIA"
+        assert results[3].gid is None
