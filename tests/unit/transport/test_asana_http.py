@@ -77,7 +77,11 @@ class TestAsanaHttpClientInit:
         assert client._retry_policy.max_attempts == 6  # 5 retries + 1 initial
 
     def test_creates_concurrency_semaphores(self):
-        """Creates read/write semaphores from config."""
+        """Creates read/write semaphores from config with correct limits.
+
+        Per TDD-GAP-04 Section 8.4: Uses public API (.ceiling, .current_limit)
+        instead of asyncio.Semaphore._value internal.
+        """
         from autom8_asana.config import ConcurrencyConfig
 
         config = AsanaConfig(
@@ -86,8 +90,10 @@ class TestAsanaHttpClientInit:
         auth = MockAuthProvider()
         client = AsanaHttpClient(config, auth)
 
-        assert client._read_semaphore._value == 10
-        assert client._write_semaphore._value == 5
+        assert client._read_semaphore.ceiling == 10
+        assert client._write_semaphore.ceiling == 5
+        assert client._read_semaphore.current_limit == 10
+        assert client._write_semaphore.current_limit == 5
 
 
 def _create_mock_platform_client(mock_response):
