@@ -269,6 +269,15 @@ class AsanaClient:
         if self._config.automation.enabled:
             self._automation = AutomationEngine(self._config.automation)
 
+            # Per GAP-03: Register event emission rule (reads EVENTS_* env vars)
+            from autom8_asana.automation.events import setup_event_emission
+
+            try:
+                setup_event_emission(self._automation)
+            except ValueError:
+                # Config error logged by setup_event_emission; re-raise
+                raise
+
     @property
     def automation(self) -> AutomationEngine | None:
         """Access automation engine for rule registration.
