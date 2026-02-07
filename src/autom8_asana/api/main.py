@@ -54,6 +54,7 @@ from .routes import (
     sections_router,
     tasks_router,
     users_router,
+    webhooks_router,
     workspaces_router,
 )
 
@@ -173,6 +174,7 @@ def create_app() -> FastAPI:
     app.include_router(query_router)
     app.include_router(query_v2_router)
     app.include_router(admin_router)
+    app.include_router(webhooks_router)
 
     # --- Exception Handlers ---
     register_exception_handlers(app)
