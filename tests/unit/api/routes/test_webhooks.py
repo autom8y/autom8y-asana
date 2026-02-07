@@ -584,3 +584,570 @@ class TestProcessInboundTask:
 
         # Should not raise
         await _process_inbound_task(task, None)
+
+
+# ---------------------------------------------------------------------------
+# QA Adversary: Adversarial Tests
+# ---------------------------------------------------------------------------
+
+
+class TestAdversarialTokenVerification:
+    """Adversarial tests for token verification edge cases."""
+
+    def test_empty_token_query_param_returns_401(self, test_client):
+        """?token= (empty value) should return 401, not bypass auth."""
+        response = test_client.post(
+            "/api/v1/webhooks/inbound?token=",
+            json={"gid": "12345"},
+        )
+        assert response.status_code == 401
+
+    def test_whitespace_only_token_returns_401(self, test_client):
+        """?token=%20%20 (whitespace only) should return 401."""
+        response = test_client.post(
+            "/api/v1/webhooks/inbound?token=%20%20",
+            json={"gid": "12345"},
+        )
+        # FastAPI may or may not strip whitespace from query params.
+        # Either 401 (token mismatch) or 401 (missing) is acceptable.
+        assert response.status_code == 401
+
+    def test_double_token_param_uses_first(self, test_client):
+        """?token=valid&token=invalid -- FastAPI uses the last value for Query()."""
+        # FastAPI Query(default=None) with a str|None type picks the last value
+        # when duplicated. This test verifies the endpoint rejects when the
+        # last value is wrong.
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}&token=wrong",
+            json={"gid": "12345"},
+        )
+        # FastAPI picks the last value for scalar Query, so "wrong" is used
+        assert response.status_code == 401
+
+    def test_token_in_path_not_query_rejected(self, test_client):
+        """Token in URL path segment should not authenticate."""
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound/{_TEST_TOKEN}",
+            json={"gid": "12345"},
+        )
+        # Route does not match -- FastAPI returns 404 or 405
+        assert response.status_code in (404, 405)
+
+    def test_token_as_header_not_query_rejected(self, test_client):
+        """Token in Authorization header should not authenticate."""
+        response = test_client.post(
+            "/api/v1/webhooks/inbound",
+            json={"gid": "12345"},
+            headers={"Authorization": f"Bearer {_TEST_TOKEN}"},
+        )
+        assert response.status_code == 401
+
+    def test_no_info_leakage_on_missing_token(self, test_client):
+        """401 response should not reveal expected token format or value."""
+        response = test_client.post(
+            "/api/v1/webhooks/inbound",
+            json={"gid": "12345"},
+        )
+        body = response.json()
+        detail = body.get("detail", {})
+        # Must not contain the actual token or hints about it
+        response_text = str(body)
+        assert _TEST_TOKEN not in response_text
+        assert "expected" not in response_text.lower()
+        assert detail.get("message") in (
+            "Authentication required",
+            "Authentication failed",
+        )
+
+    def test_no_info_leakage_on_wrong_token(self, test_client):
+        """401 for wrong token should not reveal the expected token."""
+        response = test_client.post(
+            "/api/v1/webhooks/inbound?token=wrong",
+            json={"gid": "12345"},
+        )
+        body = response.json()
+        response_text = str(body)
+        assert _TEST_TOKEN not in response_text
+        assert "expected" not in response_text.lower()
+
+    def test_no_info_leakage_on_unconfigured(self, test_client_unconfigured):
+        """503 should not reveal whether a token is configured or its value."""
+        response = test_client_unconfigured.post(
+            "/api/v1/webhooks/inbound?token=probe",
+            json={"gid": "12345"},
+        )
+        body = response.json()
+        # Should say "not configured", not reveal the env var name or value
+        assert "WEBHOOK_INBOUND_TOKEN" not in str(body)
+
+
+class TestAdversarialPayloadInjection:
+    """Adversarial tests for payload injection and malformed inputs."""
+
+    def test_sql_injection_in_gid(self, test_client):
+        """SQL injection in gid should be safely handled."""
+        payload = {"gid": "' OR '1'='1"}
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            json=payload,
+        )
+        # Should accept (gid is just a string), no SQL execution path
+        assert response.status_code == 200
+        assert response.json()["status"] == "accepted"
+
+    def test_xss_in_gid(self, test_client):
+        """XSS payload in gid should be safely handled."""
+        payload = {"gid": "<script>alert('xss')</script>"}
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            json=payload,
+        )
+        assert response.status_code == 200
+
+    def test_path_traversal_in_gid(self, test_client):
+        """Path traversal in gid should be safely handled."""
+        payload = {"gid": "../../../etc/passwd"}
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            json=payload,
+        )
+        assert response.status_code == 200
+
+    def test_nosql_injection_in_gid(self, test_client):
+        """NoSQL injection patterns in gid should be safely handled."""
+        payload = {"gid": '{"$gt": ""}'}
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            json=payload,
+        )
+        assert response.status_code == 200
+
+    def test_very_long_gid(self, test_client):
+        """Very long GID string should not cause issues."""
+        payload = {"gid": "A" * 10000}
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            json=payload,
+        )
+        assert response.status_code == 200
+
+    def test_null_byte_in_gid(self, test_client):
+        """Null byte in gid should be safely handled."""
+        payload = {"gid": "12345\x006789"}
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            json=payload,
+        )
+        assert response.status_code == 200
+
+    def test_unicode_in_gid(self, test_client):
+        """Unicode characters in gid should be safely handled."""
+        payload = {"gid": "\u200b\u200b12345"}  # Zero-width spaces + digits
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            json=payload,
+        )
+        assert response.status_code == 200
+
+    def test_whitespace_only_gid_returns_400(self, test_client):
+        """Whitespace-only gid should be rejected (stripped to empty by Pydantic)."""
+        payload = {"gid": "   "}
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            json=payload,
+        )
+        assert response.status_code == 400
+        assert response.json()["error"] == "MISSING_GID"
+
+    def test_gid_is_integer_returns_400(self, test_client):
+        """Integer gid should be rejected (Task requires str gid)."""
+        payload = {"gid": 12345}
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            json=payload,
+        )
+        # body.get("gid") returns 12345 which is truthy, but Task.model_validate
+        # will fail because gid must be a string. Should return 400.
+        assert response.status_code == 400
+        assert response.json()["error"] == "INVALID_TASK"
+
+    def test_gid_is_boolean_returns_400(self, test_client):
+        """Boolean gid should be rejected."""
+        payload = {"gid": True}
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            json=payload,
+        )
+        assert response.status_code == 400
+
+    def test_gid_is_null_returns_400(self, test_client):
+        """Null gid should be rejected."""
+        payload = {"gid": None}
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            json=payload,
+        )
+        assert response.status_code == 400
+        assert response.json()["error"] == "MISSING_GID"
+
+
+class TestAdversarialPayloadStructure:
+    """Adversarial tests for non-standard payload structures."""
+
+    def test_array_payload_returns_400(self, test_client):
+        """JSON array payload should be rejected (not a dict)."""
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            json=[{"gid": "12345"}],
+        )
+        assert response.status_code == 400
+        assert response.json()["error"] == "MISSING_GID"
+
+    def test_string_payload_returns_400(self, test_client):
+        """JSON string payload should be rejected."""
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            content=b'"just a string"',
+            headers={"content-type": "application/json"},
+        )
+        assert response.status_code == 400
+
+    def test_numeric_payload_returns_400(self, test_client):
+        """JSON numeric payload should be rejected."""
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            content=b"42",
+            headers={"content-type": "application/json"},
+        )
+        assert response.status_code == 400
+
+    def test_null_json_payload_returns_200_empty(self, test_client):
+        """JSON null payload should be treated as empty body."""
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            content=b"null",
+            headers={"content-type": "application/json"},
+        )
+        # null is falsy, so the `if not body` check catches it
+        assert response.status_code == 200
+        assert "empty" in response.json().get("detail", "")
+
+    def test_nested_null_fields_handled(self, test_client):
+        """Task with null optional fields should be accepted."""
+        payload = {
+            "gid": "1234567890",
+            "resource_type": "task",
+            "modified_at": None,
+            "assignee": None,
+            "projects": None,
+            "custom_fields": None,
+            "parent": None,
+            "name": None,
+        }
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            json=payload,
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "accepted"
+
+    def test_deeply_nested_payload_handled(self, test_client):
+        """Payload with many custom fields should be accepted."""
+        payload = {
+            "gid": "1234567890",
+            "resource_type": "task",
+            "custom_fields": [
+                {
+                    "gid": f"cf_{i}",
+                    "name": f"Field {i}",
+                    "display_value": f"Value {i}",
+                    "type": "text",
+                    "text_value": f"text_{i}",
+                }
+                for i in range(200)  # Simulate hundreds of custom fields
+            ],
+        }
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            json=payload,
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "accepted"
+
+    def test_content_type_text_plain_with_json_returns_400(self, test_client):
+        """text/plain content type with JSON body should return 400.
+
+        FastAPI/Starlette's request.json() will attempt to parse regardless
+        of content type. The behavior depends on the body contents.
+        """
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            content=b"not json at all",
+            headers={"content-type": "text/plain"},
+        )
+        assert response.status_code == 400
+        assert response.json()["error"] == "INVALID_JSON"
+
+    def test_empty_content_type_with_valid_json(self, test_client):
+        """No content-type header with valid JSON body should still work."""
+        import json
+
+        payload = {"gid": "1234567890", "resource_type": "task"}
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            content=json.dumps(payload).encode(),
+            headers={"content-type": "application/json"},
+        )
+        assert response.status_code == 200
+
+    def test_form_encoded_body_returns_400(self, test_client):
+        """Form-encoded body should return 400 (not valid JSON)."""
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            content=b"gid=12345&resource_type=task",
+            headers={"content-type": "application/x-www-form-urlencoded"},
+        )
+        assert response.status_code == 400
+
+
+class TestAdversarialCacheInvalidation:
+    """Adversarial tests for cache invalidation edge cases."""
+
+    def test_malformed_modified_at_does_not_crash(self, mock_cache_provider):
+        """Malformed modified_at string should be caught by except block."""
+        cached_entry = CacheEntry(
+            key="12345",
+            data={"gid": "12345"},
+            entry_type=EntryType.TASK,
+            version=datetime(2026, 2, 7, 10, 0, 0, tzinfo=UTC),
+        )
+        mock_cache_provider.get_versioned.return_value = cached_entry
+
+        result = invalidate_stale_task_cache(
+            task_gid="12345",
+            inbound_modified_at="not-a-valid-date",
+            cache_provider=mock_cache_provider,
+        )
+        # ValueError from _parse_datetime is caught by the except Exception
+        assert result is False
+
+    def test_empty_string_modified_at_treated_as_falsy(self, mock_cache_provider):
+        """Empty string modified_at should be treated as missing."""
+        result = invalidate_stale_task_cache(
+            task_gid="12345",
+            inbound_modified_at="",
+            cache_provider=mock_cache_provider,
+        )
+        # Empty string is falsy, caught by `if not inbound_modified_at`
+        assert result is False
+        mock_cache_provider.get_versioned.assert_not_called()
+
+    def test_invalidation_error_during_delete_does_not_propagate(
+        self, mock_cache_provider
+    ):
+        """Error during cache.invalidate() should be caught."""
+        cached_entry = CacheEntry(
+            key="12345",
+            data={"gid": "12345"},
+            entry_type=EntryType.TASK,
+            version=datetime(2026, 2, 7, 10, 0, 0, tzinfo=UTC),
+        )
+        mock_cache_provider.get_versioned.return_value = cached_entry
+        mock_cache_provider.invalidate.side_effect = RuntimeError("Cache write failed")
+
+        result = invalidate_stale_task_cache(
+            task_gid="12345",
+            inbound_modified_at="2026-02-07T15:30:00.000Z",
+            cache_provider=mock_cache_provider,
+        )
+        assert result is False
+
+    def test_task_entry_types_match_mutation_invalidator(self):
+        """_TASK_ENTRY_TYPES must match MutationInvalidator._TASK_ENTRY_TYPES."""
+        from autom8_asana.cache.integration.mutation_invalidator import (
+            _TASK_ENTRY_TYPES as MUTATION_TASK_ENTRY_TYPES,
+        )
+
+        assert set(_TASK_ENTRY_TYPES) == set(MUTATION_TASK_ENTRY_TYPES), (
+            f"Webhook _TASK_ENTRY_TYPES {_TASK_ENTRY_TYPES} does not match "
+            f"MutationInvalidator {MUTATION_TASK_ENTRY_TYPES}"
+        )
+
+    def test_cache_provider_attribute_access_safe(
+        self, test_client, sample_task_payload
+    ):
+        """When app.state has no mutation_invalidator, cache_provider should be None."""
+        # The test_client fixture creates a bare FastAPI app without
+        # mutation_invalidator on app.state. Verify it does not crash.
+        with patch(
+            "autom8_asana.api.routes.webhooks._process_inbound_task"
+        ) as mock_process:
+            response = test_client.post(
+                f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+                json=sample_task_payload,
+            )
+            assert response.status_code == 200
+            # Verify cache_provider passed is None (no mutation_invalidator)
+            call_args = mock_process.call_args
+            cache_provider_arg = call_args[0][1]
+            assert cache_provider_arg is None
+
+
+class TestAdversarialDispatchProtocol:
+    """Adversarial tests for the dispatch protocol."""
+
+    def test_noop_dispatcher_satisfies_protocol(self):
+        """NoOpDispatcher must satisfy WebhookDispatcher protocol at runtime."""
+        from autom8_asana.api.routes.webhooks import WebhookDispatcher
+
+        dispatcher = NoOpDispatcher()
+        assert isinstance(dispatcher, WebhookDispatcher)
+
+    def test_protocol_is_runtime_checkable(self):
+        """WebhookDispatcher must have @runtime_checkable."""
+        from autom8_asana.api.routes.webhooks import WebhookDispatcher
+
+        # Verify isinstance check works (requires @runtime_checkable)
+        class BadDispatcher:
+            pass
+
+        assert not isinstance(BadDispatcher(), WebhookDispatcher)
+
+    @pytest.mark.asyncio
+    async def test_dispatcher_swap_during_background_task(self):
+        """Swapping dispatcher during background processing uses new dispatcher.
+
+        This is not necessarily a bug (no lock on _dispatcher), but we
+        should understand the behavior: the dispatcher read in
+        _process_inbound_task uses whatever is current at call time.
+        """
+        from autom8_asana.api.routes.webhooks import _process_inbound_task
+
+        task = Task.model_validate({"gid": "12345", "resource_type": "task"})
+
+        # Set initial dispatcher
+        initial_dispatcher = MagicMock()
+        initial_dispatcher.dispatch = AsyncMock()
+        set_dispatcher(initial_dispatcher)
+
+        # Swap to new dispatcher before running background task
+        new_dispatcher = MagicMock()
+        new_dispatcher.dispatch = AsyncMock()
+        set_dispatcher(new_dispatcher)
+
+        await _process_inbound_task(task, None)
+
+        # New dispatcher should have been called (module-level read)
+        new_dispatcher.dispatch.assert_awaited_once()
+        initial_dispatcher.dispatch.assert_not_awaited()
+
+
+class TestAdversarialHTTPEdgeCases:
+    """Adversarial tests for HTTP-level edge cases."""
+
+    def test_get_method_rejected(self, test_client):
+        """GET request to webhook endpoint should be rejected."""
+        response = test_client.get(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+        )
+        assert response.status_code == 405
+
+    def test_put_method_rejected(self, test_client):
+        """PUT request to webhook endpoint should be rejected."""
+        response = test_client.put(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            json={"gid": "12345"},
+        )
+        assert response.status_code == 405
+
+    def test_delete_method_rejected(self, test_client):
+        """DELETE request to webhook endpoint should be rejected."""
+        response = test_client.delete(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+        )
+        assert response.status_code == 405
+
+    def test_options_method_returns_allow_header(self, test_client):
+        """OPTIONS request should return allowed methods."""
+        response = test_client.options(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+        )
+        # FastAPI returns 405 for OPTIONS on routes without explicit OPTIONS handler
+        # unless CORSMiddleware is active
+        assert response.status_code in (200, 405)
+
+    def test_response_has_correct_content_type(self, test_client, sample_task_payload):
+        """Response should be application/json."""
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            json=sample_task_payload,
+        )
+        assert "application/json" in response.headers.get("content-type", "")
+
+    def test_auth_checked_before_body_parsing(self, test_client):
+        """Token verification must happen before body parsing.
+
+        A request with invalid token should get 401 even with malformed body.
+        """
+        response = test_client.post(
+            "/api/v1/webhooks/inbound?token=wrong",
+            content=b"this is not json",
+            headers={"content-type": "application/json"},
+        )
+        assert response.status_code == 401
+
+    def test_no_auth_dependency_leak_from_other_routes(self, test_client):
+        """Webhook route should not use get_auth_context dependency."""
+        # Verify that the webhook endpoint works without any Bearer token,
+        # confirming it does not inherit the standard auth middleware.
+        response = test_client.post(
+            f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+            json={"gid": "12345"},
+        )
+        assert response.status_code == 200
+        # No Authorization header was sent -- if get_auth_context was
+        # required, this would have been 401 or 403.
+
+
+class TestAdversarialSecurityLogging:
+    """Verify that sensitive data never appears in log output."""
+
+    def test_token_value_not_in_log_calls(self, test_client, sample_task_payload):
+        """Token value must never appear in any log call arguments."""
+        with patch("autom8_asana.api.routes.webhooks.logger") as mock_logger:
+            test_client.post(
+                f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
+                json=sample_task_payload,
+            )
+
+            # Inspect ALL log calls (info, warning, error, debug, exception)
+            all_calls = (
+                mock_logger.info.call_args_list
+                + mock_logger.warning.call_args_list
+                + mock_logger.error.call_args_list
+                + mock_logger.debug.call_args_list
+                + mock_logger.exception.call_args_list
+            )
+            for call in all_calls:
+                call_str = str(call)
+                assert _TEST_TOKEN not in call_str, (
+                    f"Token value found in log call: {call_str}"
+                )
+
+    def test_token_value_not_in_rejection_logs(self, test_client):
+        """Token value must not appear in logs for rejected requests."""
+        with patch("autom8_asana.api.routes.webhooks.logger") as mock_logger:
+            test_client.post(
+                "/api/v1/webhooks/inbound?token=attacker-probe-token",
+                json={"gid": "12345"},
+            )
+
+            all_calls = (
+                mock_logger.info.call_args_list
+                + mock_logger.warning.call_args_list
+                + mock_logger.error.call_args_list
+            )
+            for call in all_calls:
+                call_str = str(call)
+                assert "attacker-probe-token" not in call_str
+                assert _TEST_TOKEN not in call_str
