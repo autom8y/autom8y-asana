@@ -36,6 +36,11 @@ from autom8_asana.exceptions import (
     ServerError,
     TimeoutError,
 )
+from autom8_asana.transport.adaptive_semaphore import (
+    AIMDConfig,
+    AsyncAdaptiveSemaphore,
+    FixedSemaphoreAdapter,
+)
 from autom8_asana.transport.config_translator import ConfigTranslator
 from autom8_asana.transport.response_handler import AsanaResponseHandler
 
@@ -122,9 +127,46 @@ class AsanaHttpClient:
         self._circuit_breaker = circuit_breaker or self._create_circuit_breaker()
         self._retry_policy = retry_policy or self._create_retry_policy()
 
-        # Concurrency semaphores (preserved from legacy AsyncHTTPClient)
-        self._read_semaphore = asyncio.Semaphore(config.concurrency.read_limit)
-        self._write_semaphore = asyncio.Semaphore(config.concurrency.write_limit)
+        # Concurrency semaphores with AIMD adaptive control (per TDD-GAP-04)
+        # Both AsyncAdaptiveSemaphore and FixedSemaphoreAdapter provide the same
+        # acquire() -> Slot interface, so _request() uses a unified code path.
+        if config.concurrency.aimd_enabled:
+            cc = config.concurrency
+            read_aimd_config = AIMDConfig(
+                ceiling=cc.read_limit,
+                floor=cc.aimd_floor,
+                multiplicative_decrease=cc.aimd_multiplicative_decrease,
+                additive_increase=cc.aimd_additive_increase,
+                grace_period_seconds=cc.aimd_grace_period_seconds,
+                increase_interval_seconds=cc.aimd_increase_interval_seconds,
+                cooldown_trigger=cc.aimd_cooldown_trigger,
+                cooldown_duration_seconds=cc.aimd_cooldown_duration_seconds,
+            )
+            write_aimd_config = AIMDConfig(
+                ceiling=cc.write_limit,
+                floor=cc.aimd_floor,
+                multiplicative_decrease=cc.aimd_multiplicative_decrease,
+                additive_increase=cc.aimd_additive_increase,
+                grace_period_seconds=cc.aimd_grace_period_seconds,
+                increase_interval_seconds=cc.aimd_increase_interval_seconds,
+                cooldown_trigger=cc.aimd_cooldown_trigger,
+                cooldown_duration_seconds=cc.aimd_cooldown_duration_seconds,
+            )
+            self._read_semaphore: AsyncAdaptiveSemaphore | FixedSemaphoreAdapter = (
+                AsyncAdaptiveSemaphore(
+                    config=read_aimd_config, name="read", logger=logger,
+                )
+            )
+            self._write_semaphore: AsyncAdaptiveSemaphore | FixedSemaphoreAdapter = (
+                AsyncAdaptiveSemaphore(
+                    config=write_aimd_config, name="write", logger=logger,
+                )
+            )
+        else:
+            self._read_semaphore = FixedSemaphoreAdapter(config.concurrency.read_limit)
+            self._write_semaphore = FixedSemaphoreAdapter(
+                config.concurrency.write_limit
+            )
 
         # Platform HTTP client (created lazily with lock)
         self._platform_client: Autom8yHttpClient | None = None
@@ -357,7 +399,7 @@ class AsanaHttpClient:
         max_attempts = self._retry_policy.max_attempts if self._retry_policy else 1
 
         while True:
-            async with semaphore:
+            async with await semaphore.acquire() as slot:
                 # Rate limit
                 await self._rate_limiter.acquire()
 
@@ -379,6 +421,7 @@ class AsanaHttpClient:
 
                         # Handle rate limit
                         if isinstance(error, RateLimitError):
+                            slot.reject()  # AIMD: signal 429
                             if self._should_retry(429, attempt, max_attempts):
                                 await self._wait_for_retry(attempt, error.retry_after)
                                 attempt += 1
@@ -399,11 +442,13 @@ class AsanaHttpClient:
                             await self._circuit_breaker.record_failure(error)
                         raise error
 
-                    # Success
+                    # Success - signal AIMD
+                    slot.succeed()
                     await self._circuit_breaker.record_success()
                     return self._response_handler.unwrap_response(response)
 
                 except httpx.TimeoutException as e:
+                    # No AIMD signal -- timeout is not a rate limit
                     await self._circuit_breaker.record_failure(e)
                     if self._should_retry(504, attempt, max_attempts):
                         if self._logger:
@@ -414,6 +459,7 @@ class AsanaHttpClient:
                     raise TimeoutError(f"Request timed out: {path}") from e
 
                 except httpx.HTTPError as e:
+                    # No AIMD signal -- network error is not a rate limit
                     await self._circuit_breaker.record_failure(e)
                     raise AsanaError(f"HTTP error: {e}") from e
 
@@ -501,7 +547,7 @@ class AsanaHttpClient:
         max_attempts = self._retry_policy.max_attempts if self._retry_policy else 1
 
         while True:
-            async with semaphore:
+            async with await semaphore.acquire() as slot:
                 # Rate limit
                 await self._rate_limiter.acquire()
 
@@ -525,6 +571,7 @@ class AsanaHttpClient:
 
                         # Handle rate limit with Retry-After
                         if isinstance(error, RateLimitError):
+                            slot.reject()  # AIMD: signal 429
                             if self._logger:
                                 self._logger.warning(
                                     "rate_limit_429_received",
@@ -555,12 +602,13 @@ class AsanaHttpClient:
                             await self._circuit_breaker.record_failure(error)
                         raise error
 
-                    # Success - record and return
+                    # Success - signal AIMD and return
+                    slot.succeed()
                     await self._circuit_breaker.record_success()
                     return self._response_handler.unwrap_response(response)
 
                 except httpx.TimeoutException as e:
-                    # Record timeout as failure for circuit breaker
+                    # No AIMD signal -- timeout is not a rate limit
                     await self._circuit_breaker.record_failure(e)
                     if self._should_retry(504, attempt, max_attempts):
                         if self._logger:
@@ -571,7 +619,7 @@ class AsanaHttpClient:
                     raise TimeoutError(f"Request timed out: {path}") from e
 
                 except httpx.HTTPError as e:
-                    # Record network errors as failures for circuit breaker
+                    # No AIMD signal -- network error is not a rate limit
                     await self._circuit_breaker.record_failure(e)
                     raise AsanaError(f"HTTP error: {e}") from e
 
@@ -594,7 +642,7 @@ class AsanaHttpClient:
         max_attempts = self._retry_policy.max_attempts if self._retry_policy else 1
 
         while True:
-            async with semaphore:
+            async with await semaphore.acquire() as slot:
                 # Rate limit
                 await self._rate_limiter.acquire()
 
@@ -615,6 +663,7 @@ class AsanaHttpClient:
 
                         # Handle rate limit with Retry-After
                         if isinstance(error, RateLimitError):
+                            slot.reject()  # AIMD: signal 429
                             if self._logger:
                                 self._logger.warning(
                                     "rate_limit_429_received",
@@ -643,11 +692,13 @@ class AsanaHttpClient:
                             await self._circuit_breaker.record_failure(error)
                         raise error
 
-                    # Success
+                    # Success - signal AIMD
+                    slot.succeed()
                     await self._circuit_breaker.record_success()
                     return self._response_handler.unwrap_paginated_response(response)
 
                 except httpx.TimeoutException as e:
+                    # No AIMD signal -- timeout is not a rate limit
                     await self._circuit_breaker.record_failure(e)
                     if self._should_retry(504, attempt, max_attempts):
                         if self._logger:
@@ -658,6 +709,7 @@ class AsanaHttpClient:
                     raise TimeoutError(f"Request timed out: {path}") from e
 
                 except httpx.HTTPError as e:
+                    # No AIMD signal -- network error is not a rate limit
                     await self._circuit_breaker.record_failure(e)
                     raise AsanaError(f"HTTP error: {e}") from e
 
