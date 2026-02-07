@@ -532,6 +532,29 @@ class S3RetrySettings(Autom8yBaseSettings):
     )
 
 
+class WebhookSettings(Autom8yBaseSettings):
+    """Webhook configuration settings.
+
+    Environment Variables:
+        WEBHOOK_INBOUND_TOKEN: Shared secret for inbound webhook auth.
+
+    Attributes:
+        inbound_token: Shared secret for URL token verification.
+            When empty (default), the webhook endpoint returns 503.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="WEBHOOK_",
+        extra="ignore",
+        case_sensitive=False,
+    )
+
+    inbound_token: str = Field(
+        default="",
+        description="Shared secret for inbound webhook URL token verification",
+    )
+
+
 class ProjectOverrideSettings(Autom8yBaseSettings):
     """Validation-only settings for ASANA_PROJECT_* env vars.
 
@@ -641,6 +664,7 @@ class Settings(Autom8yBaseSettings):
     env: EnvironmentSettings = Field(default_factory=EnvironmentSettings)
     pacing: PacingSettings = Field(default_factory=PacingSettings)
     s3_retry: S3RetrySettings = Field(default_factory=S3RetrySettings)
+    webhook: WebhookSettings = Field(default_factory=WebhookSettings)
     # Validation-only settings (triggers validation at startup)
     project_overrides: ProjectOverrideSettings = Field(
         default_factory=ProjectOverrideSettings
