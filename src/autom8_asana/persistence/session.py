@@ -137,12 +137,14 @@ class SaveSession:
         max_concurrent: int = 15,
         auto_heal: bool = False,
         automation_enabled: bool | None = None,
+        auto_create_holders: bool = True,
     ) -> None:
         """Initialize save session.
 
         Per FR-UOW-005: Accept optional configuration.
         Per TDD-DETECTION/ADR-0095: auto_heal enables self-healing.
         Per TDD-AUTOMATION-LAYER: automation_enabled controls Phase 5 execution.
+        Per TDD-GAP-01/FR-006: auto_create_holders controls ENSURE_HOLDERS phase.
 
         Args:
             client: AsanaClient instance for API calls. The client's
@@ -156,6 +158,12 @@ class SaveSession:
             automation_enabled: Override for automation execution during commit.
                               If None, uses client._config.automation.enabled.
                               If True/False, overrides client config for this session.
+            auto_create_holders: If True (default), automatically detect and create
+                                missing holder subtasks during commit when children
+                                are tracked beneath a parent with HOLDER_KEY_MAP.
+                                If False, ENSURE_HOLDERS phase is skipped entirely
+                                and behavior matches pre-GAP-01 (unpopulated holders
+                                are silently skipped). Per PRD-GAP-01 OQ-1.
         """
         self._client = client
         self._batch_size = batch_size
@@ -216,6 +224,19 @@ class SaveSession:
         self._cache_invalidator: CacheInvalidator | None = (
             CacheInvalidator(cache_provider, self._log) if cache_provider else None
         )
+
+        # TDD-GAP-01: Holder auto-creation configuration
+        self._auto_create_holders = auto_create_holders
+        if auto_create_holders:
+            from autom8_asana.persistence.holder_concurrency import (
+                HolderConcurrencyManager,
+            )
+
+            self._holder_concurrency: HolderConcurrencyManager | None = (
+                HolderConcurrencyManager()
+            )
+        else:
+            self._holder_concurrency = None
 
     # --- Context Manager Protocol ---
 
@@ -317,6 +338,17 @@ class SaveSession:
             True if automation will run during commit.
         """
         return self._automation_enabled
+
+    @property
+    def auto_create_holders(self) -> bool:
+        """Whether holder auto-creation is enabled for this session.
+
+        Per TDD-GAP-01 Section 8.3: Read-only property for inspection.
+
+        Returns:
+            True if ENSURE_HOLDERS phase will run during commit.
+        """
+        return self._auto_create_holders
 
     # --- Name Resolution ---
 
@@ -766,10 +798,26 @@ class SaveSession:
                 action_count=len(pending_actions),
                 cascade_count=len(pending_cascades),
                 healing_count=len(self._healing_manager.queue),
+                auto_create_holders=self._auto_create_holders,
             )
 
         # TDD-DEBT-003: Lock released during I/O - allows track() during execution
         # Entities tracked during commit are queued for next commit (per ADR-DEBT-003-002)
+
+        # Phase 0: ENSURE_HOLDERS - detect and construct missing holders
+        # Per TDD-GAP-01: Runs before CRUD when auto_create_holders=True
+        if self._auto_create_holders and dirty_entities and self._holder_concurrency:
+            from autom8_asana.persistence.holder_ensurer import HolderEnsurer
+
+            holder_ensurer = HolderEnsurer(
+                client=self._client,
+                tracker=self._tracker,
+                concurrency=self._holder_concurrency,
+                log=self._log,
+            )
+            dirty_entities = await holder_ensurer.ensure_holders_for_entities(
+                dirty_entities
+            )
 
         # Phase 1: Execute CRUD operations and actions together
         crud_result, action_results = await self._pipeline.execute_with_actions(
