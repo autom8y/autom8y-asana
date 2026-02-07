@@ -1,12 +1,15 @@
 """Transport abstraction for event publication.
 
 Per GAP-03 FR-004: Pluggable transport backend.
+Per ADR-GAP03-004: SQS direct transport via boto3.
 Per NFR-003: InMemoryTransport for unit testing without external dependencies.
 """
 
 from __future__ import annotations
 
-from typing import Protocol
+import asyncio
+import json
+from typing import Any, Protocol
 
 from autom8_asana.automation.events.envelope import EventEnvelope
 
@@ -66,3 +69,62 @@ class InMemoryTransport:
         return [
             env for env, _ in self.published if env.event_type.value == event_type
         ]
+
+
+class SQSTransport:
+    """AWS SQS transport implementation.
+
+    Per ADR-GAP03-004: Direct boto3, following platform conventions.
+    Uses asyncio.to_thread() for the blocking boto3 call.
+    """
+
+    def __init__(self, sqs_client: Any) -> None:
+        """Initialize with boto3 SQS client.
+
+        Args:
+            sqs_client: boto3 SQS client (injected for testability).
+        """
+        self._sqs = sqs_client
+
+    async def publish(self, envelope: EventEnvelope, destination: str) -> None:
+        """Publish envelope to SQS queue.
+
+        Args:
+            envelope: Event to publish.
+            destination: SQS queue URL.
+        """
+        message_body = json.dumps(envelope.to_json_dict())
+
+        await asyncio.to_thread(
+            self._sqs.send_message,
+            QueueUrl=destination,
+            MessageBody=message_body,
+            MessageAttributes={
+                "event_type": {
+                    "DataType": "String",
+                    "StringValue": envelope.event_type.value,
+                },
+                "entity_type": {
+                    "DataType": "String",
+                    "StringValue": envelope.entity_type,
+                },
+                "schema_version": {
+                    "DataType": "String",
+                    "StringValue": envelope.schema_version,
+                },
+            },
+        )
+
+    @classmethod
+    def from_boto3(cls, **kwargs: Any) -> SQSTransport:
+        """Create SQSTransport with default boto3 client.
+
+        Args:
+            **kwargs: Passed to boto3.client() (e.g., endpoint_url for LocalStack).
+
+        Returns:
+            SQSTransport with SQS client.
+        """
+        import boto3
+
+        return cls(sqs_client=boto3.client("sqs", **kwargs))
