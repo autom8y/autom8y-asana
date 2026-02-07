@@ -1,9 +1,14 @@
 """Event routing and external publication.
 
 Per GAP-03: Provides event type vocabulary, envelope schema,
-and transport abstraction for external consumers.
+transport abstraction, and emission rules for external consumers.
 """
 
+from autom8_asana.automation.events.config import (
+    EventRoutingConfig,
+    SubscriptionEntry,
+)
+from autom8_asana.automation.events.emitter import EmitResult, EventEmitter
 from autom8_asana.automation.events.envelope import EventEnvelope
 from autom8_asana.automation.events.transport import (
     EventTransport,
@@ -16,4 +21,8 @@ __all__ = [
     "EventEnvelope",
     "EventTransport",
     "InMemoryTransport",
+    "EventEmitter",
+    "EmitResult",
+    "EventRoutingConfig",
+    "SubscriptionEntry",
 ]
