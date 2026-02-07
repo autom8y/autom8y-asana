@@ -10,6 +10,7 @@ from autom8_asana.automation.events.config import (
 )
 from autom8_asana.automation.events.emitter import EmitResult, EventEmitter
 from autom8_asana.automation.events.envelope import EventEnvelope
+from autom8_asana.automation.events.rule import EventEmissionRule
 from autom8_asana.automation.events.transport import (
     EventTransport,
     InMemoryTransport,
@@ -23,6 +24,7 @@ __all__ = [
     "InMemoryTransport",
     "EventEmitter",
     "EmitResult",
+    "EventEmissionRule",
     "EventRoutingConfig",
     "SubscriptionEntry",
 ]
