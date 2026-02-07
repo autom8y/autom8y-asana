@@ -455,7 +455,7 @@ class ActionType(str, Enum):
     Per TDD-0012: Extended with follower, dependent, like, and comment operations.
     Per TDD-0013: Extended with parent/subtask operations.
 
-    These operations cannot be batched and require individual API calls.
+    These operations are batched via the Batch API (TDD-GAP-05) when available.
     They manage relationships between tasks and other resources.
 
     Actions:
