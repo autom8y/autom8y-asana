@@ -177,6 +177,28 @@ class TestEventRoutingConfigFromEnv:
         assert config.enabled is False
         assert len(config.subscriptions) == 1
 
+    def test_malformed_subscriptions_json_raises(self) -> None:
+        """Invalid JSON in EVENTS_SUBSCRIPTIONS raises ValueError."""
+        env = {
+            "EVENTS_ENABLED": "true",
+            "EVENTS_SUBSCRIPTIONS": "not-valid-json",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            with pytest.raises(ValueError):
+                EventRoutingConfig.from_env()
+
+    def test_subscription_missing_destination_raises(self) -> None:
+        """Subscription entry without destination raises ValueError."""
+        env = {
+            "EVENTS_ENABLED": "true",
+            "EVENTS_SUBSCRIPTIONS": json.dumps(
+                [{"event_types": ["created"]}]
+            ),
+        }
+        with patch.dict(os.environ, env, clear=True):
+            with pytest.raises(ValueError, match="missing required.*destination"):
+                EventRoutingConfig.from_env()
+
     def test_subscriptions_json_takes_precedence(self) -> None:
         """EVENTS_SUBSCRIPTIONS takes precedence over EVENTS_SQS_QUEUE_URL."""
         env = {
