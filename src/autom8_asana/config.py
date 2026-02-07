@@ -170,10 +170,26 @@ class ConcurrencyConfig:
     """Concurrency limits for API requests.
 
     Separate limits for read (GET) and write (POST/PUT/DELETE) operations.
+
+    Per TDD-GAP-04: AIMD parameters control adaptive concurrency behavior.
+    When aimd_enabled=True (default), AsanaHttpClient uses AsyncAdaptiveSemaphore
+    that halves concurrency on 429 and increments by 1 on success.
+    When aimd_enabled=False, plain asyncio.Semaphore behavior is used via
+    FixedSemaphoreAdapter (kill switch for safe rollback).
     """
 
-    read_limit: int = 50  # Concurrent GET requests
-    write_limit: int = 15  # Concurrent mutation requests
+    read_limit: int = 50  # Concurrent GET requests (AIMD ceiling)
+    write_limit: int = 15  # Concurrent mutation requests (AIMD ceiling)
+
+    # AIMD parameters (all optional, sensible defaults)
+    aimd_enabled: bool = True  # Kill switch: False falls back to fixed semaphore
+    aimd_floor: int = 1  # Minimum concurrency (>= 1 to prevent deadlock)
+    aimd_multiplicative_decrease: float = 0.5  # Halve on 429 (TCP standard)
+    aimd_additive_increase: float = 1.0  # +1 on success (TCP standard)
+    aimd_grace_period_seconds: float = 5.0  # Suppress increases after decrease
+    aimd_increase_interval_seconds: float = 2.0  # Min time between increases (FR-007)
+    aimd_cooldown_trigger: int = 5  # Consecutive 429s for cooldown warning
+    aimd_cooldown_duration_seconds: float = 30.0  # Cooldown duration (unused in v1)
 
     def __post_init__(self) -> None:
         """Validate configuration values."""
@@ -184,6 +200,17 @@ class ConcurrencyConfig:
         if self.write_limit <= 0:
             raise ConfigurationError(
                 f"write_limit must be positive, got {self.write_limit}"
+            )
+        # AIMD-specific validation
+        if self.aimd_floor < 1:
+            raise ConfigurationError("aimd_floor must be >= 1")
+        if self.aimd_floor > self.read_limit or self.aimd_floor > self.write_limit:
+            raise ConfigurationError(
+                "aimd_floor must be <= read_limit and write_limit"
+            )
+        if not 0.0 < self.aimd_multiplicative_decrease < 1.0:
+            raise ConfigurationError(
+                "aimd_multiplicative_decrease must be in (0, 1)"
             )
 
 
