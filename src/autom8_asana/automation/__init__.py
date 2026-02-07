@@ -82,6 +82,7 @@ from autom8_asana.automation.base import Action, AutomationRule, TriggerConditio
 from autom8_asana.automation.config import AutomationConfig, PipelineStage
 from autom8_asana.automation.context import AutomationContext
 from autom8_asana.automation.engine import AutomationEngine
+from autom8_asana.automation.events.types import EventType
 
 # PipelineConversionRule is lazy-loaded via __getattr__ to break a circular
 # import: models.business.__init__ (bootstrap) -> cache -> config -> automation
@@ -100,6 +101,7 @@ __all__ = [
     "AutomationContext",
     "AutomationConfig",
     "PipelineStage",
+    "EventType",
     # Phase 2: Pipeline Conversion (lazy-loaded)
     "PipelineConversionRule",
     "TemplateDiscovery",

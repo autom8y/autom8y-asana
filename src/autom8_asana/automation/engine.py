@@ -15,6 +15,7 @@ from autom8y_log import get_logger
 from autom8_asana.automation.base import AutomationRule
 from autom8_asana.automation.config import AutomationConfig
 from autom8_asana.automation.context import AutomationContext
+from autom8_asana.automation.events.types import EventType
 from autom8_asana.persistence.models import AutomationResult
 
 if TYPE_CHECKING:
@@ -267,7 +268,7 @@ class AutomationEngine:
             result: SaveResult with action results.
 
         Returns:
-            Event type string: "created", "updated", or "section_changed".
+            EventType member (str-compatible).
         """
         # Import here to avoid circular imports
         from autom8_asana.persistence.models import ActionType
@@ -280,17 +281,17 @@ class AutomationEngine:
                 and action_op.action == ActionType.MOVE_TO_SECTION
                 and action.success
             ):
-                return "section_changed"
+                return EventType.SECTION_CHANGED
 
         # Check entity state for new entities
         if hasattr(entity, "_is_new") and entity._is_new:
-            return "created"
+            return EventType.CREATED
 
         # Check for temp GID pattern (indicates newly created)
         if entity.gid and entity.gid.startswith("temp_"):
-            return "created"
+            return EventType.CREATED
 
-        return "updated"
+        return EventType.UPDATED
 
     def _build_event_context(
         self,
@@ -313,7 +314,7 @@ class AutomationEngine:
 
         context: dict[str, Any] = {"event": event}
 
-        if event == "section_changed":
+        if event == EventType.SECTION_CHANGED:
             # Find section from action results
             for action in result.action_results:
                 action_op = action.action

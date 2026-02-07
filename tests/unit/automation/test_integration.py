@@ -21,6 +21,7 @@ import pytest
 from autom8_asana.automation import (
     AutomationConfig,
     AutomationEngine,
+    EventType,
     PipelineConversionRule,
     TriggerCondition,
 )
@@ -240,7 +241,7 @@ class TestRuleRegistrationEndToEnd:
 
                     @property
                     def trigger(self) -> TriggerCondition:
-                        return TriggerCondition(entity_type="Task", event="updated")
+                        return TriggerCondition(entity_type="Task", event=EventType.UPDATED)
 
                     def should_trigger(
                         self, entity: Any, event: str, context: dict[str, Any]
