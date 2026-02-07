@@ -93,7 +93,12 @@ class EventRoutingConfig:
         # Advanced: explicit subscription list
         if subscriptions_json:
             raw = json.loads(subscriptions_json)
-            for entry in raw:
+            for i, entry in enumerate(raw):
+                if "destination" not in entry:
+                    raise ValueError(
+                        f"EVENTS_SUBSCRIPTIONS entry {i} missing required "
+                        f"'destination' field"
+                    )
                 subscriptions.append(
                     SubscriptionEntry(
                         event_types=entry.get("event_types", []),
