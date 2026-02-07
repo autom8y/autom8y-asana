@@ -335,7 +335,14 @@ async def receive_inbound_webhook(
         )
 
     # Validate task GID presence (per EC-12)
-    if not isinstance(body, dict) or not body.get("gid"):
+    # Note: str.strip() guards against whitespace-only GIDs that would pass
+    # the truthiness check but get stripped to "" by Pydantic's str_strip_whitespace.
+    raw_gid = body.get("gid") if isinstance(body, dict) else None
+    if (
+        not isinstance(body, dict)
+        or not raw_gid
+        or (isinstance(raw_gid, str) and not raw_gid.strip())
+    ):
         logger.warning(
             "webhook_missing_gid",
             extra={"has_body": bool(body), "body_type": type(body).__name__},
