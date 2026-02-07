@@ -929,6 +929,10 @@ class TestRetryPolicyProtocol:
             def delay_for(self, attempt: int) -> float:
                 return 0.0
 
+            @staticmethod
+            def _is_transient(error: Exception) -> bool:
+                return False
+
         assert isinstance(NeverRetry(), RetryPolicy)
 
     def test_custom_policy_in_orchestrator(self) -> None:
@@ -944,6 +948,10 @@ class TestRetryPolicyProtocol:
 
             def delay_for(self, attempt: int) -> float:
                 return 0.0
+
+            @staticmethod
+            def _is_transient(error: Exception) -> bool:
+                return True
 
         budget = RetryBudget()
         cb = CircuitBreaker(config=CircuitBreakerConfig(name="test"))
