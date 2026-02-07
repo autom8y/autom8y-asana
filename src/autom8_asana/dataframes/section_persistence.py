@@ -86,6 +86,7 @@ class SectionInfo(BaseModel):
     watermark: datetime | None = None
     gid_hash: str | None = None
     name: str | None = None
+    in_progress_since: datetime | None = None
 
     # Checkpoint tracking fields (per TDD-large-section-resilience D3)
     last_fetched_offset: int = 0
@@ -127,13 +128,32 @@ class SectionManifest(BaseModel):
             return False  # Legacy manifest - force rebuild
         return self.schema_version == current_schema_version
 
-    def get_incomplete_section_gids(self) -> list[str]:
-        """Get list of section GIDs that need to be fetched."""
-        return [
-            gid
-            for gid, info in self.sections.items()
-            if info.status in (SectionStatus.PENDING, SectionStatus.FAILED)
-        ]
+    def get_incomplete_section_gids(
+        self, *, stale_timeout_seconds: int = 300
+    ) -> list[str]:
+        """Get list of section GIDs that need to be fetched.
+
+        Includes PENDING, FAILED, and IN_PROGRESS sections that have been
+        stuck longer than stale_timeout_seconds (default 5 minutes).
+        Per ADR-HOTFIX-001: prevents permanent deadlock from orphaned
+        IN_PROGRESS sections after process death.
+
+        Args:
+            stale_timeout_seconds: Seconds after which an IN_PROGRESS
+                section is considered stuck and retryable. Default 300 (5 min).
+        """
+        now = datetime.now(UTC)
+        result: list[str] = []
+        for gid, info in self.sections.items():
+            if info.status in (SectionStatus.PENDING, SectionStatus.FAILED):
+                result.append(gid)
+            elif info.status == SectionStatus.IN_PROGRESS:
+                # Treat as stuck if no timestamp (legacy) or older than threshold
+                if info.in_progress_since is None:
+                    result.append(gid)
+                elif (now - info.in_progress_since).total_seconds() > stale_timeout_seconds:
+                    result.append(gid)
+        return result
 
     def get_complete_section_gids(self) -> list[str]:
         """Get list of section GIDs that are complete."""
@@ -174,10 +194,15 @@ class SectionManifest(BaseModel):
 
     def mark_section_in_progress(self, section_gid: str) -> None:
         """Mark a section as in progress."""
+        now = datetime.now(UTC)
         if section_gid in self.sections:
             self.sections[section_gid].status = SectionStatus.IN_PROGRESS
+            self.sections[section_gid].in_progress_since = now
         else:
-            self.sections[section_gid] = SectionInfo(status=SectionStatus.IN_PROGRESS)
+            self.sections[section_gid] = SectionInfo(
+                status=SectionStatus.IN_PROGRESS,
+                in_progress_since=now,
+            )
 
     def is_complete(self) -> bool:
         """Check if all sections are complete."""

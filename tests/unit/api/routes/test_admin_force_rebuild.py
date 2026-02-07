@@ -40,6 +40,7 @@ def mock_persistence():
     persistence = MagicMock()
     persistence.delete_manifest_async = AsyncMock(return_value=True)
     persistence.delete_section_files_async = AsyncMock(return_value=True)
+    persistence.storage.delete_dataframe = AsyncMock(return_value=True)
     persistence.__aenter__ = AsyncMock(return_value=persistence)
     persistence.__aexit__ = AsyncMock(return_value=False)
     return persistence
@@ -250,3 +251,36 @@ class TestForceRebuildNoInProcessBuilder:
         # No S3 operations should have been attempted
         mock_persistence.delete_manifest_async.assert_not_called()
         mock_persistence.delete_section_files_async.assert_not_called()
+
+
+class TestForceRebuildDeletesMergedArtifacts:
+    """Verify force rebuild deletes merged dataframe.parquet and watermark.json.
+
+    Per ADR-HOTFIX-002: prevents ProgressiveTier from re-hydrating stale data.
+    """
+
+    @pytest.mark.asyncio
+    async def test_force_rebuild_deletes_merged_artifacts(
+        self, mock_registry, mock_persistence, mock_dataframe_cache
+    ) -> None:
+        """persistence.storage.delete_dataframe should be called for each entity."""
+        from autom8_asana.api.routes.admin import _perform_force_rebuild
+
+        with (
+            patch(_REGISTRY_PATCH, return_value=mock_registry),
+            patch(_CACHE_PATCH, return_value=mock_dataframe_cache),
+            patch(_PERSISTENCE_PATCH, return_value=mock_persistence),
+            patch.dict("os.environ", {}, clear=False),
+        ):
+            await _perform_force_rebuild(["unit", "contact"], "test-refresh-id")
+
+        # Should have called delete_dataframe for each entity type
+        assert mock_persistence.storage.delete_dataframe.call_count == 2
+
+        # Verify correct project GIDs
+        delete_calls = [
+            c.args[0]
+            for c in mock_persistence.storage.delete_dataframe.call_args_list
+        ]
+        assert "proj-unit" in delete_calls
+        assert "proj-contact" in delete_calls

@@ -149,11 +149,15 @@ async def _perform_force_rebuild(
                         },
                     )
 
-            # 2. Delete S3 manifest AND section parquets
+            # 2. Delete S3 manifest, section parquets, AND merged artifacts
             try:
                 async with persistence:
                     await persistence.delete_manifest_async(project_gid)
                     await persistence.delete_section_files_async(project_gid)
+                    # Per ADR-HOTFIX-002: Also delete merged dataframe.parquet
+                    # and watermark.json to prevent ProgressiveTier from
+                    # re-hydrating stale data into the memory tier.
+                    await persistence.storage.delete_dataframe(project_gid)
                 logger.info(
                     "cache_refresh_s3_purged",
                     extra={
