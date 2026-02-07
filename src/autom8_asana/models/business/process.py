@@ -37,6 +37,7 @@ from autom8_asana.models.business.holder_factory import HolderFactory
 from autom8_asana.models.business.mixins import (
     FinancialFieldsMixin,
     SharedCascadingFieldsMixin,
+    UnitNavigableEntityMixin,
     UnitNestedHolderMixin,
 )
 from autom8_asana.models.task import Task
@@ -149,7 +150,12 @@ class ProcessSection(str, Enum):
         return cls.OTHER
 
 
-class Process(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin):
+class Process(
+    BusinessEntity,
+    UnitNavigableEntityMixin,
+    SharedCascadingFieldsMixin,
+    FinancialFieldsMixin,
+):
     """Process entity supporting all pipeline types.
 
     Per TDD-BIZMODEL: Process entities represent workflow items in pipeline projects.
@@ -166,10 +172,11 @@ class Process(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin):
                               +-- Process (this entity)
 
     MRO (Method Resolution Order):
-        Process -> BusinessEntity -> SharedCascadingFieldsMixin -> FinancialFieldsMixin
-        -> Task -> BaseModel
+        Process -> BusinessEntity -> UnitNavigableEntityMixin -> SharedCascadingFieldsMixin
+        -> FinancialFieldsMixin -> Task -> BaseModel
 
         - BusinessEntity: Core entity behavior (_invalidate_refs, gid, etc.)
+        - UnitNavigableEntityMixin: business property (DRY-006)
         - SharedCascadingFieldsMixin: vertical, rep descriptors
         - FinancialFieldsMixin: booking_type, mrr, weekly_ad_spend descriptors
 
@@ -244,20 +251,7 @@ class Process(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin):
             self._unit = self._process_holder._unit
         return self._unit
 
-    @property
-    def business(self) -> Business | None:
-        """Navigate to containing Business (cached).
-
-        Per FR-NAV-004: Process provides upward navigation to Business.
-
-        Returns:
-            Business entity or None if not populated.
-        """
-        if self._business is None:
-            unit = self.unit
-            if unit is not None:
-                self._business = unit.business
-        return self._business
+    # business property inherited from UnitNavigableEntityMixin (DRY-006)
 
     def _invalidate_refs(self, _exclude_attr: str | None = None) -> None:
         """Invalidate cached references on hierarchy change.
@@ -505,22 +499,4 @@ class ProcessHolder(
         return self._unit
 
     # business property inherited from UnitNestedHolderMixin (DRY-006)
-
-    def _populate_children(self, subtasks: list[Task]) -> None:
-        """Populate processes from fetched subtasks.
-
-        Override of HolderFactory._populate_children to propagate intermediate
-        _unit reference to children. The generic implementation only handles
-        holder ref and business ref.
-
-        Per TDD-SPRINT-1: Preserves _unit propagation behavior.
-
-        Args:
-            subtasks: List of Task subtasks from API.
-        """
-        # Call parent implementation to populate children with standard refs
-        super()._populate_children(subtasks)
-
-        # Propagate _unit reference to all children
-        for process in self.children:
-            process._unit = self._unit
+    # _populate_children inherited from UnitNestedHolderMixin (DRY-007)

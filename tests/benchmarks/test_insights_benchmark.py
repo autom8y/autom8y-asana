@@ -200,7 +200,7 @@ class TestSingleRequestBenchmark:
 
         with respx.mock:
             # Mock returns instantly - we measure client overhead only
-            respx.post("https://data.example.com/api/v1/factory/account").respond(
+            respx.post("https://data.example.com/api/v1/data-service/insights").respond(
                 json=mock_response
             )
 
@@ -266,7 +266,7 @@ class TestSingleRequestBenchmark:
         client = DataServiceClient(config=client_config)
 
         with respx.mock:
-            respx.post("https://data.example.com/api/v1/factory/account").respond(
+            respx.post("https://data.example.com/api/v1/data-service/insights").respond(
                 json=mock_response
             )
 
@@ -345,7 +345,7 @@ class TestBatchRequestBenchmark:
 
         with respx.mock:
             # Mock all possible endpoints
-            respx.post(url__regex=r".*/api/v1/factory/account").respond(
+            respx.post(url__regex=r".*/api/v1/data-service/insights").respond(
                 json=mock_response
             )
 
@@ -406,7 +406,7 @@ class TestBatchRequestBenchmark:
         client = DataServiceClient(config=client_config)
 
         with respx.mock:
-            respx.post(url__regex=r".*/api/v1/factory/account").respond(
+            respx.post(url__regex=r".*/api/v1/data-service/insights").respond(
                 json=mock_response
             )
 
@@ -468,7 +468,7 @@ class TestBatchRequestBenchmark:
         client = DataServiceClient(config=client_config)
 
         with respx.mock:
-            respx.post(url__regex=r".*/api/v1/factory/account").respond(
+            respx.post(url__regex=r".*/api/v1/data-service/insights").respond(
                 json=mock_response
             )
 

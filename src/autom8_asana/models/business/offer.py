@@ -31,6 +31,7 @@ from autom8_asana.models.business.holder_factory import HolderFactory
 from autom8_asana.models.business.mixins import (
     FinancialFieldsMixin,
     SharedCascadingFieldsMixin,
+    UnitNavigableEntityMixin,
     UnitNestedHolderMixin,
     UpwardTraversalMixin,
 )
@@ -43,6 +44,7 @@ if TYPE_CHECKING:
 
 class Offer(
     BusinessEntity,
+    UnitNavigableEntityMixin,
     SharedCascadingFieldsMixin,
     FinancialFieldsMixin,
     UpwardTraversalMixin,
@@ -108,20 +110,7 @@ class Offer(
             self._unit = self._offer_holder._unit
         return self._unit
 
-    @property
-    def business(self) -> Business | None:
-        """Navigate to containing Business (cached).
-
-        Per FR-NAV-003: Offer provides upward navigation to Business.
-
-        Returns:
-            Business entity or None if not populated.
-        """
-        if self._business is None:
-            unit = self.unit
-            if unit is not None:
-                self._business = unit.business
-        return self._business
+    # business property inherited from UnitNavigableEntityMixin (DRY-006)
 
     def _invalidate_refs(self, _exclude_attr: str | None = None) -> None:
         """Invalidate cached references on hierarchy change.
@@ -304,22 +293,4 @@ class OfferHolder(
         return self._unit
 
     # business property inherited from UnitNestedHolderMixin (DRY-006)
-
-    def _populate_children(self, subtasks: list[Task]) -> None:
-        """Populate offers from fetched subtasks.
-
-        Override of HolderFactory._populate_children to propagate intermediate
-        _unit reference to children. The generic implementation only handles
-        holder ref and business ref.
-
-        Per TDD-SPRINT-1: Preserves _unit propagation behavior.
-
-        Args:
-            subtasks: List of Task subtasks from API.
-        """
-        # Call parent implementation to populate children with standard refs
-        super()._populate_children(subtasks)
-
-        # Propagate _unit reference to all children
-        for offer in self.children:
-            offer._unit = self._unit
+    # _populate_children inherited from UnitNestedHolderMixin (DRY-007)

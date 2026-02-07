@@ -549,7 +549,7 @@ class TestGetInsightsAsyncValidation:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post(f"/api/v1/factory/{factory_name}").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 json={
                     "data": [{"value": 100.0}],
                     "metadata": {
@@ -638,7 +638,7 @@ class TestGetInsightsAsyncHTTPContract:
 
     @pytest.mark.asyncio
     async def test_posts_to_correct_endpoint(self) -> None:
-        """Request is POST to /api/v1/factory/{factory_name}."""
+        """Request is POST to /api/v1/data-service/insights."""
         import respx
 
         client = DataServiceClient(
@@ -647,7 +647,7 @@ class TestGetInsightsAsyncHTTPContract:
 
         with respx.mock:
             route = respx.post(
-                "https://data.example.com/api/v1/factory/account"
+                "https://data.example.com/api/v1/data-service/insights"
             ).respond(
                 json={
                     "data": [],
@@ -698,7 +698,7 @@ class TestGetInsightsAsyncHTTPContract:
             )
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").mock(side_effect=capture_request)
+            respx.post("/api/v1/data-service/insights").mock(side_effect=capture_request)
 
             async with client:
                 await client.get_insights_async(
@@ -742,7 +742,7 @@ class TestGetInsightsAsyncHTTPContract:
             )
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").mock(side_effect=capture_request)
+            respx.post("/api/v1/data-service/insights").mock(side_effect=capture_request)
 
             async with client:
                 from datetime import date
@@ -757,9 +757,12 @@ class TestGetInsightsAsyncHTTPContract:
                     refresh=True,
                 )
 
-        assert captured_body["office_phone"] == "+17705753103"
-        assert captured_body["vertical"] == "chiropractic"
-        assert captured_body["insights_period"] == "t30"
+        # Check new autom8_data request format
+        assert captured_body["frame_type"] == "business"
+        assert captured_body["phone_vertical_pairs"] == [
+            {"phone": "+17705753103", "vertical": "chiropractic"}
+        ]
+        assert captured_body["period"] == "T30"
         assert captured_body["start_date"] == "2024-01-01"
         assert captured_body["metrics"] == ["spend", "leads"]
         assert captured_body["refresh"] is True
@@ -793,7 +796,7 @@ class TestGetInsightsAsyncHTTPContract:
             )
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").mock(side_effect=capture_request)
+            respx.post("/api/v1/data-service/insights").mock(side_effect=capture_request)
 
             async with client:
                 await client.get_insights_async(
@@ -824,7 +827,7 @@ class TestGetInsightsAsyncErrorMapping:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 status_code=400,
                 json={"error": "Invalid phone format"},
             )
@@ -850,7 +853,7 @@ class TestGetInsightsAsyncErrorMapping:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 status_code=404,
                 json={"error": "No insights found for pv1:+17705753103:chiropractic"},
             )
@@ -876,7 +879,7 @@ class TestGetInsightsAsyncErrorMapping:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 status_code=500,
                 json={"error": "Internal server error"},
             )
@@ -904,7 +907,7 @@ class TestGetInsightsAsyncErrorMapping:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 status_code=502,
                 json={"error": "Bad gateway"},
             )
@@ -931,7 +934,7 @@ class TestGetInsightsAsyncErrorMapping:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 status_code=503,
                 json={"error": "Service unavailable"},
             )
@@ -957,7 +960,7 @@ class TestGetInsightsAsyncErrorMapping:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 status_code=504,
                 json={"error": "Gateway timeout"},
             )
@@ -983,7 +986,7 @@ class TestGetInsightsAsyncErrorMapping:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").mock(
+            respx.post("/api/v1/data-service/insights").mock(
                 side_effect=httpx.TimeoutException("Connection timed out")
             )
 
@@ -1008,7 +1011,7 @@ class TestGetInsightsAsyncErrorMapping:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").mock(
+            respx.post("/api/v1/data-service/insights").mock(
                 side_effect=httpx.ConnectError("Connection refused")
             )
 
@@ -1032,7 +1035,7 @@ class TestGetInsightsAsyncErrorMapping:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 status_code=400,
                 json={"detail": "Validation failed: missing required field"},
             )
@@ -1060,7 +1063,7 @@ class TestGetInsightsAsyncSuccessResponse:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 json={
                     "data": [
                         {"spend": 1500.00, "leads": 45, "cpl": 33.33},
@@ -1110,7 +1113,7 @@ class TestGetInsightsAsyncSuccessResponse:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 json={
                     "data": [],
                     "metadata": {
@@ -1148,7 +1151,7 @@ class TestGetInsightsAsyncSuccessResponse:
         server_request_id = "server-generated-id"
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 json={
                     "data": [],
                     "metadata": {
@@ -1195,7 +1198,7 @@ class TestGetInsightsAsyncIntegration:
         client = DataServiceClient(config=config)
 
         with respx.mock:
-            respx.post("https://data.test.autom8.io/api/v1/factory/account").respond(
+            respx.post("https://data.test.autom8.io/api/v1/data-service/insights").respond(
                 json={
                     "data": [
                         {"spend": 2500.00, "leads": 75, "cpl": 33.33, "roas": 3.5},
@@ -1260,7 +1263,7 @@ class TestGetInsightsAsyncIntegration:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post(f"/api/v1/factory/{expected}").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 json={
                     "data": [],
                     "metadata": {
@@ -1315,7 +1318,7 @@ class TestGetInsightsAsyncIntegration:
             )
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").mock(side_effect=capture_request)
+            respx.post("/api/v1/data-service/insights").mock(side_effect=capture_request)
 
             async with client:
                 await client.get_insights_async(
@@ -1333,10 +1336,12 @@ class TestGetInsightsAsyncIntegration:
                     filters={"ad_account_id": "123456"},
                 )
 
-        # Verify all parameters were sent
-        assert captured_body["office_phone"] == "+17705753103"
-        assert captured_body["vertical"] == "chiropractic"
-        assert captured_body["insights_period"] == "t30"
+        # Verify all parameters were sent in new autom8_data format
+        assert captured_body["frame_type"] == "business"
+        assert captured_body["phone_vertical_pairs"] == [
+            {"phone": "+17705753103", "vertical": "chiropractic"}
+        ]
+        assert captured_body["period"] == "T30"
         assert captured_body["start_date"] == "2024-01-01"
         assert captured_body["end_date"] == "2024-12-31"
         assert captured_body["metrics"] == ["spend", "leads"]
@@ -1473,7 +1478,7 @@ class TestFeatureFlagEnabled:
         # Ensure env var is not set
         with patch.dict(os.environ, {}, clear=True):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [{"spend": 100.0}],
                         "metadata": {
@@ -1505,7 +1510,7 @@ class TestFeatureFlagEnabled:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": ""}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [],
                         "metadata": {
@@ -1537,7 +1542,7 @@ class TestFeatureFlagEnabled:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [{"spend": 100.0}],
                         "metadata": {
@@ -1569,7 +1574,7 @@ class TestFeatureFlagEnabled:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "TRUE"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [],
                         "metadata": {
@@ -1601,7 +1606,7 @@ class TestFeatureFlagEnabled:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "1"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [],
                         "metadata": {
@@ -1633,7 +1638,7 @@ class TestFeatureFlagEnabled:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "yes"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [],
                         "metadata": {
@@ -1665,7 +1670,7 @@ class TestFeatureFlagEnabled:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "YES"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [],
                         "metadata": {
@@ -1806,7 +1811,7 @@ class TestCacheHit:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [{"spend": 100.0}],
                         "metadata": {
@@ -1856,7 +1861,7 @@ class TestCacheHit:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [],
                         "metadata": {
@@ -1890,7 +1895,7 @@ class TestCacheHit:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [{"spend": 100.0}],
                         "metadata": {
@@ -1931,7 +1936,7 @@ class TestCacheMiss:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                route = respx.post("/api/v1/factory/account").respond(
+                route = respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [{"spend": 200.0}],
                         "metadata": {
@@ -1989,7 +1994,7 @@ class TestStaleFallback:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     status_code=500,
                     json={"error": "Internal server error"},
                 )
@@ -2033,7 +2038,7 @@ class TestStaleFallback:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     status_code=502,
                     json={"error": "Bad gateway"},
                 )
@@ -2073,7 +2078,7 @@ class TestStaleFallback:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     status_code=503,
                     json={"error": "Service unavailable"},
                 )
@@ -2113,7 +2118,7 @@ class TestStaleFallback:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     status_code=504,
                     json={"error": "Gateway timeout"},
                 )
@@ -2153,7 +2158,7 @@ class TestStaleFallback:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").mock(
+                respx.post("/api/v1/data-service/insights").mock(
                     side_effect=httpx.TimeoutException("Request timed out")
                 )
 
@@ -2192,7 +2197,7 @@ class TestStaleFallback:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").mock(
+                respx.post("/api/v1/data-service/insights").mock(
                     side_effect=httpx.ConnectError("Connection refused")
                 )
 
@@ -2219,7 +2224,7 @@ class TestStaleFallback:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     status_code=500,
                     json={"error": "Internal server error"},
                 )
@@ -2259,7 +2264,7 @@ class TestStaleFallback:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     status_code=400,
                     json={"error": "Invalid request"},
                 )
@@ -2300,7 +2305,7 @@ class TestStaleFallback:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     status_code=404,
                     json={"error": "Not found"},
                 )
@@ -2330,7 +2335,7 @@ class TestCacheFailureGracefulDegradation:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [{"spend": 100.0}],
                         "metadata": {
@@ -2369,7 +2374,7 @@ class TestCacheFailureGracefulDegradation:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     status_code=500,
                     json={"error": "Internal server error"},
                 )
@@ -2398,7 +2403,7 @@ class TestCacheFailureGracefulDegradation:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [],
                         "metadata": {
@@ -2455,7 +2460,7 @@ class TestStaleResponseMetadata:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     status_code=500,
                     json={"error": "Server error"},
                 )
@@ -2495,7 +2500,7 @@ class TestStaleResponseMetadata:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     status_code=500,
                     json={"error": "Server error"},
                 )
@@ -2538,7 +2543,7 @@ class TestStaleResponseMetadata:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     status_code=500,
                     json={"error": "Server error"},
                 )
@@ -2579,7 +2584,7 @@ class TestStaleResponseMetadata:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     status_code=500,
                     json={"error": "Server error"},
                 )
@@ -2795,7 +2800,7 @@ class TestObservabilityLogging:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [{"spend": 100.0}],
                         "metadata": {
@@ -2826,7 +2831,8 @@ class TestObservabilityLogging:
         assert first_call[0][0] == "insights_request_started"
         extra = first_call[1]["extra"]
         assert extra["factory"] == "account"
-        assert extra["period"] == "t30"
+        assert extra["period"] == "T30"  # Normalized to uppercase
+        assert extra["frame_type"] == "business"  # Now includes frame_type
         assert "request_id" in extra
 
     @pytest.mark.asyncio
@@ -2839,7 +2845,7 @@ class TestObservabilityLogging:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [{"spend": 100.0}],
                         "metadata": {
@@ -2885,7 +2891,7 @@ class TestObservabilityLogging:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     status_code=500,
                     json={"error": "Internal server error"},
                 )
@@ -2921,7 +2927,7 @@ class TestObservabilityLogging:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [],
                         "metadata": {
@@ -2971,7 +2977,7 @@ class TestObservabilityMetrics:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [{"spend": 100.0}],
                         "metadata": {
@@ -3026,7 +3032,7 @@ class TestObservabilityMetrics:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     status_code=500,
                     json={"error": "Internal server error"},
                 )
@@ -3071,7 +3077,7 @@ class TestObservabilityMetrics:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").mock(
+                respx.post("/api/v1/data-service/insights").mock(
                     side_effect=httpx.TimeoutException("Timeout")
                 )
 
@@ -3103,7 +3109,7 @@ class TestObservabilityMetrics:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [],
                         "metadata": {
@@ -3152,7 +3158,7 @@ class TestObservabilityIntegration:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     json={
                         "data": [{"spend": 100.0}],
                         "metadata": {
@@ -3206,7 +3212,7 @@ class TestObservabilityIntegration:
 
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
-                respx.post("/api/v1/factory/account").respond(
+                respx.post("/api/v1/data-service/insights").respond(
                     status_code=400,
                     json={"error": "Invalid request"},
                 )
@@ -3243,7 +3249,7 @@ class TestSyncWrapper:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 json={
                     "data": [{"spend": 100.0}],
                     "metadata": {
@@ -3315,7 +3321,7 @@ class TestSyncWrapper:
             )
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").mock(side_effect=capture_request)
+            respx.post("/api/v1/data-service/insights").mock(side_effect=capture_request)
 
             with client:
                 client.get_insights(
@@ -3333,10 +3339,12 @@ class TestSyncWrapper:
                     filters={"platform": "facebook"},
                 )
 
-        # Verify all parameters were passed through
-        assert captured_body["office_phone"] == "+17705753103"
-        assert captured_body["vertical"] == "chiropractic"
-        assert captured_body["insights_period"] == "t30"
+        # Verify all parameters were passed through in new autom8_data format
+        assert captured_body["frame_type"] == "business"
+        assert captured_body["phone_vertical_pairs"] == [
+            {"phone": "+17705753103", "vertical": "chiropractic"}
+        ]
+        assert captured_body["period"] == "T30"
         assert captured_body["start_date"] == "2024-01-01"
         assert captured_body["end_date"] == "2024-12-31"
         assert captured_body["metrics"] == ["spend", "leads"]
@@ -3398,7 +3406,7 @@ class TestSyncWrapper:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 status_code=500,
                 json={"error": "Internal server error"},
             )
@@ -3436,7 +3444,7 @@ class TestCircuitBreaker:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 json={
                     "data": [{"id": 1}],
                     "metadata": {
@@ -3486,7 +3494,7 @@ class TestCircuitBreaker:
 
         with respx.mock:
             # Mock 5 consecutive 503 responses
-            respx.post("/api/v1/factory/account").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 status_code=503,
                 json={"error": "Service unavailable"},
             )
@@ -3525,7 +3533,7 @@ class TestCircuitBreaker:
         client = DataServiceClient(config=config)
 
         with respx.mock:
-            route = respx.post("/api/v1/factory/account").respond(
+            route = respx.post("/api/v1/data-service/insights").respond(
                 status_code=503,
                 json={"error": "Service unavailable"},
             )
@@ -3579,7 +3587,7 @@ class TestCircuitBreaker:
         client = DataServiceClient(config=config)
 
         with respx.mock:
-            route = respx.post("/api/v1/factory/account").respond(
+            route = respx.post("/api/v1/data-service/insights").respond(
                 status_code=503,
                 json={"error": "Service unavailable"},
             )
@@ -3659,7 +3667,7 @@ class TestCircuitBreaker:
                 )
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").mock(side_effect=handle_request)
+            respx.post("/api/v1/data-service/insights").mock(side_effect=handle_request)
 
             async with client:
                 # Make 5 failing requests to open circuit
@@ -3709,7 +3717,7 @@ class TestCircuitBreaker:
 
         with respx.mock:
             # All requests fail
-            respx.post("/api/v1/factory/account").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 status_code=503,
                 json={"error": "Service unavailable"},
             )
@@ -3772,7 +3780,7 @@ class TestRetryHandler:
         client = DataServiceClient(config=config)
 
         with respx.mock:
-            route = respx.post("/api/v1/factory/account").mock(
+            route = respx.post("/api/v1/data-service/insights").mock(
                 side_effect=[
                     Response(503, json={"error": "service unavailable"}),
                     Response(
@@ -3821,7 +3829,7 @@ class TestRetryHandler:
         client = DataServiceClient(config=config)
 
         with respx.mock:
-            route = respx.post("/api/v1/factory/account").mock(
+            route = respx.post("/api/v1/data-service/insights").mock(
                 side_effect=[
                     Response(502, json={"error": "bad gateway"}),
                     Response(
@@ -3870,7 +3878,7 @@ class TestRetryHandler:
         client = DataServiceClient(config=config)
 
         with respx.mock:
-            route = respx.post("/api/v1/factory/account").mock(
+            route = respx.post("/api/v1/data-service/insights").mock(
                 side_effect=[
                     Response(504, json={"error": "gateway timeout"}),
                     Response(
@@ -3920,7 +3928,7 @@ class TestRetryHandler:
         client = DataServiceClient(config=config)
 
         with respx.mock:
-            route = respx.post("/api/v1/factory/account").mock(
+            route = respx.post("/api/v1/data-service/insights").mock(
                 side_effect=[
                     Response(503, json={"error": "service unavailable"}),
                     Response(503, json={"error": "service unavailable"}),
@@ -3963,7 +3971,7 @@ class TestRetryHandler:
         client = DataServiceClient(config=config)
 
         with respx.mock:
-            route = respx.post("/api/v1/factory/account").mock(
+            route = respx.post("/api/v1/data-service/insights").mock(
                 side_effect=[
                     Response(
                         429,
@@ -4022,7 +4030,7 @@ class TestRetryHandler:
         client = DataServiceClient(config=config)
 
         with respx.mock:
-            route = respx.post("/api/v1/factory/account").respond(
+            route = respx.post("/api/v1/data-service/insights").respond(
                 status_code=400,
                 json={"error": "invalid request"},
             )
@@ -4056,7 +4064,7 @@ class TestRetryHandler:
         client = DataServiceClient(config=config)
 
         with respx.mock:
-            route = respx.post("/api/v1/factory/account").respond(
+            route = respx.post("/api/v1/data-service/insights").respond(
                 status_code=404,
                 json={"error": "not found"},
             )
@@ -4112,7 +4120,7 @@ class TestRetryHandler:
             )
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").mock(side_effect=handle_request)
+            respx.post("/api/v1/data-service/insights").mock(side_effect=handle_request)
 
             async with client:
                 response = await client.get_insights_async(
@@ -4143,7 +4151,7 @@ class TestRetryHandler:
         client = DataServiceClient(config=config)
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").mock(
+            respx.post("/api/v1/data-service/insights").mock(
                 side_effect=httpx.TimeoutException("Connection timed out")
             )
 
@@ -4207,7 +4215,7 @@ class TestGetInsightsBatchAsync:
 
         with respx.mock:
             # Mock responses for each PVP
-            respx.post("/api/v1/factory/account").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 json=make_insights_response(spend=100.0)
             )
 
@@ -4251,7 +4259,7 @@ class TestGetInsightsBatchAsync:
             return httpx.Response(200, json=make_insights_response())
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").mock(side_effect=handle_request)
+            respx.post("/api/v1/data-service/insights").mock(side_effect=handle_request)
 
             async with client:
                 result = await client.get_insights_batch_async(
@@ -4373,7 +4381,7 @@ class TestGetInsightsBatchAsync:
             return httpx.Response(200, json=make_insights_response())
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").mock(side_effect=handle_request)
+            respx.post("/api/v1/data-service/insights").mock(side_effect=handle_request)
 
             async with client:
                 # Use max_concurrency=2, with 3 PVPs
@@ -4412,7 +4420,7 @@ class TestGetInsightsBatchAsync:
                 return httpx.Response(200, json=make_insights_response())
 
             with respx.mock:
-                respx.post("/api/v1/factory/account").mock(side_effect=handle_request)
+                respx.post("/api/v1/data-service/insights").mock(side_effect=handle_request)
 
                 async with client:
                     await client.get_insights_batch_async(
@@ -4475,7 +4483,7 @@ class TestGetInsightsBatchAsync:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").respond(
+            respx.post("/api/v1/data-service/insights").respond(
                 json=make_insights_response(spend=150.0)
             )
 
@@ -4499,7 +4507,7 @@ class TestGetInsightsBatchAsync:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").respond(json=make_insights_response())
+            respx.post("/api/v1/data-service/insights").respond(json=make_insights_response())
 
             async with client:
                 result = await client.get_insights_batch_async(
@@ -4522,7 +4530,7 @@ class TestGetInsightsBatchAsync:
         client = DataServiceClient()
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").respond(json=make_insights_response())
+            respx.post("/api/v1/data-service/insights").respond(json=make_insights_response())
 
             async with client:
                 result = await client.get_insights_batch_async(
@@ -4549,7 +4557,7 @@ class TestGetInsightsBatchAsync:
             return httpx.Response(200, json=make_insights_response())
 
         with respx.mock:
-            respx.post("/api/v1/factory/account").mock(side_effect=capture_request)
+            respx.post("/api/v1/data-service/insights").mock(side_effect=capture_request)
 
             async with client:
                 await client.get_insights_batch_async(
@@ -4559,7 +4567,7 @@ class TestGetInsightsBatchAsync:
                     refresh=True,
                 )
 
-        # Verify all requests have the period and refresh parameters
+        # Verify all requests have the period and refresh parameters in new format
         for body in captured_bodies:
-            assert body["insights_period"] == "t30"
+            assert body["period"] == "T30"  # Normalized to uppercase
             assert body["refresh"] is True

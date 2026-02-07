@@ -65,9 +65,21 @@ class SchemaRegistry:
         Warning:
             This method is intended for testing only. Do not use
             in production code.
+
+        Note:
+            Also clears the resolvable entities cache in resolver module.
         """
         with cls._lock:
             cls._instance = None
+
+        # Clear resolvable entities cache (import here to avoid circular import)
+        try:
+            from autom8_asana.services.resolver import _clear_resolvable_cache
+
+            _clear_resolvable_cache()
+        except ImportError:
+            # If resolver module not yet loaded, no cache to clear
+            pass
 
     def _ensure_initialized(self) -> None:
         """Lazy initialization of built-in schemas."""

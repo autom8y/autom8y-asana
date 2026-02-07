@@ -172,6 +172,8 @@ class ResolutionMeta(BaseModel):
         unresolved_count: Number of failed resolutions
         entity_type: Entity type that was resolved
         project_gid: Project GID used for resolution
+        available_fields: Valid fields for entity (from schema)
+        criteria_schema: Fields used in the resolution request criteria
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -180,6 +182,8 @@ class ResolutionMeta(BaseModel):
     unresolved_count: int
     entity_type: str
     project_gid: str
+    available_fields: list[str] = []
+    criteria_schema: list[str] = []
 
 
 class ResolutionResponse(BaseModel):

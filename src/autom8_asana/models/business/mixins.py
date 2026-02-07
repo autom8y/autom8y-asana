@@ -215,10 +215,51 @@ class UpwardTraversalMixin:
         )
 
 
+class UnitNavigableEntityMixin:
+    """Mixin for entities that navigate to Business via self.unit.
+
+    Per TDD-SPRINT-5-CLEANUP/DRY-006: Consolidates duplicate business property
+    from Offer and Process entities.
+
+    These entities are nested under Unit and access Business via the unit.business
+    chain. The business property performs lazy navigation through the unit property.
+
+    Usage:
+        class Offer(BusinessEntity, UnitNavigableEntityMixin, ...):
+            # business property inherited from mixin
+            # unit property must be defined by the entity
+
+    Requires:
+        - _business: Business | None attribute (must be set by entity)
+        - unit: property that returns Unit | None (must be defined by entity)
+    """
+
+    # Type stub for _business attribute that must exist on the class using this mixin
+    # Note: Do NOT add type stub for 'unit' - it would shadow the entity's property
+    _business: Business | None
+
+    @property
+    def business(self) -> Business | None:
+        """Navigate to containing Business (cached).
+
+        Per TDD-SPRINT-5-CLEANUP/DRY-006: Consolidated from Offer and Process.
+
+        Returns:
+            Business entity or None if not populated.
+        """
+        if self._business is None:
+            unit = self.unit  # type: ignore[attr-defined]
+            if unit is not None:
+                self._business = unit.business
+        return self._business
+
+
 class UnitNestedHolderMixin:
     """Mixin for holders nested under Unit that navigate to Business via _unit.
 
     Per TDD-SPRINT-5-CLEANUP/DRY-006: Consolidates duplicate business property
+    from OfferHolder and ProcessHolder.
+    Per TDD-SPRINT-5-CLEANUP/DRY-007: Consolidates _populate_children override
     from OfferHolder and ProcessHolder.
 
     These holders have both _business and _unit references, where _unit is the
@@ -229,11 +270,12 @@ class UnitNestedHolderMixin:
     Usage:
         class OfferHolder(HolderFactory, UnitNestedHolderMixin, ...):
             _unit: Unit | None = PrivateAttr(default=None)
-            # business property inherited from mixin
+            # business property and _populate_children inherited from mixin
 
     Requires:
         - _business: Business | None attribute
         - _unit: Unit | None attribute (must be set by parent during population)
+        - children: list attribute (from HolderFactory)
     """
 
     # Type stubs for attributes that must exist on the class using this mixin
@@ -252,3 +294,22 @@ class UnitNestedHolderMixin:
         if self._business is None and self._unit is not None:
             self._business = self._unit.business
         return self._business
+
+    def _populate_children(self, subtasks: list[Any]) -> None:
+        """Populate children and propagate _unit reference.
+
+        Per TDD-SPRINT-5-CLEANUP/DRY-007: Consolidated from OfferHolder and ProcessHolder.
+
+        Override of HolderFactory._populate_children to propagate intermediate
+        _unit reference to children. The generic implementation only handles
+        holder ref and business ref.
+
+        Args:
+            subtasks: List of Task subtasks from API.
+        """
+        # Call parent implementation to populate children with standard refs
+        super()._populate_children(subtasks)  # type: ignore[misc]
+
+        # Propagate _unit reference to all children
+        for child in self.children:  # type: ignore[attr-defined]
+            child._unit = self._unit
