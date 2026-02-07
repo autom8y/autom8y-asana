@@ -167,6 +167,11 @@ class RetryPolicy(Protocol):
         """
         ...
 
+    @staticmethod
+    def _is_transient(error: Exception) -> bool:
+        """Classify whether an error is transient (retriable) vs permanent."""
+        ...
+
 
 class DefaultRetryPolicy:
     """Default retry policy with configurable backoff.
