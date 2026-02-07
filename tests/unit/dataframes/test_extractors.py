@@ -1018,33 +1018,23 @@ class TestUnitExtractor:
 
             assert row.office_phone is None
 
-    def test_extract_vertical_id_returns_custom_field_value(
+    def test_extract_vertical_id_returns_none_stub(
         self,
         minimal_task: Task,
     ) -> None:
-        """Test that vertical_id returns the Vertical custom field value as-is.
+        """Test that vertical_id returns None (stub pending Vertical model).
 
-        Per WS3-002: The Vertical custom field value IS the vertical_id.
-        Values are already lowercase snake_case and need no transformation.
+        The vertical_id column is intended for the Vertical model's database
+        identifier, not the raw custom field value. The `vertical` column
+        already captures the custom field key (e.g., "dental").
         """
         resolver = MockCustomFieldResolver({"vertical": "dental"})
         extractor = UnitExtractor(UNIT_SCHEMA, resolver)
         vertical_id = extractor._extract_vertical_id(minimal_task)
 
-        assert vertical_id == "dental"
-
-    def test_extract_vertical_id_returns_none_when_field_not_set(
-        self,
-        minimal_task: Task,
-    ) -> None:
-        """Test that vertical_id returns None when Vertical field is absent."""
-        resolver = MockCustomFieldResolver({})
-        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
-        vertical_id = extractor._extract_vertical_id(minimal_task)
-
         assert vertical_id is None
 
-    def test_extract_vertical_id_returns_none_when_no_resolver(
+    def test_extract_vertical_id_returns_none_without_resolver(
         self,
         minimal_task: Task,
     ) -> None:
@@ -1053,37 +1043,6 @@ class TestUnitExtractor:
         vertical_id = extractor._extract_vertical_id(minimal_task)
 
         assert vertical_id is None
-
-    def test_extract_vertical_id_matches_vertical_column(
-        self,
-        full_task: Task,
-    ) -> None:
-        """Test that vertical_id and vertical column produce the same value.
-
-        Both derive from cf:Vertical; vertical via direct source,
-        vertical_id via the derived _extract_vertical_id method.
-        """
-        resolver = MockCustomFieldResolver({"vertical": "chiropractic"})
-        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
-        row = extractor.extract(full_task)
-
-        assert row.vertical == "chiropractic"
-        assert row.vertical_id == "chiropractic"
-
-    def test_extract_vertical_id_handles_list_value(
-        self,
-        minimal_task: Task,
-    ) -> None:
-        """Test that vertical_id handles multi-enum list via Utf8 coercion.
-
-        Asana multi_enum fields may return lists. Utf8 coercion joins
-        them with commas, matching the vertical column behavior.
-        """
-        resolver = MockCustomFieldResolver({"vertical": ["dental", "medical"]})
-        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
-        vertical_id = extractor._extract_vertical_id(minimal_task)
-
-        assert vertical_id == "dental, medical"
 
     def test_derived_field_max_pipeline_stage_returns_none(
         self,

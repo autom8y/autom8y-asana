@@ -32,8 +32,8 @@ class UnitExtractor(BaseExtractor):
 
     Derived fields (5):
         office, vertical_id, max_pipeline_stage
-        vertical_id extracts the Vertical custom field value as-is.
-        office and max_pipeline_stage return None pending autom8 team input.
+        office resolves Business ancestor name via parent chain traversal.
+        vertical_id and max_pipeline_stage return None pending model lookups.
         Note: vertical and specialty are direct custom fields, not derived.
 
     Example:
@@ -207,32 +207,30 @@ class UnitExtractor(BaseExtractor):
         return None
 
     def _extract_vertical_id(self, task: Task) -> str | None:
-        """Extract vertical identifier from the Vertical custom field.
+        """Extract vertical identifier (derived field stub).
 
-        The Vertical custom field value IS the vertical_id. Values are
-        already lowercase snake_case (e.g., "dental", "medical",
-        "chiropractic") and require no transformation.
+        Per schema: Derived from Vertical model. The `vertical` column
+        already captures the raw custom field value (e.g., "dental").
+        This column is intended for the database-side vertical ID,
+        which requires a Vertical model lookup (key -> ID).
 
-        Uses the same "cf:Vertical" source as the `vertical` column,
-        with Utf8 coercion to handle multi-enum list values.
+        Not to be confused with `vertical` (the custom field key/name).
 
         Args:
             task: Task to extract from
 
         Returns:
-            Vertical identifier string, or None if resolver unavailable
-            or field not set on the task.
-        """
-        if self._resolver is None:
-            return None
+            None (stub implementation)
 
-        # Find the vertical_id column def for Utf8 coercion (handles
-        # multi-enum list -> comma-joined string conversion)
-        vertical_id_col = next(
-            (c for c in self._schema.columns if c.name == "vertical_id"),
-            None,
-        )
-        return self._resolver.get_value(task, "cf:Vertical", column_def=vertical_id_col)
+        TODO:
+            Implement vertical_id derivation from Vertical model.
+            Requires a lookup from vertical key (e.g., "dental") to
+            the Vertical model's database identifier.
+        """
+        # TODO: Implement vertical_id derivation from Vertical model
+        # The `vertical` column captures the custom field key.
+        # This column should hold the Vertical model's database ID.
+        return None
 
     def _extract_max_pipeline_stage(self, task: Task) -> str | None:
         """Extract maximum pipeline stage reached (derived field stub).
