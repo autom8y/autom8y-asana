@@ -43,6 +43,7 @@ if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
     from autom8_asana.models.base import AsanaResource
     from autom8_asana.models.user import User
+    from autom8_asana.persistence.reorder import ReorderPlan
 
 from autom8_asana.models.common import NameGid
 
@@ -180,8 +181,8 @@ class SaveSession:
             batch_size=batch_size,
         )
 
-        # TDD-0011: Action executor for non-batch operations
-        self._action_executor = ActionExecutor(client._http)
+        # TDD-0011/TDD-GAP-05: Action executor with batch support
+        self._action_executor = ActionExecutor(client._http, client.batch)
 
         # TDD-0011: Pending action operations
         self._pending_actions: list[ActionOperation] = []
@@ -1407,6 +1408,65 @@ class SaveSession:
             insert_before=insert_before,
             insert_after=insert_after,
         )
+
+    def reorder_subtasks(
+        self,
+        parent: AsanaResource | str,
+        current_order: list[AsanaResource],
+        desired_order: list[AsanaResource],
+    ) -> ReorderPlan:
+        """Reorder subtasks under a parent with minimum API calls.
+
+        Per TDD-GAP-06: Computes LIS-optimized reorder plan, then queues
+        SET_PARENT actions for each Move.
+
+        Does NOT modify the existing reorder_subtask() singular method.
+
+        Args:
+            parent: Parent task (AsanaResource or GID string). All items in
+                current_order must be subtasks of this parent.
+            current_order: Children in their current sequence.
+            desired_order: Children in the target sequence.
+
+        Returns:
+            The computed ReorderPlan (for logging/inspection).
+
+        Raises:
+            ValueError: If current_order and desired_order contain different elements.
+            SessionClosedError: If session is closed.
+        """
+        from autom8_asana.persistence.reorder import ReorderPlan, compute_reorder_plan
+
+        self._ensure_open()
+
+        plan = compute_reorder_plan(current_order, desired_order)
+
+        if plan.moves_required > 0:
+            parent_gid = parent if isinstance(parent, str) else parent.gid
+            if self._log:
+                self._log.info(
+                    "reorder_plan_computed",
+                    parent_gid=parent_gid,
+                    total_children=plan.total_children,
+                    lis_length=plan.lis_length,
+                    moves_required=plan.moves_required,
+                )
+
+        for move in plan.moves:
+            if move.direction == "insert_after":
+                self.set_parent(move.item, parent, insert_after=move.reference)
+            else:
+                self.set_parent(move.item, parent, insert_before=move.reference)
+
+            if self._log:
+                self._log.debug(
+                    "move_planned",
+                    item=move.item.gid,
+                    reference=move.reference.gid,
+                    direction=move.direction,
+                )
+
+        return plan
 
     def get_pending_actions(self) -> list[ActionOperation]:
         """Get list of pending action operations.
