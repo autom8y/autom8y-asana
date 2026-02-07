@@ -13,6 +13,7 @@ import pytest
 
 from autom8_asana.automation.config import AutomationConfig, PipelineStage
 from autom8_asana.automation.context import AutomationContext
+from autom8_asana.automation.events.types import EventType
 from autom8_asana.automation.pipeline import PipelineConversionRule
 from autom8_asana.models.business.process import ProcessSection, ProcessType
 
@@ -251,7 +252,7 @@ class TestPipelineConversionRuleProperties:
         trigger = rule.trigger
 
         assert trigger.entity_type == "Process"
-        assert trigger.event == "section_changed"
+        assert trigger.event == EventType.SECTION_CHANGED
         assert trigger.filters["process_type"] == "sales"
         assert trigger.filters["section"] == "converted"
 
@@ -266,7 +267,7 @@ class TestShouldTrigger:
         process = Process(process_type=ProcessType.SALES)
         context = {"section": "converted", "process_type": "sales"}
 
-        result = rule.should_trigger(process, "section_changed", context)
+        result = rule.should_trigger(process, EventType.SECTION_CHANGED, context)
 
         assert result is True
 
@@ -276,7 +277,7 @@ class TestShouldTrigger:
         offer = MockOffer()
         context = {"section": "converted"}
 
-        result = rule.should_trigger(offer, "section_changed", context)
+        result = rule.should_trigger(offer, EventType.SECTION_CHANGED, context)
 
         assert result is False
 
@@ -286,7 +287,7 @@ class TestShouldTrigger:
         process = MockProcess(process_type=ProcessType.SALES)
         context = {"section": "converted"}
 
-        result = rule.should_trigger(process, "created", context)
+        result = rule.should_trigger(process, EventType.CREATED, context)
 
         assert result is False
 
@@ -296,7 +297,7 @@ class TestShouldTrigger:
         process = MockProcess(process_type=ProcessType.SALES)
         context = {"section": "active", "process_type": "sales"}
 
-        result = rule.should_trigger(process, "section_changed", context)
+        result = rule.should_trigger(process, EventType.SECTION_CHANGED, context)
 
         assert result is False
 
@@ -306,7 +307,7 @@ class TestShouldTrigger:
         process = MockProcess(process_type=ProcessType.ONBOARDING)
         context = {"section": "converted", "process_type": "onboarding"}
 
-        result = rule.should_trigger(process, "section_changed", context)
+        result = rule.should_trigger(process, EventType.SECTION_CHANGED, context)
 
         assert result is False
 
@@ -316,7 +317,7 @@ class TestShouldTrigger:
         process = MockProcess(process_type=ProcessType.GENERIC)
         context = {"section": "converted", "process_type": "generic"}
 
-        result = rule.should_trigger(process, "section_changed", context)
+        result = rule.should_trigger(process, EventType.SECTION_CHANGED, context)
 
         assert result is False
 
@@ -1660,7 +1661,7 @@ class TestOnboardingToImplementationTransition:
 
         trigger = rule.trigger
         assert trigger.entity_type == "Process"
-        assert trigger.event == "section_changed"
+        assert trigger.event == EventType.SECTION_CHANGED
         assert trigger.filters["process_type"] == "onboarding"
         assert trigger.filters["section"] == "converted"
 

@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 
 from autom8_asana.automation.base import Action, TriggerCondition
+from autom8_asana.automation.events.types import EventType
 
 
 class MockProcessType(Enum):
@@ -58,37 +59,37 @@ class TestTriggerCondition:
 
     def test_matches_entity_type(self) -> None:
         """Test matching entity type."""
-        condition = TriggerCondition(entity_type="Process", event="created")
+        condition = TriggerCondition(entity_type="Process", event=EventType.CREATED)
         entity = Process()
 
-        result = condition.matches(entity, "created", {})
+        result = condition.matches(entity, EventType.CREATED, {})
 
         assert result is True
 
     def test_no_match_wrong_entity_type(self) -> None:
         """Test no match when entity type is wrong."""
-        condition = TriggerCondition(entity_type="Process", event="created")
+        condition = TriggerCondition(entity_type="Process", event=EventType.CREATED)
         entity = Offer()
 
-        result = condition.matches(entity, "created", {})
+        result = condition.matches(entity, EventType.CREATED, {})
 
         assert result is False
 
     def test_matches_event(self) -> None:
         """Test matching event type."""
-        condition = TriggerCondition(entity_type="Process", event="updated")
+        condition = TriggerCondition(entity_type="Process", event=EventType.UPDATED)
         entity = Process()
 
-        result = condition.matches(entity, "updated", {})
+        result = condition.matches(entity, EventType.UPDATED, {})
 
         assert result is True
 
     def test_no_match_wrong_event(self) -> None:
         """Test no match when event is wrong."""
-        condition = TriggerCondition(entity_type="Process", event="updated")
+        condition = TriggerCondition(entity_type="Process", event=EventType.UPDATED)
         entity = Process()
 
-        result = condition.matches(entity, "created", {})
+        result = condition.matches(entity, EventType.CREATED, {})
 
         assert result is False
 
@@ -96,13 +97,13 @@ class TestTriggerCondition:
         """Test matching filter from context dict."""
         condition = TriggerCondition(
             entity_type="Process",
-            event="section_changed",
+            event=EventType.SECTION_CHANGED,
             filters={"section": "converted"},
         )
         entity = Process()
         context = {"section": "converted"}
 
-        result = condition.matches(entity, "section_changed", context)
+        result = condition.matches(entity, EventType.SECTION_CHANGED, context)
 
         assert result is True
 
@@ -110,13 +111,13 @@ class TestTriggerCondition:
         """Test no match when filter value is wrong."""
         condition = TriggerCondition(
             entity_type="Process",
-            event="section_changed",
+            event=EventType.SECTION_CHANGED,
             filters={"section": "converted"},
         )
         entity = Process()
         context = {"section": "pending"}
 
-        result = condition.matches(entity, "section_changed", context)
+        result = condition.matches(entity, EventType.SECTION_CHANGED, context)
 
         assert result is False
 
@@ -124,13 +125,13 @@ class TestTriggerCondition:
         """Test matching filter from entity attribute."""
         condition = TriggerCondition(
             entity_type="Process",
-            event="created",
+            event=EventType.CREATED,
             filters={"status": "active"},
         )
         entity = Process(status="active")
         context: dict[str, Any] = {}
 
-        result = condition.matches(entity, "created", context)
+        result = condition.matches(entity, EventType.CREATED, context)
 
         assert result is True
 
@@ -138,13 +139,13 @@ class TestTriggerCondition:
         """Test matching filter with enum attribute."""
         condition = TriggerCondition(
             entity_type="Process",
-            event="created",
+            event=EventType.CREATED,
             filters={"process_type": "sales"},
         )
         entity = Process(process_type=MockProcessType.SALES)
         context: dict[str, Any] = {}
 
-        result = condition.matches(entity, "created", context)
+        result = condition.matches(entity, EventType.CREATED, context)
 
         assert result is True
 
@@ -152,13 +153,13 @@ class TestTriggerCondition:
         """Test no match when filter attribute is missing."""
         condition = TriggerCondition(
             entity_type="Process",
-            event="created",
+            event=EventType.CREATED,
             filters={"nonexistent": "value"},
         )
         entity = Process()
         context: dict[str, Any] = {}
 
-        result = condition.matches(entity, "created", context)
+        result = condition.matches(entity, EventType.CREATED, context)
 
         assert result is False
 
@@ -166,7 +167,7 @@ class TestTriggerCondition:
         """Test matching multiple filters."""
         condition = TriggerCondition(
             entity_type="Process",
-            event="section_changed",
+            event=EventType.SECTION_CHANGED,
             filters={
                 "section": "converted",
                 "process_type": "sales",
@@ -175,7 +176,7 @@ class TestTriggerCondition:
         entity = Process(process_type=MockProcessType.SALES)
         context = {"section": "converted"}
 
-        result = condition.matches(entity, "section_changed", context)
+        result = condition.matches(entity, EventType.SECTION_CHANGED, context)
 
         assert result is True
 
@@ -183,7 +184,7 @@ class TestTriggerCondition:
         """Test no match when one of multiple filters fails."""
         condition = TriggerCondition(
             entity_type="Process",
-            event="section_changed",
+            event=EventType.SECTION_CHANGED,
             filters={
                 "section": "converted",
                 "process_type": "onboarding",  # This will fail
@@ -192,13 +193,13 @@ class TestTriggerCondition:
         entity = Process(process_type=MockProcessType.SALES)
         context = {"section": "converted"}
 
-        result = condition.matches(entity, "section_changed", context)
+        result = condition.matches(entity, EventType.SECTION_CHANGED, context)
 
         assert result is False
 
     def test_frozen_dataclass(self) -> None:
         """Test that TriggerCondition is frozen (immutable)."""
-        condition = TriggerCondition(entity_type="Process", event="created")
+        condition = TriggerCondition(entity_type="Process", event=EventType.CREATED)
 
         with pytest.raises(AttributeError):
             condition.entity_type = "Task"  # type: ignore[misc]

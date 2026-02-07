@@ -14,6 +14,7 @@ from autom8_asana.automation.base import TriggerCondition
 from autom8_asana.automation.config import AutomationConfig
 from autom8_asana.automation.context import AutomationContext
 from autom8_asana.automation.engine import AutomationEngine
+from autom8_asana.automation.events.types import EventType
 from autom8_asana.persistence.models import AutomationResult, SaveResult
 
 
@@ -33,7 +34,7 @@ class MockRule:
         self._should_trigger_result = should_trigger_result
         self._execute_result = execute_result
         self._execute_error = execute_error
-        self._trigger = TriggerCondition(entity_type="Task", event="created")
+        self._trigger = TriggerCondition(entity_type="Task", event=EventType.CREATED)
         self.execute_called = False
         self.execute_call_args: tuple[Any, ...] | None = None
 

@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 from autom8y_log import get_logger
 
 from autom8_asana.automation.base import TriggerCondition
+from autom8_asana.automation.events.types import EventType
 from autom8_asana.automation.seeding import FieldSeeder
 from autom8_asana.automation.templates import TemplateDiscovery
 from autom8_asana.automation.validation import ValidationResult
@@ -111,7 +112,7 @@ class PipelineConversionRule:
         # Build trigger condition
         self._trigger = TriggerCondition(
             entity_type="Process",
-            event="section_changed",
+            event=EventType.SECTION_CHANGED,
             filters={
                 "process_type": source_type.value,
                 "section": trigger_section.value,
