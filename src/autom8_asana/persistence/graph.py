@@ -198,8 +198,14 @@ class DependencyGraph:
 
         Parent can be:
         - String GID
-        - NameGid object with .gid attribute
+        - NameGid object with .gid attribute (real or temp GID)
         - Another AsanaResource entity
+
+        Per TDD-GAP-01 Section 4.4 (Option A): Temp GID strings in NameGid
+        references are valid parent identifiers when the referenced entity
+        is in the graph. This enables the ENSURE_HOLDERS phase to wire
+        child.parent = NameGid(gid=holder_temp_gid) and have the graph
+        produce correct dependency levels.
 
         Args:
             parent_ref: The parent reference from entity.
@@ -216,7 +222,12 @@ class DependencyGraph:
             gid: str | None = parent_ref.gid
             if gid and not gid.startswith("temp_"):
                 return gid
-            # If no GID or temp GID, check if it's a tracked entity
+            # Temp GID: check if it references an entity in the graph.
+            # This supports NameGid(gid="temp_xxx") references created by
+            # the ENSURE_HOLDERS phase (holder auto-creation).
+            if gid and gid.startswith("temp_") and gid in self._entities:
+                return gid
+            # Fallback: check if parent_ref IS a tracked entity (identity check)
             for entity in entities:
                 if entity is parent_ref:
                     return self._get_gid(entity)
