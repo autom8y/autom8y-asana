@@ -14,6 +14,7 @@ from autom8_asana.automation.events.rule import EventEmissionRule
 from autom8_asana.automation.events.transport import (
     EventTransport,
     InMemoryTransport,
+    SQSTransport,
 )
 from autom8_asana.automation.events.types import EventType
 
@@ -22,6 +23,7 @@ __all__ = [
     "EventEnvelope",
     "EventTransport",
     "InMemoryTransport",
+    "SQSTransport",
     "EventEmitter",
     "EmitResult",
     "EventEmissionRule",
