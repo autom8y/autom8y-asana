@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 
     from autom8_asana.client import AsanaClient
 
+from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 from autom8_asana.settings import get_settings
 
 logger = get_logger(__name__)
@@ -45,6 +46,19 @@ DYNAMIC_INDEX_CACHE_TTL = get_settings().cache.ttl_dynamic_index
 # are heavier (DataFrame fetch + DynamicIndex construction).
 # Configurable if needed via future settings extension.
 RESOLVE_MAX_CONCURRENT = 10
+
+# Exception types caught per-criterion in _resolve_group.
+# Combines data-operation errors (KeyError, ValueError, etc.) with
+# transient cache/transport errors so a single lookup failure degrades
+# gracefully without aborting sibling criteria.
+# RuntimeError included: registry lookups and internal guards may raise it.
+_LOOKUP_ERRORS: tuple[type[Exception], ...] = (
+    KeyError,
+    AttributeError,
+    ValueError,
+    TypeError,
+    RuntimeError,
+) + CACHE_TRANSIENT_ERRORS
 
 
 # FACADE: Delegates to EntityRegistry. Preserves existing import path.
@@ -285,7 +299,7 @@ class UniversalResolutionStrategy:
                     gids, context=context
                 )
 
-            except Exception as e:  # BROAD-CATCH: per-criterion isolation
+            except _LOOKUP_ERRORS as e:  # NARROWED: per-criterion isolation
                 logger.warning(
                     "resolution_lookup_failed",
                     extra={
