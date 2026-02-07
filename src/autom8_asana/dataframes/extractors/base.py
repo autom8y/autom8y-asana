@@ -289,6 +289,15 @@ class BaseExtractor(ABC):
         """
         if col.source is None:
             # Derived field - delegate to subclass method
+            # Per WS3-001: Check for async variant first (e.g., _extract_office_async),
+            # falling back to sync variant (e.g., _extract_office) if not found.
+            async_method_name = f"_extract_{col.name}_async"
+            if hasattr(self, async_method_name):
+                async_method = getattr(self, async_method_name)
+                if col.name == "section":
+                    return await async_method(task, project_gid)
+                return await async_method(task)
+
             method_name = f"_extract_{col.name}"
             if hasattr(self, method_name):
                 method = getattr(self, method_name)

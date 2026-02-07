@@ -337,6 +337,12 @@ class DataFrameViewPlugin:
 
         # Derived field - use extraction method
         if source is None:
+            # Per WS3-001: Some derived fields require async resolution
+            async_result = await self._extract_derived_field_async(
+                task_data, col.name, project_gid
+            )
+            if async_result is not None:
+                return async_result
             return self._extract_derived_field(task_data, col.name, project_gid)
 
         # Cascade field - use cascade plugin
@@ -553,6 +559,103 @@ class DataFrameViewPlugin:
                 return self._extract_tags(task_data)
             case _:
                 return None
+
+    async def _extract_derived_field_async(
+        self,
+        task_data: dict[str, Any],
+        field_name: str,
+        project_gid: str | None = None,
+    ) -> Any:
+        """Extract derived fields that require async resolution.
+
+        Per WS3-001: The "office" field requires traversing the parent chain
+        to the Business ancestor and returning its name. This needs async
+        store access for parent chain lookup.
+
+        Args:
+            task_data: Task data dict from cache.
+            field_name: Field name to extract.
+            project_gid: Optional project context.
+
+        Returns:
+            Extracted value, or None if field is not async-resolvable
+            (caller should fall through to sync _extract_derived_field).
+        """
+        if field_name == "office":
+            return await self._resolve_office_from_dict(task_data)
+        return None
+
+    async def _resolve_office_from_dict(
+        self,
+        task_data: dict[str, Any],
+    ) -> str | None:
+        """Resolve office name by traversing parent chain to Business ancestor.
+
+        Per WS3-001: The office name is the Business task's name. Traverses
+        the parent chain using the unified store, detecting entity types to
+        identify the Business ancestor.
+
+        The hierarchy is: Unit -> parent(UnitHolder) -> parent(Business).
+        When the Business ancestor is found, returns its "name" field.
+
+        Args:
+            task_data: Task data dict from cache.
+
+        Returns:
+            Business task name (the office name), or None if not resolvable.
+        """
+        if self._store is None:
+            return None
+
+        task_gid = task_data.get("gid")
+        if not task_gid:
+            return None
+
+        parent_chain = await self._store.get_parent_chain_async(task_gid)
+
+        # Fallback: try direct parent fetch if chain is empty
+        if not parent_chain:
+            parent = task_data.get("parent")
+            if parent and isinstance(parent, dict):
+                parent_gid = parent.get("gid")
+                if parent_gid:
+                    from autom8_asana.cache.models.completeness import CompletenessLevel
+
+                    parent_data = await self._store.get_with_upgrade_async(
+                        parent_gid,
+                        required_level=CompletenessLevel.STANDARD,
+                        freshness=FreshnessMode.IMMEDIATE,
+                    )
+                    if parent_data:
+                        parent_chain = [parent_data]
+
+        if not parent_chain:
+            return None
+
+        # Traverse parent chain to find Business ancestor.
+        # The Business is the root of the hierarchy (no parent, or detected as BUSINESS).
+        # Use entity type detection when available, fall back to root heuristic.
+        from autom8_asana.models.business import (
+            EntityType,
+            detect_entity_type_from_dict,
+        )
+
+        for parent_data in parent_chain:
+            entity_type_str = detect_entity_type_from_dict(parent_data)
+            if entity_type_str == EntityType.BUSINESS.value:
+                return parent_data.get("name")
+
+        # If detection didn't find Business, use root fallback:
+        # the last entry in the parent chain (farthest ancestor) is likely Business
+        last_parent = parent_chain[-1]
+        last_parent_parent = last_parent.get("parent")
+        if last_parent_parent is None or (
+            isinstance(last_parent_parent, dict)
+            and last_parent_parent.get("gid") is None
+        ):
+            return last_parent.get("name")
+
+        return None
 
     def _extract_custom_field(
         self,

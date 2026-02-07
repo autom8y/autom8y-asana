@@ -701,16 +701,272 @@ class TestUnitExtractor:
         assert row.vertical == "Healthcare"
         assert row.specialty == "Dental"
 
-    def test_derived_field_office_returns_none(
+    def test_extract_office_sync_returns_none(
         self,
         minimal_task: Task,
         unit_resolver: MockCustomFieldResolver,
     ) -> None:
-        """Test that office derived field returns None (stub)."""
+        """Test that sync office extraction returns None.
+
+        Per WS3-001: The sync path cannot traverse the parent chain,
+        so _extract_office always returns None. Use extract_async() for
+        full resolution.
+        """
         extractor = UnitExtractor(UNIT_SCHEMA, unit_resolver)
         office = extractor._extract_office(minimal_task)
 
         assert office is None
+
+    @pytest.mark.asyncio
+    async def test_extract_office_async_returns_business_name(self) -> None:
+        """Test that async office extraction returns the Business ancestor's name.
+
+        Per WS3-001: The office name is the Business task's name. The hierarchy is:
+            Unit -> parent(UnitHolder) -> parent(Business)
+        """
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from autom8_asana.models.business.detection.types import (
+            CONFIDENCE_TIER_1,
+            DetectionResult,
+            EntityType,
+        )
+
+        # Create Unit task with parent reference to UnitHolder
+        unit_task = Task(
+            gid="unit-001",
+            name="Premium Package",
+            parent=NameGid(gid="holder-001", name="Units"),
+        )
+
+        # Create UnitHolder task (intermediate) with parent reference to Business
+        unit_holder_task = Task(
+            gid="holder-001",
+            name="Units",
+            parent=NameGid(gid="biz-001", name="Acme Dental Corp"),
+        )
+
+        # Create Business task (the root)
+        business_task = Task(
+            gid="biz-001",
+            name="Acme Dental Corp",
+            parent=None,  # Business is the root
+        )
+
+        mock_client = MagicMock()
+        resolver = MockCustomFieldResolver({})
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver, client=mock_client)
+
+        # Mock the cascading resolver to return parent tasks
+        mock_cascade_resolver = MagicMock()
+        mock_cascade_resolver._get_parent_gid = MagicMock(
+            side_effect=lambda t: t.parent.gid if t.parent else None
+        )
+        mock_cascade_resolver._fetch_parent_async = AsyncMock(
+            side_effect=lambda gid: {
+                "holder-001": unit_holder_task,
+                "biz-001": business_task,
+            }.get(gid)
+        )
+        # Also mock resolve_async for cascade fields (office_phone)
+        mock_cascade_resolver.resolve_async = AsyncMock(return_value=None)
+
+        with (
+            patch.object(
+                extractor, "_get_cascading_resolver", return_value=mock_cascade_resolver
+            ),
+            patch(
+                "autom8_asana.dataframes.extractors.unit.detect_entity_type",
+                side_effect=lambda t: DetectionResult(
+                    entity_type={
+                        "unit-001": EntityType.UNIT,
+                        "holder-001": EntityType.UNIT_HOLDER,
+                        "biz-001": EntityType.BUSINESS,
+                    }.get(t.gid, EntityType.UNKNOWN),
+                    confidence=CONFIDENCE_TIER_1,
+                    tier_used=1,
+                    needs_healing=False,
+                    expected_project_gid=None,
+                ),
+            ),
+        ):
+            office = await extractor._extract_office_async(unit_task)
+            assert office == "Acme Dental Corp"
+
+    @pytest.mark.asyncio
+    async def test_extract_office_async_returns_none_without_client(self) -> None:
+        """Test that async office extraction returns None when client is not set.
+
+        Per WS3-001: Without a client, parent chain traversal is not possible.
+        """
+        unit_task = Task(
+            gid="unit-001",
+            name="Premium Package",
+            parent=NameGid(gid="holder-001", name="Units"),
+        )
+
+        resolver = MockCustomFieldResolver({})
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver, client=None)
+
+        office = await extractor._extract_office_async(unit_task)
+        assert office is None
+
+    @pytest.mark.asyncio
+    async def test_extract_office_async_returns_none_when_no_parent(self) -> None:
+        """Test that async office extraction returns None when task has no parent.
+
+        A root task with no parent reference cannot traverse upward. If the task
+        itself is detected as BUSINESS or UNKNOWN at root, its name is returned
+        as the fallback.
+        """
+        from unittest.mock import MagicMock, patch
+
+        from autom8_asana.models.business.detection.types import (
+            CONFIDENCE_TIER_5,
+            DetectionResult,
+            EntityType,
+        )
+
+        # Task with no parent (is itself a root)
+        root_task = Task(
+            gid="root-001",
+            name="Solo Office",
+            parent=None,
+        )
+
+        mock_client = MagicMock()
+        resolver = MockCustomFieldResolver({})
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver, client=mock_client)
+
+        mock_cascade_resolver = MagicMock()
+        mock_cascade_resolver._get_parent_gid = MagicMock(return_value=None)
+        mock_cascade_resolver.resolve_async = MagicMock()
+
+        with (
+            patch.object(
+                extractor, "_get_cascading_resolver", return_value=mock_cascade_resolver
+            ),
+            patch(
+                "autom8_asana.dataframes.extractors.unit.detect_entity_type",
+                return_value=DetectionResult(
+                    entity_type=EntityType.UNKNOWN,
+                    confidence=CONFIDENCE_TIER_5,
+                    tier_used=5,
+                    needs_healing=True,
+                    expected_project_gid=None,
+                ),
+            ),
+        ):
+            # Root with UNKNOWN type: uses root fallback, returns name
+            office = await extractor._extract_office_async(root_task)
+            assert office == "Solo Office"
+
+    @pytest.mark.asyncio
+    async def test_extract_office_async_returns_none_on_fetch_failure(self) -> None:
+        """Test that async office extraction returns None when parent fetch fails.
+
+        Per WS3-001: If the parent task cannot be fetched (API error, network
+        failure), extraction degrades gracefully to None.
+        """
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        unit_task = Task(
+            gid="unit-001",
+            name="Premium Package",
+            parent=NameGid(gid="holder-001", name="Units"),
+        )
+
+        mock_client = MagicMock()
+        resolver = MockCustomFieldResolver({})
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver, client=mock_client)
+
+        mock_cascade_resolver = MagicMock()
+        mock_cascade_resolver._get_parent_gid = MagicMock(return_value="holder-001")
+        mock_cascade_resolver._fetch_parent_async = AsyncMock(return_value=None)
+        mock_cascade_resolver.resolve_async = MagicMock()
+
+        with patch.object(
+            extractor, "_get_cascading_resolver", return_value=mock_cascade_resolver
+        ):
+            office = await extractor._extract_office_async(unit_task)
+            assert office is None
+
+    @pytest.mark.asyncio
+    async def test_extract_office_async_via_extract_async(self) -> None:
+        """Test that extract_async() resolves office via _extract_office_async.
+
+        Per WS3-001: The base extractor's _extract_column_async checks for
+        async derived field methods first, so office is resolved via the async
+        path during full extraction.
+        """
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from autom8_asana.models.business.detection.types import (
+            CONFIDENCE_TIER_1,
+            DetectionResult,
+            EntityType,
+        )
+
+        unit_task = Task(
+            gid="unit-001",
+            name="Premium Package",
+            parent=NameGid(gid="holder-001", name="Units"),
+            created_at="2024-01-15T10:30:00.000Z",
+            modified_at="2024-01-16T15:45:30.000Z",
+        )
+
+        unit_holder_task = Task(
+            gid="holder-001",
+            name="Units",
+            parent=NameGid(gid="biz-001", name="Downtown Dental"),
+        )
+
+        business_task = Task(
+            gid="biz-001",
+            name="Downtown Dental",
+            parent=None,
+        )
+
+        mock_client = MagicMock()
+        resolver = MockCustomFieldResolver({})
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver, client=mock_client)
+
+        mock_cascade_resolver = MagicMock()
+        mock_cascade_resolver._get_parent_gid = MagicMock(
+            side_effect=lambda t: t.parent.gid if t.parent else None
+        )
+        mock_cascade_resolver._fetch_parent_async = AsyncMock(
+            side_effect=lambda gid: {
+                "holder-001": unit_holder_task,
+                "biz-001": business_task,
+            }.get(gid)
+        )
+        mock_cascade_resolver.resolve_async = AsyncMock(return_value="555-1234")
+
+        with (
+            patch.object(
+                extractor, "_get_cascading_resolver", return_value=mock_cascade_resolver
+            ),
+            patch(
+                "autom8_asana.dataframes.extractors.unit.detect_entity_type",
+                side_effect=lambda t: DetectionResult(
+                    entity_type={
+                        "unit-001": EntityType.UNIT,
+                        "holder-001": EntityType.UNIT_HOLDER,
+                        "biz-001": EntityType.BUSINESS,
+                    }.get(t.gid, EntityType.UNKNOWN),
+                    confidence=CONFIDENCE_TIER_1,
+                    tier_used=1,
+                    needs_healing=False,
+                    expected_project_gid=None,
+                ),
+            ),
+        ):
+            row = await extractor.extract_async(unit_task)
+
+            assert isinstance(row, UnitRow)
+            assert row.office == "Downtown Dental"
+            assert row.office_phone == "555-1234"
 
     @pytest.mark.asyncio
     async def test_office_phone_extracted_via_cascade(
@@ -762,16 +1018,72 @@ class TestUnitExtractor:
 
             assert row.office_phone is None
 
-    def test_derived_field_vertical_id_returns_none(
+    def test_extract_vertical_id_returns_custom_field_value(
         self,
         minimal_task: Task,
-        unit_resolver: MockCustomFieldResolver,
     ) -> None:
-        """Test that vertical_id derived field returns None (stub)."""
-        extractor = UnitExtractor(UNIT_SCHEMA, unit_resolver)
+        """Test that vertical_id returns the Vertical custom field value as-is.
+
+        Per WS3-002: The Vertical custom field value IS the vertical_id.
+        Values are already lowercase snake_case and need no transformation.
+        """
+        resolver = MockCustomFieldResolver({"vertical": "dental"})
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
+        vertical_id = extractor._extract_vertical_id(minimal_task)
+
+        assert vertical_id == "dental"
+
+    def test_extract_vertical_id_returns_none_when_field_not_set(
+        self,
+        minimal_task: Task,
+    ) -> None:
+        """Test that vertical_id returns None when Vertical field is absent."""
+        resolver = MockCustomFieldResolver({})
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
         vertical_id = extractor._extract_vertical_id(minimal_task)
 
         assert vertical_id is None
+
+    def test_extract_vertical_id_returns_none_when_no_resolver(
+        self,
+        minimal_task: Task,
+    ) -> None:
+        """Test that vertical_id returns None when resolver is not available."""
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver=None)
+        vertical_id = extractor._extract_vertical_id(minimal_task)
+
+        assert vertical_id is None
+
+    def test_extract_vertical_id_matches_vertical_column(
+        self,
+        full_task: Task,
+    ) -> None:
+        """Test that vertical_id and vertical column produce the same value.
+
+        Both derive from cf:Vertical; vertical via direct source,
+        vertical_id via the derived _extract_vertical_id method.
+        """
+        resolver = MockCustomFieldResolver({"vertical": "chiropractic"})
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
+        row = extractor.extract(full_task)
+
+        assert row.vertical == "chiropractic"
+        assert row.vertical_id == "chiropractic"
+
+    def test_extract_vertical_id_handles_list_value(
+        self,
+        minimal_task: Task,
+    ) -> None:
+        """Test that vertical_id handles multi-enum list via Utf8 coercion.
+
+        Asana multi_enum fields may return lists. Utf8 coercion joins
+        them with commas, matching the vertical column behavior.
+        """
+        resolver = MockCustomFieldResolver({"vertical": ["dental", "medical"]})
+        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
+        vertical_id = extractor._extract_vertical_id(minimal_task)
+
+        assert vertical_id == "dental, medical"
 
     def test_derived_field_max_pipeline_stage_returns_none(
         self,
