@@ -96,6 +96,7 @@ from autom8_asana.automation.polling.config_schema import (
     AutomationRulesConfig,
     Rule,
     RuleCondition,
+    ScheduleConfig,
     SchedulerConfig,
     TriggerAgeConfig,
     TriggerDeadlineConfig,
@@ -119,6 +120,7 @@ __all__ = [
     "TriggerEvaluator",
     # Schema models
     "AutomationRulesConfig",
+    "ScheduleConfig",
     "SchedulerConfig",
     "Rule",
     "RuleCondition",

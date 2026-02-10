@@ -25,6 +25,7 @@ from autom8_asana.automation.polling.config_schema import (
     ActionConfig,
     Rule,
     RuleCondition,
+    ScheduleConfig,
     TriggerAgeConfig,
     TriggerDeadlineConfig,
     TriggerStaleConfig,
@@ -537,8 +538,9 @@ class TestTriggerEvaluatorEmptyConditions:
             rule_id="all-tasks",
             name="All Tasks",
             project_gid="123",
-            conditions=[],  # Empty conditions list
-            action=ActionConfig(type="add_tag", params={"tag": "all"}),
+            conditions=[],  # Empty conditions list — valid with schedule
+            action=ActionConfig(type="workflow", params={"workflow_id": "test"}),
+            schedule=ScheduleConfig(frequency="weekly", day_of_week="monday"),
         )
 
         matching = evaluator.evaluate_conditions(empty_conditions_rule, sample_tasks)

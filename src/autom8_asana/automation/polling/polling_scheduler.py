@@ -48,9 +48,14 @@ from autom8y_log import get_logger
 
 from autom8_asana.automation.polling.action_executor import ActionExecutor
 from autom8_asana.automation.polling.config_loader import ConfigurationLoader
-from autom8_asana.automation.polling.config_schema import AutomationRulesConfig
+from autom8_asana.automation.polling.config_schema import (
+    AutomationRulesConfig,
+    ScheduleConfig,
+)
 from autom8_asana.automation.polling.structured_logger import StructuredLogger
 from autom8_asana.automation.polling.trigger_evaluator import TriggerEvaluator
+from autom8_asana.automation.workflows.base import WorkflowAction
+from autom8_asana.automation.workflows.registry import WorkflowRegistry
 from autom8_asana.exceptions import ConfigurationError
 
 if TYPE_CHECKING:
@@ -94,6 +99,7 @@ class PollingScheduler:
         *,
         lock_path: str = DEFAULT_LOCK_PATH,
         client: Any = None,
+        workflow_registry: WorkflowRegistry | None = None,
     ) -> None:
         """Initialize the polling scheduler.
 
@@ -105,6 +111,8 @@ class PollingScheduler:
             client: Optional Asana client for action execution. If not provided,
                 matched tasks will be logged but actions will not be executed
                 (dry-run mode).
+            workflow_registry: Optional WorkflowRegistry for batch workflow dispatch.
+                Per TDD-CONV-AUDIT-001: Enables schedule-driven workflow execution.
 
         Raises:
             ConfigurationError: If the configured timezone is invalid.
@@ -114,6 +122,7 @@ class PollingScheduler:
         self._client = client
         self._evaluator = TriggerEvaluator()
         self._action_executor = ActionExecutor(client) if client else None
+        self._workflow_registry = workflow_registry
 
         # Validate and parse timezone
         try:
@@ -337,6 +346,39 @@ class PollingScheduler:
         for rule in enabled_rules:
             rule_start = time.perf_counter()
 
+            # Schedule-driven workflow dispatch (TDD-CONV-AUDIT-001)
+            if rule.schedule is not None and rule.action.type == "workflow":
+                if self._should_run_schedule(rule.schedule):
+                    workflow_id = rule.action.params.get("workflow_id")
+                    if workflow_id and self._workflow_registry:
+                        workflow = self._workflow_registry.get(workflow_id)
+                        if workflow:
+                            asyncio.run(
+                                self._execute_workflow_async(
+                                    workflow, rule, structured_log
+                                )
+                            )
+                        else:
+                            structured_log.error(
+                                "workflow_not_found",
+                                rule_id=rule.rule_id,
+                                workflow_id=workflow_id,
+                                available=self._workflow_registry.list_ids(),
+                            )
+                    elif not self._workflow_registry:
+                        structured_log.error(
+                            "workflow_registry_not_configured",
+                            rule_id=rule.rule_id,
+                        )
+                else:
+                    structured_log.debug(
+                        "schedule_not_due",
+                        rule_id=rule.rule_id,
+                        frequency=rule.schedule.frequency,
+                        day_of_week=rule.schedule.day_of_week,
+                    )
+                continue  # Skip condition evaluation for schedule-driven rules
+
             structured_log.debug(
                 "rule_evaluation_started",
                 rule_id=rule.rule_id,
@@ -427,6 +469,91 @@ class PollingScheduler:
                     task_gid=task_gid,
                     error=str(exc),
                 )
+
+    def _should_run_schedule(self, schedule: ScheduleConfig) -> bool:
+        """Check if a schedule-driven rule should run now.
+
+        Per TDD-CONV-AUDIT-001 Section 3.4: For weekly schedules, checks if
+        today matches the configured day_of_week. For daily schedules, always
+        returns True (runs every day).
+
+        Args:
+            schedule: ScheduleConfig with frequency and day_of_week.
+
+        Returns:
+            True if the schedule matches the current day.
+        """
+        local_now = datetime.now(UTC).astimezone(self.timezone)
+
+        if schedule.frequency == "daily":
+            return True
+
+        if schedule.frequency == "weekly":
+            # Python: Monday=0, Sunday=6
+            day_map = {
+                "monday": 0,
+                "tuesday": 1,
+                "wednesday": 2,
+                "thursday": 3,
+                "friday": 4,
+                "saturday": 5,
+                "sunday": 6,
+            }
+            target_day = day_map.get(schedule.day_of_week or "", -1)
+            return local_now.weekday() == target_day
+
+        return False
+
+    async def _execute_workflow_async(
+        self,
+        workflow: WorkflowAction,
+        rule: Any,
+        structured_log: Any,
+    ) -> None:
+        """Execute a workflow with pre-flight validation and logging.
+
+        Per TDD-CONV-AUDIT-001 Section 3.4: Runs validation, then executes
+        the workflow. Errors are caught and logged without re-raising to
+        allow the evaluation cycle to continue.
+
+        Args:
+            workflow: WorkflowAction instance to execute.
+            rule: The automation rule containing workflow parameters.
+            structured_log: Logger instance for structured logging.
+        """
+        workflow_id = rule.action.params.get("workflow_id", "unknown")
+
+        # Pre-flight validation
+        validation_errors = await workflow.validate_async()
+        if validation_errors:
+            structured_log.error(
+                "workflow_validation_failed",
+                rule_id=rule.rule_id,
+                workflow_id=workflow_id,
+                errors=validation_errors,
+            )
+            return
+
+        # Execute workflow
+        try:
+            result = await workflow.execute_async(rule.action.params)
+            structured_log.info(
+                "workflow_completed",
+                rule_id=rule.rule_id,
+                workflow_id=workflow_id,
+                total=result.total,
+                succeeded=result.succeeded,
+                failed=result.failed,
+                skipped=result.skipped,
+                duration_seconds=round(result.duration_seconds, 2),
+            )
+        except Exception as exc:  # BROAD-CATCH: isolation -- workflow failure must not abort evaluation cycle
+            structured_log.error(
+                "workflow_execution_error",
+                rule_id=rule.rule_id,
+                workflow_id=workflow_id,
+                error=str(exc),
+            )
 
     def _acquire_lock(self) -> IO[str] | None:
         """Acquire file lock for concurrent execution prevention.

@@ -28,6 +28,8 @@ __all__ = [
     "InsightsValidationError",
     "InsightsNotFoundError",
     "InsightsServiceError",
+    # Export API Exceptions (TDD-CONV-AUDIT-001)
+    "ExportError",
 ]
 
 
@@ -454,4 +456,31 @@ class InsightsServiceError(InsightsError):
         if status_code is not None and "status_code" not in kwargs:
             kwargs["status_code"] = status_code
         super().__init__(message, **kwargs)
+        self.reason = reason
+
+
+# --- Export API Exceptions (TDD-CONV-AUDIT-001) ---
+
+
+class ExportError(AsanaError):
+    """Error from the conversation export endpoint.
+
+    Per TDD-CONV-AUDIT-001 Section 3.7: Raised by
+    DataServiceClient.get_export_csv_async() on HTTP errors,
+    circuit breaker open, or timeout.
+
+    Attributes:
+        office_phone: The phone number that was being exported.
+        reason: Classification of the error.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        office_phone: str = "",
+        reason: str = "unknown",
+    ) -> None:
+        super().__init__(message)
+        self.office_phone = office_phone
         self.reason = reason

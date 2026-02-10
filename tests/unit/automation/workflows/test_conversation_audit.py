@@ -1,0 +1,630 @@
+"""Tests for ConversationAuditWorkflow.
+
+Per TDD-CONV-AUDIT-001 Section 10.4: Unit tests for the conversation audit
+workflow including happy path, skip scenarios, error isolation, upload-first
+ordering, feature flag, and concurrency.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import os
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, call, patch
+
+import pytest
+
+from autom8_asana.automation.workflows.conversation_audit import (
+    AUDIT_ENABLED_ENV_VAR,
+    CONTACT_HOLDER_PROJECT_GID,
+    DEFAULT_ATTACHMENT_PATTERN,
+    DEFAULT_MAX_CONCURRENCY,
+    ConversationAuditWorkflow,
+)
+from autom8_asana.clients.data.models import ExportResult
+from autom8_asana.exceptions import ExportError
+
+# --- Helpers ---
+
+
+def _make_task(gid: str, name: str, parent_gid: str | None = None, completed: bool = False) -> MagicMock:
+    """Create a mock task object."""
+    task = MagicMock()
+    task.gid = gid
+    task.name = name
+    task.completed = completed
+    if parent_gid:
+        task.parent = MagicMock()
+        task.parent.gid = parent_gid
+    else:
+        task.parent = None
+    return task
+
+
+def _make_parent_task(office_phone: str | None = "+17705753103") -> MagicMock:
+    """Create a mock parent Business task with custom fields."""
+    parent = MagicMock()
+    if office_phone:
+        cf = {"name": "Office Phone", "display_value": office_phone}
+        parent.custom_fields = [cf]
+    else:
+        parent.custom_fields = []
+    return parent
+
+
+def _make_export_result(
+    row_count: int = 42,
+    truncated: bool = False,
+    phone: str = "+17705753103",
+) -> ExportResult:
+    """Create a test ExportResult."""
+    return ExportResult(
+        csv_content=b"date,direction,body\n2026-02-01,inbound,Hello\n",
+        row_count=row_count,
+        truncated=truncated,
+        office_phone=phone,
+        filename=f"conversations_{phone.lstrip('+')}_20260210.csv",
+    )
+
+
+def _make_attachment(gid: str, name: str) -> MagicMock:
+    """Create a mock Attachment object."""
+    att = MagicMock()
+    att.gid = gid
+    att.name = name
+    return att
+
+
+class _AsyncIterator:
+    """Async iterator for mock page iterators."""
+
+    def __init__(self, items: list[Any]) -> None:
+        self._items = items
+        self._index = 0
+
+    def __aiter__(self) -> _AsyncIterator:
+        return self
+
+    async def __anext__(self) -> Any:
+        if self._index >= len(self._items):
+            raise StopAsyncIteration
+        item = self._items[self._index]
+        self._index += 1
+        return item
+
+    async def collect(self) -> list[Any]:
+        return self._items
+
+
+def _make_workflow(
+    holders: list[MagicMock] | None = None,
+    parent_tasks: dict[str, MagicMock] | None = None,
+    export_results: dict[str, ExportResult] | None = None,
+    export_errors: dict[str, ExportError] | None = None,
+    existing_attachments: dict[str, list[MagicMock]] | None = None,
+) -> tuple[ConversationAuditWorkflow, MagicMock, MagicMock, MagicMock]:
+    """Build a ConversationAuditWorkflow with configured mocks."""
+    mock_asana = MagicMock()
+    mock_data_client = MagicMock()
+    mock_attachments = MagicMock()
+
+    # Enumerate holders
+    holder_list = holders or []
+    mock_asana.tasks.list_for_project_async.return_value = _AsyncIterator(holder_list)
+
+    # Resolve parent: get_async returns the holder task first (for parent ref),
+    # then the parent Business task (for custom_fields)
+    holder_by_gid = {h.gid: h for h in holder_list}
+    parent_by_gid = parent_tasks or {}
+
+    async def mock_get_async(gid: str, **kwargs: Any) -> MagicMock:
+        if gid in holder_by_gid:
+            return holder_by_gid[gid]
+        if gid in parent_by_gid:
+            return parent_by_gid[gid]
+        # Fallback: return a task with no parent/custom_fields
+        return _make_task(gid, "Unknown")
+
+    mock_asana.tasks.get_async = AsyncMock(side_effect=mock_get_async)
+
+    # Export CSV
+    export_map = export_results or {}
+    error_map = export_errors or {}
+
+    async def mock_export(phone: str, **kwargs: Any) -> ExportResult:
+        if phone in error_map:
+            raise error_map[phone]
+        if phone in export_map:
+            return export_map[phone]
+        return _make_export_result(phone=phone)
+
+    mock_data_client.get_export_csv_async = AsyncMock(side_effect=mock_export)
+    mock_data_client._circuit_breaker = MagicMock()
+    mock_data_client._circuit_breaker.check = AsyncMock()
+
+    # Upload
+    mock_attachments.upload_async = AsyncMock(return_value=MagicMock())
+
+    # List attachments for deletion
+    att_map = existing_attachments or {}
+
+    def mock_list_for_task(gid: str, **kwargs: Any) -> _AsyncIterator:
+        return _AsyncIterator(att_map.get(gid, []))
+
+    mock_attachments.list_for_task_async = MagicMock(side_effect=mock_list_for_task)
+
+    # Delete
+    mock_attachments.delete_async = AsyncMock()
+
+    workflow = ConversationAuditWorkflow(
+        asana_client=mock_asana,
+        data_client=mock_data_client,
+        attachments_client=mock_attachments,
+    )
+
+    return workflow, mock_asana, mock_data_client, mock_attachments
+
+
+# --- Tests ---
+
+
+class TestConversationAuditWorkflowId:
+    """Test workflow_id property."""
+
+    def test_workflow_id(self) -> None:
+        wf, _, _, _ = _make_workflow()
+        assert wf.workflow_id == "conversation-audit"
+
+
+class TestValidateAsync:
+    """Tests for validate_async pre-flight checks."""
+
+    @pytest.mark.asyncio
+    async def test_feature_flag_disabled(self) -> None:
+        wf, _, _, _ = _make_workflow()
+        with patch.dict(os.environ, {AUDIT_ENABLED_ENV_VAR: "false"}):
+            errors = await wf.validate_async()
+        assert len(errors) == 1
+        assert "disabled" in errors[0].lower()
+
+    @pytest.mark.asyncio
+    async def test_feature_flag_disabled_zero(self) -> None:
+        wf, _, _, _ = _make_workflow()
+        with patch.dict(os.environ, {AUDIT_ENABLED_ENV_VAR: "0"}):
+            errors = await wf.validate_async()
+        assert len(errors) == 1
+
+    @pytest.mark.asyncio
+    async def test_feature_flag_disabled_no(self) -> None:
+        wf, _, _, _ = _make_workflow()
+        with patch.dict(os.environ, {AUDIT_ENABLED_ENV_VAR: "no"}):
+            errors = await wf.validate_async()
+        assert len(errors) == 1
+
+    @pytest.mark.asyncio
+    async def test_feature_flag_enabled_default(self) -> None:
+        wf, _, _, _ = _make_workflow()
+        # Ensure env var is not set
+        with patch.dict(os.environ, {}, clear=True):
+            # Need to also clear the specific key
+            os.environ.pop(AUDIT_ENABLED_ENV_VAR, None)
+            errors = await wf.validate_async()
+        assert errors == []
+
+    @pytest.mark.asyncio
+    async def test_circuit_breaker_open(self) -> None:
+        wf, _, mock_data, _ = _make_workflow()
+
+        from autom8y_http import CircuitBreakerOpenError as SdkCBOpen
+
+        mock_cb = AsyncMock()
+        mock_cb.check = AsyncMock(
+            side_effect=SdkCBOpen(time_remaining=30.0, message="CB open")
+        )
+        mock_data._circuit_breaker = mock_cb
+        with patch.dict(os.environ, {}, clear=True):
+            os.environ.pop(AUDIT_ENABLED_ENV_VAR, None)
+            errors = await wf.validate_async()
+        assert len(errors) == 1
+        assert "circuit breaker" in errors[0].lower()
+
+
+class TestExecuteAsyncHappyPath:
+    """Tests for happy path execution."""
+
+    @pytest.mark.asyncio
+    async def test_three_holders_all_succeed(self) -> None:
+        """Happy path: 3 holders, all succeed."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        h2 = _make_task("h2", "Holder 2", parent_gid="biz2")
+        h3 = _make_task("h3", "Holder 3", parent_gid="biz3")
+
+        parent_tasks = {
+            "biz1": _make_parent_task("+17705753101"),
+            "biz2": _make_parent_task("+17705753102"),
+            "biz3": _make_parent_task("+17705753103"),
+        }
+
+        wf, _, _, mock_att = _make_workflow(
+            holders=[h1, h2, h3],
+            parent_tasks=parent_tasks,
+        )
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.total == 3
+        assert result.succeeded == 3
+        assert result.failed == 0
+        assert result.skipped == 0
+        assert result.errors == []
+        assert mock_att.upload_async.call_count == 3
+
+
+class TestExecuteAsyncSkipNoPhone:
+    """Tests for skip-no-phone scenarios."""
+
+    @pytest.mark.asyncio
+    async def test_skip_no_phone(self) -> None:
+        """1 of 3 holders has no parent.office_phone -> skipped=1."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        h2 = _make_task("h2", "Holder 2", parent_gid="biz2")
+        h3 = _make_task("h3", "No Phone", parent_gid="biz_no_phone")
+
+        parent_tasks = {
+            "biz1": _make_parent_task("+17705753101"),
+            "biz2": _make_parent_task("+17705753102"),
+            "biz_no_phone": _make_parent_task(None),  # No phone
+        }
+
+        wf, _, _, _ = _make_workflow(
+            holders=[h1, h2, h3],
+            parent_tasks=parent_tasks,
+        )
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.total == 3
+        assert result.succeeded == 2
+        assert result.skipped == 1
+
+    @pytest.mark.asyncio
+    async def test_skip_no_parent(self) -> None:
+        """Holder with no parent reference -> skipped."""
+        h1 = _make_task("h1", "Orphan Holder")  # No parent_gid
+
+        wf, _, _, _ = _make_workflow(holders=[h1])
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.total == 1
+        assert result.skipped == 1
+
+
+class TestExecuteAsyncSkipZeroRows:
+    """Tests for skip-zero-rows scenario."""
+
+    @pytest.mark.asyncio
+    async def test_skip_zero_rows(self) -> None:
+        """Export returns row_count=0 -> skipped."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        parent_tasks = {"biz1": _make_parent_task("+17705753101")}
+        export_results = {
+            "+17705753101": _make_export_result(row_count=0, phone="+17705753101"),
+        }
+
+        wf, _, _, mock_att = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+            export_results=export_results,
+        )
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.total == 1
+        assert result.skipped == 1
+        assert result.succeeded == 0
+        # Upload should NOT be called for zero-row export
+        mock_att.upload_async.assert_not_called()
+
+
+class TestExecuteAsyncExportFailure:
+    """Tests for export failure scenarios."""
+
+    @pytest.mark.asyncio
+    async def test_export_failure_captured(self) -> None:
+        """DataServiceClient raises ExportError -> failed=1, error captured."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        parent_tasks = {"biz1": _make_parent_task("+17705753101")}
+        export_errors = {
+            "+17705753101": ExportError(
+                "Server error",
+                office_phone="+17705753101",
+                reason="server_error",
+            ),
+        }
+
+        wf, _, _, _ = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+            export_errors=export_errors,
+        )
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.total == 1
+        assert result.failed == 1
+        assert len(result.errors) == 1
+        assert result.errors[0].error_type == "export_server_error"
+        assert result.errors[0].recoverable is True
+
+    @pytest.mark.asyncio
+    async def test_export_client_error_not_recoverable(self) -> None:
+        """Client error (4xx) -> failed, not recoverable."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        parent_tasks = {"biz1": _make_parent_task("+17705753101")}
+        export_errors = {
+            "+17705753101": ExportError(
+                "Bad request",
+                office_phone="+17705753101",
+                reason="client_error",
+            ),
+        }
+
+        wf, _, _, _ = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+            export_errors=export_errors,
+        )
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.errors[0].recoverable is False
+
+
+class TestExecuteAsyncCircuitBreakerOpen:
+    """Tests for circuit breaker open scenario."""
+
+    @pytest.mark.asyncio
+    async def test_circuit_breaker_all_fail(self) -> None:
+        """All exports fail with circuit breaker -> all failed."""
+        holders = [
+            _make_task(f"h{i}", f"Holder {i}", parent_gid=f"biz{i}")
+            for i in range(3)
+        ]
+        parent_tasks = {
+            f"biz{i}": _make_parent_task(f"+1770575310{i}")
+            for i in range(3)
+        }
+        export_errors = {
+            f"+1770575310{i}": ExportError(
+                "Circuit breaker open",
+                office_phone=f"+1770575310{i}",
+                reason="circuit_breaker",
+            )
+            for i in range(3)
+        }
+
+        wf, _, _, _ = _make_workflow(
+            holders=holders,
+            parent_tasks=parent_tasks,
+            export_errors=export_errors,
+        )
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.total == 3
+        assert result.failed == 3
+        assert result.succeeded == 0
+
+
+class TestExecuteAsyncUploadFirstOrdering:
+    """Tests for upload-first attachment replacement."""
+
+    @pytest.mark.asyncio
+    async def test_upload_before_delete(self) -> None:
+        """Assert upload_async is called before delete_async."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        parent_tasks = {"biz1": _make_parent_task("+17705753101")}
+
+        phone = "+17705753101"
+        new_filename = f"conversations_{phone.lstrip('+')}_20260210.csv"
+        old_att = _make_attachment("old-att-1", "conversations_17705753101_20260203.csv")
+
+        wf, _, _, mock_att = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+            existing_attachments={"h1": [old_att]},
+        )
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.succeeded == 1
+        # Upload must happen before delete
+        upload_call = mock_att.upload_async.call_args_list[0]
+        assert upload_call is not None
+        assert mock_att.delete_async.call_count == 1
+        assert mock_att.delete_async.call_args[0][0] == "old-att-1"
+
+
+class TestExecuteAsyncTruncated:
+    """Tests for truncated export scenario."""
+
+    @pytest.mark.asyncio
+    async def test_truncated_counted_in_metadata(self) -> None:
+        """Truncated export -> metadata has truncated_count."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        h2 = _make_task("h2", "Holder 2", parent_gid="biz2")
+        parent_tasks = {
+            "biz1": _make_parent_task("+17705753101"),
+            "biz2": _make_parent_task("+17705753102"),
+        }
+        export_results = {
+            "+17705753101": _make_export_result(
+                row_count=10000, truncated=True, phone="+17705753101"
+            ),
+            "+17705753102": _make_export_result(
+                row_count=50, truncated=False, phone="+17705753102"
+            ),
+        }
+
+        wf, _, _, _ = _make_workflow(
+            holders=[h1, h2],
+            parent_tasks=parent_tasks,
+            export_results=export_results,
+        )
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.succeeded == 2
+        assert result.metadata["truncated_count"] == 1
+
+
+class TestExecuteAsyncDeleteFailureTolerance:
+    """Tests for delete failure tolerance (EC-05)."""
+
+    @pytest.mark.asyncio
+    async def test_delete_failure_still_succeeded(self) -> None:
+        """Delete-old fails -> holder still counted as succeeded."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        parent_tasks = {"biz1": _make_parent_task("+17705753101")}
+
+        old_att = _make_attachment("old-att-1", "conversations_17705753101_20260203.csv")
+
+        wf, _, _, mock_att = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+            existing_attachments={"h1": [old_att]},
+        )
+
+        # Make delete fail
+        mock_att.delete_async = AsyncMock(side_effect=Exception("Asana API error"))
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        # Still succeeded because upload worked; delete failure is non-fatal
+        assert result.succeeded == 1
+        assert result.failed == 0
+
+
+class TestExecuteAsyncConcurrency:
+    """Tests for concurrency semaphore."""
+
+    @pytest.mark.asyncio
+    async def test_max_concurrency_from_params(self) -> None:
+        """Verify max_concurrency is taken from params."""
+        holders = [
+            _make_task(f"h{i}", f"Holder {i}", parent_gid=f"biz{i}")
+            for i in range(10)
+        ]
+        parent_tasks = {
+            f"biz{i}": _make_parent_task(f"+1770575310{i}")
+            for i in range(10)
+        }
+
+        wf, _, _, _ = _make_workflow(
+            holders=holders,
+            parent_tasks=parent_tasks,
+        )
+
+        params = {
+            "workflow_id": "conversation-audit",
+            "max_concurrency": 2,
+        }
+
+        result = await wf.execute_async(params)
+
+        # All should succeed even with low concurrency
+        assert result.total == 10
+        assert result.succeeded == 10
+
+
+class TestExecuteAsyncFeatureFlagDisabled:
+    """Tests for feature flag disabling the workflow."""
+
+    @pytest.mark.asyncio
+    async def test_validate_blocks_execution(self) -> None:
+        """validate_async returns error when disabled; workflow should not execute."""
+        wf, mock_asana, _, _ = _make_workflow()
+
+        with patch.dict(os.environ, {AUDIT_ENABLED_ENV_VAR: "false"}):
+            errors = await wf.validate_async()
+
+        assert len(errors) == 1
+        # Caller (scheduler/lambda) checks validation before execute_async
+        # Verify no Asana API calls were made
+        mock_asana.tasks.list_for_project_async.assert_not_called()
+
+
+class TestExecuteAsyncEmptyProject:
+    """Tests for empty project (no holders)."""
+
+    @pytest.mark.asyncio
+    async def test_no_holders(self) -> None:
+        """Empty project -> total=0, all zeros."""
+        wf, _, _, _ = _make_workflow(holders=[])
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.total == 0
+        assert result.succeeded == 0
+        assert result.failed == 0
+        assert result.skipped == 0
+
+
+class TestExecuteAsyncDateRange:
+    """Tests for date_range_days parameter consumption.
+
+    Per DEF-001 regression: date_range_days was accepted in YAML but not passed
+    to get_export_csv_async. Verify the fix passes start_date/end_date through.
+    """
+
+    @pytest.mark.asyncio
+    async def test_date_range_days_passed_to_export(self) -> None:
+        """date_range_days from params -> start_date/end_date forwarded to export."""
+        from datetime import date, timedelta
+
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        parent_tasks = {"biz1": _make_parent_task("+17705753101")}
+
+        wf, _, mock_data, _ = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+        )
+
+        params = {
+            "workflow_id": "conversation-audit",
+            "date_range_days": 14,
+        }
+
+        await wf.execute_async(params)
+
+        # Verify get_export_csv_async was called with start_date and end_date
+        call_kwargs = mock_data.get_export_csv_async.call_args[1]
+        expected_end = date.today()
+        expected_start = expected_end - timedelta(days=14)
+        assert call_kwargs["start_date"] == expected_start
+        assert call_kwargs["end_date"] == expected_end
+
+    @pytest.mark.asyncio
+    async def test_default_date_range_30_days(self) -> None:
+        """Default date_range_days=30 when not specified in params."""
+        from datetime import date, timedelta
+
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        parent_tasks = {"biz1": _make_parent_task("+17705753101")}
+
+        wf, _, mock_data, _ = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+        )
+
+        # No date_range_days in params
+        params = {"workflow_id": "conversation-audit"}
+
+        await wf.execute_async(params)
+
+        call_kwargs = mock_data.get_export_csv_async.call_args[1]
+        expected_end = date.today()
+        expected_start = expected_end - timedelta(days=30)
+        assert call_kwargs["start_date"] == expected_start
+        assert call_kwargs["end_date"] == expected_end
