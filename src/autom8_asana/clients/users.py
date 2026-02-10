@@ -1,6 +1,7 @@
 """Users client - returns typed User models by default.
 
 Per TDD-0003: UsersClient provides get, me, and list_for_workspace operations.
+Per TDD-DESIGN-PATTERNS-D: Uses @async_method for async/sync method generation.
 Use raw=True for backward-compatible dict returns.
 """
 
@@ -12,8 +13,8 @@ from autom8_asana.clients.base import BaseClient
 from autom8_asana.models import PageIterator
 from autom8_asana.models.user import User
 from autom8_asana.observability import error_handler
+from autom8_asana.patterns import async_method
 from autom8_asana.settings import get_settings
-from autom8_asana.transport.sync import sync_wrapper
 
 # Cache TTL for user metadata (1 hour)
 # User profiles change infrequently (name, email rarely modified)
@@ -27,7 +28,7 @@ class UsersClient(BaseClient):
     Returns typed User models by default. Use raw=True for dict returns.
     """
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def get_async(
         self,
         user_gid: str,
@@ -49,8 +50,31 @@ class UsersClient(BaseClient):
         """Overload: get, returning raw dict."""
         ...
 
+    @overload
+    def get(
+        self,
+        user_gid: str,
+        *,
+        raw: Literal[False] = ...,
+        opt_fields: list[str] | None = ...,
+    ) -> User:
+        """Overload: get (sync), returning User model."""
+        ...
+
+    @overload
+    def get(
+        self,
+        user_gid: str,
+        *,
+        raw: Literal[True],
+        opt_fields: list[str] | None = ...,
+    ) -> dict[str, Any]:
+        """Overload: get (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
     @error_handler
-    async def get_async(
+    async def get(
         self,
         user_gid: str,
         *,
@@ -100,61 +124,7 @@ class UsersClient(BaseClient):
             return data
         return User.model_validate(data)
 
-    @overload
-    def get(
-        self,
-        user_gid: str,
-        *,
-        raw: Literal[False] = ...,
-        opt_fields: list[str] | None = ...,
-    ) -> User:
-        """Overload: get (sync), returning User model."""
-        ...
-
-    @overload
-    def get(
-        self,
-        user_gid: str,
-        *,
-        raw: Literal[True],
-        opt_fields: list[str] | None = ...,
-    ) -> dict[str, Any]:
-        """Overload: get (sync), returning raw dict."""
-        ...
-
-    def get(
-        self,
-        user_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> User | dict[str, Any]:
-        """Get a user by GID (sync).
-
-        Args:
-            user_gid: User GID
-            raw: If True, return raw dict instead of User model
-            opt_fields: Optional fields to include
-
-        Returns:
-            User model by default, or dict if raw=True
-        """
-        return self._get_sync(user_gid, raw=raw, opt_fields=opt_fields)
-
-    @sync_wrapper("get_async")
-    async def _get_sync(
-        self,
-        user_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> User | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.get_async(user_gid, raw=True, opt_fields=opt_fields)
-        return await self.get_async(user_gid, raw=False, opt_fields=opt_fields)
-
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def me_async(
         self,
         *,
@@ -174,7 +144,29 @@ class UsersClient(BaseClient):
         """Overload: me, returning raw dict."""
         ...
 
-    async def me_async(
+    @overload
+    def me(
+        self,
+        *,
+        raw: Literal[False] = ...,
+        opt_fields: list[str] | None = ...,
+    ) -> User:
+        """Overload: me (sync), returning User model."""
+        ...
+
+    @overload
+    def me(
+        self,
+        *,
+        raw: Literal[True],
+        opt_fields: list[str] | None = ...,
+    ) -> dict[str, Any]:
+        """Overload: me (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
+    @error_handler
+    async def me(
         self,
         *,
         raw: bool = False,
@@ -197,55 +189,6 @@ class UsersClient(BaseClient):
         if raw:
             return data
         return User.model_validate(data)
-
-    @overload
-    def me(
-        self,
-        *,
-        raw: Literal[False] = ...,
-        opt_fields: list[str] | None = ...,
-    ) -> User:
-        """Overload: me (sync), returning User model."""
-        ...
-
-    @overload
-    def me(
-        self,
-        *,
-        raw: Literal[True],
-        opt_fields: list[str] | None = ...,
-    ) -> dict[str, Any]:
-        """Overload: me (sync), returning raw dict."""
-        ...
-
-    def me(
-        self,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> User | dict[str, Any]:
-        """Get the current authenticated user (sync).
-
-        Args:
-            raw: If True, return raw dict instead of User model
-            opt_fields: Optional fields to include
-
-        Returns:
-            User model by default, or dict if raw=True
-        """
-        return self._me_sync(raw=raw, opt_fields=opt_fields)
-
-    @sync_wrapper("me_async")
-    async def _me_sync(
-        self,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> User | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.me_async(raw=True, opt_fields=opt_fields)
-        return await self.me_async(raw=False, opt_fields=opt_fields)
 
     def list_for_workspace_async(
         self,
