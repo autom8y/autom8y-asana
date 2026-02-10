@@ -1,6 +1,7 @@
 """Stories client - returns typed Story models by default.
 
 Per TDD-0004: StoriesClient provides story/comment operations for Tier 2.
+Per TDD-DESIGN-PATTERNS-D: Uses @async_method for async/sync method generation.
 Use raw=True for backward-compatible dict returns.
 """
 
@@ -8,7 +9,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any, Literal, overload
+from typing import Any, Literal, overload
 
 from autom8y_log import get_logger
 
@@ -16,10 +17,7 @@ from autom8_asana.clients.base import BaseClient
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 from autom8_asana.models import PageIterator
 from autom8_asana.models.story import Story
-from autom8_asana.transport.sync import sync_wrapper
-
-if TYPE_CHECKING:
-    pass
+from autom8_asana.patterns import async_method
 
 logger = get_logger(__name__)
 
@@ -33,7 +31,7 @@ class StoriesClient(BaseClient):
 
     # --- Core Operations ---
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def get_async(
         self,
         story_gid: str,
@@ -54,30 +52,6 @@ class StoriesClient(BaseClient):
     ) -> dict[str, Any]:
         """Overload: get, returning raw dict."""
         ...
-
-    async def get_async(
-        self,
-        story_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> Story | dict[str, Any]:
-        """Get a story by GID.
-
-        Args:
-            story_gid: Story GID
-            raw: If True, return raw dict instead of Story model
-            opt_fields: Optional fields to include
-
-        Returns:
-            Story model by default, or dict if raw=True
-        """
-        self._log_operation("get_async", story_gid)
-        params = self._build_opt_fields(opt_fields)
-        data = await self._http.get(f"/stories/{story_gid}", params=params)
-        if raw:
-            return data
-        return Story.model_validate(data)
 
     @overload
     def get(
@@ -101,14 +75,15 @@ class StoriesClient(BaseClient):
         """Overload: get (sync), returning raw dict."""
         ...
 
-    def get(
+    @async_method  # type: ignore[arg-type, operator, misc]
+    async def get(
         self,
         story_gid: str,
         *,
         raw: bool = False,
         opt_fields: list[str] | None = None,
     ) -> Story | dict[str, Any]:
-        """Get a story by GID (sync).
+        """Get a story by GID.
 
         Args:
             story_gid: Story GID
@@ -118,22 +93,14 @@ class StoriesClient(BaseClient):
         Returns:
             Story model by default, or dict if raw=True
         """
-        return self._get_sync(story_gid, raw=raw, opt_fields=opt_fields)
-
-    @sync_wrapper("get_async")
-    async def _get_sync(
-        self,
-        story_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> Story | dict[str, Any]:
-        """Internal sync wrapper implementation."""
+        self._log_operation("get_async", story_gid)
+        params = self._build_opt_fields(opt_fields)
+        data = await self._http.get(f"/stories/{story_gid}", params=params)
         if raw:
-            return await self.get_async(story_gid, raw=True, opt_fields=opt_fields)
-        return await self.get_async(story_gid, raw=False, opt_fields=opt_fields)
+            return data
+        return Story.model_validate(data)
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def update_async(
         self,
         story_gid: str,
@@ -159,7 +126,34 @@ class StoriesClient(BaseClient):
         """Overload: update, returning raw dict."""
         ...
 
-    async def update_async(
+    @overload
+    def update(
+        self,
+        story_gid: str,
+        *,
+        raw: Literal[False] = ...,
+        text: str | None = ...,
+        html_text: str | None = ...,
+        is_pinned: bool | None = ...,
+    ) -> Story:
+        """Overload: update (sync), returning Story model."""
+        ...
+
+    @overload
+    def update(
+        self,
+        story_gid: str,
+        *,
+        raw: Literal[True],
+        text: str | None = ...,
+        html_text: str | None = ...,
+        is_pinned: bool | None = ...,
+    ) -> dict[str, Any]:
+        """Overload: update (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
+    async def update(
         self,
         story_gid: str,
         *,
@@ -197,77 +191,8 @@ class StoriesClient(BaseClient):
             return result
         return Story.model_validate(result)
 
-    @overload
-    def update(
-        self,
-        story_gid: str,
-        *,
-        raw: Literal[False] = ...,
-        text: str | None = ...,
-        html_text: str | None = ...,
-        is_pinned: bool | None = ...,
-    ) -> Story:
-        """Overload: update (sync), returning Story model."""
-        ...
-
-    @overload
-    def update(
-        self,
-        story_gid: str,
-        *,
-        raw: Literal[True],
-        text: str | None = ...,
-        html_text: str | None = ...,
-        is_pinned: bool | None = ...,
-    ) -> dict[str, Any]:
-        """Overload: update (sync), returning raw dict."""
-        ...
-
-    def update(
-        self,
-        story_gid: str,
-        *,
-        raw: bool = False,
-        text: str | None = None,
-        html_text: str | None = None,
-        is_pinned: bool | None = None,
-    ) -> Story | dict[str, Any]:
-        """Update a story (sync).
-
-        Args:
-            story_gid: Story GID
-            raw: If True, return raw dict
-            text: New text content
-            html_text: New HTML content
-            is_pinned: Whether to pin the comment
-
-        Returns:
-            Story model by default, or dict if raw=True
-        """
-        return self._update_sync(
-            story_gid, raw=raw, text=text, html_text=html_text, is_pinned=is_pinned
-        )
-
-    @sync_wrapper("update_async")
-    async def _update_sync(
-        self,
-        story_gid: str,
-        *,
-        raw: bool = False,
-        text: str | None = None,
-        html_text: str | None = None,
-        is_pinned: bool | None = None,
-    ) -> Story | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.update_async(
-                story_gid, raw=True, text=text, html_text=html_text, is_pinned=is_pinned
-            )
-        return await self.update_async(
-            story_gid, raw=False, text=text, html_text=html_text, is_pinned=is_pinned
-        )
-
-    async def delete_async(self, story_gid: str) -> None:
+    @async_method  # type: ignore[arg-type]
+    async def delete(self, story_gid: str) -> None:
         """Delete a story (comment only).
 
         Only comments can be deleted. System stories cannot be deleted.
@@ -277,21 +202,6 @@ class StoriesClient(BaseClient):
         """
         self._log_operation("delete_async", story_gid)
         await self._http.delete(f"/stories/{story_gid}")
-
-    @sync_wrapper("delete_async")
-    async def _delete_sync(self, story_gid: str) -> None:
-        """Internal sync wrapper implementation."""
-        await self.delete_async(story_gid)
-
-    def delete(self, story_gid: str) -> None:
-        """Delete a story (sync).
-
-        Only comments can be deleted. System stories cannot be deleted.
-
-        Args:
-            story_gid: Story GID
-        """
-        self._delete_sync(story_gid)
 
     # --- List Operations ---
 
@@ -333,7 +243,7 @@ class StoriesClient(BaseClient):
 
     # --- Comment Creation ---
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def create_comment_async(
         self,
         *,
@@ -359,7 +269,34 @@ class StoriesClient(BaseClient):
         """Overload: create comment, returning raw dict."""
         ...
 
-    async def create_comment_async(
+    @overload
+    def create_comment(
+        self,
+        *,
+        task: str,
+        text: str,
+        raw: Literal[False] = ...,
+        html_text: str | None = ...,
+        is_pinned: bool | None = ...,
+    ) -> Story:
+        """Overload: create comment (sync), returning Story model."""
+        ...
+
+    @overload
+    def create_comment(
+        self,
+        *,
+        task: str,
+        text: str,
+        raw: Literal[True],
+        html_text: str | None = ...,
+        is_pinned: bool | None = ...,
+    ) -> dict[str, Any]:
+        """Overload: create comment (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
+    async def create_comment(
         self,
         *,
         task: str,
@@ -399,79 +336,10 @@ class StoriesClient(BaseClient):
             return result
         return Story.model_validate(result)
 
-    @overload
-    def create_comment(
-        self,
-        *,
-        task: str,
-        text: str,
-        raw: Literal[False] = ...,
-        html_text: str | None = ...,
-        is_pinned: bool | None = ...,
-    ) -> Story:
-        """Overload: create comment (sync), returning Story model."""
-        ...
-
-    @overload
-    def create_comment(
-        self,
-        *,
-        task: str,
-        text: str,
-        raw: Literal[True],
-        html_text: str | None = ...,
-        is_pinned: bool | None = ...,
-    ) -> dict[str, Any]:
-        """Overload: create comment (sync), returning raw dict."""
-        ...
-
-    def create_comment(
-        self,
-        *,
-        task: str,
-        text: str,
-        raw: bool = False,
-        html_text: str | None = None,
-        is_pinned: bool | None = None,
-    ) -> Story | dict[str, Any]:
-        """Create a comment on a task (sync).
-
-        Args:
-            task: Task GID
-            text: Comment text
-            raw: If True, return raw dict
-            html_text: Optional HTML formatted text
-            is_pinned: Whether to pin the comment
-
-        Returns:
-            Story model by default, or dict if raw=True
-        """
-        return self._create_comment_sync(
-            task=task, text=text, raw=raw, html_text=html_text, is_pinned=is_pinned
-        )
-
-    @sync_wrapper("create_comment_async")
-    async def _create_comment_sync(
-        self,
-        *,
-        task: str,
-        text: str,
-        raw: bool = False,
-        html_text: str | None = None,
-        is_pinned: bool | None = None,
-    ) -> Story | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.create_comment_async(
-                task=task, text=text, raw=True, html_text=html_text, is_pinned=is_pinned
-            )
-        return await self.create_comment_async(
-            task=task, text=text, raw=False, html_text=html_text, is_pinned=is_pinned
-        )
-
     # --- Cached List Operations (per TDD-CACHE-PERF-STORIES) ---
 
-    async def list_for_task_cached_async(
+    @async_method  # type: ignore[arg-type]
+    async def list_for_task_cached(
         self,
         task_gid: str,
         *,
@@ -579,47 +447,6 @@ class StoriesClient(BaseClient):
                 duration_ms=duration_ms,
             )
             return await self._fetch_all_stories_uncached(task_gid, opt_fields)
-
-    def list_for_task_cached(
-        self,
-        task_gid: str,
-        *,
-        task_modified_at: str | None = None,
-        opt_fields: list[str] | None = None,
-    ) -> list[Story]:
-        """List stories for a task with incremental caching (sync).
-
-        Synchronous wrapper for list_for_task_cached_async().
-        Per ADR-0002: Uses sync_wrapper pattern.
-
-        Args:
-            task_gid: Task GID.
-            task_modified_at: Optional task modified_at for cache versioning.
-            opt_fields: Fields to include in API response.
-
-        Returns:
-            list[Story] - All stories for the task, sorted by created_at.
-        """
-        return self._list_for_task_cached_sync(
-            task_gid,
-            task_modified_at=task_modified_at,
-            opt_fields=opt_fields,
-        )
-
-    @sync_wrapper("list_for_task_cached_async")
-    async def _list_for_task_cached_sync(
-        self,
-        task_gid: str,
-        *,
-        task_modified_at: str | None = None,
-        opt_fields: list[str] | None = None,
-    ) -> list[Story]:
-        """Internal sync wrapper implementation."""
-        return await self.list_for_task_cached_async(
-            task_gid,
-            task_modified_at=task_modified_at,
-            opt_fields=opt_fields,
-        )
 
     def _make_stories_fetcher(
         self,

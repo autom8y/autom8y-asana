@@ -1,6 +1,7 @@
 """Projects client - returns typed Project models by default.
 
 Per TDD-0003: ProjectsClient provides CRUD and membership operations.
+Per TDD-DESIGN-PATTERNS-D: Uses @async_method for async/sync method generation.
 Use raw=True for backward-compatible dict returns.
 """
 
@@ -13,7 +14,7 @@ from autom8_asana.models import PageIterator
 from autom8_asana.models.project import Project
 from autom8_asana.models.section import Section
 from autom8_asana.observability import error_handler
-from autom8_asana.transport.sync import sync_wrapper
+from autom8_asana.patterns import async_method
 
 
 class ProjectsClient(BaseClient):
@@ -24,7 +25,7 @@ class ProjectsClient(BaseClient):
 
     # --- Core CRUD Operations ---
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def get_async(
         self,
         project_gid: str,
@@ -46,8 +47,31 @@ class ProjectsClient(BaseClient):
         """Overload: get, returning raw dict."""
         ...
 
+    @overload
+    def get(
+        self,
+        project_gid: str,
+        *,
+        raw: Literal[False] = ...,
+        opt_fields: list[str] | None = ...,
+    ) -> Project:
+        """Overload: get (sync), returning Project model."""
+        ...
+
+    @overload
+    def get(
+        self,
+        project_gid: str,
+        *,
+        raw: Literal[True],
+        opt_fields: list[str] | None = ...,
+    ) -> dict[str, Any]:
+        """Overload: get (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
     @error_handler
-    async def get_async(
+    async def get(
         self,
         project_gid: str,
         *,
@@ -97,61 +121,7 @@ class ProjectsClient(BaseClient):
             return data
         return Project.model_validate(data)
 
-    @overload
-    def get(
-        self,
-        project_gid: str,
-        *,
-        raw: Literal[False] = ...,
-        opt_fields: list[str] | None = ...,
-    ) -> Project:
-        """Overload: get (sync), returning Project model."""
-        ...
-
-    @overload
-    def get(
-        self,
-        project_gid: str,
-        *,
-        raw: Literal[True],
-        opt_fields: list[str] | None = ...,
-    ) -> dict[str, Any]:
-        """Overload: get (sync), returning raw dict."""
-        ...
-
-    def get(
-        self,
-        project_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> Project | dict[str, Any]:
-        """Get a project by GID (sync).
-
-        Args:
-            project_gid: Project GID
-            raw: If True, return raw dict instead of Project model
-            opt_fields: Optional fields to include
-
-        Returns:
-            Project model by default, or dict if raw=True
-        """
-        return self._get_sync(project_gid, raw=raw, opt_fields=opt_fields)
-
-    @sync_wrapper("get_async")
-    async def _get_sync(
-        self,
-        project_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> Project | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.get_async(project_gid, raw=True, opt_fields=opt_fields)
-        return await self.get_async(project_gid, raw=False, opt_fields=opt_fields)
-
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def create_async(
         self,
         *,
@@ -183,8 +153,41 @@ class ProjectsClient(BaseClient):
         """Overload: create, returning raw dict."""
         ...
 
+    @overload
+    def create(
+        self,
+        *,
+        name: str,
+        workspace: str,
+        raw: Literal[False] = ...,
+        team: str | None = ...,
+        public: bool | None = ...,
+        color: str | None = ...,
+        default_view: str | None = ...,
+        **kwargs: Any,
+    ) -> Project:
+        """Overload: create (sync), returning Project model."""
+        ...
+
+    @overload
+    def create(
+        self,
+        *,
+        name: str,
+        workspace: str,
+        raw: Literal[True],
+        team: str | None = ...,
+        public: bool | None = ...,
+        color: str | None = ...,
+        default_view: str | None = ...,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Overload: create (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
     @error_handler
-    async def create_async(
+    async def create(
         self,
         *,
         name: str,
@@ -230,113 +233,7 @@ class ProjectsClient(BaseClient):
             return result
         return Project.model_validate(result)
 
-    @overload
-    def create(
-        self,
-        *,
-        name: str,
-        workspace: str,
-        raw: Literal[False] = ...,
-        team: str | None = ...,
-        public: bool | None = ...,
-        color: str | None = ...,
-        default_view: str | None = ...,
-        **kwargs: Any,
-    ) -> Project:
-        """Overload: create (sync), returning Project model."""
-        ...
-
-    @overload
-    def create(
-        self,
-        *,
-        name: str,
-        workspace: str,
-        raw: Literal[True],
-        team: str | None = ...,
-        public: bool | None = ...,
-        color: str | None = ...,
-        default_view: str | None = ...,
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        """Overload: create (sync), returning raw dict."""
-        ...
-
-    def create(
-        self,
-        *,
-        name: str,
-        workspace: str,
-        raw: bool = False,
-        team: str | None = None,
-        public: bool | None = None,
-        color: str | None = None,
-        default_view: str | None = None,
-        **kwargs: Any,
-    ) -> Project | dict[str, Any]:
-        """Create a new project (sync).
-
-        Args:
-            name: Project name (required)
-            workspace: Workspace GID (required)
-            raw: If True, return raw dict instead of Project model
-            team: Team GID (for organization workspaces)
-            public: Whether the project is public
-            color: Project color
-            default_view: Default view (list, board, calendar, timeline)
-            **kwargs: Additional project fields
-
-        Returns:
-            Project model by default, or dict if raw=True
-        """
-        return self._create_sync(
-            name=name,
-            workspace=workspace,
-            raw=raw,
-            team=team,
-            public=public,
-            color=color,
-            default_view=default_view,
-            **kwargs,
-        )
-
-    @sync_wrapper("create_async")
-    async def _create_sync(
-        self,
-        *,
-        name: str,
-        workspace: str,
-        raw: bool = False,
-        team: str | None = None,
-        public: bool | None = None,
-        color: str | None = None,
-        default_view: str | None = None,
-        **kwargs: Any,
-    ) -> Project | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.create_async(
-                name=name,
-                workspace=workspace,
-                raw=True,
-                team=team,
-                public=public,
-                color=color,
-                default_view=default_view,
-                **kwargs,
-            )
-        return await self.create_async(
-            name=name,
-            workspace=workspace,
-            raw=False,
-            team=team,
-            public=public,
-            color=color,
-            default_view=default_view,
-            **kwargs,
-        )
-
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def update_async(
         self,
         project_gid: str,
@@ -357,29 +254,6 @@ class ProjectsClient(BaseClient):
     ) -> dict[str, Any]:
         """Overload: update, returning raw dict."""
         ...
-
-    @error_handler
-    async def update_async(
-        self,
-        project_gid: str,
-        *,
-        raw: bool = False,
-        **kwargs: Any,
-    ) -> Project | dict[str, Any]:
-        """Update a project.
-
-        Args:
-            project_gid: Project GID
-            raw: If True, return raw dict instead of Project model
-            **kwargs: Fields to update
-
-        Returns:
-            Project model by default, or dict if raw=True
-        """
-        result = await self._http.put(f"/projects/{project_gid}", json={"data": kwargs})
-        if raw:
-            return result
-        return Project.model_validate(result)
 
     @overload
     def update(
@@ -403,14 +277,16 @@ class ProjectsClient(BaseClient):
         """Overload: update (sync), returning raw dict."""
         ...
 
-    def update(
+    @async_method  # type: ignore[arg-type, operator, misc]
+    @error_handler
+    async def update(
         self,
         project_gid: str,
         *,
         raw: bool = False,
         **kwargs: Any,
     ) -> Project | dict[str, Any]:
-        """Update a project (sync).
+        """Update a project.
 
         Args:
             project_gid: Project GID
@@ -420,42 +296,20 @@ class ProjectsClient(BaseClient):
         Returns:
             Project model by default, or dict if raw=True
         """
-        return self._update_sync(project_gid, raw=raw, **kwargs)
-
-    @sync_wrapper("update_async")
-    async def _update_sync(
-        self,
-        project_gid: str,
-        *,
-        raw: bool = False,
-        **kwargs: Any,
-    ) -> Project | dict[str, Any]:
-        """Internal sync wrapper implementation."""
+        result = await self._http.put(f"/projects/{project_gid}", json={"data": kwargs})
         if raw:
-            return await self.update_async(project_gid, raw=True, **kwargs)
-        return await self.update_async(project_gid, raw=False, **kwargs)
+            return result
+        return Project.model_validate(result)
 
+    @async_method  # type: ignore[arg-type]
     @error_handler
-    async def delete_async(self, project_gid: str) -> None:
+    async def delete(self, project_gid: str) -> None:
         """Delete a project.
 
         Args:
             project_gid: Project GID
         """
         await self._http.delete(f"/projects/{project_gid}")
-
-    @sync_wrapper("delete_async")
-    async def _delete_sync(self, project_gid: str) -> None:
-        """Internal sync wrapper implementation."""
-        await self.delete_async(project_gid)
-
-    def delete(self, project_gid: str) -> None:
-        """Delete a project (sync).
-
-        Args:
-            project_gid: Project GID
-        """
-        self._delete_sync(project_gid)
 
     def list_async(
         self,
@@ -509,7 +363,7 @@ class ProjectsClient(BaseClient):
 
     # --- Membership Operations ---
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def add_members_async(
         self,
         project_gid: str,
@@ -531,8 +385,31 @@ class ProjectsClient(BaseClient):
         """Overload: add members, returning raw dict."""
         ...
 
+    @overload
+    def add_members(
+        self,
+        project_gid: str,
+        *,
+        members: list[str],
+        raw: Literal[False] = ...,
+    ) -> Project:
+        """Overload: add members (sync), returning Project model."""
+        ...
+
+    @overload
+    def add_members(
+        self,
+        project_gid: str,
+        *,
+        members: list[str],
+        raw: Literal[True],
+    ) -> dict[str, Any]:
+        """Overload: add members (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
     @error_handler
-    async def add_members_async(
+    async def add_members(
         self,
         project_gid: str,
         *,
@@ -557,61 +434,7 @@ class ProjectsClient(BaseClient):
             return result
         return Project.model_validate(result)
 
-    @overload
-    def add_members(
-        self,
-        project_gid: str,
-        *,
-        members: list[str],
-        raw: Literal[False] = ...,
-    ) -> Project:
-        """Overload: add members (sync), returning Project model."""
-        ...
-
-    @overload
-    def add_members(
-        self,
-        project_gid: str,
-        *,
-        members: list[str],
-        raw: Literal[True],
-    ) -> dict[str, Any]:
-        """Overload: add members (sync), returning raw dict."""
-        ...
-
-    def add_members(
-        self,
-        project_gid: str,
-        *,
-        members: list[str],
-        raw: bool = False,
-    ) -> Project | dict[str, Any]:
-        """Add members to a project (sync).
-
-        Args:
-            project_gid: Project GID
-            members: List of user GIDs to add
-            raw: If True, return raw dict instead of Project model
-
-        Returns:
-            Updated project
-        """
-        return self._add_members_sync(project_gid, members=members, raw=raw)
-
-    @sync_wrapper("add_members_async")
-    async def _add_members_sync(
-        self,
-        project_gid: str,
-        *,
-        members: list[str],
-        raw: bool = False,
-    ) -> Project | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.add_members_async(project_gid, members=members, raw=True)
-        return await self.add_members_async(project_gid, members=members, raw=False)
-
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def remove_members_async(
         self,
         project_gid: str,
@@ -632,32 +455,6 @@ class ProjectsClient(BaseClient):
     ) -> dict[str, Any]:
         """Overload: remove members, returning raw dict."""
         ...
-
-    @error_handler
-    async def remove_members_async(
-        self,
-        project_gid: str,
-        *,
-        members: list[str],
-        raw: bool = False,
-    ) -> Project | dict[str, Any]:
-        """Remove members from a project.
-
-        Args:
-            project_gid: Project GID
-            members: List of user GIDs to remove
-            raw: If True, return raw dict instead of Project model
-
-        Returns:
-            Updated project
-        """
-        result = await self._http.post(
-            f"/projects/{project_gid}/removeMembers",
-            json={"data": {"members": ",".join(members)}},
-        )
-        if raw:
-            return result
-        return Project.model_validate(result)
 
     @overload
     def remove_members(
@@ -681,14 +478,16 @@ class ProjectsClient(BaseClient):
         """Overload: remove members (sync), returning raw dict."""
         ...
 
-    def remove_members(
+    @async_method  # type: ignore[arg-type, operator, misc]
+    @error_handler
+    async def remove_members(
         self,
         project_gid: str,
         *,
         members: list[str],
         raw: bool = False,
     ) -> Project | dict[str, Any]:
-        """Remove members from a project (sync).
+        """Remove members from a project.
 
         Args:
             project_gid: Project GID
@@ -698,22 +497,13 @@ class ProjectsClient(BaseClient):
         Returns:
             Updated project
         """
-        return self._remove_members_sync(project_gid, members=members, raw=raw)
-
-    @sync_wrapper("remove_members_async")
-    async def _remove_members_sync(
-        self,
-        project_gid: str,
-        *,
-        members: list[str],
-        raw: bool = False,
-    ) -> Project | dict[str, Any]:
-        """Internal sync wrapper implementation."""
+        result = await self._http.post(
+            f"/projects/{project_gid}/removeMembers",
+            json={"data": {"members": ",".join(members)}},
+        )
         if raw:
-            return await self.remove_members_async(
-                project_gid, members=members, raw=True
-            )
-        return await self.remove_members_async(project_gid, members=members, raw=False)
+            return result
+        return Project.model_validate(result)
 
     # --- Section-related convenience ---
 

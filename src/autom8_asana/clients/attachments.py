@@ -1,6 +1,7 @@
 """Attachments client - returns typed Attachment models by default.
 
 Per TDD-0004: AttachmentsClient provides attachment operations for Tier 2.
+Per TDD-DESIGN-PATTERNS-D: Uses @async_method for async/sync method generation.
 Per ADR-0009: Uses multipart/form-data for file uploads, streaming for downloads.
 Use raw=True for backward-compatible dict returns.
 """
@@ -15,7 +16,7 @@ from autom8_asana.clients.base import BaseClient
 from autom8_asana.exceptions import AsanaError
 from autom8_asana.models import PageIterator
 from autom8_asana.models.attachment import Attachment
-from autom8_asana.transport.sync import sync_wrapper
+from autom8_asana.patterns import async_method
 
 
 class AttachmentsClient(BaseClient):
@@ -29,7 +30,7 @@ class AttachmentsClient(BaseClient):
 
     # --- Core Operations ---
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def get_async(
         self,
         attachment_gid: str,
@@ -50,30 +51,6 @@ class AttachmentsClient(BaseClient):
     ) -> dict[str, Any]:
         """Overload: get, returning raw dict."""
         ...
-
-    async def get_async(
-        self,
-        attachment_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> Attachment | dict[str, Any]:
-        """Get an attachment by GID.
-
-        Args:
-            attachment_gid: Attachment GID
-            raw: If True, return raw dict instead of Attachment model
-            opt_fields: Optional fields to include
-
-        Returns:
-            Attachment model by default, or dict if raw=True
-        """
-        self._log_operation("get_async", attachment_gid)
-        params = self._build_opt_fields(opt_fields)
-        data = await self._http.get(f"/attachments/{attachment_gid}", params=params)
-        if raw:
-            return data
-        return Attachment.model_validate(data)
 
     @overload
     def get(
@@ -97,14 +74,15 @@ class AttachmentsClient(BaseClient):
         """Overload: get (sync), returning raw dict."""
         ...
 
-    def get(
+    @async_method  # type: ignore[arg-type, operator, misc]
+    async def get(
         self,
         attachment_gid: str,
         *,
         raw: bool = False,
         opt_fields: list[str] | None = None,
     ) -> Attachment | dict[str, Any]:
-        """Get an attachment by GID (sync).
+        """Get an attachment by GID.
 
         Args:
             attachment_gid: Attachment GID
@@ -114,22 +92,15 @@ class AttachmentsClient(BaseClient):
         Returns:
             Attachment model by default, or dict if raw=True
         """
-        return self._get_sync(attachment_gid, raw=raw, opt_fields=opt_fields)
-
-    @sync_wrapper("get_async")
-    async def _get_sync(
-        self,
-        attachment_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> Attachment | dict[str, Any]:
-        """Internal sync wrapper implementation."""
+        self._log_operation("get_async", attachment_gid)
+        params = self._build_opt_fields(opt_fields)
+        data = await self._http.get(f"/attachments/{attachment_gid}", params=params)
         if raw:
-            return await self.get_async(attachment_gid, raw=True, opt_fields=opt_fields)
-        return await self.get_async(attachment_gid, raw=False, opt_fields=opt_fields)
+            return data
+        return Attachment.model_validate(data)
 
-    async def delete_async(self, attachment_gid: str) -> None:
+    @async_method  # type: ignore[arg-type]
+    async def delete(self, attachment_gid: str) -> None:
         """Delete an attachment.
 
         Args:
@@ -137,19 +108,6 @@ class AttachmentsClient(BaseClient):
         """
         self._log_operation("delete_async", attachment_gid)
         await self._http.delete(f"/attachments/{attachment_gid}")
-
-    @sync_wrapper("delete_async")
-    async def _delete_sync(self, attachment_gid: str) -> None:
-        """Internal sync wrapper implementation."""
-        await self.delete_async(attachment_gid)
-
-    def delete(self, attachment_gid: str) -> None:
-        """Delete an attachment (sync).
-
-        Args:
-            attachment_gid: Attachment GID
-        """
-        self._delete_sync(attachment_gid)
 
     # --- List Operations ---
 
@@ -189,7 +147,7 @@ class AttachmentsClient(BaseClient):
 
     # --- Upload Operations (per ADR-0009) ---
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def upload_async(
         self,
         *,
@@ -215,7 +173,34 @@ class AttachmentsClient(BaseClient):
         """Overload: upload, returning raw dict."""
         ...
 
-    async def upload_async(
+    @overload
+    def upload(
+        self,
+        *,
+        parent: str,
+        file: BinaryIO,
+        name: str,
+        raw: Literal[False] = ...,
+        content_type: str | None = ...,
+    ) -> Attachment:
+        """Overload: upload (sync), returning Attachment model."""
+        ...
+
+    @overload
+    def upload(
+        self,
+        *,
+        parent: str,
+        file: BinaryIO,
+        name: str,
+        raw: Literal[True],
+        content_type: str | None = ...,
+    ) -> dict[str, Any]:
+        """Overload: upload (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
+    async def upload(
         self,
         *,
         parent: str,
@@ -262,77 +247,7 @@ class AttachmentsClient(BaseClient):
             return result
         return Attachment.model_validate(result)
 
-    @overload
-    def upload(
-        self,
-        *,
-        parent: str,
-        file: BinaryIO,
-        name: str,
-        raw: Literal[False] = ...,
-        content_type: str | None = ...,
-    ) -> Attachment:
-        """Overload: upload (sync), returning Attachment model."""
-        ...
-
-    @overload
-    def upload(
-        self,
-        *,
-        parent: str,
-        file: BinaryIO,
-        name: str,
-        raw: Literal[True],
-        content_type: str | None = ...,
-    ) -> dict[str, Any]:
-        """Overload: upload (sync), returning raw dict."""
-        ...
-
-    def upload(
-        self,
-        *,
-        parent: str,
-        file: BinaryIO,
-        name: str,
-        raw: bool = False,
-        content_type: str | None = None,
-    ) -> Attachment | dict[str, Any]:
-        """Upload a file attachment (sync).
-
-        Args:
-            parent: Parent task GID
-            file: File-like object with read() method
-            name: Filename for the attachment
-            raw: If True, return raw dict
-            content_type: Optional MIME type
-
-        Returns:
-            Attachment model by default, or dict if raw=True
-        """
-        return self._upload_sync(
-            parent=parent, file=file, name=name, raw=raw, content_type=content_type
-        )
-
-    @sync_wrapper("upload_async")
-    async def _upload_sync(
-        self,
-        *,
-        parent: str,
-        file: BinaryIO,
-        name: str,
-        raw: bool = False,
-        content_type: str | None = None,
-    ) -> Attachment | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.upload_async(
-                parent=parent, file=file, name=name, raw=True, content_type=content_type
-            )
-        return await self.upload_async(
-            parent=parent, file=file, name=name, raw=False, content_type=content_type
-        )
-
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def upload_from_path_async(
         self,
         *,
@@ -356,7 +271,32 @@ class AttachmentsClient(BaseClient):
         """Overload: upload from path, returning raw dict."""
         ...
 
-    async def upload_from_path_async(
+    @overload
+    def upload_from_path(
+        self,
+        *,
+        parent: str,
+        path: Path | str,
+        raw: Literal[False] = ...,
+        name: str | None = ...,
+    ) -> Attachment:
+        """Overload: upload from path (sync), returning Attachment model."""
+        ...
+
+    @overload
+    def upload_from_path(
+        self,
+        *,
+        parent: str,
+        path: Path | str,
+        raw: Literal[True],
+        name: str | None = ...,
+    ) -> dict[str, Any]:
+        """Overload: upload from path (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
+    async def upload_from_path(
         self,
         *,
         parent: str,
@@ -391,72 +331,9 @@ class AttachmentsClient(BaseClient):
                 parent=parent, file=f, name=filename, raw=False
             )
 
-    @overload
-    def upload_from_path(
-        self,
-        *,
-        parent: str,
-        path: Path | str,
-        raw: Literal[False] = ...,
-        name: str | None = ...,
-    ) -> Attachment:
-        """Overload: upload from path (sync), returning Attachment model."""
-        ...
-
-    @overload
-    def upload_from_path(
-        self,
-        *,
-        parent: str,
-        path: Path | str,
-        raw: Literal[True],
-        name: str | None = ...,
-    ) -> dict[str, Any]:
-        """Overload: upload from path (sync), returning raw dict."""
-        ...
-
-    def upload_from_path(
-        self,
-        *,
-        parent: str,
-        path: Path | str,
-        raw: bool = False,
-        name: str | None = None,
-    ) -> Attachment | dict[str, Any]:
-        """Upload a file from path (sync).
-
-        Args:
-            parent: Parent task GID
-            path: Path to file
-            name: Optional filename (defaults to path basename)
-            raw: If True, return raw dict
-
-        Returns:
-            Attachment model by default, or dict if raw=True
-        """
-        return self._upload_from_path_sync(parent=parent, path=path, raw=raw, name=name)
-
-    @sync_wrapper("upload_from_path_async")
-    async def _upload_from_path_sync(
-        self,
-        *,
-        parent: str,
-        path: Path | str,
-        raw: bool = False,
-        name: str | None = None,
-    ) -> Attachment | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.upload_from_path_async(
-                parent=parent, path=path, raw=True, name=name
-            )
-        return await self.upload_from_path_async(
-            parent=parent, path=path, raw=False, name=name
-        )
-
     # --- External Attachments ---
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def create_external_async(
         self,
         *,
@@ -480,7 +357,32 @@ class AttachmentsClient(BaseClient):
         """Overload: create external, returning raw dict."""
         ...
 
-    async def create_external_async(
+    @overload
+    def create_external(
+        self,
+        *,
+        parent: str,
+        url: str,
+        name: str,
+        raw: Literal[False] = ...,
+    ) -> Attachment:
+        """Overload: create external (sync), returning Attachment model."""
+        ...
+
+    @overload
+    def create_external(
+        self,
+        *,
+        parent: str,
+        url: str,
+        name: str,
+        raw: Literal[True],
+    ) -> dict[str, Any]:
+        """Overload: create external (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
+    async def create_external(
         self,
         *,
         parent: str,
@@ -518,72 +420,10 @@ class AttachmentsClient(BaseClient):
             return result
         return Attachment.model_validate(result)
 
-    @overload
-    def create_external(
-        self,
-        *,
-        parent: str,
-        url: str,
-        name: str,
-        raw: Literal[False] = ...,
-    ) -> Attachment:
-        """Overload: create external (sync), returning Attachment model."""
-        ...
-
-    @overload
-    def create_external(
-        self,
-        *,
-        parent: str,
-        url: str,
-        name: str,
-        raw: Literal[True],
-    ) -> dict[str, Any]:
-        """Overload: create external (sync), returning raw dict."""
-        ...
-
-    def create_external(
-        self,
-        *,
-        parent: str,
-        url: str,
-        name: str,
-        raw: bool = False,
-    ) -> Attachment | dict[str, Any]:
-        """Create an external attachment (sync).
-
-        Args:
-            parent: Parent task GID
-            url: External URL
-            name: Display name for the attachment
-            raw: If True, return raw dict
-
-        Returns:
-            Attachment model by default, or dict if raw=True
-        """
-        return self._create_external_sync(parent=parent, url=url, name=name, raw=raw)
-
-    @sync_wrapper("create_external_async")
-    async def _create_external_sync(
-        self,
-        *,
-        parent: str,
-        url: str,
-        name: str,
-        raw: bool = False,
-    ) -> Attachment | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.create_external_async(
-                parent=parent, url=url, name=name, raw=True
-            )
-        return await self.create_external_async(
-            parent=parent, url=url, name=name, raw=False
-        )
-
     # --- Download Operations ---
 
-    async def download_async(
+    @async_method  # type: ignore[arg-type]
+    async def download(
         self,
         attachment_gid: str,
         *,
@@ -643,30 +483,3 @@ class AttachmentsClient(BaseClient):
                 file_obj.close()
 
         return dest_path
-
-    @sync_wrapper("download_async")
-    async def _download_sync(
-        self,
-        attachment_gid: str,
-        *,
-        destination: Path | str | BinaryIO,
-    ) -> Path | None:
-        """Internal sync wrapper implementation."""
-        return await self.download_async(attachment_gid, destination=destination)
-
-    def download(
-        self,
-        attachment_gid: str,
-        *,
-        destination: Path | str | BinaryIO,
-    ) -> Path | None:
-        """Download an attachment (sync).
-
-        Args:
-            attachment_gid: Attachment GID
-            destination: Path to save file, or file-like object
-
-        Returns:
-            Path to downloaded file (if destination was path), or None
-        """
-        return self._download_sync(attachment_gid, destination=destination)

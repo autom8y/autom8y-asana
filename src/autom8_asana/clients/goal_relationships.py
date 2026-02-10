@@ -1,6 +1,7 @@
 """Goal relationships management - subgoals and supporting work.
 
 Per ADR-0059: Extracted from GoalsClient to follow SRP.
+Per TDD-DESIGN-PATTERNS-D: Uses @async_method for async/sync method generation.
 Manages goal hierarchies (subgoals) and supporting work relationships.
 """
 
@@ -10,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Literal, overload
 
 from autom8_asana.models import PageIterator
 from autom8_asana.models.goal import Goal
-from autom8_asana.transport.sync import sync_wrapper
+from autom8_asana.patterns import async_method
 
 if TYPE_CHECKING:
     from autom8_asana.clients.goals import GoalsClient
@@ -86,7 +87,7 @@ class GoalRelationships:
 
         return PageIterator(fetch_page, page_size=min(limit, 100))
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def add_subgoal_async(
         self,
         goal_gid: str,
@@ -112,7 +113,34 @@ class GoalRelationships:
         """Overload: add subgoal, returning raw dict."""
         ...
 
-    async def add_subgoal_async(
+    @overload
+    def add_subgoal(
+        self,
+        goal_gid: str,
+        *,
+        subgoal: str,
+        raw: Literal[False] = ...,
+        insert_before: str | None = ...,
+        insert_after: str | None = ...,
+    ) -> Goal:
+        """Overload: add subgoal (sync), returning Goal model."""
+        ...
+
+    @overload
+    def add_subgoal(
+        self,
+        goal_gid: str,
+        *,
+        subgoal: str,
+        raw: Literal[True],
+        insert_before: str | None = ...,
+        insert_after: str | None = ...,
+    ) -> dict[str, Any]:
+        """Overload: add subgoal (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
+    async def add_subgoal(
         self,
         goal_gid: str,
         *,
@@ -148,89 +176,8 @@ class GoalRelationships:
             return result
         return Goal.model_validate(result)
 
-    @overload
-    def add_subgoal(
-        self,
-        goal_gid: str,
-        *,
-        subgoal: str,
-        raw: Literal[False] = ...,
-        insert_before: str | None = ...,
-        insert_after: str | None = ...,
-    ) -> Goal:
-        """Overload: add subgoal (sync), returning Goal model."""
-        ...
-
-    @overload
-    def add_subgoal(
-        self,
-        goal_gid: str,
-        *,
-        subgoal: str,
-        raw: Literal[True],
-        insert_before: str | None = ...,
-        insert_after: str | None = ...,
-    ) -> dict[str, Any]:
-        """Overload: add subgoal (sync), returning raw dict."""
-        ...
-
-    def add_subgoal(
-        self,
-        goal_gid: str,
-        *,
-        subgoal: str,
-        raw: bool = False,
-        insert_before: str | None = None,
-        insert_after: str | None = None,
-    ) -> Goal | dict[str, Any]:
-        """Add a subgoal (sync).
-
-        Args:
-            goal_gid: Parent goal GID
-            subgoal: Subgoal GID to add
-            raw: If True, return raw dict
-            insert_before: Subgoal GID to insert before
-            insert_after: Subgoal GID to insert after
-
-        Returns:
-            Updated parent goal
-        """
-        return self._add_subgoal_sync(
-            goal_gid,
-            subgoal=subgoal,
-            raw=raw,
-            insert_before=insert_before,
-            insert_after=insert_after,
-        )
-
-    @sync_wrapper("add_subgoal_async")
-    async def _add_subgoal_sync(
-        self,
-        goal_gid: str,
-        *,
-        subgoal: str,
-        raw: bool = False,
-        insert_before: str | None = None,
-        insert_after: str | None = None,
-    ) -> Goal | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.add_subgoal_async(
-                goal_gid,
-                subgoal=subgoal,
-                raw=True,
-                insert_before=insert_before,
-                insert_after=insert_after,
-            )
-        return await self.add_subgoal_async(
-            goal_gid,
-            subgoal=subgoal,
-            raw=False,
-            insert_before=insert_before,
-            insert_after=insert_after,
-        )
-
-    async def remove_subgoal_async(
+    @async_method  # type: ignore[arg-type]
+    async def remove_subgoal(
         self,
         goal_gid: str,
         *,
@@ -248,33 +195,9 @@ class GoalRelationships:
             json={"data": {"subgoal": subgoal}},
         )
 
-    @sync_wrapper("remove_subgoal_async")
-    async def _remove_subgoal_sync(
-        self,
-        goal_gid: str,
-        *,
-        subgoal: str,
-    ) -> None:
-        """Internal sync wrapper implementation."""
-        await self.remove_subgoal_async(goal_gid, subgoal=subgoal)
-
-    def remove_subgoal(
-        self,
-        goal_gid: str,
-        *,
-        subgoal: str,
-    ) -> None:
-        """Remove a subgoal (sync).
-
-        Args:
-            goal_gid: Parent goal GID
-            subgoal: Subgoal GID to remove
-        """
-        self._remove_subgoal_sync(goal_gid, subgoal=subgoal)
-
     # --- Supporting Work ---
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def add_supporting_work_async(
         self,
         goal_gid: str,
@@ -298,7 +221,32 @@ class GoalRelationships:
         """Overload: add supporting work, returning raw dict."""
         ...
 
-    async def add_supporting_work_async(
+    @overload
+    def add_supporting_work(
+        self,
+        goal_gid: str,
+        *,
+        supporting_resource: str,
+        raw: Literal[False] = ...,
+        contribution_weight: float | None = ...,
+    ) -> Goal:
+        """Overload: add supporting work (sync), returning Goal model."""
+        ...
+
+    @overload
+    def add_supporting_work(
+        self,
+        goal_gid: str,
+        *,
+        supporting_resource: str,
+        raw: Literal[True],
+        contribution_weight: float | None = ...,
+    ) -> dict[str, Any]:
+        """Overload: add supporting work (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
+    async def add_supporting_work(
         self,
         goal_gid: str,
         *,
@@ -330,81 +278,8 @@ class GoalRelationships:
             return result
         return Goal.model_validate(result)
 
-    @overload
-    def add_supporting_work(
-        self,
-        goal_gid: str,
-        *,
-        supporting_resource: str,
-        raw: Literal[False] = ...,
-        contribution_weight: float | None = ...,
-    ) -> Goal:
-        """Overload: add supporting work (sync), returning Goal model."""
-        ...
-
-    @overload
-    def add_supporting_work(
-        self,
-        goal_gid: str,
-        *,
-        supporting_resource: str,
-        raw: Literal[True],
-        contribution_weight: float | None = ...,
-    ) -> dict[str, Any]:
-        """Overload: add supporting work (sync), returning raw dict."""
-        ...
-
-    def add_supporting_work(
-        self,
-        goal_gid: str,
-        *,
-        supporting_resource: str,
-        raw: bool = False,
-        contribution_weight: float | None = None,
-    ) -> Goal | dict[str, Any]:
-        """Add supporting work (sync).
-
-        Args:
-            goal_gid: Goal GID
-            supporting_resource: Project or portfolio GID
-            raw: If True, return raw dict
-            contribution_weight: Optional weight (0.0 to 1.0)
-
-        Returns:
-            Updated goal
-        """
-        return self._add_supporting_work_sync(
-            goal_gid,
-            supporting_resource=supporting_resource,
-            raw=raw,
-            contribution_weight=contribution_weight,
-        )
-
-    @sync_wrapper("add_supporting_work_async")
-    async def _add_supporting_work_sync(
-        self,
-        goal_gid: str,
-        *,
-        supporting_resource: str,
-        raw: bool = False,
-        contribution_weight: float | None = None,
-    ) -> Goal | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.add_supporting_work_async(
-                goal_gid,
-                supporting_resource=supporting_resource,
-                raw=True,
-                contribution_weight=contribution_weight,
-            )
-        return await self.add_supporting_work_async(
-            goal_gid,
-            supporting_resource=supporting_resource,
-            raw=False,
-            contribution_weight=contribution_weight,
-        )
-
-    async def remove_supporting_work_async(
+    @async_method  # type: ignore[arg-type]
+    async def remove_supporting_work(
         self,
         goal_gid: str,
         *,
@@ -420,32 +295,4 @@ class GoalRelationships:
         await self._http.post(
             f"/goals/{goal_gid}/removeSupportingRelationship",
             json={"data": {"supporting_resource": supporting_resource}},
-        )
-
-    @sync_wrapper("remove_supporting_work_async")
-    async def _remove_supporting_work_sync(
-        self,
-        goal_gid: str,
-        *,
-        supporting_resource: str,
-    ) -> None:
-        """Internal sync wrapper implementation."""
-        await self.remove_supporting_work_async(
-            goal_gid, supporting_resource=supporting_resource
-        )
-
-    def remove_supporting_work(
-        self,
-        goal_gid: str,
-        *,
-        supporting_resource: str,
-    ) -> None:
-        """Remove supporting work (sync).
-
-        Args:
-            goal_gid: Goal GID
-            supporting_resource: Project or portfolio GID to remove
-        """
-        self._remove_supporting_work_sync(
-            goal_gid, supporting_resource=supporting_resource
         )

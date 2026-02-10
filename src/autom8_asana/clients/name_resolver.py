@@ -1,6 +1,7 @@
 """Name resolution for resources (tags, sections, projects, users).
 
 Per ADR-0060: Per-SaveSession caching for performance (5-10x API reduction).
+Per TDD-DESIGN-PATTERNS-D: Uses @async_method for async/sync method generation.
 Provides polymorphic name/GID resolution with per-session caching.
 """
 
@@ -10,7 +11,7 @@ from difflib import get_close_matches
 from typing import TYPE_CHECKING, Any, cast
 
 from autom8_asana.exceptions import NameNotFoundError
-from autom8_asana.transport.sync import sync_wrapper
+from autom8_asana.patterns import async_method
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
@@ -43,7 +44,8 @@ class NameResolver:
         self._client = client
         self._cache: dict[str, str] = session_cache or {}
 
-    async def resolve_tag_async(
+    @async_method  # type: ignore[arg-type]
+    async def resolve_tag(
         self,
         name_or_gid: str,
         project_gid: str | None = None,
@@ -105,7 +107,8 @@ class NameResolver:
             available_names=[n for n in available_names if n],
         )
 
-    async def resolve_section_async(
+    @async_method  # type: ignore[arg-type]
+    async def resolve_section(
         self,
         name_or_gid: str,
         project_gid: str,
@@ -160,7 +163,8 @@ class NameResolver:
             available_names=available_names,
         )
 
-    async def resolve_project_async(
+    @async_method  # type: ignore[arg-type]
+    async def resolve_project(
         self,
         name_or_gid: str,
         workspace_gid: str,
@@ -215,7 +219,8 @@ class NameResolver:
             available_names=available_names,
         )
 
-    async def resolve_assignee_async(
+    @async_method  # type: ignore[arg-type]
+    async def resolve_assignee(
         self,
         name_or_gid: str,
         workspace_gid: str,
@@ -271,95 +276,6 @@ class NameResolver:
             suggestions=suggestions,
             available_names=available,
         )
-
-    # Sync wrappers
-    def resolve_tag(
-        self,
-        name_or_gid: str,
-        project_gid: str | None = None,
-    ) -> str:
-        """Resolve tag (sync wrapper).
-
-        Args:
-            name_or_gid: Tag name or GID
-            project_gid: Unused (for API consistency)
-
-        Returns:
-            Tag GID
-        """
-        return self._resolve_tag_sync(name_or_gid, project_gid)
-
-    @sync_wrapper("resolve_tag_async")
-    async def _resolve_tag_sync(
-        self,
-        name_or_gid: str,
-        project_gid: str | None = None,
-    ) -> str:
-        """Implementation for sync resolve_tag."""
-        return await self.resolve_tag_async(name_or_gid, project_gid)
-
-    def resolve_section(self, name_or_gid: str, project_gid: str) -> str:
-        """Resolve section (sync wrapper).
-
-        Args:
-            name_or_gid: Section name or GID
-            project_gid: Project context
-
-        Returns:
-            Section GID
-        """
-        return self._resolve_section_sync(name_or_gid, project_gid)
-
-    @sync_wrapper("resolve_section_async")
-    async def _resolve_section_sync(
-        self,
-        name_or_gid: str,
-        project_gid: str,
-    ) -> str:
-        """Implementation for sync resolve_section."""
-        return await self.resolve_section_async(name_or_gid, project_gid)
-
-    def resolve_project(self, name_or_gid: str, workspace_gid: str) -> str:
-        """Resolve project (sync wrapper).
-
-        Args:
-            name_or_gid: Project name or GID
-            workspace_gid: Workspace context
-
-        Returns:
-            Project GID
-        """
-        return self._resolve_project_sync(name_or_gid, workspace_gid)
-
-    @sync_wrapper("resolve_project_async")
-    async def _resolve_project_sync(
-        self,
-        name_or_gid: str,
-        workspace_gid: str,
-    ) -> str:
-        """Implementation for sync resolve_project."""
-        return await self.resolve_project_async(name_or_gid, workspace_gid)
-
-    def resolve_assignee(self, name_or_gid: str, workspace_gid: str) -> str:
-        """Resolve assignee (sync wrapper).
-
-        Args:
-            name_or_gid: User name, email, or GID
-            workspace_gid: Workspace context
-
-        Returns:
-            User GID
-        """
-        return self._resolve_assignee_sync(name_or_gid, workspace_gid)
-
-    @sync_wrapper("resolve_assignee_async")
-    async def _resolve_assignee_sync(
-        self,
-        name_or_gid: str,
-        workspace_gid: str,
-    ) -> str:
-        """Implementation for sync resolve_assignee."""
-        return await self.resolve_assignee_async(name_or_gid, workspace_gid)
 
     @staticmethod
     def _looks_like_gid(value: str) -> bool:
