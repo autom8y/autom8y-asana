@@ -1,6 +1,7 @@
 """Goals client - returns typed Goal models by default.
 
 Per TDD-0004: GoalsClient provides goal CRUD, subgoals, and supporting work for Tier 2.
+Per TDD-DESIGN-PATTERNS-D: Uses @async_method for async/sync method generation.
 Per ADR-0059: Subgoal, supporting work, and follower operations delegated to extracted classes.
 Use raw=True for backward-compatible dict returns.
 """
@@ -12,7 +13,8 @@ from typing import TYPE_CHECKING, Any, Literal, overload
 from autom8_asana.clients.base import BaseClient
 from autom8_asana.models import PageIterator
 from autom8_asana.models.goal import Goal
-from autom8_asana.transport.sync import sync_wrapper
+from autom8_asana.observability import error_handler
+from autom8_asana.patterns import async_method
 
 if TYPE_CHECKING:
     from autom8_asana.clients.goal_followers import GoalFollowers
@@ -66,7 +68,7 @@ class GoalsClient(BaseClient):
 
     # --- Core CRUD Operations ---
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def get_async(
         self,
         goal_gid: str,
@@ -87,30 +89,6 @@ class GoalsClient(BaseClient):
     ) -> dict[str, Any]:
         """Overload: get, returning raw dict."""
         ...
-
-    async def get_async(
-        self,
-        goal_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> Goal | dict[str, Any]:
-        """Get a goal by GID.
-
-        Args:
-            goal_gid: Goal GID
-            raw: If True, return raw dict instead of Goal model
-            opt_fields: Optional fields to include
-
-        Returns:
-            Goal model by default, or dict if raw=True
-        """
-        self._log_operation("get_async", goal_gid)
-        params = self._build_opt_fields(opt_fields)
-        data = await self._http.get(f"/goals/{goal_gid}", params=params)
-        if raw:
-            return data
-        return Goal.model_validate(data)
 
     @overload
     def get(
@@ -134,14 +112,16 @@ class GoalsClient(BaseClient):
         """Overload: get (sync), returning raw dict."""
         ...
 
-    def get(
+    @async_method  # type: ignore[arg-type, operator, misc]
+    @error_handler
+    async def get(
         self,
         goal_gid: str,
         *,
         raw: bool = False,
         opt_fields: list[str] | None = None,
     ) -> Goal | dict[str, Any]:
-        """Get a goal by GID (sync).
+        """Get a goal by GID.
 
         Args:
             goal_gid: Goal GID
@@ -151,22 +131,14 @@ class GoalsClient(BaseClient):
         Returns:
             Goal model by default, or dict if raw=True
         """
-        return self._get_sync(goal_gid, raw=raw, opt_fields=opt_fields)
-
-    @sync_wrapper("get_async")
-    async def _get_sync(
-        self,
-        goal_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> Goal | dict[str, Any]:
-        """Internal sync wrapper implementation."""
+        self._log_operation("get_async", goal_gid)
+        params = self._build_opt_fields(opt_fields)
+        data = await self._http.get(f"/goals/{goal_gid}", params=params)
         if raw:
-            return await self.get_async(goal_gid, raw=True, opt_fields=opt_fields)
-        return await self.get_async(goal_gid, raw=False, opt_fields=opt_fields)
+            return data
+        return Goal.model_validate(data)
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def create_async(
         self,
         *,
@@ -202,7 +174,45 @@ class GoalsClient(BaseClient):
         """Overload: create, returning raw dict."""
         ...
 
-    async def create_async(
+    @overload
+    def create(
+        self,
+        *,
+        workspace: str,
+        name: str,
+        raw: Literal[False] = ...,
+        due_on: str | None = ...,
+        start_on: str | None = ...,
+        owner: str | None = ...,
+        team: str | None = ...,
+        time_period: str | None = ...,
+        notes: str | None = ...,
+        **kwargs: Any,
+    ) -> Goal:
+        """Overload: create (sync), returning Goal model."""
+        ...
+
+    @overload
+    def create(
+        self,
+        *,
+        workspace: str,
+        name: str,
+        raw: Literal[True],
+        due_on: str | None = ...,
+        start_on: str | None = ...,
+        owner: str | None = ...,
+        team: str | None = ...,
+        time_period: str | None = ...,
+        notes: str | None = ...,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Overload: create (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
+    @error_handler
+    async def create(
         self,
         *,
         workspace: str,
@@ -257,129 +267,7 @@ class GoalsClient(BaseClient):
             return result
         return Goal.model_validate(result)
 
-    @overload
-    def create(
-        self,
-        *,
-        workspace: str,
-        name: str,
-        raw: Literal[False] = ...,
-        due_on: str | None = ...,
-        start_on: str | None = ...,
-        owner: str | None = ...,
-        team: str | None = ...,
-        time_period: str | None = ...,
-        notes: str | None = ...,
-        **kwargs: Any,
-    ) -> Goal:
-        """Overload: create (sync), returning Goal model."""
-        ...
-
-    @overload
-    def create(
-        self,
-        *,
-        workspace: str,
-        name: str,
-        raw: Literal[True],
-        due_on: str | None = ...,
-        start_on: str | None = ...,
-        owner: str | None = ...,
-        team: str | None = ...,
-        time_period: str | None = ...,
-        notes: str | None = ...,
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        """Overload: create (sync), returning raw dict."""
-        ...
-
-    def create(
-        self,
-        *,
-        workspace: str,
-        name: str,
-        raw: bool = False,
-        due_on: str | None = None,
-        start_on: str | None = None,
-        owner: str | None = None,
-        team: str | None = None,
-        time_period: str | None = None,
-        notes: str | None = None,
-        **kwargs: Any,
-    ) -> Goal | dict[str, Any]:
-        """Create a goal (sync).
-
-        Args:
-            workspace: Workspace GID
-            name: Goal name
-            raw: If True, return raw dict
-            due_on: Due date (YYYY-MM-DD)
-            start_on: Start date (YYYY-MM-DD)
-            owner: Owner user GID
-            team: Team GID (for team goals)
-            time_period: Time period GID
-            notes: Goal description
-            **kwargs: Additional goal fields
-
-        Returns:
-            Goal model by default, or dict if raw=True
-        """
-        return self._create_sync(
-            workspace=workspace,
-            name=name,
-            raw=raw,
-            due_on=due_on,
-            start_on=start_on,
-            owner=owner,
-            team=team,
-            time_period=time_period,
-            notes=notes,
-            **kwargs,
-        )
-
-    @sync_wrapper("create_async")
-    async def _create_sync(
-        self,
-        *,
-        workspace: str,
-        name: str,
-        raw: bool = False,
-        due_on: str | None = None,
-        start_on: str | None = None,
-        owner: str | None = None,
-        team: str | None = None,
-        time_period: str | None = None,
-        notes: str | None = None,
-        **kwargs: Any,
-    ) -> Goal | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.create_async(
-                workspace=workspace,
-                name=name,
-                raw=True,
-                due_on=due_on,
-                start_on=start_on,
-                owner=owner,
-                team=team,
-                time_period=time_period,
-                notes=notes,
-                **kwargs,
-            )
-        return await self.create_async(
-            workspace=workspace,
-            name=name,
-            raw=False,
-            due_on=due_on,
-            start_on=start_on,
-            owner=owner,
-            team=team,
-            time_period=time_period,
-            notes=notes,
-            **kwargs,
-        )
-
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def update_async(
         self,
         goal_gid: str,
@@ -400,29 +288,6 @@ class GoalsClient(BaseClient):
     ) -> dict[str, Any]:
         """Overload: update, returning raw dict."""
         ...
-
-    async def update_async(
-        self,
-        goal_gid: str,
-        *,
-        raw: bool = False,
-        **kwargs: Any,
-    ) -> Goal | dict[str, Any]:
-        """Update a goal.
-
-        Args:
-            goal_gid: Goal GID
-            raw: If True, return raw dict instead of Goal model
-            **kwargs: Fields to update
-
-        Returns:
-            Goal model by default, or dict if raw=True
-        """
-        self._log_operation("update_async", goal_gid)
-        result = await self._http.put(f"/goals/{goal_gid}", json={"data": kwargs})
-        if raw:
-            return result
-        return Goal.model_validate(result)
 
     @overload
     def update(
@@ -446,14 +311,16 @@ class GoalsClient(BaseClient):
         """Overload: update (sync), returning raw dict."""
         ...
 
-    def update(
+    @async_method  # type: ignore[arg-type, operator, misc]
+    @error_handler
+    async def update(
         self,
         goal_gid: str,
         *,
         raw: bool = False,
         **kwargs: Any,
     ) -> Goal | dict[str, Any]:
-        """Update a goal (sync).
+        """Update a goal.
 
         Args:
             goal_gid: Goal GID
@@ -463,22 +330,15 @@ class GoalsClient(BaseClient):
         Returns:
             Goal model by default, or dict if raw=True
         """
-        return self._update_sync(goal_gid, raw=raw, **kwargs)
-
-    @sync_wrapper("update_async")
-    async def _update_sync(
-        self,
-        goal_gid: str,
-        *,
-        raw: bool = False,
-        **kwargs: Any,
-    ) -> Goal | dict[str, Any]:
-        """Internal sync wrapper implementation."""
+        self._log_operation("update_async", goal_gid)
+        result = await self._http.put(f"/goals/{goal_gid}", json={"data": kwargs})
         if raw:
-            return await self.update_async(goal_gid, raw=True, **kwargs)
-        return await self.update_async(goal_gid, raw=False, **kwargs)
+            return result
+        return Goal.model_validate(result)
 
-    async def delete_async(self, goal_gid: str) -> None:
+    @async_method  # type: ignore[arg-type]
+    @error_handler
+    async def delete(self, goal_gid: str) -> None:
         """Delete a goal.
 
         Args:
@@ -486,19 +346,6 @@ class GoalsClient(BaseClient):
         """
         self._log_operation("delete_async", goal_gid)
         await self._http.delete(f"/goals/{goal_gid}")
-
-    @sync_wrapper("delete_async")
-    async def _delete_sync(self, goal_gid: str) -> None:
-        """Internal sync wrapper implementation."""
-        await self.delete_async(goal_gid)
-
-    def delete(self, goal_gid: str) -> None:
-        """Delete a goal (sync).
-
-        Args:
-            goal_gid: Goal GID
-        """
-        self._delete_sync(goal_gid)
 
     # --- List Operations ---
 

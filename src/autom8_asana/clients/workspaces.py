@@ -1,6 +1,7 @@
 """Workspaces client - returns typed Workspace models by default.
 
 Per TDD-0003: WorkspacesClient provides get and list operations.
+Per TDD-DESIGN-PATTERNS-D: Uses @async_method for async/sync method generation.
 Use raw=True for backward-compatible dict returns.
 """
 
@@ -11,7 +12,8 @@ from typing import Any, Literal, overload
 from autom8_asana.clients.base import BaseClient
 from autom8_asana.models import PageIterator
 from autom8_asana.models.workspace import Workspace
-from autom8_asana.transport.sync import sync_wrapper
+from autom8_asana.observability import error_handler
+from autom8_asana.patterns import async_method
 
 
 class WorkspacesClient(BaseClient):
@@ -20,7 +22,7 @@ class WorkspacesClient(BaseClient):
     Returns typed Workspace models by default. Use raw=True for dict returns.
     """
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def get_async(
         self,
         workspace_gid: str,
@@ -41,30 +43,6 @@ class WorkspacesClient(BaseClient):
     ) -> dict[str, Any]:
         """Overload: get, returning raw dict."""
         ...
-
-    async def get_async(
-        self,
-        workspace_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> Workspace | dict[str, Any]:
-        """Get a workspace by GID.
-
-        Args:
-            workspace_gid: Workspace GID
-            raw: If True, return raw dict instead of Workspace model
-            opt_fields: Optional fields to include
-
-        Returns:
-            Workspace model by default, or dict if raw=True
-        """
-        self._log_operation("get_async", workspace_gid)
-        params = self._build_opt_fields(opt_fields)
-        data = await self._http.get(f"/workspaces/{workspace_gid}", params=params)
-        if raw:
-            return data
-        return Workspace.model_validate(data)
 
     @overload
     def get(
@@ -88,14 +66,16 @@ class WorkspacesClient(BaseClient):
         """Overload: get (sync), returning raw dict."""
         ...
 
-    def get(
+    @async_method  # type: ignore[arg-type, operator, misc]
+    @error_handler
+    async def get(
         self,
         workspace_gid: str,
         *,
         raw: bool = False,
         opt_fields: list[str] | None = None,
     ) -> Workspace | dict[str, Any]:
-        """Get a workspace by GID (sync).
+        """Get a workspace by GID.
 
         Args:
             workspace_gid: Workspace GID
@@ -105,20 +85,12 @@ class WorkspacesClient(BaseClient):
         Returns:
             Workspace model by default, or dict if raw=True
         """
-        return self._get_sync(workspace_gid, raw=raw, opt_fields=opt_fields)
-
-    @sync_wrapper("get_async")
-    async def _get_sync(
-        self,
-        workspace_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> Workspace | dict[str, Any]:
-        """Internal sync wrapper implementation."""
+        self._log_operation("get_async", workspace_gid)
+        params = self._build_opt_fields(opt_fields)
+        data = await self._http.get(f"/workspaces/{workspace_gid}", params=params)
         if raw:
-            return await self.get_async(workspace_gid, raw=True, opt_fields=opt_fields)
-        return await self.get_async(workspace_gid, raw=False, opt_fields=opt_fields)
+            return data
+        return Workspace.model_validate(data)
 
     def list_async(
         self,

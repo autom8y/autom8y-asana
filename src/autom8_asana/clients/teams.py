@@ -1,6 +1,7 @@
 """Teams client - returns typed Team models by default.
 
 Per TDD-0004: TeamsClient provides team operations for Tier 2.
+Per TDD-DESIGN-PATTERNS-D: Uses @async_method for async/sync method generation.
 Use raw=True for backward-compatible dict returns.
 """
 
@@ -11,7 +12,8 @@ from typing import Any, Literal, overload
 from autom8_asana.clients.base import BaseClient
 from autom8_asana.models import PageIterator, User
 from autom8_asana.models.team import Team, TeamMembership
-from autom8_asana.transport.sync import sync_wrapper
+from autom8_asana.observability import error_handler
+from autom8_asana.patterns import async_method
 
 
 class TeamsClient(BaseClient):
@@ -23,7 +25,7 @@ class TeamsClient(BaseClient):
 
     # --- Core Operations ---
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def get_async(
         self,
         team_gid: str,
@@ -44,30 +46,6 @@ class TeamsClient(BaseClient):
     ) -> dict[str, Any]:
         """Overload: get, returning raw dict."""
         ...
-
-    async def get_async(
-        self,
-        team_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> Team | dict[str, Any]:
-        """Get a team by GID.
-
-        Args:
-            team_gid: Team GID
-            raw: If True, return raw dict instead of Team model
-            opt_fields: Optional fields to include
-
-        Returns:
-            Team model by default, or dict if raw=True
-        """
-        self._log_operation("get_async", team_gid)
-        params = self._build_opt_fields(opt_fields)
-        data = await self._http.get(f"/teams/{team_gid}", params=params)
-        if raw:
-            return data
-        return Team.model_validate(data)
 
     @overload
     def get(
@@ -91,14 +69,16 @@ class TeamsClient(BaseClient):
         """Overload: get (sync), returning raw dict."""
         ...
 
-    def get(
+    @async_method  # type: ignore[arg-type, operator, misc]
+    @error_handler
+    async def get(
         self,
         team_gid: str,
         *,
         raw: bool = False,
         opt_fields: list[str] | None = None,
     ) -> Team | dict[str, Any]:
-        """Get a team by GID (sync).
+        """Get a team by GID.
 
         Args:
             team_gid: Team GID
@@ -108,20 +88,12 @@ class TeamsClient(BaseClient):
         Returns:
             Team model by default, or dict if raw=True
         """
-        return self._get_sync(team_gid, raw=raw, opt_fields=opt_fields)
-
-    @sync_wrapper("get_async")
-    async def _get_sync(
-        self,
-        team_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> Team | dict[str, Any]:
-        """Internal sync wrapper implementation."""
+        self._log_operation("get_async", team_gid)
+        params = self._build_opt_fields(opt_fields)
+        data = await self._http.get(f"/teams/{team_gid}", params=params)
         if raw:
-            return await self.get_async(team_gid, raw=True, opt_fields=opt_fields)
-        return await self.get_async(team_gid, raw=False, opt_fields=opt_fields)
+            return data
+        return Team.model_validate(data)
 
     # --- List Operations ---
 
@@ -233,7 +205,7 @@ class TeamsClient(BaseClient):
 
     # --- Membership Operations ---
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def add_user_async(
         self,
         team_gid: str,
@@ -255,7 +227,31 @@ class TeamsClient(BaseClient):
         """Overload: add user, returning raw dict."""
         ...
 
-    async def add_user_async(
+    @overload
+    def add_user(
+        self,
+        team_gid: str,
+        *,
+        user: str,
+        raw: Literal[False] = ...,
+    ) -> TeamMembership:
+        """Overload: add user (sync), returning TeamMembership model."""
+        ...
+
+    @overload
+    def add_user(
+        self,
+        team_gid: str,
+        *,
+        user: str,
+        raw: Literal[True],
+    ) -> dict[str, Any]:
+        """Overload: add user (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
+    @error_handler
+    async def add_user(
         self,
         team_gid: str,
         *,
@@ -281,61 +277,9 @@ class TeamsClient(BaseClient):
             return result
         return TeamMembership.model_validate(result)
 
-    @overload
-    def add_user(
-        self,
-        team_gid: str,
-        *,
-        user: str,
-        raw: Literal[False] = ...,
-    ) -> TeamMembership:
-        """Overload: add user (sync), returning TeamMembership model."""
-        ...
-
-    @overload
-    def add_user(
-        self,
-        team_gid: str,
-        *,
-        user: str,
-        raw: Literal[True],
-    ) -> dict[str, Any]:
-        """Overload: add user (sync), returning raw dict."""
-        ...
-
-    def add_user(
-        self,
-        team_gid: str,
-        *,
-        user: str,
-        raw: bool = False,
-    ) -> TeamMembership | dict[str, Any]:
-        """Add a user to a team (sync).
-
-        Args:
-            team_gid: Team GID
-            user: User GID to add
-            raw: If True, return raw dict instead of TeamMembership model
-
-        Returns:
-            TeamMembership result
-        """
-        return self._add_user_sync(team_gid, user=user, raw=raw)
-
-    @sync_wrapper("add_user_async")
-    async def _add_user_sync(
-        self,
-        team_gid: str,
-        *,
-        user: str,
-        raw: bool = False,
-    ) -> TeamMembership | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.add_user_async(team_gid, user=user, raw=True)
-        return await self.add_user_async(team_gid, user=user, raw=False)
-
-    async def remove_user_async(
+    @async_method  # type: ignore[arg-type]
+    @error_handler
+    async def remove_user(
         self,
         team_gid: str,
         *,
@@ -352,27 +296,3 @@ class TeamsClient(BaseClient):
             f"/teams/{team_gid}/removeUser",
             json={"data": {"user": user}},
         )
-
-    @sync_wrapper("remove_user_async")
-    async def _remove_user_sync(
-        self,
-        team_gid: str,
-        *,
-        user: str,
-    ) -> None:
-        """Internal sync wrapper implementation."""
-        await self.remove_user_async(team_gid, user=user)
-
-    def remove_user(
-        self,
-        team_gid: str,
-        *,
-        user: str,
-    ) -> None:
-        """Remove a user from a team (sync).
-
-        Args:
-            team_gid: Team GID
-            user: User GID to remove
-        """
-        self._remove_user_sync(team_gid, user=user)
