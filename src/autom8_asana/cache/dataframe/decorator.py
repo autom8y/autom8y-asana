@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
-from datetime import UTC
+from datetime import UTC, datetime
 from functools import wraps
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -71,14 +71,16 @@ def dataframe_cache(
     def decorator(cls: type[T]) -> type[T]:
         original_resolve = cls.resolve  # type: ignore[attr-defined]
 
-        @wraps(original_resolve)
-        async def cached_resolve(
+        async def _check_bypass(
             self: T,
             criteria: list[Any],
             project_gid: str,
             client: Any,
-        ) -> list[Any]:
-            # Check bypass for testing
+        ) -> list[Any] | None:
+            """Check if caching is bypassed via environment variable.
+
+            Returns resolved result if bypassed, None otherwise.
+            """
             if os.environ.get(bypass_env_var, "").lower() in ("1", "true", "yes"):
                 logger.debug(
                     "dataframe_cache_bypassed",
@@ -91,69 +93,85 @@ def dataframe_cache(
                     self, criteria, project_gid, client
                 )
                 return result
+            return None
 
-            cache = cache_provider()
+        async def _try_cache_hit(
+            self: T,
+            cache: DataFrameCache,
+            criteria: list[Any],
+            project_gid: str,
+            client: Any,
+        ) -> list[Any] | None:
+            """Attempt to resolve from cached DataFrame.
 
-            # If no cache configured, fall back to original behavior
-            if cache is None:
-                logger.debug(
-                    "dataframe_cache_not_configured",
-                    extra={
-                        "entity_type": entity_type,
-                        "project_gid": project_gid,
-                    },
-                )
-                result = await original_resolve(self, criteria, project_gid, client)
-                return result
-
-            # Try to get cached DataFrame
+            Returns resolved result on cache hit, None on miss.
+            """
             entry = await cache.get_async(project_gid, entity_type)
+            if entry is not None:
+                self._cached_dataframe = entry.dataframe  # type: ignore[attr-defined]
+                result: list[Any] = await original_resolve(
+                    self, criteria, project_gid, client
+                )
+                return result
+            return None
+
+        async def _wait_for_build(
+            self: T,
+            cache: DataFrameCache,
+            criteria: list[Any],
+            project_gid: str,
+            client: Any,
+        ) -> list[Any]:
+            """Wait for another request's in-progress build to complete.
+
+            Returns resolved result if build succeeds within timeout.
+            Raises HTTPException(503) on timeout.
+            """
+            entry = await cache.wait_for_build_async(
+                project_gid,
+                entity_type,
+                timeout_seconds=30.0,
+            )
 
             if entry is not None:
-                # Cache hit - inject DataFrame and resolve
                 self._cached_dataframe = entry.dataframe  # type: ignore[attr-defined]
-                result = await original_resolve(self, criteria, project_gid, client)
+                result: list[Any] = await original_resolve(
+                    self, criteria, project_gid, client
+                )
                 return result
 
-            # Cache miss - check if build is in progress
-            acquired = await cache.acquire_build_lock_async(project_gid, entity_type)
+            logger.warning(
+                "dataframe_cache_wait_timeout",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                },
+            )
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "CACHE_BUILD_IN_PROGRESS",
+                    "message": "DataFrame build in progress, retry shortly",
+                    "retry_after_seconds": 5,
+                },
+            )
 
-            if not acquired:
-                # Another request is building - wait for it
-                entry = await cache.wait_for_build_async(
-                    project_gid,
-                    entity_type,
-                    timeout_seconds=30.0,
-                )
+        async def _execute_build_and_cache(
+            self: T,
+            cache: DataFrameCache,
+            criteria: list[Any],
+            project_gid: str,
+            client: Any,
+        ) -> list[Any]:
+            """Build DataFrame, cache it, and resolve.
 
-                if entry is not None:
-                    self._cached_dataframe = entry.dataframe  # type: ignore[attr-defined]
-                    result = await original_resolve(self, criteria, project_gid, client)
-                    return result
-
-                # Timeout or failure
-                logger.warning(
-                    "dataframe_cache_wait_timeout",
-                    extra={
-                        "project_gid": project_gid,
-                        "entity_type": entity_type,
-                    },
-                )
-                raise HTTPException(
-                    status_code=503,
-                    detail={
-                        "error": "CACHE_BUILD_IN_PROGRESS",
-                        "message": "DataFrame build in progress, retry shortly",
-                        "retry_after_seconds": 5,
-                    },
-                )
-
-            # This request should build
+            Handles lock release on both success and failure paths.
+            Raises HTTPException(503) if build method is missing, returns None,
+            or raises an unexpected error.
+            """
             try:
-                # Call the build method
                 build_func = getattr(self, build_method, None)
                 if build_func is None:
-                    # Try entity-specific build method
                     build_func = getattr(self, f"_build_{entity_type}_dataframe", None)
 
                 if build_func is None:
@@ -175,19 +193,14 @@ def dataframe_cache(
                         },
                     )
 
-                # Build returns (dataframe, watermark)
                 import polars as pl
 
                 build_result = await build_func(project_gid, client)
 
-                # Handle both tuple and single return value
                 df: pl.DataFrame | None
                 if isinstance(build_result, tuple) and len(build_result) == 2:
                     df, watermark = build_result
                 else:
-                    # Assume it's just the DataFrame, use current time as watermark
-                    from datetime import datetime
-
                     df = build_result
                     watermark = datetime.now(UTC)
 
@@ -204,25 +217,22 @@ def dataframe_cache(
                         },
                     )
 
-                # Store in cache
                 await cache.put_async(project_gid, entity_type, df, watermark)
 
-                # Release lock with success
                 await cache.release_build_lock_async(
                     project_gid, entity_type, success=True
                 )
 
-                # Resolve with fresh DataFrame
                 self._cached_dataframe = df  # type: ignore[attr-defined]
-                result = await original_resolve(self, criteria, project_gid, client)
+                result: list[Any] = await original_resolve(
+                    self, criteria, project_gid, client
+                )
                 return result
 
             except HTTPException:
-                # Re-raise HTTP exceptions as-is
                 raise
 
             except Exception as e:  # BROAD-CATCH: boundary -- catch-all converts to HTTPException at API boundary
-                # Release lock with failure
                 await cache.release_build_lock_async(
                     project_gid, entity_type, success=False
                 )
@@ -244,6 +254,54 @@ def dataframe_cache(
                         "retry_after_seconds": 30,
                     },
                 )
+
+        @wraps(original_resolve)
+        async def cached_resolve(
+            self: T,
+            criteria: list[Any],
+            project_gid: str,
+            client: Any,
+        ) -> list[Any]:
+            # Check bypass for testing
+            bypass_result = await _check_bypass(self, criteria, project_gid, client)
+            if bypass_result is not None:
+                return bypass_result
+
+            cache = cache_provider()
+
+            # If no cache configured, fall back to original behavior
+            if cache is None:
+                logger.debug(
+                    "dataframe_cache_not_configured",
+                    extra={
+                        "entity_type": entity_type,
+                        "project_gid": project_gid,
+                    },
+                )
+                result: list[Any] = await original_resolve(
+                    self, criteria, project_gid, client
+                )
+                return result
+
+            # Try cache hit
+            hit_result = await _try_cache_hit(
+                self, cache, criteria, project_gid, client
+            )
+            if hit_result is not None:
+                return hit_result
+
+            # Cache miss - check if build is in progress
+            acquired = await cache.acquire_build_lock_async(project_gid, entity_type)
+
+            if not acquired:
+                return await _wait_for_build(
+                    self, cache, criteria, project_gid, client
+                )
+
+            # This request should build
+            return await _execute_build_and_cache(
+                self, cache, criteria, project_gid, client
+            )
 
         cls.resolve = cached_resolve  # type: ignore[attr-defined]
         return cls
