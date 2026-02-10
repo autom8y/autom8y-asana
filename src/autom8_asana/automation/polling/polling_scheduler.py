@@ -348,35 +348,7 @@ class PollingScheduler:
 
             # Schedule-driven workflow dispatch (TDD-CONV-AUDIT-001)
             if rule.schedule is not None and rule.action.type == "workflow":
-                if self._should_run_schedule(rule.schedule):
-                    workflow_id = rule.action.params.get("workflow_id")
-                    if workflow_id and self._workflow_registry:
-                        workflow = self._workflow_registry.get(workflow_id)
-                        if workflow:
-                            asyncio.run(
-                                self._execute_workflow_async(
-                                    workflow, rule, structured_log
-                                )
-                            )
-                        else:
-                            structured_log.error(
-                                "workflow_not_found",
-                                rule_id=rule.rule_id,
-                                workflow_id=workflow_id,
-                                available=self._workflow_registry.list_ids(),
-                            )
-                    elif not self._workflow_registry:
-                        structured_log.error(
-                            "workflow_registry_not_configured",
-                            rule_id=rule.rule_id,
-                        )
-                else:
-                    structured_log.debug(
-                        "schedule_not_due",
-                        rule_id=rule.rule_id,
-                        frequency=rule.schedule.frequency,
-                        day_of_week=rule.schedule.day_of_week,
-                    )
+                self._dispatch_scheduled_workflow(rule, structured_log)
                 continue  # Skip condition evaluation for schedule-driven rules
 
             structured_log.debug(
@@ -433,6 +405,50 @@ class PollingScheduler:
             total_duration_ms=cycle_duration_ms,
             timestamp_utc=utc_end.isoformat(),
         )
+
+    def _dispatch_scheduled_workflow(
+        self, rule: Any, structured_log: Any
+    ) -> None:
+        """Dispatch a schedule-driven workflow rule.
+
+        Checks if the schedule is due, looks up the workflow in the registry,
+        and executes it. Logs errors for missing workflows or unconfigured
+        registries, and debug messages for schedules not yet due.
+
+        Args:
+            rule: The automation rule with schedule and workflow action.
+            structured_log: Logger instance for structured logging.
+        """
+        if not self._should_run_schedule(rule.schedule):
+            structured_log.debug(
+                "schedule_not_due",
+                rule_id=rule.rule_id,
+                frequency=rule.schedule.frequency,
+                day_of_week=rule.schedule.day_of_week,
+            )
+            return
+
+        workflow_id = rule.action.params.get("workflow_id")
+        if workflow_id and self._workflow_registry:
+            workflow = self._workflow_registry.get(workflow_id)
+            if workflow:
+                asyncio.run(
+                    self._execute_workflow_async(
+                        workflow, rule, structured_log
+                    )
+                )
+            else:
+                structured_log.error(
+                    "workflow_not_found",
+                    rule_id=rule.rule_id,
+                    workflow_id=workflow_id,
+                    available=self._workflow_registry.list_ids(),
+                )
+        elif not self._workflow_registry:
+            structured_log.error(
+                "workflow_registry_not_configured",
+                rule_id=rule.rule_id,
+            )
 
     async def _execute_actions_async(
         self,
