@@ -286,6 +286,32 @@ class DataServiceClient:
             SyncInAsyncContextError: If called from async context.
                 Use `async with` instead.
         """
+        self._run_sync(self.close(), method_name="__exit__", async_name="__aexit__")
+
+    def _run_sync(
+        self,
+        coro: Any,
+        *,
+        method_name: str,
+        async_name: str,
+    ) -> Any:
+        """Execute an async coroutine from a synchronous context.
+
+        Checks for a running event loop and raises SyncInAsyncContextError
+        if one exists (fail-fast per ADR-0002), otherwise executes the
+        coroutine via asyncio.run().
+
+        Args:
+            coro: The coroutine to execute.
+            method_name: Name of the sync method (for error messages).
+            async_name: Name of the async alternative (for error messages).
+
+        Returns:
+            The result of the coroutine.
+
+        Raises:
+            SyncInAsyncContextError: If called from an async context.
+        """
         running_loop: asyncio.AbstractEventLoop | None = None
         try:
             running_loop = asyncio.get_running_loop()
@@ -294,14 +320,12 @@ class DataServiceClient:
             pass
 
         if running_loop is not None:
-            # If there's a running loop, we can't use asyncio.run()
-            # Fail fast per ADR-0002 - don't silently leak resources
             raise SyncInAsyncContextError(
-                method_name="__exit__",
-                async_method_name="__aexit__",
+                method_name=method_name,
+                async_method_name=async_name,
             )
 
-        asyncio.run(self.close())
+        return asyncio.run(coro)
 
     # --- Resource Management ---
 
@@ -909,22 +933,7 @@ class DataServiceClient:
             ...     )
             ...     df = response.to_dataframe()
         """
-        # Check for running event loop (fail-fast per ADR-0002)
-        running_loop: asyncio.AbstractEventLoop | None = None
-        try:
-            running_loop = asyncio.get_running_loop()
-        except RuntimeError:
-            # No running loop - safe to use asyncio.run()
-            pass
-
-        if running_loop is not None:
-            raise SyncInAsyncContextError(
-                method_name="get_insights",
-                async_method_name="get_insights_async",
-            )
-
-        # Run the async method synchronously
-        return asyncio.run(
+        return self._run_sync(
             self.get_insights_async(
                 factory=factory,
                 office_phone=office_phone,
@@ -938,7 +947,9 @@ class DataServiceClient:
                 break_down=break_down,
                 refresh=refresh,
                 filters=filters,
-            )
+            ),
+            method_name="get_insights",
+            async_name="get_insights_async",
         )
 
     async def get_insights_batch_async(
@@ -1206,7 +1217,7 @@ class DataServiceClient:
         period = self._normalize_period(request.insights_period)
 
         # Transform request body to autom8_data format
-        request_body = {
+        request_body: dict[str, Any] = {
             "frame_type": frame_type,
             "phone_vertical_pairs": [
                 {
