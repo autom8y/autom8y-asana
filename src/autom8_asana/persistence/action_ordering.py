@@ -13,8 +13,9 @@ No graph logic changes are required.
 from __future__ import annotations
 
 from collections import defaultdict, deque
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from autom8_asana.persistence.models import ActionOperation, ActionType
 
@@ -127,9 +128,7 @@ def resolve_order(
     # Kahn's algorithm with tier tracking
     tiers: list[list[ActionOperation]] = []
     # Start with all actions that have no predecessors
-    current_tier_ids = deque(
-        aid for aid, deg in in_degree.items() if deg == 0
-    )
+    current_tier_ids = deque(aid for aid, deg in in_degree.items() if deg == 0)
 
     placed = 0
 

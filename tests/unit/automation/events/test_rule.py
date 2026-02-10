@@ -146,9 +146,7 @@ class TestExecuteAsync:
         """SC-004: Emission failures do not propagate."""
 
         class FailTransport:
-            async def publish(
-                self, envelope: EventEnvelope, destination: str
-            ) -> None:
+            async def publish(self, envelope: EventEnvelope, destination: str) -> None:
                 raise ConnectionError("down")
 
         config = EventRoutingConfig(

@@ -205,13 +205,9 @@ class ConcurrencyConfig:
         if self.aimd_floor < 1:
             raise ConfigurationError("aimd_floor must be >= 1")
         if self.aimd_floor > self.read_limit or self.aimd_floor > self.write_limit:
-            raise ConfigurationError(
-                "aimd_floor must be <= read_limit and write_limit"
-            )
+            raise ConfigurationError("aimd_floor must be <= read_limit and write_limit")
         if not 0.0 < self.aimd_multiplicative_decrease < 1.0:
-            raise ConfigurationError(
-                "aimd_multiplicative_decrease must be in (0, 1)"
-            )
+            raise ConfigurationError("aimd_multiplicative_decrease must be in (0, 1)")
 
 
 @dataclass(frozen=True)

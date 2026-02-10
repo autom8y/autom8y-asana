@@ -17,7 +17,6 @@ from autom8_asana.persistence.action_ordering import (
 )
 from autom8_asana.persistence.models import ActionOperation, ActionType
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -85,8 +84,7 @@ class TestResolveOrderNoConstraints:
     def test_no_constraints_single_tier(self) -> None:
         """5 independent tag actions -> single tier with all 5."""
         actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}")
-            for i in range(5)
+            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(5)
         ]
         tiers = resolve_order(actions)
 
@@ -149,8 +147,7 @@ class TestResolveOrderMixed:
     def test_mixed_independent_and_dependent(self) -> None:
         """EC-008: 15 tags + ADD_TO_PROJECT in tier 0, MOVE_TO_SECTION in tier 1."""
         tag_actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}")
-            for i in range(15)
+            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(15)
         ]
         add_proj = _make_action("task_x", ActionType.ADD_TO_PROJECT, "proj_1")
         move_sect = _make_action("task_x", ActionType.MOVE_TO_SECTION, "section_1")

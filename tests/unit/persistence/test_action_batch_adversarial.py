@@ -31,7 +31,6 @@ from autom8_asana.persistence.models import (
     ActionType,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -164,15 +163,12 @@ class TestBatchResultCountMismatch:
 
         mock_batch = AsyncMock()
         # Return 1 result for 4 requests
-        mock_batch.execute_async = AsyncMock(
-            return_value=[_make_batch_result(True)]
-        )
+        mock_batch.execute_async = AsyncMock(return_value=[_make_batch_result(True)])
 
         executor = ActionExecutor(mock_http, mock_batch)
         task = Task(gid="task_1", name="Test")
         actions = [
-            _make_action("task_1", ActionType.ADD_TAG, f"tag_{i}")
-            for i in range(4)
+            _make_action("task_1", ActionType.ADD_TAG, f"tag_{i}") for i in range(4)
         ]
 
         results = await executor.execute_async(actions, {})
@@ -198,8 +194,7 @@ class TestBatchResultCountMismatch:
         executor = ActionExecutor(mock_http, mock_batch)
         task = Task(gid="task_1", name="Test")
         actions = [
-            _make_action("task_1", ActionType.ADD_TAG, f"tag_{i}")
-            for i in range(2)
+            _make_action("task_1", ActionType.ADD_TAG, f"tag_{i}") for i in range(2)
         ]
 
         results = await executor.execute_async(actions, {})
@@ -221,8 +216,7 @@ class TestBatchResultCountMismatch:
 
         executor = ActionExecutor(mock_http, mock_batch)
         actions = [
-            _make_action("task_1", ActionType.ADD_TAG, f"tag_{i}")
-            for i in range(3)
+            _make_action("task_1", ActionType.ADD_TAG, f"tag_{i}") for i in range(3)
         ]
 
         results = await executor.execute_async(actions, {})
@@ -252,7 +246,9 @@ class TestResolveOrderMatchFnEdgeCases:
         assert len(tiers) == 1
         assert len(tiers[0]) == 2
 
-    def test_multiple_add_project_one_move_section_only_constrains_matching(self) -> None:
+    def test_multiple_add_project_one_move_section_only_constrains_matching(
+        self,
+    ) -> None:
         """ADD_TO_PROJECT for tasks A,B,C + MOVE_TO_SECTION for task B only.
 
         Only task B's pair should be constrained.
@@ -372,8 +368,7 @@ class TestIdTrickObjectReuse:
     def test_id_trick_with_ordering_constraint_100_actions(self) -> None:
         """100 actions with ordering constraints should work correctly."""
         tag_actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}")
-            for i in range(98)
+            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(98)
         ]
         add_proj = _make_action("task_x", ActionType.ADD_TO_PROJECT, "proj_1")
         move_sect = _make_action("task_x", ActionType.MOVE_TO_SECTION, "sect_1")
@@ -383,7 +378,7 @@ class TestIdTrickObjectReuse:
 
         assert len(tiers) == 2
         assert len(tiers[0]) == 99  # 98 tags + add_project
-        assert len(tiers[1]) == 1   # move_to_section
+        assert len(tiers[1]) == 1  # move_to_section
 
 
 # ---------------------------------------------------------------------------
@@ -439,8 +434,7 @@ class TestLargeActionLists:
         mock_batch = AsyncMock()
         # 10 chunks of 10
         mock_batch.execute_async.side_effect = [
-            [_make_batch_result(True, f"r{j}") for j in range(10)]
-            for _ in range(10)
+            [_make_batch_result(True, f"r{j}") for j in range(10)] for _ in range(10)
         ]
 
         executor = ActionExecutor(mock_http, mock_batch)
@@ -485,8 +479,7 @@ class TestMetricsLogging:
 
         executor = ActionExecutor(mock_http, mock_batch)
         actions = [
-            _make_action("task_1", ActionType.ADD_TAG, f"tag_{i}")
-            for i in range(3)
+            _make_action("task_1", ActionType.ADD_TAG, f"tag_{i}") for i in range(3)
         ]
 
         await executor.execute_async(actions, {})
@@ -529,8 +522,7 @@ class TestMetricsLogging:
 
         executor = ActionExecutor(mock_http, mock_batch)
         actions = [
-            _make_action("task_1", ActionType.ADD_TAG, f"tag_{i}")
-            for i in range(2)
+            _make_action("task_1", ActionType.ADD_TAG, f"tag_{i}") for i in range(2)
         ]
 
         # Should not raise even with no logger
@@ -798,8 +790,7 @@ class TestDoubleFailure:
 
         executor = ActionExecutor(mock_http, mock_batch)
         actions = [
-            _make_action("task_1", ActionType.ADD_TAG, f"tag_{i}")
-            for i in range(3)
+            _make_action("task_1", ActionType.ADD_TAG, f"tag_{i}") for i in range(3)
         ]
 
         results = await executor.execute_async(actions, {})
@@ -821,8 +812,7 @@ class TestChunkBoundaryCorrectness:
     def test_chunk_size_1(self) -> None:
         """Chunk size 1: each action in its own chunk."""
         actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}")
-            for i in range(3)
+            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(3)
         ]
         chunks = _chunk_actions(actions, 1)
         assert len(chunks) == 3
@@ -831,8 +821,7 @@ class TestChunkBoundaryCorrectness:
     def test_chunk_size_equals_list_length(self) -> None:
         """Chunk size equals list length: single chunk."""
         actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}")
-            for i in range(7)
+            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(7)
         ]
         chunks = _chunk_actions(actions, 7)
         assert len(chunks) == 1
@@ -841,8 +830,7 @@ class TestChunkBoundaryCorrectness:
     def test_chunk_11_into_10(self) -> None:
         """11 actions into chunks of 10: [10, 1]."""
         actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}")
-            for i in range(11)
+            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(11)
         ]
         chunks = _chunk_actions(actions, 10)
         assert len(chunks) == 2
@@ -852,8 +840,7 @@ class TestChunkBoundaryCorrectness:
     def test_chunk_20_into_10(self) -> None:
         """20 actions into chunks of 10: [10, 10]."""
         actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}")
-            for i in range(20)
+            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(20)
         ]
         chunks = _chunk_actions(actions, 10)
         assert len(chunks) == 2

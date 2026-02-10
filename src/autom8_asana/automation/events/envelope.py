@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from autom8_asana.automation.events.types import EventType
@@ -87,7 +87,7 @@ class EventEnvelope:
             event_type=event_type,
             entity_type=entity_type,
             entity_gid=entity_gid,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             source=source,
             correlation_id=correlation_id or str(uuid.uuid4()),
             causation_id=causation_id,

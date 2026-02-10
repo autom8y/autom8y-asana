@@ -241,7 +241,9 @@ class TestRuleRegistrationEndToEnd:
 
                     @property
                     def trigger(self) -> TriggerCondition:
-                        return TriggerCondition(entity_type="Task", event=EventType.UPDATED)
+                        return TriggerCondition(
+                            entity_type="Task", event=EventType.UPDATED
+                        )
 
                     def should_trigger(
                         self, entity: Any, event: str, context: dict[str, Any]

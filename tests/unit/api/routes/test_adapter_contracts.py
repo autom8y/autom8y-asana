@@ -27,7 +27,6 @@ from autom8_asana.api.models import (
     build_success_response,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -52,8 +51,15 @@ def _make_task_data(
         "completed": completed,
         "notes": "Some notes",
         "assignee": assignee or {"gid": "user_111", "name": "Alice"},
-        "custom_fields": custom_fields if custom_fields is not None else [
-            {"gid": "cf_1", "name": "Priority", "type": "enum", "enum_value": {"name": "High"}},
+        "custom_fields": custom_fields
+        if custom_fields is not None
+        else [
+            {
+                "gid": "cf_1",
+                "name": "Priority",
+                "type": "enum",
+                "enum_value": {"name": "High"},
+            },
             {"gid": "cf_2", "name": "Estimate", "type": "number", "number_value": 5},
         ],
         "due_on": due_on,
@@ -239,7 +245,14 @@ class TestTaskResponseContract:
         response = task_client.get("/api/v1/tasks/1234567890")
         data = response.json()["data"]
 
-        required_fields = {"gid", "name", "completed", "assignee", "custom_fields", "due_on"}
+        required_fields = {
+            "gid",
+            "name",
+            "completed",
+            "assignee",
+            "custom_fields",
+            "due_on",
+        }
         missing = required_fields - set(data.keys())
         assert not missing, f"Task data missing required fields: {missing}"
 

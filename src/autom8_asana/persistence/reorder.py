@@ -81,8 +81,12 @@ def _compute_lis_indices(position_sequence: list[int]) -> set[int]:
         return set()
 
     tails: list[int] = []  # tails[i] = smallest ending value of IS of length i+1
-    tail_indices: list[int] = []  # tail_indices[i] = index in position_sequence of tails[i]
-    predecessors: list[int] = [-1] * n  # predecessors[i] = index of element before i in the LIS
+    tail_indices: list[
+        int
+    ] = []  # tail_indices[i] = index in position_sequence of tails[i]
+    predecessors: list[int] = [
+        -1
+    ] * n  # predecessors[i] = index of element before i in the LIS
 
     for i, val in enumerate(position_sequence):
         pos = bisect_left(tails, val)
@@ -142,18 +146,14 @@ def compute_reorder_plan(
     desired_position: dict[str, int] = {}
     for idx, item in enumerate(desired_order):
         if item.gid in desired_position:
-            raise ValueError(
-                f"Duplicate gid in desired_order: {item.gid}"
-            )
+            raise ValueError(f"Duplicate gid in desired_order: {item.gid}")
         desired_position[item.gid] = idx
 
     # Validate: same gids in both lists, no duplicates in current_order
     current_gids: set[str] = set()
     for item in current_order:
         if item.gid in current_gids:
-            raise ValueError(
-                f"Duplicate gid in current_order: {item.gid}"
-            )
+            raise ValueError(f"Duplicate gid in current_order: {item.gid}")
         current_gids.add(item.gid)
 
     desired_gids = set(desired_position.keys())

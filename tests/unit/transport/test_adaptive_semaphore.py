@@ -21,7 +21,6 @@ from autom8_asana.transport.adaptive_semaphore import (
     Slot,
 )
 
-
 # ---------------------------------------------------------------------------
 # Test helpers
 # ---------------------------------------------------------------------------
@@ -154,7 +153,8 @@ class TestAcquireAndReject:
 
         # Should have called warning for aimd_at_minimum
         warning_calls = [
-            c for c in mock_logger.warning.call_args_list
+            c
+            for c in mock_logger.warning.call_args_list
             if c[0][0] == "aimd_at_minimum"
         ]
         assert len(warning_calls) == 1
@@ -550,7 +550,8 @@ class TestCooldownStub:
                 slot.reject()
 
         cooldown_calls = [
-            c for c in mock_logger.warning.call_args_list
+            c
+            for c in mock_logger.warning.call_args_list
             if c[0][0] == "aimd_cooldown_threshold_reached"
         ]
         assert len(cooldown_calls) >= 1
@@ -576,8 +577,7 @@ class TestStructuredLogging:
 
         # Find the aimd_decrease call
         decrease_calls = [
-            c for c in mock_logger.info.call_args_list
-            if c[0][0] == "aimd_decrease"
+            c for c in mock_logger.info.call_args_list if c[0][0] == "aimd_decrease"
         ]
         assert len(decrease_calls) == 1
         extra = decrease_calls[0].kwargs["extra"]
@@ -610,8 +610,7 @@ class TestStructuredLogging:
             slot.succeed()
 
         increase_calls = [
-            c for c in mock_logger.debug.call_args_list
-            if c[0][0] == "aimd_increase"
+            c for c in mock_logger.debug.call_args_list if c[0][0] == "aimd_increase"
         ]
         assert len(increase_calls) == 1
         extra = increase_calls[0].kwargs["extra"]
@@ -771,7 +770,7 @@ class TestFixedSemaphoreAdapter:
 
         async with await adapter.acquire() as slot:
             assert isinstance(slot, NoOpSlot)
-            slot.reject()   # No-op
+            slot.reject()  # No-op
             slot.succeed()  # No-op
 
         # Stats API

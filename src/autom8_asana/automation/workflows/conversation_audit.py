@@ -95,9 +95,7 @@ class ConversationAuditWorkflow(WorkflowAction):
         # Check feature flag
         env_value = os.environ.get(AUDIT_ENABLED_ENV_VAR, "").lower()
         if env_value in {"false", "0", "no"}:
-            errors.append(
-                f"Workflow disabled via {AUDIT_ENABLED_ENV_VAR}={env_value}"
-            )
+            errors.append(f"Workflow disabled via {AUDIT_ENABLED_ENV_VAR}={env_value}")
             return errors  # Short-circuit; no point checking other things
 
         # Check DataServiceClient circuit breaker
@@ -167,12 +165,7 @@ class ConversationAuditWorkflow(WorkflowAction):
                 )
                 results.append(outcome)
 
-        await asyncio.gather(
-            *[
-                process_one(h["gid"], h.get("name"))
-                for h in holders
-            ]
-        )
+        await asyncio.gather(*[process_one(h["gid"], h.get("name")) for h in holders])
 
         # Step 3: Aggregate results
         succeeded = sum(1 for r in results if r.status == "succeeded")
@@ -390,9 +383,7 @@ class ConversationAuditWorkflow(WorkflowAction):
             for cf in parent_task.custom_fields:
                 cf_dict = cf if isinstance(cf, dict) else cf.model_dump()
                 if cf_dict.get("name") == "Office Phone":
-                    return cf_dict.get("display_value") or cf_dict.get(
-                        "text_value"
-                    )
+                    return cf_dict.get("display_value") or cf_dict.get("text_value")
 
         return None
 

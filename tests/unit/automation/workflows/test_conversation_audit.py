@@ -27,7 +27,9 @@ from autom8_asana.exceptions import ExportError
 # --- Helpers ---
 
 
-def _make_task(gid: str, name: str, parent_gid: str | None = None, completed: bool = False) -> MagicMock:
+def _make_task(
+    gid: str, name: str, parent_gid: str | None = None, completed: bool = False
+) -> MagicMock:
     """Create a mock task object."""
     task = MagicMock()
     task.gid = gid
@@ -388,12 +390,10 @@ class TestExecuteAsyncCircuitBreakerOpen:
     async def test_circuit_breaker_all_fail(self) -> None:
         """All exports fail with circuit breaker -> all failed."""
         holders = [
-            _make_task(f"h{i}", f"Holder {i}", parent_gid=f"biz{i}")
-            for i in range(3)
+            _make_task(f"h{i}", f"Holder {i}", parent_gid=f"biz{i}") for i in range(3)
         ]
         parent_tasks = {
-            f"biz{i}": _make_parent_task(f"+1770575310{i}")
-            for i in range(3)
+            f"biz{i}": _make_parent_task(f"+1770575310{i}") for i in range(3)
         }
         export_errors = {
             f"+1770575310{i}": ExportError(
@@ -428,7 +428,9 @@ class TestExecuteAsyncUploadFirstOrdering:
 
         phone = "+17705753101"
         new_filename = f"conversations_{phone.lstrip('+')}_20260210.csv"
-        old_att = _make_attachment("old-att-1", "conversations_17705753101_20260203.csv")
+        old_att = _make_attachment(
+            "old-att-1", "conversations_17705753101_20260203.csv"
+        )
 
         wf, _, _, mock_att = _make_workflow(
             holders=[h1],
@@ -488,7 +490,9 @@ class TestExecuteAsyncDeleteFailureTolerance:
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
         parent_tasks = {"biz1": _make_parent_task("+17705753101")}
 
-        old_att = _make_attachment("old-att-1", "conversations_17705753101_20260203.csv")
+        old_att = _make_attachment(
+            "old-att-1", "conversations_17705753101_20260203.csv"
+        )
 
         wf, _, _, mock_att = _make_workflow(
             holders=[h1],
@@ -513,12 +517,10 @@ class TestExecuteAsyncConcurrency:
     async def test_max_concurrency_from_params(self) -> None:
         """Verify max_concurrency is taken from params."""
         holders = [
-            _make_task(f"h{i}", f"Holder {i}", parent_gid=f"biz{i}")
-            for i in range(10)
+            _make_task(f"h{i}", f"Holder {i}", parent_gid=f"biz{i}") for i in range(10)
         ]
         parent_tasks = {
-            f"biz{i}": _make_parent_task(f"+1770575310{i}")
-            for i in range(10)
+            f"biz{i}": _make_parent_task(f"+1770575310{i}") for i in range(10)
         }
 
         wf, _, _, _ = _make_workflow(
