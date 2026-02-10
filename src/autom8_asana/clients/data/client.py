@@ -17,7 +17,7 @@ import os
 import re
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -326,6 +326,106 @@ class DataServiceClient:
             )
 
         return asyncio.run(coro)
+
+    # --- Retry Infrastructure ---
+
+    async def _execute_with_retry(
+        self,
+        make_request: Callable[[], Awaitable[httpx.Response]],
+        *,
+        on_retry: Callable[[int, int, int | None], Awaitable[None]] | None = None,
+        on_timeout_exhausted: Callable[
+            [httpx.TimeoutException, int], Awaitable[None]
+        ],
+        on_http_error: Callable[[httpx.HTTPError, int], Awaitable[None]],
+    ) -> tuple[httpx.Response, int]:
+        """Execute an HTTP request with retry on transient failures.
+
+        Per Story 2.2: Retry with exponential backoff on transient failures.
+        Handles retryable HTTP status codes, Retry-After header for 429,
+        timeout retries, and circuit breaker failure recording.
+
+        The common retry structure is encapsulated here. Caller-specific
+        behavior (logging, metrics, stale fallback, error types) is provided
+        via callbacks.
+
+        Args:
+            make_request: Async callable that performs the HTTP request and
+                returns an httpx.Response. Called on each attempt.
+            on_retry: Optional async callback invoked before each retry.
+                Signature: (attempt, status_code_or_0, retry_after_or_None).
+                Use for logging/metrics on retries. Pass None to skip.
+            on_timeout_exhausted: Async callback when timeout retries are
+                exhausted. Receives (error, attempt). MUST raise an exception.
+            on_http_error: Async callback for non-retryable HTTP errors.
+                Receives (error, attempt). MUST raise an exception.
+
+        Returns:
+            Tuple of (httpx.Response, attempt_count) on success or after
+            retryable status codes are exhausted (caller handles >= 400
+            responses). attempt_count is the number of retries performed
+            (0 means first attempt succeeded).
+
+        Raises:
+            Whatever on_timeout_exhausted or on_http_error raise.
+        """
+        attempt = 0
+        response: httpx.Response | None = None
+
+        while True:
+            try:
+                response = await make_request()
+
+                # Check for retryable HTTP status codes (Story 2.2)
+                status = response.status_code
+                if status in self._config.retry.retryable_status_codes:
+                    if self._retry_handler.should_retry(status, attempt):
+                        # Extract Retry-After header for 429 responses
+                        retry_after: int | None = None
+                        if status == 429:
+                            retry_after_header = response.headers.get(
+                                "Retry-After"
+                            )
+                            if retry_after_header:
+                                try:
+                                    retry_after = int(retry_after_header)
+                                except ValueError:
+                                    pass  # Ignore non-integer values
+
+                        if on_retry is not None:
+                            await on_retry(attempt, status, retry_after)
+
+                        await self._retry_handler.wait(attempt, retry_after)
+                        attempt += 1
+                        continue  # Retry the request
+
+                # Non-retryable status or success - exit retry loop
+                break
+
+            except httpx.TimeoutException as e:
+                # Check if we can retry timeout errors (Story 2.2)
+                if attempt < self._config.retry.max_retries:
+                    if on_retry is not None:
+                        await on_retry(attempt, 0, None)
+
+                    await self._retry_handler.wait(attempt, None)
+                    attempt += 1
+                    continue  # Retry the request
+
+                # Retries exhausted - delegate to caller's error handler
+                await on_timeout_exhausted(e, attempt)
+
+                # on_timeout_exhausted MUST raise; this is a safety fallback
+                raise  # pragma: no cover
+
+            except httpx.HTTPError as e:
+                # Non-retryable HTTP error - delegate to caller's error handler
+                await on_http_error(e, attempt)
+
+                # on_http_error MUST raise; this is a safety fallback
+                raise  # pragma: no cover
+
+        return response, attempt  # type: ignore[return-value]
 
     # --- Resource Management ---
 
@@ -1262,151 +1362,124 @@ class DataServiceClient:
                 },
             )
 
-        # --- Retry Loop (Story 2.2) ---
-        attempt = 0
-        response: httpx.Response | None = None
+        # --- Retry Callbacks ---
 
-        while True:
-            try:
-                response = await client.post(
+        async def _on_retry(
+            attempt: int, status_code: int, retry_after: int | None
+        ) -> None:
+            """Log retry attempts for insights requests."""
+            if self._log:
+                extra: dict[str, Any] = {
+                    "request_id": request_id,
+                    "attempt": attempt + 1,
+                    "max_retries": self._config.retry.max_retries,
+                }
+                if status_code:
+                    extra["status_code"] = status_code
+                    extra["retry_after"] = retry_after
+                else:
+                    extra["error_type"] = "TimeoutException"
+                    extra["reason"] = "timeout"
+                self._log.warning("insights_request_retry", extra=extra)
+
+        async def _on_timeout_exhausted(
+            e: httpx.TimeoutException, attempt: int
+        ) -> None:
+            """Handle exhausted timeout retries for insights."""
+            elapsed_ms = (time.monotonic() - start_time) * 1000
+
+            # --- Error Logging (Story 1.9) ---
+            if self._log:
+                self._log.error(
+                    "insights_request_failed",
+                    extra={
+                        "request_id": request_id,
+                        "error_type": "TimeoutException",
+                        "reason": "timeout",
+                        "duration_ms": elapsed_ms,
+                        "attempt": attempt + 1,
+                    },
+                )
+
+            # --- Error Metrics (Story 1.9) ---
+            self._emit_metric(
+                "insights_request_error_total",
+                1,
+                {"factory": factory, "error_type": "timeout"},
+            )
+            self._emit_metric(
+                "insights_request_latency_ms",
+                elapsed_ms,
+                {"factory": factory, "status": "error"},
+            )
+
+            # --- Circuit Breaker Record Failure (Story 2.3) ---
+            await self._circuit_breaker.record_failure(e)
+
+            raise InsightsServiceError(
+                "Request to autom8_data timed out",
+                request_id=request_id,
+                reason="timeout",
+            ) from e
+
+        async def _on_http_error(
+            e: httpx.HTTPError, attempt: int
+        ) -> None:
+            """Handle non-retryable HTTP errors for insights."""
+            elapsed_ms = (time.monotonic() - start_time) * 1000
+
+            # --- Error Logging (Story 1.9) ---
+            if self._log:
+                self._log.error(
+                    "insights_request_failed",
+                    extra={
+                        "request_id": request_id,
+                        "error_type": e.__class__.__name__,
+                        "reason": "http_error",
+                        "duration_ms": elapsed_ms,
+                        "attempt": attempt + 1,
+                    },
+                )
+
+            # --- Error Metrics (Story 1.9) ---
+            self._emit_metric(
+                "insights_request_error_total",
+                1,
+                {"factory": factory, "error_type": "http_error"},
+            )
+            self._emit_metric(
+                "insights_request_latency_ms",
+                elapsed_ms,
+                {"factory": factory, "status": "error"},
+            )
+
+            # --- Circuit Breaker Record Failure (Story 2.3) ---
+            await self._circuit_breaker.record_failure(e)
+
+            raise InsightsServiceError(
+                f"HTTP error communicating with autom8_data: {e}",
+                request_id=request_id,
+                reason="http_error",
+            ) from e
+
+        # --- Retry Loop with Stale Fallback (Story 2.2, Story 1.8) ---
+        try:
+            response, attempt = await self._execute_with_retry(
+                lambda: client.post(
                     path,
                     json=request_body,
                     headers={"X-Request-Id": request_id},
-                )
-
-                # Check for retryable HTTP status codes (Story 2.2)
-                status = response.status_code
-                if status in self._config.retry.retryable_status_codes:
-                    if self._retry_handler.should_retry(status, attempt):
-                        # Extract Retry-After header for 429 responses
-                        retry_after: int | None = None
-                        if status == 429:
-                            retry_after_header = response.headers.get("Retry-After")
-                            if retry_after_header:
-                                try:
-                                    retry_after = int(retry_after_header)
-                                except ValueError:
-                                    pass  # Ignore non-integer values
-
-                        if self._log:
-                            self._log.warning(
-                                "insights_request_retry",
-                                extra={
-                                    "request_id": request_id,
-                                    "attempt": attempt + 1,
-                                    "max_retries": self._config.retry.max_retries,
-                                    "status_code": status,
-                                    "retry_after": retry_after,
-                                },
-                            )
-
-                        await self._retry_handler.wait(attempt, retry_after)
-                        attempt += 1
-                        continue  # Retry the request
-
-                # Non-retryable status or success - exit retry loop
-                break
-
-            except httpx.TimeoutException as e:
-                # Check if we can retry timeout errors (Story 2.2)
-                if attempt < self._config.retry.max_retries:
-                    if self._log:
-                        self._log.warning(
-                            "insights_request_retry",
-                            extra={
-                                "request_id": request_id,
-                                "attempt": attempt + 1,
-                                "max_retries": self._config.retry.max_retries,
-                                "error_type": "TimeoutException",
-                                "reason": "timeout",
-                            },
-                        )
-
-                    await self._retry_handler.wait(attempt, None)
-                    attempt += 1
-                    continue  # Retry the request
-
-                # Retries exhausted
-                elapsed_ms = (time.monotonic() - start_time) * 1000
-
-                # --- Error Logging (Story 1.9) ---
-                if self._log:
-                    self._log.error(
-                        "insights_request_failed",
-                        extra={
-                            "request_id": request_id,
-                            "error_type": "TimeoutException",
-                            "reason": "timeout",
-                            "duration_ms": elapsed_ms,
-                            "attempt": attempt + 1,
-                        },
-                    )
-
-                # --- Error Metrics (Story 1.9) ---
-                self._emit_metric(
-                    "insights_request_error_total",
-                    1,
-                    {"factory": factory, "error_type": "timeout"},
-                )
-                self._emit_metric(
-                    "insights_request_latency_ms",
-                    elapsed_ms,
-                    {"factory": factory, "status": "error"},
-                )
-
-                # --- Circuit Breaker Record Failure (Story 2.3) ---
-                await self._circuit_breaker.record_failure(e)
-
-                # Try stale cache fallback on timeout (Story 1.8)
-                stale_response = self._get_stale_response(cache_key, request_id)
-                if stale_response is not None:
-                    return stale_response
-                raise InsightsServiceError(
-                    "Request to autom8_data timed out",
-                    request_id=request_id,
-                    reason="timeout",
-                ) from e
-
-            except httpx.HTTPError as e:
-                elapsed_ms = (time.monotonic() - start_time) * 1000
-
-                # --- Error Logging (Story 1.9) ---
-                if self._log:
-                    self._log.error(
-                        "insights_request_failed",
-                        extra={
-                            "request_id": request_id,
-                            "error_type": e.__class__.__name__,
-                            "reason": "http_error",
-                            "duration_ms": elapsed_ms,
-                            "attempt": attempt + 1,
-                        },
-                    )
-
-                # --- Error Metrics (Story 1.9) ---
-                self._emit_metric(
-                    "insights_request_error_total",
-                    1,
-                    {"factory": factory, "error_type": "http_error"},
-                )
-                self._emit_metric(
-                    "insights_request_latency_ms",
-                    elapsed_ms,
-                    {"factory": factory, "status": "error"},
-                )
-
-                # --- Circuit Breaker Record Failure (Story 2.3) ---
-                await self._circuit_breaker.record_failure(e)
-
-                # Try stale cache fallback on HTTP error (Story 1.8)
-                stale_response = self._get_stale_response(cache_key, request_id)
-                if stale_response is not None:
-                    return stale_response
-                raise InsightsServiceError(
-                    f"HTTP error communicating with autom8_data: {e}",
-                    request_id=request_id,
-                    reason="http_error",
-                ) from e
+                ),
+                on_retry=_on_retry,
+                on_timeout_exhausted=_on_timeout_exhausted,
+                on_http_error=_on_http_error,
+            )
+        except InsightsServiceError:
+            # Try stale cache fallback on service errors (Story 1.8)
+            stale_response = self._get_stale_response(cache_key, request_id)
+            if stale_response is not None:
+                return stale_response
+            raise
 
         # Calculate elapsed time
         elapsed_ms = (time.monotonic() - start_time) * 1000
@@ -1738,51 +1811,38 @@ class DataServiceClient:
             )
 
         start_time = time.monotonic()
-        attempt = 0
 
-        while True:
-            try:
-                response = await client.get(
-                    path,
-                    params=params,
-                    headers={"Accept": "text/csv"},
-                )
+        async def _on_export_timeout(
+            e: httpx.TimeoutException, attempt: int
+        ) -> None:
+            """Handle exhausted timeout retries for export."""
+            await self._circuit_breaker.record_failure(e)
+            raise ExportError(
+                "Export request timed out",
+                office_phone=office_phone,
+                reason="timeout",
+            ) from e
 
-                status = response.status_code
-                if status in self._config.retry.retryable_status_codes:
-                    if self._retry_handler.should_retry(status, attempt):
-                        retry_after: int | None = None
-                        if status == 429:
-                            ra_header = response.headers.get("Retry-After")
-                            if ra_header:
-                                try:
-                                    retry_after = int(ra_header)
-                                except ValueError:
-                                    pass
-                        await self._retry_handler.wait(attempt, retry_after)
-                        attempt += 1
-                        continue
-                break
+        async def _on_export_http_error(
+            e: httpx.HTTPError, attempt: int
+        ) -> None:
+            """Handle non-retryable HTTP errors for export."""
+            await self._circuit_breaker.record_failure(e)
+            raise ExportError(
+                f"HTTP error during export: {e}",
+                office_phone=office_phone,
+                reason="http_error",
+            ) from e
 
-            except httpx.TimeoutException as e:
-                if attempt < self._config.retry.max_retries:
-                    await self._retry_handler.wait(attempt, None)
-                    attempt += 1
-                    continue
-                await self._circuit_breaker.record_failure(e)
-                raise ExportError(
-                    "Export request timed out",
-                    office_phone=office_phone,
-                    reason="timeout",
-                ) from e
-
-            except httpx.HTTPError as e:
-                await self._circuit_breaker.record_failure(e)
-                raise ExportError(
-                    f"HTTP error during export: {e}",
-                    office_phone=office_phone,
-                    reason="http_error",
-                ) from e
+        response, _attempt = await self._execute_with_retry(
+            lambda: client.get(
+                path,
+                params=params,
+                headers={"Accept": "text/csv"},
+            ),
+            on_timeout_exhausted=_on_export_timeout,
+            on_http_error=_on_export_http_error,
+        )
 
         elapsed_ms = (time.monotonic() - start_time) * 1000
 
