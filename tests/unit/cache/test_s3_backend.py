@@ -602,7 +602,7 @@ class TestS3CacheProviderErrorHandling:
             provider._degraded = False
 
             # Simulate connection error
-            provider._handle_s3_error(ConnectionError("Connection refused"))
+            provider._handle_transport_error(ConnectionError("Connection refused"))
 
             assert provider._degraded is True
 
@@ -616,7 +616,7 @@ class TestS3CacheProviderErrorHandling:
             provider._degraded = False
 
             # Simulate timeout error
-            provider._handle_s3_error(TimeoutError("Request timed out"))
+            provider._handle_transport_error(TimeoutError("Request timed out"))
 
             assert provider._degraded is True
 
@@ -642,7 +642,7 @@ class TestS3CacheProviderErrorHandling:
             provider._botocore_module.ClientError = MockClientError
 
             # Handle the error
-            provider._handle_s3_error(MockClientError())
+            provider._handle_transport_error(MockClientError())
 
             # Should not enter degraded mode for 404
             assert provider._degraded is False
