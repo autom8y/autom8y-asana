@@ -219,9 +219,7 @@ class ScheduleConfig(BaseModel):
     @model_validator(mode="after")
     def weekly_requires_day(self) -> ScheduleConfig:
         if self.frequency == "weekly" and self.day_of_week is None:
-            raise ValueError(
-                "day_of_week is required when frequency is 'weekly'"
-            )
+            raise ValueError("day_of_week is required when frequency is 'weekly'")
         return self
 
 

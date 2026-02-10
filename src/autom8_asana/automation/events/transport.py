@@ -66,9 +66,7 @@ class InMemoryTransport:
         """
         if event_type is None:
             return [env for env, _ in self.published]
-        return [
-            env for env, _ in self.published if env.event_type.value == event_type
-        ]
+        return [env for env, _ in self.published if env.event_type.value == event_type]
 
 
 class SQSTransport:

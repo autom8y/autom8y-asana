@@ -59,11 +59,17 @@ class TestParseContentDispositionFilename:
 
     def test_quoted_filename(self) -> None:
         header = 'attachment; filename="conversations_17705753103_20260210.csv"'
-        assert _parse_content_disposition_filename(header) == "conversations_17705753103_20260210.csv"
+        assert (
+            _parse_content_disposition_filename(header)
+            == "conversations_17705753103_20260210.csv"
+        )
 
     def test_unquoted_filename(self) -> None:
         header = "attachment; filename=conversations_17705753103_20260210.csv"
-        assert _parse_content_disposition_filename(header) == "conversations_17705753103_20260210.csv"
+        assert (
+            _parse_content_disposition_filename(header)
+            == "conversations_17705753103_20260210.csv"
+        )
 
     def test_empty_header(self) -> None:
         assert _parse_content_disposition_filename("") is None
@@ -289,9 +295,7 @@ class TestGetExportCsvAsyncErrors:
         client = _make_client()
 
         mock_http = AsyncMock()
-        mock_http.get = AsyncMock(
-            side_effect=httpx.ConnectError("Connection refused")
-        )
+        mock_http.get = AsyncMock(side_effect=httpx.ConnectError("Connection refused"))
         client._client = mock_http
 
         with pytest.raises(ExportError) as exc_info:

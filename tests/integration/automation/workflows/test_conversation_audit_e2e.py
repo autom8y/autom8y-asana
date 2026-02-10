@@ -23,7 +23,9 @@ from autom8_asana.exceptions import ExportError
 # --- Helpers ---
 
 
-def _make_task(gid: str, name: str, parent_gid: str | None = None, completed: bool = False) -> MagicMock:
+def _make_task(
+    gid: str, name: str, parent_gid: str | None = None, completed: bool = False
+) -> MagicMock:
     task = MagicMock()
     task.gid = gid
     task.name = name
@@ -109,7 +111,9 @@ class TestConversationAuditE2E:
 
         # Setup mock Asana client
         mock_asana = MagicMock()
-        mock_asana.tasks.list_for_project_async.return_value = _AsyncIterator(all_holders)
+        mock_asana.tasks.list_for_project_async.return_value = _AsyncIterator(
+            all_holders
+        )
 
         holder_by_gid = {h.gid: h for h in all_holders}
 
@@ -149,7 +153,9 @@ class TestConversationAuditE2E:
         mock_attachments.upload_async = AsyncMock(return_value=MagicMock())
 
         # h1 has an old attachment, h2 has none
-        old_att_h1 = _make_attachment("old-h1", "conversations_17705753101_20260203.csv")
+        old_att_h1 = _make_attachment(
+            "old-h1", "conversations_17705753101_20260203.csv"
+        )
 
         def mock_list_for_task(gid: str, **kwargs: Any) -> _AsyncIterator:
             if gid == "h1":
@@ -167,11 +173,13 @@ class TestConversationAuditE2E:
         )
 
         # Execute
-        result = await workflow.execute_async({
-            "workflow_id": "conversation-audit",
-            "max_concurrency": 5,
-            "attachment_pattern": "conversations_*.csv",
-        })
+        result = await workflow.execute_async(
+            {
+                "workflow_id": "conversation-audit",
+                "max_concurrency": 5,
+                "attachment_pattern": "conversations_*.csv",
+            }
+        )
 
         # Verify aggregate counts
         assert result.total == 4

@@ -20,7 +20,6 @@ from autom8_asana.persistence.reorder import (
 )
 from autom8_asana.persistence.session import SaveSession
 
-
 # ---------------------------------------------------------------------------
 # Test helpers
 # ---------------------------------------------------------------------------
@@ -133,7 +132,15 @@ class TestComputeReorderPlan:
         # current:  [0, 1, 5, 3, 4, 2, 6]
         # Position seq: [0, 1, 5, 3, 4, 2, 6]
         # LIS = [0, 1, 3, 4, 6] -> length 5
-        current = [desired[0], desired[1], desired[5], desired[3], desired[4], desired[2], desired[6]]
+        current = [
+            desired[0],
+            desired[1],
+            desired[5],
+            desired[3],
+            desired[4],
+            desired[2],
+            desired[6],
+        ]
         plan = compute_reorder_plan(current, list(desired))
 
         assert plan.lis_length == 5
@@ -154,7 +161,15 @@ class TestComputeReorderPlan:
         """SC-004: Applying moves to current produces desired order."""
         desired = make_resources(7)
         # Scramble: [3, 6, 0, 5, 1, 4, 2]
-        current = [desired[3], desired[6], desired[0], desired[5], desired[1], desired[4], desired[2]]
+        current = [
+            desired[3],
+            desired[6],
+            desired[0],
+            desired[5],
+            desired[1],
+            desired[4],
+            desired[2],
+        ]
         plan = compute_reorder_plan(current, list(desired))
 
         result = apply_moves(current, plan.moves)
@@ -226,9 +241,7 @@ class TestComputeReorderPlan:
         plan = compute_reorder_plan(current, list(desired))
 
         # LIS indices are the initially placed items
-        lis_indices = _compute_lis_indices(
-            [desired.index(item) for item in current]
-        )
+        lis_indices = _compute_lis_indices([desired.index(item) for item in current])
         placed_gids = {current[i].gid for i in lis_indices}
 
         for move in plan.moves:
@@ -302,7 +315,14 @@ def test_property_moves_produce_desired_order() -> None:
         [3, 1, 4, 0, 2],
         [0, 1, 2, 3, 4],
     ],
-    ids=["reversed", "pairs-swapped", "one-shift", "scattered", "interleaved", "sorted"],
+    ids=[
+        "reversed",
+        "pairs-swapped",
+        "one-shift",
+        "scattered",
+        "interleaved",
+        "sorted",
+    ],
 )
 def test_deterministic_permutations_produce_desired_order(perm: list[int]) -> None:
     """Deterministic permutation coverage when hypothesis is unavailable."""
@@ -334,7 +354,15 @@ class TestReorderSubtasks:
 
         desired = make_resources(7)
         # Swap 2 elements: LIS = 5, moves = 2
-        current = [desired[0], desired[1], desired[5], desired[3], desired[4], desired[2], desired[6]]
+        current = [
+            desired[0],
+            desired[1],
+            desired[5],
+            desired[3],
+            desired[4],
+            desired[2],
+            desired[6],
+        ]
         parent = FakeResource(gid="parent_001", name="Parent")
 
         plan = session.reorder_subtasks(parent, current, list(desired))
@@ -387,9 +415,7 @@ class TestReorderSubtasks:
         plan = session.reorder_subtasks("parent_gid", current, list(desired))
 
         actions = session.get_pending_actions()
-        assert all(
-            a.extra_params["parent"] == "parent_gid" for a in actions
-        )
+        assert all(a.extra_params["parent"] == "parent_gid" for a in actions)
 
     def test_reorder_subtasks_closed_session_raises(self) -> None:
         """Raises SessionClosedError when session is closed."""

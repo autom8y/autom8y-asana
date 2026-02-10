@@ -92,11 +92,15 @@ class TestFactoryToFrameTypeContract:
         mappings = client.FACTORY_TO_FRAME_TYPE
 
         # Critical mappings from docs/design/factory-to-frame-type-mapping.md
-        assert mappings["account"] == "business", "account factory must map to business frame"
+        assert mappings["account"] == "business", (
+            "account factory must map to business frame"
+        )
         assert mappings["ads"] == "offer", "ads factory must map to offer frame"
         assert mappings["assets"] == "asset", "assets factory must map to asset frame"
         assert mappings["base"] == "unit", "base factory must map to unit frame"
-        assert mappings["payments"] == "business", "payments factory must map to business frame"
+        assert mappings["payments"] == "business", (
+            "payments factory must map to business frame"
+        )
 
 
 class TestInsightsRequestContract:
@@ -162,18 +166,16 @@ class TestInsightsRequestContract:
 
         # Validate required fields exist
         assert "frame_type" in body_json, "Request body must have frame_type field"
-        assert (
-            "phone_vertical_pairs" in body_json
-        ), "Request body must have phone_vertical_pairs field"
+        assert "phone_vertical_pairs" in body_json, (
+            "Request body must have phone_vertical_pairs field"
+        )
         assert "period" in body_json, "Request body must have period field"
 
         # Validate field types
-        assert isinstance(
-            body_json["frame_type"], str
-        ), "frame_type must be string"
-        assert isinstance(
-            body_json["phone_vertical_pairs"], list
-        ), "phone_vertical_pairs must be list"
+        assert isinstance(body_json["frame_type"], str), "frame_type must be string"
+        assert isinstance(body_json["phone_vertical_pairs"], list), (
+            "phone_vertical_pairs must be list"
+        )
         assert isinstance(body_json["period"], str), "period must be string"
 
         # Validate field values
@@ -182,7 +184,7 @@ class TestInsightsRequestContract:
             f"got: {body_json['frame_type']}"
         )
         assert body_json["period"] in VALID_PERIODS, (
-            f"period must be one of {VALID_PERIODS}, " f"got: {body_json['period']}"
+            f"period must be one of {VALID_PERIODS}, got: {body_json['period']}"
         )
 
     @pytest.mark.asyncio
@@ -197,7 +199,9 @@ class TestInsightsRequestContract:
 
         for factory_name in client.VALID_FACTORIES:
             # Mock the endpoint
-            route = respx.post("http://localhost:8000/api/v1/data-service/insights").mock(
+            route = respx.post(
+                "http://localhost:8000/api/v1/data-service/insights"
+            ).mock(
                 return_value=httpx.Response(
                     200,
                     json={
@@ -611,7 +615,9 @@ class TestEndpointContract:
         If this test fails, the endpoint mismatch bug has regressed.
         """
         # Mock the CORRECT endpoint
-        correct_route = respx.post("http://localhost:8000/api/v1/data-service/insights").mock(
+        correct_route = respx.post(
+            "http://localhost:8000/api/v1/data-service/insights"
+        ).mock(
             return_value=httpx.Response(
                 200,
                 json={

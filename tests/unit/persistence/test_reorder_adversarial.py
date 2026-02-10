@@ -21,7 +21,6 @@ from autom8_asana.persistence.reorder import (
 )
 from autom8_asana.persistence.session import SaveSession
 
-
 # ---------------------------------------------------------------------------
 # Test helpers (duplicated from main test file for isolation)
 # ---------------------------------------------------------------------------
@@ -141,7 +140,7 @@ class TestLISAdversarial:
         for i in range(1, len(values)):
             assert values[i] > values[i - 1], (
                 f"LIS values not increasing at position {i}: "
-                f"{values[i-1]} >= {values[i]}"
+                f"{values[i - 1]} >= {values[i]}"
             )
 
 
@@ -331,9 +330,7 @@ class TestReferenceStability:
         current = list(reversed(desired))
         plan = compute_reorder_plan(current, list(desired))
 
-        lis_indices = _compute_lis_indices(
-            [desired.index(item) for item in current]
-        )
+        lis_indices = _compute_lis_indices([desired.index(item) for item in current])
         placed_gids = {current[i].gid for i in lis_indices}
 
         for move in plan.moves:
@@ -413,8 +410,15 @@ class TestInsertBeforePath:
     def test_multiple_elements_need_insert_before(self) -> None:
         """First 3 elements displaced to end: [3, 4, 5, 6, 0, 1, 2]."""
         desired = make_resources(7)
-        current = [desired[3], desired[4], desired[5], desired[6],
-                   desired[0], desired[1], desired[2]]
+        current = [
+            desired[3],
+            desired[4],
+            desired[5],
+            desired[6],
+            desired[0],
+            desired[1],
+            desired[2],
+        ]
 
         plan = compute_reorder_plan(current, list(desired))
 
@@ -588,9 +592,7 @@ class TestSaveSessionIntegrationAdversarial:
         parent1 = FakeResource(gid="parent_001")
         current1 = list(reversed(desired1))
 
-        desired2 = [
-            FakeResource(gid="x"), FakeResource(gid="y"), FakeResource(gid="z")
-        ]
+        desired2 = [FakeResource(gid="x"), FakeResource(gid="y"), FakeResource(gid="z")]
         parent2 = FakeResource(gid="parent_002")
         current2 = [desired2[2], desired2[0], desired2[1]]
 
@@ -659,6 +661,7 @@ class TestSaveSessionIntegrationAdversarial:
         actions = session.get_pending_actions()
         assert len(actions) == 1
         from autom8_asana.persistence.models import ActionType
+
         assert actions[0].action == ActionType.SET_PARENT
 
 

@@ -559,8 +559,13 @@ class TestScheduleConfig:
     def test_all_days_of_week_valid(self) -> None:
         """All 7 day names are accepted."""
         days = [
-            "monday", "tuesday", "wednesday", "thursday",
-            "friday", "saturday", "sunday",
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
         ]
         for day in days:
             schedule = ScheduleConfig(frequency="weekly", day_of_week=day)

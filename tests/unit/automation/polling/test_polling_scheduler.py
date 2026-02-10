@@ -869,8 +869,13 @@ class TestPollingSchedulerShouldRunSchedule:
         # Get today's day name
         local_now = datetime.now(UTC).astimezone(scheduler.timezone)
         day_names = [
-            "monday", "tuesday", "wednesday", "thursday",
-            "friday", "saturday", "sunday",
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
         ]
         today_name = day_names[local_now.weekday()]
 
@@ -888,17 +893,20 @@ class TestPollingSchedulerShouldRunSchedule:
         # Pick a day that is NOT today
         local_now = datetime.now(UTC).astimezone(scheduler.timezone)
         day_names = [
-            "monday", "tuesday", "wednesday", "thursday",
-            "friday", "saturday", "sunday",
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
         ]
         other_day = day_names[(local_now.weekday() + 3) % 7]  # 3 days offset
 
         schedule = ScheduleConfig(frequency="weekly", day_of_week=other_day)
         assert scheduler._should_run_schedule(schedule) is False
 
-    def test_unknown_frequency_returns_false(
-        self, scheduler: PollingScheduler
-    ) -> None:
+    def test_unknown_frequency_returns_false(self, scheduler: PollingScheduler) -> None:
         """Unknown frequency value returns False (defensive fallthrough)."""
         from autom8_asana.automation.polling.config_schema import ScheduleConfig
 
@@ -906,7 +914,9 @@ class TestPollingSchedulerShouldRunSchedule:
         schedule = ScheduleConfig.__new__(ScheduleConfig)
         object.__setattr__(schedule, "frequency", "monthly")
         object.__setattr__(schedule, "day_of_week", None)
-        object.__setattr__(schedule, "__dict__", {"frequency": "monthly", "day_of_week": None})
+        object.__setattr__(
+            schedule, "__dict__", {"frequency": "monthly", "day_of_week": None}
+        )
         object.__setattr__(schedule, "__pydantic_fields_set__", set())
 
         assert scheduler._should_run_schedule(schedule) is False
@@ -1108,7 +1118,8 @@ class TestPollingSchedulerWorkflowDispatch:
             scheduler._evaluate_rules()
 
         error_calls = [
-            c for c in mock_log.error.call_args_list
+            c
+            for c in mock_log.error.call_args_list
             if c[0][0] == "workflow_registry_not_configured"
         ]
         assert len(error_calls) == 1

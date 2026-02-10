@@ -35,9 +35,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     return asyncio.run(_handler_async(event, context))
 
 
-async def _handler_async(
-    event: dict[str, Any], context: Any
-) -> dict[str, Any]:
+async def _handler_async(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Async implementation of the Lambda handler."""
     try:
         return await _execute(event)
@@ -50,11 +48,13 @@ async def _handler_async(
         )
         return {
             "statusCode": 500,
-            "body": json.dumps({
-                "status": "error",
-                "error": str(exc),
-                "error_type": type(exc).__name__,
-            }),
+            "body": json.dumps(
+                {
+                    "status": "error",
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                }
+            ),
         }
 
 
@@ -69,7 +69,7 @@ async def _execute(event: dict[str, Any]) -> dict[str, Any]:
     from autom8_asana.client import AsanaClient
     from autom8_asana.clients.data.client import DataServiceClient
 
-    logger.info("lambda_conversation_audit_started", event=event)
+    logger.info("lambda_conversation_audit_started", lambda_event=event)
 
     # Build params from event or defaults
     params = {
@@ -99,11 +99,13 @@ async def _execute(event: dict[str, Any]) -> dict[str, Any]:
             )
             return {
                 "statusCode": 200,
-                "body": json.dumps({
-                    "status": "skipped",
-                    "reason": "validation_failed",
-                    "errors": validation_errors,
-                }),
+                "body": json.dumps(
+                    {
+                        "status": "skipped",
+                        "reason": "validation_failed",
+                        "errors": validation_errors,
+                    }
+                ),
             }
 
         # Execute workflow
@@ -111,15 +113,17 @@ async def _execute(event: dict[str, Any]) -> dict[str, Any]:
 
         return {
             "statusCode": 200,
-            "body": json.dumps({
-                "status": "completed",
-                "workflow_id": result.workflow_id,
-                "total": result.total,
-                "succeeded": result.succeeded,
-                "failed": result.failed,
-                "skipped": result.skipped,
-                "duration_seconds": round(result.duration_seconds, 2),
-                "failure_rate": round(result.failure_rate, 4),
-                "truncated_count": result.metadata.get("truncated_count", 0),
-            }),
+            "body": json.dumps(
+                {
+                    "status": "completed",
+                    "workflow_id": result.workflow_id,
+                    "total": result.total,
+                    "succeeded": result.succeeded,
+                    "failed": result.failed,
+                    "skipped": result.skipped,
+                    "duration_seconds": round(result.duration_seconds, 2),
+                    "failure_rate": round(result.failure_rate, 4),
+                    "truncated_count": result.metadata.get("truncated_count", 0),
+                }
+            ),
         }

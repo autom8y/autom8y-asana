@@ -1435,7 +1435,7 @@ class SaveSession:
             ValueError: If current_order and desired_order contain different elements.
             SessionClosedError: If session is closed.
         """
-        from autom8_asana.persistence.reorder import ReorderPlan, compute_reorder_plan
+        from autom8_asana.persistence.reorder import compute_reorder_plan
 
         self._ensure_open()
 

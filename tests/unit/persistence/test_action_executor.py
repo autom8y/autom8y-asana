@@ -685,7 +685,9 @@ class TestChunkActions:
         """Fewer than chunk_size actions returns single chunk."""
         actions = [
             ActionOperation(
-                task=Task(gid=f"t{i}"), action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
+                task=Task(gid=f"t{i}"),
+                action=ActionType.ADD_TAG,
+                target=NameGid(gid=f"tag_{i}"),
             )
             for i in range(5)
         ]
@@ -697,7 +699,9 @@ class TestChunkActions:
         """Exactly chunk_size actions returns single chunk."""
         actions = [
             ActionOperation(
-                task=Task(gid=f"t{i}"), action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
+                task=Task(gid=f"t{i}"),
+                action=ActionType.ADD_TAG,
+                target=NameGid(gid=f"tag_{i}"),
             )
             for i in range(10)
         ]
@@ -709,7 +713,9 @@ class TestChunkActions:
         """25 actions produces chunks of [10, 10, 5]."""
         actions = [
             ActionOperation(
-                task=Task(gid=f"t{i}"), action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
+                task=Task(gid=f"t{i}"),
+                action=ActionType.ADD_TAG,
+                target=NameGid(gid=f"tag_{i}"),
             )
             for i in range(25)
         ]
@@ -770,8 +776,12 @@ class TestBatchExecutionPath:
         executor = ActionExecutor(mock_http_for_batch, mock_batch_client)
         task = Task(gid="task_1", name="Test")
         actions = [
-            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")),
-            ActionOperation(task=task, action=ActionType.REMOVE_TAG, target=NameGid(gid="tag_2")),
+            ActionOperation(
+                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
+            ),
+            ActionOperation(
+                task=task, action=ActionType.REMOVE_TAG, target=NameGid(gid="tag_2")
+            ),
         ]
 
         results = await executor.execute_async(actions, {})
@@ -1064,9 +1074,15 @@ class TestChunkFallback:
 
         task = Task(gid="123456", name="Test")
         actions = [
-            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="100")),
-            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="101")),
-            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="102")),
+            ActionOperation(
+                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="100")
+            ),
+            ActionOperation(
+                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="101")
+            ),
+            ActionOperation(
+                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="102")
+            ),
         ]
 
         results = await executor.execute_async(actions, {})
@@ -1171,7 +1187,9 @@ class TestEdgeCases:
         task = Task(gid="task_1", name="Test")
         actions = [
             ActionOperation(
-                task=task, action=ActionType.ADD_TO_PROJECT, target=NameGid(gid="proj_1")
+                task=task,
+                action=ActionType.ADD_TO_PROJECT,
+                target=NameGid(gid="proj_1"),
             ),
             ActionOperation(
                 task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
@@ -1284,7 +1302,9 @@ class TestEdgeCases:
         # Total: 3 batch calls
         mock_batch_client.execute_async.side_effect = [
             [_make_batch_result(True, f"r{i}") for i in range(10)],  # Chunk 1 (10 tags)
-            [_make_batch_result(True, f"r{i}") for i in range(6)],  # Chunk 2 (5 tags + add_project)
+            [
+                _make_batch_result(True, f"r{i}") for i in range(6)
+            ],  # Chunk 2 (5 tags + add_project)
             [_make_batch_result(True, "r_move")],  # Chunk 3 (move_to_section)
         ]
 

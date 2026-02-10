@@ -40,7 +40,6 @@ from autom8_asana.models.business.mixins import (
     UnitNavigableEntityMixin,
     UnitNestedHolderMixin,
 )
-from autom8_asana.models.task import Task
 
 if TYPE_CHECKING:
     from autom8_asana.models.business.business import Business

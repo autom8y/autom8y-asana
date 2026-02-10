@@ -92,10 +92,7 @@ def _chunk_actions(
     """
     if not actions:
         return []
-    return [
-        actions[i : i + chunk_size]
-        for i in range(0, len(actions), chunk_size)
-    ]
+    return [actions[i : i + chunk_size] for i in range(0, len(actions), chunk_size)]
 
 
 class ActionExecutor:
@@ -196,7 +193,9 @@ class ActionExecutor:
 
         # Build index map: resolved_action -> original position
         # This lets us restore original ordering after tier/chunk reordering
-        action_index: dict[int, int] = {id(r): i for i, r in enumerate(resolved_actions)}
+        action_index: dict[int, int] = {
+            id(r): i for i, r in enumerate(resolved_actions)
+        }
 
         # Step 2: Ordering resolution (FR-002)
         tiers = resolve_order(resolved_actions)

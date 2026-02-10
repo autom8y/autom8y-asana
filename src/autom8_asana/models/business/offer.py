@@ -35,7 +35,6 @@ from autom8_asana.models.business.mixins import (
     UnitNestedHolderMixin,
     UpwardTraversalMixin,
 )
-from autom8_asana.models.task import Task
 
 if TYPE_CHECKING:
     from autom8_asana.models.business.business import Business

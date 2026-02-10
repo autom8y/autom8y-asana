@@ -191,9 +191,7 @@ class TestEventRoutingConfigFromEnv:
         """Subscription entry without destination raises ValueError."""
         env = {
             "EVENTS_ENABLED": "true",
-            "EVENTS_SUBSCRIPTIONS": json.dumps(
-                [{"event_types": ["created"]}]
-            ),
+            "EVENTS_SUBSCRIPTIONS": json.dumps([{"event_types": ["created"]}]),
         }
         with patch.dict(os.environ, env, clear=True):
             with pytest.raises(ValueError, match="missing required.*destination"):

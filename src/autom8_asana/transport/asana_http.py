@@ -154,12 +154,16 @@ class AsanaHttpClient:
             )
             self._read_semaphore: AsyncAdaptiveSemaphore | FixedSemaphoreAdapter = (
                 AsyncAdaptiveSemaphore(
-                    config=read_aimd_config, name="read", logger=logger,
+                    config=read_aimd_config,
+                    name="read",
+                    logger=logger,
                 )
             )
             self._write_semaphore: AsyncAdaptiveSemaphore | FixedSemaphoreAdapter = (
                 AsyncAdaptiveSemaphore(
-                    config=write_aimd_config, name="write", logger=logger,
+                    config=write_aimd_config,
+                    name="write",
+                    logger=logger,
                 )
             )
         else:

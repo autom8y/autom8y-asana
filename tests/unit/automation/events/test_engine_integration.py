@@ -54,9 +54,7 @@ class CountingRule:
     def trigger(self) -> TriggerCondition:
         return TriggerCondition(entity_type="*", event="*")
 
-    def should_trigger(
-        self, entity: Any, event: str, context: dict[str, Any]
-    ) -> bool:
+    def should_trigger(self, entity: Any, event: str, context: dict[str, Any]) -> bool:
         self.trigger_count += 1
         return True
 
