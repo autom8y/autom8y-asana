@@ -737,6 +737,107 @@ class FieldSeeder:
 
         return value
 
+    @staticmethod
+    def _build_enum_lookup(enum_options: list[Any]) -> dict[str, str]:
+        """Build case-insensitive name-to-GID lookup from enum options.
+
+        Maps both lowered option names and raw GID strings to the option GID,
+        enabling both name-based and GID passthrough resolution.
+
+        Args:
+            enum_options: List of enum option dicts/objects with 'name' and 'gid'.
+
+        Returns:
+            Dict mapping lowered names and GID strings to GID values.
+        """
+        name_to_gid: dict[str, str] = {}
+        for option in enum_options:
+            opt_name = _get_field_attr(option, "name", "")
+            opt_gid = _get_field_attr(option, "gid", "")
+            if opt_name and opt_gid:
+                name_to_gid[opt_name.lower()] = opt_gid
+                # Also map GID to itself for passthrough
+                name_to_gid[opt_gid] = opt_gid
+        return name_to_gid
+
+    @staticmethod
+    def _resolve_single_option(
+        value: Any,
+        name_to_gid: dict[str, str],
+        enum_options: list[Any],
+        field_name: str,
+        task_gid: str,
+        *,
+        multi: bool = False,
+    ) -> str | None:
+        """Resolve a single string value to a GID using the lookup dict.
+
+        Handles GID passthrough (numeric strings validated against known GIDs)
+        and case-insensitive name matching. Logs warnings when values cannot
+        be resolved, including available options.
+
+        Args:
+            value: String value to resolve (name or GID).
+            name_to_gid: Lookup dict from _build_enum_lookup.
+            enum_options: Original enum options list (for available-options warning).
+            field_name: Field name for logging.
+            task_gid: Task GID for logging.
+            multi: If True, use multi-enum log event names.
+
+        Returns:
+            Resolved GID string, or None if resolution fails.
+        """
+        value_str = str(value).lower().strip()
+
+        # Check if it's already a GID (numeric string)
+        if value_str.isdigit():
+            if value_str in name_to_gid:
+                return value_str
+            gid_event = (
+                "seeding_multi_enum_gid_not_found"
+                if multi
+                else "seeding_enum_gid_not_found"
+            )
+            logger.warning(
+                gid_event,
+                gid=value,
+                field_name=field_name,
+                **({"task_gid": task_gid} if not multi else {}),
+            )
+            return None
+
+        # Name-based lookup (case-insensitive)
+        if value_str in name_to_gid:
+            resolved_gid = name_to_gid[value_str]
+            if not multi:
+                logger.debug(
+                    "seeding_enum_resolved",
+                    value=value,
+                    resolved_gid=resolved_gid,
+                    field_name=field_name,
+                )
+            return resolved_gid
+
+        # No match found - log warning with available options
+        available_options = [
+            _get_field_attr(opt, "name", "")
+            for opt in enum_options
+            if _get_field_attr(opt, "enabled", True)
+        ]
+        not_found_event = (
+            "seeding_multi_enum_value_not_found"
+            if multi
+            else "seeding_enum_value_not_found"
+        )
+        logger.warning(
+            not_found_event,
+            value=value,
+            field_name=field_name,
+            task_gid=task_gid,
+            available_options=available_options,
+        )
+        return None
+
     def _resolve_enum_value(
         self,
         field_def: Any,
@@ -771,7 +872,6 @@ class FieldSeeder:
         # Handle multi_enum fields (list of values)
         if field_type == "multi_enum":
             if not isinstance(value, list):
-                # Single value provided for multi-enum - wrap in list
                 value = [value]
 
             enum_options = _get_field_attr(field_def, "enum_options", [])
@@ -783,48 +883,18 @@ class FieldSeeder:
                 )
                 return None
 
-            # Build name->GID lookup (case-insensitive)
-            name_to_gid: dict[str, str] = {}
-            for option in enum_options:
-                opt_name = _get_field_attr(option, "name", "")
-                opt_gid = _get_field_attr(option, "gid", "")
-                if opt_name and opt_gid:
-                    name_to_gid[opt_name.lower()] = opt_gid
-                    # Also map GID to itself for passthrough
-                    name_to_gid[opt_gid] = opt_gid
+            name_to_gid = self._build_enum_lookup(enum_options)
 
             resolved_gids: list[str] = []
             for item in value:
                 if item is None:
                     continue
-                item_str = str(item).lower().strip()
-
-                # Check if it's already a GID
-                if item_str.isdigit():
-                    # Verify GID exists in options
-                    if item_str in name_to_gid:
-                        resolved_gids.append(item_str)
-                    else:
-                        logger.warning(
-                            "seeding_multi_enum_gid_not_found",
-                            gid=item,
-                            field_name=field_name,
-                        )
-                elif item_str in name_to_gid:
-                    resolved_gids.append(name_to_gid[item_str])
-                else:
-                    available_options = [
-                        _get_field_attr(opt, "name", "")
-                        for opt in enum_options
-                        if _get_field_attr(opt, "enabled", True)
-                    ]
-                    logger.warning(
-                        "seeding_multi_enum_value_not_found",
-                        value=item,
-                        field_name=field_name,
-                        task_gid=task_gid,
-                        available_options=available_options,
-                    )
+                resolved = self._resolve_single_option(
+                    item, name_to_gid, enum_options, field_name, task_gid,
+                    multi=True,
+                )
+                if resolved is not None:
+                    resolved_gids.append(resolved)
 
             return resolved_gids if resolved_gids else None
 
@@ -839,47 +909,11 @@ class FieldSeeder:
                 )
                 return None
 
-            # If value is already a GID (numeric string), validate and return
-            if isinstance(value, str) and value.isdigit():
-                for option in enum_options:
-                    if _get_field_attr(option, "gid") == value:
-                        return value
-                logger.warning(
-                    "seeding_enum_gid_not_found",
-                    gid=value,
-                    field_name=field_name,
-                    task_gid=task_gid,
-                )
-                return None
-
-            # Resolve string name to GID (case-insensitive)
-            value_str = str(value).lower()
-            for option in enum_options:
-                option_name = _get_field_attr(option, "name", "")
-                if option_name.lower() == value_str:
-                    resolved_gid = _get_field_attr(option, "gid")
-                    logger.debug(
-                        "seeding_enum_resolved",
-                        value=value,
-                        resolved_gid=resolved_gid,
-                        field_name=field_name,
-                    )
-                    return resolved_gid
-
-            # No match found - log warning with available options
-            available_options = [
-                _get_field_attr(opt, "name", "")
-                for opt in enum_options
-                if _get_field_attr(opt, "enabled", True)
-            ]
-            logger.warning(
-                "seeding_enum_value_not_found",
-                value=value,
-                field_name=field_name,
-                task_gid=task_gid,
-                available_options=available_options,
+            name_to_gid = self._build_enum_lookup(enum_options)
+            return self._resolve_single_option(
+                value, name_to_gid, enum_options, field_name, task_gid,
+                multi=False,
             )
-            return None
 
         # Not an enum field - return value unchanged
         return value
