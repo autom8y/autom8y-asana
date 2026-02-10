@@ -56,6 +56,10 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# Asana API maximum items per page. Used as page-boundary sentinel
+# for pacing and checkpoint logic.
+ASANA_PAGE_SIZE: int = 100
+
 
 @dataclass
 class _ResumeResult:
@@ -621,7 +625,7 @@ class ProgressiveProjectBuilder:
                 return True
 
             # Phase 3: Collect all tasks (paced for large sections)
-            if len(first_page_tasks) < 100:
+            if len(first_page_tasks) < ASANA_PAGE_SIZE:
                 tasks = first_page_tasks
             else:
                 tasks = await self._fetch_large_section(
@@ -825,7 +829,7 @@ class ProgressiveProjectBuilder:
             skip_task_count = 0
             async for task in iterator:
                 skip_task_count += 1
-                if skip_task_count >= 100:
+                if skip_task_count >= ASANA_PAGE_SIZE:
                     skip_count += 1
                     skip_task_count = 0
                     if skip_count >= resume_offset:
@@ -844,7 +848,7 @@ class ProgressiveProjectBuilder:
         first_page_tasks: list[Task] = []
         async for task in iterator:
             first_page_tasks.append(task)
-            if len(first_page_tasks) >= 100:
+            if len(first_page_tasks) >= ASANA_PAGE_SIZE:
                 break
 
         logger.info(
@@ -852,7 +856,7 @@ class ProgressiveProjectBuilder:
             extra={
                 "section_gid": section_gid,
                 "first_page_count": len(first_page_tasks),
-                "pacing_enabled": len(first_page_tasks) == 100,
+                "pacing_enabled": len(first_page_tasks) == ASANA_PAGE_SIZE,
             },
         )
 
@@ -885,7 +889,7 @@ class ProgressiveProjectBuilder:
             all_tasks.append(task)
             current_page_task_count += 1
 
-            if current_page_task_count >= 100:
+            if current_page_task_count >= ASANA_PAGE_SIZE:
                 pages_fetched += 1
                 current_page_task_count = 0
 
