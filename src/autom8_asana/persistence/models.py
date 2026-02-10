@@ -493,6 +493,73 @@ class ActionType(str, Enum):
     SET_PARENT = "set_parent"
 
 
+def _build_positioning_data(
+    base_data: dict[str, Any], extra_params: dict[str, Any]
+) -> dict[str, Any]:
+    """Augment payload data with positioning parameters from extra_params.
+
+    Per ADR-0044: Include insert_before/insert_after for ordering.
+
+    Args:
+        base_data: Base payload data dict to augment.
+        extra_params: Extra parameters that may contain positioning keys.
+
+    Returns:
+        The base_data dict, augmented with any positioning keys present.
+    """
+    if "insert_before" in extra_params:
+        base_data["insert_before"] = extra_params["insert_before"]
+    if "insert_after" in extra_params:
+        base_data["insert_after"] = extra_params["insert_after"]
+    return base_data
+
+
+def _build_comment_data(extra_params: dict[str, Any]) -> dict[str, Any]:
+    """Build comment payload from extra_params.
+
+    Per TDD-0012/ADR-0046: Text stored in extra_params.
+
+    Args:
+        extra_params: Parameters containing 'text' and optional 'html_text'.
+
+    Returns:
+        Comment payload dict.
+    """
+    data: dict[str, Any] = {"text": extra_params.get("text", "")}
+    if extra_params.get("html_text"):
+        data["html_text"] = extra_params["html_text"]
+    return data
+
+
+# Dispatch table for ActionType -> API call generation.
+# Each entry maps to: (endpoint_suffix, payload_key, payload_style)
+# payload_style values:
+#   "single"      - {"data": {key: target_gid}}
+#   "list"        - {"data": {key: [target_gid]}}
+#   "positioning" - {"data": {key: target_gid, +positioning}} via task path
+#   "section"     - {"data": {"task": task_gid, +positioning}} via section path (MOVE_TO_SECTION)
+#   "parent"      - {"data": {"parent": extra_params["parent"], +positioning}}
+#   "no_target"   - {"data": {}}
+#   "comment"     - {"data": _build_comment_data(extra_params)}
+_ACTION_SPECS: dict[ActionType, tuple[str, str, str]] = {
+    ActionType.ADD_TAG:              ("addTag",              "tag",          "single"),
+    ActionType.REMOVE_TAG:           ("removeTag",           "tag",          "single"),
+    ActionType.REMOVE_FROM_PROJECT:  ("removeProject",       "project",      "single"),
+    ActionType.ADD_TO_PROJECT:       ("addProject",          "project",      "positioning"),
+    ActionType.MOVE_TO_SECTION:      ("addTask",             "task",         "section"),
+    ActionType.SET_PARENT:           ("setParent",           "parent",       "parent"),
+    ActionType.ADD_DEPENDENCY:       ("addDependencies",     "dependencies", "list"),
+    ActionType.REMOVE_DEPENDENCY:    ("removeDependencies",  "dependencies", "list"),
+    ActionType.ADD_FOLLOWER:         ("addFollowers",        "followers",    "list"),
+    ActionType.REMOVE_FOLLOWER:      ("removeFollowers",     "followers",    "list"),
+    ActionType.ADD_DEPENDENT:        ("addDependents",       "dependents",   "list"),
+    ActionType.REMOVE_DEPENDENT:     ("removeDependents",    "dependents",   "list"),
+    ActionType.ADD_LIKE:             ("addLike",             "",             "no_target"),
+    ActionType.REMOVE_LIKE:          ("removeLike",          "",             "no_target"),
+    ActionType.ADD_COMMENT:          ("stories",             "",             "comment"),
+}
+
+
 @dataclass(frozen=True)
 class ActionOperation:
     """A planned action operation for non-batch API endpoints.
@@ -526,6 +593,10 @@ class ActionOperation:
     def to_api_call(self) -> tuple[str, str, dict[str, Any]]:
         """Convert action to API call parameters.
 
+        Uses _ACTION_SPECS dispatch table to map action types to API
+        call parameters, replacing per-case branching with data-driven
+        lookup.
+
         Returns:
             Tuple of (HTTP method, endpoint path, payload dict).
 
@@ -537,130 +608,43 @@ class ActionOperation:
         # Per ADR-0107: Extract GID from NameGid target
         target_gid = self.target.gid if self.target else None
 
-        match self.action:
-            case ActionType.ADD_TAG:
-                return (
-                    "POST",
-                    f"/tasks/{task_gid}/addTag",
-                    {"data": {"tag": target_gid}},
-                )
-            case ActionType.REMOVE_TAG:
-                return (
-                    "POST",
-                    f"/tasks/{task_gid}/removeTag",
-                    {"data": {"tag": target_gid}},
-                )
-            case ActionType.ADD_TO_PROJECT:
-                # Per ADR-0044: Include positioning from extra_params
-                data: dict[str, Any] = {"project": target_gid}
-                if "insert_before" in self.extra_params:
-                    data["insert_before"] = self.extra_params["insert_before"]
-                if "insert_after" in self.extra_params:
-                    data["insert_after"] = self.extra_params["insert_after"]
-                return (
-                    "POST",
-                    f"/tasks/{task_gid}/addProject",
-                    {"data": data},
-                )
-            case ActionType.REMOVE_FROM_PROJECT:
-                return (
-                    "POST",
-                    f"/tasks/{task_gid}/removeProject",
-                    {"data": {"project": target_gid}},
-                )
-            case ActionType.ADD_DEPENDENCY:
-                return (
-                    "POST",
-                    f"/tasks/{task_gid}/addDependencies",
-                    {"data": {"dependencies": [target_gid]}},
-                )
-            case ActionType.REMOVE_DEPENDENCY:
-                return (
-                    "POST",
-                    f"/tasks/{task_gid}/removeDependencies",
-                    {"data": {"dependencies": [target_gid]}},
-                )
-            case ActionType.MOVE_TO_SECTION:
-                # Per ADR-0044: Include positioning from extra_params
-                section_data: dict[str, Any] = {"task": task_gid}
-                if "insert_before" in self.extra_params:
-                    section_data["insert_before"] = self.extra_params["insert_before"]
-                if "insert_after" in self.extra_params:
-                    section_data["insert_after"] = self.extra_params["insert_after"]
-                return (
-                    "POST",
-                    f"/sections/{target_gid}/addTask",
-                    {"data": section_data},
-                )
-            case ActionType.ADD_FOLLOWER:
-                # Per TDD-0012: Add follower to task
-                return (
-                    "POST",
-                    f"/tasks/{task_gid}/addFollowers",
-                    {"data": {"followers": [target_gid]}},
-                )
-            case ActionType.REMOVE_FOLLOWER:
-                # Per TDD-0012: Remove follower from task
-                return (
-                    "POST",
-                    f"/tasks/{task_gid}/removeFollowers",
-                    {"data": {"followers": [target_gid]}},
-                )
-            case ActionType.ADD_DEPENDENT:
-                # Per TDD-0012: Add dependent task (inverse of add_dependency)
-                return (
-                    "POST",
-                    f"/tasks/{task_gid}/addDependents",
-                    {"data": {"dependents": [target_gid]}},
-                )
-            case ActionType.REMOVE_DEPENDENT:
-                # Per TDD-0012: Remove dependent task
-                return (
-                    "POST",
-                    f"/tasks/{task_gid}/removeDependents",
-                    {"data": {"dependents": [target_gid]}},
-                )
-            case ActionType.ADD_LIKE:
-                # Per TDD-0012/ADR-0045: No target needed, uses authenticated user
-                return (
-                    "POST",
-                    f"/tasks/{task_gid}/addLike",
-                    {"data": {}},
-                )
-            case ActionType.REMOVE_LIKE:
-                # Per TDD-0012/ADR-0045: No target needed, uses authenticated user
-                return (
-                    "POST",
-                    f"/tasks/{task_gid}/removeLike",
-                    {"data": {}},
-                )
-            case ActionType.ADD_COMMENT:
-                # Per TDD-0012/ADR-0046: Text stored in extra_params
-                comment_data: dict[str, Any] = {
-                    "text": self.extra_params.get("text", "")
-                }
-                if self.extra_params.get("html_text"):
-                    comment_data["html_text"] = self.extra_params["html_text"]
-                return (
-                    "POST",
-                    f"/tasks/{task_gid}/stories",
-                    {"data": comment_data},
-                )
-            case ActionType.SET_PARENT:
-                # Per TDD-0013: Parent stored in extra_params (can be None for promote)
-                parent_gid = self.extra_params.get("parent")
-                parent_data: dict[str, Any] = {"parent": parent_gid}
-                if "insert_before" in self.extra_params:
-                    parent_data["insert_before"] = self.extra_params["insert_before"]
-                if "insert_after" in self.extra_params:
-                    parent_data["insert_after"] = self.extra_params["insert_after"]
-                return (
-                    "POST",
-                    f"/tasks/{task_gid}/setParent",
-                    {"data": parent_data},
-                )
-            case _:
-                raise ValueError(f"Unknown action type: {self.action}")
+        spec = _ACTION_SPECS.get(self.action)
+        if spec is None:
+            raise ValueError(f"Unknown action type: {self.action}")
+
+        endpoint_suffix, payload_key, style = spec
+
+        # MOVE_TO_SECTION: path uses target_gid, data uses task_gid (reversed)
+        if style == "section":
+            path = f"/sections/{target_gid}/{endpoint_suffix}"
+            data = _build_positioning_data(
+                {payload_key: task_gid}, self.extra_params
+            )
+        elif style == "positioning":
+            path = f"/tasks/{task_gid}/{endpoint_suffix}"
+            data = _build_positioning_data(
+                {payload_key: target_gid}, self.extra_params
+            )
+        elif style == "parent":
+            path = f"/tasks/{task_gid}/{endpoint_suffix}"
+            parent_gid = self.extra_params.get("parent")
+            data = _build_positioning_data(
+                {payload_key: parent_gid}, self.extra_params
+            )
+        elif style == "list":
+            path = f"/tasks/{task_gid}/{endpoint_suffix}"
+            data = {payload_key: [target_gid]}
+        elif style == "no_target":
+            path = f"/tasks/{task_gid}/{endpoint_suffix}"
+            data = {}
+        elif style == "comment":
+            path = f"/tasks/{task_gid}/{endpoint_suffix}"
+            data = _build_comment_data(self.extra_params)
+        else:  # "single"
+            path = f"/tasks/{task_gid}/{endpoint_suffix}"
+            data = {payload_key: target_gid}
+
+        return ("POST", path, {"data": data})
 
     def __repr__(self) -> str:
         """Return string representation for debugging."""
@@ -756,7 +740,7 @@ class AutomationResult:
     error: str | None = None
     execution_time_ms: float = 0.0
     skipped_reason: str | None = None
-    enhancement_results: dict[str, bool] = field(default_factory=dict)
+    enhancement_results: dict[str, bool | int] = field(default_factory=dict)
     pre_validation: Any | None = (
         None  # ValidationResult, using Any to avoid circular import
     )
