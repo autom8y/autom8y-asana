@@ -1,6 +1,7 @@
 """Goal followers management.
 
 Per ADR-0059: Extracted from GoalsClient to follow SRP.
+Per TDD-DESIGN-PATTERNS-D: Uses @async_method for async/sync method generation.
 Manages adding and removing followers from goals.
 """
 
@@ -9,7 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal, overload
 
 from autom8_asana.models.goal import Goal
-from autom8_asana.transport.sync import sync_wrapper
+from autom8_asana.patterns import async_method
 
 if TYPE_CHECKING:
     from autom8_asana.clients.goals import GoalsClient
@@ -47,7 +48,7 @@ class GoalFollowers:
 
     # --- Add Followers ---
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def add_followers_async(
         self,
         goal_gid: str,
@@ -69,7 +70,30 @@ class GoalFollowers:
         """Overload: add followers, returning raw dict."""
         ...
 
-    async def add_followers_async(
+    @overload
+    def add_followers(
+        self,
+        goal_gid: str,
+        *,
+        followers: list[str],
+        raw: Literal[False] = ...,
+    ) -> Goal:
+        """Overload: add followers (sync), returning Goal model."""
+        ...
+
+    @overload
+    def add_followers(
+        self,
+        goal_gid: str,
+        *,
+        followers: list[str],
+        raw: Literal[True],
+    ) -> dict[str, Any]:
+        """Overload: add followers (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
+    async def add_followers(
         self,
         goal_gid: str,
         *,
@@ -95,64 +119,9 @@ class GoalFollowers:
         goal: Goal = Goal.model_validate(result)
         return goal
 
-    @overload
-    def add_followers(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: Literal[False] = ...,
-    ) -> Goal:
-        """Overload: add followers (sync), returning Goal model."""
-        ...
-
-    @overload
-    def add_followers(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: Literal[True],
-    ) -> dict[str, Any]:
-        """Overload: add followers (sync), returning raw dict."""
-        ...
-
-    def add_followers(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: bool = False,
-    ) -> Goal | dict[str, Any]:
-        """Add followers (sync).
-
-        Args:
-            goal_gid: Goal GID
-            followers: List of user GIDs
-
-        Returns:
-            Updated goal
-        """
-        return self._add_followers_sync(goal_gid, followers=followers, raw=raw)
-
-    @sync_wrapper("add_followers_async")
-    async def _add_followers_sync(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: bool = False,
-    ) -> Goal | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.add_followers_async(
-                goal_gid, followers=followers, raw=True
-            )
-        return await self.add_followers_async(goal_gid, followers=followers, raw=False)
-
     # --- Remove Followers ---
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def remove_followers_async(
         self,
         goal_gid: str,
@@ -174,7 +143,30 @@ class GoalFollowers:
         """Overload: remove followers, returning raw dict."""
         ...
 
-    async def remove_followers_async(
+    @overload
+    def remove_followers(
+        self,
+        goal_gid: str,
+        *,
+        followers: list[str],
+        raw: Literal[False] = ...,
+    ) -> Goal:
+        """Overload: remove followers (sync), returning Goal model."""
+        ...
+
+    @overload
+    def remove_followers(
+        self,
+        goal_gid: str,
+        *,
+        followers: list[str],
+        raw: Literal[True],
+    ) -> dict[str, Any]:
+        """Overload: remove followers (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
+    async def remove_followers(
         self,
         goal_gid: str,
         *,
@@ -199,60 +191,3 @@ class GoalFollowers:
             return result
         goal: Goal = Goal.model_validate(result)
         return goal
-
-    @overload
-    def remove_followers(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: Literal[False] = ...,
-    ) -> Goal:
-        """Overload: remove followers (sync), returning Goal model."""
-        ...
-
-    @overload
-    def remove_followers(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: Literal[True],
-    ) -> dict[str, Any]:
-        """Overload: remove followers (sync), returning raw dict."""
-        ...
-
-    def remove_followers(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: bool = False,
-    ) -> Goal | dict[str, Any]:
-        """Remove followers (sync).
-
-        Args:
-            goal_gid: Goal GID
-            followers: List of user GIDs
-
-        Returns:
-            Updated goal
-        """
-        return self._remove_followers_sync(goal_gid, followers=followers, raw=raw)
-
-    @sync_wrapper("remove_followers_async")
-    async def _remove_followers_sync(
-        self,
-        goal_gid: str,
-        *,
-        followers: list[str],
-        raw: bool = False,
-    ) -> Goal | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.remove_followers_async(
-                goal_gid, followers=followers, raw=True
-            )
-        return await self.remove_followers_async(
-            goal_gid, followers=followers, raw=False
-        )

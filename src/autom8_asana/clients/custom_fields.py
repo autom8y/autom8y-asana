@@ -1,6 +1,7 @@
 """Custom fields client - returns typed CustomField models by default.
 
 Per TDD-0003: CustomFieldsClient provides CRUD, enum options, and project settings.
+Per TDD-DESIGN-PATTERNS-D: Uses @async_method for async/sync method generation.
 Use raw=True for backward-compatible dict returns.
 """
 
@@ -16,8 +17,8 @@ from autom8_asana.models.custom_field import (
     CustomFieldSetting,
 )
 from autom8_asana.observability import error_handler
+from autom8_asana.patterns import async_method
 from autom8_asana.settings import get_settings
-from autom8_asana.transport.sync import sync_wrapper
 
 # Cache TTL for custom field metadata (30 minutes)
 # Custom fields change infrequently (structure/enum options rarely modified)
@@ -33,7 +34,7 @@ class CustomFieldsClient(BaseClient):
 
     # --- Core CRUD Operations ---
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def get_async(
         self,
         custom_field_gid: str,
@@ -55,8 +56,31 @@ class CustomFieldsClient(BaseClient):
         """Overload: get, returning raw dict."""
         ...
 
+    @overload
+    def get(
+        self,
+        custom_field_gid: str,
+        *,
+        raw: Literal[False] = ...,
+        opt_fields: list[str] | None = ...,
+    ) -> CustomField:
+        """Overload: get (sync), returning CustomField model."""
+        ...
+
+    @overload
+    def get(
+        self,
+        custom_field_gid: str,
+        *,
+        raw: Literal[True],
+        opt_fields: list[str] | None = ...,
+    ) -> dict[str, Any]:
+        """Overload: get (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
     @error_handler
-    async def get_async(
+    async def get(
         self,
         custom_field_gid: str,
         *,
@@ -108,63 +132,7 @@ class CustomFieldsClient(BaseClient):
             return data
         return CustomField.model_validate(data)
 
-    @overload
-    def get(
-        self,
-        custom_field_gid: str,
-        *,
-        raw: Literal[False] = ...,
-        opt_fields: list[str] | None = ...,
-    ) -> CustomField:
-        """Overload: get (sync), returning CustomField model."""
-        ...
-
-    @overload
-    def get(
-        self,
-        custom_field_gid: str,
-        *,
-        raw: Literal[True],
-        opt_fields: list[str] | None = ...,
-    ) -> dict[str, Any]:
-        """Overload: get (sync), returning raw dict."""
-        ...
-
-    def get(
-        self,
-        custom_field_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> CustomField | dict[str, Any]:
-        """Get a custom field by GID (sync).
-
-        Args:
-            custom_field_gid: Custom field GID
-            raw: If True, return raw dict instead of CustomField model
-            opt_fields: Optional fields to include
-
-        Returns:
-            CustomField model by default, or dict if raw=True
-        """
-        return self._get_sync(custom_field_gid, raw=raw, opt_fields=opt_fields)
-
-    @sync_wrapper("get_async")
-    async def _get_sync(
-        self,
-        custom_field_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> CustomField | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.get_async(
-                custom_field_gid, raw=True, opt_fields=opt_fields
-            )
-        return await self.get_async(custom_field_gid, raw=False, opt_fields=opt_fields)
-
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def create_async(
         self,
         *,
@@ -200,7 +168,44 @@ class CustomFieldsClient(BaseClient):
         """Overload: create, returning raw dict."""
         ...
 
-    async def create_async(
+    @overload
+    def create(
+        self,
+        *,
+        workspace: str,
+        name: str,
+        resource_subtype: str,
+        raw: Literal[False] = ...,
+        description: str | None = ...,
+        enum_options: list[dict[str, Any]] | None = ...,
+        precision: int | None = ...,
+        format: str | None = ...,
+        currency_code: str | None = ...,
+        **kwargs: Any,
+    ) -> CustomField:
+        """Overload: create (sync), returning CustomField model."""
+        ...
+
+    @overload
+    def create(
+        self,
+        *,
+        workspace: str,
+        name: str,
+        resource_subtype: str,
+        raw: Literal[True],
+        description: str | None = ...,
+        enum_options: list[dict[str, Any]] | None = ...,
+        precision: int | None = ...,
+        format: str | None = ...,
+        currency_code: str | None = ...,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Overload: create (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
+    async def create(
         self,
         *,
         workspace: str,
@@ -257,129 +262,7 @@ class CustomFieldsClient(BaseClient):
             return result
         return CustomField.model_validate(result)
 
-    @overload
-    def create(
-        self,
-        *,
-        workspace: str,
-        name: str,
-        resource_subtype: str,
-        raw: Literal[False] = ...,
-        description: str | None = ...,
-        enum_options: list[dict[str, Any]] | None = ...,
-        precision: int | None = ...,
-        format: str | None = ...,
-        currency_code: str | None = ...,
-        **kwargs: Any,
-    ) -> CustomField:
-        """Overload: create (sync), returning CustomField model."""
-        ...
-
-    @overload
-    def create(
-        self,
-        *,
-        workspace: str,
-        name: str,
-        resource_subtype: str,
-        raw: Literal[True],
-        description: str | None = ...,
-        enum_options: list[dict[str, Any]] | None = ...,
-        precision: int | None = ...,
-        format: str | None = ...,
-        currency_code: str | None = ...,
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        """Overload: create (sync), returning raw dict."""
-        ...
-
-    def create(
-        self,
-        *,
-        workspace: str,
-        name: str,
-        resource_subtype: str,
-        raw: bool = False,
-        description: str | None = None,
-        enum_options: list[dict[str, Any]] | None = None,
-        precision: int | None = None,
-        format: str | None = None,
-        currency_code: str | None = None,
-        **kwargs: Any,
-    ) -> CustomField | dict[str, Any]:
-        """Create a new custom field (sync).
-
-        Args:
-            workspace: Workspace GID (required)
-            name: Custom field name (required)
-            resource_subtype: Type (text, number, enum, multi_enum, date, people)
-            raw: If True, return raw dict instead of CustomField model
-            description: Field description
-            enum_options: For enum types, list of option definitions
-            precision: For number type, decimal precision
-            format: Display format
-            currency_code: For currency format
-            **kwargs: Additional custom field fields
-
-        Returns:
-            CustomField model by default, or dict if raw=True
-        """
-        return self._create_sync(
-            workspace=workspace,
-            name=name,
-            resource_subtype=resource_subtype,
-            raw=raw,
-            description=description,
-            enum_options=enum_options,
-            precision=precision,
-            format=format,
-            currency_code=currency_code,
-            **kwargs,
-        )
-
-    @sync_wrapper("create_async")
-    async def _create_sync(
-        self,
-        *,
-        workspace: str,
-        name: str,
-        resource_subtype: str,
-        raw: bool = False,
-        description: str | None = None,
-        enum_options: list[dict[str, Any]] | None = None,
-        precision: int | None = None,
-        format: str | None = None,
-        currency_code: str | None = None,
-        **kwargs: Any,
-    ) -> CustomField | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.create_async(
-                workspace=workspace,
-                name=name,
-                resource_subtype=resource_subtype,
-                raw=True,
-                description=description,
-                enum_options=enum_options,
-                precision=precision,
-                format=format,
-                currency_code=currency_code,
-                **kwargs,
-            )
-        return await self.create_async(
-            workspace=workspace,
-            name=name,
-            resource_subtype=resource_subtype,
-            raw=False,
-            description=description,
-            enum_options=enum_options,
-            precision=precision,
-            format=format,
-            currency_code=currency_code,
-            **kwargs,
-        )
-
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def update_async(
         self,
         custom_field_gid: str,
@@ -401,7 +284,30 @@ class CustomFieldsClient(BaseClient):
         """Overload: update, returning raw dict."""
         ...
 
-    async def update_async(
+    @overload
+    def update(
+        self,
+        custom_field_gid: str,
+        *,
+        raw: Literal[False] = ...,
+        **kwargs: Any,
+    ) -> CustomField:
+        """Overload: update (sync), returning CustomField model."""
+        ...
+
+    @overload
+    def update(
+        self,
+        custom_field_gid: str,
+        *,
+        raw: Literal[True],
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Overload: update (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
+    async def update(
         self,
         custom_field_gid: str,
         *,
@@ -426,61 +332,8 @@ class CustomFieldsClient(BaseClient):
             return result
         return CustomField.model_validate(result)
 
-    @overload
-    def update(
-        self,
-        custom_field_gid: str,
-        *,
-        raw: Literal[False] = ...,
-        **kwargs: Any,
-    ) -> CustomField:
-        """Overload: update (sync), returning CustomField model."""
-        ...
-
-    @overload
-    def update(
-        self,
-        custom_field_gid: str,
-        *,
-        raw: Literal[True],
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        """Overload: update (sync), returning raw dict."""
-        ...
-
-    def update(
-        self,
-        custom_field_gid: str,
-        *,
-        raw: bool = False,
-        **kwargs: Any,
-    ) -> CustomField | dict[str, Any]:
-        """Update a custom field (sync).
-
-        Args:
-            custom_field_gid: Custom field GID
-            raw: If True, return raw dict instead of CustomField model
-            **kwargs: Fields to update
-
-        Returns:
-            CustomField model by default, or dict if raw=True
-        """
-        return self._update_sync(custom_field_gid, raw=raw, **kwargs)
-
-    @sync_wrapper("update_async")
-    async def _update_sync(
-        self,
-        custom_field_gid: str,
-        *,
-        raw: bool = False,
-        **kwargs: Any,
-    ) -> CustomField | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.update_async(custom_field_gid, raw=True, **kwargs)
-        return await self.update_async(custom_field_gid, raw=False, **kwargs)
-
-    async def delete_async(self, custom_field_gid: str) -> None:
+    @async_method  # type: ignore[arg-type]
+    async def delete(self, custom_field_gid: str) -> None:
         """Delete a custom field.
 
         Args:
@@ -488,19 +341,6 @@ class CustomFieldsClient(BaseClient):
         """
         self._log_operation("delete_async", custom_field_gid)
         await self._http.delete(f"/custom_fields/{custom_field_gid}")
-
-    @sync_wrapper("delete_async")
-    async def _delete_sync(self, custom_field_gid: str) -> None:
-        """Internal sync wrapper implementation."""
-        await self.delete_async(custom_field_gid)
-
-    def delete(self, custom_field_gid: str) -> None:
-        """Delete a custom field (sync).
-
-        Args:
-            custom_field_gid: Custom field GID
-        """
-        self._delete_sync(custom_field_gid)
 
     def list_for_workspace_async(
         self,
@@ -546,7 +386,7 @@ class CustomFieldsClient(BaseClient):
 
     # --- Enum Option Operations ---
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def create_enum_option_async(
         self,
         custom_field_gid: str,
@@ -576,7 +416,38 @@ class CustomFieldsClient(BaseClient):
         """Overload: create enum option, returning raw dict."""
         ...
 
-    async def create_enum_option_async(
+    @overload
+    def create_enum_option(
+        self,
+        custom_field_gid: str,
+        *,
+        name: str,
+        raw: Literal[False] = ...,
+        color: str | None = ...,
+        enabled: bool = ...,
+        insert_before: str | None = ...,
+        insert_after: str | None = ...,
+    ) -> CustomFieldEnumOption:
+        """Overload: create enum option (sync), returning CustomFieldEnumOption model."""
+        ...
+
+    @overload
+    def create_enum_option(
+        self,
+        custom_field_gid: str,
+        *,
+        name: str,
+        raw: Literal[True],
+        color: str | None = ...,
+        enabled: bool = ...,
+        insert_before: str | None = ...,
+        insert_after: str | None = ...,
+    ) -> dict[str, Any]:
+        """Overload: create enum option (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
+    async def create_enum_option(
         self,
         custom_field_gid: str,
         *,
@@ -618,105 +489,7 @@ class CustomFieldsClient(BaseClient):
             return result
         return CustomFieldEnumOption.model_validate(result)
 
-    @overload
-    def create_enum_option(
-        self,
-        custom_field_gid: str,
-        *,
-        name: str,
-        raw: Literal[False] = ...,
-        color: str | None = ...,
-        enabled: bool = ...,
-        insert_before: str | None = ...,
-        insert_after: str | None = ...,
-    ) -> CustomFieldEnumOption:
-        """Overload: create enum option (sync), returning CustomFieldEnumOption model."""
-        ...
-
-    @overload
-    def create_enum_option(
-        self,
-        custom_field_gid: str,
-        *,
-        name: str,
-        raw: Literal[True],
-        color: str | None = ...,
-        enabled: bool = ...,
-        insert_before: str | None = ...,
-        insert_after: str | None = ...,
-    ) -> dict[str, Any]:
-        """Overload: create enum option (sync), returning raw dict."""
-        ...
-
-    def create_enum_option(
-        self,
-        custom_field_gid: str,
-        *,
-        name: str,
-        raw: bool = False,
-        color: str | None = None,
-        enabled: bool = True,
-        insert_before: str | None = None,
-        insert_after: str | None = None,
-    ) -> CustomFieldEnumOption | dict[str, Any]:
-        """Create a new enum option for a custom field (sync).
-
-        Args:
-            custom_field_gid: Custom field GID
-            name: Option name (required)
-            raw: If True, return raw dict instead of CustomFieldEnumOption model
-            color: Option color
-            enabled: Whether the option is enabled (default True)
-            insert_before: Enum option GID to insert before
-            insert_after: Enum option GID to insert after
-
-        Returns:
-            CustomFieldEnumOption model by default, or dict if raw=True
-        """
-        return self._create_enum_option_sync(
-            custom_field_gid,
-            name=name,
-            raw=raw,
-            color=color,
-            enabled=enabled,
-            insert_before=insert_before,
-            insert_after=insert_after,
-        )
-
-    @sync_wrapper("create_enum_option_async")
-    async def _create_enum_option_sync(
-        self,
-        custom_field_gid: str,
-        *,
-        name: str,
-        raw: bool = False,
-        color: str | None = None,
-        enabled: bool = True,
-        insert_before: str | None = None,
-        insert_after: str | None = None,
-    ) -> CustomFieldEnumOption | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.create_enum_option_async(
-                custom_field_gid,
-                name=name,
-                raw=True,
-                color=color,
-                enabled=enabled,
-                insert_before=insert_before,
-                insert_after=insert_after,
-            )
-        return await self.create_enum_option_async(
-            custom_field_gid,
-            name=name,
-            raw=False,
-            color=color,
-            enabled=enabled,
-            insert_before=insert_before,
-            insert_after=insert_after,
-        )
-
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def update_enum_option_async(
         self,
         enum_option_gid: str,
@@ -737,31 +510,6 @@ class CustomFieldsClient(BaseClient):
     ) -> dict[str, Any]:
         """Overload: update enum option, returning raw dict."""
         ...
-
-    async def update_enum_option_async(
-        self,
-        enum_option_gid: str,
-        *,
-        raw: bool = False,
-        **kwargs: Any,
-    ) -> CustomFieldEnumOption | dict[str, Any]:
-        """Update an enum option.
-
-        Args:
-            enum_option_gid: Enum option GID
-            raw: If True, return raw dict instead of CustomFieldEnumOption model
-            **kwargs: Fields to update (name, color, enabled)
-
-        Returns:
-            CustomFieldEnumOption model by default, or dict if raw=True
-        """
-        self._log_operation("update_enum_option_async", enum_option_gid)
-        result = await self._http.put(
-            f"/enum_options/{enum_option_gid}", json={"data": kwargs}
-        )
-        if raw:
-            return result
-        return CustomFieldEnumOption.model_validate(result)
 
     @overload
     def update_enum_option(
@@ -785,14 +533,15 @@ class CustomFieldsClient(BaseClient):
         """Overload: update enum option (sync), returning raw dict."""
         ...
 
-    def update_enum_option(
+    @async_method  # type: ignore[arg-type, operator, misc]
+    async def update_enum_option(
         self,
         enum_option_gid: str,
         *,
         raw: bool = False,
         **kwargs: Any,
     ) -> CustomFieldEnumOption | dict[str, Any]:
-        """Update an enum option (sync).
+        """Update an enum option.
 
         Args:
             enum_option_gid: Enum option GID
@@ -802,22 +551,13 @@ class CustomFieldsClient(BaseClient):
         Returns:
             CustomFieldEnumOption model by default, or dict if raw=True
         """
-        return self._update_enum_option_sync(enum_option_gid, raw=raw, **kwargs)
-
-    @sync_wrapper("update_enum_option_async")
-    async def _update_enum_option_sync(
-        self,
-        enum_option_gid: str,
-        *,
-        raw: bool = False,
-        **kwargs: Any,
-    ) -> CustomFieldEnumOption | dict[str, Any]:
-        """Internal sync wrapper implementation."""
+        self._log_operation("update_enum_option_async", enum_option_gid)
+        result = await self._http.put(
+            f"/enum_options/{enum_option_gid}", json={"data": kwargs}
+        )
         if raw:
-            return await self.update_enum_option_async(
-                enum_option_gid, raw=True, **kwargs
-            )
-        return await self.update_enum_option_async(enum_option_gid, raw=False, **kwargs)
+            return result
+        return CustomFieldEnumOption.model_validate(result)
 
     # --- Project Settings Operations ---
 
@@ -863,7 +603,7 @@ class CustomFieldsClient(BaseClient):
 
         return PageIterator(fetch_page, page_size=min(limit, 100))
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def add_to_project_async(
         self,
         project_gid: str,
@@ -891,7 +631,36 @@ class CustomFieldsClient(BaseClient):
         """Overload: add to project, returning raw dict."""
         ...
 
-    async def add_to_project_async(
+    @overload
+    def add_to_project(
+        self,
+        project_gid: str,
+        *,
+        custom_field: str,
+        raw: Literal[False] = ...,
+        is_important: bool | None = ...,
+        insert_before: str | None = ...,
+        insert_after: str | None = ...,
+    ) -> CustomFieldSetting:
+        """Overload: add to project (sync), returning CustomFieldSetting model."""
+        ...
+
+    @overload
+    def add_to_project(
+        self,
+        project_gid: str,
+        *,
+        custom_field: str,
+        raw: Literal[True],
+        is_important: bool | None = ...,
+        insert_before: str | None = ...,
+        insert_after: str | None = ...,
+    ) -> dict[str, Any]:
+        """Overload: add to project (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
+    async def add_to_project(
         self,
         project_gid: str,
         *,
@@ -931,97 +700,8 @@ class CustomFieldsClient(BaseClient):
             return result
         return CustomFieldSetting.model_validate(result)
 
-    @overload
-    def add_to_project(
-        self,
-        project_gid: str,
-        *,
-        custom_field: str,
-        raw: Literal[False] = ...,
-        is_important: bool | None = ...,
-        insert_before: str | None = ...,
-        insert_after: str | None = ...,
-    ) -> CustomFieldSetting:
-        """Overload: add to project (sync), returning CustomFieldSetting model."""
-        ...
-
-    @overload
-    def add_to_project(
-        self,
-        project_gid: str,
-        *,
-        custom_field: str,
-        raw: Literal[True],
-        is_important: bool | None = ...,
-        insert_before: str | None = ...,
-        insert_after: str | None = ...,
-    ) -> dict[str, Any]:
-        """Overload: add to project (sync), returning raw dict."""
-        ...
-
-    def add_to_project(
-        self,
-        project_gid: str,
-        *,
-        custom_field: str,
-        raw: bool = False,
-        is_important: bool | None = None,
-        insert_before: str | None = None,
-        insert_after: str | None = None,
-    ) -> CustomFieldSetting | dict[str, Any]:
-        """Add a custom field to a project (sync).
-
-        Args:
-            project_gid: Project GID
-            custom_field: Custom field GID to add
-            raw: If True, return raw dict instead of CustomFieldSetting model
-            is_important: Whether to mark as important
-            insert_before: Custom field GID to insert before
-            insert_after: Custom field GID to insert after
-
-        Returns:
-            CustomFieldSetting model by default, or dict if raw=True
-        """
-        return self._add_to_project_sync(
-            project_gid,
-            custom_field=custom_field,
-            raw=raw,
-            is_important=is_important,
-            insert_before=insert_before,
-            insert_after=insert_after,
-        )
-
-    @sync_wrapper("add_to_project_async")
-    async def _add_to_project_sync(
-        self,
-        project_gid: str,
-        *,
-        custom_field: str,
-        raw: bool = False,
-        is_important: bool | None = None,
-        insert_before: str | None = None,
-        insert_after: str | None = None,
-    ) -> CustomFieldSetting | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.add_to_project_async(
-                project_gid,
-                custom_field=custom_field,
-                raw=True,
-                is_important=is_important,
-                insert_before=insert_before,
-                insert_after=insert_after,
-            )
-        return await self.add_to_project_async(
-            project_gid,
-            custom_field=custom_field,
-            raw=False,
-            is_important=is_important,
-            insert_before=insert_before,
-            insert_after=insert_after,
-        )
-
-    async def remove_from_project_async(
+    @async_method  # type: ignore[arg-type]
+    async def remove_from_project(
         self,
         project_gid: str,
         *,
@@ -1038,27 +718,3 @@ class CustomFieldsClient(BaseClient):
             f"/projects/{project_gid}/removeCustomFieldSetting",
             json={"data": {"custom_field": custom_field}},
         )
-
-    @sync_wrapper("remove_from_project_async")
-    async def _remove_from_project_sync(
-        self,
-        project_gid: str,
-        *,
-        custom_field: str,
-    ) -> None:
-        """Internal sync wrapper implementation."""
-        await self.remove_from_project_async(project_gid, custom_field=custom_field)
-
-    def remove_from_project(
-        self,
-        project_gid: str,
-        *,
-        custom_field: str,
-    ) -> None:
-        """Remove a custom field from a project (sync).
-
-        Args:
-            project_gid: Project GID
-            custom_field: Custom field GID to remove
-        """
-        self._remove_from_project_sync(project_gid, custom_field=custom_field)
