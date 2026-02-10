@@ -1,6 +1,7 @@
 """Webhooks client - returns typed Webhook models by default.
 
 Per TDD-0004: WebhooksClient provides webhook CRUD and signature verification.
+Per TDD-DESIGN-PATTERNS-D: Uses @async_method for async/sync method generation.
 Per ADR-0008: Signature verification uses HMAC-SHA256 with static methods.
 Use raw=True for backward-compatible dict returns.
 """
@@ -14,7 +15,8 @@ from typing import Any, Literal, overload
 from autom8_asana.clients.base import BaseClient
 from autom8_asana.models import PageIterator
 from autom8_asana.models.webhook import Webhook
-from autom8_asana.transport.sync import sync_wrapper
+from autom8_asana.observability import error_handler
+from autom8_asana.patterns import async_method
 
 
 class WebhooksClient(BaseClient):
@@ -31,7 +33,7 @@ class WebhooksClient(BaseClient):
 
     # --- Core CRUD Operations ---
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def get_async(
         self,
         webhook_gid: str,
@@ -52,30 +54,6 @@ class WebhooksClient(BaseClient):
     ) -> dict[str, Any]:
         """Overload: get, returning raw dict."""
         ...
-
-    async def get_async(
-        self,
-        webhook_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> Webhook | dict[str, Any]:
-        """Get a webhook by GID.
-
-        Args:
-            webhook_gid: Webhook GID
-            raw: If True, return raw dict instead of Webhook model
-            opt_fields: Optional fields to include
-
-        Returns:
-            Webhook model by default, or dict if raw=True
-        """
-        self._log_operation("get_async", webhook_gid)
-        params = self._build_opt_fields(opt_fields)
-        data = await self._http.get(f"/webhooks/{webhook_gid}", params=params)
-        if raw:
-            return data
-        return Webhook.model_validate(data)
 
     @overload
     def get(
@@ -99,14 +77,16 @@ class WebhooksClient(BaseClient):
         """Overload: get (sync), returning raw dict."""
         ...
 
-    def get(
+    @async_method  # type: ignore[arg-type, operator, misc]
+    @error_handler
+    async def get(
         self,
         webhook_gid: str,
         *,
         raw: bool = False,
         opt_fields: list[str] | None = None,
     ) -> Webhook | dict[str, Any]:
-        """Get a webhook by GID (sync).
+        """Get a webhook by GID.
 
         Args:
             webhook_gid: Webhook GID
@@ -116,22 +96,14 @@ class WebhooksClient(BaseClient):
         Returns:
             Webhook model by default, or dict if raw=True
         """
-        return self._get_sync(webhook_gid, raw=raw, opt_fields=opt_fields)
-
-    @sync_wrapper("get_async")
-    async def _get_sync(
-        self,
-        webhook_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> Webhook | dict[str, Any]:
-        """Internal sync wrapper implementation."""
+        self._log_operation("get_async", webhook_gid)
+        params = self._build_opt_fields(opt_fields)
+        data = await self._http.get(f"/webhooks/{webhook_gid}", params=params)
         if raw:
-            return await self.get_async(webhook_gid, raw=True, opt_fields=opt_fields)
-        return await self.get_async(webhook_gid, raw=False, opt_fields=opt_fields)
+            return data
+        return Webhook.model_validate(data)
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def create_async(
         self,
         *,
@@ -155,7 +127,33 @@ class WebhooksClient(BaseClient):
         """Overload: create, returning raw dict."""
         ...
 
-    async def create_async(
+    @overload
+    def create(
+        self,
+        *,
+        resource: str,
+        target: str,
+        raw: Literal[False] = ...,
+        filters: list[dict[str, Any]] | None = ...,
+    ) -> Webhook:
+        """Overload: create (sync), returning Webhook model."""
+        ...
+
+    @overload
+    def create(
+        self,
+        *,
+        resource: str,
+        target: str,
+        raw: Literal[True],
+        filters: list[dict[str, Any]] | None = ...,
+    ) -> dict[str, Any]:
+        """Overload: create (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
+    @error_handler
+    async def create(
         self,
         *,
         resource: str,
@@ -190,72 +188,7 @@ class WebhooksClient(BaseClient):
             return result
         return Webhook.model_validate(result)
 
-    @overload
-    def create(
-        self,
-        *,
-        resource: str,
-        target: str,
-        raw: Literal[False] = ...,
-        filters: list[dict[str, Any]] | None = ...,
-    ) -> Webhook:
-        """Overload: create (sync), returning Webhook model."""
-        ...
-
-    @overload
-    def create(
-        self,
-        *,
-        resource: str,
-        target: str,
-        raw: Literal[True],
-        filters: list[dict[str, Any]] | None = ...,
-    ) -> dict[str, Any]:
-        """Overload: create (sync), returning raw dict."""
-        ...
-
-    def create(
-        self,
-        *,
-        resource: str,
-        target: str,
-        raw: bool = False,
-        filters: list[dict[str, Any]] | None = None,
-    ) -> Webhook | dict[str, Any]:
-        """Create a webhook (sync).
-
-        Args:
-            resource: GID of the resource to watch
-            target: URL to receive webhook events
-            raw: If True, return raw dict
-            filters: Optional event filters
-
-        Returns:
-            Webhook model by default, or dict if raw=True
-        """
-        return self._create_sync(
-            resource=resource, target=target, raw=raw, filters=filters
-        )
-
-    @sync_wrapper("create_async")
-    async def _create_sync(
-        self,
-        *,
-        resource: str,
-        target: str,
-        raw: bool = False,
-        filters: list[dict[str, Any]] | None = None,
-    ) -> Webhook | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.create_async(
-                resource=resource, target=target, raw=True, filters=filters
-            )
-        return await self.create_async(
-            resource=resource, target=target, raw=False, filters=filters
-        )
-
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def update_async(
         self,
         webhook_gid: str,
@@ -277,7 +210,31 @@ class WebhooksClient(BaseClient):
         """Overload: update, returning raw dict."""
         ...
 
-    async def update_async(
+    @overload
+    def update(
+        self,
+        webhook_gid: str,
+        *,
+        raw: Literal[False] = ...,
+        filters: list[dict[str, Any]] | None = ...,
+    ) -> Webhook:
+        """Overload: update (sync), returning Webhook model."""
+        ...
+
+    @overload
+    def update(
+        self,
+        webhook_gid: str,
+        *,
+        raw: Literal[True],
+        filters: list[dict[str, Any]] | None = ...,
+    ) -> dict[str, Any]:
+        """Overload: update (sync), returning raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
+    @error_handler
+    async def update(
         self,
         webhook_gid: str,
         *,
@@ -305,61 +262,9 @@ class WebhooksClient(BaseClient):
             return result
         return Webhook.model_validate(result)
 
-    @overload
-    def update(
-        self,
-        webhook_gid: str,
-        *,
-        raw: Literal[False] = ...,
-        filters: list[dict[str, Any]] | None = ...,
-    ) -> Webhook:
-        """Overload: update (sync), returning Webhook model."""
-        ...
-
-    @overload
-    def update(
-        self,
-        webhook_gid: str,
-        *,
-        raw: Literal[True],
-        filters: list[dict[str, Any]] | None = ...,
-    ) -> dict[str, Any]:
-        """Overload: update (sync), returning raw dict."""
-        ...
-
-    def update(
-        self,
-        webhook_gid: str,
-        *,
-        raw: bool = False,
-        filters: list[dict[str, Any]] | None = None,
-    ) -> Webhook | dict[str, Any]:
-        """Update a webhook (sync).
-
-        Args:
-            webhook_gid: Webhook GID
-            raw: If True, return raw dict
-            filters: New event filters
-
-        Returns:
-            Webhook model by default, or dict if raw=True
-        """
-        return self._update_sync(webhook_gid, raw=raw, filters=filters)
-
-    @sync_wrapper("update_async")
-    async def _update_sync(
-        self,
-        webhook_gid: str,
-        *,
-        raw: bool = False,
-        filters: list[dict[str, Any]] | None = None,
-    ) -> Webhook | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.update_async(webhook_gid, raw=True, filters=filters)
-        return await self.update_async(webhook_gid, raw=False, filters=filters)
-
-    async def delete_async(self, webhook_gid: str) -> None:
+    @async_method  # type: ignore[arg-type]
+    @error_handler
+    async def delete(self, webhook_gid: str) -> None:
         """Delete a webhook.
 
         Args:
@@ -367,19 +272,6 @@ class WebhooksClient(BaseClient):
         """
         self._log_operation("delete_async", webhook_gid)
         await self._http.delete(f"/webhooks/{webhook_gid}")
-
-    @sync_wrapper("delete_async")
-    async def _delete_sync(self, webhook_gid: str) -> None:
-        """Internal sync wrapper implementation."""
-        await self.delete_async(webhook_gid)
-
-    def delete(self, webhook_gid: str) -> None:
-        """Delete a webhook (sync).
-
-        Args:
-            webhook_gid: Webhook GID
-        """
-        self._delete_sync(webhook_gid)
 
     # --- List Operations ---
 
