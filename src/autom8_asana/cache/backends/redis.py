@@ -12,10 +12,10 @@ from typing import Any, cast
 
 from autom8y_log import get_logger
 
+from autom8_asana.cache.backends.base import CacheBackendBase
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8_asana.cache.models.errors import DegradedModeMixin, is_connection_error
+from autom8_asana.cache.models.errors import is_connection_error
 from autom8_asana.cache.models.freshness import Freshness
-from autom8_asana.cache.models.metrics import CacheMetrics
 from autom8_asana.cache.models.settings import CacheSettings
 from autom8_asana.cache.models.versioning import (
     format_version,
@@ -61,7 +61,7 @@ class RedisConfig:
     decode_responses: bool = True
 
 
-class RedisCacheProvider(DegradedModeMixin):
+class RedisCacheProvider(CacheBackendBase):
     """Redis-based cache provider with versioning support.
 
     Implements the CacheProvider protocol using Redis as the backend.
@@ -91,6 +91,8 @@ class RedisCacheProvider(DegradedModeMixin):
     STRUC_PREFIX = "asana:struc"
     CONFIG_PREFIX = "asana:config"
     META_SUFFIX = "_meta"
+
+    _transport_errors = REDIS_TRANSPORT_ERRORS
 
     def __init__(
         self,
@@ -131,13 +133,9 @@ class RedisCacheProvider(DegradedModeMixin):
             )
 
         self._config = config
-        self._settings = settings or CacheSettings()
-        self._metrics = CacheMetrics()
+        super().__init__(settings=settings)
         self._pool: Any = None
         self._pool_lock = Lock()
-        self._degraded = False
-        self._last_reconnect_attempt = 0.0
-        self._reconnect_interval = float(self._settings.reconnect_interval)
         self._redis_module: ModuleType | None = None
 
         # Connection manager delegation (per TDD-CONNECTION-LIFECYCLE-001)
@@ -280,18 +278,8 @@ class RedisCacheProvider(DegradedModeMixin):
         }
 
         # Serialize freshness stamp if present
-        if entry.freshness_stamp is not None:
-            result["freshness_stamp"] = json.dumps(
-                {
-                    "last_verified_at": format_version(
-                        entry.freshness_stamp.last_verified_at
-                    ),
-                    "source": entry.freshness_stamp.source.value,
-                    "staleness_hint": entry.freshness_stamp.staleness_hint,
-                }
-            )
-        else:
-            result["freshness_stamp"] = ""
+        stamp_data = self._serialize_freshness_stamp(entry.freshness_stamp)
+        result["freshness_stamp"] = json.dumps(stamp_data) if stamp_data else ""
 
         return result
 
@@ -326,20 +314,9 @@ class RedisCacheProvider(DegradedModeMixin):
             metadata = json.loads(metadata_str) if metadata_str else {}
 
             # Deserialize freshness stamp if present
-            freshness_stamp = None
             stamp_str = data.get("freshness_stamp", "")
-            if stamp_str:
-                from autom8_asana.cache.models.freshness_stamp import (
-                    FreshnessStamp,
-                    VerificationSource,
-                )
-
-                stamp_data = json.loads(stamp_str)
-                freshness_stamp = FreshnessStamp(
-                    last_verified_at=parse_version(stamp_data["last_verified_at"]),
-                    source=VerificationSource(stamp_data.get("source", "unknown")),
-                    staleness_hint=stamp_data.get("staleness_hint"),
-                )
+            stamp_raw = json.loads(stamp_str) if stamp_str else None
+            freshness_stamp = self._deserialize_freshness_stamp(stamp_raw)
 
             return CacheEntry(
                 key=key,
@@ -359,92 +336,46 @@ class RedisCacheProvider(DegradedModeMixin):
             )
             return None
 
-    # === Original methods (backward compatible) ===
+    # === Template method hooks (simple operations) ===
 
-    def get(self, key: str) -> dict[str, Any] | None:
-        """Retrieve value from cache (simple key-value).
-
-        Args:
-            key: Cache key.
+    def _do_get(self, key: str) -> dict[str, Any] | None:
+        """Redis-specific get: fetch key value, deserialize JSON.
 
         Returns:
             Cached dict if found, None if miss.
         """
-        start = time.perf_counter()
+        conn = self._get_connection()
         try:
-            if self._degraded:
-                self._metrics.record_miss(0.0, key=key)
+            data = conn.get(key)
+
+            if data is None:
                 return None
 
-            conn = self._get_connection()
-            try:
-                data = conn.get(key)
-                latency = (time.perf_counter() - start) * 1000
+            if isinstance(data, str):
+                return cast(dict[str, Any], json.loads(data))
+            return cast(dict[str, Any], json.loads(data.decode("utf-8")))
+        finally:
+            conn.close()
 
-                if data is None:
-                    self._metrics.record_miss(latency, key=key)
-                    return None
-
-                self._metrics.record_hit(latency, key=key)
-                if isinstance(data, str):
-                    return cast(dict[str, Any], json.loads(data))
-                return cast(dict[str, Any], json.loads(data.decode("utf-8")))
-            finally:
-                conn.close()
-        except REDIS_TRANSPORT_ERRORS as e:
-            latency = (time.perf_counter() - start) * 1000
-            self._metrics.record_error(key=key, error_message=str(e))
-            self._handle_redis_error(e, operation="get")
-            return None
-
-    def set(self, key: str, value: dict[str, Any], ttl: int | None = None) -> None:
-        """Store value in cache (simple key-value).
-
-        Args:
-            key: Cache key.
-            value: Dict to cache.
-            ttl: Time-to-live in seconds, None for no expiration.
-        """
-        start = time.perf_counter()
+    def _do_set(self, key: str, value: dict[str, Any], ttl: int | None) -> None:
+        """Redis-specific set: serialize and store with optional TTL."""
+        conn = self._get_connection()
         try:
-            if self._degraded:
-                return
+            serialized = json.dumps(value)
+            if ttl is not None:
+                conn.setex(key, ttl, serialized)
+            else:
+                conn.set(key, serialized)
+        finally:
+            conn.close()
 
-            conn = self._get_connection()
-            try:
-                serialized = json.dumps(value)
-                if ttl is not None:
-                    conn.setex(key, ttl, serialized)
-                else:
-                    conn.set(key, serialized)
-
-                latency = (time.perf_counter() - start) * 1000
-                self._metrics.record_write(latency, key=key)
-            finally:
-                conn.close()
-        except REDIS_TRANSPORT_ERRORS as e:
-            self._metrics.record_error(key=key, error_message=str(e))
-            self._handle_redis_error(e, operation="set")
-
-    def delete(self, key: str) -> None:
-        """Remove value from cache.
-
-        Args:
-            key: Cache key to delete.
-        """
+    def _do_delete(self, key: str) -> None:
+        """Redis-specific delete: remove key."""
+        conn = self._get_connection()
         try:
-            if self._degraded:
-                return
-
-            conn = self._get_connection()
-            try:
-                conn.delete(key)
-                self._metrics.record_eviction(key=key)
-            finally:
-                conn.close()
-        except REDIS_TRANSPORT_ERRORS as e:
-            self._metrics.record_error(key=key, error_message=str(e))
-            self._handle_redis_error(e, operation="delete")
+            conn.delete(key)
+        finally:
+            conn.close()
 
     # === New versioned methods ===
 
@@ -514,56 +445,30 @@ class RedisCacheProvider(DegradedModeMixin):
             self._metrics.record_error(
                 key=key, entry_type=entry_type_str, error_message=str(e)
             )
-            self._handle_redis_error(e, operation="get_versioned")
+            self._handle_transport_error(e, operation="get_versioned")
             return None
 
-    def set_versioned(
-        self,
-        key: str,
-        entry: CacheEntry,
-    ) -> None:
-        """Store versioned cache entry.
-
-        Uses Redis HSET for structured storage and EXPIRE for TTL.
-
-        Args:
-            key: Cache key.
-            entry: CacheEntry with data and metadata.
-        """
-        start = time.perf_counter()
-        entry_type_str = entry.entry_type.value
-
+    def _do_set_versioned(self, key: str, entry: CacheEntry) -> None:
+        """Redis-specific versioned set: HSET with pipeline and metadata."""
+        conn = self._get_connection()
         try:
-            if self._degraded:
-                return
+            redis_key = self._make_key(key, entry.entry_type)
+            serialized = self._serialize_entry(entry)
 
-            conn = self._get_connection()
-            try:
-                redis_key = self._make_key(key, entry.entry_type)
-                serialized = self._serialize_entry(entry)
+            # Use pipeline for atomic HSET + EXPIRE
+            pipe = conn.pipeline()
+            pipe.hset(redis_key, mapping=serialized)
+            if entry.ttl is not None:
+                pipe.expire(redis_key, entry.ttl)
+            pipe.execute()
 
-                # Use pipeline for atomic HSET + EXPIRE
-                pipe = conn.pipeline()
-                pipe.hset(redis_key, mapping=serialized)
-                if entry.ttl is not None:
-                    pipe.expire(redis_key, entry.ttl)
-                pipe.execute()
-
-                # Update version in metadata hash
-                meta_key = self._make_meta_key(key)
-                conn.hset(meta_key, entry_type_str, format_version(entry.version))
-                if entry.ttl is not None:
-                    conn.expire(meta_key, entry.ttl)
-
-                latency = (time.perf_counter() - start) * 1000
-                self._metrics.record_write(latency, key=key, entry_type=entry_type_str)
-            finally:
-                conn.close()
-        except REDIS_TRANSPORT_ERRORS as e:
-            self._metrics.record_error(
-                key=key, entry_type=entry_type_str, error_message=str(e)
-            )
-            self._handle_redis_error(e, operation="set_versioned")
+            # Update version in metadata hash
+            meta_key = self._make_meta_key(key)
+            conn.hset(meta_key, entry.entry_type.value, format_version(entry.version))
+            if entry.ttl is not None:
+                conn.expire(meta_key, entry.ttl)
+        finally:
+            conn.close()
 
     def get_batch(
         self,
@@ -614,7 +519,7 @@ class RedisCacheProvider(DegradedModeMixin):
                 conn.close()
         except REDIS_TRANSPORT_ERRORS as e:
             self._metrics.record_error(error_message=str(e))
-            self._handle_redis_error(e, operation="get_batch")
+            self._handle_transport_error(e, operation="get_batch")
             return {key: None for key in keys}
 
     def set_batch(
@@ -657,7 +562,7 @@ class RedisCacheProvider(DegradedModeMixin):
                 conn.close()
         except REDIS_TRANSPORT_ERRORS as e:
             self._metrics.record_error(error_message=str(e))
-            self._handle_redis_error(e, operation="set_batch")
+            self._handle_transport_error(e, operation="set_batch")
 
     def warm(
         self,
@@ -717,7 +622,7 @@ class RedisCacheProvider(DegradedModeMixin):
             finally:
                 conn.close()
         except REDIS_TRANSPORT_ERRORS as e:
-            self._handle_redis_error(e, operation="check_freshness")
+            self._handle_transport_error(e, operation="check_freshness")
             return False
 
     def invalidate(
@@ -758,7 +663,7 @@ class RedisCacheProvider(DegradedModeMixin):
                 conn.close()
         except REDIS_TRANSPORT_ERRORS as e:
             self._metrics.record_error(key=key, error_message=str(e))
-            self._handle_redis_error(e, operation="invalidate")
+            self._handle_transport_error(e, operation="invalidate")
 
     def is_healthy(self) -> bool:
         """Check if cache backend is operational.
@@ -788,20 +693,8 @@ class RedisCacheProvider(DegradedModeMixin):
         except REDIS_TRANSPORT_ERRORS:
             return False
 
-    def get_metrics(self) -> CacheMetrics:
-        """Get cache metrics aggregator.
-
-        Returns:
-            CacheMetrics instance with hit/miss statistics.
-        """
-        return self._metrics
-
-    def reset_metrics(self) -> None:
-        """Reset cache metrics to zero."""
-        self._metrics.reset()
-
-    def _handle_redis_error(
-        self, error: Exception, *, operation: str = "unknown"
+    def _handle_transport_error(
+        self, error: Exception, *, operation: str = "unknown", key: str | None = None
     ) -> None:
         """Handle Redis errors and potentially enter degraded mode.
 
@@ -811,6 +704,7 @@ class RedisCacheProvider(DegradedModeMixin):
         Args:
             error: The exception that occurred.
             operation: The Redis operation that failed (get, set, delete, etc.).
+            key: The cache key involved, if applicable.
         """
         # Wrap into domain exception for structured context
         wrapped = RedisTransportError.from_redis_error(error, operation=operation)
@@ -890,5 +784,5 @@ class RedisCacheProvider(DegradedModeMixin):
                 "redis_clear_all_tasks_failed",
                 extra={"error": str(e), "error_type": type(e).__name__},
             )
-            self._handle_redis_error(e, operation="clear_all_tasks")
+            self._handle_transport_error(e, operation="clear_all_tasks")
             return 0

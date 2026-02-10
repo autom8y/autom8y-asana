@@ -13,14 +13,10 @@ from typing import Any, cast
 
 from autom8y_log import get_logger
 
+from autom8_asana.cache.backends.base import CacheBackendBase
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8_asana.cache.models.errors import (
-    DegradedModeMixin,
-    is_connection_error,
-    is_s3_not_found_error,
-)
+from autom8_asana.cache.models.errors import is_connection_error, is_s3_not_found_error
 from autom8_asana.cache.models.freshness import Freshness
-from autom8_asana.cache.models.metrics import CacheMetrics
 from autom8_asana.cache.models.settings import CacheSettings
 from autom8_asana.cache.models.versioning import (
     format_version,
@@ -61,7 +57,7 @@ class S3Config:
     default_ttl: int = 604800  # 7 days
 
 
-class S3CacheProvider(DegradedModeMixin):
+class S3CacheProvider(CacheBackendBase):
     """S3-based cache provider for cold tier storage.
 
     Implements the CacheProvider protocol using S3 as the backend.
@@ -96,6 +92,8 @@ class S3CacheProvider(DegradedModeMixin):
     META_ENTRY_TYPE = "x-amz-meta-entry-type"
     META_TTL = "x-amz-meta-ttl"
     META_PROJECT_GID = "x-amz-meta-project-gid"
+
+    _transport_errors = S3_TRANSPORT_ERRORS
 
     def __init__(
         self,
@@ -155,13 +153,9 @@ class S3CacheProvider(DegradedModeMixin):
             )
 
         self._config = config
-        self._settings = settings or CacheSettings()
-        self._metrics = CacheMetrics()
+        super().__init__(settings=settings)
         self._client: Any = None
         self._client_lock = Lock()
-        self._degraded = False
-        self._last_reconnect_attempt = 0.0
-        self._reconnect_interval = float(self._settings.reconnect_interval)
         self._boto3_module: ModuleType | None = None
         self._botocore_module: ModuleType | None = None
 
@@ -295,16 +289,7 @@ class S3CacheProvider(DegradedModeMixin):
         Returns:
             Tuple of (body bytes, metadata dict, is_compressed).
         """
-        # Serialize freshness stamp if present
-        stamp_data = None
-        if entry.freshness_stamp is not None:
-            stamp_data = {
-                "last_verified_at": format_version(
-                    entry.freshness_stamp.last_verified_at
-                ),
-                "source": entry.freshness_stamp.source.value,
-                "staleness_hint": entry.freshness_stamp.staleness_hint,
-            }
+        stamp_data = self._serialize_freshness_stamp(entry.freshness_stamp)
 
         data = {
             "data": entry.data,
@@ -376,19 +361,10 @@ class S3CacheProvider(DegradedModeMixin):
             )
 
             # Deserialize freshness stamp if present
-            freshness_stamp = None
             raw_stamp = data.get("freshness_stamp")
-            if raw_stamp and isinstance(raw_stamp, dict):
-                from autom8_asana.cache.models.freshness_stamp import (
-                    FreshnessStamp,
-                    VerificationSource,
-                )
-
-                freshness_stamp = FreshnessStamp(
-                    last_verified_at=parse_version(raw_stamp["last_verified_at"]),
-                    source=VerificationSource(raw_stamp.get("source", "unknown")),
-                    staleness_hint=raw_stamp.get("staleness_hint"),
-                )
+            freshness_stamp = self._deserialize_freshness_stamp(
+                raw_stamp if isinstance(raw_stamp, dict) else None
+            )
 
             return CacheEntry(
                 key=key,
@@ -408,117 +384,65 @@ class S3CacheProvider(DegradedModeMixin):
             )
             return None
 
-    # === Original methods (backward compatible) ===
+    # === Template method hooks (simple operations) ===
 
-    def get(self, key: str) -> dict[str, Any] | None:
-        """Retrieve value from cache (simple key-value).
-
-        Args:
-            key: Cache key.
+    def _do_get(self, key: str) -> dict[str, Any] | None:
+        """S3-specific get: fetch object, decompress if needed.
 
         Returns:
             Cached dict if found, None if miss.
         """
-        start = time.perf_counter()
-        try:
-            if self._degraded:
-                self._metrics.record_miss(0.0, key=key)
-                return None
+        client = self._get_client()
+        s3_key = self._make_simple_key(key)
 
-            client = self._get_client()
-            s3_key = self._make_simple_key(key)
+        response = client.get_object(
+            Bucket=self._config.bucket,
+            Key=s3_key,
+        )
+        body = response["Body"].read()
+        metadata = response.get("Metadata", {})
 
-            response = client.get_object(
-                Bucket=self._config.bucket,
-                Key=s3_key,
-            )
-            body = response["Body"].read()
-            metadata = response.get("Metadata", {})
+        # Check compression
+        is_compressed = metadata.get("compressed", "false").lower() == "true"
+        if is_compressed:
+            body = gzip.decompress(body)
 
-            latency = (time.perf_counter() - start) * 1000
+        return cast(dict[str, Any], json.loads(body.decode("utf-8")))
 
-            # Check compression
-            is_compressed = metadata.get("compressed", "false").lower() == "true"
-            if is_compressed:
-                body = gzip.decompress(body)
+    def _do_set(self, key: str, value: dict[str, Any], ttl: int | None) -> None:
+        """S3-specific set: serialize, compress, put object."""
+        client = self._get_client()
+        s3_key = self._make_simple_key(key)
 
-            self._metrics.record_hit(latency, key=key)
-            return cast(dict[str, Any], json.loads(body.decode("utf-8")))
+        body = json.dumps(value).encode("utf-8")
+        is_compressed = len(body) > self._config.compress_threshold
 
-        except S3_TRANSPORT_ERRORS as e:
-            latency = (time.perf_counter() - start) * 1000
-            if self._is_not_found_error(e):
-                self._metrics.record_miss(latency, key=key)
-                return None
-            self._metrics.record_error(key=key, error_message=str(e))
-            self._handle_s3_error(e, operation="get", key=key)
-            return None
+        if is_compressed:
+            body = gzip.compress(body)
 
-    def set(self, key: str, value: dict[str, Any], ttl: int | None = None) -> None:
-        """Store value in cache (simple key-value).
+        metadata: dict[str, str] = {
+            "compressed": str(is_compressed).lower(),
+        }
+        if ttl is not None:
+            metadata["ttl"] = str(ttl)
 
-        Args:
-            key: Cache key.
-            value: Dict to cache.
-            ttl: Time-to-live in seconds (stored in metadata for reference).
-        """
-        start = time.perf_counter()
-        try:
-            if self._degraded:
-                return
+        client.put_object(
+            Bucket=self._config.bucket,
+            Key=s3_key,
+            Body=body,
+            ContentType="application/json",
+            Metadata=metadata,
+        )
 
-            client = self._get_client()
-            s3_key = self._make_simple_key(key)
+    def _do_delete(self, key: str) -> None:
+        """S3-specific delete: remove object."""
+        client = self._get_client()
+        s3_key = self._make_simple_key(key)
 
-            body = json.dumps(value).encode("utf-8")
-            is_compressed = len(body) > self._config.compress_threshold
-
-            if is_compressed:
-                body = gzip.compress(body)
-
-            metadata: dict[str, str] = {
-                "compressed": str(is_compressed).lower(),
-            }
-            if ttl is not None:
-                metadata["ttl"] = str(ttl)
-
-            client.put_object(
-                Bucket=self._config.bucket,
-                Key=s3_key,
-                Body=body,
-                ContentType="application/json",
-                Metadata=metadata,
-            )
-
-            latency = (time.perf_counter() - start) * 1000
-            self._metrics.record_write(latency, key=key)
-
-        except S3_TRANSPORT_ERRORS as e:
-            self._metrics.record_error(key=key, error_message=str(e))
-            self._handle_s3_error(e, operation="set", key=key)
-
-    def delete(self, key: str) -> None:
-        """Remove value from cache.
-
-        Args:
-            key: Cache key to delete.
-        """
-        try:
-            if self._degraded:
-                return
-
-            client = self._get_client()
-            s3_key = self._make_simple_key(key)
-
-            client.delete_object(
-                Bucket=self._config.bucket,
-                Key=s3_key,
-            )
-            self._metrics.record_eviction(key=key)
-
-        except S3_TRANSPORT_ERRORS as e:
-            self._metrics.record_error(key=key, error_message=str(e))
-            self._handle_s3_error(e, operation="delete", key=key)
+        client.delete_object(
+            Bucket=self._config.bucket,
+            Key=s3_key,
+        )
 
     # === Versioned methods ===
 
@@ -591,55 +515,28 @@ class S3CacheProvider(DegradedModeMixin):
             self._metrics.record_error(
                 key=key, entry_type=entry_type_str, error_message=str(e)
             )
-            self._handle_s3_error(e, operation="get_versioned", key=key)
+            self._handle_transport_error(e, operation="get_versioned", key=key)
             return None
 
-    def set_versioned(
-        self,
-        key: str,
-        entry: CacheEntry,
-    ) -> None:
-        """Store versioned cache entry.
+    def _do_set_versioned(self, key: str, entry: CacheEntry) -> None:
+        """S3-specific versioned set: serialize, compress, put with metadata."""
+        client = self._get_client()
+        s3_key = self._make_key(key, entry.entry_type)
 
-        Uses S3 PutObject with metadata for version tracking.
+        body, metadata, is_compressed = self._serialize_entry(entry)
 
-        Args:
-            key: Cache key.
-            entry: CacheEntry with data and metadata.
-        """
-        start = time.perf_counter()
-        entry_type_str = entry.entry_type.value
+        content_encoding = "gzip" if is_compressed else None
+        put_kwargs: dict[str, Any] = {
+            "Bucket": self._config.bucket,
+            "Key": s3_key,
+            "Body": body,
+            "ContentType": "application/json",
+            "Metadata": metadata,
+        }
+        if content_encoding:
+            put_kwargs["ContentEncoding"] = content_encoding
 
-        try:
-            if self._degraded:
-                return
-
-            client = self._get_client()
-            s3_key = self._make_key(key, entry.entry_type)
-
-            body, metadata, is_compressed = self._serialize_entry(entry)
-
-            content_encoding = "gzip" if is_compressed else None
-            put_kwargs: dict[str, Any] = {
-                "Bucket": self._config.bucket,
-                "Key": s3_key,
-                "Body": body,
-                "ContentType": "application/json",
-                "Metadata": metadata,
-            }
-            if content_encoding:
-                put_kwargs["ContentEncoding"] = content_encoding
-
-            client.put_object(**put_kwargs)
-
-            latency = (time.perf_counter() - start) * 1000
-            self._metrics.record_write(latency, key=key, entry_type=entry_type_str)
-
-        except S3_TRANSPORT_ERRORS as e:
-            self._metrics.record_error(
-                key=key, entry_type=entry_type_str, error_message=str(e)
-            )
-            self._handle_s3_error(e, operation="set_versioned", key=key)
+        client.put_object(**put_kwargs)
 
     def get_batch(
         self,
@@ -761,7 +658,7 @@ class S3CacheProvider(DegradedModeMixin):
         except S3_TRANSPORT_ERRORS as e:
             if self._is_not_found_error(e):
                 return False
-            self._handle_s3_error(e, operation="check_freshness", key=key)
+            self._handle_transport_error(e, operation="check_freshness", key=key)
             return False
 
     def invalidate(
@@ -806,7 +703,7 @@ class S3CacheProvider(DegradedModeMixin):
 
         except S3_TRANSPORT_ERRORS as e:
             self._metrics.record_error(key=key, error_message=str(e))
-            self._handle_s3_error(e, operation="invalidate", key=key)
+            self._handle_transport_error(e, operation="invalidate", key=key)
 
     def is_healthy(self) -> bool:
         """Check if cache backend is operational.
@@ -833,23 +730,11 @@ class S3CacheProvider(DegradedModeMixin):
         except S3_TRANSPORT_ERRORS:
             return False
 
-    def get_metrics(self) -> CacheMetrics:
-        """Get cache metrics aggregator.
-
-        Returns:
-            CacheMetrics instance with hit/miss statistics.
-        """
-        return self._metrics
-
-    def reset_metrics(self) -> None:
-        """Reset cache metrics to zero."""
-        self._metrics.reset()
-
     def _is_not_found_error(self, error: Exception) -> bool:
         """Check if error indicates object not found."""
         return is_s3_not_found_error(error)
 
-    def _handle_s3_error(
+    def _handle_transport_error(
         self, error: Exception, *, operation: str = "unknown", key: str | None = None
     ) -> None:
         """Handle S3 errors and potentially enter degraded mode.
@@ -986,5 +871,5 @@ class S3CacheProvider(DegradedModeMixin):
                 "s3_clear_all_tasks_failed",
                 extra={"error": str(e), "error_type": type(e).__name__},
             )
-            self._handle_s3_error(e, operation="clear_all_tasks")
+            self._handle_transport_error(e, operation="clear_all_tasks")
             return 0
