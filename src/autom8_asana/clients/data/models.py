@@ -8,6 +8,7 @@ Per ADR-INS-004 (revised): Staleness indicators for cache fallback.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass as _dataclass
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -465,3 +466,33 @@ class BatchInsightsResponse(BaseModel):
             List of BatchInsightsResult where success is False.
         """
         return [r for r in self.results.values() if not r.success]
+
+
+# --- Export API Models (TDD-CONV-AUDIT-001) ---
+
+
+@_dataclass
+class ExportResult:
+    """Result of a conversation export CSV fetch.
+
+    Per TDD-CONV-AUDIT-001 Section 3.6: Contains CSV bytes and
+    metadata from autom8_data response headers.
+
+    This is a plain dataclass (not Pydantic) per ADR-CONV-003:
+    csv_content: bytes is unsuitable for Pydantic JSON serialization.
+
+    Attributes:
+        csv_content: Raw CSV bytes (UTF-8 with BOM). Passed directly
+            to AttachmentsClient.upload_async without parsing.
+        row_count: Data row count from X-Export-Row-Count header.
+        truncated: Whether the export was truncated at the 10K row cap,
+            from X-Export-Truncated header.
+        office_phone: Echo of the queried phone (for correlation in logs).
+        filename: Filename from Content-Disposition header or generated fallback.
+    """
+
+    csv_content: bytes
+    row_count: int
+    truncated: bool
+    office_phone: str
+    filename: str

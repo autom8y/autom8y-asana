@@ -1,0 +1,20 @@
+scheduler:
+  time: "02:00"
+  timezone: "America/New_York"
+
+rules:
+  - rule_id: "weekly-conversation-audit"
+    name: "Weekly conversation audit CSV refresh"
+    project_gid: "1201500116978260"
+    conditions: []
+    action:
+      type: "workflow"
+      params:
+        workflow_id: "conversation-audit"
+        date_range_days: 30
+        attachment_pattern: "conversations_*.csv"
+        max_concurrency: 5
+    enabled: true
+    schedule:
+      frequency: "weekly"
+      day_of_week: "sunday"

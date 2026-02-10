@@ -458,26 +458,28 @@ def test_single_condition_with_multiple_triggers(now: datetime) -> None:
 
 
 @pytest.mark.integration
-def test_no_conditions_returns_all_tasks(
+def test_no_conditions_without_schedule_rejected(
     mock_stale_task: MockTask,
     mock_fresh_task: MockTask,
 ) -> None:
-    """Test that a rule with no conditions returns all tasks."""
-    evaluator = TriggerEvaluator()
+    """Test that a rule with no conditions AND no schedule is rejected.
 
-    rule = Rule(
-        rule_id="no-conditions",
-        name="No conditions rule",
-        project_gid="123",
-        conditions=[],  # Empty conditions list
-        action=ActionConfig(type="add_tag", params={"tag_gid": "456"}),
-    )
+    Per TDD-CONV-AUDIT-001: Empty conditions are only allowed for
+    schedule-driven workflow rules. Condition-based rules must have
+    at least one condition.
+    """
+    from pydantic import ValidationError
 
-    tasks = [mock_stale_task, mock_fresh_task]
-    matching = evaluator.evaluate_conditions(rule, tasks)
+    with pytest.raises(ValidationError) as exc_info:
+        Rule(
+            rule_id="no-conditions",
+            name="No conditions rule",
+            project_gid="123",
+            conditions=[],  # Empty conditions list
+            action=ActionConfig(type="add_tag", params={"tag_gid": "456"}),
+        )
 
-    # All tasks should match when there are no conditions
-    assert len(matching) == 2
+    assert "at least one condition or a schedule" in str(exc_info.value).lower()
 
 
 # ============================================================================

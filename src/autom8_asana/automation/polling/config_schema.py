@@ -37,6 +37,7 @@ __all__ = [
     "TriggerAgeConfig",
     "RuleCondition",
     "ActionConfig",
+    "ScheduleConfig",
     "Rule",
     "SchedulerConfig",
     "AutomationRulesConfig",
@@ -167,6 +168,63 @@ class RuleCondition(BaseModel):
         return self
 
 
+class ScheduleConfig(BaseModel):
+    """Per-rule schedule configuration for time-based workflow triggers.
+
+    Per TDD-CONV-AUDIT-001 Section 3.3: Enables YAML-configurable schedule
+    without hardcoded day/time values.
+
+    Attributes:
+        frequency: Schedule frequency ("weekly", "daily").
+        day_of_week: ISO day name for weekly schedules (e.g., "sunday").
+            Required when frequency is "weekly". Ignored for "daily".
+
+    Example YAML:
+        schedule:
+          frequency: "weekly"
+          day_of_week: "sunday"
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    frequency: str
+    day_of_week: str | None = None
+
+    @field_validator("frequency")
+    @classmethod
+    def frequency_must_be_valid(cls, v: str) -> str:
+        valid = {"weekly", "daily"}
+        if v.lower() not in valid:
+            raise ValueError(f"frequency must be one of {valid}, got '{v}'")
+        return v.lower()
+
+    @field_validator("day_of_week")
+    @classmethod
+    def day_must_be_valid(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        valid = {
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+        }
+        if v.lower() not in valid:
+            raise ValueError(f"day_of_week must be one of {valid}, got '{v}'")
+        return v.lower()
+
+    @model_validator(mode="after")
+    def weekly_requires_day(self) -> ScheduleConfig:
+        if self.frequency == "weekly" and self.day_of_week is None:
+            raise ValueError(
+                "day_of_week is required when frequency is 'weekly'"
+            )
+        return self
+
+
 class ActionConfig(BaseModel):
     """Action to execute when a rule matches.
 
@@ -190,15 +248,22 @@ class ActionConfig(BaseModel):
 class Rule(BaseModel):
     """A single automation rule definition.
 
+    Per TDD-CONV-AUDIT-001: Extended to support schedule-driven workflow rules.
+    - Condition-based rules: conditions is required (at least 1), schedule is None.
+    - Schedule-based rules: conditions can be empty, schedule is required,
+      action.type must be "workflow".
+
     Attributes:
         rule_id: Unique identifier for this rule. Must be non-empty.
         name: Human-readable name for display and logging.
         project_gid: Asana project GID to evaluate this rule against.
         conditions: List of conditions (combined with AND logic).
+            Default empty list; must have at least 1 unless schedule is present.
         action: Action to execute when all conditions match.
         enabled: Whether this rule is active (default: True).
+        schedule: Optional schedule configuration for time-based triggers.
 
-    Example:
+    Example (condition-based):
         - rule_id: "escalate-triage"
           name: "Escalate stale triage tasks"
           project_gid: "1234567890123"
@@ -211,6 +276,19 @@ class Rule(BaseModel):
             params:
               tag: "escalate"
           enabled: true
+
+    Example (schedule-based):
+        - rule_id: "weekly-conversation-audit"
+          name: "Weekly conversation audit CSV refresh"
+          project_gid: "1201500116978260"
+          conditions: []
+          action:
+            type: "workflow"
+            params:
+              workflow_id: "conversation-audit"
+          schedule:
+            frequency: "weekly"
+            day_of_week: "sunday"
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -218,9 +296,10 @@ class Rule(BaseModel):
     rule_id: str
     name: str
     project_gid: str
-    conditions: list[RuleCondition]
+    conditions: list[RuleCondition] = []
     action: ActionConfig
     enabled: bool = True
+    schedule: ScheduleConfig | None = None
 
     @field_validator("rule_id")
     @classmethod
@@ -229,6 +308,26 @@ class Rule(BaseModel):
         if not v or not v.strip():
             raise ValueError("rule_id must be non-empty")
         return v
+
+    @model_validator(mode="after")
+    def validate_rule_completeness(self) -> Rule:
+        """Ensure rule has either conditions or schedule (or both)."""
+        has_conditions = len(self.conditions) > 0
+        has_schedule = self.schedule is not None
+
+        if not has_conditions and not has_schedule:
+            raise ValueError(
+                "Rule must have at least one condition or a schedule block. "
+                "Empty conditions are only allowed for schedule-driven rules."
+            )
+
+        if has_schedule and self.action.type != "workflow":
+            raise ValueError(
+                "Schedule-driven rules must use action.type='workflow'. "
+                f"Got action.type='{self.action.type}'."
+            )
+
+        return self
 
 
 class SchedulerConfig(BaseModel):

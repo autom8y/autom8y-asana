@@ -23,6 +23,7 @@ from autom8_asana.automation.polling.config_schema import (
     AutomationRulesConfig,
     Rule,
     RuleCondition,
+    ScheduleConfig,
     SchedulerConfig,
     TriggerStaleConfig,
 )
@@ -830,3 +831,284 @@ class TestPollingSchedulerTriggerEvaluator:
 
                 # Should call evaluate_conditions for each enabled rule with matching project
                 mock_evaluate.assert_called()
+
+
+class TestPollingSchedulerShouldRunSchedule:
+    """Tests for _should_run_schedule() schedule matching logic.
+
+    Per DEF-003: Zero test coverage for schedule-driven dispatch methods.
+    """
+
+    @pytest.fixture
+    def scheduler(
+        self,
+        sample_automation_config: AutomationRulesConfig,
+        tmp_path: Path,
+    ) -> PollingScheduler:
+        lock_path = str(tmp_path / "test.lock")
+        return PollingScheduler(
+            sample_automation_config,
+            lock_path=lock_path,
+        )
+
+    def test_daily_always_returns_true(self, scheduler: PollingScheduler) -> None:
+        """Daily frequency always returns True regardless of day."""
+        from autom8_asana.automation.polling.config_schema import ScheduleConfig
+
+        schedule = ScheduleConfig(frequency="daily")
+        assert scheduler._should_run_schedule(schedule) is True
+
+    def test_weekly_matching_day_returns_true(
+        self, scheduler: PollingScheduler
+    ) -> None:
+        """Weekly schedule returns True when today matches day_of_week."""
+        from datetime import UTC, datetime
+
+        from autom8_asana.automation.polling.config_schema import ScheduleConfig
+
+        # Get today's day name
+        local_now = datetime.now(UTC).astimezone(scheduler.timezone)
+        day_names = [
+            "monday", "tuesday", "wednesday", "thursday",
+            "friday", "saturday", "sunday",
+        ]
+        today_name = day_names[local_now.weekday()]
+
+        schedule = ScheduleConfig(frequency="weekly", day_of_week=today_name)
+        assert scheduler._should_run_schedule(schedule) is True
+
+    def test_weekly_non_matching_day_returns_false(
+        self, scheduler: PollingScheduler
+    ) -> None:
+        """Weekly schedule returns False when today does NOT match day_of_week."""
+        from datetime import UTC, datetime
+
+        from autom8_asana.automation.polling.config_schema import ScheduleConfig
+
+        # Pick a day that is NOT today
+        local_now = datetime.now(UTC).astimezone(scheduler.timezone)
+        day_names = [
+            "monday", "tuesday", "wednesday", "thursday",
+            "friday", "saturday", "sunday",
+        ]
+        other_day = day_names[(local_now.weekday() + 3) % 7]  # 3 days offset
+
+        schedule = ScheduleConfig(frequency="weekly", day_of_week=other_day)
+        assert scheduler._should_run_schedule(schedule) is False
+
+    def test_unknown_frequency_returns_false(
+        self, scheduler: PollingScheduler
+    ) -> None:
+        """Unknown frequency value returns False (defensive fallthrough)."""
+        from autom8_asana.automation.polling.config_schema import ScheduleConfig
+
+        # Construct a ScheduleConfig manually bypassing validation
+        schedule = ScheduleConfig.__new__(ScheduleConfig)
+        object.__setattr__(schedule, "frequency", "monthly")
+        object.__setattr__(schedule, "day_of_week", None)
+        object.__setattr__(schedule, "__dict__", {"frequency": "monthly", "day_of_week": None})
+        object.__setattr__(schedule, "__pydantic_fields_set__", set())
+
+        assert scheduler._should_run_schedule(schedule) is False
+
+
+class TestPollingSchedulerExecuteWorkflowAsync:
+    """Tests for _execute_workflow_async() workflow dispatch.
+
+    Per DEF-003: Zero test coverage for schedule-driven dispatch methods.
+    """
+
+    @pytest.fixture
+    def scheduler(
+        self,
+        sample_automation_config: AutomationRulesConfig,
+        tmp_path: Path,
+    ) -> PollingScheduler:
+        lock_path = str(tmp_path / "test.lock")
+        return PollingScheduler(
+            sample_automation_config,
+            lock_path=lock_path,
+        )
+
+    @pytest.fixture
+    def mock_rule(self) -> MagicMock:
+        rule = MagicMock()
+        rule.rule_id = "test-workflow-rule"
+        rule.action.params = {"workflow_id": "conversation-audit"}
+        return rule
+
+    @pytest.fixture
+    def mock_log(self) -> MagicMock:
+        return MagicMock()
+
+    @pytest.mark.asyncio
+    async def test_validation_failure_stops_execution(
+        self, scheduler: PollingScheduler, mock_rule: MagicMock, mock_log: MagicMock
+    ) -> None:
+        """Workflow validation failure -> error logged, execute_async NOT called."""
+        from unittest.mock import AsyncMock
+
+        mock_workflow = MagicMock()
+        mock_workflow.validate_async = AsyncMock(return_value=["CB is open"])
+        mock_workflow.execute_async = AsyncMock()
+
+        await scheduler._execute_workflow_async(mock_workflow, mock_rule, mock_log)
+
+        mock_log.error.assert_called_once()
+        assert mock_log.error.call_args[0][0] == "workflow_validation_failed"
+        mock_workflow.execute_async.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_successful_execution_logs_result(
+        self, scheduler: PollingScheduler, mock_rule: MagicMock, mock_log: MagicMock
+    ) -> None:
+        """Successful workflow execution -> info logged with result stats."""
+        from datetime import UTC, datetime
+        from unittest.mock import AsyncMock
+
+        from autom8_asana.automation.workflows.base import WorkflowResult
+
+        now = datetime.now(UTC)
+        mock_result = WorkflowResult(
+            workflow_id="conversation-audit",
+            started_at=now,
+            completed_at=now,
+            total=5,
+            succeeded=4,
+            failed=1,
+            skipped=0,
+            errors=[],
+        )
+
+        mock_workflow = MagicMock()
+        mock_workflow.validate_async = AsyncMock(return_value=[])
+        mock_workflow.execute_async = AsyncMock(return_value=mock_result)
+
+        await scheduler._execute_workflow_async(mock_workflow, mock_rule, mock_log)
+
+        mock_workflow.execute_async.assert_awaited_once_with(mock_rule.action.params)
+        mock_log.info.assert_called_once()
+        call_kwargs = mock_log.info.call_args[1]
+        assert call_kwargs["total"] == 5
+        assert call_kwargs["succeeded"] == 4
+        assert call_kwargs["failed"] == 1
+
+    @pytest.mark.asyncio
+    async def test_execution_error_caught_and_logged(
+        self, scheduler: PollingScheduler, mock_rule: MagicMock, mock_log: MagicMock
+    ) -> None:
+        """Workflow execution raises -> error logged, no re-raise (isolation)."""
+        from unittest.mock import AsyncMock
+
+        mock_workflow = MagicMock()
+        mock_workflow.validate_async = AsyncMock(return_value=[])
+        mock_workflow.execute_async = AsyncMock(
+            side_effect=RuntimeError("Asana API failed")
+        )
+
+        # Should NOT raise
+        await scheduler._execute_workflow_async(mock_workflow, mock_rule, mock_log)
+
+        mock_log.error.assert_called_once()
+        assert mock_log.error.call_args[0][0] == "workflow_execution_error"
+        assert "Asana API failed" in mock_log.error.call_args[1]["error"]
+
+
+class TestPollingSchedulerWorkflowDispatch:
+    """Integration tests for workflow dispatch in _evaluate_rules().
+
+    Per DEF-003: Tests the full dispatch path through _evaluate_rules.
+    """
+
+    @pytest.fixture
+    def workflow_config(self) -> AutomationRulesConfig:
+        """Config with a schedule-driven workflow rule."""
+        return AutomationRulesConfig(
+            scheduler=SchedulerConfig(time="02:00", timezone="UTC"),
+            rules=[
+                Rule(
+                    rule_id="weekly-audit",
+                    name="Weekly Conversation Audit",
+                    project_gid="1201500116978260",
+                    conditions=[],
+                    action=ActionConfig(
+                        type="workflow",
+                        params={
+                            "workflow_id": "conversation-audit",
+                            "date_range_days": 30,
+                        },
+                    ),
+                    schedule=ScheduleConfig(frequency="daily"),
+                    enabled=True,
+                ),
+            ],
+        )
+
+    def test_workflow_dispatched_when_schedule_matches(
+        self,
+        workflow_config: AutomationRulesConfig,
+        tmp_path: Path,
+    ) -> None:
+        """Workflow is dispatched when schedule matches and registry has it."""
+        from unittest.mock import AsyncMock
+
+        from autom8_asana.automation.workflows.registry import WorkflowRegistry
+
+        mock_workflow = MagicMock()
+        mock_workflow.workflow_id = "conversation-audit"
+        mock_workflow.validate_async = AsyncMock(return_value=[])
+        mock_workflow.execute_async = AsyncMock(
+            return_value=MagicMock(
+                total=3, succeeded=3, failed=0, skipped=0, duration_seconds=1.5
+            )
+        )
+
+        registry = WorkflowRegistry()
+        registry.register(mock_workflow)
+
+        lock_path = str(tmp_path / "test.lock")
+        scheduler = PollingScheduler(
+            workflow_config,
+            lock_path=lock_path,
+            workflow_registry=registry,
+        )
+
+        with patch(
+            "autom8_asana.automation.polling.polling_scheduler.StructuredLogger"
+        ) as mock_logger:
+            mock_log = MagicMock()
+            mock_logger.get_logger.return_value = mock_log
+            mock_logger.log_rule_evaluation = MagicMock()
+
+            scheduler._evaluate_rules()
+
+        mock_workflow.validate_async.assert_awaited_once()
+        mock_workflow.execute_async.assert_awaited_once()
+
+    def test_workflow_not_dispatched_without_registry(
+        self,
+        workflow_config: AutomationRulesConfig,
+        tmp_path: Path,
+    ) -> None:
+        """Workflow dispatch logs error when registry is not configured."""
+        lock_path = str(tmp_path / "test.lock")
+        scheduler = PollingScheduler(
+            workflow_config,
+            lock_path=lock_path,
+            # No workflow_registry
+        )
+
+        with patch(
+            "autom8_asana.automation.polling.polling_scheduler.StructuredLogger"
+        ) as mock_logger:
+            mock_log = MagicMock()
+            mock_logger.get_logger.return_value = mock_log
+            mock_logger.log_rule_evaluation = MagicMock()
+
+            scheduler._evaluate_rules()
+
+        error_calls = [
+            c for c in mock_log.error.call_args_list
+            if c[0][0] == "workflow_registry_not_configured"
+        ]
+        assert len(error_calls) == 1

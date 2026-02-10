@@ -22,6 +22,7 @@ from autom8_asana.automation.polling.config_schema import (
     AutomationRulesConfig,
     Rule,
     RuleCondition,
+    ScheduleConfig,
     SchedulerConfig,
     TriggerAgeConfig,
     TriggerDeadlineConfig,
@@ -495,3 +496,139 @@ class TestAutomationRulesConfig:
         assert config.rules[0].rule_id == "stale-check"
         assert config.rules[1].rule_id == "deadline-alert"
         assert config.rules[2].rule_id == "old-task-cleanup"
+
+
+class TestScheduleConfig:
+    """Tests for ScheduleConfig validation.
+
+    Per DEF-005: Zero ScheduleConfig validator tests.
+    """
+
+    def test_valid_weekly_schedule(self) -> None:
+        """Valid weekly schedule with day_of_week parses correctly."""
+        schedule = ScheduleConfig(frequency="weekly", day_of_week="sunday")
+        assert schedule.frequency == "weekly"
+        assert schedule.day_of_week == "sunday"
+
+    def test_valid_daily_schedule(self) -> None:
+        """Valid daily schedule without day_of_week parses correctly."""
+        schedule = ScheduleConfig(frequency="daily")
+        assert schedule.frequency == "daily"
+        assert schedule.day_of_week is None
+
+    def test_frequency_case_insensitive(self) -> None:
+        """Frequency is normalized to lowercase."""
+        schedule = ScheduleConfig(frequency="Weekly", day_of_week="monday")
+        assert schedule.frequency == "weekly"
+
+    def test_day_of_week_case_insensitive(self) -> None:
+        """day_of_week is normalized to lowercase."""
+        schedule = ScheduleConfig(frequency="weekly", day_of_week="Sunday")
+        assert schedule.day_of_week == "sunday"
+
+    def test_invalid_frequency_raises_error(self) -> None:
+        """Invalid frequency raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            ScheduleConfig(frequency="monthly")
+        assert "frequency must be one of" in str(exc_info.value)
+
+    def test_invalid_day_of_week_raises_error(self) -> None:
+        """Invalid day_of_week raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            ScheduleConfig(frequency="weekly", day_of_week="funday")
+        assert "day_of_week must be one of" in str(exc_info.value)
+
+    def test_weekly_without_day_of_week_raises_error(self) -> None:
+        """Weekly frequency without day_of_week raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            ScheduleConfig(frequency="weekly")
+        assert "day_of_week is required" in str(exc_info.value)
+
+    def test_daily_with_day_of_week_allowed(self) -> None:
+        """Daily frequency with day_of_week is allowed (ignored)."""
+        schedule = ScheduleConfig(frequency="daily", day_of_week="monday")
+        assert schedule.frequency == "daily"
+        assert schedule.day_of_week == "monday"
+
+    def test_extra_fields_rejected(self) -> None:
+        """Extra fields are rejected (strict mode)."""
+        with pytest.raises(ValidationError) as exc_info:
+            ScheduleConfig(frequency="daily", cron="0 2 * * *")
+        assert "extra" in str(exc_info.value).lower()
+
+    def test_all_days_of_week_valid(self) -> None:
+        """All 7 day names are accepted."""
+        days = [
+            "monday", "tuesday", "wednesday", "thursday",
+            "friday", "saturday", "sunday",
+        ]
+        for day in days:
+            schedule = ScheduleConfig(frequency="weekly", day_of_week=day)
+            assert schedule.day_of_week == day
+
+
+class TestRuleValidateCompleteness:
+    """Tests for Rule.validate_rule_completeness model validator.
+
+    Per DEF-005: Validates schedule vs conditions mutual requirements.
+    """
+
+    def test_empty_conditions_without_schedule_rejected(self) -> None:
+        """Rule with no conditions and no schedule raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            Rule(
+                rule_id="bad-rule",
+                name="Bad Rule",
+                project_gid="123",
+                conditions=[],
+                action=ActionConfig(type="add_tag", params={"tag": "test"}),
+            )
+        assert "at least one condition or a schedule" in str(exc_info.value).lower()
+
+    def test_schedule_with_non_workflow_action_rejected(self) -> None:
+        """Schedule-driven rule with non-workflow action raises ValidationError."""
+        with pytest.raises(ValidationError) as exc_info:
+            Rule(
+                rule_id="bad-schedule-rule",
+                name="Bad Schedule Rule",
+                project_gid="123",
+                conditions=[],
+                action=ActionConfig(type="add_tag", params={"tag": "test"}),
+                schedule=ScheduleConfig(frequency="daily"),
+            )
+        assert "action.type='workflow'" in str(exc_info.value)
+
+    def test_schedule_with_workflow_action_valid(self) -> None:
+        """Schedule-driven rule with workflow action and empty conditions is valid."""
+        rule = Rule(
+            rule_id="valid-schedule-rule",
+            name="Valid Schedule Rule",
+            project_gid="123",
+            conditions=[],
+            action=ActionConfig(
+                type="workflow",
+                params={"workflow_id": "conversation-audit"},
+            ),
+            schedule=ScheduleConfig(frequency="weekly", day_of_week="sunday"),
+        )
+        assert rule.schedule is not None
+        assert rule.action.type == "workflow"
+        assert len(rule.conditions) == 0
+
+    def test_conditions_and_schedule_both_present_valid(self) -> None:
+        """Rule with both conditions and schedule is valid (if action is workflow)."""
+        rule = Rule(
+            rule_id="dual-rule",
+            name="Dual Rule",
+            project_gid="123",
+            conditions=[
+                RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))
+            ],
+            action=ActionConfig(
+                type="workflow",
+                params={"workflow_id": "conversation-audit"},
+            ),
+            schedule=ScheduleConfig(frequency="daily"),
+        )
+        assert rule.schedule is not None
+        assert len(rule.conditions) == 1
