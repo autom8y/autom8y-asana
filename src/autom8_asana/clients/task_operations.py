@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from autom8_asana.models import Task
 from autom8_asana.observability import error_handler
-from autom8_asana.transport.sync import sync_wrapper
+from autom8_asana.patterns import async_method
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
@@ -42,8 +42,9 @@ class TaskOperations:
 
     # --- Tag Operations ---
 
+    @async_method  # type: ignore[arg-type]
     @error_handler
-    async def add_tag_async(
+    async def add_tag(
         self,
         task_gid: str,
         tag_gid: str,
@@ -94,44 +95,11 @@ class TaskOperations:
             return await self._tasks.get_async(task_gid)
         return task
 
-    def add_tag(
-        self,
-        task_gid: str,
-        tag_gid: str,
-        *,
-        refresh: bool = False,
-    ) -> Task:
-        """Add tag to task without explicit SaveSession (sync).
-
-        Args:
-            task_gid: Target task GID
-            tag_gid: Tag GID to add
-            refresh: If True, fetch fresh task state after commit. Default False.
-
-        Returns:
-            Task object (refreshed if refresh=True, otherwise pre-commit state)
-
-        Raises:
-            APIError: If task or tag not found
-            SaveSessionError: If the action operation fails
-        """
-        return self._add_tag_sync(task_gid, tag_gid, refresh=refresh)
-
-    @sync_wrapper("add_tag_async")
-    async def _add_tag_sync(
-        self,
-        task_gid: str,
-        tag_gid: str,
-        *,
-        refresh: bool = False,
-    ) -> Task:
-        """Internal sync wrapper for add_tag_async."""
-        return await self.add_tag_async(task_gid, tag_gid, refresh=refresh)
-
     # --- Remove Tag ---
 
+    @async_method  # type: ignore[arg-type]
     @error_handler
-    async def remove_tag_async(
+    async def remove_tag(
         self,
         task_gid: str,
         tag_gid: str,
@@ -176,44 +144,11 @@ class TaskOperations:
             return await self._tasks.get_async(task_gid)
         return task
 
-    def remove_tag(
-        self,
-        task_gid: str,
-        tag_gid: str,
-        *,
-        refresh: bool = False,
-    ) -> Task:
-        """Remove tag from task without explicit SaveSession (sync).
-
-        Args:
-            task_gid: Target task GID
-            tag_gid: Tag GID to remove
-            refresh: If True, fetch fresh task state after commit. Default False.
-
-        Returns:
-            Task object (refreshed if refresh=True, otherwise pre-commit state)
-
-        Raises:
-            APIError: If task or tag not found
-            SaveSessionError: If the action operation fails
-        """
-        return self._remove_tag_sync(task_gid, tag_gid, refresh=refresh)
-
-    @sync_wrapper("remove_tag_async")
-    async def _remove_tag_sync(
-        self,
-        task_gid: str,
-        tag_gid: str,
-        *,
-        refresh: bool = False,
-    ) -> Task:
-        """Internal sync wrapper for remove_tag_async."""
-        return await self.remove_tag_async(task_gid, tag_gid, refresh=refresh)
-
     # --- Move to Section ---
 
+    @async_method  # type: ignore[arg-type]
     @error_handler
-    async def move_to_section_async(
+    async def move_to_section(
         self,
         task_gid: str,
         section_gid: str,
@@ -263,51 +198,11 @@ class TaskOperations:
             return await self._tasks.get_async(task_gid)
         return task
 
-    def move_to_section(
-        self,
-        task_gid: str,
-        section_gid: str,
-        project_gid: str,
-        *,
-        refresh: bool = False,
-    ) -> Task:
-        """Move task to section within project without explicit SaveSession (sync).
-
-        Args:
-            task_gid: Target task GID
-            section_gid: Section GID to move task to
-            project_gid: Project GID (for validation/context)
-            refresh: If True, fetch fresh task state after commit. Default False.
-
-        Returns:
-            Task object (refreshed if refresh=True, otherwise pre-commit state)
-
-        Raises:
-            APIError: If task, section, or project not found
-            SaveSessionError: If the action operation fails
-        """
-        return self._move_to_section_sync(
-            task_gid, section_gid, project_gid, refresh=refresh
-        )
-
-    @sync_wrapper("move_to_section_async")
-    async def _move_to_section_sync(
-        self,
-        task_gid: str,
-        section_gid: str,
-        project_gid: str,
-        *,
-        refresh: bool = False,
-    ) -> Task:
-        """Internal sync wrapper for move_to_section_async."""
-        return await self.move_to_section_async(
-            task_gid, section_gid, project_gid, refresh=refresh
-        )
-
     # --- Set Assignee ---
 
+    @async_method  # type: ignore[arg-type]
     @error_handler
-    async def set_assignee_async(self, task_gid: str, assignee_gid: str) -> Task:
+    async def set_assignee(self, task_gid: str, assignee_gid: str) -> Task:
         """Set task assignee without explicit SaveSession.
 
         Args:
@@ -337,30 +232,11 @@ class TaskOperations:
         task = Task.model_validate(result)
         return task
 
-    def set_assignee(self, task_gid: str, assignee_gid: str) -> Task:
-        """Set task assignee without explicit SaveSession (sync).
-
-        Args:
-            task_gid: Target task GID
-            assignee_gid: Assignee user GID
-
-        Returns:
-            Updated Task from API
-
-        Raises:
-            APIError: If task or assignee not found
-        """
-        return self._set_assignee_sync(task_gid, assignee_gid)
-
-    @sync_wrapper("set_assignee_async")
-    async def _set_assignee_sync(self, task_gid: str, assignee_gid: str) -> Task:
-        """Internal sync wrapper for set_assignee_async."""
-        return await self.set_assignee_async(task_gid, assignee_gid)
-
     # --- Add to Project ---
 
+    @async_method  # type: ignore[arg-type]
     @error_handler
-    async def add_to_project_async(
+    async def add_to_project(
         self,
         task_gid: str,
         project_gid: str,
@@ -411,51 +287,11 @@ class TaskOperations:
             return await self._tasks.get_async(task_gid)
         return task
 
-    def add_to_project(
-        self,
-        task_gid: str,
-        project_gid: str,
-        section_gid: str | None = None,
-        *,
-        refresh: bool = False,
-    ) -> Task:
-        """Add task to project without explicit SaveSession (sync).
-
-        Args:
-            task_gid: Target task GID
-            project_gid: Project GID to add task to
-            section_gid: Optional section GID within project
-            refresh: If True, fetch fresh task state after commit. Default False.
-
-        Returns:
-            Task object (refreshed if refresh=True, otherwise pre-commit state)
-
-        Raises:
-            APIError: If task or project not found
-            SaveSessionError: If the action operation fails
-        """
-        return self._add_to_project_sync(
-            task_gid, project_gid, section_gid, refresh=refresh
-        )
-
-    @sync_wrapper("add_to_project_async")
-    async def _add_to_project_sync(
-        self,
-        task_gid: str,
-        project_gid: str,
-        section_gid: str | None = None,
-        *,
-        refresh: bool = False,
-    ) -> Task:
-        """Internal sync wrapper for add_to_project_async."""
-        return await self.add_to_project_async(
-            task_gid, project_gid, section_gid, refresh=refresh
-        )
-
     # --- Remove from Project ---
 
+    @async_method  # type: ignore[arg-type]
     @error_handler
-    async def remove_from_project_async(
+    async def remove_from_project(
         self, task_gid: str, project_gid: str, *, refresh: bool = False
     ) -> Task:
         """Remove task from project without explicit SaveSession.
@@ -495,31 +331,3 @@ class TaskOperations:
         if refresh:
             return await self._tasks.get_async(task_gid)
         return task
-
-    def remove_from_project(
-        self, task_gid: str, project_gid: str, *, refresh: bool = False
-    ) -> Task:
-        """Remove task from project without explicit SaveSession (sync).
-
-        Args:
-            task_gid: Target task GID
-            project_gid: Project GID to remove task from
-            refresh: If True, fetch fresh task state after commit. Default False.
-
-        Returns:
-            Task object (refreshed if refresh=True, otherwise pre-commit state)
-
-        Raises:
-            APIError: If task or project not found
-            SaveSessionError: If the action operation fails
-        """
-        return self._remove_from_project_sync(task_gid, project_gid, refresh=refresh)
-
-    @sync_wrapper("remove_from_project_async")
-    async def _remove_from_project_sync(
-        self, task_gid: str, project_gid: str, *, refresh: bool = False
-    ) -> Task:
-        """Internal sync wrapper for remove_from_project_async."""
-        return await self.remove_from_project_async(
-            task_gid, project_gid, refresh=refresh
-        )

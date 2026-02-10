@@ -16,7 +16,7 @@ from autom8_asana.clients.base import BaseClient
 from autom8_asana.models import PageIterator, Task
 from autom8_asana.models.business import STANDARD_TASK_OPT_FIELDS
 from autom8_asana.observability import error_handler
-from autom8_asana.transport import sync_wrapper
+from autom8_asana.patterns import async_method
 
 logger = get_logger(__name__)
 
@@ -106,7 +106,7 @@ class TasksClient(BaseClient):
             self._ttl_resolver = TaskTTLResolver(self._config)
         return self._ttl_resolver
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def get_async(
         self,
         task_gid: str,
@@ -128,8 +128,31 @@ class TasksClient(BaseClient):
         """Get a task by GID, returning a raw dict."""
         ...
 
+    @overload
+    def get(
+        self,
+        task_gid: str,
+        *,
+        raw: Literal[False] = ...,
+        opt_fields: list[str] | None = ...,
+    ) -> Task:
+        """Get a task by GID (sync), returning a Task model."""
+        ...
+
+    @overload
+    def get(
+        self,
+        task_gid: str,
+        *,
+        raw: Literal[True],
+        opt_fields: list[str] | None = ...,
+    ) -> dict[str, Any]:
+        """Get a task by GID (sync), returning a raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
     @error_handler
-    async def get_async(
+    async def get(
         self,
         task_gid: str,
         *,
@@ -245,62 +268,7 @@ class TasksClient(BaseClient):
         merged = set(opt_fields) | _MINIMUM_OPT_FIELDS
         return list(merged)
 
-    @overload
-    def get(
-        self,
-        task_gid: str,
-        *,
-        raw: Literal[False] = ...,
-        opt_fields: list[str] | None = ...,
-    ) -> Task:
-        """Get a task by GID (sync), returning a Task model."""
-        ...
-
-    @overload
-    def get(
-        self,
-        task_gid: str,
-        *,
-        raw: Literal[True],
-        opt_fields: list[str] | None = ...,
-    ) -> dict[str, Any]:
-        """Get a task by GID (sync), returning a raw dict."""
-        ...
-
-    def get(
-        self,
-        task_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> Task | dict[str, Any]:
-        """Get a task by GID (sync).
-
-        Args:
-            task_gid: Task GID
-            raw: If True, return raw dict instead of Task model
-            opt_fields: Optional fields to include
-
-        Returns:
-            Task model by default, or dict if raw=True
-        """
-        return self._get_sync(task_gid, raw=raw, opt_fields=opt_fields)
-
-    @sync_wrapper("get_async")
-    async def _get_sync(
-        self,
-        task_gid: str,
-        *,
-        raw: bool = False,
-        opt_fields: list[str] | None = None,
-    ) -> Task | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        # Use conditionals to satisfy mypy's overload requirements
-        if raw:
-            return await self.get_async(task_gid, raw=True, opt_fields=opt_fields)
-        return await self.get_async(task_gid, raw=False, opt_fields=opt_fields)
-
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def create_async(
         self,
         *,
@@ -330,8 +298,39 @@ class TasksClient(BaseClient):
         """Create a new task, returning a raw dict."""
         ...
 
+    @overload
+    def create(
+        self,
+        *,
+        name: str,
+        raw: Literal[False] = ...,
+        workspace: str | None = ...,
+        projects: list[str] | None = ...,
+        parent: str | None = ...,
+        notes: str | None = ...,
+        **kwargs: Any,
+    ) -> Task:
+        """Create a new task (sync), returning a Task model."""
+        ...
+
+    @overload
+    def create(
+        self,
+        *,
+        name: str,
+        raw: Literal[True],
+        workspace: str | None = ...,
+        projects: list[str] | None = ...,
+        parent: str | None = ...,
+        notes: str | None = ...,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Create a new task (sync), returning a raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
     @error_handler
-    async def create_async(
+    async def create(
         self,
         *,
         name: str,
@@ -377,106 +376,7 @@ class TasksClient(BaseClient):
         task._client = self._client  # Store client reference for save/refresh
         return task
 
-    @overload
-    def create(
-        self,
-        *,
-        name: str,
-        raw: Literal[False] = ...,
-        workspace: str | None = ...,
-        projects: list[str] | None = ...,
-        parent: str | None = ...,
-        notes: str | None = ...,
-        **kwargs: Any,
-    ) -> Task:
-        """Create a new task (sync), returning a Task model."""
-        ...
-
-    @overload
-    def create(
-        self,
-        *,
-        name: str,
-        raw: Literal[True],
-        workspace: str | None = ...,
-        projects: list[str] | None = ...,
-        parent: str | None = ...,
-        notes: str | None = ...,
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        """Create a new task (sync), returning a raw dict."""
-        ...
-
-    def create(
-        self,
-        *,
-        name: str,
-        raw: bool = False,
-        workspace: str | None = None,
-        projects: list[str] | None = None,
-        parent: str | None = None,
-        notes: str | None = None,
-        **kwargs: Any,
-    ) -> Task | dict[str, Any]:
-        """Create a new task (sync).
-
-        Args:
-            name: Task name (required)
-            raw: If True, return raw dict instead of Task model
-            workspace: Workspace GID (required if no projects/parent)
-            projects: List of project GIDs to add task to
-            parent: Parent task GID (for subtasks)
-            notes: Task description
-            **kwargs: Additional task fields
-
-        Returns:
-            Task model by default, or dict if raw=True
-        """
-        return self._create_sync(
-            name=name,
-            raw=raw,
-            workspace=workspace,
-            projects=projects,
-            parent=parent,
-            notes=notes,
-            **kwargs,
-        )
-
-    @sync_wrapper("create_async")
-    async def _create_sync(
-        self,
-        *,
-        name: str,
-        raw: bool = False,
-        workspace: str | None = None,
-        projects: list[str] | None = None,
-        parent: str | None = None,
-        notes: str | None = None,
-        **kwargs: Any,
-    ) -> Task | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        # Use conditionals to satisfy mypy's overload requirements
-        if raw:
-            return await self.create_async(
-                name=name,
-                raw=True,
-                workspace=workspace,
-                projects=projects,
-                parent=parent,
-                notes=notes,
-                **kwargs,
-            )
-        return await self.create_async(
-            name=name,
-            raw=False,
-            workspace=workspace,
-            projects=projects,
-            parent=parent,
-            notes=notes,
-            **kwargs,
-        )
-
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def update_async(
         self,
         task_gid: str,
@@ -497,31 +397,6 @@ class TasksClient(BaseClient):
     ) -> dict[str, Any]:
         """Update a task, returning a raw dict."""
         ...
-
-    @error_handler
-    async def update_async(
-        self,
-        task_gid: str,
-        *,
-        raw: bool = False,
-        **kwargs: Any,
-    ) -> Task | dict[str, Any]:
-        """Update a task.
-
-        Args:
-            task_gid: Task GID
-            raw: If True, return raw dict instead of Task model
-            **kwargs: Fields to update
-
-        Returns:
-            Task model by default, or dict if raw=True
-        """
-        result = await self._http.put(f"/tasks/{task_gid}", json={"data": kwargs})
-        if raw:
-            return result
-        task = Task.model_validate(result)
-        task._client = self._client  # Store client reference for save/refresh
-        return task
 
     @overload
     def update(
@@ -545,14 +420,16 @@ class TasksClient(BaseClient):
         """Update a task (sync), returning a raw dict."""
         ...
 
-    def update(
+    @async_method  # type: ignore[arg-type, operator, misc]
+    @error_handler
+    async def update(
         self,
         task_gid: str,
         *,
         raw: bool = False,
         **kwargs: Any,
     ) -> Task | dict[str, Any]:
-        """Update a task (sync).
+        """Update a task.
 
         Args:
             task_gid: Task GID
@@ -562,43 +439,22 @@ class TasksClient(BaseClient):
         Returns:
             Task model by default, or dict if raw=True
         """
-        return self._update_sync(task_gid, raw=raw, **kwargs)
-
-    @sync_wrapper("update_async")
-    async def _update_sync(
-        self,
-        task_gid: str,
-        *,
-        raw: bool = False,
-        **kwargs: Any,
-    ) -> Task | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        # Use conditionals to satisfy mypy's overload requirements
+        result = await self._http.put(f"/tasks/{task_gid}", json={"data": kwargs})
         if raw:
-            return await self.update_async(task_gid, raw=True, **kwargs)
-        return await self.update_async(task_gid, raw=False, **kwargs)
+            return result
+        task = Task.model_validate(result)
+        task._client = self._client  # Store client reference for save/refresh
+        return task
 
+    @async_method  # type: ignore[arg-type]
     @error_handler
-    async def delete_async(self, task_gid: str) -> None:
+    async def delete(self, task_gid: str) -> None:
         """Delete a task.
 
         Args:
             task_gid: Task GID
         """
         await self._http.delete(f"/tasks/{task_gid}")
-
-    @sync_wrapper("delete_async")
-    async def _delete_sync(self, task_gid: str) -> None:
-        """Internal sync wrapper implementation."""
-        await self.delete_async(task_gid)
-
-    def delete(self, task_gid: str) -> None:
-        """Delete a task (sync).
-
-        Args:
-            task_gid: Task GID
-        """
-        self._delete_sync(task_gid)
 
     def list_async(
         self,
@@ -961,7 +817,7 @@ class TasksClient(BaseClient):
     # --- Task Duplication ---
     # Per TDD-PIPELINE-AUTOMATION-ENHANCEMENT: Wraps Asana's duplicate endpoint
 
-    @overload
+    @overload  # type: ignore[no-overload-impl]
     async def duplicate_async(
         self,
         task_gid: str,
@@ -985,8 +841,33 @@ class TasksClient(BaseClient):
         """Duplicate a task, returning a raw dict."""
         ...
 
+    @overload
+    def duplicate(
+        self,
+        task_gid: str,
+        *,
+        name: str,
+        include: list[str] | None = ...,
+        raw: Literal[False] = ...,
+    ) -> Task:
+        """Duplicate a task (sync), returning a Task model."""
+        ...
+
+    @overload
+    def duplicate(
+        self,
+        task_gid: str,
+        *,
+        name: str,
+        include: list[str] | None = ...,
+        raw: Literal[True],
+    ) -> dict[str, Any]:
+        """Duplicate a task (sync), returning a raw dict."""
+        ...
+
+    @async_method  # type: ignore[arg-type, operator, misc]
     @error_handler
-    async def duplicate_async(
+    async def duplicate(
         self,
         task_gid: str,
         *,
@@ -1045,76 +926,3 @@ class TasksClient(BaseClient):
         task = Task.model_validate(new_task_data)
         task._client = self._client
         return task
-
-    @overload
-    def duplicate(
-        self,
-        task_gid: str,
-        *,
-        name: str,
-        include: list[str] | None = ...,
-        raw: Literal[False] = ...,
-    ) -> Task:
-        """Duplicate a task (sync), returning a Task model."""
-        ...
-
-    @overload
-    def duplicate(
-        self,
-        task_gid: str,
-        *,
-        name: str,
-        include: list[str] | None = ...,
-        raw: Literal[True],
-    ) -> dict[str, Any]:
-        """Duplicate a task (sync), returning a raw dict."""
-        ...
-
-    def duplicate(
-        self,
-        task_gid: str,
-        *,
-        name: str,
-        include: list[str] | None = None,
-        raw: bool = False,
-    ) -> Task | dict[str, Any]:
-        """Duplicate a task (sync).
-
-        Per FR-DUP-001: Wraps Asana's POST /tasks/{task_gid}/duplicate.
-
-        Args:
-            task_gid: GID of the task to duplicate.
-            name: Name for the new task (required by Asana API).
-            include: List of attributes to copy. Valid values:
-                - "subtasks": Copy all subtasks
-                - "notes": Copy task description
-                - "assignee": Copy assignee
-                - "attachments": Copy attachments
-                - "dates": Copy due dates
-                - "dependencies": Copy dependencies
-                - "collaborators": Copy followers
-                - "tags": Copy tags
-            raw: If True, return raw dict instead of Task model.
-
-        Returns:
-            Task model (or dict if raw=True) representing the new task.
-        """
-        return self._duplicate_sync(task_gid, name=name, include=include, raw=raw)
-
-    @sync_wrapper("duplicate_async")
-    async def _duplicate_sync(
-        self,
-        task_gid: str,
-        *,
-        name: str,
-        include: list[str] | None = None,
-        raw: bool = False,
-    ) -> Task | dict[str, Any]:
-        """Internal sync wrapper implementation."""
-        if raw:
-            return await self.duplicate_async(
-                task_gid, name=name, include=include, raw=True
-            )
-        return await self.duplicate_async(
-            task_gid, name=name, include=include, raw=False
-        )

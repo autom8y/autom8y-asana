@@ -502,11 +502,12 @@ class TestLogging:
         await tasks_client.delete_async("123")
 
         # Check that operations were logged
+        # With @async_method, canonical method name is the base name (get, create, etc.)
         debug_messages = [msg for level, msg in logger.messages if level == "debug"]
-        assert any("get_async" in msg for msg in debug_messages)
-        assert any("create_async" in msg for msg in debug_messages)
-        assert any("update_async" in msg for msg in debug_messages)
-        assert any("delete_async" in msg for msg in debug_messages)
+        assert any("TasksClient.get(" in msg for msg in debug_messages)
+        assert any("TasksClient.create(" in msg for msg in debug_messages)
+        assert any("TasksClient.update(" in msg for msg in debug_messages)
+        assert any("TasksClient.delete(" in msg for msg in debug_messages)
 
 
 class TestSubtasksAsync:
