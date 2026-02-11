@@ -17,8 +17,7 @@ import pytest
 
 from autom8_asana.core.exceptions import (
     Autom8Error,
-    CacheReadError,
-    CacheWriteError,
+    CacheError,
     RedisTransportError,
     S3TransportError,
     TransportError,
@@ -71,7 +70,7 @@ class TestDefaultRetryPolicy:
     def test_permanent_autom8_error_not_retried(self) -> None:
         """Permanent Autom8Error subclasses should not be retried."""
         policy = DefaultRetryPolicy()
-        err = CacheReadError("bad json")
+        err = CacheError("bad json")
         assert policy.should_retry(err, attempt=1) is False
 
     def test_permanent_s3_nosuchkey_not_retried(self) -> None:
@@ -527,9 +526,9 @@ class TestRetryOrchestratorSync:
         def permanent_fail() -> str:
             nonlocal call_count
             call_count += 1
-            raise CacheReadError("bad json")
+            raise CacheError("bad json")
 
-        with pytest.raises(CacheReadError):
+        with pytest.raises(CacheError):
             orch.execute_with_retry(permanent_fail, operation_name="perm")
 
         assert call_count == 1  # No retry attempted
@@ -650,9 +649,9 @@ class TestRetryOrchestratorAsync:
         async def perm_fail() -> str:
             nonlocal call_count
             call_count += 1
-            raise CacheWriteError("quota")
+            raise CacheError("quota")
 
-        with pytest.raises(CacheWriteError):
+        with pytest.raises(CacheError):
             await orch.execute_with_retry_async(perm_fail, operation_name="perm")
 
         assert call_count == 1
