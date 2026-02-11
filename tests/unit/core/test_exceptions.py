@@ -13,13 +13,10 @@ from autom8_asana.core.exceptions import (
     CACHE_TRANSIENT_ERRORS,
     REDIS_TRANSPORT_ERRORS,
     S3_TRANSPORT_ERRORS,
-    SERIALIZATION_ERRORS,
     Autom8Error,
     AutomationError,
     CacheConnectionError,
     CacheError,
-    CacheReadError,
-    CacheWriteError,
     PipelineActionError,
     RedisTransportError,
     RuleExecutionError,
@@ -50,12 +47,6 @@ class TestHierarchy:
 
     def test_cache_error_is_autom8_error(self) -> None:
         assert issubclass(CacheError, Autom8Error)
-
-    def test_cache_read_error_is_cache_error(self) -> None:
-        assert issubclass(CacheReadError, CacheError)
-
-    def test_cache_write_error_is_cache_error(self) -> None:
-        assert issubclass(CacheWriteError, CacheError)
 
     def test_cache_connection_error_is_cache_error(self) -> None:
         assert issubclass(CacheConnectionError, CacheError)
@@ -224,15 +215,6 @@ class TestCacheError:
         assert err.cache_key == "task:123"
         assert err.context["cache_key"] == "task:123"
 
-    def test_cache_read_error(self) -> None:
-        err = CacheReadError("bad json", cache_key="k")
-        assert isinstance(err, CacheError)
-        assert err.transient is False
-
-    def test_cache_write_error(self) -> None:
-        err = CacheWriteError("quota exceeded", cache_key="k")
-        assert isinstance(err, CacheError)
-
     def test_cache_connection_error_is_transient(self) -> None:
         err = CacheConnectionError("backend down")
         assert err.transient is True
@@ -285,10 +267,6 @@ class TestErrorTuples:
     def test_cache_transient_errors_includes_connection(self) -> None:
         assert CacheConnectionError in CACHE_TRANSIENT_ERRORS
 
-    def test_serialization_errors(self) -> None:
-        assert CacheReadError in SERIALIZATION_ERRORS
-        assert CacheWriteError in SERIALIZATION_ERRORS
-
     def test_s3_transport_errors_catches_domain_exception(self) -> None:
         """Verify the tuple actually works in an except clause."""
         with pytest.raises(S3_TRANSPORT_ERRORS):
@@ -321,7 +299,7 @@ class TestCatchBehavior:
 
     def test_catch_cache_as_autom8(self) -> None:
         with pytest.raises(Autom8Error):
-            raise CacheReadError("cache fail")
+            raise CacheError("cache fail")
 
     def test_catch_automation_as_autom8(self) -> None:
         with pytest.raises(Autom8Error):

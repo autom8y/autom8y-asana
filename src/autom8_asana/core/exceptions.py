@@ -219,18 +219,6 @@ class CacheError(Autom8Error):
         self.cache_key = cache_key
 
 
-class CacheReadError(CacheError):
-    """Cache read operation failed (deserialization, corrupt data)."""
-
-    pass
-
-
-class CacheWriteError(CacheError):
-    """Cache write operation failed (serialization, quota)."""
-
-    pass
-
-
 class CacheConnectionError(CacheError):
     """Cache backend is unavailable (used by degraded-mode logic)."""
 
@@ -332,8 +320,3 @@ CACHE_TRANSIENT_ERRORS: tuple[type[Exception], ...] = ALL_TRANSPORT_ERRORS + (
     CacheConnectionError,
 )
 
-# Serialization errors (permanent, not retryable)
-SERIALIZATION_ERRORS: tuple[type[Exception], ...] = (
-    CacheReadError,
-    CacheWriteError,
-)
