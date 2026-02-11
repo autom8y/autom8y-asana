@@ -16,7 +16,6 @@ Test cases:
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -33,22 +32,10 @@ from autom8_asana.models.business.detection.types import (
     DetectionResult,
     EntityType,
 )
-from autom8_asana.models.business.registry import ProjectTypeRegistry
 from autom8_asana.models.task import Task
-
-if TYPE_CHECKING:
-    from collections.abc import Generator
 
 
 # --- Fixtures ---
-
-
-@pytest.fixture
-def clean_registry() -> Generator[None, None, None]:
-    """Reset registry before and after each test for isolation."""
-    ProjectTypeRegistry.reset()
-    yield
-    ProjectTypeRegistry.reset()
 
 
 @pytest.fixture
@@ -390,7 +377,6 @@ class TestDetectEntityTypeAsyncCacheIntegration:
     @pytest.mark.asyncio
     async def test_cache_hit_returns_result_without_api_call(
         self,
-        clean_registry: None,
         mock_client_with_cache: MagicMock,
         mock_cache: MagicMock,
     ) -> None:
@@ -412,7 +398,6 @@ class TestDetectEntityTypeAsyncCacheIntegration:
     @pytest.mark.asyncio
     async def test_cache_miss_executes_tier4_and_stores(
         self,
-        clean_registry: None,
         mock_client_with_cache: MagicMock,
         mock_cache: MagicMock,
         mock_subtask: MagicMock,
@@ -440,7 +425,6 @@ class TestDetectEntityTypeAsyncCacheIntegration:
     @pytest.mark.asyncio
     async def test_no_cache_check_for_tier1_success(
         self,
-        clean_registry: None,
         mock_client_with_cache: MagicMock,
         mock_cache: MagicMock,
     ) -> None:
@@ -470,7 +454,6 @@ class TestDetectEntityTypeAsyncCacheIntegration:
     @pytest.mark.asyncio
     async def test_no_cache_check_for_tier2_success(
         self,
-        clean_registry: None,
         mock_client_with_cache: MagicMock,
         mock_cache: MagicMock,
     ) -> None:
@@ -490,7 +473,6 @@ class TestDetectEntityTypeAsyncCacheIntegration:
     @pytest.mark.asyncio
     async def test_cache_check_failure_degrades_gracefully(
         self,
-        clean_registry: None,
         mock_client_with_cache: MagicMock,
         mock_cache: MagicMock,
         mock_subtask: MagicMock,
@@ -515,7 +497,6 @@ class TestDetectEntityTypeAsyncCacheIntegration:
     @pytest.mark.asyncio
     async def test_cache_store_failure_degrades_gracefully(
         self,
-        clean_registry: None,
         mock_client_with_cache: MagicMock,
         mock_cache: MagicMock,
         mock_subtask: MagicMock,
@@ -541,7 +522,6 @@ class TestDetectEntityTypeAsyncCacheIntegration:
     @pytest.mark.asyncio
     async def test_no_cache_provider_proceeds_normally(
         self,
-        clean_registry: None,
         mock_client: MagicMock,
         mock_subtask: MagicMock,
     ) -> None:
@@ -564,7 +544,6 @@ class TestDetectEntityTypeAsyncCacheIntegration:
     @pytest.mark.asyncio
     async def test_tier4_none_result_not_cached(
         self,
-        clean_registry: None,
         mock_client_with_cache: MagicMock,
         mock_cache: MagicMock,
     ) -> None:
@@ -599,7 +578,6 @@ class TestCacheWithStructureInspectionDisabled:
     @pytest.mark.asyncio
     async def test_no_cache_interaction_when_inspection_disabled(
         self,
-        clean_registry: None,
         mock_client_with_cache: MagicMock,
         mock_cache: MagicMock,
     ) -> None:

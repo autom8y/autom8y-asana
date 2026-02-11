@@ -28,18 +28,9 @@ from autom8_asana.models.business.patterns import (
     get_pattern_config,
     get_pattern_priority,
 )
-from autom8_asana.models.business.registry import ProjectTypeRegistry
 from autom8_asana.models.task import Task
 
 # --- Fixtures ---
-
-
-@pytest.fixture
-def clean_registry():
-    """Reset registry before and after each test for isolation."""
-    ProjectTypeRegistry.reset()
-    yield
-    ProjectTypeRegistry.reset()
 
 
 def make_task(gid: str = "task_gid", name: str | None = "Test Task") -> Task:
@@ -288,7 +279,7 @@ class TestTier2DetectionWithWordBoundaries:
         ],
     )
     def test_standard_name_patterns_match(
-        self, clean_registry, name: str, expected_type: EntityType
+        self, name: str, expected_type: EntityType
     ) -> None:
         """Name containing pattern at word boundary matches correctly."""
         task = make_task(gid="task1", name=name)
@@ -315,7 +306,7 @@ class TestTier2DetectionWithWordBoundaries:
             "Meeting Notes",
         ],
     )
-    def test_false_positives_avoided(self, clean_registry, name: str) -> None:
+    def test_false_positives_avoided(self, name: str) -> None:
         """Words containing patterns as substrings do NOT match."""
         task = make_task(gid="task1", name=name)
 
@@ -325,14 +316,14 @@ class TestTier2DetectionWithWordBoundaries:
         assert result.entity_type == EntityType.UNKNOWN
         assert result.tier_used == 5
 
-    def test_case_insensitive_matching(self, clean_registry) -> None:
+    def test_case_insensitive_matching(self) -> None:
         """Pattern matching is case-insensitive."""
         for name in ["CONTACTS", "Contacts", "contacts", "CoNtAcTs"]:
             task = make_task(gid="task1", name=name)
             result = detect_entity_type(task)
             assert result.entity_type == EntityType.CONTACT_HOLDER
 
-    def test_decorated_names_stripped_and_matched(self, clean_registry) -> None:
+    def test_decorated_names_stripped_and_matched(self) -> None:
         """Decorated names are stripped before matching."""
         # This name has decorations that might interfere
         task = make_task(gid="task1", name="[Priority] Contacts (Main)")

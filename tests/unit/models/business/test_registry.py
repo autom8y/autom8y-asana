@@ -16,7 +16,6 @@ Test cases:
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
@@ -29,39 +28,25 @@ from autom8_asana.models.business.registry import (
     get_registry,
 )
 
-if TYPE_CHECKING:
-    from collections.abc import Generator
-
-
-@pytest.fixture
-def clean_registry() -> Generator[None, None, None]:
-    """Reset registry before and after each test for isolation.
-
-    Per ADR-0093: Tests MUST use reset() for isolation.
-    """
-    ProjectTypeRegistry.reset()
-    yield
-    ProjectTypeRegistry.reset()
-
 
 class TestProjectTypeRegistrySingleton:
     """Tests for singleton behavior."""
 
-    def test_singleton_returns_same_instance(self, clean_registry: None) -> None:
+    def test_singleton_returns_same_instance(self) -> None:
         """Verify singleton pattern - same instance returned."""
         registry1 = get_registry()
         registry2 = get_registry()
 
         assert registry1 is registry2
 
-    def test_singleton_via_class_instantiation(self, clean_registry: None) -> None:
+    def test_singleton_via_class_instantiation(self) -> None:
         """Verify singleton via direct class instantiation."""
         registry1 = ProjectTypeRegistry()
         registry2 = ProjectTypeRegistry()
 
         assert registry1 is registry2
 
-    def test_reset_creates_new_instance(self, clean_registry: None) -> None:
+    def test_reset_creates_new_instance(self) -> None:
         """Verify reset() creates a new singleton instance."""
         registry1 = get_registry()
         registry1.register("test_gid", EntityType.BUSINESS)
@@ -76,7 +61,7 @@ class TestProjectTypeRegistrySingleton:
 class TestRegistrationAndLookup:
     """Tests for register() and lookup() operations."""
 
-    def test_register_and_lookup(self, clean_registry: None) -> None:
+    def test_register_and_lookup(self) -> None:
         """Basic registration and lookup."""
         registry = get_registry()
 
@@ -85,14 +70,14 @@ class TestRegistrationAndLookup:
         result = registry.lookup("1234567890")
         assert result == EntityType.BUSINESS
 
-    def test_lookup_missing_gid_returns_none(self, clean_registry: None) -> None:
+    def test_lookup_missing_gid_returns_none(self) -> None:
         """Lookup for unregistered GID returns None."""
         registry = get_registry()
 
         result = registry.lookup("nonexistent_gid")
         assert result is None
 
-    def test_idempotent_registration(self, clean_registry: None) -> None:
+    def test_idempotent_registration(self) -> None:
         """Same mapping can be registered multiple times (idempotent)."""
         registry = get_registry()
 
@@ -102,7 +87,7 @@ class TestRegistrationAndLookup:
 
         assert registry.lookup("1234567890") == EntityType.BUSINESS
 
-    def test_is_registered(self, clean_registry: None) -> None:
+    def test_is_registered(self) -> None:
         """is_registered() returns correct boolean."""
         registry = get_registry()
 
@@ -112,7 +97,7 @@ class TestRegistrationAndLookup:
 
         assert registry.is_registered("1234567890")
 
-    def test_get_all_mappings(self, clean_registry: None) -> None:
+    def test_get_all_mappings(self) -> None:
         """get_all_mappings() returns copy of all mappings."""
         registry = get_registry()
 
@@ -135,7 +120,7 @@ class TestDuplicateGIDDetection:
     """Tests for duplicate GID validation (FR-REG-005)."""
 
     def test_duplicate_gid_different_type_raises_valueerror(
-        self, clean_registry: None
+        self,
     ) -> None:
         """Registering same GID with different type raises ValueError."""
         registry = get_registry()
@@ -149,7 +134,7 @@ class TestDuplicateGIDDetection:
         assert "BUSINESS" in str(exc_info.value)
         assert "CONTACT" in str(exc_info.value)
 
-    def test_duplicate_gid_same_type_is_idempotent(self, clean_registry: None) -> None:
+    def test_duplicate_gid_same_type_is_idempotent(self) -> None:
         """Registering same GID with same type is allowed (idempotent)."""
         registry = get_registry()
 
@@ -163,7 +148,7 @@ class TestDuplicateGIDDetection:
 class TestReverseLookup:
     """Tests for get_primary_gid() reverse lookup."""
 
-    def test_get_primary_gid(self, clean_registry: None) -> None:
+    def test_get_primary_gid(self) -> None:
         """get_primary_gid() returns GID for entity type."""
         registry = get_registry()
 
@@ -172,7 +157,7 @@ class TestReverseLookup:
         result = registry.get_primary_gid(EntityType.BUSINESS)
         assert result == "1234567890"
 
-    def test_get_primary_gid_missing_returns_none(self, clean_registry: None) -> None:
+    def test_get_primary_gid_missing_returns_none(self) -> None:
         """get_primary_gid() returns None for unregistered type."""
         registry = get_registry()
 
@@ -180,7 +165,7 @@ class TestReverseLookup:
         assert result is None
 
     def test_first_registration_wins_for_reverse_lookup(
-        self, clean_registry: None
+        self,
     ) -> None:
         """First GID registered for a type wins for reverse lookup."""
         registry = get_registry()
@@ -199,7 +184,7 @@ class TestReverseLookup:
 class TestClassNameToEntityType:
     """Tests for _class_name_to_entity_type() helper."""
 
-    def test_simple_class_name(self, clean_registry: None) -> None:
+    def test_simple_class_name(self) -> None:
         """Simple class name converts correctly."""
         assert _class_name_to_entity_type("Business") == EntityType.BUSINESS
         assert _class_name_to_entity_type("Contact") == EntityType.CONTACT
@@ -209,7 +194,7 @@ class TestClassNameToEntityType:
         assert _class_name_to_entity_type("Location") == EntityType.LOCATION
         assert _class_name_to_entity_type("Hours") == EntityType.HOURS
 
-    def test_holder_class_name(self, clean_registry: None) -> None:
+    def test_holder_class_name(self) -> None:
         """Holder class names convert correctly."""
         assert _class_name_to_entity_type("ContactHolder") == EntityType.CONTACT_HOLDER
         assert _class_name_to_entity_type("UnitHolder") == EntityType.UNIT_HOLDER
@@ -219,11 +204,11 @@ class TestClassNameToEntityType:
             _class_name_to_entity_type("LocationHolder") == EntityType.LOCATION_HOLDER
         )
 
-    def test_special_case_dna_holder(self, clean_registry: None) -> None:
+    def test_special_case_dna_holder(self) -> None:
         """DNAHolder special case is handled."""
         assert _class_name_to_entity_type("DNAHolder") == EntityType.DNA_HOLDER
 
-    def test_special_case_reconciliation_holder(self, clean_registry: None) -> None:
+    def test_special_case_reconciliation_holder(self) -> None:
         """ReconciliationHolder special case is handled."""
         assert (
             _class_name_to_entity_type("ReconciliationHolder")
@@ -235,21 +220,21 @@ class TestClassNameToEntityType:
             == EntityType.RECONCILIATIONS_HOLDER
         )
 
-    def test_asset_edit_holder(self, clean_registry: None) -> None:
+    def test_asset_edit_holder(self) -> None:
         """AssetEditHolder converts correctly."""
         assert (
             _class_name_to_entity_type("AssetEditHolder")
             == EntityType.ASSET_EDIT_HOLDER
         )
 
-    def test_videography_holder(self, clean_registry: None) -> None:
+    def test_videography_holder(self) -> None:
         """VideographyHolder converts correctly."""
         assert (
             _class_name_to_entity_type("VideographyHolder")
             == EntityType.VIDEOGRAPHY_HOLDER
         )
 
-    def test_unknown_class_name_returns_none(self, clean_registry: None) -> None:
+    def test_unknown_class_name_returns_none(self) -> None:
         """Unknown class name returns None."""
         assert _class_name_to_entity_type("UnknownClass") is None
         assert _class_name_to_entity_type("FooBar") is None
@@ -258,7 +243,7 @@ class TestClassNameToEntityType:
 class TestEnvironmentVariableOverride:
     """Tests for environment variable override (FR-REG-004)."""
 
-    def test_env_var_override(self, clean_registry: None) -> None:
+    def test_env_var_override(self) -> None:
         """Environment variable overrides class PRIMARY_PROJECT_GID."""
         # Use type() to create class with correct __name__
         Business = type("Business", (), {"PRIMARY_PROJECT_GID": "class_default_gid"})
@@ -272,7 +257,7 @@ class TestEnvironmentVariableOverride:
         assert registry.lookup("env_override_gid") == EntityType.BUSINESS
         assert registry.lookup("class_default_gid") is None
 
-    def test_class_default_used_when_no_env_var(self, clean_registry: None) -> None:
+    def test_class_default_used_when_no_env_var(self) -> None:
         """Class PRIMARY_PROJECT_GID used when env var not set."""
         # Use type() to create class with correct __name__
         Contact = type("Contact", (), {"PRIMARY_PROJECT_GID": "class_default_gid"})
@@ -286,7 +271,7 @@ class TestEnvironmentVariableOverride:
         registry = get_registry()
         assert registry.lookup("class_default_gid") == EntityType.CONTACT
 
-    def test_empty_env_var_uses_class_default(self, clean_registry: None) -> None:
+    def test_empty_env_var_uses_class_default(self) -> None:
         """Empty environment variable falls back to class default."""
         # Use type() to create class with correct __name__
         Unit = type("Unit", (), {"PRIMARY_PROJECT_GID": "class_default_gid"})
@@ -298,7 +283,7 @@ class TestEnvironmentVariableOverride:
         registry = get_registry()
         assert registry.lookup("class_default_gid") == EntityType.UNIT
 
-    def test_whitespace_env_var_uses_class_default(self, clean_registry: None) -> None:
+    def test_whitespace_env_var_uses_class_default(self) -> None:
         """Whitespace-only environment variable falls back to class default."""
         # Use type() to create class with correct __name__
         Offer = type("Offer", (), {"PRIMARY_PROJECT_GID": "class_default_gid"})
@@ -310,7 +295,7 @@ class TestEnvironmentVariableOverride:
         registry = get_registry()
         assert registry.lookup("class_default_gid") == EntityType.OFFER
 
-    def test_no_project_gid_skips_registration(self, clean_registry: None) -> None:
+    def test_no_project_gid_skips_registration(self) -> None:
         """Entity with no PRIMARY_PROJECT_GID is not registered."""
         # Use type() to create class with correct __name__
         Process = type("Process", (), {"PRIMARY_PROJECT_GID": None})
@@ -327,7 +312,7 @@ class TestEnvironmentVariableOverride:
 class TestReset:
     """Tests for registry reset functionality."""
 
-    def test_reset_clears_all_registrations(self, clean_registry: None) -> None:
+    def test_reset_clears_all_registrations(self) -> None:
         """reset() clears all registered mappings."""
         registry = get_registry()
 
@@ -345,7 +330,7 @@ class TestReset:
 class TestAutoRegistration:
     """Tests for auto-registration via __init_subclass__."""
 
-    def test_business_entity_auto_registers(self, clean_registry: None) -> None:
+    def test_business_entity_auto_registers(self) -> None:
         """BusinessEntity subclasses auto-register when imported."""
         # Use type() to create class with correct __name__
         Business = type("Business", (), {"PRIMARY_PROJECT_GID": "test_business_gid"})
@@ -355,7 +340,7 @@ class TestAutoRegistration:
         registry = get_registry()
         assert registry.lookup("test_business_gid") == EntityType.BUSINESS
 
-    def test_unknown_entity_type_not_registered(self, clean_registry: None) -> None:
+    def test_unknown_entity_type_not_registered(self) -> None:
         """Unknown class names are not registered."""
         # Use type() to create class with correct __name__
         SomeRandomClass = type(
@@ -371,7 +356,7 @@ class TestAutoRegistration:
 class TestO1Lookup:
     """Tests verifying O(1) lookup performance requirement (FR-REG-001)."""
 
-    def test_lookup_is_dict_based(self, clean_registry: None) -> None:
+    def test_lookup_is_dict_based(self) -> None:
         """Verify lookup uses dict (O(1) by design)."""
         registry = get_registry()
 
