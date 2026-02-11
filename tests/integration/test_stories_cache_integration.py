@@ -14,7 +14,6 @@ Test Strategy:
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock
 
 import pytest
 
@@ -23,29 +22,6 @@ from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.clients.stories import StoriesClient
 from autom8_asana.config import AsanaConfig
 from autom8_asana.models.story import Story
-
-
-class MockHTTPClient:
-    """Mock HTTP client for integration testing."""
-
-    def __init__(self) -> None:
-        self.get = AsyncMock()
-        self.post = AsyncMock()
-        self.put = AsyncMock()
-        self.delete = AsyncMock()
-        self.get_paginated = AsyncMock()
-        self.call_history: list[tuple[str, dict[str, Any]]] = []
-
-    def track_call(self, endpoint: str, params: dict[str, Any]) -> None:
-        """Track API calls for assertion."""
-        self.call_history.append((endpoint, params.copy()))
-
-
-class MockAuthProvider:
-    """Mock auth provider for testing."""
-
-    def get_secret(self, key: str) -> str:
-        return "test-token"
 
 
 def make_story_data(
@@ -74,24 +50,6 @@ TASK_GID = "integration_task_123"
 def cache_provider() -> EnhancedInMemoryCacheProvider:
     """Create real in-memory cache provider for integration tests."""
     return EnhancedInMemoryCacheProvider(default_ttl=300, max_size=1000)
-
-
-@pytest.fixture
-def mock_http() -> MockHTTPClient:
-    """Create mock HTTP client."""
-    return MockHTTPClient()
-
-
-@pytest.fixture
-def config() -> AsanaConfig:
-    """Default test configuration."""
-    return AsanaConfig()
-
-
-@pytest.fixture
-def auth_provider() -> MockAuthProvider:
-    """Mock auth provider."""
-    return MockAuthProvider()
 
 
 @pytest.fixture
