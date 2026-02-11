@@ -7,7 +7,7 @@ and error handling.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -26,14 +26,6 @@ def mock_cache_provider() -> MagicMock:
     provider.set_versioned = MagicMock()
     provider.invalidate = MagicMock()
     return provider
-
-
-@pytest.fixture
-def mock_batch_client() -> MagicMock:
-    """Create a mock BatchClient."""
-    client = MagicMock()
-    client.execute_async = AsyncMock(return_value=[])
-    return client
 
 
 @pytest.fixture
