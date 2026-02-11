@@ -767,15 +767,9 @@ class SaveSession:
                 print("All operations failed")
         """
         # TDD-DEBT-003: Acquire lock for state check and state capture
-        with self._state_lock():
-            if self._state == SessionState.CLOSED:
-                raise SessionClosedError()
-
-            # Capture state while holding lock
-            dirty_entities = self._tracker.get_dirty_entities()
-            pending_actions = list(self._pending_actions)
-            pending_cascades = list(self._cascade_operations)
-            pending_healing = bool(self._healing_manager.queue)
+        dirty_entities, pending_actions, pending_cascades, pending_healing = (
+            self._capture_commit_state()
+        )
 
         # Check for empty commit (no lock needed - local variables)
         if (
@@ -805,8 +799,75 @@ class SaveSession:
         # TDD-DEBT-003: Lock released during I/O - allows track() during execution
         # Entities tracked during commit are queued for next commit (per ADR-DEBT-003-002)
 
-        # Phase 0: ENSURE_HOLDERS - detect and construct missing holders
-        # Per TDD-GAP-01: Runs before CRUD when auto_create_holders=True
+        # Phase 0: ENSURE_HOLDERS
+        dirty_entities = await self._execute_ensure_holders(dirty_entities)
+
+        # Phase 1 + 1.5: CRUD + actions + cache invalidation
+        crud_result, action_results = await self._execute_crud_and_actions(
+            dirty_entities, pending_actions
+        )
+
+        # Phase 2: Cascades
+        cascade_results = await self._execute_cascades(pending_cascades)
+
+        # Phase 3: Healing
+        healing_report = await self._execute_healing()
+
+        # State updates + result assembly
+        self._update_post_commit_state(crud_result, action_results)
+
+        crud_result.action_results = action_results
+        crud_result.cascade_results = cascade_results
+        crud_result.healing_report = healing_report
+
+        # Phase 5: Automation
+        automation_results = await self._execute_automation(crud_result)
+
+        # Post-commit hooks + logging
+        await self._finalize_commit(
+            crud_result, action_results, cascade_results,
+            healing_report, automation_results,
+        )
+
+        return crud_result
+
+    def _capture_commit_state(
+        self,
+    ) -> tuple[list[Any], list[ActionOperation], list[Any], bool]:
+        """Acquire lock, validate session state, and snapshot pending work.
+
+        Per TDD-DEBT-003: Lock held during state check and state capture.
+
+        Returns:
+            Tuple of (dirty_entities, pending_actions, pending_cascades, pending_healing).
+
+        Raises:
+            SessionClosedError: If session is closed.
+        """
+        with self._state_lock():
+            if self._state == SessionState.CLOSED:
+                raise SessionClosedError()
+
+            dirty_entities = self._tracker.get_dirty_entities()
+            pending_actions = list(self._pending_actions)
+            pending_cascades = list(self._cascade_operations)
+            pending_healing = bool(self._healing_manager.queue)
+
+        return dirty_entities, pending_actions, pending_cascades, pending_healing
+
+    async def _execute_ensure_holders(
+        self, dirty_entities: list[Any]
+    ) -> list[Any]:
+        """Phase 0: Detect and construct missing holders before CRUD.
+
+        Per TDD-GAP-01: Runs before CRUD when auto_create_holders=True.
+
+        Args:
+            dirty_entities: Entities to check for missing holders.
+
+        Returns:
+            Updated dirty_entities list (may include newly created holders).
+        """
         if self._auto_create_holders and dirty_entities and self._holder_concurrency:
             from autom8_asana.persistence.holder_ensurer import HolderEnsurer
 
@@ -819,7 +880,22 @@ class SaveSession:
             dirty_entities = await holder_ensurer.ensure_holders_for_entities(
                 dirty_entities
             )
+        return dirty_entities
 
+    async def _execute_crud_and_actions(
+        self,
+        dirty_entities: list[Any],
+        pending_actions: list[ActionOperation],
+    ) -> tuple[SaveResult, list[ActionResult]]:
+        """Phase 1 + 1.5: Execute CRUD, actions, and cache invalidation.
+
+        Args:
+            dirty_entities: Entities with pending changes.
+            pending_actions: Action operations to execute after CRUD.
+
+        Returns:
+            Tuple of (crud_result, action_results).
+        """
         # Phase 1: Execute CRUD operations and actions together
         crud_result, action_results = await self._pipeline.execute_with_actions(
             entities=dirty_entities,
@@ -841,7 +917,19 @@ class SaveSession:
             # Per TDD-TRIAGE-FIXES/ADR-0066: Selective clearing - only remove successful actions
             self._clear_successful_actions(action_results)
 
-        # Phase 2: Execute cascade operations
+        return crud_result, action_results
+
+    async def _execute_cascades(
+        self, pending_cascades: list[Any]
+    ) -> list[Any]:
+        """Phase 2: Execute cascade operations.
+
+        Args:
+            pending_cascades: Cascade operations to execute.
+
+        Returns:
+            List of CascadeResult objects.
+        """
         from autom8_asana.persistence.cascade import CascadeResult
 
         cascade_results: list[CascadeResult] = []
@@ -856,7 +944,16 @@ class SaveSession:
                     self._cascade_operations.clear()
                 # Failed cascades remain in _cascade_operations for retry
 
-        # Phase 3: Execute healing operations (TDD-DETECTION/ADR-0095, TDD-TECH-DEBT-REMEDIATION)
+        return cascade_results
+
+    async def _execute_healing(self) -> HealingReport | None:
+        """Phase 3: Execute healing operations.
+
+        Per TDD-DETECTION/ADR-0095, TDD-TECH-DEBT-REMEDIATION.
+
+        Returns:
+            HealingReport if healing was attempted, None otherwise.
+        """
         healing_report: HealingReport | None = None
         if self._healing_manager.queue:
             healing_report = await self._healing_manager.execute_async(
@@ -879,8 +976,22 @@ class SaveSession:
                             project_gid=result.project_gid,
                             error=result.error,
                         )
+        return healing_report
 
-        # TDD-DEBT-003: Re-acquire lock for final state updates
+    def _update_post_commit_state(
+        self,
+        crud_result: SaveResult,
+        action_results: list[ActionResult],
+    ) -> None:
+        """Update session state after successful phases.
+
+        Per FR-CHANGE-009: Reset entity state after successful save.
+        Per TDD-DEBT-003: Re-acquire lock for final state updates.
+
+        Args:
+            crud_result: Result of CRUD operations.
+            action_results: Results of action operations.
+        """
         with self._state_lock():
             # Reset state for successful entities (FR-CHANGE-009)
             # DEF-001 FIX: Order matters - clear accessor BEFORE capturing snapshot
@@ -893,19 +1004,20 @@ class SaveSession:
 
             self._state = SessionState.COMMITTED
 
-        # Count failures for logging
-        action_failures = sum(1 for r in action_results if not r.success)
-        cascade_failures = sum(1 for r in cascade_results if not r.success)
-        healing_attempted = healing_report.attempted if healing_report else 0
-        healing_failures = healing_report.failed if healing_report else 0
+    async def _execute_automation(
+        self, crud_result: SaveResult
+    ) -> list[Any]:
+        """Phase 5: Execute automation evaluation.
 
-        # Populate results in the SaveResult (per ADR-0055, TDD-TRIAGE-FIXES, TDD-DETECTION)
-        crud_result.action_results = action_results
-        crud_result.cascade_results = cascade_results
-        crud_result.healing_report = healing_report
+        Per TDD-AUTOMATION-LAYER / NFR-003: Automation failures do NOT
+        propagate (isolated execution).
 
-        # Phase 5: Execute automation (TDD-AUTOMATION-LAYER)
-        # Per NFR-003: Automation failures do NOT propagate (isolated execution)
+        Args:
+            crud_result: Result of CRUD operations for automation evaluation.
+
+        Returns:
+            List of AutomationResult objects.
+        """
         from autom8_asana.persistence.models import AutomationResult
 
         automation_results: list[AutomationResult] = []
@@ -925,8 +1037,35 @@ class SaveSession:
                     "automation_evaluation_failed", error=str(e)
                 )
 
+        return automation_results
+
+    async def _finalize_commit(
+        self,
+        crud_result: SaveResult,
+        action_results: list[ActionResult],
+        cascade_results: list[Any],
+        healing_report: HealingReport | None,
+        automation_results: list[Any],
+    ) -> None:
+        """Emit post-commit hooks and log final commit metrics.
+
+        Per TDD-AUTOMATION-LAYER/FR-002: Post-commit event emission.
+
+        Args:
+            crud_result: Result of CRUD operations.
+            action_results: Results of action operations.
+            cascade_results: Results of cascade operations.
+            healing_report: Healing report if healing was attempted.
+            automation_results: Results of automation evaluation.
+        """
         # Emit post-commit hooks (TDD-AUTOMATION-LAYER/FR-002)
         await self._events.emit_post_commit(crud_result)
+
+        # Count failures for logging
+        action_failures = sum(1 for r in action_results if not r.success)
+        cascade_failures = sum(1 for r in cascade_results if not r.success)
+        healing_attempted = healing_report.attempted if healing_report else 0
+        healing_failures = healing_report.failed if healing_report else 0
 
         # Count automation metrics for logging
         automation_succeeded = sum(
@@ -950,8 +1089,6 @@ class SaveSession:
                 automation_failed=automation_failed,
                 automation_skipped=automation_skipped,
             )
-
-        return crud_result
 
     def commit(self) -> SaveResult:
         """Execute all pending changes (sync wrapper).
