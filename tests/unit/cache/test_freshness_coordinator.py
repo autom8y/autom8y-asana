@@ -7,7 +7,7 @@ chunking by Asana batch limit, and freshness mode behavior.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -18,14 +18,6 @@ from autom8_asana.cache.integration.freshness_coordinator import (
     FreshnessResult,
 )
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-
-
-@pytest.fixture
-def mock_batch_client() -> MagicMock:
-    """Create a mock BatchClient."""
-    client = MagicMock()
-    client.execute_async = AsyncMock(return_value=[])
-    return client
 
 
 @pytest.fixture

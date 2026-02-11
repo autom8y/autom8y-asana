@@ -7,7 +7,7 @@ response parsing, and partial failure handling.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -18,14 +18,6 @@ from autom8_asana.cache.policies.lightweight_checker import (
     LightweightChecker,
     _chunk,
 )
-
-
-@pytest.fixture
-def mock_batch_client() -> MagicMock:
-    """Create a mock BatchClient."""
-    client = MagicMock()
-    client.execute_async = AsyncMock(return_value=[])
-    return client
 
 
 @pytest.fixture
