@@ -19,7 +19,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-import arrow
+from datetime import date
+
 from autom8y_log import get_logger
 
 from autom8_asana.exceptions import AsanaError
@@ -330,8 +331,7 @@ class FieldSeeder:
             fields = await seeder.compute_fields_async(sales_process)
             # fields = {"Launch Date": "2024-01-15"}
         """
-        # Use arrow for date formatting
-        today = arrow.now().format("YYYY-MM-DD")
+        today = date.today().isoformat()
 
         return {
             "Launch Date": today,
