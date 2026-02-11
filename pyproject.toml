@@ -19,7 +19,6 @@ dependencies = [
     # Platform observability (PRD-PLATFORM-OBSERVABILITY-STD M3.3)
     "autom8y-telemetry[fastapi]>=0.2.0",
     "boto3>=1.42.19",  # S3 for progressive cache warming (asyncio.to_thread)
-    "inflection>=0.5.0",  # Singularization for entity type mapping (Rails port)
 ]
 
 [project.optional-dependencies]
