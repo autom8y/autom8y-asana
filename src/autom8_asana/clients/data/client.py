@@ -18,7 +18,7 @@ import re
 import time
 import uuid
 from collections.abc import Awaitable, Callable
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -49,7 +49,7 @@ from autom8_asana.clients.data.models import (
     InsightsRequest,
     InsightsResponse,
 )
-from autom8_asana.core.exceptions import CacheError
+from autom8_asana.clients.data import _cache as _cache_mod
 from autom8_asana.exceptions import (
     ExportError,
     InsightsError,
@@ -660,21 +660,15 @@ class DataServiceClient:
                     extra={"metric_name": name, "tags": tags},
                 )
 
-    # --- Cache Key Generation (Story 1.8) ---
+    # --- Cache Operations (Story 1.8) ---
+    # Delegated to clients/data/_cache.py module-level functions.
 
     def _build_cache_key(self, factory: str, pvp: PhoneVerticalPair) -> str:
         """Build cache key for insights response.
 
-        Per Story 1.8: Cache key format is insights:{factory}:{canonical_key}.
-
-        Args:
-            factory: Normalized factory name (e.g., "account").
-            pvp: PhoneVerticalPair with canonical_key property.
-
-        Returns:
-            Cache key string (e.g., "insights:account:pv1:+17705753103:chiropractic").
+        Delegates to _cache.build_cache_key.
         """
-        return f"insights:{factory}:{pvp.canonical_key}"
+        return _cache_mod.build_cache_key(factory, pvp)
 
     def _cache_response(
         self,
@@ -683,48 +677,11 @@ class DataServiceClient:
     ) -> None:
         """Cache successful insights response.
 
-        Per Story 1.8: Stores response in cache with configured TTL.
-        Cache failures are logged but don't break requests (graceful degradation).
-
-        Args:
-            cache_key: Pre-built cache key.
-            response: Successful InsightsResponse to cache.
+        Delegates to _cache.cache_response with instance state.
         """
-        if self._cache is None:
-            return
-
-        try:
-            # Serialize response to dict for caching
-            cached_data = {
-                "data": response.data,
-                "metadata": response.metadata.model_dump(mode="json"),
-                "request_id": response.request_id,
-                "warnings": response.warnings,
-                "cached_at": datetime.now(UTC).isoformat(),
-            }
-
-            # Use simple set method for cache storage
-            self._cache.set(cache_key, cached_data, ttl=self._config.cache_ttl)
-
-            if self._log:
-                self._log.debug(
-                    f"DataServiceClient: Cached response for {cache_key}",
-                    extra={"cache_key": cache_key, "ttl": self._config.cache_ttl},
-                )
-        except (
-            ConnectionError,
-            TimeoutError,
-            OSError,
-            ValueError,
-            TypeError,
-            CacheError,
-        ) as e:
-            # Graceful degradation: cache failures don't break requests
-            if self._log:
-                self._log.warning(
-                    f"DataServiceClient: Failed to cache response: {e}",
-                    extra={"cache_key": cache_key},
-                )
+        _cache_mod.cache_response(
+            self._cache, cache_key, response, self._config.cache_ttl, self._log
+        )
 
     def _get_stale_response(
         self,
@@ -733,92 +690,11 @@ class DataServiceClient:
     ) -> InsightsResponse | None:
         """Retrieve stale response from cache for fallback.
 
-        Per Story 1.8: On service failure, returns stale cache entry
-        with is_stale=True and cached_at populated.
-
-        Args:
-            cache_key: Pre-built cache key.
-            request_id: Request ID for the response.
-
-        Returns:
-            InsightsResponse with is_stale=True if found, None otherwise.
+        Delegates to _cache.get_stale_response with instance state.
         """
-        if self._cache is None:
-            return None
-
-        try:
-            cached_data = self._cache.get(cache_key)
-            if cached_data is None:
-                return None
-
-            # Reconstruct InsightsResponse from cached data
-            metadata_dict = cached_data.get("metadata", {})
-
-            # Parse cached_at timestamp
-            cached_at_str = cached_data.get("cached_at")
-            cached_at = None
-            if cached_at_str:
-                try:
-                    cached_at = datetime.fromisoformat(
-                        cached_at_str.replace("Z", "+00:00")
-                    )
-                except (ValueError, AttributeError):
-                    cached_at = datetime.now(UTC)
-
-            # Rebuild column info
-            columns = [ColumnInfo(**col) for col in metadata_dict.get("columns", [])]
-
-            # Create metadata with staleness indicators
-            metadata = InsightsMetadata(
-                factory=metadata_dict.get("factory", "unknown"),
-                frame_type=metadata_dict.get("frame_type"),
-                insights_period=metadata_dict.get("insights_period"),
-                row_count=metadata_dict.get("row_count", 0),
-                column_count=metadata_dict.get("column_count", 0),
-                columns=columns,
-                cache_hit=metadata_dict.get("cache_hit", False),
-                duration_ms=metadata_dict.get("duration_ms", 0.0),
-                sort_history=metadata_dict.get("sort_history"),
-                is_stale=True,  # Mark as stale
-                cached_at=cached_at,  # Populate cached_at
-            )
-
-            stale_response = InsightsResponse(
-                data=cached_data.get("data", []),
-                metadata=metadata,
-                request_id=request_id,
-                warnings=cached_data.get("warnings", [])
-                + ["Response served from stale cache due to service unavailability"],
-            )
-
-            if self._log:
-                self._log.info(
-                    f"DataServiceClient: Returning stale cache fallback for {cache_key}",
-                    extra={
-                        "cache_key": cache_key,
-                        "cached_at": cached_at_str,
-                        "row_count": metadata.row_count,
-                    },
-                )
-
-            return stale_response
-
-        except (
-            ConnectionError,
-            TimeoutError,
-            OSError,
-            ValueError,
-            KeyError,
-            TypeError,
-            CacheError,
-        ) as e:
-            # Graceful degradation: cache read failures return None
-            if self._log:
-                self._log.warning(
-                    f"DataServiceClient: Failed to retrieve stale response: {e}",
-                    extra={"cache_key": cache_key},
-                )
-            return None
+        return _cache_mod.get_stale_response(
+            self._cache, cache_key, request_id, self._log
+        )
 
     # --- Public API (Story 1.6) ---
 
