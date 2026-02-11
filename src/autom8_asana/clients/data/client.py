@@ -12,7 +12,6 @@ Per Story 1.9: Full observability with structured logging, PII redaction, and me
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import re
 import time
@@ -43,13 +42,12 @@ from autom8_asana.clients.data.config import DataServiceConfig
 from autom8_asana.clients.data.models import (
     BatchInsightsResponse,
     BatchInsightsResult,
-    ColumnInfo,
     ExportResult,
-    InsightsMetadata,
     InsightsRequest,
     InsightsResponse,
 )
 from autom8_asana.clients.data import _cache as _cache_mod
+from autom8_asana.clients.data import _response as _response_mod
 from autom8_asana.exceptions import (
     ExportError,
     InsightsError,
@@ -1403,23 +1401,15 @@ class DataServiceClient:
 
         return insights_response
 
+    # --- Response Parsing and Error Handling ---
+    # Delegated to clients/data/_response.py module-level functions.
+
     def _validate_factory(self, factory: str, request_id: str) -> None:
         """Validate factory name against VALID_FACTORIES.
 
-        Args:
-            factory: Normalized (lowercase) factory name to validate.
-            request_id: Request ID for error context.
-
-        Raises:
-            InsightsValidationError: If factory name is not in VALID_FACTORIES.
+        Delegates to _response.validate_factory.
         """
-        if factory not in self.VALID_FACTORIES:
-            raise InsightsValidationError(
-                f"Invalid factory: '{factory}'. "
-                f"Valid factories: {', '.join(sorted(self.VALID_FACTORIES))}",
-                field="factory",
-                request_id=request_id,
-            )
+        _response_mod.validate_factory(factory, request_id, self.VALID_FACTORIES)
 
     async def _handle_error_response(
         self,
@@ -1431,124 +1421,19 @@ class DataServiceClient:
     ) -> InsightsResponse:
         """Map HTTP error response to appropriate exception.
 
-        Per TDD-INSIGHTS-001 Section 11.1: Error response mapping.
-        Per Story 1.8: Try stale cache fallback for 5xx server errors.
-        Per Story 1.9: Full observability with structured logging and metrics.
-        Per Story 2.3: Circuit breaker failure recording for 5xx errors.
-
-        Args:
-            response: HTTP response with status >= 400.
-            request_id: Request ID for error context.
-            cache_key: Cache key for stale fallback on 5xx errors.
-            factory: Factory name for metrics tags.
-            elapsed_ms: Request duration in milliseconds.
-
-        Returns:
-            InsightsResponse from stale cache fallback (only for 5xx errors).
-
-        Raises:
-            InsightsValidationError: 400 errors (no cache fallback).
-            InsightsNotFoundError: 404 errors (no cache fallback).
-            InsightsServiceError: 500-level errors if no stale cache available.
-
-        Note: For 4xx errors, this method always raises (no cache fallback).
+        Delegates to _response.handle_error_response with instance callbacks.
         """
-        status = response.status_code
-        message = f"autom8_data API error (HTTP {status})"
-
-        # Try to extract error message from response body
-        try:
-            body = response.json()
-            if "error" in body:
-                message = body["error"]
-            elif "detail" in body:
-                message = body["detail"]
-        except (ValueError, KeyError, json.JSONDecodeError):
-            # Use default message if body parsing fails
-            logger.debug("Response body parsing failed", exc_info=True)
-
-        # Determine error type for logging/metrics
-        if status == 400:
-            error_type = "validation_error"
-            reason = "validation_error"
-        elif status == 404:
-            error_type = "not_found"
-            reason = "not_found"
-        elif status >= 500:
-            error_type = "server_error"
-            reason = "server_error"
-        else:
-            error_type = "client_error"
-            reason = "client_error"
-
-        # --- Error Logging (Story 1.9) ---
-        if self._log:
-            self._log.error(
-                "insights_request_failed",
-                extra={
-                    "request_id": request_id,
-                    "status_code": status,
-                    "error_type": error_type,
-                    "reason": reason,
-                    "duration_ms": elapsed_ms,
-                },
-            )
-
-        # --- Error Metrics (Story 1.9) ---
-        self._emit_metric(
-            "insights_request_error_total",
-            1,
-            {"factory": factory, "error_type": error_type, "status_code": str(status)},
-        )
-        self._emit_metric(
-            "insights_request_total",
-            1,
-            {"factory": factory, "status": "error"},
-        )
-        self._emit_metric(
-            "insights_request_latency_ms",
+        return await _response_mod.handle_error_response(
+            response,
+            request_id,
+            cache_key,
+            factory,
             elapsed_ms,
-            {"factory": factory, "status": "error"},
+            log=self._log,
+            emit_metric=self._emit_metric,
+            record_circuit_failure=self._circuit_breaker.record_failure,
+            get_stale_response=self._get_stale_response,
         )
-
-        # Map status code to exception type
-        if status == 400:
-            # No cache fallback for validation errors
-            raise InsightsValidationError(
-                message,
-                request_id=request_id,
-            )
-        elif status == 404:
-            # No cache fallback for not found errors
-            raise InsightsNotFoundError(
-                message,
-                request_id=request_id,
-            )
-        else:
-            # 500, 502, 503, 504 and any other 5xx - try stale cache fallback
-            if status >= 500:
-                # --- Circuit Breaker Record Failure (Story 2.3) ---
-                # Create an exception to pass to the circuit breaker
-                error = InsightsServiceError(
-                    message,
-                    request_id=request_id,
-                    status_code=status,
-                    reason=reason,
-                )
-                await self._circuit_breaker.record_failure(error)
-
-                stale_response = self._get_stale_response(cache_key, request_id)
-                if stale_response is not None:
-                    return stale_response
-
-                raise error
-
-            raise InsightsServiceError(
-                message,
-                request_id=request_id,
-                status_code=status,
-                reason=reason,
-            )
 
     def _parse_success_response(
         self,
@@ -1557,72 +1442,11 @@ class DataServiceClient:
     ) -> InsightsResponse:
         """Parse successful HTTP response to InsightsResponse.
 
-        Per TDD-INSIGHTS-001 Section 4.3: Response parsing.
-
-        Args:
-            response: HTTP response with status 2xx.
-            request_id: Request ID for response correlation.
-
-        Returns:
-            InsightsResponse with data, metadata, and warnings.
-
-        Raises:
-            InsightsServiceError: If response body cannot be parsed.
+        Delegates to _response.parse_success_response.
         """
-        try:
-            body = response.json()
-        except (ValueError, json.JSONDecodeError) as e:
-            raise InsightsServiceError(
-                f"Failed to parse response JSON: {e}",
-                request_id=request_id,
-                reason="parse_error",
-            ) from e
-
-        try:
-            # Parse metadata
-            metadata_dict = body.get("metadata", {})
-            columns = [ColumnInfo(**col) for col in metadata_dict.get("columns", [])]
-
-            metadata = InsightsMetadata(
-                factory=metadata_dict.get("factory", "unknown"),
-                frame_type=metadata_dict.get("frame_type"),
-                insights_period=metadata_dict.get("insights_period"),
-                row_count=metadata_dict.get("row_count", 0),
-                column_count=metadata_dict.get("column_count", 0),
-                columns=columns,
-                cache_hit=metadata_dict.get("cache_hit", False),
-                duration_ms=metadata_dict.get("duration_ms", 0.0),
-                sort_history=metadata_dict.get("sort_history"),
-                is_stale=metadata_dict.get("is_stale", False),
-                cached_at=metadata_dict.get("cached_at"),
-            )
-
-            insights_response = InsightsResponse(
-                data=body.get("data", []),
-                metadata=metadata,
-                request_id=request_id,
-                warnings=body.get("warnings", []),
-            )
-
-            if self._log:
-                self._log.debug(
-                    "DataServiceClient: Response parsed successfully",
-                    extra={
-                        "request_id": request_id,
-                        "row_count": metadata.row_count,
-                        "cache_hit": metadata.cache_hit,
-                        "duration_ms": metadata.duration_ms,
-                    },
-                )
-
-            return insights_response
-
-        except (ValueError, KeyError, TypeError) as e:
-            raise InsightsServiceError(
-                f"Failed to parse response structure: {e}",
-                request_id=request_id,
-                reason="parse_error",
-            ) from e
+        return _response_mod.parse_success_response(
+            response, request_id, self._log
+        )
 
     # --- Export API (TDD-CONV-AUDIT-001 Section 3.5) ---
 
