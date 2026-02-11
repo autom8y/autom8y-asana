@@ -10,9 +10,6 @@ Tests follow established patterns from test_tier2_clients.py.
 
 from __future__ import annotations
 
-from typing import Any
-from unittest.mock import AsyncMock
-
 import pytest
 
 from autom8_asana.clients.stories import StoriesClient
@@ -21,72 +18,6 @@ from autom8_asana.clients.teams import TeamsClient
 from autom8_asana.config import AsanaConfig
 from autom8_asana.models import PageIterator, Story, Tag, Team, User
 from autom8_asana.models.team import TeamMembership
-
-
-class MockHTTPClient:
-    """Mock HTTP client for testing resource clients."""
-
-    def __init__(self) -> None:
-        self.get = AsyncMock()
-        self.post = AsyncMock()
-        self.put = AsyncMock()
-        self.delete = AsyncMock()
-        self.get_paginated = AsyncMock()
-        self.post_multipart = AsyncMock()
-        self.get_stream_url = AsyncMock()
-
-
-class MockAuthProvider:
-    """Mock auth provider."""
-
-    def get_secret(self, key: str) -> str:
-        return "test-token"
-
-
-class MockLogger:
-    """Mock logger that records calls."""
-
-    def __init__(self) -> None:
-        self.messages: list[tuple[str, str]] = []
-
-    def debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("debug", msg))
-
-    def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("info", msg))
-
-    def warning(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("warning", msg))
-
-    def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("error", msg))
-
-    def exception(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("exception", msg))
-
-
-@pytest.fixture
-def mock_http() -> MockHTTPClient:
-    """Create mock HTTP client."""
-    return MockHTTPClient()
-
-
-@pytest.fixture
-def config() -> AsanaConfig:
-    """Default test configuration."""
-    return AsanaConfig()
-
-
-@pytest.fixture
-def auth_provider() -> MockAuthProvider:
-    """Mock auth provider."""
-    return MockAuthProvider()
-
-
-@pytest.fixture
-def logger() -> MockLogger:
-    """Mock logger."""
-    return MockLogger()
 
 
 # =============================================================================

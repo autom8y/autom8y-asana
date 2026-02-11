@@ -6,9 +6,6 @@ Per ADR-0010: Sequential chunk execution for batch operations.
 
 from __future__ import annotations
 
-from typing import Any
-from unittest.mock import AsyncMock
-
 import pytest
 
 from autom8_asana.batch import BatchClient, BatchRequest, BatchResult, BatchSummary
@@ -17,70 +14,6 @@ from autom8_asana.config import AsanaConfig
 from autom8_asana.exceptions import AsanaError, SyncInAsyncContextError
 
 # --- Test Fixtures ---
-
-
-class MockHTTPClient:
-    """Mock HTTP client for testing BatchClient."""
-
-    def __init__(self) -> None:
-        self.request = AsyncMock()
-        self.get = AsyncMock()
-        self.post = AsyncMock()
-        self.put = AsyncMock()
-        self.delete = AsyncMock()
-
-
-class MockAuthProvider:
-    """Mock auth provider."""
-
-    def get_secret(self, key: str) -> str:
-        return "test-token"
-
-
-class MockLogger:
-    """Mock logger that records calls."""
-
-    def __init__(self) -> None:
-        self.messages: list[tuple[str, str]] = []
-
-    def debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("debug", msg))
-
-    def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("info", msg))
-
-    def warning(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("warning", msg))
-
-    def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("error", msg))
-
-    def exception(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("exception", msg))
-
-
-@pytest.fixture
-def mock_http() -> MockHTTPClient:
-    """Create mock HTTP client."""
-    return MockHTTPClient()
-
-
-@pytest.fixture
-def config() -> AsanaConfig:
-    """Default test configuration."""
-    return AsanaConfig()
-
-
-@pytest.fixture
-def auth_provider() -> MockAuthProvider:
-    """Mock auth provider."""
-    return MockAuthProvider()
-
-
-@pytest.fixture
-def logger() -> MockLogger:
-    """Mock logger."""
-    return MockLogger()
 
 
 @pytest.fixture
