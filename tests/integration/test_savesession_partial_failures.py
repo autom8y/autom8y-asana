@@ -6,8 +6,6 @@ Per TDD-UXR/FR-UXR-004: Verify SaveSessionError shows all failures.
 
 from __future__ import annotations
 
-from typing import Any
-
 import httpx
 import pytest
 import respx
@@ -16,35 +14,6 @@ from autom8_asana.client import AsanaClient
 from autom8_asana.config import AsanaConfig, RetryConfig
 from autom8_asana.models import Task
 from autom8_asana.persistence.exceptions import SaveSessionError
-
-
-class MockAuthProvider:
-    """Mock auth provider for integration testing."""
-
-    def get_secret(self, key: str) -> str:
-        return "integration-test-token"
-
-
-class MockLogger:
-    """Mock logger that records calls."""
-
-    def __init__(self) -> None:
-        self.messages: list[tuple[str, str]] = []
-
-    def debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("debug", msg))
-
-    def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("info", msg))
-
-    def warning(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("warning", msg))
-
-    def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("error", msg))
-
-    def exception(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("exception", msg))
 
 
 @pytest.fixture
@@ -62,20 +31,8 @@ def config() -> AsanaConfig:
 
 
 @pytest.fixture
-def auth_provider() -> MockAuthProvider:
-    """Mock auth provider."""
-    return MockAuthProvider()
-
-
-@pytest.fixture
-def logger() -> MockLogger:
-    """Mock logger."""
-    return MockLogger()
-
-
-@pytest.fixture
 async def client(
-    config: AsanaConfig, auth_provider: MockAuthProvider, logger: MockLogger
+    config: AsanaConfig, auth_provider, logger
 ) -> AsanaClient:
     """Create AsanaClient for integration testing."""
     client = AsanaClient(
