@@ -47,6 +47,7 @@ from autom8_asana.clients.data.models import (
     InsightsResponse,
 )
 from autom8_asana.clients.data import _cache as _cache_mod
+from autom8_asana.clients.data import _metrics as _metrics_mod
 from autom8_asana.clients.data import _response as _response_mod
 from autom8_asana.exceptions import (
     ExportError,
@@ -129,10 +130,8 @@ def _mask_canonical_key(canonical_key: str) -> str:
 
 
 # --- Metrics Hook Type (Story 1.9) ---
-
-# Type alias for metrics hook callback
-# Signature: (name: str, value: float, tags: dict[str, str]) -> None
-MetricsHook = Callable[[str, float, dict[str, str]], None]
+# Re-exported from _metrics module for backward compatibility.
+from autom8_asana.clients.data._metrics import MetricsHook  # noqa: E402
 
 
 class DataServiceClient:
@@ -624,6 +623,7 @@ class DataServiceClient:
         return self._circuit_breaker
 
     # --- Metrics Emission (Story 1.9) ---
+    # Delegated to clients/data/_metrics.py module-level function.
 
     def _emit_metric(
         self,
@@ -633,30 +633,11 @@ class DataServiceClient:
     ) -> None:
         """Emit a metric via the configured metrics hook.
 
-        Per Story 1.9: Generic method for emitting metrics.
-        Failures are logged but don't break requests (graceful degradation).
-
-        Args:
-            name: Metric name (e.g., "insights_request_total").
-            value: Metric value (count=1 for counters, duration for histograms).
-            tags: Metric tags/labels for dimensionality.
-
-        Example:
-            >>> self._emit_metric("insights_request_total", 1, {"factory": "account", "status": "success"})
-            >>> self._emit_metric("insights_request_latency_ms", 125.5, {"factory": "account"})
+        Delegates to _metrics.emit_metric with instance state.
         """
-        if self._metrics_hook is None:
-            return
-
-        try:
-            self._metrics_hook(name, value, tags)
-        except (TypeError, ValueError, RuntimeError, OSError) as e:
-            # Graceful degradation: metrics failures don't break requests
-            if self._log:
-                self._log.warning(
-                    f"DataServiceClient: Failed to emit metric {name}: {e}",
-                    extra={"metric_name": name, "tags": tags},
-                )
+        _metrics_mod.emit_metric(
+            self._metrics_hook, name, value, tags, self._log
+        )
 
     # --- Cache Operations (Story 1.8) ---
     # Delegated to clients/data/_cache.py module-level functions.
