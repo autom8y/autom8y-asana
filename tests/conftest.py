@@ -7,8 +7,76 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from autom8_asana.config import AsanaConfig
+
 if TYPE_CHECKING:
     from typing import Any
+
+
+class MockHTTPClient:
+    """Mock HTTP client for testing (7-method superset)."""
+
+    def __init__(self) -> None:
+        self.get = AsyncMock()
+        self.post = AsyncMock()
+        self.put = AsyncMock()
+        self.delete = AsyncMock()
+        self.get_paginated = AsyncMock()
+        self.post_multipart = AsyncMock()
+        self.get_stream_url = AsyncMock()
+
+
+class MockAuthProvider:
+    """Mock auth provider for testing."""
+
+    def get_secret(self, key: str) -> str:
+        return "test-token"
+
+
+class MockLogger:
+    """Mock logger for testing (5-method superset)."""
+
+    def __init__(self) -> None:
+        self.messages: list[tuple[str, str]] = []
+
+    def debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        self.messages.append(("debug", msg))
+
+    def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        self.messages.append(("info", msg))
+
+    def warning(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        self.messages.append(("warning", msg))
+
+    def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        self.messages.append(("error", msg))
+
+    def exception(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        self.messages.append(("exception", msg))
+
+
+@pytest.fixture
+def mock_http() -> MockHTTPClient:
+    """Create a mock HTTP client."""
+    return MockHTTPClient()
+
+
+@pytest.fixture
+def config() -> AsanaConfig:
+    """Create an AsanaConfig for testing."""
+    return AsanaConfig()
+
+
+@pytest.fixture
+def auth_provider() -> MockAuthProvider:
+    """Create a mock auth provider."""
+    return MockAuthProvider()
+
+
+@pytest.fixture
+def logger() -> MockLogger:
+    """Create a mock logger."""
+    return MockLogger()
 
 
 class MockClientBuilder:
