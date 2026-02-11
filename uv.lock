@@ -93,9 +93,9 @@ dependencies = [
     { name = "autom8y-config" },
     { name = "autom8y-http" },
     { name = "autom8y-log" },
+    { name = "autom8y-telemetry", extra = ["fastapi"] },
     { name = "boto3" },
     { name = "httpx" },
-    { name = "inflection" },
     { name = "polars" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -153,9 +153,10 @@ requires-dist = [
     { name = "autom8y-auth", marker = "extra == 'auth'", specifier = ">=0.1.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-auth", marker = "extra == 'dev'", specifier = ">=0.1.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-cache", specifier = ">=0.3.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
-    { name = "autom8y-config", specifier = ">=0.1.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-config", specifier = ">=0.2.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-http", specifier = ">=0.3.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-log", specifier = ">=0.3.2", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-telemetry", extras = ["fastapi"], specifier = ">=0.2.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "awslambdaric", marker = "extra == 'lambda'", specifier = ">=2.2.0" },
     { name = "boto3", specifier = ">=1.42.19" },
     { name = "boto3", marker = "extra == 'aws'", specifier = ">=1.34.0" },
@@ -165,7 +166,6 @@ requires-dist = [
     { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.109.0" },
     { name = "hiredis", marker = "extra == 'redis'", specifier = ">=2.0.0" },
     { name = "httpx", specifier = ">=0.25.0" },
-    { name = "inflection", specifier = ">=0.5.0" },
     { name = "moto", marker = "extra == 'dev'", specifier = ">=5.0.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "polars", specifier = ">=0.20.0" },
@@ -214,15 +214,15 @@ wheels = [
 
 [[package]]
 name = "autom8y-config"
-version = "0.1.0"
+version = "0.2.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-config/0.1.0/autom8y_config-0.1.0.tar.gz", hash = "sha256:4643e72868452988075b9e5e9a05b8ce3946d98ba894b00f5c3a1c4730df74c6" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-config/0.2.0/autom8y_config-0.2.0.tar.gz", hash = "sha256:3167c10fabab112f078b3e1046569773f9aad8696cf156b73f0cb6760230c7d9" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-config/0.1.0/autom8y_config-0.1.0-py3-none-any.whl", hash = "sha256:16a254ed229eeec5e3c84709cf3a1c78de888c1da54a6877a295e7060462e0aa" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-config/0.2.0/autom8y_config-0.2.0-py3-none-any.whl", hash = "sha256:74c2a83718846a2f46bea26b6824c32c16bb338a124c5902a1f02b05cac9e3b0" },
 ]
 
 [[package]]
@@ -263,6 +263,27 @@ dependencies = [
 sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-log/0.3.2/autom8y_log-0.3.2.tar.gz", hash = "sha256:2f32db9b2366a7f9b5e96924b8a81e891f2b40ee702aeaa2ce8d7fe1ce5a1c15" }
 wheels = [
     { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-log/0.3.2/autom8y_log-0.3.2-py3-none-any.whl", hash = "sha256:b70f846aad066ad0f7813281ac6d3f5c5ae0fb526d1f5ee10eb938167a7a9876" },
+]
+
+[[package]]
+name = "autom8y-telemetry"
+version = "0.2.0"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+dependencies = [
+    { name = "autom8y-config" },
+    { name = "autom8y-log" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-sdk" },
+]
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-telemetry/0.2.0/autom8y_telemetry-0.2.0.tar.gz", hash = "sha256:7ea5c62d7c19d0cf503d76bf546a75134272e10c5072e93c7dc2376bbc65b443" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-telemetry/0.2.0/autom8y_telemetry-0.2.0-py3-none-any.whl", hash = "sha256:6ab7144f5fd030488cdfe35bcbf35ab8a9a5df1f620075118673270196b72233" },
+]
+
+[package.optional-dependencies]
+fastapi = [
+    { name = "fastapi" },
+    { name = "prometheus-client" },
 ]
 
 [[package]]
@@ -885,12 +906,15 @@ wheels = [
 ]
 
 [[package]]
-name = "inflection"
-version = "0.5.1"
+name = "importlib-metadata"
+version = "8.7.1"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/inflection/0.5.1/inflection-0.5.1.tar.gz", hash = "sha256:1a29730d366e996aaacffb2f1f1cb9593dc38e2ddd30c91250c6dde09ea9b417" }
+dependencies = [
+    { name = "zipp" },
+]
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/importlib-metadata/8.7.1/importlib_metadata-8.7.1.tar.gz", hash = "sha256:49fef1ae6440c182052f407c8d34a68f72efc36db9ca90dc0113398f2fdde8bb" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/inflection/0.5.1/inflection-0.5.1-py2.py3-none-any.whl", hash = "sha256:f38b2b640938a4f35ade69ac3d053042959b62a0f1076a5bbaa1b9526605a8a2" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/importlib-metadata/8.7.1/importlib_metadata-8.7.1-py3-none-any.whl", hash = "sha256:5a1f80bf1daa489495071efbb095d75a634cf28a8bc299581244063b53176151" },
 ]
 
 [[package]]
@@ -1155,6 +1179,46 @@ wheels = [
 ]
 
 [[package]]
+name = "opentelemetry-api"
+version = "1.39.1"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+dependencies = [
+    { name = "importlib-metadata" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/opentelemetry-api/1.39.1/opentelemetry_api-1.39.1.tar.gz", hash = "sha256:fbde8c80e1b937a2c61f20347e91c0c18a1940cecf012d62e65a7caf08967c9c" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/opentelemetry-api/1.39.1/opentelemetry_api-1.39.1-py3-none-any.whl", hash = "sha256:2edd8463432a7f8443edce90972169b195e7d6a05500cd29e6d13898187c9950" },
+]
+
+[[package]]
+name = "opentelemetry-sdk"
+version = "1.39.1"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-semantic-conventions" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/opentelemetry-sdk/1.39.1/opentelemetry_sdk-1.39.1.tar.gz", hash = "sha256:cf4d4563caf7bff906c9f7967e2be22d0d6b349b908be0d90fb21c8e9c995cc6" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/opentelemetry-sdk/1.39.1/opentelemetry_sdk-1.39.1-py3-none-any.whl", hash = "sha256:4d5482c478513ecb0a5d938dcc61394e647066e0cc2676bee9f3af3f3f45f01c" },
+]
+
+[[package]]
+name = "opentelemetry-semantic-conventions"
+version = "0.60b1"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/opentelemetry-semantic-conventions/0.60b1/opentelemetry_semantic_conventions-0.60b1.tar.gz", hash = "sha256:87c228b5a0669b748c76d76df6c364c369c28f1c465e50f661e39737e84bc953" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/opentelemetry-semantic-conventions/0.60b1/opentelemetry_semantic_conventions-0.60b1-py3-none-any.whl", hash = "sha256:9fa8c8b0c110da289809292b0591220d3a7b53c1526a23021e977d68597893fb" },
+]
+
+[[package]]
 name = "packaging"
 version = "25.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
@@ -1205,6 +1269,15 @@ wheels = [
     { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/polars-runtime-32/1.36.1/polars_runtime_32-1.36.1-cp39-abi3-manylinux_2_24_aarch64.whl", hash = "sha256:d9d077bb9df711bc635a86540df48242bb91975b353e53ef261c6fae6cb0948f" },
     { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/polars-runtime-32/1.36.1/polars_runtime_32-1.36.1-cp39-abi3-win_amd64.whl", hash = "sha256:cc17101f28c9a169ff8b5b8d4977a3683cd403621841623825525f440b564cf0" },
     { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/polars-runtime-32/1.36.1/polars_runtime_32-1.36.1-cp39-abi3-win_arm64.whl", hash = "sha256:809e73857be71250141225ddd5d2b30c97e6340aeaa0d445f930e01bef6888dc" },
+]
+
+[[package]]
+name = "prometheus-client"
+version = "0.24.1"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/prometheus-client/0.24.1/prometheus_client-0.24.1.tar.gz", hash = "sha256:7e0ced7fbbd40f7b84962d5d2ab6f17ef88a72504dcf7c0b40737b43b2a461f9" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/prometheus-client/0.24.1/prometheus_client-0.24.1-py3-none-any.whl", hash = "sha256:150db128af71a5c2482b36e588fc8a6b95e498750da4b17065947c16070f4055" },
 ]
 
 [[package]]
@@ -2168,4 +2241,13 @@ source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.ama
 sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/xmltodict/1.0.2/xmltodict-1.0.2.tar.gz", hash = "sha256:54306780b7c2175a3967cad1db92f218207e5bc1aba697d887807c0fb68b7649" }
 wheels = [
     { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/xmltodict/1.0.2/xmltodict-1.0.2-py3-none-any.whl", hash = "sha256:62d0fddb0dcbc9f642745d8bbf4d81fd17d6dfaec5a15b5c1876300aad92af0d" },
+]
+
+[[package]]
+name = "zipp"
+version = "3.23.0"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/zipp/3.23.0/zipp-3.23.0.tar.gz", hash = "sha256:a07157588a12518c9d4034df3fbbee09c814741a33ff63c05fa29d26a2404166" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/zipp/3.23.0/zipp-3.23.0-py3-none-any.whl", hash = "sha256:071652d6115ed432f5ce1d34c336c0adfd6a884660d1e9712a256d3d3bd4b14e" },
 ]
