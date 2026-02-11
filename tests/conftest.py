@@ -14,13 +14,14 @@ if TYPE_CHECKING:
 
 
 class MockHTTPClient:
-    """Mock HTTP client for testing (7-method superset)."""
+    """Mock HTTP client for testing (8-method superset)."""
 
     def __init__(self) -> None:
         self.get = AsyncMock()
         self.post = AsyncMock()
         self.put = AsyncMock()
         self.delete = AsyncMock()
+        self.request = AsyncMock()
         self.get_paginated = AsyncMock()
         self.post_multipart = AsyncMock()
         self.get_stream_url = AsyncMock()

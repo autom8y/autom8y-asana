@@ -5,49 +5,11 @@ Per FR-PREREQ-003: Tests for the dependents_async() method following subtasks_as
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
-
 import pytest
 
 from autom8_asana.clients.tasks import TasksClient
 from autom8_asana.config import AsanaConfig
 from autom8_asana.models import PageIterator, Task
-
-
-class MockHTTPClient:
-    """Mock HTTP client for testing TasksClient."""
-
-    def __init__(self) -> None:
-        self.get = AsyncMock()
-        self.post = AsyncMock()
-        self.put = AsyncMock()
-        self.delete = AsyncMock()
-        self.get_paginated = AsyncMock()
-
-
-class MockAuthProvider:
-    """Mock auth provider."""
-
-    def get_secret(self, key: str) -> str:
-        return "test-token"
-
-
-@pytest.fixture
-def mock_http() -> MockHTTPClient:
-    """Create mock HTTP client."""
-    return MockHTTPClient()
-
-
-@pytest.fixture
-def config() -> AsanaConfig:
-    """Default test configuration."""
-    return AsanaConfig()
-
-
-@pytest.fixture
-def auth_provider() -> MockAuthProvider:
-    """Mock auth provider."""
-    return MockAuthProvider()
 
 
 @pytest.fixture

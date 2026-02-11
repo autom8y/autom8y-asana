@@ -10,8 +10,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from unittest.mock import AsyncMock
-
 import pytest
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
@@ -20,24 +18,6 @@ from autom8_asana.config import AsanaConfig
 from autom8_asana.core.exceptions import CacheConnectionError
 from autom8_asana.models.section import Section
 from autom8_asana.persistence.exceptions import GidValidationError
-
-
-class MockHTTPClient:
-    """Mock HTTP client for testing SectionsClient."""
-
-    def __init__(self) -> None:
-        self.get = AsyncMock()
-        self.post = AsyncMock()
-        self.put = AsyncMock()
-        self.delete = AsyncMock()
-        self.get_paginated = AsyncMock()
-
-
-class MockAuthProvider:
-    """Mock auth provider."""
-
-    def get_secret(self, key: str) -> str:
-        return "test-token"
 
 
 class MockCacheProvider:
@@ -92,24 +72,6 @@ class FailingCacheProvider:
 
     def invalidate(self, key: str, entry_types: list[EntryType] | None = None) -> None:
         raise CacheConnectionError("Cache connection failed")
-
-
-@pytest.fixture
-def mock_http() -> MockHTTPClient:
-    """Create mock HTTP client."""
-    return MockHTTPClient()
-
-
-@pytest.fixture
-def config() -> AsanaConfig:
-    """Default test configuration."""
-    return AsanaConfig()
-
-
-@pytest.fixture
-def auth_provider() -> MockAuthProvider:
-    """Mock auth provider."""
-    return MockAuthProvider()
 
 
 @pytest.fixture
