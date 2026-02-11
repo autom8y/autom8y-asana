@@ -15,7 +15,6 @@ Hard Constraint: Uses mocks (no live Asana credentials required in CI).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -29,21 +28,8 @@ from autom8_asana.models.business.registry import (
     get_workspace_registry,
 )
 
-if TYPE_CHECKING:
-    from collections.abc import Generator
-
 
 # --- Fixtures ---
-
-
-@pytest.fixture
-def clean_registries() -> Generator[None, None, None]:
-    """Reset both registries before and after each test for isolation."""
-    ProjectTypeRegistry.reset()
-    WorkspaceProjectRegistry.reset()
-    yield
-    ProjectTypeRegistry.reset()
-    WorkspaceProjectRegistry.reset()
 
 
 @pytest.fixture
@@ -71,7 +57,6 @@ class TestWorkspaceDiscovery:
 
     async def test_discover_populates_name_to_gid_mapping(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Discovery populates name-to-GID mapping for all projects."""
@@ -93,7 +78,6 @@ class TestWorkspaceDiscovery:
 
     async def test_discover_is_case_insensitive(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Name lookup is case-insensitive after discovery."""
@@ -111,7 +95,6 @@ class TestWorkspaceDiscovery:
 
     async def test_discover_handles_whitespace(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Name lookup handles whitespace in names."""
@@ -127,7 +110,6 @@ class TestWorkspaceDiscovery:
 
     async def test_discover_requires_workspace_gid(
         self,
-        clean_registries: None,
     ) -> None:
         """Discovery raises ValueError if workspace_gid not set."""
         client = MagicMock()
@@ -142,7 +124,6 @@ class TestWorkspaceDiscovery:
 
     async def test_discover_sets_discovered_flag(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Discovery sets is_discovered() to True."""
@@ -179,7 +160,6 @@ class TestPipelineProjectIdentification:
     )
     async def test_exact_match_pipeline_names(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
         project_name: str,
         expected_process_type: ProcessType,
@@ -210,7 +190,6 @@ class TestPipelineProjectIdentification:
     )
     async def test_contains_match_pipeline_names(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
         project_name: str,
         expected_process_type: ProcessType,
@@ -228,7 +207,6 @@ class TestPipelineProjectIdentification:
 
     async def test_pipeline_projects_registered_as_process(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Pipeline projects are registered as EntityType.PROCESS."""
@@ -249,7 +227,6 @@ class TestPipelineProjectIdentification:
 
     async def test_non_pipeline_projects_not_registered(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Non-pipeline projects are not registered in static registry."""
@@ -272,7 +249,6 @@ class TestPipelineProjectIdentification:
 
     async def test_exact_match_takes_precedence(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Exact match takes precedence over contains match (two-pass matching)."""
@@ -304,7 +280,6 @@ class TestStaticRegistryIntegration:
 
     async def test_static_registrations_not_overwritten(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Discovery does not overwrite existing static registrations."""
@@ -326,7 +301,6 @@ class TestStaticRegistryIntegration:
 
     async def test_sync_lookup_uses_static_registry(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Sync lookup() uses static registry only, no discovery."""
@@ -352,7 +326,6 @@ class TestLazyDiscovery:
 
     async def test_triggers_discovery_on_first_call(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """First call triggers discovery."""
@@ -372,7 +345,6 @@ class TestLazyDiscovery:
 
     async def test_subsequent_calls_use_cache(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Subsequent calls use cached registry, no additional discovery."""
@@ -395,7 +367,6 @@ class TestLazyDiscovery:
 
     async def test_returns_static_registry_without_discovery(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Returns static registry entry without triggering discovery."""
@@ -414,7 +385,6 @@ class TestLazyDiscovery:
 
     async def test_returns_none_for_unknown_after_discovery(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Returns None for unknown GID after discovery."""
@@ -439,7 +409,6 @@ class TestProcessTypeLookup:
 
     async def test_get_process_type_returns_correct_type(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """get_process_type returns correct ProcessType for pipeline projects."""
@@ -461,7 +430,6 @@ class TestProcessTypeLookup:
 
     async def test_get_process_type_returns_none_for_non_pipeline(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """get_process_type returns None for non-pipeline projects."""
@@ -487,7 +455,6 @@ class TestRegistryReset:
 
     def test_reset_clears_workspace_registry(
         self,
-        clean_registries: None,
     ) -> None:
         """Reset clears workspace registry state."""
         registry = get_workspace_registry()
@@ -504,7 +471,6 @@ class TestRegistryReset:
 
     def test_reset_clears_static_registry(
         self,
-        clean_registries: None,
     ) -> None:
         """Reset clears static registry state."""
         static_registry = get_registry()
@@ -517,7 +483,6 @@ class TestRegistryReset:
 
     def test_registries_are_independent(
         self,
-        clean_registries: None,
     ) -> None:
         """Resetting one registry doesn't affect the other."""
         static_registry = get_registry()
@@ -545,7 +510,6 @@ class TestEdgeCases:
 
     async def test_empty_workspace_discovery(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Empty workspace discovery completes without error."""
@@ -561,7 +525,6 @@ class TestEdgeCases:
 
     async def test_projects_without_name_are_skipped(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Projects without name are skipped during discovery."""
@@ -588,7 +551,6 @@ class TestEdgeCases:
 
     async def test_discovery_refresh_clears_previous_state(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Repeated discovery clears and refreshes state."""

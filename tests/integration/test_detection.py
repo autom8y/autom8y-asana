@@ -15,7 +15,6 @@ Hard Constraint: Uses mocks (no live Asana credentials required in CI).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -31,31 +30,13 @@ from autom8_asana.models.business.detection import (
     detect_entity_type_async,
 )
 from autom8_asana.models.business.registry import (
-    ProjectTypeRegistry,
-    WorkspaceProjectRegistry,
     get_registry,
     get_workspace_registry,
 )
 from autom8_asana.models.task import Task
 
-if TYPE_CHECKING:
-    from collections.abc import Generator
-
 
 # --- Fixtures ---
-
-
-@pytest.fixture
-def clean_registries() -> Generator[None, None, None]:
-    """Reset both registries before and after each test for isolation.
-
-    Per TDD-WORKSPACE-PROJECT-REGISTRY: Test fixtures must reset registries.
-    """
-    ProjectTypeRegistry.reset()
-    WorkspaceProjectRegistry.reset()
-    yield
-    ProjectTypeRegistry.reset()
-    WorkspaceProjectRegistry.reset()
 
 
 @pytest.fixture
@@ -67,7 +48,7 @@ def mock_client() -> MagicMock:
 
 
 @pytest.fixture
-def business_task(clean_registries: None) -> Task:
+def business_task() -> Task:
     """Create a Business task with registered project membership."""
     project_gid = "business_project_gid_001"
     registry = get_registry()
@@ -81,7 +62,7 @@ def business_task(clean_registries: None) -> Task:
 
 
 @pytest.fixture
-def sales_process_task(clean_registries: None) -> Task:
+def sales_process_task() -> Task:
     """Create a Sales Process task with registered pipeline project."""
     project_gid = "sales_pipeline_gid_001"
     registry = get_registry()
@@ -95,7 +76,7 @@ def sales_process_task(clean_registries: None) -> Task:
 
 
 @pytest.fixture
-def contact_task(clean_registries: None) -> Task:
+def contact_task() -> Task:
     """Create a Contact task without project membership."""
     return Task(
         gid="contact_task_001",
@@ -139,7 +120,6 @@ class TestTier1Detection:
 
     def test_unregistered_project_falls_through(
         self,
-        clean_registries: None,
     ) -> None:
         """Task in unregistered project falls through to later tiers."""
         task = Task(
@@ -156,7 +136,6 @@ class TestTier1Detection:
 
     def test_missing_memberships_falls_through(
         self,
-        clean_registries: None,
     ) -> None:
         """Task without memberships falls through to later tiers."""
         task = Task(
@@ -172,7 +151,6 @@ class TestTier1Detection:
 
     def test_empty_memberships_falls_through(
         self,
-        clean_registries: None,
     ) -> None:
         """Task with empty memberships list falls through."""
         task = Task(
@@ -213,7 +191,6 @@ class TestTier2Detection:
     )
     def test_basic_holder_names(
         self,
-        clean_registries: None,
         name: str,
         expected_type: EntityType,
     ) -> None:
@@ -246,7 +223,6 @@ class TestTier2Detection:
     )
     def test_decorated_names(
         self,
-        clean_registries: None,
         name: str,
         expected_type: EntityType,
     ) -> None:
@@ -271,7 +247,6 @@ class TestTier2Detection:
     )
     def test_patterns_in_context(
         self,
-        clean_registries: None,
         name: str,
         expected_type: EntityType,
     ) -> None:
@@ -297,7 +272,6 @@ class TestTier2Detection:
     )
     def test_false_positives_avoided(
         self,
-        clean_registries: None,
         name: str,
     ) -> None:
         """False positives are avoided by word boundary matching."""
@@ -310,7 +284,6 @@ class TestTier2Detection:
 
     def test_case_insensitive_matching(
         self,
-        clean_registries: None,
     ) -> None:
         """Pattern matching is case-insensitive."""
         for name in ["CONTACTS", "Contacts", "contacts", "CoNtAcTs"]:
@@ -340,7 +313,6 @@ class TestTier3Detection:
     )
     def test_parent_inference_rules(
         self,
-        clean_registries: None,
         parent_type: EntityType,
         expected_child_type: EntityType,
     ) -> None:
@@ -370,7 +342,6 @@ class TestTier3Detection:
 
     def test_tier_3_used_when_no_name_pattern(
         self,
-        clean_registries: None,
     ) -> None:
         """Tier 3 is used when name doesn't match any pattern."""
         task = Task(gid="task_001", name="John Smith - CEO")
@@ -382,7 +353,6 @@ class TestTier3Detection:
 
     def test_parent_without_child_mapping_returns_none(
         self,
-        clean_registries: None,
     ) -> None:
         """Parent types without child mappings return None from detect_by_parent."""
         task = Task(gid="task_001", name="Some Task")
@@ -401,7 +371,6 @@ class TestEdgeCases:
 
     def test_none_name(
         self,
-        clean_registries: None,
     ) -> None:
         """Task with None name is handled gracefully."""
         task = Task(gid="task_001", name=None)
@@ -413,7 +382,6 @@ class TestEdgeCases:
 
     def test_whitespace_only_name(
         self,
-        clean_registries: None,
     ) -> None:
         """Task with whitespace-only name is handled."""
         task = Task(gid="task_001", name="   ")
@@ -424,7 +392,6 @@ class TestEdgeCases:
 
     def test_malformed_membership(
         self,
-        clean_registries: None,
     ) -> None:
         """Malformed membership data is handled gracefully."""
         # Missing project key
@@ -447,7 +414,6 @@ class TestEdgeCases:
 
     def test_tier_1_short_circuits_tier_2(
         self,
-        clean_registries: None,
     ) -> None:
         """Tier 1 detection short-circuits Tier 2 even with matching name."""
         project_gid = "business_gid"
@@ -469,7 +435,6 @@ class TestEdgeCases:
 
     def test_multiple_memberships_uses_first(
         self,
-        clean_registries: None,
     ) -> None:
         """First project membership is used for detection."""
         business_gid = "business_gid"
@@ -512,7 +477,6 @@ class TestAsyncDetection:
 
     async def test_process_detected_via_workspace_discovery(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Process is detected via workspace discovery for pipeline projects."""
@@ -536,7 +500,6 @@ class TestAsyncDetection:
 
     async def test_static_registry_takes_precedence(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Static registry entries take precedence over discovery."""
@@ -559,7 +522,6 @@ class TestAsyncDetection:
 
     async def test_discovery_registers_multiple_pipelines(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Discovery registers all pipeline projects found."""
@@ -601,7 +563,6 @@ class TestAsyncDetection:
 
     async def test_async_falls_through_to_name_pattern(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Async detection falls through to Tier 2 for non-pipeline projects."""
@@ -626,7 +587,6 @@ class TestAsyncDetection:
 
     async def test_discovery_is_idempotent(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Discovery only happens once, subsequent calls use cached registry."""
@@ -654,7 +614,6 @@ class TestAsyncDetection:
 
     async def test_no_memberships_skips_discovery(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Task without memberships skips discovery entirely."""

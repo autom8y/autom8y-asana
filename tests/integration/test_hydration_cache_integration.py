@@ -17,7 +17,7 @@ Test Strategy:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -37,26 +37,8 @@ from autom8_asana.models.business.hydration import (
 )
 from autom8_asana.models.task import Task
 
-if TYPE_CHECKING:
-    from collections.abc import Generator
-
 
 # --- Fixtures ---
-
-
-@pytest.fixture
-def clean_registries() -> Generator[None, None, None]:
-    """Reset registries before and after each test for isolation."""
-    from autom8_asana.models.business.registry import (
-        ProjectTypeRegistry,
-        WorkspaceProjectRegistry,
-    )
-
-    ProjectTypeRegistry.reset()
-    WorkspaceProjectRegistry.reset()
-    yield
-    ProjectTypeRegistry.reset()
-    WorkspaceProjectRegistry.reset()
 
 
 @pytest.fixture
@@ -145,7 +127,6 @@ class TestParentGidFromCachedTasks:
 
     async def test_task_with_parent_gid_enables_traversal(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Cached task with parent.gid enables upward traversal.
@@ -202,7 +183,6 @@ class TestParentGidFromCachedTasks:
 
     async def test_traversal_fails_without_parent_gid(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Traversal fails when parent.gid is missing.
@@ -246,7 +226,6 @@ class TestCustomFieldsFromCachedBusiness:
 
     async def test_business_has_custom_fields_after_hydration(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Business entity has custom_fields available after hydration.
@@ -409,7 +388,6 @@ class TestHydrationWithCachedTasks:
 
     async def test_hydration_succeeds_with_standard_fields(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Hydration completes when tasks have standard fields.
@@ -480,7 +458,6 @@ class TestHydrationWithCachedTasks:
 
     async def test_hydration_traverses_full_hierarchy(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Hydration traverses from deep entity to Business root.

@@ -15,7 +15,7 @@ Hard Constraint: Uses mocks (no live Asana credentials required in CI).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -35,28 +35,11 @@ from autom8_asana.models.business.hydration import (
 )
 from autom8_asana.models.business.offer import Offer
 from autom8_asana.models.business.process import Process
-from autom8_asana.models.business.registry import (
-    ProjectTypeRegistry,
-    WorkspaceProjectRegistry,
-)
 from autom8_asana.models.business.unit import Unit, UnitHolder
 from autom8_asana.models.task import Task
 
-if TYPE_CHECKING:
-    from collections.abc import Generator
-
 
 # --- Fixtures ---
-
-
-@pytest.fixture
-def clean_registries() -> Generator[None, None, None]:
-    """Reset both registries before and after each test for isolation."""
-    ProjectTypeRegistry.reset()
-    WorkspaceProjectRegistry.reset()
-    yield
-    ProjectTypeRegistry.reset()
-    WorkspaceProjectRegistry.reset()
 
 
 @pytest.fixture
@@ -312,7 +295,6 @@ class TestUpwardTraversal:
 
     async def test_traversal_from_contact_to_business(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Traverses from Contact through hierarchy to Business."""
@@ -351,7 +333,6 @@ class TestUpwardTraversal:
 
     async def test_traversal_with_max_depth(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Traversal respects max depth limit."""
@@ -381,7 +362,6 @@ class TestUpwardTraversal:
 
     async def test_traversal_stops_at_business(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Traversal stops when Business is detected."""
@@ -411,7 +391,6 @@ class TestHydrateFromGidAsync:
 
     async def test_hydrate_from_business_gid(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Hydration from Business GID performs downward hydration."""
@@ -445,7 +424,6 @@ class TestHydrateFromGidAsync:
 
     async def test_hydrate_from_non_business_gid(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Hydration from non-Business GID traverses upward first."""
@@ -498,7 +476,6 @@ class TestHydrateFromGidAsync:
 
     async def test_hydrate_without_full_hydration(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """hydrate_full=False skips downward hydration."""
@@ -521,7 +498,6 @@ class TestHydrateFromGidAsync:
 
     async def test_hydrate_with_partial_ok(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """partial_ok=True allows partial failures."""
@@ -551,7 +527,6 @@ class TestHydrateFromGidAsync:
 
     async def test_hydrate_without_partial_ok_raises(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """partial_ok=False (default) raises on failure."""
@@ -575,7 +550,6 @@ class TestHydrateFromGidAsync:
 
     async def test_hydrate_not_found_raises(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Non-existent GID raises HydrationError."""
@@ -600,7 +574,6 @@ class TestDetectionDuringHydration:
 
     async def test_detection_uses_project_membership(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Detection uses project membership (Tier 1) when available."""
@@ -625,7 +598,6 @@ class TestDetectionDuringHydration:
 
     async def test_detection_uses_structure_inspection(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Detection uses structure inspection (Tier 4) as fallback."""
@@ -659,7 +631,6 @@ class TestApiCallTracking:
 
     async def test_api_calls_counted(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """API calls are tracked in result."""
@@ -681,7 +652,6 @@ class TestApiCallTracking:
 
     async def test_api_calls_increase_with_traversal(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """API calls increase when traversing hierarchy."""
@@ -721,7 +691,6 @@ class TestHydrationEdgeCases:
 
     async def test_orphan_task_raises_error(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Task without parent and unknown type raises error."""
@@ -739,7 +708,6 @@ class TestHydrationEdgeCases:
 
     async def test_empty_holders_tracked_as_warning(
         self,
-        clean_registries: None,
         mock_client: MagicMock,
     ) -> None:
         """Empty holders are tracked as warnings, not failures."""

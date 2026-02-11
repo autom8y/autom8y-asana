@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import time
 from dataclasses import FrozenInstanceError
-from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -43,43 +42,17 @@ from autom8_asana.models.business.detection import (
     detect_entity_type_async,
 )
 from autom8_asana.models.business.registry import (
-    ProjectTypeRegistry,
-    WorkspaceProjectRegistry,
     get_registry,
     get_workspace_registry,
 )
 from autom8_asana.models.task import Task
-
-if TYPE_CHECKING:
-    from collections.abc import Generator
 
 
 # --- Fixtures ---
 
 
 @pytest.fixture
-def clean_registry() -> Generator[None, None, None]:
-    """Reset registry before and after each test for isolation."""
-    ProjectTypeRegistry.reset()
-    yield
-    ProjectTypeRegistry.reset()
-
-
-@pytest.fixture
-def clean_registries() -> Generator[None, None, None]:
-    """Reset both registries before and after each test for isolation.
-
-    Per TDD-WORKSPACE-PROJECT-REGISTRY Appendix C: Test fixture pattern.
-    """
-    ProjectTypeRegistry.reset()
-    WorkspaceProjectRegistry.reset()
-    yield
-    ProjectTypeRegistry.reset()
-    WorkspaceProjectRegistry.reset()
-
-
-@pytest.fixture
-def registered_business_project(clean_registry: None) -> str:
+def registered_business_project() -> str:
     """Register a Business project and return the GID."""
     gid = "1234567890123456"
     registry = get_registry()
@@ -88,7 +61,7 @@ def registered_business_project(clean_registry: None) -> str:
 
 
 @pytest.fixture
-def registered_contact_project(clean_registry: None) -> str:
+def registered_contact_project() -> str:
     """Register a Contact project and return the GID."""
     gid = "contact_project_gid"
     registry = get_registry()
@@ -232,7 +205,7 @@ class TestDetectByProject:
         assert result.needs_healing is False
         assert result.expected_project_gid == registered_business_project
 
-    def test_unregistered_project_returns_none(self, clean_registry: None) -> None:
+    def test_unregistered_project_returns_none(self) -> None:
         """Unregistered project GID returns None."""
         task = make_task_with_project(
             task_gid="task1",
@@ -243,7 +216,7 @@ class TestDetectByProject:
 
         assert result is None
 
-    def test_no_memberships_returns_none(self, clean_registry: None) -> None:
+    def test_no_memberships_returns_none(self) -> None:
         """Task with no memberships returns None."""
         task = make_task(gid="task1", memberships=None)
 
@@ -251,7 +224,7 @@ class TestDetectByProject:
 
         assert result is None
 
-    def test_empty_memberships_returns_none(self, clean_registry: None) -> None:
+    def test_empty_memberships_returns_none(self) -> None:
         """Task with empty memberships list returns None."""
         task = make_task(gid="task1", memberships=[])
 
@@ -261,7 +234,6 @@ class TestDetectByProject:
 
     def test_membership_without_project_returns_none(
         self,
-        clean_registry: None,
     ) -> None:
         """Membership without project key returns None."""
         task = make_task(gid="task1", memberships=[{"section": {"gid": "section1"}}])
@@ -270,7 +242,7 @@ class TestDetectByProject:
 
         assert result is None
 
-    def test_project_without_gid_returns_none(self, clean_registry: None) -> None:
+    def test_project_without_gid_returns_none(self) -> None:
         """Project without gid returns None."""
         task = make_task(gid="task1", memberships=[{"project": {"name": "No GID"}}])
 
@@ -325,7 +297,6 @@ class TestDetectByNamePattern:
     )
     def test_name_patterns_match(
         self,
-        clean_registry: None,
         name: str,
         expected_type: EntityType,
     ) -> None:
@@ -339,7 +310,7 @@ class TestDetectByNamePattern:
         assert result.tier_used == 2
         assert result.needs_healing is True
 
-    def test_no_pattern_match_falls_through(self, clean_registry: None) -> None:
+    def test_no_pattern_match_falls_through(self) -> None:
         """Name without pattern falls through to UNKNOWN."""
         task = make_task(gid="task1", name="Random Task Name")
 
@@ -348,7 +319,7 @@ class TestDetectByNamePattern:
         assert result.entity_type == EntityType.UNKNOWN
         assert result.tier_used == 5
 
-    def test_none_name_falls_through(self, clean_registry: None) -> None:
+    def test_none_name_falls_through(self) -> None:
         """None name falls through to UNKNOWN."""
         task = make_task(gid="task1", name=None)
 
@@ -376,7 +347,6 @@ class TestDetectByParent:
     )
     def test_parent_inference_rules(
         self,
-        clean_registry: None,
         parent_type: EntityType,
         expected_child_type: EntityType,
     ) -> None:
@@ -391,7 +361,7 @@ class TestDetectByParent:
         assert result.tier_used == 3
         assert result.needs_healing is True
 
-    def test_parent_without_mapping_returns_none(self, clean_registry: None) -> None:
+    def test_parent_without_mapping_returns_none(self) -> None:
         """Parent type without mapping returns None."""
         task = make_task(gid="task1", name="Some Task")
 
@@ -434,7 +404,6 @@ class TestDetectByStructureAsync:
     @pytest.mark.asyncio
     async def test_business_structure_detected(
         self,
-        clean_registry: None,
         mock_client: MagicMock,
     ) -> None:
         """Business detected via holder subtasks (contacts, units, location)."""
@@ -461,7 +430,6 @@ class TestDetectByStructureAsync:
     @pytest.mark.asyncio
     async def test_unit_structure_detected(
         self,
-        clean_registry: None,
         mock_client: MagicMock,
     ) -> None:
         """Unit detected via holder subtasks (offers, processes)."""
@@ -487,7 +455,6 @@ class TestDetectByStructureAsync:
     @pytest.mark.asyncio
     async def test_no_structure_match_returns_none(
         self,
-        clean_registry: None,
         mock_client: MagicMock,
     ) -> None:
         """No structure match returns None."""
@@ -509,7 +476,6 @@ class TestDetectByStructureAsync:
     @pytest.mark.asyncio
     async def test_partial_business_indicators_still_match(
         self,
-        clean_registry: None,
         mock_client: MagicMock,
     ) -> None:
         """Business detected with partial indicator set (any intersection)."""
@@ -549,7 +515,7 @@ class TestDetectEntityType:
         assert result.tier_used == 1
         assert result.needs_healing is False
 
-    def test_tier_2_short_circuits_over_tier_3(self, clean_registry: None) -> None:
+    def test_tier_2_short_circuits_over_tier_3(self) -> None:
         """Detection short-circuits at Tier 2 before Tier 3."""
         task = make_task(gid="task1", name="Contacts")
 
@@ -560,7 +526,7 @@ class TestDetectEntityType:
         assert result.entity_type == EntityType.CONTACT_HOLDER
         assert result.tier_used == 2
 
-    def test_tier_3_used_when_no_name_pattern(self, clean_registry: None) -> None:
+    def test_tier_3_used_when_no_name_pattern(self) -> None:
         """Tier 3 used when name doesn't match any pattern."""
         task = make_task(gid="task1", name="My Child Task")
 
@@ -569,7 +535,7 @@ class TestDetectEntityType:
         assert result.entity_type == EntityType.CONTACT
         assert result.tier_used == 3
 
-    def test_falls_through_to_tier_5_unknown(self, clean_registry: None) -> None:
+    def test_falls_through_to_tier_5_unknown(self) -> None:
         """Falls through to Tier 5 UNKNOWN when all tiers fail."""
         task = make_task(gid="task1", name="Random Name")
 
@@ -581,7 +547,7 @@ class TestDetectEntityType:
         assert result.needs_healing is True
         assert result.expected_project_gid is None
 
-    def test_parent_type_none_skips_tier_3(self, clean_registry: None) -> None:
+    def test_parent_type_none_skips_tier_3(self) -> None:
         """parent_type=None skips Tier 3."""
         task = make_task(gid="task1", name="Random Name")
 
@@ -624,7 +590,6 @@ class TestDetectEntityTypeAsync:
     @pytest.mark.asyncio
     async def test_tier_4_disabled_by_default(
         self,
-        clean_registry: None,
         mock_client: MagicMock,
     ) -> None:
         """Tier 4 is disabled by default."""
@@ -639,7 +604,6 @@ class TestDetectEntityTypeAsync:
     @pytest.mark.asyncio
     async def test_tier_4_enabled_when_requested(
         self,
-        clean_registry: None,
         mock_client: MagicMock,
     ) -> None:
         """Tier 4 is used when allow_structure_inspection=True."""
@@ -665,7 +629,6 @@ class TestDetectEntityTypeAsync:
     @pytest.mark.asyncio
     async def test_tier_4_falls_to_tier_5_on_no_match(
         self,
-        clean_registry: None,
         mock_client: MagicMock,
     ) -> None:
         """Tier 4 falls through to Tier 5 when no structure match."""
@@ -725,7 +688,7 @@ class TestBackwardCompatibility:
 class TestEdgeCases:
     """Tests for edge cases and error handling."""
 
-    def test_empty_name_string(self, clean_registry: None) -> None:
+    def test_empty_name_string(self) -> None:
         """Empty string name is handled."""
         task = make_task(gid="task1", name="")
 
@@ -733,7 +696,7 @@ class TestEdgeCases:
 
         assert result.entity_type == EntityType.UNKNOWN
 
-    def test_whitespace_name(self, clean_registry: None) -> None:
+    def test_whitespace_name(self) -> None:
         """Whitespace-only name is handled."""
         task = make_task(gid="task1", name="   ")
 
@@ -741,14 +704,14 @@ class TestEdgeCases:
 
         assert result.entity_type == EntityType.UNKNOWN
 
-    def test_case_insensitive_name_matching(self, clean_registry: None) -> None:
+    def test_case_insensitive_name_matching(self) -> None:
         """Name matching is case-insensitive."""
         for name in ["CONTACTS", "Contacts", "contacts", "CoNtAcTs"]:
             task = make_task(gid="task1", name=name)
             result = detect_entity_type(task)
             assert result.entity_type == EntityType.CONTACT_HOLDER
 
-    def test_name_with_pattern_substring(self, clean_registry: None) -> None:
+    def test_name_with_pattern_substring(self) -> None:
         """Name containing pattern as substring matches."""
         task = make_task(gid="task1", name="All My Contacts Here")
 
@@ -788,7 +751,7 @@ class TestProcessDetection:
     """
 
     @pytest.fixture
-    def registered_process_project(self, clean_registry: None) -> str:
+    def registered_process_project(self) -> str:
         """Register a Process project and return the GID."""
         gid = "process_project_gid"
         registry = get_registry()
@@ -816,7 +779,6 @@ class TestProcessDetection:
 
     def test_unregistered_project_falls_through(
         self,
-        clean_registry: None,
     ) -> None:
         """Task in unregistered project falls through to later tiers."""
         task = Task(
@@ -863,7 +825,6 @@ class TestAsyncTier1WithLazyDiscovery:
     @pytest.mark.asyncio
     async def test_async_tier1_returns_static_registry_hit(
         self,
-        clean_registries: None,
         mock_client_with_workspace: MagicMock,
     ) -> None:
         """Async Tier 1 returns result from static registry without discovery."""
@@ -893,7 +854,6 @@ class TestAsyncTier1WithLazyDiscovery:
     @pytest.mark.asyncio
     async def test_async_tier1_triggers_discovery_on_unregistered_gid(
         self,
-        clean_registries: None,
         mock_client_with_workspace: MagicMock,
     ) -> None:
         """Async Tier 1 triggers discovery when project GID not in static registry."""
@@ -930,7 +890,6 @@ class TestAsyncTier1WithLazyDiscovery:
     @pytest.mark.asyncio
     async def test_async_tier1_discovers_multiple_pipeline_projects(
         self,
-        clean_registries: None,
         mock_client_with_workspace: MagicMock,
     ) -> None:
         """Async Tier 1 discovery registers all pipeline projects."""
@@ -979,7 +938,6 @@ class TestAsyncTier1WithLazyDiscovery:
     @pytest.mark.asyncio
     async def test_async_tier1_returns_none_for_non_pipeline_project(
         self,
-        clean_registries: None,
         mock_client_with_workspace: MagicMock,
     ) -> None:
         """Async Tier 1 returns None for project not in static or dynamic registry."""
@@ -1010,7 +968,6 @@ class TestAsyncTier1WithLazyDiscovery:
     @pytest.mark.asyncio
     async def test_async_tier1_no_memberships_returns_none(
         self,
-        clean_registries: None,
         mock_client_with_workspace: MagicMock,
     ) -> None:
         """Async Tier 1 returns None when task has no memberships."""
@@ -1030,7 +987,6 @@ class TestAsyncTier1WithLazyDiscovery:
     @pytest.mark.asyncio
     async def test_async_tier1_empty_memberships_returns_none(
         self,
-        clean_registries: None,
         mock_client_with_workspace: MagicMock,
     ) -> None:
         """Async Tier 1 returns None when task has empty memberships."""
@@ -1073,7 +1029,6 @@ class TestDetectEntityTypeAsyncWithLazyDiscovery:
     @pytest.mark.asyncio
     async def test_detect_async_discovers_pipeline_project(
         self,
-        clean_registries: None,
         mock_client_with_workspace: MagicMock,
     ) -> None:
         """detect_entity_type_async triggers discovery for pipeline projects."""
@@ -1100,7 +1055,6 @@ class TestDetectEntityTypeAsyncWithLazyDiscovery:
     @pytest.mark.asyncio
     async def test_detect_async_static_registry_takes_precedence(
         self,
-        clean_registries: None,
         mock_client_with_workspace: MagicMock,
     ) -> None:
         """Static registry entries take precedence over discovery."""
@@ -1126,7 +1080,6 @@ class TestDetectEntityTypeAsyncWithLazyDiscovery:
     @pytest.mark.asyncio
     async def test_detect_async_falls_through_to_name_pattern(
         self,
-        clean_registries: None,
         mock_client_with_workspace: MagicMock,
     ) -> None:
         """detect_entity_type_async falls through to Tier 2 if not a pipeline project."""
@@ -1153,7 +1106,6 @@ class TestDetectEntityTypeAsyncWithLazyDiscovery:
     @pytest.mark.asyncio
     async def test_detect_async_idempotent_discovery(
         self,
-        clean_registries: None,
         mock_client_with_workspace: MagicMock,
     ) -> None:
         """Discovery only happens once, subsequent calls use cached registry."""
@@ -1190,7 +1142,6 @@ class TestDetectEntityTypeAsyncWithLazyDiscovery:
     @pytest.mark.asyncio
     async def test_detect_async_process_type_available_after_discovery(
         self,
-        clean_registries: None,
         mock_client_with_workspace: MagicMock,
     ) -> None:
         """WorkspaceProjectRegistry provides ProcessType after discovery."""
