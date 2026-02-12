@@ -65,6 +65,12 @@ REST API documentation for service integrators.
 |----------|-------------|
 | [API Reference Overview](api-reference/README.md) | Auth, pagination, errors, route groups |
 | [OpenAPI Spec](api-reference/openapi.yaml) | Machine-readable specification (37 paths, 49 schemas) |
+| [Query Endpoints](api-reference/endpoints/query.md) | POST /v1/query — predicates, joins, aggregation |
+| [Tasks Endpoints](api-reference/endpoints/tasks.md) | /api/v1/tasks — CRUD, subtasks, tags, membership |
+| [Projects Endpoints](api-reference/endpoints/projects.md) | /api/v1/projects — CRUD, sections, members |
+| [Dataframes Endpoints](api-reference/endpoints/dataframes.md) | /api/v1/dataframes — project/section DataFrames |
+| [Sections Endpoints](api-reference/endpoints/sections.md) | /api/v1/sections — CRUD, task assignment, reorder |
+| [Health Endpoints](api-reference/endpoints/health.md) | /health — liveness, readiness, S2S checks |
 | [Entity Write Endpoint](api-reference/endpoints/entity-write.md) | PATCH /api/v1/entity/{type}/{gid} reference |
 | [Resolver Endpoint](api-reference/endpoints/resolver.md) | POST /v1/resolve/{type} reference |
 
@@ -160,6 +166,12 @@ Specifications and lookup tables.
 | [Batch Operations](reference/REF-batch-operations.md) | Chunking, parallelization, error handling |
 | [Search API](reference/REF-search-api.md) | Search API specification |
 | [Seeder Config](reference/REF-seeder-matching-config.md) | BusinessSeeder matching configuration |
+
+### Configuration
+
+| Reference | Description |
+|-----------|-------------|
+| [Environment Variables](reference/env-vars.md) | Complete env var reference (~85 variables, quick start guide) |
 
 ### Meta
 
