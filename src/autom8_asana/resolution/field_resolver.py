@@ -116,9 +116,7 @@ def _resolve_single_option(
         "field_resolver_enum_value_not_found",
         value=value,
         available=[
-            opt.get("name", "")
-            for opt in enum_options
-            if opt.get("enabled", True)
+            opt.get("name", "") for opt in enum_options if opt.get("enabled", True)
         ],
     )
     return None
@@ -212,9 +210,7 @@ class FieldResolver:
             results.append(result)
         return results
 
-    def _resolve_single(
-        self, name: str, value: Any, list_mode: str
-    ) -> ResolvedField:
+    def _resolve_single(self, name: str, value: Any, list_mode: str) -> ResolvedField:
         """Resolve one field name + value."""
 
         # Step 1: Core field check
@@ -235,14 +231,10 @@ class FieldResolver:
         normalized = name.lower().strip()
         field_def = self._display_index.get(normalized)
         if field_def:
-            return self._resolve_custom_field(
-                name, field_def["name"], value, list_mode
-            )
+            return self._resolve_custom_field(name, field_def["name"], value, list_mode)
 
         # Step 4: Not found -- fuzzy suggestions
-        available = [
-            f.get("name", "") for f in self._custom_fields if f.get("name")
-        ]
+        available = [f.get("name", "") for f in self._custom_fields if f.get("name")]
         suggestions = _fuzzy_match(name, available)
         return ResolvedField(
             input_name=name,
@@ -312,9 +304,7 @@ class FieldResolver:
             )
 
         if field_type == "multi_enum":
-            resolved_value = self._resolve_multi_enum(
-                field_def, value, list_mode
-            )
+            resolved_value = self._resolve_multi_enum(field_def, value, list_mode)
             return ResolvedField(
                 input_name=input_name,
                 matched_name=display_name,
@@ -358,9 +348,7 @@ class FieldResolver:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _resolve_enum(
-        field_def: dict[str, Any], value: Any
-    ) -> str | None:
+    def _resolve_enum(field_def: dict[str, Any], value: Any) -> str | None:
         """Resolve a single enum value to its option GID.
 
         Args:
@@ -408,9 +396,7 @@ class FieldResolver:
             # Merge with existing selections
             existing = field_def.get("multi_enum_values") or []
             existing_gids = [
-                opt["gid"]
-                for opt in existing
-                if isinstance(opt, dict) and "gid" in opt
+                opt["gid"] for opt in existing if isinstance(opt, dict) and "gid" in opt
             ]
             # Dedup: add only new GIDs
             combined = list(existing_gids)
@@ -426,9 +412,7 @@ class FieldResolver:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _resolve_text_append(
-        field_def: dict[str, Any], value: str | list[str]
-    ) -> str:
+    def _resolve_text_append(field_def: dict[str, Any], value: str | list[str]) -> str:
         """Server-side text list append with dedup.
 
         Reads current text_value from the field definition (already fetched
@@ -444,9 +428,7 @@ class FieldResolver:
         """
         current_text = field_def.get("text_value") or ""
         delimiter = ","
-        existing = [
-            s.strip() for s in current_text.split(delimiter) if s.strip()
-        ]
+        existing = [s.strip() for s in current_text.split(delimiter) if s.strip()]
         new_items = [value] if isinstance(value, str) else value
         for item in new_items:
             item = item.strip()
@@ -459,9 +441,7 @@ class FieldResolver:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _validate_type(
-        field_type: str, value: Any, input_name: str
-    ) -> str | None:
+    def _validate_type(field_type: str, value: Any, input_name: str) -> str | None:
         """Validate value type against field resource_subtype.
 
         Args:
@@ -475,8 +455,7 @@ class FieldResolver:
         if field_type == "number":
             if not isinstance(value, (int, float)):
                 return (
-                    f"Field '{input_name}' expects a number, "
-                    f"got {type(value).__name__}"
+                    f"Field '{input_name}' expects a number, got {type(value).__name__}"
                 )
 
         if field_type == "text":

@@ -319,4 +319,3 @@ ALL_TRANSPORT_ERRORS: tuple[type[Exception], ...] = (
 CACHE_TRANSIENT_ERRORS: tuple[type[Exception], ...] = ALL_TRANSPORT_ERRORS + (
     CacheConnectionError,
 )
-

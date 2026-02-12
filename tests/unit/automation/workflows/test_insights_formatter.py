@@ -40,6 +40,7 @@ from autom8_asana.automation.workflows.insights_formatter import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_report_data(
     table_results: dict[str, TableResult] | None = None,
     business_name: str = "Test Dental",
@@ -82,6 +83,7 @@ def _make_table_result(
 # ---------------------------------------------------------------------------
 # TestPipeTable -- AC-W03.1, AC-W03.3, AC-W03.6
 # ---------------------------------------------------------------------------
+
 
 class TestPipeTable:
     """Valid markdown pipe table output from _format_table_section."""
@@ -145,6 +147,7 @@ class TestPipeTable:
 # TestHeader -- AC-W03.2
 # ---------------------------------------------------------------------------
 
+
 class TestHeader:
     """_format_header includes masked phone, business name, vertical, ISO timestamp."""
 
@@ -195,6 +198,7 @@ class TestHeader:
 # TestColumnNames -- AC-W03.4
 # ---------------------------------------------------------------------------
 
+
 class TestColumnNames:
     """_to_title_case converts snake_case to Title Case."""
 
@@ -217,6 +221,7 @@ class TestColumnNames:
 # ---------------------------------------------------------------------------
 # TestNullHandling -- AC-W03.5
 # ---------------------------------------------------------------------------
+
 
 class TestNullHandling:
     """Null values render as '---' in pipe table cells."""
@@ -251,6 +256,7 @@ class TestNullHandling:
 # ---------------------------------------------------------------------------
 # TestNullColumns -- AC-W03.5
 # ---------------------------------------------------------------------------
+
 
 class TestNullColumns:
     """Always-null columns are present with '---' markers when data has those keys."""
@@ -304,6 +310,7 @@ class TestNullColumns:
 # TestEmptyTable -- AC-W03.7
 # ---------------------------------------------------------------------------
 
+
 class TestEmptyTable:
     """Zero rows -> 'No data available'."""
 
@@ -324,6 +331,7 @@ class TestEmptyTable:
 # TestUnusedAssetsEmpty -- AC-W03.7
 # ---------------------------------------------------------------------------
 
+
 class TestUnusedAssetsEmpty:
     """UNUSED ASSETS empty shows special message."""
 
@@ -343,6 +351,7 @@ class TestUnusedAssetsEmpty:
 # ---------------------------------------------------------------------------
 # TestFooter -- AC-W03.8
 # ---------------------------------------------------------------------------
+
 
 class TestFooter:
     """_format_footer includes duration, table count, error count, version."""
@@ -384,6 +393,7 @@ class TestFooter:
 # TestRowLimit -- AC-W03.10
 # ---------------------------------------------------------------------------
 
+
 class TestRowLimit:
     """Truncation note when row limit is reached."""
 
@@ -393,7 +403,9 @@ class TestRowLimit:
 
         lines = result.split("\n")
         # Should have heading + blank + header + alignment + 100 data rows + blank + truncation
-        data_rows = [l for l in lines if l.startswith("| ") and "---" not in l and "Id" not in l]
+        data_rows = [
+            l for l in lines if l.startswith("| ") and "---" not in l and "Id" not in l
+        ]
         assert len(data_rows) == 100
         assert "> Showing first 100 of 150 rows" in result
 
@@ -411,7 +423,11 @@ class TestRowLimit:
         rows = [{"id": i} for i in range(200)]
         result = _format_table_section("BY MONTH", rows, row_limit=None)
         assert "> Showing first" not in result
-        data_rows = [l for l in result.split("\n") if l.startswith("| ") and "---" not in l and "Id" not in l]
+        data_rows = [
+            l
+            for l in result.split("\n")
+            if l.startswith("| ") and "---" not in l and "Id" not in l
+        ]
         assert len(data_rows) == 200
 
 
@@ -419,12 +435,17 @@ class TestRowLimit:
 # TestErrorMarker -- AC-W02.2, AC-W02.5
 # ---------------------------------------------------------------------------
 
+
 class TestErrorMarker:
     """Error marker format: > [ERROR] type: message."""
 
     def test_basic_error_marker(self):
-        result = _format_error_section("APPOINTMENTS", "InsightsServiceError", "Request timed out")
-        expected = "## APPOINTMENTS\n\n> [ERROR] InsightsServiceError: Request timed out"
+        result = _format_error_section(
+            "APPOINTMENTS", "InsightsServiceError", "Request timed out"
+        )
+        expected = (
+            "## APPOINTMENTS\n\n> [ERROR] InsightsServiceError: Request timed out"
+        )
         assert result == expected
 
     def test_error_marker_is_blockquote(self):
@@ -447,6 +468,7 @@ class TestErrorMarker:
 # ---------------------------------------------------------------------------
 # TestComposeReport -- AC-W03.1
 # ---------------------------------------------------------------------------
+
 
 class TestComposeReport:
     """Full compose_report with mixed results."""
@@ -648,8 +670,9 @@ class TestAdversarialPipeInjection:
         # Structural check: count unescaped pipes (column delimiters).
         # Remove escaped pipes first, then count remaining.
         import re
-        header_unescaped = len(re.findall(r'(?<!\\)\|', lines[2]))
-        data_unescaped = len(re.findall(r'(?<!\\)\|', data_line))
+
+        header_unescaped = len(re.findall(r"(?<!\\)\|", lines[2]))
+        data_unescaped = len(re.findall(r"(?<!\\)\|", data_line))
         assert data_unescaped == header_unescaped, (
             f"Structural mismatch: header has {header_unescaped} delimiters "
             f"but data has {data_unescaped} delimiters."
@@ -762,7 +785,8 @@ class TestAdversarialRowLimitEdgeCases:
         result = _format_table_section("TEST", rows, row_limit=1)
         assert "> Showing first 1 of 3 rows" in result
         data_rows = [
-            l for l in result.split("\n")
+            l
+            for l in result.split("\n")
             if l.startswith("| ") and "---" not in l and "Id" not in l
         ]
         assert len(data_rows) == 1
@@ -785,7 +809,8 @@ class TestAdversarialRowLimitZero:
         result = _format_table_section("TEST", rows, row_limit=0)
         # Due to `if row_limit` being falsy for 0, all rows are displayed
         data_rows = [
-            l for l in result.split("\n")
+            l
+            for l in result.split("\n")
             if l.startswith("| ") and "---" not in l and "Id" not in l
         ]
         assert len(data_rows) == 2

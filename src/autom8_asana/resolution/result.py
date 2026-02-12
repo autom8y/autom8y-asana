@@ -18,9 +18,9 @@ T = TypeVar("T", bound=BusinessEntity)
 class ResolutionStatus(str, Enum):
     """Outcome of a resolution attempt."""
 
-    RESOLVED = "resolved"          # Entity found with full confidence
-    PARTIAL = "partial"            # Entity found but data may be incomplete
-    FAILED = "failed"              # All strategies exhausted
+    RESOLVED = "resolved"  # Entity found with full confidence
+    PARTIAL = "partial"  # Entity found but data may be incomplete
+    FAILED = "failed"  # All strategies exhausted
     BUDGET_EXHAUSTED = "budget_exhausted"  # API call budget reached
 
 

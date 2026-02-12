@@ -96,8 +96,7 @@ class TestGidValues:
         """All GIDs should be unique (no two names map to the same GID)."""
         gids = list(ALL_CONSTANTS.values())
         assert len(gids) == len(set(gids)), (
-            f"Duplicate GIDs found: "
-            f"{[g for g in gids if gids.count(g) > 1]}"
+            f"Duplicate GIDs found: {[g for g in gids if gids.count(g) > 1]}"
         )
 
     def test_total_registered_count(self) -> None:

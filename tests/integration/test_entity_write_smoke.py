@@ -116,9 +116,7 @@ async def write_service(asana_client, write_registry) -> FieldWriteService:
 # ---------------------------------------------------------------------------
 
 
-def _get_custom_field_value(
-    task_data: dict[str, Any], display_name: str
-) -> Any:
+def _get_custom_field_value(task_data: dict[str, Any], display_name: str) -> Any:
     """Extract a custom field value from raw task data by display name.
 
     Uses case-insensitive matching to handle descriptor name derivation
@@ -247,9 +245,7 @@ class TestRegistryDiscovery:
             "expected 'Weekly AD Spend'"
         )
 
-    def test_process_is_not_writable(
-        self, write_registry: EntityWriteRegistry
-    ) -> None:
+    def test_process_is_not_writable(self, write_registry: EntityWriteRegistry) -> None:
         """Process has PRIMARY_PROJECT_GID=None, should NOT be writable."""
         assert not write_registry.is_writable("process"), (
             "Process should NOT be writable (PRIMARY_PROJECT_GID is None)"
@@ -367,9 +363,9 @@ class TestFieldNameResolution:
         assert rf.status == "skipped"
         if rf.suggestions:
             suggestion_lower = [s.lower() for s in rf.suggestions]
-            assert any(
-                "asset" in s for s in suggestion_lower
-            ), f"Expected 'Asset ID' in suggestions, got: {rf.suggestions}"
+            assert any("asset" in s for s in suggestion_lower), (
+                f"Expected 'Asset ID' in suggestions, got: {rf.suggestions}"
+            )
 
 
 # =========================================================================
@@ -558,16 +554,22 @@ class TestLiveWrites:
 
             # Verify via fresh client (bypasses cache)
             updated_task = await _refetch_task_fresh(OFFER_GID)
-            assert _get_custom_field_value(updated_task, "Asset ID") == "MIXED-SMOKE-001"
+            assert (
+                _get_custom_field_value(updated_task, "Asset ID") == "MIXED-SMOKE-001"
+            )
             assert updated_task.get("notes") == "[SMOKE TEST] Mixed write test."
             spend_val = _get_custom_field_value(updated_task, "Weekly AD Spend")
             # Asana may round to integer precision depending on field config
-            assert spend_val is not None, "Weekly AD Spend should have a value after write"
+            assert spend_val is not None, (
+                "Weekly AD Spend should have a value after write"
+            )
             assert abs(float(spend_val) - 777.77) < 1.0, (
                 f"Expected ~777.77 (within rounding), got {spend_val}"
             )
         finally:
-            restore_spend = float(original_spend) if original_spend is not None else None
+            restore_spend = (
+                float(original_spend) if original_spend is not None else None
+            )
             await write_service.write_async(
                 entity_type="offer",
                 gid=OFFER_GID,
@@ -618,9 +620,7 @@ class TestEnumResolution:
             pytest.skip("Language field not found on this offer")
 
         options = cf.get("enum_options", [])
-        enabled = [
-            o for o in options if o.get("enabled", True) and o.get("name")
-        ]
+        enabled = [o for o in options if o.get("enabled", True) and o.get("name")]
         if not enabled:
             pytest.skip("No enabled Language options")
 
@@ -675,9 +675,7 @@ class TestEnumResolution:
             pytest.skip("Language field not found")
 
         options = cf.get("enum_options", [])
-        enabled = [
-            o for o in options if o.get("enabled", True) and o.get("name")
-        ]
+        enabled = [o for o in options if o.get("enabled", True) and o.get("name")]
         if not enabled:
             pytest.skip("No enabled Language options")
 
@@ -737,9 +735,7 @@ class TestEnumResolution:
             pytest.skip("Platforms field not found")
 
         options = cf.get("enum_options", [])
-        enabled = [
-            o for o in options if o.get("enabled", True) and o.get("name")
-        ]
+        enabled = [o for o in options if o.get("enabled", True) and o.get("name")]
         if len(enabled) < 2:
             pytest.skip("Need at least 2 Platforms options for multi-enum test")
 
@@ -915,20 +911,18 @@ class TestPartialSuccess:
             )
 
             written_names = [
-                r.input_name
-                for r in result.field_results
-                if r.status == "resolved"
+                r.input_name for r in result.field_results if r.status == "resolved"
             ]
             skipped_names = [
-                r.input_name
-                for r in result.field_results
-                if r.status == "skipped"
+                r.input_name for r in result.field_results if r.status == "skipped"
             ]
             assert "asset_id" in written_names
             assert "nonexistent_field_abc" in skipped_names
 
             updated_task = await _refetch_task_fresh(OFFER_GID)
-            assert _get_custom_field_value(updated_task, "Asset ID") == "PARTIAL-SMOKE-001"
+            assert (
+                _get_custom_field_value(updated_task, "Asset ID") == "PARTIAL-SMOKE-001"
+            )
         finally:
             await write_service.write_async(
                 entity_type="offer",

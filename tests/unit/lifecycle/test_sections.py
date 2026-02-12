@@ -64,9 +64,7 @@ def _setup_sections(
 
 
 @pytest.mark.asyncio
-async def test_cascade_all_three_entities(
-    mock_client, mock_resolution_context
-):
+async def test_cascade_all_three_entities(mock_client, mock_resolution_context):
     """When offer, unit, and business sections are configured, all three
     entities are resolved and moved to their target sections."""
     # Set up entities with memberships
@@ -79,11 +77,14 @@ async def test_cascade_all_three_entities(
     mock_resolution_context.business_async = AsyncMock(return_value=business)
 
     # Set up sections per project
-    _setup_sections(mock_client, {
-        "offer_proj": [_make_section("s1", "Sales Process")],
-        "unit_proj": [_make_section("s2", "Next Steps")],
-        "biz_proj": [_make_section("s3", "OPPORTUNITY")],
-    })
+    _setup_sections(
+        mock_client,
+        {
+            "offer_proj": [_make_section("s1", "Sales Process")],
+            "unit_proj": [_make_section("s2", "Next Steps")],
+            "biz_proj": [_make_section("s3", "OPPORTUNITY")],
+        },
+    )
     mock_client.sections.add_task_async = AsyncMock()
 
     service = CascadingSectionService(mock_client)
@@ -119,15 +120,16 @@ async def test_cascade_skips_unconfigured_entities(
     unit = _make_entity("unit1", "unit_proj")
     mock_resolution_context.unit_async = AsyncMock(return_value=unit)
 
-    _setup_sections(mock_client, {
-        "unit_proj": [_make_section("s1", "Onboarding")],
-    })
+    _setup_sections(
+        mock_client,
+        {
+            "unit_proj": [_make_section("s1", "Onboarding")],
+        },
+    )
     mock_client.sections.add_task_async = AsyncMock()
 
     service = CascadingSectionService(mock_client)
-    config = CascadingSectionConfig(
-        offer=None, unit="Onboarding", business=None
-    )
+    config = CascadingSectionConfig(offer=None, unit="Onboarding", business=None)
 
     result = await service.cascade_async(config, mock_resolution_context)
 
@@ -141,9 +143,7 @@ async def test_cascade_skips_unconfigured_entities(
 
 
 @pytest.mark.asyncio
-async def test_cascade_empty_config_does_nothing(
-    mock_client, mock_resolution_context
-):
+async def test_cascade_empty_config_does_nothing(mock_client, mock_resolution_context):
     """When no sections are configured, no entities are resolved."""
     service = CascadingSectionService(mock_client)
     config = CascadingSectionConfig()
@@ -167,9 +167,12 @@ async def test_cascade_section_not_found_logs_warning(
     mock_resolution_context.offer_async = AsyncMock(return_value=offer)
 
     # Return sections that do NOT match the config
-    _setup_sections(mock_client, {
-        "offer_proj": [_make_section("s1", "Other Section")],
-    })
+    _setup_sections(
+        mock_client,
+        {
+            "offer_proj": [_make_section("s1", "Other Section")],
+        },
+    )
 
     service = CascadingSectionService(mock_client)
     config = CascadingSectionConfig(offer="Sales Process")
@@ -183,16 +186,17 @@ async def test_cascade_section_not_found_logs_warning(
 
 
 @pytest.mark.asyncio
-async def test_cascade_empty_sections_list(
-    mock_client, mock_resolution_context
-):
+async def test_cascade_empty_sections_list(mock_client, mock_resolution_context):
     """When the project has no sections at all, a warning is recorded."""
     offer = _make_entity("offer1", "offer_proj")
     mock_resolution_context.offer_async = AsyncMock(return_value=offer)
 
-    _setup_sections(mock_client, {
-        "offer_proj": [],
-    })
+    _setup_sections(
+        mock_client,
+        {
+            "offer_proj": [],
+        },
+    )
 
     service = CascadingSectionService(mock_client)
     config = CascadingSectionConfig(offer="Sales Process")
@@ -207,9 +211,7 @@ async def test_cascade_empty_sections_list(
 
 
 @pytest.mark.asyncio
-async def test_cascade_entity_resolution_error(
-    mock_client, mock_resolution_context
-):
+async def test_cascade_entity_resolution_error(mock_client, mock_resolution_context):
     """When entity resolution fails, a warning is logged and remaining
     entities are still processed (fail-forward)."""
     # Offer resolution fails
@@ -221,9 +223,12 @@ async def test_cascade_entity_resolution_error(
     unit = _make_entity("unit1", "unit_proj")
     mock_resolution_context.unit_async = AsyncMock(return_value=unit)
 
-    _setup_sections(mock_client, {
-        "unit_proj": [_make_section("s1", "Next Steps")],
-    })
+    _setup_sections(
+        mock_client,
+        {
+            "unit_proj": [_make_section("s1", "Next Steps")],
+        },
+    )
     mock_client.sections.add_task_async = AsyncMock()
 
     service = CascadingSectionService(mock_client)
@@ -239,9 +244,7 @@ async def test_cascade_entity_resolution_error(
 
 
 @pytest.mark.asyncio
-async def test_cascade_add_task_api_error(
-    mock_client, mock_resolution_context
-):
+async def test_cascade_add_task_api_error(mock_client, mock_resolution_context):
     """When the Asana add_task API call fails, a warning is recorded
     and remaining entities are processed."""
     offer = _make_entity("offer1", "offer_proj")
@@ -249,10 +252,13 @@ async def test_cascade_add_task_api_error(
     mock_resolution_context.offer_async = AsyncMock(return_value=offer)
     mock_resolution_context.unit_async = AsyncMock(return_value=unit)
 
-    _setup_sections(mock_client, {
-        "offer_proj": [_make_section("s1", "Sales Process")],
-        "unit_proj": [_make_section("s2", "Next Steps")],
-    })
+    _setup_sections(
+        mock_client,
+        {
+            "offer_proj": [_make_section("s1", "Sales Process")],
+            "unit_proj": [_make_section("s2", "Next Steps")],
+        },
+    )
 
     # First add_task call fails, second succeeds
     mock_client.sections.add_task_async = AsyncMock(
@@ -283,9 +289,12 @@ async def test_cascade_case_insensitive_section_match(
     mock_resolution_context.business_async = AsyncMock(return_value=business)
 
     # Section name has different case than config
-    _setup_sections(mock_client, {
-        "biz_proj": [_make_section("s1", "opportunity")],
-    })
+    _setup_sections(
+        mock_client,
+        {
+            "biz_proj": [_make_section("s1", "opportunity")],
+        },
+    )
     mock_client.sections.add_task_async = AsyncMock()
 
     service = CascadingSectionService(mock_client)
@@ -295,18 +304,14 @@ async def test_cascade_case_insensitive_section_match(
 
     assert len(result.updates) == 1
     assert "biz1" in result.updates
-    mock_client.sections.add_task_async.assert_awaited_once_with(
-        "s1", task="biz1"
-    )
+    mock_client.sections.add_task_async.assert_awaited_once_with("s1", task="biz1")
 
 
 # --- Test: Entity with no memberships ---
 
 
 @pytest.mark.asyncio
-async def test_cascade_entity_no_memberships(
-    mock_client, mock_resolution_context
-):
+async def test_cascade_entity_no_memberships(mock_client, mock_resolution_context):
     """When an entity has no memberships, a warning is recorded."""
     offer = MagicMock()
     offer.gid = "offer1"
@@ -327,9 +332,7 @@ async def test_cascade_entity_no_memberships(
 
 
 @pytest.mark.asyncio
-async def test_cascade_entity_no_project_gid(
-    mock_client, mock_resolution_context
-):
+async def test_cascade_entity_no_project_gid(mock_client, mock_resolution_context):
     """When an entity's memberships have no project GID, a warning is recorded."""
     offer = MagicMock()
     offer.gid = "offer1"
@@ -349,9 +352,7 @@ async def test_cascade_entity_no_project_gid(
 
 
 @pytest.mark.asyncio
-async def test_cascade_onboarding_stage_sections(
-    mock_client, mock_resolution_context
-):
+async def test_cascade_onboarding_stage_sections(mock_client, mock_resolution_context):
     """Verify the correct sections for Onboarding stage per Appendix C:
     Offer=ACTIVATING, Unit=Onboarding, Business=ONBOARDING."""
     offer = _make_entity("offer1", "offer_proj")
@@ -362,11 +363,14 @@ async def test_cascade_onboarding_stage_sections(
     mock_resolution_context.unit_async = AsyncMock(return_value=unit)
     mock_resolution_context.business_async = AsyncMock(return_value=business)
 
-    _setup_sections(mock_client, {
-        "offer_proj": [_make_section("s1", "ACTIVATING")],
-        "unit_proj": [_make_section("s2", "Onboarding")],
-        "biz_proj": [_make_section("s3", "ONBOARDING")],
-    })
+    _setup_sections(
+        mock_client,
+        {
+            "offer_proj": [_make_section("s1", "ACTIVATING")],
+            "unit_proj": [_make_section("s2", "Onboarding")],
+            "biz_proj": [_make_section("s3", "ONBOARDING")],
+        },
+    )
     mock_client.sections.add_task_async = AsyncMock()
 
     service = CascadingSectionService(mock_client)

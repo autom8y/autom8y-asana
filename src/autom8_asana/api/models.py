@@ -37,9 +37,7 @@ class AsanaResource(BaseModel):
     """
 
     gid: str = Field(..., description="Globally unique Asana resource identifier")
-    resource_type: str | None = Field(
-        default=None, description="Asana resource type"
-    )
+    resource_type: str | None = Field(default=None, description="Asana resource type")
     name: str | None = Field(default=None, description="Resource display name")
 
     model_config = ConfigDict(extra="allow")

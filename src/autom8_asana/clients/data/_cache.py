@@ -133,9 +133,7 @@ def get_stale_response(
         cached_at = None
         if cached_at_str:
             try:
-                cached_at = datetime.fromisoformat(
-                    cached_at_str.replace("Z", "+00:00")
-                )
+                cached_at = datetime.fromisoformat(cached_at_str.replace("Z", "+00:00"))
             except (ValueError, AttributeError):
                 cached_at = datetime.now(UTC)
 

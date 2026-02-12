@@ -40,7 +40,9 @@ from autom8_asana.services.field_write_service import (
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/v1/entity", tags=["entity-write"], include_in_schema=False)
+router = APIRouter(
+    prefix="/api/v1/entity", tags=["entity-write"], include_in_schema=False
+)
 
 
 # ---------------------------------------------------------------------------
@@ -193,9 +195,7 @@ async def write_entity_fields(
         )
 
     # Get optional MutationInvalidator from app.state
-    mutation_invalidator = getattr(
-        request.app.state, "mutation_invalidator", None
-    )
+    mutation_invalidator = getattr(request.app.state, "mutation_invalidator", None)
 
     try:
         async with AsanaClient(token=bot_pat) as client:

@@ -887,7 +887,11 @@ class FieldSeeder:
                 if item is None:
                     continue
                 resolved = self._resolve_single_option(
-                    item, name_to_gid, enum_options, field_name, task_gid,
+                    item,
+                    name_to_gid,
+                    enum_options,
+                    field_name,
+                    task_gid,
                     multi=True,
                 )
                 if resolved is not None:
@@ -908,7 +912,11 @@ class FieldSeeder:
 
             name_to_gid = self._build_enum_lookup(enum_options)
             return self._resolve_single_option(
-                value, name_to_gid, enum_options, field_name, task_gid,
+                value,
+                name_to_gid,
+                enum_options,
+                field_name,
+                task_gid,
                 multi=False,
             )
 

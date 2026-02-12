@@ -92,9 +92,7 @@ def _make_mock_client() -> MagicMock:
     client.tasks.search_async = AsyncMock(return_value=[])
 
     # Subtasks paginator (returns empty by default)
-    client.tasks.subtasks_async = MagicMock(
-        return_value=_make_paginator([])
-    )
+    client.tasks.subtasks_async = MagicMock(return_value=_make_paginator([]))
 
     # get_async returns a task with custom_fields and dependencies
     mock_fetched_task = MagicMock()
@@ -110,9 +108,7 @@ def _make_mock_client() -> MagicMock:
     mock_opportunity_section = _make_mock_task("sec_opportunity", "OPPORTUNITY")
 
     client.sections.list_for_project_async = MagicMock(
-        return_value=_make_paginator(
-            [mock_template_section, mock_opportunity_section]
-        )
+        return_value=_make_paginator([mock_template_section, mock_opportunity_section])
     )
     client.sections.add_task_async = AsyncMock()
 
@@ -245,12 +241,8 @@ def _configure_standard_patches(
     """
     MockCtx.return_value = mock_ctx
 
-    MockTD.return_value.find_template_task_async = AsyncMock(
-        return_value=mock_template
-    )
-    MockWaiter.return_value.wait_for_subtasks_async = AsyncMock(
-        return_value=True
-    )
+    MockTD.return_value.find_template_task_async = AsyncMock(return_value=mock_template)
+    MockWaiter.return_value.wait_for_subtasks_async = AsyncMock(return_value=True)
     MockSeeder.return_value.seed_async = AsyncMock(
         return_value=seeding_result or SeedingResult()
     )
@@ -258,9 +250,7 @@ def _configure_standard_patches(
     mock_session = MagicMock()
     mock_session.set_parent = MagicMock()
     mock_session.commit_async = AsyncMock()
-    MockSaveSession.return_value.__aenter__ = AsyncMock(
-        return_value=mock_session
-    )
+    MockSaveSession.return_value.__aenter__ = AsyncMock(return_value=mock_session)
     MockSaveSession.return_value.__aexit__ = AsyncMock(return_value=None)
 
 
@@ -280,21 +270,15 @@ def _integration_patches():
     - SaveSession at its source module (lazy import in creation.py)
     """
     return {
-        "resolution_context": patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ),
+        "resolution_context": patch("autom8_asana.lifecycle.engine.ResolutionContext"),
         "template_discovery": patch(
             "autom8_asana.lifecycle.creation.TemplateDiscovery"
         ),
-        "subtask_waiter": patch(
-            "autom8_asana.lifecycle.creation.SubtaskWaiter"
-        ),
+        "subtask_waiter": patch("autom8_asana.lifecycle.creation.SubtaskWaiter"),
         "auto_cascade_seeder": patch(
             "autom8_asana.lifecycle.creation.AutoCascadeSeeder"
         ),
-        "save_session": patch(
-            "autom8_asana.persistence.session.SaveSession"
-        ),
+        "save_session": patch("autom8_asana.persistence.session.SaveSession"),
     }
 
 
@@ -356,9 +340,7 @@ class TestSalesConvertedToOnboarding:
             "Sales Pipeline",
         )
 
-        mock_template = _make_mock_task(
-            "template_gid", "Template - [Business Name]"
-        )
+        mock_template = _make_mock_task("template_gid", "Template - [Business Name]")
 
         patches = _integration_patches()
         with (
@@ -428,8 +410,13 @@ class TestSalesConvertedToOnboarding:
             patches["save_session"] as MockSaveSession,
         ):
             _configure_standard_patches(
-                mock_ctx, mock_template,
-                MockCtx, MockTD, MockWaiter, MockSeeder, MockSaveSession,
+                mock_ctx,
+                mock_template,
+                MockCtx,
+                MockTD,
+                MockWaiter,
+                MockSeeder,
+                MockSaveSession,
             )
 
             engine = LifecycleEngine(mock_client, lifecycle_config)
@@ -466,20 +453,18 @@ class TestOnboardingConvertedToImplementation:
         # Products check needs a products field on business
         mock_business.products = ["Video Production"]
 
-        mock_template = _make_mock_task(
-            "impl_template", "Template - [Business Name]"
-        )
-        mock_play_template = _make_mock_task(
-            "play_template", "BOAB Template"
-        )
+        mock_template = _make_mock_task("impl_template", "Template - [Business Name]")
+        mock_play_template = _make_mock_task("play_template", "BOAB Template")
 
         # Need separate duplicate_async returns for process vs play vs entity
-        duplicate_results = iter([
-            _make_mock_task("new_process_gid", "Impl Process"),
-            _make_mock_task("play_gid", "BOAB - Test Business"),
-            _make_mock_task("asset_edit_gid", "AssetEdit - Test Business"),
-            _make_mock_task("videography_gid", "Videography - Test Business"),
-        ])
+        duplicate_results = iter(
+            [
+                _make_mock_task("new_process_gid", "Impl Process"),
+                _make_mock_task("play_gid", "BOAB - Test Business"),
+                _make_mock_task("asset_edit_gid", "AssetEdit - Test Business"),
+                _make_mock_task("videography_gid", "Videography - Test Business"),
+            ]
+        )
 
         async def _duplicate_side_effect(*args, **kwargs):
             return next(duplicate_results)
@@ -505,12 +490,14 @@ class TestOnboardingConvertedToImplementation:
             MockCtx.return_value = mock_ctx
 
             # TemplateDiscovery returns templates for each creation call
-            template_results = iter([
-                mock_template,       # process creation
-                mock_play_template,  # play creation
-                mock_template,       # entity creation (AssetEdit)
-                mock_template,       # videography (products_check)
-            ])
+            template_results = iter(
+                [
+                    mock_template,  # process creation
+                    mock_play_template,  # play creation
+                    mock_template,  # entity creation (AssetEdit)
+                    mock_template,  # videography (products_check)
+                ]
+            )
 
             async def _find_template(*args, **kwargs):
                 try:
@@ -538,9 +525,7 @@ class TestOnboardingConvertedToImplementation:
             MockSaveSession.return_value.__aenter__ = AsyncMock(
                 return_value=mock_session
             )
-            MockSaveSession.return_value.__aexit__ = AsyncMock(
-                return_value=None
-            )
+            MockSaveSession.return_value.__aexit__ = AsyncMock(return_value=None)
 
             engine = LifecycleEngine(mock_client, lifecycle_config)
             result = await engine.handle_transition_async(process, "converted")
@@ -586,8 +571,13 @@ class TestOnboardingConvertedToImplementation:
             patches["save_session"] as MockSaveSession,
         ):
             _configure_standard_patches(
-                mock_ctx, mock_template,
-                MockCtx, MockTD, MockWaiter, MockSeeder, MockSaveSession,
+                mock_ctx,
+                mock_template,
+                MockCtx,
+                MockTD,
+                MockWaiter,
+                MockSeeder,
+                MockSaveSession,
             )
 
             engine = LifecycleEngine(mock_client, lifecycle_config)
@@ -656,9 +646,7 @@ class TestOutreachConvertedToSales:
             name="Outreach - Test Business",
         )
 
-        mock_template = _make_mock_task(
-            "sales_template", "Template - [Business Name]"
-        )
+        mock_template = _make_mock_task("sales_template", "Template - [Business Name]")
 
         patches = _integration_patches()
         with (
@@ -669,8 +657,13 @@ class TestOutreachConvertedToSales:
             patches["save_session"] as MockSaveSession,
         ):
             _configure_standard_patches(
-                mock_ctx, mock_template,
-                MockCtx, MockTD, MockWaiter, MockSeeder, MockSaveSession,
+                mock_ctx,
+                mock_template,
+                MockCtx,
+                MockTD,
+                MockWaiter,
+                MockSeeder,
+                MockSaveSession,
             )
 
             engine = LifecycleEngine(mock_client, lifecycle_config)
@@ -720,14 +713,17 @@ class TestSalesDncCreateNew:
             patches["save_session"] as MockSaveSession,
         ):
             _configure_standard_patches(
-                mock_ctx, mock_template,
-                MockCtx, MockTD, MockWaiter, MockSeeder, MockSaveSession,
+                mock_ctx,
+                mock_template,
+                MockCtx,
+                MockTD,
+                MockWaiter,
+                MockSeeder,
+                MockSaveSession,
             )
 
             engine = LifecycleEngine(mock_client, lifecycle_config)
-            result = await engine.handle_transition_async(
-                process, "did_not_convert"
-            )
+            result = await engine.handle_transition_async(process, "did_not_convert")
 
         assert result.success is True
         assert "create_process" in result.actions_executed
@@ -796,9 +792,7 @@ class TestOnboardingDncReopen:
             MockCtx.return_value = mock_ctx
 
             engine = LifecycleEngine(mock_client, lifecycle_config)
-            result = await engine.handle_transition_async(
-                process, "did_not_convert"
-            )
+            result = await engine.handle_transition_async(process, "did_not_convert")
 
         assert result.success is True
         assert "reopen_process" in result.actions_executed
@@ -821,18 +815,14 @@ class TestOnboardingDncReopen:
         process.process_holder = MagicMock(gid="ph_gid")
 
         # Empty subtasks -> no candidate
-        mock_client.tasks.subtasks_async = MagicMock(
-            return_value=_make_paginator([])
-        )
+        mock_client.tasks.subtasks_async = MagicMock(return_value=_make_paginator([]))
 
         patches = _integration_patches()
         with patches["resolution_context"] as MockCtx:
             MockCtx.return_value = mock_ctx
 
             engine = LifecycleEngine(mock_client, lifecycle_config)
-            result = await engine.handle_transition_async(
-                process, "did_not_convert"
-            )
+            result = await engine.handle_transition_async(process, "did_not_convert")
 
         # Reopen fails but overall result is still success
         # (reopen failure is a warning, not a hard failure)
@@ -874,14 +864,17 @@ class TestImplementationDncCreateNew:
             patches["save_session"] as MockSaveSession,
         ):
             _configure_standard_patches(
-                mock_ctx, mock_template,
-                MockCtx, MockTD, MockWaiter, MockSeeder, MockSaveSession,
+                mock_ctx,
+                mock_template,
+                MockCtx,
+                MockTD,
+                MockWaiter,
+                MockSeeder,
+                MockSaveSession,
             )
 
             engine = LifecycleEngine(mock_client, lifecycle_config)
-            result = await engine.handle_transition_async(
-                process, "did_not_convert"
-            )
+            result = await engine.handle_transition_async(process, "did_not_convert")
 
         assert result.success is True
         assert "create_process" in result.actions_executed
@@ -912,9 +905,7 @@ class TestOutreachDncDeferred:
         )
 
         engine = LifecycleEngine(mock_client, lifecycle_config)
-        result = await engine.handle_transition_async(
-            process, "did_not_convert"
-        )
+        result = await engine.handle_transition_async(process, "did_not_convert")
 
         assert result.success is True
         assert "dnc_deferred" in result.actions_executed
@@ -984,7 +975,10 @@ class TestEdgeCases:
 
         # Creation failure is a hard failure
         assert result.success is False
-        assert "creation failed" in result.error.lower() or "asana api" in result.error.lower()
+        assert (
+            "creation failed" in result.error.lower()
+            or "asana api" in result.error.lower()
+        )
 
     @pytest.mark.asyncio
     async def test_init_action_failure_is_warning_not_hard_failure(
@@ -1016,8 +1010,13 @@ class TestEdgeCases:
             patches["save_session"] as MockSaveSession,
         ):
             _configure_standard_patches(
-                mock_ctx, mock_template,
-                MockCtx, MockTD, MockWaiter, MockSeeder, MockSaveSession,
+                mock_ctx,
+                mock_template,
+                MockCtx,
+                MockTD,
+                MockWaiter,
+                MockSeeder,
+                MockSaveSession,
             )
 
             engine = LifecycleEngine(mock_client, lifecycle_config)
@@ -1059,7 +1058,10 @@ class TestEdgeCases:
             stage.validation.pre_transition.mode = original_mode
 
         assert result.success is False
-        assert "validation" in result.rule_id.lower() or "validation" in (result.error or "").lower()
+        assert (
+            "validation" in result.rule_id.lower()
+            or "validation" in (result.error or "").lower()
+        )
 
     @pytest.mark.asyncio
     async def test_cascade_sections_updates_entities(
@@ -1100,8 +1102,13 @@ class TestEdgeCases:
             patches["save_session"] as MockSaveSession,
         ):
             _configure_standard_patches(
-                mock_ctx, mock_template,
-                MockCtx, MockTD, MockWaiter, MockSeeder, MockSaveSession,
+                mock_ctx,
+                mock_template,
+                MockCtx,
+                MockTD,
+                MockWaiter,
+                MockSeeder,
+                MockSaveSession,
             )
 
             engine = LifecycleEngine(mock_client, lifecycle_config)
@@ -1138,8 +1145,13 @@ class TestEdgeCases:
             patches["save_session"] as MockSaveSession,
         ):
             _configure_standard_patches(
-                mock_ctx, mock_template,
-                MockCtx, MockTD, MockWaiter, MockSeeder, MockSaveSession,
+                mock_ctx,
+                mock_template,
+                MockCtx,
+                MockTD,
+                MockWaiter,
+                MockSeeder,
+                MockSaveSession,
             )
 
             engine = LifecycleEngine(mock_client, lifecycle_config)

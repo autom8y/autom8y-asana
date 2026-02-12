@@ -148,9 +148,7 @@ class DependencyShortcutStrategy(ResolutionStrategy):
             return None
 
         # Fetch dependencies for the source entity
-        deps = await context.client.tasks.dependencies_async(
-            from_entity.gid
-        ).collect()
+        deps = await context.client.tasks.dependencies_async(from_entity.gid).collect()
         budget.consume(1)
 
         # Check each dependency for target type match
@@ -201,9 +199,7 @@ class HierarchyTraversalStrategy(ResolutionStrategy):
         from autom8_asana.models.business.business import Business
 
         # Step 1: Traverse up to Business
-        business = await self._traverse_to_business_async(
-            from_entity, context, budget
-        )
+        business = await self._traverse_to_business_async(from_entity, context, budget)
         if business is None:
             return None
 

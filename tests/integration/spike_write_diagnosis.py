@@ -7,6 +7,7 @@ Leaves fields set for manual verification in Asana UI.
 
 Run: ASANA_PAT=... .venv/bin/python tests/integration/spike_write_diagnosis.py
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -25,7 +26,8 @@ if not ASANA_PAT:
     sys.exit(1)
 
 FULL_OPT_FIELDS = [
-    "name", "notes",
+    "name",
+    "notes",
     "custom_fields",
     "custom_fields.name",
     "custom_fields.gid",
@@ -86,7 +88,9 @@ async def main():
 
     client_0 = AsanaClient(token=ASANA_PAT)
     task_data = await client_0.tasks.get_async(
-        TARGET_GID, raw=True, opt_fields=FULL_OPT_FIELDS,
+        TARGET_GID,
+        raw=True,
+        opt_fields=FULL_OPT_FIELDS,
     )
 
     # Find enum and multi_enum fields with their options
@@ -97,7 +101,11 @@ async def main():
         subtype = cf.get("resource_subtype", "")
         if subtype == "enum":
             options = [
-                {"name": o.get("name"), "gid": o.get("gid"), "enabled": o.get("enabled", True)}
+                {
+                    "name": o.get("name"),
+                    "gid": o.get("gid"),
+                    "enabled": o.get("enabled", True),
+                }
                 for o in (cf.get("enum_options") or [])
                 if o.get("name")
             ]
@@ -111,7 +119,11 @@ async def main():
                     print(f"    ... and {len(enabled) - 8} more")
         elif subtype == "multi_enum":
             options = [
-                {"name": o.get("name"), "gid": o.get("gid"), "enabled": o.get("enabled", True)}
+                {
+                    "name": o.get("name"),
+                    "gid": o.get("gid"),
+                    "enabled": o.get("enabled", True),
+                }
                 for o in (cf.get("enum_options") or [])
                 if o.get("name")
             ]
@@ -168,8 +180,13 @@ async def main():
     }
 
     INTEREST = [
-        "Asset ID", "Campaign ID", "Weekly Ad Spend", "Offer Headline",
-        "Internal Notes", enum_field, multi_field,
+        "Asset ID",
+        "Campaign ID",
+        "Weekly Ad Spend",
+        "Offer Headline",
+        "Internal Notes",
+        enum_field,
+        multi_field,
     ]
 
     # =========================================================
@@ -181,7 +198,9 @@ async def main():
 
     client_a = AsanaClient(token=ASANA_PAT)
     baseline = await client_a.tasks.get_async(
-        TARGET_GID, raw=True, opt_fields=FULL_OPT_FIELDS,
+        TARGET_GID,
+        raw=True,
+        opt_fields=FULL_OPT_FIELDS,
     )
     dump_fields(baseline, "BASELINE", INTEREST)
 
@@ -225,11 +244,21 @@ async def main():
         include_updated=True,
     )
 
-    print(f"\n  Result: {result.fields_written} written, {result.fields_skipped} skipped")
+    print(
+        f"\n  Result: {result.fields_written} written, {result.fields_skipped} skipped"
+    )
     for rf in result.field_results:
-        icon = "OK" if rf.status == "resolved" else "SKIP" if rf.status == "skipped" else "ERR"
+        icon = (
+            "OK"
+            if rf.status == "resolved"
+            else "SKIP"
+            if rf.status == "skipped"
+            else "ERR"
+        )
         gid_str = rf.gid or "(core)"
-        print(f"    [{icon:4s}] {rf.input_name:25s} -> {rf.matched_name!r:30s} gid={gid_str} val={rf.value!r}")
+        print(
+            f"    [{icon:4s}] {rf.input_name:25s} -> {rf.matched_name!r:30s} gid={gid_str} val={rf.value!r}"
+        )
         if rf.error:
             print(f"           ERROR: {rf.error}")
         if rf.suggestions:
@@ -251,7 +280,9 @@ async def main():
 
     client_c = AsanaClient(token=ASANA_PAT)
     verify = await client_c.tasks.get_async(
-        TARGET_GID, raw=True, opt_fields=FULL_OPT_FIELDS,
+        TARGET_GID,
+        raw=True,
+        opt_fields=FULL_OPT_FIELDS,
     )
     dump_fields(verify, "POST-WRITE", INTEREST)
 
@@ -269,16 +300,18 @@ async def main():
             f"https://app.asana.com/api/1.0/tasks/{TARGET_GID}",
             headers={"Authorization": f"Bearer {ASANA_PAT}"},
             params={
-                "opt_fields": ",".join([
-                    "name",
-                    "custom_fields.name",
-                    "custom_fields.text_value",
-                    "custom_fields.number_value",
-                    "custom_fields.resource_subtype",
-                    "custom_fields.display_value",
-                    "custom_fields.enum_value",
-                    "custom_fields.multi_enum_values",
-                ])
+                "opt_fields": ",".join(
+                    [
+                        "name",
+                        "custom_fields.name",
+                        "custom_fields.text_value",
+                        "custom_fields.number_value",
+                        "custom_fields.resource_subtype",
+                        "custom_fields.display_value",
+                        "custom_fields.enum_value",
+                        "custom_fields.multi_enum_values",
+                    ]
+                )
             },
         )
         print(f"  HTTP {resp.status_code}")
@@ -309,7 +342,7 @@ async def main():
     after = extract_cf_map(verify)
 
     print(f"\n  {'Field':30s}  {'BEFORE':35s}  {'AFTER':35s}  CHANGED")
-    print(f"  {'-'*30}  {'-'*35}  {'-'*35}  -------")
+    print(f"  {'-' * 30}  {'-' * 35}  {'-' * 35}  -------")
     for field in INTEREST:
         b = repr(before.get(field))
         a = repr(after.get(field))
@@ -324,10 +357,7 @@ async def main():
     # Verdict
     # =========================================================
     print("\n" + "=" * 70)
-    all_changed = all(
-        before.get(f) != after.get(f)
-        for f in INTEREST
-    )
+    all_changed = all(before.get(f) != after.get(f) for f in INTEREST)
     if all_changed and result.fields_written == len(fields_to_write):
         print("VERDICT: ALL FIELD TYPES WRITE CORRECTLY")
         print(f"  text:       OK (4 fields)")

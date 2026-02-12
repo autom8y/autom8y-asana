@@ -31,9 +31,7 @@ def config() -> AsanaConfig:
 
 
 @pytest.fixture
-async def client(
-    config: AsanaConfig, auth_provider, logger
-) -> AsanaClient:
+async def client(config: AsanaConfig, auth_provider, logger) -> AsanaClient:
     """Create AsanaClient for integration testing."""
     client = AsanaClient(
         token="test-token",

@@ -192,9 +192,7 @@ class TestFieldWriteService:
         assert result.fields_written == 3
         assert result.fields_skipped == 1
         # Check that the skipped field is reported correctly
-        skipped = [
-            rf for rf in result.field_results if rf.status == "skipped"
-        ]
+        skipped = [rf for rf in result.field_results if rf.status == "skipped"]
         assert len(skipped) == 1
         assert skipped[0].input_name == "nonexistent_field"
 
@@ -310,9 +308,7 @@ class TestFieldWriteService:
         }
         client = _make_mock_client()
         # First call: initial fetch; second call: re-fetch
-        client.tasks.get_async = AsyncMock(
-            side_effect=[MOCK_TASK_DATA, refetch_data]
-        )
+        client.tasks.get_async = AsyncMock(side_effect=[MOCK_TASK_DATA, refetch_data])
         registry = _make_write_registry()
         service = FieldWriteService(client, registry)
 

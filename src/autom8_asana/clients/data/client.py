@@ -332,9 +332,7 @@ class DataServiceClient:
         make_request: Callable[[], Awaitable[httpx.Response]],
         *,
         on_retry: Callable[[int, int, int | None], Awaitable[None]] | None = None,
-        on_timeout_exhausted: Callable[
-            [httpx.TimeoutException, int], Awaitable[None]
-        ],
+        on_timeout_exhausted: Callable[[httpx.TimeoutException, int], Awaitable[None]],
         on_http_error: Callable[[httpx.HTTPError, int], Awaitable[None]],
     ) -> tuple[httpx.Response, int]:
         """Execute an HTTP request with retry on transient failures.
@@ -381,9 +379,7 @@ class DataServiceClient:
                         # Extract Retry-After header for 429 responses
                         retry_after: int | None = None
                         if status == 429:
-                            retry_after_header = response.headers.get(
-                                "Retry-After"
-                            )
+                            retry_after_header = response.headers.get("Retry-After")
                             if retry_after_header:
                                 try:
                                     retry_after = int(retry_after_header)
@@ -639,9 +635,7 @@ class DataServiceClient:
 
         Delegates to _metrics.emit_metric with instance state.
         """
-        _metrics_mod.emit_metric(
-            self._metrics_hook, name, value, tags, self._log
-        )
+        _metrics_mod.emit_metric(self._metrics_hook, name, value, tags, self._log)
 
     # --- Cache Operations (Story 1.8) ---
     # Delegated to clients/data/_cache.py module-level functions.
@@ -1290,9 +1284,7 @@ class DataServiceClient:
                 reason="timeout",
             ) from e
 
-        async def _on_http_error(
-            e: httpx.HTTPError, attempt: int
-        ) -> None:
+        async def _on_http_error(e: httpx.HTTPError, attempt: int) -> None:
             """Handle non-retryable HTTP errors for insights."""
             elapsed_ms = (time.monotonic() - start_time) * 1000
 
@@ -1438,9 +1430,7 @@ class DataServiceClient:
 
         Delegates to _response.parse_success_response.
         """
-        return _response_mod.parse_success_response(
-            response, request_id, self._log
-        )
+        return _response_mod.parse_success_response(response, request_id, self._log)
 
     # --- Export API (TDD-CONV-AUDIT-001 Section 3.5) ---
 
@@ -1506,9 +1496,7 @@ class DataServiceClient:
 
         start_time = time.monotonic()
 
-        async def _on_export_timeout(
-            e: httpx.TimeoutException, attempt: int
-        ) -> None:
+        async def _on_export_timeout(e: httpx.TimeoutException, attempt: int) -> None:
             """Handle exhausted timeout retries for export."""
             await self._circuit_breaker.record_failure(e)
             raise ExportError(
@@ -1517,9 +1505,7 @@ class DataServiceClient:
                 reason="timeout",
             ) from e
 
-        async def _on_export_http_error(
-            e: httpx.HTTPError, attempt: int
-        ) -> None:
+        async def _on_export_http_error(e: httpx.HTTPError, attempt: int) -> None:
             """Handle non-retryable HTTP errors for export."""
             await self._circuit_breaker.record_failure(e)
             raise ExportError(

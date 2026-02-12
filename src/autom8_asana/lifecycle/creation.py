@@ -128,7 +128,9 @@ class EntityCreationService:
 
             # 2. Duplicate check (ProcessType + Unit in ProcessHolder)
             existing_gid = await self._check_process_duplicate_async(
-                ctx, source_process, stage_config.name,
+                ctx,
+                source_process,
+                stage_config.name,
             )
             if existing_gid:
                 logger.info(
@@ -152,16 +154,15 @@ class EntityCreationService:
             # 4. Create (template or blank fallback)
             new_name = self._generate_name(
                 template.name if template else None,
-                business, unit,
+                business,
+                unit,
             )
 
             if template:
                 # Count subtasks before duplication (for waiter)
-                template_subtasks = (
-                    await self._client.tasks.subtasks_async(
-                        template.gid, opt_fields=["gid"]
-                    ).collect()
-                )
+                template_subtasks = await self._client.tasks.subtasks_async(
+                    template.gid, opt_fields=["gid"]
+                ).collect()
                 expected_subtask_count = len(template_subtasks)
 
                 new_task = await self._client.tasks.duplicate_async(
@@ -188,16 +189,23 @@ class EntityCreationService:
             # Add to target project
             if stage_config.project_gid:
                 await self._client.tasks.add_to_project_async(
-                    new_task.gid, stage_config.project_gid,
+                    new_task.gid,
+                    stage_config.project_gid,
                 )
 
             # 5. Configure
-            configure_warnings, fields_seeded, fields_skipped = (
-                await self._configure_async(
-                    new_task, stage_config, ctx,
-                    source_process, business, unit,
-                    expected_subtask_count,
-                )
+            (
+                configure_warnings,
+                fields_seeded,
+                fields_skipped,
+            ) = await self._configure_async(
+                new_task,
+                stage_config,
+                ctx,
+                source_process,
+                business,
+                unit,
+                expected_subtask_count,
             )
             warnings.extend(configure_warnings)
 
@@ -212,7 +220,9 @@ class EntityCreationService:
                 warnings=warnings,
             )
 
-        except Exception as e:  # BROAD-CATCH: boundary -- top-level creation must return result
+        except (
+            Exception
+        ) as e:  # BROAD-CATCH: boundary -- top-level creation must return result
             logger.error(
                 "lifecycle_creation_error",
                 stage=stage_config.name,
@@ -263,15 +273,14 @@ class EntityCreationService:
 
             new_name = self._generate_name(
                 template.name if template else None,
-                business, unit,
+                business,
+                unit,
             )
 
             if template:
-                template_subtasks = (
-                    await self._client.tasks.subtasks_async(
-                        template.gid, opt_fields=["gid"]
-                    ).collect()
-                )
+                template_subtasks = await self._client.tasks.subtasks_async(
+                    template.gid, opt_fields=["gid"]
+                ).collect()
                 new_task = await self._client.tasks.duplicate_async(
                     template.gid,
                     name=new_name,
@@ -285,8 +294,7 @@ class EntityCreationService:
                     holder_type=holder_type,
                 )
                 warnings.append(
-                    f"Template not found in project {project_gid}; "
-                    f"created blank task"
+                    f"Template not found in project {project_gid}; created blank task"
                 )
                 new_task = await self._client.tasks.create_async(
                     name=new_name,
@@ -295,16 +303,23 @@ class EntityCreationService:
 
             if project_gid:
                 await self._client.tasks.add_to_project_async(
-                    new_task.gid, project_gid,
+                    new_task.gid,
+                    project_gid,
                 )
 
-            configure_warnings, fields_seeded, fields_skipped = (
-                await self._configure_async(
-                    new_task, stage_config, ctx,
-                    source_process, business, unit,
-                    expected_subtask_count,
-                    holder_type=holder_type,
-                )
+            (
+                configure_warnings,
+                fields_seeded,
+                fields_skipped,
+            ) = await self._configure_async(
+                new_task,
+                stage_config,
+                ctx,
+                source_process,
+                business,
+                unit,
+                expected_subtask_count,
+                holder_type=holder_type,
             )
             warnings.extend(configure_warnings)
 
@@ -317,7 +332,9 @@ class EntityCreationService:
                 warnings=warnings,
             )
 
-        except Exception as e:  # BROAD-CATCH: boundary -- entity creation must return result
+        except (
+            Exception
+        ) as e:  # BROAD-CATCH: boundary -- entity creation must return result
             logger.error(
                 "lifecycle_entity_creation_error",
                 holder_type=holder_type,
@@ -359,7 +376,8 @@ class EntityCreationService:
         # a. Section placement
         if stage_config.target_section and stage_config.project_gid:
             section_ok = await self._move_to_section_async(
-                new_task.gid, stage_config.project_gid,
+                new_task.gid,
+                stage_config.project_gid,
                 stage_config.target_section,
             )
             if not section_ok:
@@ -375,12 +393,14 @@ class EntityCreationService:
             )
             try:
                 await self._client.tasks.update_async(
-                    new_task.gid, due_on=due.isoformat(),
+                    new_task.gid,
+                    due_on=due.isoformat(),
                 )
             except Exception as e:  # BROAD-CATCH: non-fatal config step
                 logger.warning(
                     "lifecycle_set_due_date_failed",
-                    task_gid=new_task.gid, error=str(e),
+                    task_gid=new_task.gid,
+                    error=str(e),
                 )
                 warnings.append(f"Due date set failed: {e}")
 
@@ -409,31 +429,39 @@ class EntityCreationService:
             fields_seeded = seeding_result.fields_seeded
             fields_skipped = seeding_result.fields_skipped
             warnings.extend(seeding_result.warnings)
-        except Exception as e:  # BROAD-CATCH: non-fatal -- seeding failure does not block creation
+        except (
+            Exception
+        ) as e:  # BROAD-CATCH: non-fatal -- seeding failure does not block creation
             logger.warning(
                 "lifecycle_field_seeding_failed",
-                task_gid=new_task.gid, error=str(e),
+                task_gid=new_task.gid,
+                error=str(e),
             )
             warnings.append(f"Field seeding failed: {e}")
 
         # e. Hierarchy placement
         holder = await self._resolve_holder_for_placement(
-            ctx, holder_type, source_process,
+            ctx,
+            holder_type,
+            source_process,
         )
         if holder is not None:
             try:
                 async with SaveSession(
-                    self._client, automation_enabled=False,
+                    self._client,
+                    automation_enabled=False,
                 ) as session:
                     session.set_parent(
-                        new_task, holder,
+                        new_task,
+                        holder,
                         insert_after=source_process,
                     )
                     await session.commit_async()
             except Exception as e:  # BROAD-CATCH: non-fatal hierarchy step
                 logger.warning(
                     "lifecycle_hierarchy_placement_failed",
-                    task_gid=new_task.gid, error=str(e),
+                    task_gid=new_task.gid,
+                    error=str(e),
                 )
                 warnings.append(f"Hierarchy placement failed: {e}")
         else:
@@ -441,7 +469,10 @@ class EntityCreationService:
 
         # f. Assignee resolution
         assignee_warning = await self._set_assignee_async(
-            new_task, source_process, unit, business,
+            new_task,
+            source_process,
+            unit,
+            business,
             stage_config.assignee,
         )
         if assignee_warning:
@@ -474,8 +505,11 @@ class EntityCreationService:
             subtasks = await self._client.tasks.subtasks_async(
                 holder.gid,
                 opt_fields=[
-                    "name", "completed", "custom_fields",
-                    "custom_fields.name", "custom_fields.display_value",
+                    "name",
+                    "completed",
+                    "custom_fields",
+                    "custom_fields.name",
+                    "custom_fields.display_value",
                 ],
             ).collect()
 
@@ -486,7 +520,9 @@ class EntityCreationService:
                 if self._matches_process_type(task, target_stage_name):
                     return task.gid
 
-        except Exception as e:  # BROAD-CATCH: non-fatal -- duplicate check failure means create new
+        except (
+            Exception
+        ) as e:  # BROAD-CATCH: non-fatal -- duplicate check failure means create new
             logger.warning(
                 "lifecycle_duplicate_check_failed",
                 error=str(e),
@@ -499,7 +535,10 @@ class EntityCreationService:
     # ------------------------------------------------------------------
 
     async def _move_to_section_async(
-        self, task_gid: str, project_gid: str, section_name: str,
+        self,
+        task_gid: str,
+        project_gid: str,
+        section_name: str,
     ) -> bool:
         """Move task to named section (case-insensitive).
 
@@ -511,14 +550,16 @@ class EntityCreationService:
             ).collect()
             target = next(
                 (
-                    s for s in sections
+                    s
+                    for s in sections
                     if s.name and s.name.lower() == section_name.lower()
                 ),
                 None,
             )
             if target:
                 await self._client.sections.add_task_async(
-                    target.gid, task=task_gid,
+                    target.gid,
+                    task=task_gid,
                 )
                 return True
             else:
@@ -531,7 +572,9 @@ class EntityCreationService:
         except Exception as e:  # BROAD-CATCH: non-fatal config step
             logger.warning(
                 "lifecycle_section_placement_failed",
-                task_gid=task_gid, section=section_name, error=str(e),
+                task_gid=task_gid,
+                section=section_name,
+                error=str(e),
             )
             return False
 
@@ -563,9 +606,7 @@ class EntityCreationService:
 
         # Map holder_type string to class for non-process entities
         holder_class_map: dict[str, str] = {
-            "dna_holder": (
-                "autom8_asana.models.business.dna.DNAHolder"
-            ),
+            "dna_holder": ("autom8_asana.models.business.dna.DNAHolder"),
             "asset_edit_holder": (
                 "autom8_asana.models.business.asset_edit.AssetEditHolder"
             ),
@@ -616,13 +657,17 @@ class EntityCreationService:
 
         if business_name:
             result = re.sub(
-                r"\[business\s*name\]", business_name,
-                result, flags=re.IGNORECASE,
+                r"\[business\s*name\]",
+                business_name,
+                result,
+                flags=re.IGNORECASE,
             )
         if unit_name:
             result = re.sub(
-                r"\[(business\s*)?unit\s*name\]", unit_name,
-                result, flags=re.IGNORECASE,
+                r"\[(business\s*)?unit\s*name\]",
+                unit_name,
+                result,
+                flags=re.IGNORECASE,
             )
         return result
 
@@ -654,9 +699,7 @@ class EntityCreationService:
 
         # 1. Stage-specific field from assignee_source
         if assignee_config.assignee_source:
-            attr_name = (
-                assignee_config.assignee_source.lower().replace(" ", "_")
-            )
+            attr_name = assignee_config.assignee_source.lower().replace(" ", "_")
             # Try on source process first
             source_field = getattr(source_process, attr_name, None)
             if source_field:
@@ -683,13 +726,15 @@ class EntityCreationService:
         if assignee_gid:
             try:
                 await self._client.tasks.set_assignee_async(
-                    new_task.gid, assignee_gid,
+                    new_task.gid,
+                    assignee_gid,
                 )
                 return None  # success, no warning
             except Exception as e:  # BROAD-CATCH: non-fatal
                 logger.warning(
                     "lifecycle_set_assignee_failed",
-                    task_gid=new_task.gid, error=str(e),
+                    task_gid=new_task.gid,
+                    error=str(e),
                 )
                 return f"Set assignee failed: {e}"
         else:
@@ -731,9 +776,7 @@ class EntityCreationService:
         cfs = getattr(task, "custom_fields", None) or []
         for cf in cfs:
             name = (
-                cf.get("name", "")
-                if isinstance(cf, dict)
-                else getattr(cf, "name", "")
+                cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
             )
             if name.lower() in ("process type", "processtype"):
                 display = (

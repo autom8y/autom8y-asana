@@ -28,9 +28,7 @@ async def test_dispatch_section_changed(mock_client, lifecycle_config):
     # Mock client.tasks.get_async
     mock_task = MagicMock()
     mock_task.gid = "12345"
-    mock_task.model_dump = MagicMock(
-        return_value={"gid": "12345", "name": "Test"}
-    )
+    mock_task.model_dump = MagicMock(return_value={"gid": "12345", "name": "Test"})
     mock_client.tasks.get_async = AsyncMock(return_value=mock_task)
 
     # Create trigger

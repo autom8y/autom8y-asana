@@ -147,13 +147,11 @@ class CommentHandler(InitActionHandler):
                     source_project_gid = p["gid"]
                     break
 
-        source_link = (
-            f"https://app.asana.com/0/{source_project_gid}/{source.gid}"
-        )
+        source_link = f"https://app.asana.com/0/{source_project_gid}/{source.gid}"
 
         return (
             f"Pipeline Conversion\n\n"
-            f'This process was automatically created when '
+            f"This process was automatically created when "
             f'"{source_name}" was converted on {today}.\n\n'
             f"Source: {source_link}\n"
             f"Business: {business_name}"
@@ -199,16 +197,12 @@ class PlayCreationHandler(InitActionHandler):
 
                 # Check if any dependency is in the play project
                 for dep in dependencies:
-                    dep_gid = (
-                        dep.gid if hasattr(dep, "gid") else dep.get("gid")
-                    )
+                    dep_gid = dep.gid if hasattr(dep, "gid") else dep.get("gid")
                     if dep_gid:
                         dep_task = await self._client.tasks.get_async(
                             dep_gid, opt_fields=["memberships"]
                         )
-                        memberships = (
-                            getattr(dep_task, "memberships", []) or []
-                        )
+                        memberships = getattr(dep_task, "memberships", []) or []
                         for membership in memberships:
                             proj = membership.get("project", {})
                             if proj.get("gid") == action_config.project_gid:
@@ -217,9 +211,7 @@ class PlayCreationHandler(InitActionHandler):
                                     created_gid=created_entity_gid,
                                     play_gid=dep_gid,
                                 )
-                                return CreationResult(
-                                    success=True, entity_gid=dep_gid
-                                )
+                                return CreationResult(success=True, entity_gid=dep_gid)
 
             # Reopen-or-create: check for recently completed plays
             if action_config.reopen_if_completed_within_days is not None:
@@ -244,10 +236,7 @@ class PlayCreationHandler(InitActionHandler):
                 )
                 return CreationResult(
                     success=False,
-                    error=(
-                        f"No play template in project "
-                        f"{action_config.project_gid}"
-                    ),
+                    error=(f"No play template in project {action_config.project_gid}"),
                 )
 
             # Get business for name generation
@@ -317,9 +306,7 @@ class PlayCreationHandler(InitActionHandler):
                 completed_since=cutoff.isoformat(),
                 opt_fields=["gid", "completed", "completed_at"],
             )
-            task_list = (
-                await tasks.collect() if hasattr(tasks, "collect") else tasks
-            )
+            task_list = await tasks.collect() if hasattr(tasks, "collect") else tasks
 
             if not task_list:
                 return None
@@ -327,18 +314,14 @@ class PlayCreationHandler(InitActionHandler):
             # Take the first (most recent) completed task
             candidate = task_list[0]
             candidate_gid = (
-                candidate.gid
-                if hasattr(candidate, "gid")
-                else candidate.get("gid")
+                candidate.gid if hasattr(candidate, "gid") else candidate.get("gid")
             )
 
             if not candidate_gid:
                 return None
 
             # Reopen by marking incomplete
-            await self._client.tasks.update_async(
-                candidate_gid, completed=False
-            )
+            await self._client.tasks.update_async(candidate_gid, completed=False)
 
             # Wire as dependency
             await self._client.tasks.add_dependencies_async(
@@ -387,9 +370,7 @@ class EntityCreationHandler(InitActionHandler):
         try:
             from autom8_asana.lifecycle.creation import EntityCreationService
 
-            creation_service = EntityCreationService(
-                self._client, self._config
-            )
+            creation_service = EntityCreationService(self._client, self._config)
 
             project_gid = action_config.project_gid
             holder_type = action_config.holder_type or "asset_edit_holder"
@@ -407,9 +388,7 @@ class EntityCreationHandler(InitActionHandler):
                 )
                 return CreationResult(
                     success=False,
-                    error=(
-                        f"No stage config for '{source_stage_name}'"
-                    ),
+                    error=(f"No stage config for '{source_stage_name}'"),
                 )
 
             result = await creation_service.create_entity_async(
@@ -472,9 +451,7 @@ class ProductsCheckHandler(InitActionHandler):
             # Products can be a list of strings or a single string
             if isinstance(products, list):
                 for product in products:
-                    if fnmatch.fnmatch(
-                        str(product).lower(), pattern.lower()
-                    ):
+                    if fnmatch.fnmatch(str(product).lower(), pattern.lower()):
                         matched = True
                         break
             elif isinstance(products, str):
@@ -492,13 +469,9 @@ class ProductsCheckHandler(InitActionHandler):
             # Match found: create entity via EntityCreationService
             from autom8_asana.lifecycle.creation import EntityCreationService
 
-            creation_service = EntityCreationService(
-                self._client, self._config
-            )
+            creation_service = EntityCreationService(self._client, self._config)
 
-            project_gid = (
-                action_config.project_gid or VIDEOGRAPHY_HOLDER_PROJECT
-            )
+            project_gid = action_config.project_gid or VIDEOGRAPHY_HOLDER_PROJECT
             holder_type = action_config.holder_type or "videography_holder"
 
             source_stage_name = source_process.process_type.value
@@ -511,9 +484,7 @@ class ProductsCheckHandler(InitActionHandler):
                 )
                 return CreationResult(
                     success=False,
-                    error=(
-                        f"No stage config for '{source_stage_name}'"
-                    ),
+                    error=(f"No stage config for '{source_stage_name}'"),
                 )
 
             result = await creation_service.create_entity_async(

@@ -22,6 +22,7 @@ from autom8_asana.automation.workflows.base import WorkflowResult
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_workflow_result(
     *,
     total: int = 10,
@@ -54,9 +55,7 @@ def _setup_mocks():
     """Create standard mock objects for handler tests."""
     mock_workflow = MagicMock()
     mock_workflow.validate_async = AsyncMock(return_value=[])
-    mock_workflow.execute_async = AsyncMock(
-        return_value=_make_workflow_result()
-    )
+    mock_workflow.execute_async = AsyncMock(return_value=_make_workflow_result())
 
     mock_asana_client = MagicMock()
     mock_asana_client.attachments = MagicMock()
@@ -71,6 +70,7 @@ def _setup_mocks():
 # ---------------------------------------------------------------------------
 # TestHandlerModule -- AC-W05.1
 # ---------------------------------------------------------------------------
+
 
 class TestHandlerModule:
     """Module is importable and exposes the expected handler function."""
@@ -116,6 +116,7 @@ class TestHandlerModule:
 # TestHandlerRegistration -- AC-W05.3
 # ---------------------------------------------------------------------------
 
+
 class TestHandlerRegistration:
     """Handler is registered in lambda_handlers.__init__."""
 
@@ -143,12 +144,14 @@ class TestHandlerRegistration:
 # TestHandlerValidation -- AC-W05.5
 # ---------------------------------------------------------------------------
 
+
 class TestHandlerValidation:
     """When workflow.validate_async() returns errors, handler returns skipped."""
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     def test_validation_failure_returns_skipped(
-        self, mock_emit: MagicMock,
+        self,
+        mock_emit: MagicMock,
     ) -> None:
         """Validation errors produce status='skipped' with errors list."""
         from autom8_asana.lambda_handlers.insights_export import handler
@@ -183,7 +186,8 @@ class TestHandlerValidation:
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     def test_validation_success_proceeds_to_execute(
-        self, mock_emit: MagicMock,
+        self,
+        mock_emit: MagicMock,
     ) -> None:
         """Empty validation errors proceed to workflow execution."""
         from autom8_asana.lambda_handlers.insights_export import handler
@@ -215,6 +219,7 @@ class TestHandlerValidation:
 # ---------------------------------------------------------------------------
 # TestHandlerExecution -- AC-W05.9
 # ---------------------------------------------------------------------------
+
 
 class TestHandlerExecution:
     """Handler returns structured JSON with all required fields from WorkflowResult."""
@@ -269,7 +274,8 @@ class TestHandlerExecution:
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     def test_params_built_from_event_overrides(
-        self, mock_emit: MagicMock,
+        self,
+        mock_emit: MagicMock,
     ) -> None:
         """Event overrides are passed through to workflow params."""
         from autom8_asana.lambda_handlers.insights_export import handler
@@ -305,7 +311,8 @@ class TestHandlerExecution:
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     def test_params_use_defaults_when_event_empty(
-        self, mock_emit: MagicMock,
+        self,
+        mock_emit: MagicMock,
     ) -> None:
         """Empty event uses defaults from handler config."""
         from autom8_asana.lambda_handlers.insights_export import handler
@@ -339,6 +346,7 @@ class TestHandlerExecution:
 # TestHandlerError -- AC-W05.2
 # ---------------------------------------------------------------------------
 
+
 class TestHandlerError:
     """When execution raises, handler returns statusCode 500 with error details."""
 
@@ -361,7 +369,8 @@ class TestHandlerError:
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     def test_error_response_includes_error_type(
-        self, mock_emit: MagicMock,
+        self,
+        mock_emit: MagicMock,
     ) -> None:
         """Error response includes the exception class name."""
         from autom8_asana.lambda_handlers.insights_export import handler

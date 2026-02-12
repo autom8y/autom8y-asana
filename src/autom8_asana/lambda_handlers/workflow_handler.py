@@ -76,7 +76,8 @@ def create_workflow_handler(
         return asyncio.run(_handler_async(event, context))
 
     async def _handler_async(
-        event: dict[str, Any], context: Any,
+        event: dict[str, Any],
+        context: Any,
     ) -> dict[str, Any]:
         try:
             return await _execute(event)
@@ -133,7 +134,8 @@ def create_workflow_handler(
             return await _validate_and_run(workflow, params)
 
     async def _validate_and_run(
-        workflow: WorkflowAction, params: dict[str, Any],
+        workflow: WorkflowAction,
+        params: dict[str, Any],
     ) -> dict[str, Any]:
         # Pre-flight validation
         validation_errors = await workflow.validate_async()

@@ -159,9 +159,7 @@ class LifecycleConfigModel(BaseModel):
                     f"'{stage.transitions.did_not_convert}' is not a defined stage"
                 )
         if errors:
-            raise ValueError(
-                f"DAG integrity check failed: {'; '.join(errors)}"
-            )
+            raise ValueError(f"DAG integrity check failed: {'; '.join(errors)}")
         return self
 
 
@@ -239,9 +237,7 @@ class LifecycleConfig:
             return None
         return self._model.stages.get(name)
 
-    def get_target_stage(
-        self, source_stage: str, outcome: str
-    ) -> StageConfig | None:
+    def get_target_stage(self, source_stage: str, outcome: str) -> StageConfig | None:
         """Get target stage for a transition.
 
         Args:

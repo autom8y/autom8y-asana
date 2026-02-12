@@ -94,28 +94,28 @@ def compose_report(data: InsightsReportData) -> str:
     for table_name in TABLE_ORDER:
         result = data.table_results.get(table_name)
         if result is None:
-            sections.append(_format_error_section(
-                table_name, "missing", "Table result not available"
-            ))
+            sections.append(
+                _format_error_section(
+                    table_name, "missing", "Table result not available"
+                )
+            )
         elif not result.success:
-            sections.append(_format_error_section(
-                table_name,
-                result.error_type or "unknown",
-                result.error_message or "Unknown error",
-            ))
+            sections.append(
+                _format_error_section(
+                    table_name,
+                    result.error_type or "unknown",
+                    result.error_message or "Unknown error",
+                )
+            )
         elif not result.data:
             sections.append(_format_empty_section(table_name))
         else:
             row_limit = data.row_limits.get(table_name)
-            sections.append(
-                _format_table_section(table_name, result.data, row_limit)
-            )
+            sections.append(_format_table_section(table_name, result.data, row_limit))
 
     # Footer
     elapsed = time.monotonic() - data.started_at
-    tables_succeeded = sum(
-        1 for r in data.table_results.values() if r.success
-    )
+    tables_succeeded = sum(1 for r in data.table_results.values() if r.success)
     tables_failed = len(TABLE_ORDER) - tables_succeeded
     sections.append(
         _format_footer(elapsed, tables_succeeded, tables_failed, data.version)

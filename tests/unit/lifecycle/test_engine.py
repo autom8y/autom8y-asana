@@ -212,16 +212,12 @@ class TestTransitionResult:
 class TestConvertedRouting:
     """CONVERTED transitions for all 4 stages."""
 
-    async def test_outreach_converted_to_sales(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_outreach_converted_to_sales(self, lifecycle_config, mock_client):
         """FR-ROUTE-001: Outreach CONVERTED creates Sales."""
         process = _make_mock_process(ProcessType.OUTREACH)
         engine = _make_engine(lifecycle_config, mock_client)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
@@ -234,9 +230,7 @@ class TestConvertedRouting:
         assert "new_456" in result.entities_created
         assert "lifecycle_outreach_to_sales" == result.rule_id
 
-    async def test_sales_converted_to_onboarding(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_sales_converted_to_onboarding(self, lifecycle_config, mock_client):
         """FR-ROUTE-002: Sales CONVERTED creates Onboarding (PCR absorption)."""
         process = _make_mock_process(ProcessType.SALES)
         engine = _make_engine(
@@ -246,9 +240,7 @@ class TestConvertedRouting:
             completion_completed=["src_123"],
         )
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
@@ -277,9 +269,7 @@ class TestConvertedRouting:
             completion_completed=["src_123"],
         )
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
@@ -322,33 +312,25 @@ class TestConvertedRouting:
 class TestDncRouting:
     """DID NOT CONVERT routing for all stage types."""
 
-    async def test_sales_dnc_creates_outreach(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_sales_dnc_creates_outreach(self, lifecycle_config, mock_client):
         """FR-DNC-001: Sales DNC creates new Outreach (create_new)."""
         process = _make_mock_process(ProcessType.SALES)
         engine = _make_engine(lifecycle_config, mock_client)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
             MockCtx.return_value = ctx
 
-            result = await engine.handle_transition_async(
-                process, "did_not_convert"
-            )
+            result = await engine.handle_transition_async(process, "did_not_convert")
 
         assert result.success is True
         assert "create_process" in result.actions_executed
         assert "new_456" in result.entities_created
         assert "lifecycle_sales_dnc_outreach" == result.rule_id
 
-    async def test_onboarding_dnc_reopens_sales(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_onboarding_dnc_reopens_sales(self, lifecycle_config, mock_client):
         """FR-DNC-002: Onboarding DNC reopens Sales (reopen)."""
         process = _make_mock_process(ProcessType.ONBOARDING)
         engine = _make_engine(
@@ -358,17 +340,13 @@ class TestDncRouting:
             reopen_gid="sales_999",
         )
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
             MockCtx.return_value = ctx
 
-            result = await engine.handle_transition_async(
-                process, "did_not_convert"
-            )
+            result = await engine.handle_transition_async(process, "did_not_convert")
 
         assert result.success is True
         assert "reopen_process" in result.actions_executed
@@ -384,32 +362,24 @@ class TestDncRouting:
         process = _make_mock_process(ProcessType.IMPLEMENTATION)
         engine = _make_engine(lifecycle_config, mock_client)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
             MockCtx.return_value = ctx
 
-            result = await engine.handle_transition_async(
-                process, "did_not_convert"
-            )
+            result = await engine.handle_transition_async(process, "did_not_convert")
 
         assert result.success is True
         assert "create_process" in result.actions_executed
         assert "lifecycle_implementation_dnc_outreach" == result.rule_id
 
-    async def test_outreach_dnc_deferred(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_outreach_dnc_deferred(self, lifecycle_config, mock_client):
         """FR-DNC-004: Outreach DNC is deferred (self-loop out of scope)."""
         process = _make_mock_process(ProcessType.OUTREACH)
         engine = _make_engine(lifecycle_config, mock_client)
 
-        result = await engine.handle_transition_async(
-            process, "did_not_convert"
-        )
+        result = await engine.handle_transition_async(process, "did_not_convert")
 
         assert result.success is True
         assert "dnc_deferred" in result.actions_executed
@@ -436,13 +406,9 @@ class TestAutoCompletion:
         services = _make_mock_services(
             completion_completed=["src_123"],
         )
-        engine = _make_engine_with_services(
-            lifecycle_config, mock_client, services
-        )
+        engine = _make_engine_with_services(lifecycle_config, mock_client, services)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
@@ -460,13 +426,9 @@ class TestAutoCompletion:
         """Outreach has auto_complete_prior: false."""
         process = _make_mock_process(ProcessType.OUTREACH)
         services = _make_mock_services()
-        engine = _make_engine_with_services(
-            lifecycle_config, mock_client, services
-        )
+        engine = _make_engine_with_services(lifecycle_config, mock_client, services)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
@@ -503,13 +465,9 @@ class TestResultAccumulator:
                 ActionResult(success=False, error="comment handler not found"),
             ]
         )
-        engine = _make_engine_with_services(
-            lifecycle_config, mock_client, services
-        )
+        engine = _make_engine_with_services(lifecycle_config, mock_client, services)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
@@ -533,9 +491,7 @@ class TestResultAccumulator:
             creation_error="Template not found",
         )
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
@@ -555,13 +511,9 @@ class TestResultAccumulator:
         services["creation_service"].create_process_async = AsyncMock(
             side_effect=RuntimeError("Network error")
         )
-        engine = _make_engine_with_services(
-            lifecycle_config, mock_client, services
-        )
+        engine = _make_engine_with_services(lifecycle_config, mock_client, services)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
@@ -572,22 +524,16 @@ class TestResultAccumulator:
         assert result.success is False
         assert "Network error" in result.error
 
-    async def test_section_failure_is_soft_failure(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_section_failure_is_soft_failure(self, lifecycle_config, mock_client):
         """Section cascade exception -> warning, not hard failure."""
         process = _make_mock_process(ProcessType.SALES)
         services = _make_mock_services()
         services["section_service"].cascade_async = AsyncMock(
             side_effect=RuntimeError("Section API down")
         )
-        engine = _make_engine_with_services(
-            lifecycle_config, mock_client, services
-        )
+        engine = _make_engine_with_services(lifecycle_config, mock_client, services)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
@@ -599,22 +545,16 @@ class TestResultAccumulator:
         assert result.success is True
         assert "create_process" in result.actions_executed
 
-    async def test_wiring_failure_is_soft_failure(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_wiring_failure_is_soft_failure(self, lifecycle_config, mock_client):
         """Wiring exception -> warning, not hard failure."""
         process = _make_mock_process(ProcessType.SALES)
         services = _make_mock_services()
         services["wiring_service"].wire_defaults_async = AsyncMock(
             side_effect=RuntimeError("Wiring API down")
         )
-        engine = _make_engine_with_services(
-            lifecycle_config, mock_client, services
-        )
+        engine = _make_engine_with_services(lifecycle_config, mock_client, services)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
@@ -647,9 +587,7 @@ class TestErrorHandling:
         assert result.success is False
         assert "No stage config for" in result.error
 
-    async def test_dnc_reopen_failure_is_warning(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_dnc_reopen_failure_is_warning(self, lifecycle_config, mock_client):
         """Reopen service failure is a warning, not hard failure."""
         process = _make_mock_process(ProcessType.ONBOARDING)
         engine = _make_engine(
@@ -659,46 +597,34 @@ class TestErrorHandling:
             reopen_error="No Sales process found",
         )
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
             MockCtx.return_value = ctx
 
-            result = await engine.handle_transition_async(
-                process, "did_not_convert"
-            )
+            result = await engine.handle_transition_async(process, "did_not_convert")
 
         # Reopen failure is not a hard failure (fail-forward)
         assert result.success is True
         assert "reopen_process" not in result.actions_executed
 
-    async def test_dnc_reopen_exception_is_warning(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_dnc_reopen_exception_is_warning(self, lifecycle_config, mock_client):
         """Reopen service exception -> warning, not crash."""
         process = _make_mock_process(ProcessType.ONBOARDING)
         services = _make_mock_services()
         services["reopen_service"].reopen_async = AsyncMock(
             side_effect=RuntimeError("Reopen boom")
         )
-        engine = _make_engine_with_services(
-            lifecycle_config, mock_client, services
-        )
+        engine = _make_engine_with_services(lifecycle_config, mock_client, services)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
             MockCtx.return_value = ctx
 
-            result = await engine.handle_transition_async(
-                process, "did_not_convert"
-            )
+            result = await engine.handle_transition_async(process, "did_not_convert")
 
         assert result.success is True
 
@@ -746,9 +672,7 @@ class TestPhaseOrdering:
         services["creation_service"].create_process_async = AsyncMock(
             side_effect=track_creation
         )
-        services["section_service"].cascade_async = AsyncMock(
-            side_effect=track_cascade
-        )
+        services["section_service"].cascade_async = AsyncMock(side_effect=track_cascade)
         services["completion_service"].complete_source_async = AsyncMock(
             side_effect=track_completion
         )
@@ -759,16 +683,12 @@ class TestPhaseOrdering:
             side_effect=track_wiring
         )
 
-        engine = _make_engine_with_services(
-            lifecycle_config, mock_client, services
-        )
+        engine = _make_engine_with_services(lifecycle_config, mock_client, services)
 
         # Sales has auto_complete_prior: true and init_actions
         process = _make_mock_process(ProcessType.SALES)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
@@ -778,12 +698,8 @@ class TestPhaseOrdering:
 
         assert result.success is True
         # Verify order: create -> configure (sections, completion) -> actions -> wire
-        assert call_order.index("create") < call_order.index(
-            "configure_sections"
-        )
-        assert call_order.index("configure_sections") < call_order.index(
-            "actions"
-        )
+        assert call_order.index("create") < call_order.index("configure_sections")
+        assert call_order.index("configure_sections") < call_order.index("actions")
         assert call_order.index("actions") < call_order.index("wire")
 
     async def test_creation_failure_skips_later_phases(
@@ -794,15 +710,11 @@ class TestPhaseOrdering:
             creation_success=False,
             creation_error="No template",
         )
-        engine = _make_engine_with_services(
-            lifecycle_config, mock_client, services
-        )
+        engine = _make_engine_with_services(lifecycle_config, mock_client, services)
 
         process = _make_mock_process(ProcessType.SALES)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
@@ -840,9 +752,7 @@ class TestTerminalTransitions:
         assert "terminal" in result.actions_executed
         assert result.rule_id == "lifecycle_implementation_terminal"
 
-    async def test_terminal_with_auto_complete(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_terminal_with_auto_complete(self, lifecycle_config, mock_client):
         """Terminal transition with auto_complete_prior: true.
 
         D-LC-004 fix: _handle_terminal_async now calls CompletionService
@@ -853,9 +763,7 @@ class TestTerminalTransitions:
         services = _make_mock_services(
             completion_completed=["src_123"],
         )
-        engine = _make_engine_with_services(
-            lifecycle_config, mock_client, services
-        )
+        engine = _make_engine_with_services(lifecycle_config, mock_client, services)
 
         result = await engine.handle_transition_async(process, "converted")
 
@@ -868,9 +776,7 @@ class TestTerminalTransitions:
         )
         assert "src_123" in result.entities_updated
 
-    async def test_month1_terminal(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_month1_terminal(self, lifecycle_config, mock_client):
         """Month1 CONVERTED is also terminal (converted: null)."""
         process = _make_mock_process(ProcessType.MONTH1)
         engine = _make_engine(lifecycle_config, mock_client)
@@ -899,22 +805,16 @@ class TestDncCreateNewPipeline:
             cascade_updates=["offer1"],
             wiring_wired=["dep1"],
         )
-        engine = _make_engine_with_services(
-            lifecycle_config, mock_client, services
-        )
+        engine = _make_engine_with_services(lifecycle_config, mock_client, services)
         process = _make_mock_process(ProcessType.SALES)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
             MockCtx.return_value = ctx
 
-            result = await engine.handle_transition_async(
-                process, "did_not_convert"
-            )
+            result = await engine.handle_transition_async(process, "did_not_convert")
 
         assert result.success is True
         # All phases should have been called
@@ -922,9 +822,7 @@ class TestDncCreateNewPipeline:
         services["section_service"].cascade_async.assert_called_once()
         services["wiring_service"].wire_defaults_async.assert_called_once()
 
-    async def test_dnc_create_new_creation_failure(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_dnc_create_new_creation_failure(self, lifecycle_config, mock_client):
         """DNC create_new with creation failure -> overall failure."""
         engine = _make_engine(
             lifecycle_config,
@@ -934,17 +832,13 @@ class TestDncCreateNewPipeline:
         )
         process = _make_mock_process(ProcessType.SALES)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
             MockCtx.return_value = ctx
 
-            result = await engine.handle_transition_async(
-                process, "did_not_convert"
-            )
+            result = await engine.handle_transition_async(process, "did_not_convert")
 
         assert result.success is False
         assert "creation failed" in result.error.lower()
@@ -970,15 +864,11 @@ class TestInitActions:
             ],
             completion_completed=["src_123"],
         )
-        engine = _make_engine_with_services(
-            lifecycle_config, mock_client, services
-        )
+        engine = _make_engine_with_services(lifecycle_config, mock_client, services)
         # Sales CONVERTED -> Onboarding (which has init_actions)
         process = _make_mock_process(ProcessType.SALES)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
@@ -1002,14 +892,10 @@ class TestInitActions:
             ],
             completion_completed=["src_123"],
         )
-        engine = _make_engine_with_services(
-            lifecycle_config, mock_client, services
-        )
+        engine = _make_engine_with_services(lifecycle_config, mock_client, services)
         process = _make_mock_process(ProcessType.SALES)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
@@ -1029,17 +915,13 @@ class TestInitActions:
 class TestPreTransitionValidation:
     """Onboarding has pre_transition validation (Contact Phone, mode=warn)."""
 
-    async def test_validation_warn_mode_continues(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_validation_warn_mode_continues(self, lifecycle_config, mock_client):
         """Warn mode: missing fields logged but transition continues."""
         process = _make_mock_process(ProcessType.ONBOARDING)
         # Process doesn't have contact_phone attribute
         engine = _make_engine(lifecycle_config, mock_client)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
@@ -1060,16 +942,12 @@ class TestPreTransitionValidation:
 class TestStructuredLogging:
     """Verify structured audit logging via autom8y_log."""
 
-    async def test_transition_start_logged(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_transition_start_logged(self, lifecycle_config, mock_client):
         """Transition start event is logged."""
         process = _make_mock_process(ProcessType.SALES)
         engine = _make_engine(lifecycle_config, mock_client)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
@@ -1079,16 +957,12 @@ class TestStructuredLogging:
                 await engine.handle_transition_async(process, "converted")
 
                 # Verify structured log calls
-                info_calls = [
-                    c for c in mock_logger.info.call_args_list
-                ]
+                info_calls = [c for c in mock_logger.info.call_args_list]
                 event_names = [c[0][0] for c in info_calls]
                 assert "lifecycle_transition_start" in event_names
                 assert "lifecycle_transition_complete" in event_names
 
-    async def test_dnc_deferred_logged(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_dnc_deferred_logged(self, lifecycle_config, mock_client):
         """DNC deferred event is logged."""
         process = _make_mock_process(ProcessType.OUTREACH)
         engine = _make_engine(lifecycle_config, mock_client)
@@ -1100,9 +974,7 @@ class TestStructuredLogging:
             event_names = [c[0][0] for c in info_calls]
             assert "lifecycle_dnc_deferred" in event_names
 
-    async def test_error_logged_on_unknown_stage(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_error_logged_on_unknown_stage(self, lifecycle_config, mock_client):
         """Unknown stage triggers error log."""
         process = _make_mock_process(ProcessType.GENERIC)
         engine = _make_engine(lifecycle_config, mock_client)
@@ -1124,22 +996,16 @@ class TestStructuredLogging:
 class TestServiceInjection:
     """Verify services are injectable via constructor kwargs."""
 
-    async def test_injected_services_are_used(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_injected_services_are_used(self, lifecycle_config, mock_client):
         """Injected mock services are called instead of real ones."""
         services = _make_mock_services(
             creation_gid="injected_001",
             cascade_updates=["injected_offer"],
         )
-        engine = _make_engine_with_services(
-            lifecycle_config, mock_client, services
-        )
+        engine = _make_engine_with_services(lifecycle_config, mock_client, services)
         process = _make_mock_process(ProcessType.OUTREACH)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
@@ -1161,14 +1027,10 @@ class TestServiceInjection:
 class TestEdgeCases:
     """Edge cases and boundary conditions."""
 
-    async def test_no_init_actions_stage(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_no_init_actions_stage(self, lifecycle_config, mock_client):
         """Stage with empty init_actions skips Phase 3 entirely."""
         services = _make_mock_services()
-        engine = _make_engine_with_services(
-            lifecycle_config, mock_client, services
-        )
+        engine = _make_engine_with_services(lifecycle_config, mock_client, services)
         # Outreach CONVERTED -> Sales, and Sales has init_actions: [create_comment]
         # But let's test a stage with no init_actions directly:
         # We'll use the month1 terminal case for a clean test
@@ -1179,18 +1041,12 @@ class TestEdgeCases:
         # Terminal, so init_action_registry should NOT be called
         services["init_action_registry"].execute_actions_async.assert_not_called()
 
-    async def test_result_has_correct_triggered_by(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_result_has_correct_triggered_by(self, lifecycle_config, mock_client):
         """AutomationResult has correct triggered_by fields."""
-        process = _make_mock_process(
-            ProcessType.SALES, gid="specific_gid_123"
-        )
+        process = _make_mock_process(ProcessType.SALES, gid="specific_gid_123")
         engine = _make_engine(lifecycle_config, mock_client)
 
-        with patch(
-            "autom8_asana.lifecycle.engine.ResolutionContext"
-        ) as MockCtx:
+        with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
             ctx = AsyncMock()
             ctx.__aenter__ = AsyncMock(return_value=ctx)
             ctx.__aexit__ = AsyncMock(return_value=None)
@@ -1201,15 +1057,11 @@ class TestEdgeCases:
         assert result.triggered_by_gid == "specific_gid_123"
         assert result.triggered_by_type == "Process"
 
-    async def test_execution_time_is_positive(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_execution_time_is_positive(self, lifecycle_config, mock_client):
         """AutomationResult has non-negative execution time."""
         process = _make_mock_process(ProcessType.OUTREACH)
         engine = _make_engine(lifecycle_config, mock_client)
 
-        result = await engine.handle_transition_async(
-            process, "did_not_convert"
-        )
+        result = await engine.handle_transition_async(process, "did_not_convert")
 
         assert result.execution_time_ms >= 0

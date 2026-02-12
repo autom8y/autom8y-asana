@@ -129,13 +129,9 @@ class PipelineTransitionWorkflow(WorkflowAction):
         errors: list[WorkflowItemError] = []
 
         # Extract parameters
-        project_gids = params.get(
-            "pipeline_project_gids", DEFAULT_PIPELINE_PROJECTS
-        )
+        project_gids = params.get("pipeline_project_gids", DEFAULT_PIPELINE_PROJECTS)
         max_concurrency = params.get("max_concurrency", DEFAULT_MAX_CONCURRENCY)
-        converted_section = params.get(
-            "converted_section", DEFAULT_CONVERTED_SECTION
-        )
+        converted_section = params.get("converted_section", DEFAULT_CONVERTED_SECTION)
         dnc_section = params.get("dnc_section", DEFAULT_DNC_SECTION)
 
         # Initialize engine

@@ -20,7 +20,9 @@ from autom8_asana.auth.jwt_validator import validate_service_token
 
 logger = get_logger("autom8_asana.api.internal")
 
-router = APIRouter(prefix="/api/v1/internal", tags=["internal"], include_in_schema=False)
+router = APIRouter(
+    prefix="/api/v1/internal", tags=["internal"], include_in_schema=False
+)
 
 
 # --- Service Claims Model ---

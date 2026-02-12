@@ -124,9 +124,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         # Check feature flag
         env_value = os.environ.get(EXPORT_ENABLED_ENV_VAR, "").lower()
         if env_value in {"false", "0", "no"}:
-            errors.append(
-                f"Workflow disabled via {EXPORT_ENABLED_ENV_VAR}={env_value}"
-            )
+            errors.append(f"Workflow disabled via {EXPORT_ENABLED_ENV_VAR}={env_value}")
             return errors  # Short-circuit
 
         # Check DataServiceClient circuit breaker
@@ -197,10 +195,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 results.append(outcome)
 
         await asyncio.gather(
-            *[
-                process_one(o["gid"], o.get("name"), o.get("parent_gid"))
-                for o in offers
-            ]
+            *[process_one(o["gid"], o.get("name"), o.get("parent_gid")) for o in offers]
         )
 
         # Step 3: Aggregate results
@@ -335,9 +330,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 offer_gid=offer_gid,
             )
 
-            tables_succeeded = sum(
-                1 for t in table_results.values() if t.success
-            )
+            tables_succeeded = sum(1 for t in table_results.values() if t.success)
             tables_failed = TOTAL_TABLE_COUNT - tables_succeeded
 
             # Step C: Check for total failure
@@ -502,42 +495,79 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         # so we dispatch 9 API calls and derive the 10th
         results = await asyncio.gather(
             self._fetch_table(
-                "SUMMARY", offer_gid, office_phone, vertical,
-                factory="base", period="lifetime",
+                "SUMMARY",
+                offer_gid,
+                office_phone,
+                vertical,
+                factory="base",
+                period="lifetime",
             ),
             self._fetch_table(
-                "APPOINTMENTS", offer_gid, office_phone, vertical,
-                method="appointments", days=90,
+                "APPOINTMENTS",
+                offer_gid,
+                office_phone,
+                vertical,
+                method="appointments",
+                days=90,
                 limit=row_limits.get("APPOINTMENTS", 100),
             ),
             self._fetch_table(
-                "LEADS", offer_gid, office_phone, vertical,
-                method="leads", days=30, exclude_appointments=True,
+                "LEADS",
+                offer_gid,
+                office_phone,
+                vertical,
+                method="leads",
+                days=30,
+                exclude_appointments=True,
                 limit=row_limits.get("LEADS", 100),
             ),
             self._fetch_table(
-                "BY QUARTER", offer_gid, office_phone, vertical,
-                factory="base", period="quarter",
+                "BY QUARTER",
+                offer_gid,
+                office_phone,
+                vertical,
+                factory="base",
+                period="quarter",
             ),
             self._fetch_table(
-                "BY MONTH", offer_gid, office_phone, vertical,
-                factory="base", period="month",
+                "BY MONTH",
+                offer_gid,
+                office_phone,
+                vertical,
+                factory="base",
+                period="month",
             ),
             self._fetch_table(
-                "BY WEEK", offer_gid, office_phone, vertical,
-                factory="base", period="week",
+                "BY WEEK",
+                offer_gid,
+                office_phone,
+                vertical,
+                factory="base",
+                period="week",
             ),
             self._fetch_table(
-                "AD QUESTIONS", offer_gid, office_phone, vertical,
-                factory="ad_questions", period="lifetime",
+                "AD QUESTIONS",
+                offer_gid,
+                office_phone,
+                vertical,
+                factory="ad_questions",
+                period="lifetime",
             ),
             self._fetch_table(
-                "ASSET TABLE", offer_gid, office_phone, vertical,
-                factory="assets", period="t30",
+                "ASSET TABLE",
+                offer_gid,
+                office_phone,
+                vertical,
+                factory="assets",
+                period="t30",
             ),
             self._fetch_table(
-                "OFFER TABLE", offer_gid, office_phone, vertical,
-                factory="business_offers", period="t30",
+                "OFFER TABLE",
+                offer_gid,
+                office_phone,
+                vertical,
+                factory="business_offers",
+                period="t30",
             ),
         )
 
@@ -549,7 +579,8 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         asset_result = table_map.get("ASSET TABLE")
         if asset_result is not None and asset_result.success:
             unused_rows = [
-                row for row in (asset_result.data or [])
+                row
+                for row in (asset_result.data or [])
                 if row.get("spend", -1) == 0 and row.get("imp", -1) == 0
             ]
             table_map["UNUSED ASSETS"] = TableResult(

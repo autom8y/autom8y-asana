@@ -825,8 +825,11 @@ class SaveSession:
 
         # Post-commit hooks + logging
         await self._finalize_commit(
-            crud_result, action_results, cascade_results,
-            healing_report, automation_results,
+            crud_result,
+            action_results,
+            cascade_results,
+            healing_report,
+            automation_results,
         )
 
         return crud_result
@@ -855,9 +858,7 @@ class SaveSession:
 
         return dirty_entities, pending_actions, pending_cascades, pending_healing
 
-    async def _execute_ensure_holders(
-        self, dirty_entities: list[Any]
-    ) -> list[Any]:
+    async def _execute_ensure_holders(self, dirty_entities: list[Any]) -> list[Any]:
         """Phase 0: Detect and construct missing holders before CRUD.
 
         Per TDD-GAP-01: Runs before CRUD when auto_create_holders=True.
@@ -919,9 +920,7 @@ class SaveSession:
 
         return crud_result, action_results
 
-    async def _execute_cascades(
-        self, pending_cascades: list[Any]
-    ) -> list[Any]:
+    async def _execute_cascades(self, pending_cascades: list[Any]) -> list[Any]:
         """Phase 2: Execute cascade operations.
 
         Args:
@@ -1004,9 +1003,7 @@ class SaveSession:
 
             self._state = SessionState.COMMITTED
 
-    async def _execute_automation(
-        self, crud_result: SaveResult
-    ) -> list[Any]:
+    async def _execute_automation(self, crud_result: SaveResult) -> list[Any]:
         """Phase 5: Execute automation evaluation.
 
         Per TDD-AUTOMATION-LAYER / NFR-003: Automation failures do NOT

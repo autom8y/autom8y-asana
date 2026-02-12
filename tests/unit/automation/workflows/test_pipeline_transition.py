@@ -143,9 +143,7 @@ async def test_execute_async_converted_processes(lifecycle_config, mock_client):
         execution_time_ms=100.0,
     )
 
-    with patch(
-        "autom8_asana.lifecycle.engine.LifecycleEngine"
-    ) as MockEngine:
+    with patch("autom8_asana.lifecycle.engine.LifecycleEngine") as MockEngine:
         mock_engine = MockEngine.return_value
         mock_engine.handle_transition_async = AsyncMock(return_value=mock_result)
 
@@ -163,16 +161,12 @@ async def test_execute_async_converted_processes(lifecycle_config, mock_client):
 
 
 @pytest.mark.asyncio
-async def test_execute_async_did_not_convert_processes(
-    lifecycle_config, mock_client
-):
+async def test_execute_async_did_not_convert_processes(lifecycle_config, mock_client):
     """Test execution with processes in DID NOT CONVERT section."""
     workflow = PipelineTransitionWorkflow(mock_client, lifecycle_config)
 
     # Mock tasks in DID NOT CONVERT section
-    task1 = _make_task(
-        "task1", "Sales Process - Business A", "DID NOT CONVERT"
-    )
+    task1 = _make_task("task1", "Sales Process - Business A", "DID NOT CONVERT")
 
     mock_client.tasks.list_for_project_async.return_value = _AsyncIterator([task1])
 
@@ -188,9 +182,7 @@ async def test_execute_async_did_not_convert_processes(
         execution_time_ms=100.0,
     )
 
-    with patch(
-        "autom8_asana.lifecycle.engine.LifecycleEngine"
-    ) as MockEngine:
+    with patch("autom8_asana.lifecycle.engine.LifecycleEngine") as MockEngine:
         mock_engine = MockEngine.return_value
         mock_engine.handle_transition_async = AsyncMock(return_value=mock_result)
 
@@ -214,7 +206,9 @@ async def test_execute_async_mixed_sections(lifecycle_config, mock_client):
     task1 = _make_task("task1", "Sales Process - Business A", "CONVERTED")
     task2 = _make_task("task2", "Sales Process - Business B", "DID NOT CONVERT")
     task3 = _make_task("task3", "Sales Process - Business C", "OPPORTUNITY")
-    task4 = _make_task("task4", "Sales Process - Business D", "CONVERTED", completed=True)
+    task4 = _make_task(
+        "task4", "Sales Process - Business D", "CONVERTED", completed=True
+    )
 
     mock_client.tasks.list_for_project_async.return_value = _AsyncIterator(
         [task1, task2, task3, task4]
@@ -231,9 +225,7 @@ async def test_execute_async_mixed_sections(lifecycle_config, mock_client):
         execution_time_ms=100.0,
     )
 
-    with patch(
-        "autom8_asana.lifecycle.engine.LifecycleEngine"
-    ) as MockEngine:
+    with patch("autom8_asana.lifecycle.engine.LifecycleEngine") as MockEngine:
         mock_engine = MockEngine.return_value
         mock_engine.handle_transition_async = AsyncMock(return_value=mock_result)
 
@@ -270,9 +262,7 @@ async def test_execute_async_transition_failure(lifecycle_config, mock_client):
         execution_time_ms=50.0,
     )
 
-    with patch(
-        "autom8_asana.lifecycle.engine.LifecycleEngine"
-    ) as MockEngine:
+    with patch("autom8_asana.lifecycle.engine.LifecycleEngine") as MockEngine:
         mock_engine = MockEngine.return_value
         mock_engine.handle_transition_async = AsyncMock(return_value=mock_result)
 
@@ -301,9 +291,7 @@ async def test_execute_async_transition_exception(lifecycle_config, mock_client)
     mock_client.tasks.list_for_project_async.return_value = _AsyncIterator([task1])
 
     # Mock engine with exception
-    with patch(
-        "autom8_asana.lifecycle.engine.LifecycleEngine"
-    ) as MockEngine:
+    with patch("autom8_asana.lifecycle.engine.LifecycleEngine") as MockEngine:
         mock_engine = MockEngine.return_value
         mock_engine.handle_transition_async = AsyncMock(
             side_effect=Exception("Network error")
@@ -351,9 +339,7 @@ async def test_execute_async_multiple_projects(lifecycle_config, mock_client):
         execution_time_ms=100.0,
     )
 
-    with patch(
-        "autom8_asana.lifecycle.engine.LifecycleEngine"
-    ) as MockEngine:
+    with patch("autom8_asana.lifecycle.engine.LifecycleEngine") as MockEngine:
         mock_engine = MockEngine.return_value
         mock_engine.handle_transition_async = AsyncMock(return_value=mock_result)
 
@@ -401,9 +387,7 @@ async def test_execute_async_enumerate_error(lifecycle_config, mock_client):
         execution_time_ms=100.0,
     )
 
-    with patch(
-        "autom8_asana.lifecycle.engine.LifecycleEngine"
-    ) as MockEngine:
+    with patch("autom8_asana.lifecycle.engine.LifecycleEngine") as MockEngine:
         mock_engine = MockEngine.return_value
         mock_engine.handle_transition_async = AsyncMock(return_value=mock_result)
 

@@ -90,10 +90,7 @@ class AutomationDispatch:
         # Determine outcome from section
         if "converted" == section_name:
             outcome = "converted"
-        elif (
-            "did not convert" in section_name
-            or "did_not_convert" in section_name
-        ):
+        elif "did not convert" in section_name or "did_not_convert" in section_name:
             outcome = "did_not_convert"
         else:
             return {
@@ -105,9 +102,7 @@ class AutomationDispatch:
         task_data = await self._client.tasks.get_async(task_gid)
         process = Process.model_validate(task_data.model_dump())
 
-        result = await self._lifecycle_engine.handle_transition_async(
-            process, outcome
-        )
+        result = await self._lifecycle_engine.handle_transition_async(process, outcome)
         return {"success": result.success, "result": result}
 
     async def _handle_tag_trigger(

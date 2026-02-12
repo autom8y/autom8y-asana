@@ -294,9 +294,7 @@ def dataframe_cache(
             acquired = await cache.acquire_build_lock_async(project_gid, entity_type)
 
             if not acquired:
-                return await _wait_for_build(
-                    self, cache, criteria, project_gid, client
-                )
+                return await _wait_for_build(self, cache, criteria, project_gid, client)
 
             # This request should build
             return await _execute_build_and_cache(

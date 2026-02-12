@@ -21,6 +21,7 @@ from autom8_asana.lambda_handlers.workflow_handler import (
 
 # --- Helpers ---
 
+
 def _make_workflow_result(
     *,
     workflow_id: str = "test-workflow",
@@ -257,7 +258,9 @@ class TestCreateWorkflowHandler:
         handler({}, MagicMock())
 
         # Find the WorkflowExecutionCount call
-        calls = [c for c in mock_emit.call_args_list if c[0][0] == "WorkflowExecutionCount"]
+        calls = [
+            c for c in mock_emit.call_args_list if c[0][0] == "WorkflowExecutionCount"
+        ]
         assert len(calls) == 1
         assert calls[0][0] == ("WorkflowExecutionCount", 1)
         assert calls[0][1]["dimensions"] == {"workflow_id": "my-wf"}
@@ -287,7 +290,9 @@ class TestCreateWorkflowHandler:
         handler = create_workflow_handler(config)
         handler({}, MagicMock())
 
-        duration_calls = [c for c in mock_emit.call_args_list if c[0][0] == "WorkflowDuration"]
+        duration_calls = [
+            c for c in mock_emit.call_args_list if c[0][0] == "WorkflowDuration"
+        ]
         assert len(duration_calls) == 1
         assert duration_calls[0][0][1] == 42.5  # duration_seconds
         assert duration_calls[0][1]["unit"] == "Seconds"
@@ -306,7 +311,9 @@ class TestCreateWorkflowHandler:
         handler = create_workflow_handler(config)
         handler({}, MagicMock())
 
-        error_calls = [c for c in mock_emit.call_args_list if c[0][0] == "WorkflowExecutionError"]
+        error_calls = [
+            c for c in mock_emit.call_args_list if c[0][0] == "WorkflowExecutionError"
+        ]
         assert len(error_calls) == 1
         assert error_calls[0][1]["dimensions"] == {"workflow_id": "fail-wf"}
 
@@ -335,6 +342,10 @@ class TestCreateWorkflowHandler:
         handler = create_workflow_handler(config)
         handler({}, MagicMock())
 
-        skip_calls = [c for c in mock_emit.call_args_list if c[0][0] == "WorkflowValidationSkipped"]
+        skip_calls = [
+            c
+            for c in mock_emit.call_args_list
+            if c[0][0] == "WorkflowValidationSkipped"
+        ]
         assert len(skip_calls) == 1
         assert skip_calls[0][1]["dimensions"] == {"workflow_id": "skip-wf"}
