@@ -1,17 +1,16 @@
 ---
 schema_version: "2.1"
-session_id: "session-20260102-195244-cd094308"
-status: "ACTIVE"
+session_id: session-20260102-195244-cd094308
+status: PARKED
 created_at: "2026-01-02T18:52:44Z"
-initiative: "Unified Cache Migration - Legacy Path Elimination"
-complexity: "MODULE"
-active_team: "hygiene-pack"
-team: "hygiene-pack"
-current_phase: "execution"
-sprint_context: ".claude/sessions/session-20260102-195244-cd094308/SPRINT_CONTEXT.md"
-auto_parked_at: 2026-01-02T21:16:17Z
-auto_parked_reason: "Session stopped (auto-park)"
+initiative: Unified Cache Migration - Legacy Path Elimination
+complexity: MODULE
+active_rite: ""
+current_phase: execution
+parked_at: "2026-02-10T22:01:07Z"
+parked_reason: Stale — parking for hygiene initiative
 ---
+
 
 # Session: Unified Cache Migration - Legacy Path Elimination
 

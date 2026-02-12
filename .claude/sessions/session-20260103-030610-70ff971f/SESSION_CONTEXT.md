@@ -1,15 +1,16 @@
 ---
 schema_version: "2.1"
-session_id: "session-20260103-030610-70ff971f"
-status: "ACTIVE"
+session_id: session-20260103-030610-70ff971f
+status: PARKED
 created_at: "2026-01-03T02:07:30Z"
-initiative: "autom8-data-http-adoption"
-complexity: "MODULE"
-active_team: "10x-dev-pack"
-team: "10x-dev-pack"
-current_phase: "requirements"
-sprint_context: ".claude/sessions/session-20260103-030610-70ff971f/SPRINT_CONTEXT.md"
+initiative: autom8-data-http-adoption
+complexity: MODULE
+active_rite: ""
+current_phase: requirements
+parked_at: "2026-02-10T22:01:07Z"
+parked_reason: Stale — parking for hygiene initiative
 ---
+
 
 # Session: Autom8 Data Service autom8y-http Full Adoption
 

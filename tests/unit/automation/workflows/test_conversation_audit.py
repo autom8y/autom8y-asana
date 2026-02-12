@@ -43,14 +43,37 @@ def _make_task(
     return task
 
 
-def _make_parent_task(office_phone: str | None = "+17705753103") -> MagicMock:
-    """Create a mock parent Business task with custom fields."""
+def _make_parent_task(
+    office_phone: str | None = "+17705753103",
+    gid: str = "biz-mock",
+) -> MagicMock:
+    """Create a mock parent Business task with custom fields.
+
+    Supports Business.model_validate() by providing model_dump() that
+    returns a proper dict structure compatible with CustomFieldAccessor.
+    """
     parent = MagicMock()
+    cf_list = []
     if office_phone:
-        cf = {"name": "Office Phone", "display_value": office_phone}
-        parent.custom_fields = [cf]
-    else:
-        parent.custom_fields = []
+        # CustomFieldAccessor needs gid, name, and text_value/display_value
+        cf_list.append({
+            "gid": "1205917451230123",  # Mock GID for Office Phone field
+            "name": "Office Phone",
+            "text_value": office_phone,
+            "display_value": office_phone,
+            "resource_subtype": "text",
+        })
+    parent.custom_fields = cf_list
+    parent.gid = gid
+    parent.name = f"Business {gid}"
+
+    # Support model_dump() for Business.model_validate()
+    parent.model_dump.return_value = {
+        "gid": gid,
+        "name": f"Business {gid}",
+        "resource_type": "task",
+        "custom_fields": cf_list,
+    }
     return parent
 
 
@@ -242,9 +265,9 @@ class TestExecuteAsyncHappyPath:
         h3 = _make_task("h3", "Holder 3", parent_gid="biz3")
 
         parent_tasks = {
-            "biz1": _make_parent_task("+17705753101"),
-            "biz2": _make_parent_task("+17705753102"),
-            "biz3": _make_parent_task("+17705753103"),
+            "biz1": _make_parent_task("+17705753101", gid="biz1"),
+            "biz2": _make_parent_task("+17705753102", gid="biz2"),
+            "biz3": _make_parent_task("+17705753103", gid="biz3"),
         }
 
         wf, _, _, mock_att = _make_workflow(
@@ -273,9 +296,9 @@ class TestExecuteAsyncSkipNoPhone:
         h3 = _make_task("h3", "No Phone", parent_gid="biz_no_phone")
 
         parent_tasks = {
-            "biz1": _make_parent_task("+17705753101"),
-            "biz2": _make_parent_task("+17705753102"),
-            "biz_no_phone": _make_parent_task(None),  # No phone
+            "biz1": _make_parent_task("+17705753101", gid="biz1"),
+            "biz2": _make_parent_task("+17705753102", gid="biz2"),
+            "biz_no_phone": _make_parent_task(None, gid="biz_no_phone"),  # No phone
         }
 
         wf, _, _, _ = _make_workflow(
@@ -309,7 +332,7 @@ class TestExecuteAsyncSkipZeroRows:
     async def test_skip_zero_rows(self) -> None:
         """Export returns row_count=0 -> skipped."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
-        parent_tasks = {"biz1": _make_parent_task("+17705753101")}
+        parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
         export_results = {
             "+17705753101": _make_export_result(row_count=0, phone="+17705753101"),
         }
@@ -336,7 +359,7 @@ class TestExecuteAsyncExportFailure:
     async def test_export_failure_captured(self) -> None:
         """DataServiceClient raises ExportError -> failed=1, error captured."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
-        parent_tasks = {"biz1": _make_parent_task("+17705753101")}
+        parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
         export_errors = {
             "+17705753101": ExportError(
                 "Server error",
@@ -363,7 +386,7 @@ class TestExecuteAsyncExportFailure:
     async def test_export_client_error_not_recoverable(self) -> None:
         """Client error (4xx) -> failed, not recoverable."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
-        parent_tasks = {"biz1": _make_parent_task("+17705753101")}
+        parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
         export_errors = {
             "+17705753101": ExportError(
                 "Bad request",
@@ -393,7 +416,7 @@ class TestExecuteAsyncCircuitBreakerOpen:
             _make_task(f"h{i}", f"Holder {i}", parent_gid=f"biz{i}") for i in range(3)
         ]
         parent_tasks = {
-            f"biz{i}": _make_parent_task(f"+1770575310{i}") for i in range(3)
+            f"biz{i}": _make_parent_task(f"+1770575310{i}", gid=f"biz{i}") for i in range(3)
         }
         export_errors = {
             f"+1770575310{i}": ExportError(
@@ -424,7 +447,7 @@ class TestExecuteAsyncUploadFirstOrdering:
     async def test_upload_before_delete(self) -> None:
         """Assert upload_async is called before delete_async."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
-        parent_tasks = {"biz1": _make_parent_task("+17705753101")}
+        parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
 
         phone = "+17705753101"
         new_filename = f"conversations_{phone.lstrip('+')}_20260210.csv"
@@ -457,8 +480,8 @@ class TestExecuteAsyncTruncated:
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
         h2 = _make_task("h2", "Holder 2", parent_gid="biz2")
         parent_tasks = {
-            "biz1": _make_parent_task("+17705753101"),
-            "biz2": _make_parent_task("+17705753102"),
+            "biz1": _make_parent_task("+17705753101", gid="biz1"),
+            "biz2": _make_parent_task("+17705753102", gid="biz2"),
         }
         export_results = {
             "+17705753101": _make_export_result(
@@ -488,7 +511,7 @@ class TestExecuteAsyncDeleteFailureTolerance:
     async def test_delete_failure_still_succeeded(self) -> None:
         """Delete-old fails -> holder still counted as succeeded."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
-        parent_tasks = {"biz1": _make_parent_task("+17705753101")}
+        parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
 
         old_att = _make_attachment(
             "old-att-1", "conversations_17705753101_20260203.csv"
@@ -520,7 +543,7 @@ class TestExecuteAsyncConcurrency:
             _make_task(f"h{i}", f"Holder {i}", parent_gid=f"biz{i}") for i in range(10)
         ]
         parent_tasks = {
-            f"biz{i}": _make_parent_task(f"+1770575310{i}") for i in range(10)
+            f"biz{i}": _make_parent_task(f"+1770575310{i}", gid=f"biz{i}") for i in range(10)
         }
 
         wf, _, _, _ = _make_workflow(
@@ -586,7 +609,7 @@ class TestExecuteAsyncDateRange:
         from datetime import date, timedelta
 
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
-        parent_tasks = {"biz1": _make_parent_task("+17705753101")}
+        parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
 
         wf, _, mock_data, _ = _make_workflow(
             holders=[h1],
@@ -613,7 +636,7 @@ class TestExecuteAsyncDateRange:
         from datetime import date, timedelta
 
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
-        parent_tasks = {"biz1": _make_parent_task("+17705753101")}
+        parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
 
         wf, _, mock_data, _ = _make_workflow(
             holders=[h1],

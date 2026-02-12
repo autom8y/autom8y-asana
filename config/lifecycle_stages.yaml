@@ -1,0 +1,251 @@
+# Lifecycle Stage Configuration
+# Per TDD-lifecycle-engine-hardening Section 8: Data-driven pipeline DAG configuration
+# Pydantic-validated at startup; malformed YAML causes hard-fail.
+#
+# Stages 1-4 (Outreach, Sales, Onboarding, Implementation) are fully configured.
+# Stages 5-10 are defined for DAG integrity but deferred for future hardening.
+
+stages:
+  outreach:
+    project_gid: "1201753128450029"
+    pipeline_stage: 1
+    template_section: "TEMPLATES"
+    target_section: "OPPORTUNITY"
+    due_date_offset_days: 0
+    dnc_action: deferred  # Self-loop deferred
+
+    transitions:
+      converted: sales
+      did_not_convert: outreach
+      auto_complete_prior: false
+
+    cascading_sections:
+      offer: "Sales Process"
+      unit: "Engaged"
+      business: "OPPORTUNITY"
+
+    seeding:
+      exclude_fields: []
+      computed_fields: {}
+
+    assignee:
+      assignee_source: rep
+
+    self_loop:
+      max_iterations: 5
+
+    init_actions:
+      - type: create_comment
+
+  sales:
+    project_gid: "1200944186565610"
+    pipeline_stage: 2
+    template_section: "TEMPLATE"
+    target_section: "OPPORTUNITY"
+    due_date_offset_days: 0
+    dnc_action: create_new
+
+    transitions:
+      converted: onboarding
+      did_not_convert: outreach
+      auto_complete_prior: true
+
+    cascading_sections:
+      offer: "Sales Process"
+      unit: "Next Steps"
+      business: "OPPORTUNITY"
+
+    seeding:
+      exclude_fields: []
+      computed_fields: {}
+
+    assignee:
+      assignee_source: rep
+
+    init_actions:
+      - type: create_comment
+
+  onboarding:
+    project_gid: "1201319387632570"
+    pipeline_stage: 3
+    template_section: "TEMPLATE"
+    target_section: "OPPORTUNITY"
+    due_date_offset_days: 14
+    dnc_action: reopen  # Reopen Sales on DNC
+
+    transitions:
+      converted: implementation
+      did_not_convert: sales
+      auto_complete_prior: true
+
+    cascading_sections:
+      offer: "ACTIVATING"
+      unit: "Onboarding"
+      business: "ONBOARDING"
+
+    seeding:
+      exclude_fields: []
+      computed_fields:
+        "Launch Date": "today"
+
+    assignee:
+      assignee_source: onboarding_specialist
+
+    validation:
+      pre_transition:
+        required_fields: ["Contact Phone"]
+        mode: warn
+
+    init_actions:
+      - type: products_check
+        condition: "video*"
+        action: request_source_videographer
+        project_gid: "1207984018149338"
+        holder_type: videography_holder
+      - type: create_comment
+
+  implementation:
+    project_gid: "1201476141989746"
+    pipeline_stage: 4
+    template_section: "TEMPLATE"
+    target_section: "OPPORTUNITY"
+    due_date_offset_days: 30
+    dnc_action: create_new
+
+    transitions:
+      converted: null  # Terminal for stages 1-4
+      did_not_convert: outreach  # CORRECTED from 'sales' per TDD Section 8.2
+      auto_complete_prior: true
+
+    cascading_sections:
+      offer: "IMPLEMENTING"
+      unit: "Implementing"
+      business: "IMPLEMENTING"
+
+    seeding:
+      exclude_fields: []
+      computed_fields:
+        "Launch Date": "today"
+
+    assignee:
+      assignee_source: implementation_lead
+
+    init_actions:
+      - type: play_creation
+        play_type: backend_onboard_a_business
+        project_gid: "1207507299545000"
+        holder_type: dna_holder
+        reopen_if_completed_within_days: 90
+        wire_as_dependency: true
+      - type: entity_creation
+        entity_type: asset_edit
+        project_gid: "1203992664400125"
+        holder_type: asset_edit_holder
+        wire_as_dependency: true
+      - type: create_comment
+
+  # --- Stages 5-10: Deferred (defined for DAG integrity) ---
+
+  month1:
+    project_gid: null
+    pipeline_stage: 5
+    template_section: "TEMPLATE"
+    target_section: "OPPORTUNITY"
+    due_date_offset_days: 30
+    dnc_action: deferred
+
+    transitions:
+      converted: null
+      did_not_convert: null
+
+    cascading_sections:
+      offer: "STAGED"
+      unit: "Month 1"
+      business: "BUSINESSES"
+
+    init_actions:
+      - type: activate_campaign
+
+  retention:
+    project_gid: "1201346565918814"
+    pipeline_stage: 1
+    template_section: "TEMPLATE"
+    target_section: "OPPORTUNITY"
+    due_date_offset_days: 0
+    dnc_action: create_new
+
+    transitions:
+      converted: implementation
+      did_not_convert: reactivation
+
+    cascading_sections:
+      unit: "Account Review"
+
+    init_actions:
+      - type: deactivate_campaign
+
+  reactivation:
+    project_gid: "1201265144487549"
+    pipeline_stage: 2
+    template_section: "TEMPLATE"
+    target_section: "OPPORTUNITY"
+    due_date_offset_days: 0
+    dnc_action: deferred
+
+    transitions:
+      converted: implementation
+      did_not_convert: reactivation
+
+    self_loop:
+      max_iterations: 5
+      delay_schedule: [90, 180, 360]
+
+    cascading_sections:
+      unit: "Paused"
+
+    init_actions:
+      - type: deactivate_campaign
+
+  account_error:
+    project_gid: "1201684018234520"
+    pipeline_stage: 6
+    template_section: "TEMPLATE"
+    target_section: "OPPORTUNITY"
+    due_date_offset_days: 0
+    dnc_action: create_new
+
+    transitions:
+      converted: null
+      did_not_convert: retention
+
+    cascading_sections:
+      offer: "ACCOUNT ERROR"
+      unit: "Account Error"
+
+    init_actions:
+      - type: deactivate_campaign
+
+  expansion:
+    project_gid: "1201265144487557"
+    pipeline_stage: 6
+    template_section: "TEMPLATE"
+    target_section: "OPPORTUNITY"
+    due_date_offset_days: 0
+    dnc_action: deferred
+
+    transitions:
+      converted: null
+      did_not_convert: null
+
+    cascading_sections: {}
+    init_actions: []
+
+# Dependency wiring rules
+dependency_wiring:
+  pipeline_default:
+    dependents:
+      - entity_type: unit
+      - entity_type: offer_holder
+    dependencies:
+      - source: dna_holder
+        filter: open_plays

@@ -101,6 +101,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Per TDD-CACHE-INVALIDATION-001: Wire cache invalidation into REST routes
     _initialize_mutation_invalidator(app)
 
+    # Initialize EntityWriteRegistry for entity write endpoint
+    # Per TDD-ENTITY-WRITE-API Section 8.1: Built once at startup, stored on app.state.
+    # Must be after entity discovery so EntityRegistry has project GIDs.
+    try:
+        from autom8_asana.core.entity_registry import get_registry
+        from autom8_asana.resolution.write_registry import EntityWriteRegistry
+
+        entity_registry = get_registry()
+        write_registry = EntityWriteRegistry(entity_registry)
+        app.state.entity_write_registry = write_registry
+        logger.info(
+            "entity_write_registry_ready",
+            extra={"writable_types": write_registry.writable_types()},
+        )
+    except Exception as e:  # BROAD-CATCH: degrade
+        logger.warning(
+            "entity_write_registry_init_failed",
+            extra={
+                "error": str(e),
+                "impact": "Entity write endpoint will return 503",
+            },
+        )
+
     # DataFrame cache preload (FR-003 per sprint-materialization-002)
     # Runs after entity discovery so we know which projects exist
     # Per progressive cache warming architecture: use progressive preload with

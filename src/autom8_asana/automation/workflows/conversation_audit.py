@@ -26,14 +26,16 @@ from autom8_asana.automation.workflows.base import (
 from autom8_asana.clients.attachments import AttachmentsClient
 from autom8_asana.clients.data.client import DataServiceClient, mask_phone_number
 from autom8_asana.exceptions import ExportError
+from autom8_asana.models.business.contact import ContactHolder
+from autom8_asana.resolution.context import ResolutionContext
 
 logger = get_logger(__name__)
 
 # Feature flag environment variable
 AUDIT_ENABLED_ENV_VAR = "AUTOM8_AUDIT_ENABLED"
 
-# ContactHolder project GID (from ContactHolder.PRIMARY_PROJECT_GID)
-CONTACT_HOLDER_PROJECT_GID = "1201500116978260"
+# ContactHolder project GID (canonical source: ContactHolder.PRIMARY_PROJECT_GID)
+CONTACT_HOLDER_PROJECT_GID = ContactHolder.PRIMARY_PROJECT_GID
 
 # Default concurrency for parallel processing
 DEFAULT_MAX_CONCURRENCY = 5
@@ -349,8 +351,7 @@ class ConversationAuditWorkflow(WorkflowAction):
 
         Per TDD-CONV-AUDIT-001 Section 4: Uses the Asana parent task
         relationship. ContactHolder is a subtask of Business in the
-        holder pattern. Fetches the parent task with custom_fields to
-        read office_phone. Two API calls per holder.
+        holder pattern. Uses ResolutionContext for standardized resolution.
 
         Args:
             holder_gid: ContactHolder task GID.
@@ -364,28 +365,16 @@ class ConversationAuditWorkflow(WorkflowAction):
             opt_fields=["parent", "parent.gid"],
         )
 
-        parent_ref = holder_task.parent
-        if not parent_ref or not parent_ref.gid:
+        if not holder_task.parent or not holder_task.parent.gid:
             return None
 
-        # Fetch the parent Business task with custom_fields
-        parent_task = await self._asana_client.tasks.get_async(
-            parent_ref.gid,
-            opt_fields=[
-                "custom_fields",
-                "custom_fields.name",
-                "custom_fields.display_value",
-            ],
-        )
-
-        # Extract office_phone from custom_fields
-        if parent_task.custom_fields:
-            for cf in parent_task.custom_fields:
-                cf_dict = cf if isinstance(cf, dict) else cf.model_dump()
-                if cf_dict.get("name") == "Office Phone":
-                    return cf_dict.get("display_value") or cf_dict.get("text_value")
-
-        return None
+        # Use ResolutionContext to resolve Business and extract office_phone
+        async with ResolutionContext(
+            self._asana_client,
+            business_gid=holder_task.parent.gid,
+        ) as ctx:
+            business = await ctx.business_async()
+            return business.office_phone  # Descriptor access
 
     async def _delete_old_attachments(
         self,

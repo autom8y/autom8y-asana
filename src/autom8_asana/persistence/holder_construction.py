@@ -127,7 +127,7 @@ def construct_holder(
     conventional_name, _emoji = holder_key_map[holder_key]
 
     # Construct holder with empty GID (Pydantic requires gid field)
-    holder = holder_class(
+    holder: AsanaResource = holder_class(
         gid="",
         name=conventional_name,
         resource_type="task",
@@ -140,24 +140,24 @@ def construct_holder(
     parent_gid = parent_entity.gid
     if parent_gid and not parent_gid.startswith("temp_"):
         # Parent has real GID
-        holder.parent = NameGid(gid=parent_gid)
+        object.__setattr__(holder, "parent", NameGid(gid=parent_gid))
     else:
         # Parent also new -- use temp_{id(parent)} for payload serialization
-        holder.parent = NameGid(gid=f"temp_{id(parent_entity)}")
+        object.__setattr__(holder, "parent", NameGid(gid=f"temp_{id(parent_entity)}"))
 
     # Wire holder -> parent business reference
     from autom8_asana.models.business.business import Business
 
     if isinstance(parent_entity, Business):
-        holder._business = parent_entity
+        object.__setattr__(holder, "_business", parent_entity)
     else:
         # For Unit-level holders, propagate _business from parent
-        holder._business = getattr(parent_entity, "_business", None)
+        object.__setattr__(holder, "_business", getattr(parent_entity, "_business", None))
 
     # Project assignment (FR-008, TDD Section 5.3)
     primary_project_gid = getattr(holder_class, "PRIMARY_PROJECT_GID", None)
     if primary_project_gid is not None:
-        holder.projects = [NameGid(gid=primary_project_gid)]
+        object.__setattr__(holder, "projects", [NameGid(gid=primary_project_gid)])
 
     logger.info(
         "holder_construction_complete",

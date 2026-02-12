@@ -53,6 +53,7 @@ class ProcessType(str, Enum):
 
     Per TDD-PROCESS-PIPELINE/ADR-0096: ProcessType includes pipeline types
     and GENERIC fallback for backward compatibility.
+    Per TDD-lifecycle-engine: Added MONTH1, ACCOUNT_ERROR, EXPANSION.
 
     Pipeline types are stakeholder-aligned:
     - SALES: Sales pipeline opportunities
@@ -61,6 +62,9 @@ class ProcessType(str, Enum):
     - IMPLEMENTATION: Service implementation
     - RETENTION: Customer retention
     - REACTIVATION: Customer reactivation
+    - MONTH1: Month 1 post-implementation
+    - ACCOUNT_ERROR: Account error handling
+    - EXPANSION: Customer expansion opportunities
 
     GENERIC is preserved for backward compatibility with existing code.
     """
@@ -72,6 +76,11 @@ class ProcessType(str, Enum):
     IMPLEMENTATION = "implementation"
     RETENTION = "retention"
     REACTIVATION = "reactivation"
+
+    # New lifecycle stages (TDD-lifecycle-engine)
+    MONTH1 = "month1"
+    ACCOUNT_ERROR = "account_error"
+    EXPANSION = "expansion"
 
     # Fallback (backward compatibility)
     GENERIC = "generic"

@@ -1,6 +1,7 @@
 {
   "schema_version": "1.0",
   "remote": "local:rnd",
-  "last_sync": "2026-01-08T12:49:12.623162Z",
+  "active_rite": "10x-dev",
+  "last_sync": "2026-02-12T14:20:22.682462Z",
   "tracked_files": {}
 }
