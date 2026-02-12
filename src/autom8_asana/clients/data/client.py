@@ -1068,6 +1068,9 @@ class DataServiceClient:
         - "t7", "l7" -> "T7"
         - "t14", "l14" -> "T14"
         - "t30", "l30" -> "T30"
+        - "quarter" -> "QUARTER"
+        - "month" -> "MONTH"
+        - "week" -> "WEEK"
 
         Args:
             insights_period: Period value from InsightsRequest.
@@ -1076,7 +1079,7 @@ class DataServiceClient:
             Normalized period string for autom8_data API.
 
         Note:
-            autom8_data supports T7, T14, T30, LIFETIME.
+            autom8_data supports T7, T14, T30, LIFETIME, QUARTER, MONTH, WEEK.
             Other period values default to T30 for backward compatibility.
         """
         if insights_period is None:
@@ -1095,6 +1098,12 @@ class DataServiceClient:
             return "T14"
         elif period_lower in ("t30", "l30"):
             return "T30"
+        elif period_lower == "quarter":
+            return "QUARTER"
+        elif period_lower == "month":
+            return "MONTH"
+        elif period_lower == "week":
+            return "WEEK"
 
         # Default to T30 for other values (backward compatibility)
         return "T30"
@@ -1580,6 +1589,223 @@ class DataServiceClient:
             office_phone=office_phone,
             filename=filename,
         )
+
+    # --- Appointments & Leads API (TDD-EXPORT-001 W04) ---
+
+    async def get_appointments_async(
+        self,
+        office_phone: str,
+        *,
+        days: int = 90,
+        limit: int = 100,
+    ) -> InsightsResponse:
+        """Fetch appointment detail rows for a business.
+
+        Per TDD-EXPORT-001 W04: Maps to GET /appointments on autom8_data.
+        Uses the same circuit breaker, retry handler, and auth as
+        get_insights_async.
+
+        Args:
+            office_phone: E.164 formatted phone number.
+            days: Lookback window in days (default: 90).
+            limit: Maximum rows to return (default: 100).
+
+        Returns:
+            InsightsResponse with appointment detail rows.
+
+        Raises:
+            InsightsServiceError: Upstream service failure.
+            InsightsNotFoundError: No data found.
+        """
+        self._check_feature_enabled()
+
+        request_id = str(uuid.uuid4())
+        masked_phone = mask_phone_number(office_phone)
+
+        logger.info(
+            "appointments_request_started",
+            office_phone=masked_phone,
+            days=days,
+            limit=limit,
+            request_id=request_id,
+        )
+
+        # Circuit breaker check
+        try:
+            await self._circuit_breaker.check()
+        except SdkCircuitBreakerOpenError as e:
+            raise InsightsServiceError(
+                f"Circuit breaker open. Retry in {e.time_remaining:.1f}s.",
+                request_id=request_id,
+                reason="circuit_breaker",
+            ) from e
+
+        client = await self._get_client()
+        path = "/api/v1/appointments"
+        params = {
+            "office_phone": office_phone,
+            "days": str(days),
+            "limit": str(limit),
+        }
+
+        start_time = time.monotonic()
+
+        async def _on_timeout(e: httpx.TimeoutException, attempt: int) -> None:
+            await self._circuit_breaker.record_failure(e)
+            raise InsightsServiceError(
+                "Appointments request timed out",
+                request_id=request_id,
+                reason="timeout",
+            ) from e
+
+        async def _on_http_error(e: httpx.HTTPError, attempt: int) -> None:
+            await self._circuit_breaker.record_failure(e)
+            raise InsightsServiceError(
+                f"HTTP error during appointments fetch: {e}",
+                request_id=request_id,
+                reason="http_error",
+            ) from e
+
+        response, _attempt = await self._execute_with_retry(
+            lambda: client.get(
+                path,
+                params=params,
+                headers={"X-Request-Id": request_id},
+            ),
+            on_timeout_exhausted=_on_timeout,
+            on_http_error=_on_http_error,
+        )
+
+        elapsed_ms = (time.monotonic() - start_time) * 1000
+
+        if response.status_code >= 400:
+            cache_key = f"appointments:{office_phone}"
+            return await self._handle_error_response(
+                response, request_id, cache_key, "appointments", elapsed_ms
+            )
+
+        insights_response = self._parse_success_response(response, request_id)
+        await self._circuit_breaker.record_success()
+
+        logger.info(
+            "appointments_request_completed",
+            office_phone=masked_phone,
+            row_count=insights_response.metadata.row_count,
+            duration_ms=elapsed_ms,
+            request_id=request_id,
+        )
+
+        return insights_response
+
+    async def get_leads_async(
+        self,
+        office_phone: str,
+        *,
+        days: int = 30,
+        exclude_appointments: bool = True,
+        limit: int = 100,
+    ) -> InsightsResponse:
+        """Fetch lead detail rows for a business.
+
+        Per TDD-EXPORT-001 W04: Maps to GET /leads on autom8_data.
+        Uses the same circuit breaker, retry handler, and auth as
+        get_insights_async.
+
+        Args:
+            office_phone: E.164 formatted phone number.
+            days: Lookback window in days (default: 30).
+            exclude_appointments: Exclude appointment leads (default: True).
+            limit: Maximum rows to return (default: 100).
+
+        Returns:
+            InsightsResponse with lead detail rows.
+
+        Raises:
+            InsightsServiceError: Upstream service failure.
+            InsightsNotFoundError: No data found.
+        """
+        self._check_feature_enabled()
+
+        request_id = str(uuid.uuid4())
+        masked_phone = mask_phone_number(office_phone)
+
+        logger.info(
+            "leads_request_started",
+            office_phone=masked_phone,
+            days=days,
+            exclude_appointments=exclude_appointments,
+            limit=limit,
+            request_id=request_id,
+        )
+
+        # Circuit breaker check
+        try:
+            await self._circuit_breaker.check()
+        except SdkCircuitBreakerOpenError as e:
+            raise InsightsServiceError(
+                f"Circuit breaker open. Retry in {e.time_remaining:.1f}s.",
+                request_id=request_id,
+                reason="circuit_breaker",
+            ) from e
+
+        client = await self._get_client()
+        path = "/api/v1/leads"
+        params: dict[str, str] = {
+            "office_phone": office_phone,
+            "days": str(days),
+            "limit": str(limit),
+        }
+        if exclude_appointments:
+            params["exclude_appointments"] = "true"
+
+        start_time = time.monotonic()
+
+        async def _on_timeout(e: httpx.TimeoutException, attempt: int) -> None:
+            await self._circuit_breaker.record_failure(e)
+            raise InsightsServiceError(
+                "Leads request timed out",
+                request_id=request_id,
+                reason="timeout",
+            ) from e
+
+        async def _on_http_error(e: httpx.HTTPError, attempt: int) -> None:
+            await self._circuit_breaker.record_failure(e)
+            raise InsightsServiceError(
+                f"HTTP error during leads fetch: {e}",
+                request_id=request_id,
+                reason="http_error",
+            ) from e
+
+        response, _attempt = await self._execute_with_retry(
+            lambda: client.get(
+                path,
+                params=params,
+                headers={"X-Request-Id": request_id},
+            ),
+            on_timeout_exhausted=_on_timeout,
+            on_http_error=_on_http_error,
+        )
+
+        elapsed_ms = (time.monotonic() - start_time) * 1000
+
+        if response.status_code >= 400:
+            cache_key = f"leads:{office_phone}"
+            return await self._handle_error_response(
+                response, request_id, cache_key, "leads", elapsed_ms
+            )
+
+        insights_response = self._parse_success_response(response, request_id)
+        await self._circuit_breaker.record_success()
+
+        logger.info(
+            "leads_request_completed",
+            office_phone=masked_phone,
+            row_count=insights_response.metadata.row_count,
+            duration_ms=elapsed_ms,
+            request_id=request_id,
+        )
+
+        return insights_response
 
 
 def _parse_content_disposition_filename(header: str) -> str | None:
