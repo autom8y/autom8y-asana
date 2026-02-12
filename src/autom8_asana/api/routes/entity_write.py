@@ -40,7 +40,7 @@ from autom8_asana.services.field_write_service import (
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/v1/entity", tags=["entity-write"])
+router = APIRouter(prefix="/api/v1/entity", tags=["entity-write"], include_in_schema=False)
 
 
 # ---------------------------------------------------------------------------

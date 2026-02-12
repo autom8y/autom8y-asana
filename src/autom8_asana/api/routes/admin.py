@@ -22,7 +22,7 @@ from autom8_asana.core.entity_types import ENTITY_TYPES
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/v1/admin", tags=["admin"])
+router = APIRouter(prefix="/v1/admin", tags=["admin"], include_in_schema=False)
 
 VALID_ENTITY_TYPES = set(ENTITY_TYPES)
 

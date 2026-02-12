@@ -25,6 +25,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
 from autom8_asana.api.models import (
+    AsanaResource,
     CreateProjectRequest,
     MembersRequest,
     PaginationMeta,
@@ -46,7 +47,7 @@ MAX_LIMIT = 100
 @router.get(
     "",
     summary="List projects by workspace",
-    response_model=SuccessResponse[list[dict[str, Any]]],
+    response_model=SuccessResponse[list[AsanaResource]],
 )
 async def list_projects(
     client: AsanaClientDualMode,
@@ -63,7 +64,7 @@ async def list_projects(
         str | None,
         Query(description="Pagination cursor from previous response"),
     ] = None,
-) -> SuccessResponse[list[dict[str, Any]]]:
+) -> SuccessResponse[list[AsanaResource]]:
     """List projects by workspace with pagination.
 
     Per FR-API-PROJ-005: List projects by workspace.
@@ -103,7 +104,7 @@ async def list_projects(
 @router.get(
     "/{gid}",
     summary="Get project by GID",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
 )
 async def get_project(
     gid: str,
@@ -116,7 +117,7 @@ async def get_project(
             example="name,notes,owner,team",
         ),
     ] = None,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Get a project by its GID.
 
     Per FR-API-PROJ-001: Get project by GID.
@@ -139,14 +140,14 @@ async def get_project(
 @router.post(
     "",
     summary="Create a new project",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
     status_code=status.HTTP_201_CREATED,
 )
 async def create_project(
     body: CreateProjectRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Create a new project.
 
     Per FR-API-PROJ-002: Create project with name, workspace, and optional team.
@@ -173,14 +174,14 @@ async def create_project(
 @router.put(
     "/{gid}",
     summary="Update a project",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
 )
 async def update_project(
     gid: str,
     body: UpdateProjectRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Update an existing project.
 
     Per FR-API-PROJ-003: Update project fields.
@@ -243,7 +244,7 @@ async def delete_project(
 @router.get(
     "/{gid}/sections",
     summary="List sections in project",
-    response_model=SuccessResponse[list[dict[str, Any]]],
+    response_model=SuccessResponse[list[AsanaResource]],
 )
 async def list_sections(
     gid: str,
@@ -257,7 +258,7 @@ async def list_sections(
         str | None,
         Query(description="Pagination cursor from previous response"),
     ] = None,
-) -> SuccessResponse[list[dict[str, Any]]]:
+) -> SuccessResponse[list[AsanaResource]]:
     """List sections in a project with pagination.
 
     Per FR-API-PROJ-006: List sections in project.
@@ -298,14 +299,14 @@ async def list_sections(
 @router.post(
     "/{gid}/members",
     summary="Add members to project",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
 )
 async def add_members(
     gid: str,
     body: MembersRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Add members to a project.
 
     Per FR-API-PROJ-007: Add members to project.
@@ -326,14 +327,14 @@ async def add_members(
 @router.delete(
     "/{gid}/members",
     summary="Remove members from project",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
 )
 async def remove_members(
     gid: str,
     body: MembersRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Remove members from a project.
 
     Per FR-API-PROJ-008: Remove members from project.

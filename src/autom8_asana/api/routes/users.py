@@ -20,6 +20,7 @@ from fastapi import APIRouter, Query
 
 from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
 from autom8_asana.api.models import (
+    AsanaResource,
     PaginationMeta,
     SuccessResponse,
     build_success_response,
@@ -35,12 +36,12 @@ MAX_LIMIT = 100
 @router.get(
     "/me",
     summary="Get current authenticated user",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
 )
 async def get_current_user(
     client: AsanaClientDualMode,
     request_id: RequestId,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Get the current authenticated user.
 
     Returns the user associated with the provided PAT token.
@@ -55,13 +56,13 @@ async def get_current_user(
 @router.get(
     "/{gid}",
     summary="Get user by GID",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
 )
 async def get_user(
     gid: str,
     client: AsanaClientDualMode,
     request_id: RequestId,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Get a user by their GID.
 
     Args:
@@ -77,7 +78,7 @@ async def get_user(
 @router.get(
     "",
     summary="List users in workspace",
-    response_model=SuccessResponse[list[dict[str, Any]]],
+    response_model=SuccessResponse[list[AsanaResource]],
 )
 async def list_users(
     client: AsanaClientDualMode,
@@ -94,7 +95,7 @@ async def list_users(
         str | None,
         Query(description="Pagination cursor from previous response"),
     ] = None,
-) -> SuccessResponse[list[dict[str, Any]]]:
+) -> SuccessResponse[list[AsanaResource]]:
     """List users in a workspace with pagination.
 
     Returns a paginated list of users in the specified workspace.

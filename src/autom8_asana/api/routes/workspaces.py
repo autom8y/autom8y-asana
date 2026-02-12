@@ -19,6 +19,7 @@ from fastapi import APIRouter, Query
 
 from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
 from autom8_asana.api.models import (
+    AsanaResource,
     PaginationMeta,
     SuccessResponse,
     build_success_response,
@@ -34,7 +35,7 @@ MAX_LIMIT = 100
 @router.get(
     "",
     summary="List all workspaces",
-    response_model=SuccessResponse[list[dict[str, Any]]],
+    response_model=SuccessResponse[list[AsanaResource]],
 )
 async def list_workspaces(
     client: AsanaClientDualMode,
@@ -47,7 +48,7 @@ async def list_workspaces(
         str | None,
         Query(description="Pagination cursor from previous response"),
     ] = None,
-) -> SuccessResponse[list[dict[str, Any]]]:
+) -> SuccessResponse[list[AsanaResource]]:
     """List all workspaces accessible to the authenticated user.
 
     Returns a paginated list of workspaces the user has access to.
@@ -87,13 +88,13 @@ async def list_workspaces(
 @router.get(
     "/{gid}",
     summary="Get workspace by GID",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
 )
 async def get_workspace(
     gid: str,
     client: AsanaClientDualMode,
     request_id: RequestId,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Get a workspace by its GID.
 
     Args:

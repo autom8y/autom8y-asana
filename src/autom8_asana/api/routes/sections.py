@@ -16,8 +16,6 @@ Per TDD-ASANA-SATELLITE:
 - Responses use standard envelope: {"data": ..., "meta": {...}}
 """
 
-from typing import Any
-
 from fastapi import APIRouter, HTTPException, status
 
 from autom8_asana.api.dependencies import (
@@ -27,6 +25,7 @@ from autom8_asana.api.dependencies import (
 )
 from autom8_asana.api.models import (
     AddTaskToSectionRequest,
+    AsanaResource,
     CreateSectionRequest,
     ReorderSectionRequest,
     SuccessResponse,
@@ -44,14 +43,14 @@ router = APIRouter(prefix="/api/v1/sections", tags=["sections"])
 @router.get(
     "/{gid}",
     summary="Get section by GID",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
 )
 async def get_section(
     gid: str,
     client: AsanaClientDualMode,
     request_id: RequestId,
     section_service: SectionServiceDep,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Get a section by its GID.
 
     Args:
@@ -71,7 +70,7 @@ async def get_section(
 @router.post(
     "",
     summary="Create a new section",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
     status_code=status.HTTP_201_CREATED,
 )
 async def create_section(
@@ -79,7 +78,7 @@ async def create_section(
     client: AsanaClientDualMode,
     request_id: RequestId,
     section_service: SectionServiceDep,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Create a new section in a project.
 
     Args:
@@ -101,7 +100,7 @@ async def create_section(
 @router.put(
     "/{gid}",
     summary="Update a section",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
 )
 async def update_section(
     gid: str,
@@ -109,7 +108,7 @@ async def update_section(
     client: AsanaClientDualMode,
     request_id: RequestId,
     section_service: SectionServiceDep,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Update a section (rename).
 
     Args:
