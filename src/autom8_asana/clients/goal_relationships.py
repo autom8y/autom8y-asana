@@ -139,7 +139,7 @@ class GoalRelationships:
         """Overload: add subgoal (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def add_subgoal(
         self,
         goal_gid: str,
@@ -176,7 +176,7 @@ class GoalRelationships:
             return result
         return Goal.model_validate(result)
 
-    @async_method  # type: ignore[arg-type]
+    @async_method
     async def remove_subgoal(
         self,
         goal_gid: str,
@@ -245,7 +245,7 @@ class GoalRelationships:
         """Overload: add supporting work (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def add_supporting_work(
         self,
         goal_gid: str,
@@ -278,7 +278,7 @@ class GoalRelationships:
             return result
         return Goal.model_validate(result)
 
-    @async_method  # type: ignore[arg-type]
+    @async_method
     async def remove_supporting_work(
         self,
         goal_gid: str,

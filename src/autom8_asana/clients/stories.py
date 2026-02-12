@@ -75,7 +75,7 @@ class StoriesClient(BaseClient):
         """Overload: get (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def get(
         self,
         story_gid: str,
@@ -152,7 +152,7 @@ class StoriesClient(BaseClient):
         """Overload: update (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def update(
         self,
         story_gid: str,
@@ -191,7 +191,7 @@ class StoriesClient(BaseClient):
             return result
         return Story.model_validate(result)
 
-    @async_method  # type: ignore[arg-type]
+    @async_method
     async def delete(self, story_gid: str) -> None:
         """Delete a story (comment only).
 
@@ -295,7 +295,7 @@ class StoriesClient(BaseClient):
         """Overload: create comment (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def create_comment(
         self,
         *,
@@ -338,7 +338,7 @@ class StoriesClient(BaseClient):
 
     # --- Cached List Operations (per TDD-CACHE-PERF-STORIES) ---
 
-    @async_method  # type: ignore[arg-type]
+    @async_method
     async def list_for_task_cached(
         self,
         task_gid: str,

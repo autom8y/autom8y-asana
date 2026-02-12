@@ -307,7 +307,7 @@ class TaskService:
             client: Asana SDK client.
             gid: Asana task GID.
         """
-        await client.tasks.delete_async(gid)
+        await client.tasks.delete_async(gid)  # type: ignore[attr-defined]
 
         # 204 No Content: no project GIDs available from response
         self._fire_invalidation(

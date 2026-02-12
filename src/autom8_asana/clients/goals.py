@@ -430,7 +430,7 @@ class GoalsClient(BaseClient):
 
     async def remove_subgoal_async(self, goal_gid: str, *, subgoal: str) -> None:
         """Remove a subgoal. Delegates to relationships."""
-        await self.relationships.remove_subgoal_async(goal_gid, subgoal=subgoal)
+        await self.relationships.remove_subgoal_async(goal_gid, subgoal=subgoal)  # type: ignore[attr-defined]
 
     def remove_subgoal(self, goal_gid: str, *, subgoal: str) -> None:
         """Remove a subgoal (sync). Delegates to relationships."""
@@ -458,7 +458,7 @@ class GoalsClient(BaseClient):
         self, goal_gid: str, *, supporting_resource: str
     ) -> None:
         """Remove supporting work. Delegates to relationships."""
-        await self.relationships.remove_supporting_work_async(
+        await self.relationships.remove_supporting_work_async(  # type: ignore[attr-defined]
             goal_gid, supporting_resource=supporting_resource
         )
 

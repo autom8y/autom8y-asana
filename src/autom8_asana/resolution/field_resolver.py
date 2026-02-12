@@ -304,12 +304,12 @@ class FieldResolver:
             )
 
         if field_type == "multi_enum":
-            resolved_value = self._resolve_multi_enum(field_def, value, list_mode)
+            multi_value = self._resolve_multi_enum(field_def, value, list_mode)
             return ResolvedField(
                 input_name=input_name,
                 matched_name=display_name,
                 gid=gid,
-                value=resolved_value,
+                value=multi_value,
             )
 
         # TextListField append handling

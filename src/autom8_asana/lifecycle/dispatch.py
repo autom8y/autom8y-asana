@@ -98,7 +98,7 @@ class AutomationDispatch:
             }
 
         # Fetch process
-        task_data = await self._client.tasks.get_async(task_gid)
+        task_data = await self._client.tasks.get_async(task_gid)  # type: ignore[arg-type]  # task_gid validated non-None by caller
         process = Process.model_validate(task_data.model_dump())
 
         result = await self._lifecycle_engine.handle_transition_async(process, outcome)

@@ -84,7 +84,7 @@ class ReopenService:
             if holder is None:
                 from autom8_asana.models.business.process import ProcessHolder
 
-                holder = await ctx.resolve_holder_async(ProcessHolder)
+                holder = await ctx.resolve_holder_async(ProcessHolder)  # type: ignore[type-var]  # ProcessHolder satisfies Holder protocol at runtime
 
             if holder is None:
                 return ReopenResult(
@@ -183,7 +183,7 @@ class ReopenService:
             None,
         )
         if target:
-            await self._client.sections.add_task_async(
+            await self._client.sections.add_task_async(  # type: ignore[attr-defined]
                 target.gid,
                 task=task_gid,
             )

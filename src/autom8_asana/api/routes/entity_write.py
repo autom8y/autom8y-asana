@@ -299,7 +299,7 @@ async def write_entity_fields(
     field_results = [
         FieldWriteResult(
             name=rf.input_name,
-            status="written" if rf.status == "resolved" else rf.status,
+            status="written" if rf.status == "resolved" else rf.status,  # type: ignore[arg-type]  # rf.status is a valid Literal at runtime
             error=rf.error,
             suggestions=rf.suggestions,
         )

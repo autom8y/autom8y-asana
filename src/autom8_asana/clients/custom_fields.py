@@ -204,7 +204,7 @@ class CustomFieldsClient(BaseClient):
         """Overload: create (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def create(
         self,
         *,
@@ -306,7 +306,7 @@ class CustomFieldsClient(BaseClient):
         """Overload: update (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def update(
         self,
         custom_field_gid: str,
@@ -332,7 +332,7 @@ class CustomFieldsClient(BaseClient):
             return result
         return CustomField.model_validate(result)
 
-    @async_method  # type: ignore[arg-type]
+    @async_method
     async def delete(self, custom_field_gid: str) -> None:
         """Delete a custom field.
 
@@ -446,7 +446,7 @@ class CustomFieldsClient(BaseClient):
         """Overload: create enum option (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def create_enum_option(
         self,
         custom_field_gid: str,
@@ -533,7 +533,7 @@ class CustomFieldsClient(BaseClient):
         """Overload: update enum option (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def update_enum_option(
         self,
         enum_option_gid: str,
@@ -659,7 +659,7 @@ class CustomFieldsClient(BaseClient):
         """Overload: add to project (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def add_to_project(
         self,
         project_gid: str,
@@ -700,7 +700,7 @@ class CustomFieldsClient(BaseClient):
             return result
         return CustomFieldSetting.model_validate(result)
 
-    @async_method  # type: ignore[arg-type]
+    @async_method
     async def remove_from_project(
         self,
         project_gid: str,

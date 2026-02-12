@@ -44,7 +44,7 @@ class NameResolver:
         self._client = client
         self._cache: dict[str, str] = session_cache or {}
 
-    @async_method  # type: ignore[arg-type]
+    @async_method
     async def resolve_tag(
         self,
         name_or_gid: str,
@@ -107,7 +107,7 @@ class NameResolver:
             available_names=[n for n in available_names if n],
         )
 
-    @async_method  # type: ignore[arg-type]
+    @async_method
     async def resolve_section(
         self,
         name_or_gid: str,
@@ -163,7 +163,7 @@ class NameResolver:
             available_names=available_names,
         )
 
-    @async_method  # type: ignore[arg-type]
+    @async_method
     async def resolve_project(
         self,
         name_or_gid: str,
@@ -219,7 +219,7 @@ class NameResolver:
             available_names=available_names,
         )
 
-    @async_method  # type: ignore[arg-type]
+    @async_method
     async def resolve_assignee(
         self,
         name_or_gid: str,

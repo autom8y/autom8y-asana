@@ -92,7 +92,7 @@ class GoalFollowers:
         """Overload: add followers (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def add_followers(
         self,
         goal_gid: str,
@@ -165,7 +165,7 @@ class GoalFollowers:
         """Overload: remove followers (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def remove_followers(
         self,
         goal_gid: str,

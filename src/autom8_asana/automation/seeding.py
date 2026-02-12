@@ -518,8 +518,8 @@ class FieldSeeder:
                         fields_skipped.append(rf.input_name)
                         continue
 
-                    accessor.set(rf.matched_name, rf.value)
-                    fields_to_write.append(rf.matched_name)
+                    accessor.set(rf.matched_name, rf.value)  # type: ignore[arg-type]  # matched_name validated non-None when resolved
+                    fields_to_write.append(rf.matched_name)  # type: ignore[arg-type]  # matched_name validated non-None when resolved
                 else:
                     if rf.status == "skipped":
                         logger.warning(

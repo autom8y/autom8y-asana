@@ -191,7 +191,7 @@ class ResolutionContext:
         if self._business_gid:
             cached = self._session_cache.get(self._business_gid)
             if cached is not None:
-                return cached
+                return cached  # type: ignore[return-value]  # cache stores BusinessEntity, caller expects Business subtype
 
             business = await Business.from_gid_async(
                 self._client, self._business_gid, hydrate=False

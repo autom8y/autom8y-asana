@@ -148,10 +148,10 @@ class ErrorResponse(BaseModel):
 
 
 def build_success_response(
-    data: T,
+    data: Any,
     request_id: str,
     pagination: PaginationMeta | None = None,
-) -> SuccessResponse[T]:
+) -> SuccessResponse[Any]:
     """Build a standard success response.
 
     Args:

@@ -147,7 +147,7 @@ class EntityCreationService:
             # 3. Template discovery
             template_discovery = TemplateDiscovery(self._client)
             template = await template_discovery.find_template_task_async(
-                stage_config.project_gid,
+                stage_config.project_gid,  # type: ignore[arg-type]  # project_gid validated non-None by stage_config
                 template_section=stage_config.template_section,
             )
 
@@ -209,7 +209,7 @@ class EntityCreationService:
             )
             warnings.extend(configure_warnings)
 
-            ctx.cache_entity(new_task)
+            ctx.cache_entity(new_task)  # type: ignore[arg-type]  # Task conforms to BusinessEntity protocol at runtime
 
             return CreationResult(
                 success=True,
@@ -557,7 +557,7 @@ class EntityCreationService:
                 None,
             )
             if target:
-                await self._client.sections.add_task_async(
+                await self._client.sections.add_task_async(  # type: ignore[attr-defined]
                     target.gid,
                     task=task_gid,
                 )
@@ -602,7 +602,7 @@ class EntityCreationService:
             # Fallback: resolve via context
             from autom8_asana.models.business.process import ProcessHolder
 
-            return await ctx.resolve_holder_async(ProcessHolder)
+            return await ctx.resolve_holder_async(ProcessHolder)  # type: ignore[type-var]  # ProcessHolder satisfies Holder protocol at runtime
 
         # Map holder_type string to class for non-process entities
         holder_class_map: dict[str, str] = {

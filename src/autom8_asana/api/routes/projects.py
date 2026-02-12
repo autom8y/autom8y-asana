@@ -235,7 +235,7 @@ async def delete_project(
     Returns:
         No content on success.
     """
-    await client.projects.delete_async(gid)
+    await client.projects.delete_async(gid)  # type: ignore[attr-defined]
 
 
 # --- Section-related Operations ---

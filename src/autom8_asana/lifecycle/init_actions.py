@@ -226,7 +226,7 @@ class PlayCreationHandler(InitActionHandler):
 
             template_discovery = TemplateDiscovery(self._client)
             template = await template_discovery.find_template_task_async(
-                action_config.project_gid
+                action_config.project_gid  # type: ignore[arg-type]  # project_gid validated non-None by action_config
             )
 
             if not template:
@@ -253,11 +253,12 @@ class PlayCreationHandler(InitActionHandler):
 
             # Add to project
             await self._client.tasks.add_to_project_async(
-                new_play.gid, action_config.project_gid
+                new_play.gid,
+                action_config.project_gid,  # type: ignore[arg-type]  # project_gid validated non-None by action_config
             )
 
             # Wire as dependency
-            await self._client.tasks.add_dependencies_async(
+            await self._client.tasks.add_dependencies_async(  # type: ignore[attr-defined]
                 created_entity_gid, [new_play.gid]
             )
 
@@ -300,7 +301,7 @@ class PlayCreationHandler(InitActionHandler):
             cutoff = date.today() - timedelta(days=threshold_days)
 
             # Search for completed tasks in the play project
-            tasks = await self._client.tasks.search_async(
+            tasks = await self._client.tasks.search_async(  # type: ignore[attr-defined]
                 project=action_config.project_gid,
                 completed=True,
                 completed_since=cutoff.isoformat(),
@@ -324,7 +325,7 @@ class PlayCreationHandler(InitActionHandler):
             await self._client.tasks.update_async(candidate_gid, completed=False)
 
             # Wire as dependency
-            await self._client.tasks.add_dependencies_async(
+            await self._client.tasks.add_dependencies_async(  # type: ignore[attr-defined]
                 created_entity_gid, [candidate_gid]
             )
 
@@ -392,7 +393,7 @@ class EntityCreationHandler(InitActionHandler):
                 )
 
             result = await creation_service.create_entity_async(
-                project_gid=project_gid,
+                project_gid=project_gid,  # type: ignore[arg-type]  # project_gid validated non-None by stage_config
                 template_section=template_section,
                 holder_type=holder_type,
                 ctx=ctx,

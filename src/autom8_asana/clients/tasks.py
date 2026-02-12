@@ -687,14 +687,14 @@ class TasksClient(BaseClient):
         Returns:
             Task object (refreshed if refresh=True, otherwise pre-commit state)
         """
-        return await self.operations.add_tag_async(task_gid, tag_gid, refresh=refresh)
+        return await self.operations.add_tag_async(task_gid, tag_gid, refresh=refresh)  # type: ignore[attr-defined, no-any-return]
 
     def add_tag(self, task_gid: str, tag_gid: str, *, refresh: bool = False) -> Task:
         """Add tag to task without explicit SaveSession (sync).
 
         Delegates to TaskOperations.add_tag per ADR-0059.
         """
-        return self.operations.add_tag(task_gid, tag_gid, refresh=refresh)
+        return self.operations.add_tag(task_gid, tag_gid, refresh=refresh)  # type: ignore[no-any-return]
 
     async def remove_tag_async(
         self, task_gid: str, tag_gid: str, *, refresh: bool = False
@@ -703,7 +703,7 @@ class TasksClient(BaseClient):
 
         Delegates to TaskOperations.remove_tag_async per ADR-0059.
         """
-        return await self.operations.remove_tag_async(
+        return await self.operations.remove_tag_async(  # type: ignore[attr-defined, no-any-return]
             task_gid, tag_gid, refresh=refresh
         )
 
@@ -712,7 +712,7 @@ class TasksClient(BaseClient):
 
         Delegates to TaskOperations.remove_tag per ADR-0059.
         """
-        return self.operations.remove_tag(task_gid, tag_gid, refresh=refresh)
+        return self.operations.remove_tag(task_gid, tag_gid, refresh=refresh)  # type: ignore[no-any-return]
 
     async def move_to_section_async(
         self,
@@ -726,7 +726,7 @@ class TasksClient(BaseClient):
 
         Delegates to TaskOperations.move_to_section_async per ADR-0059.
         """
-        return await self.operations.move_to_section_async(
+        return await self.operations.move_to_section_async(  # type: ignore[attr-defined, no-any-return]
             task_gid, section_gid, project_gid, refresh=refresh
         )
 
@@ -742,7 +742,7 @@ class TasksClient(BaseClient):
 
         Delegates to TaskOperations.move_to_section per ADR-0059.
         """
-        return self.operations.move_to_section(
+        return self.operations.move_to_section(  # type: ignore[no-any-return]
             task_gid, section_gid, project_gid, refresh=refresh
         )
 
@@ -751,14 +751,14 @@ class TasksClient(BaseClient):
 
         Delegates to TaskOperations.set_assignee_async per ADR-0059.
         """
-        return await self.operations.set_assignee_async(task_gid, assignee_gid)
+        return await self.operations.set_assignee_async(task_gid, assignee_gid)  # type: ignore[attr-defined, no-any-return]
 
     def set_assignee(self, task_gid: str, assignee_gid: str) -> Task:
         """Set task assignee without explicit SaveSession (sync).
 
         Delegates to TaskOperations.set_assignee per ADR-0059.
         """
-        return self.operations.set_assignee(task_gid, assignee_gid)
+        return self.operations.set_assignee(task_gid, assignee_gid)  # type: ignore[no-any-return]
 
     async def add_to_project_async(
         self,
@@ -772,7 +772,7 @@ class TasksClient(BaseClient):
 
         Delegates to TaskOperations.add_to_project_async per ADR-0059.
         """
-        return await self.operations.add_to_project_async(
+        return await self.operations.add_to_project_async(  # type: ignore[attr-defined, no-any-return]
             task_gid, project_gid, section_gid, refresh=refresh
         )
 
@@ -788,7 +788,7 @@ class TasksClient(BaseClient):
 
         Delegates to TaskOperations.add_to_project per ADR-0059.
         """
-        return self.operations.add_to_project(
+        return self.operations.add_to_project(  # type: ignore[no-any-return]
             task_gid, project_gid, section_gid, refresh=refresh
         )
 
@@ -799,7 +799,7 @@ class TasksClient(BaseClient):
 
         Delegates to TaskOperations.remove_from_project_async per ADR-0059.
         """
-        return await self.operations.remove_from_project_async(
+        return await self.operations.remove_from_project_async(  # type: ignore[attr-defined, no-any-return]
             task_gid, project_gid, refresh=refresh
         )
 
@@ -810,7 +810,7 @@ class TasksClient(BaseClient):
 
         Delegates to TaskOperations.remove_from_project per ADR-0059.
         """
-        return self.operations.remove_from_project(
+        return self.operations.remove_from_project(  # type: ignore[no-any-return]
             task_gid, project_gid, refresh=refresh
         )
 
