@@ -297,9 +297,7 @@ class TestCircuitOpenError:
 
         # Even if we could hypothetically set the circuit to open,
         # PAT path never touches the SDK, so it always succeeds.
-        response = client.get(
-            "/test", headers={"Authorization": f"Bearer {pat_token}"}
-        )
+        response = client.get("/test", headers={"Authorization": f"Bearer {pat_token}"})
 
         assert response.status_code == 200
         data = response.json()
