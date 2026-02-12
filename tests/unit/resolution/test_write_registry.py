@@ -13,7 +13,6 @@ from autom8_asana.resolution.write_registry import (
     WritableEntityInfo,
 )
 
-
 # Build once for the entire test module -- registry is immutable after construction
 _entity_registry = get_registry()
 _write_registry = EntityWriteRegistry(_entity_registry)

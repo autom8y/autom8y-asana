@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
+
 import pytest
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType

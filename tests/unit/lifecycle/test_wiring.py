@@ -13,7 +13,6 @@ import pytest
 
 from autom8_asana.lifecycle.wiring import DependencyWiringService, WiringResult
 
-
 # ---------------------------------------------------------------------------
 # WiringResult dataclass
 # ---------------------------------------------------------------------------

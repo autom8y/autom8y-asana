@@ -44,7 +44,6 @@ from autom8_asana.models import (
 )
 from autom8_asana.models.base import AsanaResource
 
-
 # =============================================================================
 # 1. MODEL VALIDATION TESTS
 # =============================================================================

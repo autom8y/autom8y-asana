@@ -34,7 +34,6 @@ from autom8_asana.models.business.detection.types import (
 )
 from autom8_asana.models.task import Task
 
-
 # --- Fixtures ---
 
 

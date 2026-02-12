@@ -14,7 +14,6 @@ from typing import Any
 
 from autom8_asana.clients.data.client import mask_phone_number
 
-
 # Section order (per PRD FR-W01.6)
 TABLE_ORDER: list[str] = [
     "SUMMARY",

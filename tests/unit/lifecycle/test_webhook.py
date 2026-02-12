@@ -3,13 +3,13 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi.testclient import TestClient
 from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 from autom8_asana.lifecycle.webhook import (
-    router,
     AsanaWebhookPayload,
     WebhookResponse,
+    router,
 )
 
 

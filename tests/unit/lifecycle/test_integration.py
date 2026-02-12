@@ -35,7 +35,6 @@ from autom8_asana.lifecycle.engine import LifecycleEngine
 from autom8_asana.lifecycle.seeding import SeedingResult
 from autom8_asana.models.business.process import Process, ProcessType
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

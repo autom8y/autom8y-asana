@@ -17,7 +17,6 @@ import pytest
 
 from autom8_asana.automation.workflows.base import WorkflowResult
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

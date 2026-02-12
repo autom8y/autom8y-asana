@@ -23,7 +23,6 @@ Security:
 
 from __future__ import annotations
 
-import os
 from functools import lru_cache
 
 from autom8y_config.lambda_extension import resolve_secret_from_env

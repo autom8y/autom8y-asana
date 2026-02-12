@@ -19,7 +19,6 @@ from autom8_asana.config import AsanaConfig
 from autom8_asana.models import PageIterator, Story, Tag, Team, User
 from autom8_asana.models.team import TeamMembership
 
-
 # =============================================================================
 # TeamsClient Full Coverage Tests
 # =============================================================================

@@ -39,6 +39,9 @@ from autom8y_http import (
 )
 from autom8y_log import get_logger
 
+from autom8_asana.clients.data import _cache as _cache_mod
+from autom8_asana.clients.data import _metrics as _metrics_mod
+from autom8_asana.clients.data import _response as _response_mod
 from autom8_asana.clients.data.config import DataServiceConfig
 from autom8_asana.clients.data.models import (
     BatchInsightsResponse,
@@ -47,9 +50,6 @@ from autom8_asana.clients.data.models import (
     InsightsRequest,
     InsightsResponse,
 )
-from autom8_asana.clients.data import _cache as _cache_mod
-from autom8_asana.clients.data import _metrics as _metrics_mod
-from autom8_asana.clients.data import _response as _response_mod
 from autom8_asana.exceptions import (
     ExportError,
     InsightsError,

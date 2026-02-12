@@ -1676,13 +1676,13 @@ class TestEdgeCasesAdversarial:
     def test_default_init_action_registry_unknown_type(self):
         """_DefaultInitActionRegistry should return failed ActionResult
         for unknown action types."""
-        from autom8_asana.lifecycle.engine import (
-            ActionResult,
-            _DefaultInitActionRegistry,
-        )
         from autom8_asana.lifecycle.config import (
             InitActionConfig,
             LifecycleConfig,
+        )
+        from autom8_asana.lifecycle.engine import (
+            ActionResult,
+            _DefaultInitActionRegistry,
         )
 
         client = _make_mock_client()
