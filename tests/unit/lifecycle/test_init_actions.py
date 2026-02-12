@@ -23,7 +23,6 @@ from autom8_asana.lifecycle.init_actions import (
     ProductsCheckHandler,
 )
 
-
 # -----------------------------------------------------------------------
 # CommentHandler
 # -----------------------------------------------------------------------

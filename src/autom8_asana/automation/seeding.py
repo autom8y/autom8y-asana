@@ -17,9 +17,8 @@ After computation, write_fields_async() persists these values to the API.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
-
 from datetime import date
+from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 

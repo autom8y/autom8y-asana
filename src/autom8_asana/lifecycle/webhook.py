@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from autom8y_log import get_logger
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
-
-from autom8y_log import get_logger
 
 logger = get_logger(__name__)
 

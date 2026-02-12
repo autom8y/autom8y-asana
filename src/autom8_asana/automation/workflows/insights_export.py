@@ -23,12 +23,12 @@ from autom8_asana.automation.workflows.base import (
     WorkflowItemError,
     WorkflowResult,
 )
-from autom8_asana.automation.workflows.mixins import AttachmentReplacementMixin
 from autom8_asana.automation.workflows.insights_formatter import (
     InsightsReportData,
     TableResult,
     compose_report,
 )
+from autom8_asana.automation.workflows.mixins import AttachmentReplacementMixin
 from autom8_asana.clients.attachments import AttachmentsClient
 from autom8_asana.clients.data.client import DataServiceClient, mask_phone_number
 from autom8_asana.resolution.context import ResolutionContext

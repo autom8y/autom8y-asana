@@ -26,6 +26,8 @@ from autom8_asana.api.routes.internal import (
 from autom8_asana.exceptions import (
     RateLimitError,
     ServerError,
+)
+from autom8_asana.exceptions import (
     TimeoutError as AsanaTimeoutError,
 )
 from autom8_asana.services.errors import (

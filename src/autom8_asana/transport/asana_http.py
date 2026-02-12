@@ -29,6 +29,7 @@ from autom8y_http import (
     RateLimiterProtocol,
     TokenBucketRateLimiter,
 )
+from autom8y_log import LoggerProtocol
 
 from autom8_asana.exceptions import (
     AsanaError,
@@ -43,8 +44,6 @@ from autom8_asana.transport.adaptive_semaphore import (
 )
 from autom8_asana.transport.config_translator import ConfigTranslator
 from autom8_asana.transport.response_handler import AsanaResponseHandler
-
-from autom8y_log import LoggerProtocol
 
 if TYPE_CHECKING:
     from autom8y_http import CircuitBreakerProtocol, RetryPolicyProtocol

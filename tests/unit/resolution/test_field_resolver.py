@@ -20,7 +20,6 @@ import pytest
 
 from autom8_asana.resolution.field_resolver import FieldResolver, ResolvedField
 
-
 # ---------------------------------------------------------------------------
 # Fixtures: shared custom field data mimicking Asana task response
 # ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ Follows Tier 1 test patterns with mocked HTTP dependencies.
 from __future__ import annotations
 
 from io import BytesIO
+
 import pytest
 
 from autom8_asana.clients.attachments import AttachmentsClient
@@ -28,7 +29,6 @@ from autom8_asana.models import (
     Webhook,
 )
 from autom8_asana.models.team import TeamMembership
-
 
 # =============================================================================
 # WebhooksClient Tests

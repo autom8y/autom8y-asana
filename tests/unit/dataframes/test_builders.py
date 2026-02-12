@@ -14,7 +14,6 @@ from unittest.mock import MagicMock
 import polars as pl
 import pytest
 
-
 from autom8_asana.dataframes.builders import (
     LAZY_THRESHOLD,
     DataFrameBuilder,

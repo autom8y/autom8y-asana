@@ -24,7 +24,6 @@ import pytest
 from autom8_asana.lifecycle.config import StageConfig, TransitionConfig
 from autom8_asana.lifecycle.reopen import ReopenResult, ReopenService
 
-
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------

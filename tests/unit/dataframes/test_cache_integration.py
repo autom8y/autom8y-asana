@@ -17,7 +17,6 @@ from unittest.mock import MagicMock
 import polars as pl
 import pytest
 
-
 from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvider
 from autom8_asana.dataframes import (
     UNIT_SCHEMA,

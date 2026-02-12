@@ -28,7 +28,6 @@ from autom8_asana.lifecycle.engine import (
 )
 from autom8_asana.models.business.process import ProcessType
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

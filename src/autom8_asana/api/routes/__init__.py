@@ -22,8 +22,8 @@ Current routes:
 """
 
 from .admin import router as admin_router
-from .entity_write import router as entity_write_router
 from .dataframes import router as dataframes_router
+from .entity_write import router as entity_write_router
 from .health import router as health_router
 from .internal import router as internal_router
 from .projects import router as projects_router
