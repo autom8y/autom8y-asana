@@ -41,6 +41,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+from autom8y_config.lambda_extension import resolve_secret_from_env
 from autom8y_log import get_logger
 
 from autom8_asana.lambda_handlers.cloudwatch import emit_metric
@@ -360,7 +361,10 @@ async def _warm_cache_async(
             invocation_id=invocation_id,
         )
 
-    workspace_gid = os.environ.get("ASANA_WORKSPACE_GID")
+    try:
+        workspace_gid = resolve_secret_from_env("ASANA_WORKSPACE_GID")
+    except ValueError:
+        workspace_gid = None
     if not workspace_gid:
         return WarmResponse(
             success=False,

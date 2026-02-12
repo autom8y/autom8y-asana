@@ -1,12 +1,12 @@
 ---
 description: Time-boxed research and exploration (no production code)
-argument-hint: <question> [--timebox=DURATION]
+argument-hint: "<question> [--timebox=DURATION]"
 allowed-tools: Bash, Read, Write, Task, Glob, Grep, WebFetch, WebSearch
 model: opus
 ---
 
 ## Context
-Auto-injected by SessionStart hook (project, team, session, git).
+Auto-injected by SessionStart hook (project, rite, session, git).
 
 ## Pre-flight
 
@@ -62,4 +62,4 @@ Spike report at `/docs/spikes/SPIKE-{slug}.md`:
 
 ## Reference
 
-Full documentation: `.claude/skills/spike-ref/skill.md`
+Full documentation: `.claude/commands/operations/spike/INDEX.md`

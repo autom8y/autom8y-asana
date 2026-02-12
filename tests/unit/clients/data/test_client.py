@@ -444,6 +444,29 @@ class TestDataServiceClientGetAuthToken:
 
         assert token is None
 
+    def test_resolves_token_via_arn_extension(self) -> None:
+        """Resolves token via Lambda extension when {KEY}_ARN is set."""
+        config = DataServiceConfig(
+            base_url="https://test.example.com",
+            token_key="AUTOM8_DATA_API_KEY",
+        )
+        client = DataServiceClient(config=config)
+
+        with (
+            patch.dict(
+                os.environ,
+                {"AUTOM8_DATA_API_KEY_ARN": "arn:aws:secretsmanager:us-east-1:123:secret:key"},
+                clear=False,
+            ),
+            patch(
+                "autom8y_config.lambda_extension.resolve_secret_arn",
+                return_value="resolved-api-key",
+            ),
+        ):
+            token = client._get_auth_token()
+
+        assert token == "resolved-api-key"
+
 
 class TestDataServiceClientConcurrency:
     """Tests for thread-safety and concurrent access."""

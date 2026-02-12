@@ -1,0 +1,66 @@
+# _env.just
+# Environment setup and validation
+
+# === Bootstrap ===
+
+# First-time setup: install dependencies, create configs
+bootstrap: _check_tools
+    @just _log "Bootstrapping environment..."
+    {{UV}} sync
+    @[ -f ".env" ] || cp .env.example .env 2>/dev/null || true
+    @just _log "Environment ready. Run 'just dev' to start."
+
+# Refresh dependencies (faster than bootstrap)
+refresh:
+    @just _log "Refreshing dependencies..."
+    {{UV}} sync
+    @just _log "Dependencies refreshed"
+
+# === Validation ===
+
+# Check required tools are installed
+[private]
+_check_tools:
+    @just _require uv
+    @just _require git
+
+# Check required environment variables
+# Uncomment and customize for your project
+# [private]
+# _check_env:
+#     @just _require_env DATABASE_URL
+#     @just _require_env SECRET_KEY
+
+# === Environment Info ===
+
+# Show current environment configuration
+env:
+    @echo "ENV:     {{ENV}}"
+    @echo "CI:      {{CI}}"
+    @echo "VERSION: {{VERSION}}"
+    @echo "Python:  $({{PY}} --version 2>/dev/null || echo 'not available')"
+    @echo "UV:      $({{UV}} --version 2>/dev/null || echo 'not available')"
+
+# Validate environment is correctly configured
+env:check:
+    @just _check_tools
+    @[ -f "pyproject.toml" ] || (echo "Missing pyproject.toml" >&2 && exit 1)
+    @[ -f ".env" ] || echo "WARN: No .env file (using defaults)"
+    @just _log "Environment OK"
+
+# === Clean ===
+
+# Remove build artifacts and caches
+clean:
+    @just _log "Cleaning build artifacts..."
+    rm -rf dist/ build/ *.egg-info/
+    rm -rf .pytest_cache/ .mypy_cache/ .ruff_cache/
+    rm -rf .coverage htmlcov/ coverage.xml
+    find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+    @just _log "Clean complete"
+
+# Deep clean: also remove virtual environment
+clean:deep: clean
+    @just _log "Deep cleaning (includes .venv)..."
+    rm -rf .venv/
+    @just _log "Deep clean complete. Run 'just bootstrap' to rebuild."
