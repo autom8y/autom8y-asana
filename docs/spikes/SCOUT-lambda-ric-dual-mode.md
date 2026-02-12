@@ -224,7 +224,7 @@ Maintain separate `Dockerfile` (ECS) and `Dockerfile.lambda` (Lambda).
 2. **Proven Pattern**: This is the documented AWS approach for non-AWS base images
 3. **Minimal Changes**: ~20 lines of changes to existing Dockerfile
 4. **Future-Proof**: Easy to add more Lambda handlers by varying CMD
-5. **Team Fit**: Matches existing entrypoint.sh patterns in autom8y_platform
+5. **Team Fit**: Matches existing entrypoint.sh patterns in autom8y
 
 **Why not Option B?** While simpler in Dockerfile, it pushes configuration to infrastructure, making it harder to understand what the image supports and requiring Terraform changes for each new handler.
 

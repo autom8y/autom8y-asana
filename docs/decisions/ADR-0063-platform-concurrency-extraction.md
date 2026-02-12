@@ -17,7 +17,7 @@ Observed issues:
 
 ### Existing Platform Infrastructure
 
-Exploration of `autom8y_platform/sdks/python/` revealed mature, production-ready infrastructure:
+Exploration of `autom8y/sdks/python/` revealed mature, production-ready infrastructure:
 
 **autom8y-http** (already consumed by autom8_asana):
 - `TokenBucketRateLimiter`: Async-safe token bucket with configurable refill rate
@@ -201,7 +201,7 @@ resolver = HierarchyAwareResolver(
 
 2. **Platform repo dependency deepens**: autom8_asana becomes more coupled to platform SDK evolution. Breaking changes in autom8y-http/cache affect autom8_asana.
 
-3. **Cross-repository coordination**: Feature development spans multiple repositories (autom8y_platform, autom8_asana), requiring more coordination.
+3. **Cross-repository coordination**: Feature development spans multiple repositories (autom8y, autom8_asana), requiring more coordination.
 
 4. **Version alignment**: autom8_asana must track platform SDK versions and update when new features are available.
 

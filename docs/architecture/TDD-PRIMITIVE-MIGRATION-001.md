@@ -5,8 +5,8 @@
 **Date**: 2025-12-31
 **Author**: Architect
 **Status**: DRAFT
-**Spike Reference**: [SPIKE-AUTOM8-ASANA-PRIMITIVE-ADOPTION](../../autom8y_platform/docs/spikes/SPIKE-AUTOM8-ASANA-PRIMITIVE-ADOPTION.md)
-**Platform TDD Reference**: [TDD-PLATFORM-PRIMITIVES-001](../../autom8y_platform/docs/architecture/TDD-PLATFORM-PRIMITIVES-001.md)
+**Spike Reference**: [SPIKE-AUTOM8-ASANA-PRIMITIVE-ADOPTION](../../autom8y/docs/spikes/SPIKE-AUTOM8-ASANA-PRIMITIVE-ADOPTION.md)
+**Platform TDD Reference**: [TDD-PLATFORM-PRIMITIVES-001](../../autom8y/docs/architecture/TDD-PLATFORM-PRIMITIVES-001.md)
 
 ---
 
@@ -1051,12 +1051,12 @@ No new ADRs required in autom8_asana - the architectural decisions were made at 
 | Artifact | Path | Verified |
 |----------|------|----------|
 | TDD | `/Users/tomtenuta/Code/autom8_asana/docs/architecture/TDD-PRIMITIVE-MIGRATION-001.md` | Pending |
-| Spike (input) | `/Users/tomtenuta/Code/autom8y_platform/docs/spikes/SPIKE-AUTOM8-ASANA-PRIMITIVE-ADOPTION.md` | Yes |
-| Platform TDD (input) | `/Users/tomtenuta/Code/autom8y_platform/docs/architecture/TDD-PLATFORM-PRIMITIVES-001.md` | Yes |
-| Platform PRD (input) | `/Users/tomtenuta/Code/autom8y_platform/docs/requirements/PRD-PLATFORM-PRIMITIVES-001.md` | Yes |
-| Platform autom8y-http | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-http/` | Yes |
-| Platform autom8y-log | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-log/` | Yes |
-| Platform autom8y-config | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-config/` | Yes |
+| Spike (input) | `/Users/tomtenuta/Code/autom8y/docs/spikes/SPIKE-AUTOM8-ASANA-PRIMITIVE-ADOPTION.md` | Yes |
+| Platform TDD (input) | `/Users/tomtenuta/Code/autom8y/docs/architecture/TDD-PLATFORM-PRIMITIVES-001.md` | Yes |
+| Platform PRD (input) | `/Users/tomtenuta/Code/autom8y/docs/requirements/PRD-PLATFORM-PRIMITIVES-001.md` | Yes |
+| Platform autom8y-http | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-http/` | Yes |
+| Platform autom8y-log | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-log/` | Yes |
+| Platform autom8y-config | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-config/` | Yes |
 
 ---
 

@@ -16,7 +16,7 @@
 ### Context
 
 The user observed:
-- `autom8_asana` already imports caching primitives from `autom8y_platform/sdks/python/autom8y-cache`
+- `autom8_asana` already imports caching primitives from `autom8y/sdks/python/autom8y-cache`
 - `autom8_data` service performs database queries for account analytics with similar lookup needs
 - Both services need schema-aware data retrieval with flexible query criteria
 
@@ -143,7 +143,7 @@ The differences are:
 Rather than overloading `autom8y-cache`, a dedicated SDK for DataFrame operations:
 
 ```
-autom8y_platform/sdks/python/autom8y-frame/
+autom8y/sdks/python/autom8y-frame/
   src/autom8y_frame/
     __init__.py
     schema.py           # ColumnDef, DataFrameSchema, DataFrameSchemaProtocol

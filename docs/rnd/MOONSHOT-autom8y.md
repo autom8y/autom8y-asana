@@ -1,4 +1,4 @@
-# MOONSHOT-autom8y-platform
+# MOONSHOT-autom8y
 
 ## Executive Summary
 
@@ -460,7 +460,7 @@ By building on OTel (vendor-neutral), we preserve optionality:
 
 ### Decisions Needed
 
-1. **Repository structure**: Monorepo (`autom8y-platform/`) or multi-repo? - **By Q1 2025 start**
+1. **Repository structure**: Monorepo (`autom8y/`) or multi-repo? - **By Q1 2025 start**
 2. **Trace backend selection**: Tempo/Jaeger/Datadog - **By Phase 2 start**
 3. **PyPI publishing strategy**: Private PyPI or public with restricted access? - **By Phase 1 end**
 

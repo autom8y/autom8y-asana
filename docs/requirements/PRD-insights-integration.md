@@ -4,7 +4,7 @@
 **Status**: Draft
 **Author**: Requirements Analyst (Claude Opus 4.5)
 **Date**: 2025-12-30
-**Parent Initiative**: autom8 Satellite Extraction (see `~/Code/autom8y_platform/docs/spikes/SPIKE-AUTOM8-DATA-PVP-MODERNIZATION.md`)
+**Parent Initiative**: autom8 Satellite Extraction (see `~/Code/autom8y/docs/spikes/SPIKE-AUTOM8-DATA-PVP-MODERNIZATION.md`)
 
 ---
 
@@ -517,10 +517,10 @@ From parent spike (`INTEGRATE-INSIGHTS-API.md`):
 
 | Document | Path |
 |----------|------|
-| Parent R&D Spike | `~/Code/autom8y_platform/docs/spikes/SPIKE-AUTOM8-DATA-PVP-MODERNIZATION.md` |
-| Insights API Spec | `~/Code/autom8y_platform/docs/research/INTEGRATE-INSIGHTS-API.md` |
-| Dependency Break Strategy | `~/Code/autom8y_platform/docs/research/INTEGRATION-MAP-DEFAULT-PV-PAIRS-001.md` |
-| POC Scope | `~/Code/autom8y_platform/docs/prototypes/POC-AUTOM8-SATELLITE-EXTRACTION.md` |
+| Parent R&D Spike | `~/Code/autom8y/docs/spikes/SPIKE-AUTOM8-DATA-PVP-MODERNIZATION.md` |
+| Insights API Spec | `~/Code/autom8y/docs/research/INTEGRATE-INSIGHTS-API.md` |
+| Dependency Break Strategy | `~/Code/autom8y/docs/research/INTEGRATION-MAP-DEFAULT-PV-PAIRS-001.md` |
+| POC Scope | `~/Code/autom8y/docs/prototypes/POC-AUTOM8-SATELLITE-EXTRACTION.md` |
 
 ---
 

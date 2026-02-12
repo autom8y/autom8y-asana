@@ -37,8 +37,8 @@ Logger._log() got an unexpected keyword argument 'attempt'
 pip install editables --index-url https://pypi.org/simple/
 
 # Reinstall autom8y packages from local dev source
-pip install -e /Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-log --no-build-isolation
-pip install -e /Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-http --no-build-isolation
+pip install -e /Users/tomtenuta/Code/autom8y/sdks/python/autom8y-log --no-build-isolation
+pip install -e /Users/tomtenuta/Code/autom8y/sdks/python/autom8y-http --no-build-isolation
 ```
 
 ### Verification of Fix

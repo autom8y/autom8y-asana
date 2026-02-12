@@ -132,7 +132,7 @@ The Lambda warmer writes to S3, but the ECS service cannot read from S3 because 
 
 **Fix Required**: Add S3 cache configuration to ECS service Terraform.
 
-**File**: `autom8y_platform/terraform/services/asana/main.tf`
+**File**: `autom8y/terraform/services/asana/main.tf`
 
 **Change**:
 ```hcl

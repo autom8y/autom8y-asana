@@ -541,7 +541,7 @@ The system MAY use AWS Step Functions for complex orchestration.
 | ASANA_WORKSPACE_GID secret | Required | Secrets Manager secret with workspace GID |
 | ECR repository | Required | Container image repository for Lambda deployment |
 | S3 bucket permissions | Required | Lambda IAM role needs S3 read/write |
-| autom8y_platform Terraform | Exists | Terraform patterns in `terraform/services/` |
+| autom8y Terraform | Exists | Terraform patterns in `terraform/services/` |
 
 ---
 

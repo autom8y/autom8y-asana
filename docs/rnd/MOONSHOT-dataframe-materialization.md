@@ -743,7 +743,7 @@ Which option accumulates least debt over 2 years?
 | Cache Invalidator | `src/autom8_asana/persistence/cache_invalidator.py` | Read via Read tool |
 | Configuration | `src/autom8_asana/config.py` | Read via Read tool |
 | Settings | `src/autom8_asana/settings.py` | Grep verified |
-| Prior Moonshot | `docs/rnd/MOONSHOT-autom8y-platform.md` | Read via Read tool |
+| Prior Moonshot | `docs/rnd/MOONSHOT-autom8y.md` | Read via Read tool |
 | Session Context | `.claude/sessions/session-20251231-134242-00b4d145/SESSION_CONTEXT.md` | Read via Read tool |
 
 ---
@@ -752,7 +752,7 @@ Which option accumulates least debt over 2 years?
 
 - [ADR-0047: Two-Tier Cache Architecture](/docs/decisions/ADR-0047-two-tier-cache-architecture.md)
 - [ADR-0012: DataFrame Layer Architecture](/docs/decisions/ADR-0012-dataframe-layer-architecture.md)
-- [MOONSHOT-autom8y-platform](/docs/rnd/MOONSHOT-autom8y-platform.md)
+- [MOONSHOT-autom8y](/docs/rnd/MOONSHOT-autom8y.md)
 - [Polars Documentation](https://pola.rs/)
 - [AWS S3 Pricing](https://aws.amazon.com/s3/pricing/)
 - [ElastiCache Pricing](https://aws.amazon.com/elasticache/pricing/)
