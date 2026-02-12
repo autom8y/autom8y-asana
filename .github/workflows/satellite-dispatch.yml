@@ -1,12 +1,15 @@
 name: Satellite Dispatch
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Test"]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
 jobs:
   dispatch:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub App token
@@ -16,7 +19,7 @@ jobs:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: autom8y
-          repositories: autom8y-platform
+          repositories: autom8y
 
       - name: Determine trigger type
         id: trigger
@@ -27,11 +30,11 @@ jobs:
             echo "triggered_by=push" >> $GITHUB_OUTPUT
           fi
 
-      - name: Dispatch to autom8y-platform
+      - name: Dispatch to autom8y
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ steps.app-token.outputs.token }}
-          repository: autom8y/autom8y-platform
+          repository: autom8y/autom8y
           event-type: satellite-deploy
           client-payload: |
             {
@@ -44,7 +47,7 @@ jobs:
 
       - name: Log dispatch success
         run: |
-          echo "Successfully dispatched satellite-deploy event to autom8y/autom8y-platform"
+          echo "Successfully dispatched satellite-deploy event to autom8y/autom8y"
           echo "  Service: asana"
           echo "  Repository: autom8_asana"
           echo "  Ref: ${{ github.ref_name }}"
