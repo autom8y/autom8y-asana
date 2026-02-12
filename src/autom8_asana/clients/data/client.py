@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 # Platform SDK resilience primitives (autom8y-http >= 0.3.0)
+from autom8y_config.lambda_extension import resolve_secret_from_env
 from autom8y_http import (
     CircuitBreaker,
     ExponentialBackoffRetry,
@@ -523,8 +524,11 @@ class DataServiceClient:
                     )
                 # Fall through to environment variable
 
-        # Fallback to environment variable
-        return os.environ.get(self._config.token_key)
+        # Fallback to environment variable (supports Lambda extension ARN resolution)
+        try:
+            return resolve_secret_from_env(self._config.token_key)
+        except ValueError:
+            return None
 
     def _check_feature_enabled(self) -> None:
         """Check if the insights integration is enabled (emergency kill switch).

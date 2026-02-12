@@ -1,0 +1,138 @@
+id: "comprehensive-example-001"
+name: "Comprehensive Runbook Example"
+version: 1
+forkedFrom: null
+content:
+- id: "title"
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 1
+    isToggleable: false
+  content:
+    - type: text
+      text: "API Integration Runbook"
+      styles: {}
+- id: "intro"
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content:
+    - type: text
+      text: "This runbook demonstrates all block types."
+      styles: {}
+- id: "var-base-url"
+  type: var
+  props:
+    name: base_url
+    value: "https://api.example.com"
+- id: "var-api-key"
+  type: var
+  props:
+    name: api_key
+    value: "sk-your-key-here"
+- id: "setup-heading"
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+    - type: text
+      text: "Configuration"
+      styles: {}
+- id: "config-note"
+  type: quote
+  props:
+    backgroundColor: default
+    textColor: default
+  content:
+    - type: text
+      text: "Ensure your API key is set before running."
+      styles: {}
+- id: "show-url"
+  type: var_display
+  props:
+    name: base_url
+- id: "script-heading"
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+    - type: text
+      text: "Fetch Data"
+      styles: {}
+- id: "fetch-script"
+  type: script
+  props:
+    interpreter: bash
+    name: "fetch-users"
+    code: |-
+      curl -s -H "Authorization: Bearer {{var.api_key}}" \
+        "{{var.base_url}}/users"
+    outputVariable: users_response
+    outputVisible: true
+    dependency: null
+- id: "http-heading"
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+    - type: text
+      text: "HTTP Request Example"
+      styles: {}
+- id: "http-request"
+  type: http
+  props:
+    name: "get-status"
+    request:
+      method: GET
+      url: "{{var.base_url}}/status"
+      headers:
+        Accept: application/json
+- id: "terminal-heading"
+  type: heading
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+    level: 2
+    isToggleable: false
+  content:
+    - type: text
+      text: "Interactive Terminal"
+      styles: {}
+- id: "terminal-block"
+  type: run
+  props:
+    type: terminal
+    name: "dev-shell"
+    code: |-
+      echo "Starting interactive session..."
+      bash
+    pty: true
+    global: false
+    outputVisible: true
+    dependency: null
+    terminalRows: 10
+- id: "trailing-para"
+  type: paragraph
+  props:
+    backgroundColor: default
+    textColor: default
+    textAlignment: left
+  content: []

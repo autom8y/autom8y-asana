@@ -9,6 +9,7 @@ Per TDD-S2S-001 Section 12.1:
 from __future__ import annotations
 
 from collections.abc import Generator
+from unittest.mock import patch
 
 import pytest
 
@@ -147,3 +148,48 @@ class TestBotPATError:
         # Assert
         assert isinstance(error, Exception)
         assert str(error) == "test message"
+
+
+class TestGetBotPatExtensionResolution:
+    """Test bot PAT retrieval via Lambda extension ARN resolution."""
+
+    def test_resolves_via_arn_when_set(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Resolves PAT via Lambda extension when ASANA_PAT_ARN is set."""
+        test_pat = "0/resolved_from_extension_1234567890"
+        monkeypatch.setenv("ASANA_PAT_ARN", "arn:aws:secretsmanager:us-east-1:123:secret:pat")
+        monkeypatch.delenv("ASANA_PAT", raising=False)
+        clear_bot_pat_cache()
+
+        with patch(
+            "autom8y_config.lambda_extension.resolve_secret_arn",
+            return_value=test_pat,
+        ):
+            result = get_bot_pat()
+
+        assert result == test_pat
+
+    def test_falls_back_to_direct_env_when_no_arn(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Falls back to ASANA_PAT env var when no ARN is set."""
+        test_pat = "0/direct_env_var_pat_1234567890abc"
+        monkeypatch.delenv("ASANA_PAT_ARN", raising=False)
+        monkeypatch.setenv("ASANA_PAT", test_pat)
+        clear_bot_pat_cache()
+
+        result = get_bot_pat()
+
+        assert result == test_pat
+
+    def test_raises_when_neither_arn_nor_env_set(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Raises BotPATError when no secret source is available."""
+        monkeypatch.delenv("ASANA_PAT_ARN", raising=False)
+        monkeypatch.delenv("ASANA_PAT", raising=False)
+        clear_bot_pat_cache()
+
+        with pytest.raises(BotPATError):
+            get_bot_pat()

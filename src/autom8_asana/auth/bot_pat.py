@@ -26,6 +26,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 
+from autom8y_config.lambda_extension import resolve_secret_from_env
 from autom8y_log import get_logger
 
 logger = get_logger("autom8_asana.auth")
@@ -66,7 +67,10 @@ def get_bot_pat() -> str:
     Rationale:
         See ADR-S2S-002 for alternatives considered.
     """
-    pat = os.environ.get("ASANA_PAT")
+    try:
+        pat = resolve_secret_from_env("ASANA_PAT")
+    except ValueError:
+        pat = None
 
     if not pat:
         logger.error("bot_pat_not_configured")

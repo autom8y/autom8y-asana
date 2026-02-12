@@ -1,12 +1,12 @@
 ---
 description: Create pull request with comprehensive description
-argument-hint: [title] [--base=BRANCH]
+argument-hint: "[title] [--base=BRANCH]"
 allowed-tools: Bash, Read, Glob, Grep
 model: sonnet
 ---
 
 ## Context
-Auto-injected by SessionStart hook (project, team, session, git).
+Auto-injected by SessionStart hook (project, rite, session, git).
 
 **PR-specific**:
 - Base branch: !`git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main"`
@@ -61,4 +61,4 @@ Create a GitHub pull request with auto-generated description. $ARGUMENTS
 
 ## Reference
 
-Full documentation: `.claude/skills/pr-ref/skill.md`
+Full documentation: `.claude/commands/operations/pr/INDEX.md`
