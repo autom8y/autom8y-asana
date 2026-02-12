@@ -154,6 +154,45 @@ class TestWorkflowResult:
         )
         assert result.metadata["truncated_count"] == 2
 
+    def test_to_response_dict_standard_fields(self) -> None:
+        result = self._make_result(
+            total=10, succeeded=7, failed=2, skipped=1, duration_seconds=30.0
+        )
+        d = result.to_response_dict()
+        assert d == {
+            "status": "completed",
+            "workflow_id": "test-workflow",
+            "total": 10,
+            "succeeded": 7,
+            "failed": 2,
+            "skipped": 1,
+            "duration_seconds": 30.0,
+            "failure_rate": 0.2,
+        }
+
+    def test_to_response_dict_with_extra_metadata(self) -> None:
+        started = datetime(2026, 2, 10, 2, 0, 0, tzinfo=UTC)
+        result = WorkflowResult(
+            workflow_id="test-workflow",
+            started_at=started,
+            completed_at=started + timedelta(seconds=10),
+            total=5,
+            succeeded=5,
+            failed=0,
+            skipped=0,
+            metadata={"total_tables_succeeded": 50, "total_tables_failed": 0},
+        )
+        d = result.to_response_dict(
+            extra_metadata_keys=["total_tables_succeeded", "total_tables_failed"],
+        )
+        assert d["total_tables_succeeded"] == 50
+        assert d["total_tables_failed"] == 0
+
+    def test_to_response_dict_missing_metadata_defaults_to_zero(self) -> None:
+        result = self._make_result()
+        d = result.to_response_dict(extra_metadata_keys=["nonexistent_key"])
+        assert d["nonexistent_key"] == 0
+
 
 # --- WorkflowRegistry Tests ---
 

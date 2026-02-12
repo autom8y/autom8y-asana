@@ -2,6 +2,9 @@
 
 Per TDD-EXPORT-001 Section 9.2: Tests for Lambda handler entry point,
 registration, validation handling, execution result mapping, and error handling.
+
+Tests exercise the handler via the generic workflow_handler factory,
+mocking at the client/workflow level.
 """
 
 from __future__ import annotations
@@ -47,6 +50,24 @@ def _make_workflow_result(
     )
 
 
+def _setup_mocks():
+    """Create standard mock objects for handler tests."""
+    mock_workflow = MagicMock()
+    mock_workflow.validate_async = AsyncMock(return_value=[])
+    mock_workflow.execute_async = AsyncMock(
+        return_value=_make_workflow_result()
+    )
+
+    mock_asana_client = MagicMock()
+    mock_asana_client.attachments = MagicMock()
+
+    mock_data_client = AsyncMock()
+    mock_data_client.__aenter__ = AsyncMock(return_value=mock_data_client)
+    mock_data_client.__aexit__ = AsyncMock(return_value=False)
+
+    return mock_workflow, mock_asana_client, mock_data_client
+
+
 # ---------------------------------------------------------------------------
 # TestHandlerModule -- AC-W05.1
 # ---------------------------------------------------------------------------
@@ -66,45 +87,29 @@ class TestHandlerModule:
 
         assert callable(handler)
 
-    def test_handler_async_exists(self) -> None:
-        """The module exposes '_handler_async' coroutine."""
-        from autom8_asana.lambda_handlers.insights_export import _handler_async
+    def test_config_has_correct_workflow_id(self) -> None:
+        """The handler config uses 'insights-export' as workflow_id."""
+        from autom8_asana.lambda_handlers.insights_export import _config
 
-        assert callable(_handler_async)
+        assert _config.workflow_id == "insights-export"
 
-    def test_execute_exists(self) -> None:
-        """The module exposes '_execute' coroutine."""
-        from autom8_asana.lambda_handlers.insights_export import _execute
+    def test_config_has_correct_defaults(self) -> None:
+        """The handler config default_params match workflow constants."""
+        from autom8_asana.lambda_handlers.insights_export import _config
 
-        assert callable(_execute)
+        assert _config.default_params["max_concurrency"] == 5
+        assert _config.default_params["attachment_pattern"] == "insights_export_*.md"
+        assert _config.default_params["row_limits"] == {
+            "APPOINTMENTS": 100,
+            "LEADS": 100,
+        }
 
+    def test_config_has_response_metadata_keys(self) -> None:
+        """The handler config includes table tracking metadata keys."""
+        from autom8_asana.lambda_handlers.insights_export import _config
 
-# ---------------------------------------------------------------------------
-# TestHandlerPattern -- AC-W05.2
-# ---------------------------------------------------------------------------
-
-class TestHandlerPattern:
-    """Handler follows the asyncio.run -> _handler_async -> _execute pattern."""
-
-    @patch("autom8_asana.lambda_handlers.insights_export._handler_async")
-    @patch("autom8_asana.lambda_handlers.insights_export.asyncio")
-    def test_handler_calls_asyncio_run(
-        self,
-        mock_asyncio: MagicMock,
-        mock_handler_async: MagicMock,
-    ) -> None:
-        """handler() delegates to asyncio.run(_handler_async(...))."""
-        from autom8_asana.lambda_handlers.insights_export import handler
-
-        expected_result = {"statusCode": 200, "body": "{}"}
-        mock_asyncio.run.return_value = expected_result
-
-        event = {"test": True}
-        context = MagicMock()
-        result = handler(event, context)
-
-        mock_asyncio.run.assert_called_once()
-        assert result == expected_result
+        assert "total_tables_succeeded" in _config.response_metadata_keys
+        assert "total_tables_failed" in _config.response_metadata_keys
 
 
 # ---------------------------------------------------------------------------
@@ -141,36 +146,23 @@ class TestHandlerRegistration:
 class TestHandlerValidation:
     """When workflow.validate_async() returns errors, handler returns skipped."""
 
-    @pytest.mark.asyncio
-    async def test_validation_failure_returns_skipped(self) -> None:
+    @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
+    def test_validation_failure_returns_skipped(
+        self, mock_emit: MagicMock,
+    ) -> None:
         """Validation errors produce status='skipped' with errors list."""
-        from autom8_asana.lambda_handlers.insights_export import _execute
+        from autom8_asana.lambda_handlers.insights_export import handler
 
-        mock_workflow = MagicMock()
+        mock_workflow, mock_asana_client, mock_data_client = _setup_mocks()
         mock_workflow.validate_async = AsyncMock(
             return_value=["Workflow disabled via AUTOM8_EXPORT_ENABLED=false"]
         )
 
-        mock_asana_client = MagicMock()
-        mock_asana_client.attachments = MagicMock()
-
-        mock_data_client = AsyncMock()
-        mock_data_client.__aenter__ = AsyncMock(return_value=mock_data_client)
-        mock_data_client.__aexit__ = AsyncMock(return_value=False)
-
-        with (
-            patch(
-                "autom8_asana.lambda_handlers.insights_export.InsightsExportWorkflow",
-                return_value=mock_workflow,
-            ) if False else patch.dict("sys.modules", {}),
-        ):
-            pass
-
-        # Patch the deferred imports inside _execute
         with (
             patch(
                 "autom8_asana.automation.workflows.insights_export.InsightsExportWorkflow",
-            ) as mock_wf_class,
+                return_value=mock_workflow,
+            ),
             patch(
                 "autom8_asana.client.AsanaClient",
                 return_value=mock_asana_client,
@@ -180,9 +172,7 @@ class TestHandlerValidation:
                 return_value=mock_data_client,
             ),
         ):
-            mock_wf_class.return_value = mock_workflow
-
-            result = await _execute({})
+            result = handler({}, MagicMock())
 
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
@@ -191,28 +181,20 @@ class TestHandlerValidation:
         assert len(body["errors"]) == 1
         assert "AUTOM8_EXPORT_ENABLED" in body["errors"][0]
 
-    @pytest.mark.asyncio
-    async def test_validation_success_proceeds_to_execute(self) -> None:
+    @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
+    def test_validation_success_proceeds_to_execute(
+        self, mock_emit: MagicMock,
+    ) -> None:
         """Empty validation errors proceed to workflow execution."""
-        from autom8_asana.lambda_handlers.insights_export import _execute
+        from autom8_asana.lambda_handlers.insights_export import handler
 
-        mock_workflow = MagicMock()
-        mock_workflow.validate_async = AsyncMock(return_value=[])
-        mock_workflow.execute_async = AsyncMock(
-            return_value=_make_workflow_result()
-        )
-
-        mock_asana_client = MagicMock()
-        mock_asana_client.attachments = MagicMock()
-
-        mock_data_client = AsyncMock()
-        mock_data_client.__aenter__ = AsyncMock(return_value=mock_data_client)
-        mock_data_client.__aexit__ = AsyncMock(return_value=False)
+        mock_workflow, mock_asana_client, mock_data_client = _setup_mocks()
 
         with (
             patch(
                 "autom8_asana.automation.workflows.insights_export.InsightsExportWorkflow",
-            ) as mock_wf_class,
+                return_value=mock_workflow,
+            ),
             patch(
                 "autom8_asana.client.AsanaClient",
                 return_value=mock_asana_client,
@@ -222,9 +204,7 @@ class TestHandlerValidation:
                 return_value=mock_data_client,
             ),
         ):
-            mock_wf_class.return_value = mock_workflow
-
-            result = await _execute({})
+            result = handler({}, MagicMock())
 
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
@@ -239,10 +219,10 @@ class TestHandlerValidation:
 class TestHandlerExecution:
     """Handler returns structured JSON with all required fields from WorkflowResult."""
 
-    @pytest.mark.asyncio
-    async def test_success_response_fields(self) -> None:
+    @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
+    def test_success_response_fields(self, mock_emit: MagicMock) -> None:
         """Completed execution returns all required fields in response body."""
-        from autom8_asana.lambda_handlers.insights_export import _execute
+        from autom8_asana.lambda_handlers.insights_export import handler
 
         workflow_result = _make_workflow_result(
             total=10,
@@ -253,21 +233,14 @@ class TestHandlerExecution:
             total_tables_failed=5,
         )
 
-        mock_workflow = MagicMock()
-        mock_workflow.validate_async = AsyncMock(return_value=[])
+        mock_workflow, mock_asana_client, mock_data_client = _setup_mocks()
         mock_workflow.execute_async = AsyncMock(return_value=workflow_result)
-
-        mock_asana_client = MagicMock()
-        mock_asana_client.attachments = MagicMock()
-
-        mock_data_client = AsyncMock()
-        mock_data_client.__aenter__ = AsyncMock(return_value=mock_data_client)
-        mock_data_client.__aexit__ = AsyncMock(return_value=False)
 
         with (
             patch(
                 "autom8_asana.automation.workflows.insights_export.InsightsExportWorkflow",
-            ) as mock_wf_class,
+                return_value=mock_workflow,
+            ),
             patch(
                 "autom8_asana.client.AsanaClient",
                 return_value=mock_asana_client,
@@ -277,9 +250,7 @@ class TestHandlerExecution:
                 return_value=mock_data_client,
             ),
         ):
-            mock_wf_class.return_value = mock_workflow
-
-            result = await _execute({})
+            result = handler({}, MagicMock())
 
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
@@ -296,23 +267,14 @@ class TestHandlerExecution:
         assert body["total_tables_succeeded"] == 75
         assert body["total_tables_failed"] == 5
 
-    @pytest.mark.asyncio
-    async def test_params_built_from_event_overrides(self) -> None:
+    @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
+    def test_params_built_from_event_overrides(
+        self, mock_emit: MagicMock,
+    ) -> None:
         """Event overrides are passed through to workflow params."""
-        from autom8_asana.lambda_handlers.insights_export import _execute
+        from autom8_asana.lambda_handlers.insights_export import handler
 
-        mock_workflow = MagicMock()
-        mock_workflow.validate_async = AsyncMock(return_value=[])
-        mock_workflow.execute_async = AsyncMock(
-            return_value=_make_workflow_result()
-        )
-
-        mock_asana_client = MagicMock()
-        mock_asana_client.attachments = MagicMock()
-
-        mock_data_client = AsyncMock()
-        mock_data_client.__aenter__ = AsyncMock(return_value=mock_data_client)
-        mock_data_client.__aexit__ = AsyncMock(return_value=False)
+        mock_workflow, mock_asana_client, mock_data_client = _setup_mocks()
 
         event = {
             "max_concurrency": 3,
@@ -323,7 +285,8 @@ class TestHandlerExecution:
         with (
             patch(
                 "autom8_asana.automation.workflows.insights_export.InsightsExportWorkflow",
-            ) as mock_wf_class,
+                return_value=mock_workflow,
+            ),
             patch(
                 "autom8_asana.client.AsanaClient",
                 return_value=mock_asana_client,
@@ -333,42 +296,27 @@ class TestHandlerExecution:
                 return_value=mock_data_client,
             ),
         ):
-            mock_wf_class.return_value = mock_workflow
-
-            await _execute(event)
+            handler(event, MagicMock())
 
         call_params = mock_workflow.execute_async.call_args[0][0]
         assert call_params["max_concurrency"] == 3
         assert call_params["attachment_pattern"] == "custom_*.md"
         assert call_params["row_limits"] == {"APPOINTMENTS": 50}
 
-    @pytest.mark.asyncio
-    async def test_params_use_defaults_when_event_empty(self) -> None:
-        """Empty event uses defaults from workflow constants."""
-        from autom8_asana.automation.workflows.insights_export import (
-            DEFAULT_ATTACHMENT_PATTERN,
-            DEFAULT_MAX_CONCURRENCY,
-            DEFAULT_ROW_LIMITS,
-        )
-        from autom8_asana.lambda_handlers.insights_export import _execute
+    @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
+    def test_params_use_defaults_when_event_empty(
+        self, mock_emit: MagicMock,
+    ) -> None:
+        """Empty event uses defaults from handler config."""
+        from autom8_asana.lambda_handlers.insights_export import handler
 
-        mock_workflow = MagicMock()
-        mock_workflow.validate_async = AsyncMock(return_value=[])
-        mock_workflow.execute_async = AsyncMock(
-            return_value=_make_workflow_result()
-        )
-
-        mock_asana_client = MagicMock()
-        mock_asana_client.attachments = MagicMock()
-
-        mock_data_client = AsyncMock()
-        mock_data_client.__aenter__ = AsyncMock(return_value=mock_data_client)
-        mock_data_client.__aexit__ = AsyncMock(return_value=False)
+        mock_workflow, mock_asana_client, mock_data_client = _setup_mocks()
 
         with (
             patch(
                 "autom8_asana.automation.workflows.insights_export.InsightsExportWorkflow",
-            ) as mock_wf_class,
+                return_value=mock_workflow,
+            ),
             patch(
                 "autom8_asana.client.AsanaClient",
                 return_value=mock_asana_client,
@@ -378,14 +326,12 @@ class TestHandlerExecution:
                 return_value=mock_data_client,
             ),
         ):
-            mock_wf_class.return_value = mock_workflow
-
-            await _execute({})
+            handler({}, MagicMock())
 
         call_params = mock_workflow.execute_async.call_args[0][0]
-        assert call_params["max_concurrency"] == DEFAULT_MAX_CONCURRENCY
-        assert call_params["attachment_pattern"] == DEFAULT_ATTACHMENT_PATTERN
-        assert call_params["row_limits"] == DEFAULT_ROW_LIMITS
+        assert call_params["max_concurrency"] == 5
+        assert call_params["attachment_pattern"] == "insights_export_*.md"
+        assert call_params["row_limits"] == {"APPOINTMENTS": 100, "LEADS": 100}
         assert call_params["workflow_id"] == "insights-export"
 
 
@@ -394,19 +340,18 @@ class TestHandlerExecution:
 # ---------------------------------------------------------------------------
 
 class TestHandlerError:
-    """When _execute raises, handler returns statusCode 500 with error details."""
+    """When execution raises, handler returns statusCode 500 with error details."""
 
-    @pytest.mark.asyncio
-    async def test_unexpected_error_returns_500(self) -> None:
-        """Unhandled exception in _execute produces a 500 response."""
-        from autom8_asana.lambda_handlers.insights_export import _handler_async
+    @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
+    def test_unexpected_error_returns_500(self, mock_emit: MagicMock) -> None:
+        """Unhandled exception produces a 500 response."""
+        from autom8_asana.lambda_handlers.insights_export import handler
 
         with patch(
-            "autom8_asana.lambda_handlers.insights_export._execute",
-            new_callable=AsyncMock,
+            "autom8_asana.client.AsanaClient",
             side_effect=RuntimeError("Unexpected failure"),
         ):
-            result = await _handler_async({}, MagicMock())
+            result = handler({}, MagicMock())
 
         assert result["statusCode"] == 500
         body = json.loads(result["body"])
@@ -414,33 +359,33 @@ class TestHandlerError:
         assert body["error"] == "Unexpected failure"
         assert body["error_type"] == "RuntimeError"
 
-    @pytest.mark.asyncio
-    async def test_error_response_includes_error_type(self) -> None:
+    @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
+    def test_error_response_includes_error_type(
+        self, mock_emit: MagicMock,
+    ) -> None:
         """Error response includes the exception class name."""
-        from autom8_asana.lambda_handlers.insights_export import _handler_async
+        from autom8_asana.lambda_handlers.insights_export import handler
 
         with patch(
-            "autom8_asana.lambda_handlers.insights_export._execute",
-            new_callable=AsyncMock,
+            "autom8_asana.client.AsanaClient",
             side_effect=ValueError("Bad input"),
         ):
-            result = await _handler_async({}, MagicMock())
+            result = handler({}, MagicMock())
 
         body = json.loads(result["body"])
         assert body["error_type"] == "ValueError"
         assert body["error"] == "Bad input"
 
-    @pytest.mark.asyncio
-    async def test_error_does_not_propagate(self) -> None:
+    @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
+    def test_error_does_not_propagate(self, mock_emit: MagicMock) -> None:
         """Exception is caught and does not escape the handler."""
-        from autom8_asana.lambda_handlers.insights_export import _handler_async
+        from autom8_asana.lambda_handlers.insights_export import handler
 
         with patch(
-            "autom8_asana.lambda_handlers.insights_export._execute",
-            new_callable=AsyncMock,
+            "autom8_asana.client.AsanaClient",
             side_effect=Exception("kaboom"),
         ):
             # Should NOT raise
-            result = await _handler_async({}, MagicMock())
+            result = handler({}, MagicMock())
 
         assert result["statusCode"] == 500
