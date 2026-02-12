@@ -144,10 +144,10 @@ If all four triggers are satisfied simultaneously, full convergence becomes viab
 |----------|------|
 | PRD-SDK-ALIGNMENT (Path 2 analysis) | `/Users/tomtenuta/Code/autom8_asana/docs/requirements/PRD-SDK-ALIGNMENT.md` |
 | TDD-SDK-ALIGNMENT | `/Users/tomtenuta/Code/autom8_asana/docs/design/TDD-SDK-ALIGNMENT.md` |
-| SDK Adoption Gap Inventory (Section 7) | `/Users/tomtenuta/Code/autom8y_platform/docs/requirements/SDK-ADOPTION-GAP-INVENTORY.md` |
+| SDK Adoption Gap Inventory (Section 7) | `/Users/tomtenuta/Code/autom8y/docs/requirements/SDK-ADOPTION-GAP-INVENTORY.md` |
 | DataFrameCache implementation | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/cache/integration/dataframe_cache.py` |
 | autom8_adapter.py (integration surface) | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/cache/integration/autom8_adapter.py` |
-| SDK CacheProvider protocol | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/protocols/cache.py` |
-| SDK TieredCacheProvider | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/tiered.py` |
+| SDK CacheProvider protocol | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/src/autom8y_cache/protocols/cache.py` |
+| SDK TieredCacheProvider | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/src/autom8y_cache/tiered.py` |
 | MemoryTier | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/cache/dataframe/tiers/memory.py` |
 | ProgressiveTier | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/cache/dataframe/tiers/progressive.py` |

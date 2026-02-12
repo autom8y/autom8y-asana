@@ -30,7 +30,7 @@ related_docs:
 | **FR-009** (Token Bucket Drain) | Fully deferred — no stub needed |
 | **Cross-pool 429 effects** | Completely independent. Asana's 429 is opaque (no type header). |
 | **Rate gate layer** | Defer to architect: evaluate whether existing `TokenBucketRateLimiter` suffices or needs augmentation |
-| **Non-goals** | Confirmed as-is, with addition: architect should evaluate whether `AsyncAdaptiveSemaphore` belongs in `autom8y_platform` |
+| **Non-goals** | Confirmed as-is, with addition: architect should evaluate whether `AsyncAdaptiveSemaphore` belongs in `autom8y` |
 | **Platform primitives** | Architect's TDD includes platform-vs-local as a design decision. If platform, split into two initiatives (platform first, then integration). |
 
 ## Quality & Execution

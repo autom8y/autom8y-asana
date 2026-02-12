@@ -43,7 +43,7 @@ from autom8_asana.transport import TokenBucketRateLimiter, RetryHandler
 ### Technical Details
 
 - TDD: `docs/architecture/TDD-PRIMITIVE-MIGRATION-001.md`
-- Spike: `docs/spikes/SPIKE-AUTOM8-ASANA-PRIMITIVE-ADOPTION.md` (in autom8y_platform)
+- Spike: `docs/spikes/SPIKE-AUTOM8-ASANA-PRIMITIVE-ADOPTION.md` (in autom8y)
 - Validation: `docs/testing/VALIDATION-PRIMITIVE-MIGRATION-001.md`
 
 ---

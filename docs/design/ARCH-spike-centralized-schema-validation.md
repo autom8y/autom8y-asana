@@ -29,7 +29,7 @@ Following ADR-0064, we investigated whether schema version validation could be c
 
 | Location | Component | Purpose |
 |----------|-----------|---------|
-| `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/` | Platform SDK | Shared caching primitives |
+| `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/` | Platform SDK | Shared caching primitives |
 | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/cache/` | Satellite Cache | Application-specific caching |
 | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/dataframes/` | DataFrame Layer | Schema-aware data transformation |
 
@@ -40,7 +40,7 @@ Following ADR-0064, we investigated whether schema version validation could be c
 ### 1. autom8y-cache Module Structure
 
 ```
-autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/
+autom8y/sdks/python/autom8y-cache/src/autom8y_cache/
 |-- __init__.py           # Factory and exports
 |-- entry.py              # CacheEntry with version datetime
 |-- freshness.py          # STRICT/EVENTUAL/IMMEDIATE modes
@@ -374,12 +374,12 @@ No migration required for SDK. Application changes per ADR-0064:
 
 | File | Purpose |
 |------|---------|
-| `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/__init__.py` | Package exports and factory |
-| `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/entry.py` | CacheEntry with resource version |
-| `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/freshness.py` | Freshness modes |
-| `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/protocols/cache.py` | CacheProvider protocol |
-| `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/tiered.py` | TieredCacheProvider |
-| `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/backends/s3.py` | S3CacheProvider |
+| `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/src/autom8y_cache/__init__.py` | Package exports and factory |
+| `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/src/autom8y_cache/entry.py` | CacheEntry with resource version |
+| `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/src/autom8y_cache/freshness.py` | Freshness modes |
+| `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/src/autom8y_cache/protocols/cache.py` | CacheProvider protocol |
+| `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/src/autom8y_cache/tiered.py` | TieredCacheProvider |
+| `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/src/autom8y_cache/backends/s3.py` | S3CacheProvider |
 
 ### Satellite Application (autom8_asana)
 
@@ -408,8 +408,8 @@ No migration required for SDK. Application changes per ADR-0064:
 | Artifact | Absolute Path | Verified |
 |----------|---------------|----------|
 | ADR-0064 | `/Users/tomtenuta/Code/autom8_asana/docs/design/ADR-0064-cascade-persistence-layer-alignment.md` | Read |
-| Platform SDK entry.py | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/entry.py` | Read |
-| Platform SDK protocols | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/protocols/cache.py` | Read |
+| Platform SDK entry.py | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/src/autom8y_cache/entry.py` | Read |
+| Platform SDK protocols | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/src/autom8y_cache/protocols/cache.py` | Read |
 | SectionPersistence | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/dataframes/section_persistence.py` | Read |
 | SchemaRegistry | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/dataframes/models/registry.py` | Read |
 | DataFrameCache | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/cache/dataframe_cache.py` | Read |

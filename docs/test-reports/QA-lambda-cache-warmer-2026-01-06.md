@@ -363,8 +363,8 @@ The Lambda Cache Warmer implementation is functionally complete and well-tested 
 | Implementation (handler) | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/lambda_handlers/cache_warmer.py` | Read |
 | Unit Tests (checkpoint) | `/Users/tomtenuta/Code/autom8_asana/tests/unit/lambda_handlers/test_checkpoint.py` | Read |
 | Unit Tests (handler) | `/Users/tomtenuta/Code/autom8_asana/tests/unit/lambda_handlers/test_cache_warmer.py` | Read |
-| Terraform Module | `/Users/tomtenuta/Code/autom8y_platform/terraform/modules/autom8-cache-lambda/` | Validated |
-| Just Commands | `/Users/tomtenuta/Code/autom8y_platform/just/cache.just` | Syntax Verified |
+| Terraform Module | `/Users/tomtenuta/Code/autom8y/terraform/modules/autom8-cache-lambda/` | Validated |
+| Just Commands | `/Users/tomtenuta/Code/autom8y/just/cache.just` | Syntax Verified |
 
 ---
 

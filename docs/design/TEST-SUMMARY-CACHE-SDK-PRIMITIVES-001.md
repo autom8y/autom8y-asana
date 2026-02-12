@@ -311,13 +311,13 @@ None. All test cases passed.
 | Artifact | Absolute Path | Verified |
 |----------|---------------|----------|
 | TDD Document | `/Users/tomtenuta/Code/autom8_asana/docs/design/TDD-CACHE-SDK-PRIMITIVES-001.md` | Yes |
-| SDK HierarchyTracker | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/hierarchy.py` | Yes |
-| SDK Freshness | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/freshness.py` | Yes |
-| SDK CompletenessUpgrader | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/protocols/upgrade.py` | Yes |
+| SDK HierarchyTracker | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/src/autom8y_cache/hierarchy.py` | Yes |
+| SDK Freshness | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/src/autom8y_cache/freshness.py` | Yes |
+| SDK CompletenessUpgrader | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/src/autom8y_cache/protocols/upgrade.py` | Yes |
 | Satellite HierarchyIndex | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/cache/hierarchy.py` | Yes |
 | Satellite Freshness re-export | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/cache/freshness.py` | Yes |
 | Satellite AsanaTaskUpgrader | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/cache/upgrader.py` | Yes |
-| SDK CHANGELOG | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/CHANGELOG.md` | Yes |
+| SDK CHANGELOG | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/CHANGELOG.md` | Yes |
 | This Test Summary | `/Users/tomtenuta/Code/autom8_asana/docs/design/TEST-SUMMARY-CACHE-SDK-PRIMITIVES-001.md` | Yes |
 
 ---

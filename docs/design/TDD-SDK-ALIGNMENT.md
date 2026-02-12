@@ -1005,10 +1005,10 @@ Stages 1+2 and Stage 3 can be implemented as separate PRs since they have no cod
 | 7 | autom8_asana cache_invalidate.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/lambda_handlers/cache_invalidate.py` | Read |
 | 8 | autom8_asana api/main.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/api/main.py` | Read |
 | 9 | autom8_asana pyproject.toml | `/Users/tomtenuta/Code/autom8_asana/pyproject.toml` | Read |
-| 10 | autom8y-config base_settings.py | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-config/src/autom8y_config/base_settings.py` | Read |
-| 11 | autom8y-config __init__.py | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-config/src/autom8y_config/__init__.py` | Read |
-| 12 | autom8y-telemetry instrument.py | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-telemetry/src/autom8y_telemetry/fastapi/instrument.py` | Read |
-| 13 | autom8y-telemetry endpoint.py | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-telemetry/src/autom8y_telemetry/fastapi/endpoint.py` | Read |
+| 10 | autom8y-config base_settings.py | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-config/src/autom8y_config/base_settings.py` | Read |
+| 11 | autom8y-config __init__.py | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-config/src/autom8y_config/__init__.py` | Read |
+| 12 | autom8y-telemetry instrument.py | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-telemetry/src/autom8y_telemetry/fastapi/instrument.py` | Read |
+| 13 | autom8y-telemetry endpoint.py | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-telemetry/src/autom8y_telemetry/fastapi/endpoint.py` | Read |
 | 14 | PRD-SDK-ALIGNMENT | `/Users/tomtenuta/Code/autom8_asana/docs/requirements/PRD-SDK-ALIGNMENT.md` | Read |
-| 15 | SDK Adoption Gap Inventory | `/Users/tomtenuta/Code/autom8y_platform/docs/requirements/SDK-ADOPTION-GAP-INVENTORY.md` | Read |
-| 16 | Initiative Family Brief | `/Users/tomtenuta/Code/autom8y_platform/.claude/sessions/session-20260114-011615-d1d89188/INITIATIVE_FAMILY_BRIEF.md` | Read |
+| 15 | SDK Adoption Gap Inventory | `/Users/tomtenuta/Code/autom8y/docs/requirements/SDK-ADOPTION-GAP-INVENTORY.md` | Read |
+| 16 | Initiative Family Brief | `/Users/tomtenuta/Code/autom8y/.claude/sessions/session-20260114-011615-d1d89188/INITIATIVE_FAMILY_BRIEF.md` | Read |

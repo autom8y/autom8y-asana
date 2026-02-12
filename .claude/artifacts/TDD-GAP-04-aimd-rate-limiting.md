@@ -137,7 +137,7 @@ _request(method, path):
 
 **Status**: Accepted
 
-**Context**: The stakeholder asked whether `AsyncAdaptiveSemaphore` should live in `autom8y_platform/sdks/python/autom8y-http` (extending the existing `ConcurrencyController`) or locally in `autom8_asana/transport/`.
+**Context**: The stakeholder asked whether `AsyncAdaptiveSemaphore` should live in `autom8y/sdks/python/autom8y-http` (extending the existing `ConcurrencyController`) or locally in `autom8_asana/transport/`.
 
 The platform already has:
 - `ConcurrencyController` in `autom8y-http/src/autom8y_http/concurrency.py` -- a fixed-size `asyncio.Semaphore` wrapper with observability.
@@ -1145,10 +1145,10 @@ The principal-engineer should implement in this order, with each step producing 
 | AsanaHttpClient | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/transport/asana_http.py` | Read |
 | ConcurrencyConfig | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/config.py` | Read |
 | Existing transport tests | `/Users/tomtenuta/Code/autom8_asana/tests/unit/transport/test_asana_http.py` | Read |
-| Platform rate limiter | `/Users/tomtenuta/code/autom8y_platform/sdks/python/autom8y-http/src/autom8y_http/rate_limiter.py` | Read |
-| Platform concurrency controller | `/Users/tomtenuta/code/autom8y_platform/sdks/python/autom8y-http/src/autom8y_http/concurrency.py` | Read |
-| Platform protocols | `/Users/tomtenuta/code/autom8y_platform/sdks/python/autom8y-http/src/autom8y_http/protocols.py` | Read |
-| Platform config | `/Users/tomtenuta/code/autom8y_platform/sdks/python/autom8y-http/src/autom8y_http/config.py` | Read |
+| Platform rate limiter | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-http/src/autom8y_http/rate_limiter.py` | Read |
+| Platform concurrency controller | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-http/src/autom8y_http/concurrency.py` | Read |
+| Platform protocols | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-http/src/autom8y_http/protocols.py` | Read |
+| Platform config | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-http/src/autom8y_http/config.py` | Read |
 | ADR-0062 (rate limiter coordination) | `/Users/tomtenuta/Code/autom8_asana/docs/decisions/ADR-0062-rate-limiter-coordination.md` | Read |
 | ADR-0063 (concurrency extraction) | `/Users/tomtenuta/Code/autom8_asana/docs/decisions/ADR-0063-platform-concurrency-extraction.md` | Read |
 | Config translator | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/transport/config_translator.py` | Read |

@@ -26,8 +26,8 @@ All acceptance criteria verified. Zero regressions introduced. Platform primitiv
 ## Scope
 
 ### In Scope
-- AC-1: ConcurrencyController implementation (autom8y_platform)
-- AC-2: HierarchyAwareResolver implementation (autom8y_platform)
+- AC-1: ConcurrencyController implementation (autom8y)
+- AC-2: HierarchyAwareResolver implementation (autom8y)
 - AC-3: Consumer integration in autom8_asana
 - AC-4: Performance targets
 
@@ -48,9 +48,9 @@ All acceptance criteria verified. Zero regressions introduced. Platform primitiv
 
 ## Acceptance Criteria Verification
 
-### AC-1: ConcurrencyController (autom8y_platform)
+### AC-1: ConcurrencyController (autom8y)
 
-**Test Suite**: `autom8y_platform/sdks/python/autom8y-http/tests/test_concurrency.py`
+**Test Suite**: `autom8y/sdks/python/autom8y-http/tests/test_concurrency.py`
 
 | AC | Criterion | Test | Result | Evidence |
 |----|-----------|------|--------|----------|
@@ -66,9 +66,9 @@ TestConcurrencyConfig: 5 passed
 TestConcurrencyControllerProtocol: 1 passed
 ```
 
-### AC-2: HierarchyAwareResolver (autom8y_platform)
+### AC-2: HierarchyAwareResolver (autom8y)
 
-**Test Suite**: `autom8y_platform/sdks/python/autom8y-cache/tests/test_resolver.py`
+**Test Suite**: `autom8y/sdks/python/autom8y-cache/tests/test_resolver.py`
 
 | AC | Criterion | Test | Result | Evidence |
 |----|-----------|------|--------|----------|
@@ -209,8 +209,8 @@ None.
 | Artifact | Path | Verified |
 |----------|------|----------|
 | TDD | `/Users/tomtenuta/Code/autom8_asana/docs/design/TDD-gid-resolution-performance.md` | Yes |
-| ConcurrencyController tests | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-http/tests/test_concurrency.py` | Yes |
-| HierarchyAwareResolver tests | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/tests/test_resolver.py` | Yes |
+| ConcurrencyController tests | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-http/tests/test_concurrency.py` | Yes |
+| HierarchyAwareResolver tests | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/tests/test_resolver.py` | Yes |
 | Integration tests | `/Users/tomtenuta/Code/autom8_asana/tests/integration/test_platform_performance.py` | Yes |
 | Consumer: base.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/dataframes/builders/base.py` | Yes |
 | Consumer: cascading.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/dataframes/resolver/cascading.py` | Yes |

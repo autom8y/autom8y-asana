@@ -31,8 +31,8 @@ This PRD scopes the exact changes required to align autom8_asana with the autom8
 
 ### Prior Work
 
-- **Sprint 1**: Gap inventory (`/Users/tomtenuta/Code/autom8y_platform/docs/requirements/SDK-ADOPTION-GAP-INVENTORY.md`) identified autom8_asana's config/secrets as a Rank 4 migration path.
-- **Sprint 1**: Migration guide PRD (`/Users/tomtenuta/Code/autom8y_platform/docs/requirements/PRD-SDK-MIGRATION-GUIDE.md`) scoped Migration Path 4 for autom8_asana config/secrets at a high level.
+- **Sprint 1**: Gap inventory (`/Users/tomtenuta/Code/autom8y/docs/requirements/SDK-ADOPTION-GAP-INVENTORY.md`) identified autom8_asana's config/secrets as a Rank 4 migration path.
+- **Sprint 1**: Migration guide PRD (`/Users/tomtenuta/Code/autom8y/docs/requirements/PRD-SDK-MIGRATION-GUIDE.md`) scoped Migration Path 4 for autom8_asana config/secrets at a high level.
 - **Sprint 2**: autom8_data completed its config/secrets migration (base class swap + SecretStr), establishing the pattern.
 - **autom8_asana transport layer**: The `ConfigTranslator` at `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/transport/config_translator.py` is the "success pattern" for SDK adoption -- pure function mapping from domain config to SDK primitives.
 
@@ -199,7 +199,7 @@ The autom8_asana DataFrame cache is a domain-specific subsystem spanning multipl
 
 ### SDK TieredCacheProvider Architecture
 
-**File**: `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/tiered.py`
+**File**: `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/src/autom8y_cache/tiered.py`
 
 The SDK's `TieredCacheProvider` (lines 39-471) coordinates a hot tier (Redis/InMemory) and cold tier (S3) for `dict[str, Any]` values:
 
@@ -394,7 +394,7 @@ Extend the existing `_emit_metric()` pattern in `cache_invalidate.py`:
 
 ### autom8y-telemetry Suitability
 
-`autom8y-telemetry` (at `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-telemetry/`) provides:
+`autom8y-telemetry` (at `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-telemetry/`) provides:
 
 1. **`instrument_app()`** (lines 23-105 of `instrument.py`): One-liner FastAPI setup for HTTP request metrics, `/metrics` endpoint, tracing, log correlation. **Already adopted by autom8_asana** (line 105 of `main.py`).
 
@@ -525,13 +525,13 @@ Path 3 (metrics) -- independent, can proceed in parallel with Path 1
 
 | Document | Path |
 |----------|------|
-| SDK Adoption Gap Inventory | `/Users/tomtenuta/Code/autom8y_platform/docs/requirements/SDK-ADOPTION-GAP-INVENTORY.md` |
-| SDK Migration Guide PRD | `/Users/tomtenuta/Code/autom8y_platform/docs/requirements/PRD-SDK-MIGRATION-GUIDE.md` |
-| autom8y-config base_settings | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-config/src/autom8y_config/base_settings.py` |
-| autom8y-cache CacheProvider protocol | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/protocols/cache.py` |
-| autom8y-cache TieredCacheProvider | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/tiered.py` |
-| autom8y-telemetry instrument_app | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-telemetry/src/autom8y_telemetry/fastapi/instrument.py` |
-| autom8y-telemetry metrics | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-telemetry/src/autom8y_telemetry/fastapi/metrics.py` |
+| SDK Adoption Gap Inventory | `/Users/tomtenuta/Code/autom8y/docs/requirements/SDK-ADOPTION-GAP-INVENTORY.md` |
+| SDK Migration Guide PRD | `/Users/tomtenuta/Code/autom8y/docs/requirements/PRD-SDK-MIGRATION-GUIDE.md` |
+| autom8y-config base_settings | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-config/src/autom8y_config/base_settings.py` |
+| autom8y-cache CacheProvider protocol | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/src/autom8y_cache/protocols/cache.py` |
+| autom8y-cache TieredCacheProvider | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/src/autom8y_cache/tiered.py` |
+| autom8y-telemetry instrument_app | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-telemetry/src/autom8y_telemetry/fastapi/instrument.py` |
+| autom8y-telemetry metrics | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-telemetry/src/autom8y_telemetry/fastapi/metrics.py` |
 | autom8_asana settings.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/settings.py` |
 | autom8_asana config.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/config.py` |
 | autom8_asana ConfigTranslator | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/transport/config_translator.py` |
@@ -561,13 +561,13 @@ Path 3 (metrics) -- independent, can proceed in parallel with Path 1
 | 9 | autom8_asana cache_invalidate.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/lambda_handlers/cache_invalidate.py` | Read |
 | 10 | autom8_asana FastAPI main.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/api/main.py` | Read |
 | 11 | autom8_asana _defaults/auth.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/_defaults/auth.py` | Read (via grep) |
-| 12 | autom8y-config base_settings.py | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-config/src/autom8y_config/base_settings.py` | Read |
-| 13 | autom8y-cache CacheProvider protocol | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/protocols/cache.py` | Read |
-| 14 | autom8y-cache TieredCacheProvider | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-cache/src/autom8y_cache/tiered.py` | Read |
-| 15 | autom8y-telemetry instrument.py | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-telemetry/src/autom8y_telemetry/fastapi/instrument.py` | Read |
-| 16 | autom8y-telemetry metrics.py | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-telemetry/src/autom8y_telemetry/fastapi/metrics.py` | Read |
-| 17 | autom8y-telemetry config.py | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-telemetry/src/autom8y_telemetry/config.py` | Read |
-| 18 | autom8y-telemetry InstrumentationConfig | `/Users/tomtenuta/Code/autom8y_platform/sdks/python/autom8y-telemetry/src/autom8y_telemetry/fastapi/config.py` | Read |
-| 19 | SDK Adoption Gap Inventory | `/Users/tomtenuta/Code/autom8y_platform/docs/requirements/SDK-ADOPTION-GAP-INVENTORY.md` | Read |
-| 20 | SDK Migration Guide PRD | `/Users/tomtenuta/Code/autom8y_platform/docs/requirements/PRD-SDK-MIGRATION-GUIDE.md` | Read |
+| 12 | autom8y-config base_settings.py | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-config/src/autom8y_config/base_settings.py` | Read |
+| 13 | autom8y-cache CacheProvider protocol | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/src/autom8y_cache/protocols/cache.py` | Read |
+| 14 | autom8y-cache TieredCacheProvider | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-cache/src/autom8y_cache/tiered.py` | Read |
+| 15 | autom8y-telemetry instrument.py | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-telemetry/src/autom8y_telemetry/fastapi/instrument.py` | Read |
+| 16 | autom8y-telemetry metrics.py | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-telemetry/src/autom8y_telemetry/fastapi/metrics.py` | Read |
+| 17 | autom8y-telemetry config.py | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-telemetry/src/autom8y_telemetry/config.py` | Read |
+| 18 | autom8y-telemetry InstrumentationConfig | `/Users/tomtenuta/Code/autom8y/sdks/python/autom8y-telemetry/src/autom8y_telemetry/fastapi/config.py` | Read |
+| 19 | SDK Adoption Gap Inventory | `/Users/tomtenuta/Code/autom8y/docs/requirements/SDK-ADOPTION-GAP-INVENTORY.md` | Read |
+| 20 | SDK Migration Guide PRD | `/Users/tomtenuta/Code/autom8y/docs/requirements/PRD-SDK-MIGRATION-GUIDE.md` | Read |
 | 21 | PRD (this document) | `/Users/tomtenuta/Code/autom8_asana/docs/requirements/PRD-SDK-ALIGNMENT.md` | Written |
