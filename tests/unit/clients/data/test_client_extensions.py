@@ -86,9 +86,7 @@ class TestGetAppointmentsAsync:
         mock_http.get = AsyncMock(return_value=mock_response)
         client._client = mock_http
 
-        await client.get_appointments_async(
-            "+17705753103", days=60, limit=50
-        )
+        await client.get_appointments_async("+17705753103", days=60, limit=50)
 
         call_kwargs = mock_http.get.call_args
         # Positional arg is the path
@@ -176,9 +174,7 @@ class TestGetAppointmentsAsync:
         mock_http.get = AsyncMock(return_value=mock_response)
         client._client = mock_http
 
-        with patch(
-            "autom8_asana.clients.data.client.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.clients.data.client.logger") as mock_logger:
             await client.get_appointments_async("+17705753103")
 
             # Find the started log call
@@ -260,9 +256,7 @@ class TestGetLeadsAsync:
         mock_http.get = AsyncMock(return_value=mock_response)
         client._client = mock_http
 
-        await client.get_leads_async(
-            "+17705753103", exclude_appointments=False
-        )
+        await client.get_leads_async("+17705753103", exclude_appointments=False)
 
         call_kwargs = mock_http.get.call_args
         params = call_kwargs[1]["params"]
@@ -278,9 +272,7 @@ class TestGetLeadsAsync:
         mock_http.get = AsyncMock(return_value=mock_response)
         client._client = mock_http
 
-        await client.get_leads_async(
-            "+17705753103", days=14, limit=200
-        )
+        await client.get_leads_async("+17705753103", days=14, limit=200)
 
         call_kwargs = mock_http.get.call_args
         assert call_kwargs[0][0] == "/api/v1/leads"
@@ -367,9 +359,7 @@ class TestGetLeadsAsync:
         mock_http.get = AsyncMock(return_value=mock_response)
         client._client = mock_http
 
-        with patch(
-            "autom8_asana.clients.data.client.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.clients.data.client.logger") as mock_logger:
             await client.get_leads_async("+17705753103")
 
             started_calls = [

@@ -56,13 +56,15 @@ def _make_parent_task(
     cf_list = []
     if office_phone:
         # CustomFieldAccessor needs gid, name, and text_value/display_value
-        cf_list.append({
-            "gid": "1205917451230123",  # Mock GID for Office Phone field
-            "name": "Office Phone",
-            "text_value": office_phone,
-            "display_value": office_phone,
-            "resource_subtype": "text",
-        })
+        cf_list.append(
+            {
+                "gid": "1205917451230123",  # Mock GID for Office Phone field
+                "name": "Office Phone",
+                "text_value": office_phone,
+                "display_value": office_phone,
+                "resource_subtype": "text",
+            }
+        )
     parent.custom_fields = cf_list
     parent.gid = gid
     parent.name = f"Business {gid}"
@@ -416,7 +418,8 @@ class TestExecuteAsyncCircuitBreakerOpen:
             _make_task(f"h{i}", f"Holder {i}", parent_gid=f"biz{i}") for i in range(3)
         ]
         parent_tasks = {
-            f"biz{i}": _make_parent_task(f"+1770575310{i}", gid=f"biz{i}") for i in range(3)
+            f"biz{i}": _make_parent_task(f"+1770575310{i}", gid=f"biz{i}")
+            for i in range(3)
         }
         export_errors = {
             f"+1770575310{i}": ExportError(
@@ -543,7 +546,8 @@ class TestExecuteAsyncConcurrency:
             _make_task(f"h{i}", f"Holder {i}", parent_gid=f"biz{i}") for i in range(10)
         ]
         parent_tasks = {
-            f"biz{i}": _make_parent_task(f"+1770575310{i}", gid=f"biz{i}") for i in range(10)
+            f"biz{i}": _make_parent_task(f"+1770575310{i}", gid=f"biz{i}")
+            for i in range(10)
         }
 
         wf, _, _, _ = _make_workflow(

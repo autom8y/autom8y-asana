@@ -44,9 +44,7 @@ class TestSessionCacheStrategy:
         assert result.strategy_used == "session_cache"
 
     @pytest.mark.asyncio
-    async def test_returns_none_when_not_cached(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_returns_none_when_not_cached(self, mock_client: MagicMock) -> None:
         """Test strategy returns None when entity not cached."""
         context = ResolutionContext(mock_client)
         strategy = SessionCacheStrategy()

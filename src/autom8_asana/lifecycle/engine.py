@@ -41,6 +41,7 @@ logger = get_logger(__name__)
 # Service result data classes
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CreationResult:
     """Result of entity creation (Phase 1)."""
@@ -92,6 +93,7 @@ class ReopenResult:
 # ---------------------------------------------------------------------------
 # Service protocols -- implementations live in sibling modules
 # ---------------------------------------------------------------------------
+
 
 @runtime_checkable
 class CreationServiceProtocol(Protocol):
@@ -167,6 +169,7 @@ class ReopenServiceProtocol(Protocol):
 # TransitionResult accumulator
 # ---------------------------------------------------------------------------
 
+
 class TransitionResult:
     """Accumulator for transition phase results.
 
@@ -214,6 +217,7 @@ class TransitionResult:
 # LifecycleEngine
 # ---------------------------------------------------------------------------
 
+
 class LifecycleEngine:
     """Orchestrates pipeline lifecycle transitions.
 
@@ -249,18 +253,14 @@ class LifecycleEngine:
         self._creation_service = creation_service or _import_creation_service(
             client, config
         )
-        self._section_service = section_service or _import_section_service(
-            client
-        )
-        self._completion_service = (
-            completion_service or _import_completion_service(client, config)
-        )
-        self._init_action_registry = (
-            init_action_registry or _DefaultInitActionRegistry(client, config)
-        )
-        self._wiring_service = wiring_service or _import_wiring_service(
+        self._section_service = section_service or _import_section_service(client)
+        self._completion_service = completion_service or _import_completion_service(
             client, config
         )
+        self._init_action_registry = init_action_registry or _DefaultInitActionRegistry(
+            client, config
+        )
+        self._wiring_service = wiring_service or _import_wiring_service(client, config)
         self._reopen_service = reopen_service or _import_reopen_service(client)
 
     # ------------------------------------------------------------------
@@ -305,9 +305,7 @@ class LifecycleEngine:
                 )
 
             # --- Resolve target stage ---
-            target_stage = self._config.get_target_stage(
-                source_stage_name, outcome
-            )
+            target_stage = self._config.get_target_stage(source_stage_name, outcome)
 
             if target_stage is None:
                 # Terminal state (e.g., Implementation CONVERTED for stages 1-4)
@@ -415,10 +413,8 @@ class LifecycleEngine:
           4. WIRE -- dependency wiring (requires all GIDs)
         """
         # Phase 1: CREATE
-        creation_result = (
-            await self._creation_service.create_process_async(
-                target_stage, ctx, source_process
-            )
+        creation_result = await self._creation_service.create_process_async(
+            target_stage, ctx, source_process
         )
         if not creation_result.success:
             result.fail(f"Process creation failed: {creation_result.error}")
@@ -472,9 +468,7 @@ class LifecycleEngine:
         if source_stage.transitions.auto_complete_prior:
             try:
                 completion_result = (
-                    await self._completion_service.complete_source_async(
-                        source_process
-                    )
+                    await self._completion_service.complete_source_async(source_process)
                 )
                 if completion_result.completed:
                     for gid in completion_result.completed:
@@ -500,13 +494,11 @@ class LifecycleEngine:
             return
 
         try:
-            action_results = (
-                await self._init_action_registry.execute_actions_async(
-                    target_stage.init_actions,
-                    created_entity_gid,
-                    ctx,
-                    source_process,
-                )
+            action_results = await self._init_action_registry.execute_actions_async(
+                target_stage.init_actions,
+                created_entity_gid,
+                ctx,
+                source_process,
             )
             for i, action_result in enumerate(action_results):
                 action_type = target_stage.init_actions[i].type
@@ -516,8 +508,7 @@ class LifecycleEngine:
                         result.add_entity_created(action_result.entity_gid)
                 else:
                     result.add_warning(
-                        f"Init action {action_type} failed: "
-                        f"{action_result.error}"
+                        f"Init action {action_type} failed: {action_result.error}"
                     )
         except Exception as e:  # BROAD-CATCH: fail-forward
             result.add_warning(f"Init actions phase failed: {e}")
@@ -591,9 +582,7 @@ class LifecycleEngine:
                         if reopen_result.entity_gid:
                             result.add_entity_updated(reopen_result.entity_gid)
                     else:
-                        result.add_warning(
-                            f"Reopen failed: {reopen_result.error}"
-                        )
+                        result.add_warning(f"Reopen failed: {reopen_result.error}")
                 except Exception as e:  # BROAD-CATCH: fail-forward
                     result.add_warning(f"Reopen failed: {e}")
 
@@ -660,9 +649,7 @@ class LifecycleEngine:
         if outcome == "converted" and source_stage.transitions.auto_complete_prior:
             try:
                 completion_result = (
-                    await self._completion_service.complete_source_async(
-                        source_process
-                    )
+                    await self._completion_service.complete_source_async(source_process)
                 )
                 if completion_result.completed:
                     for gid in completion_result.completed:
@@ -697,9 +684,7 @@ class LifecycleEngine:
         """Check required fields on process. Returns list of missing."""
         missing = []
         for field_name in required_fields:
-            value = getattr(
-                process, field_name.lower().replace(" ", "_"), None
-            )
+            value = getattr(process, field_name.lower().replace(" ", "_"), None)
             if value is None:
                 missing.append(field_name)
             elif isinstance(value, str) and not value.strip():
@@ -737,6 +722,7 @@ class LifecycleEngine:
 # ---------------------------------------------------------------------------
 # Default init action registry adapter
 # ---------------------------------------------------------------------------
+
 
 class _DefaultInitActionRegistry:
     """Adapts the existing HANDLER_REGISTRY dict to InitActionRegistryProtocol.
@@ -784,15 +770,14 @@ class _DefaultInitActionRegistry:
                     )
                 )
             except Exception as e:  # BROAD-CATCH: per-action isolation
-                results.append(
-                    ActionResult(success=False, error=str(e))
-                )
+                results.append(ActionResult(success=False, error=str(e)))
         return results
 
 
 # ---------------------------------------------------------------------------
 # Lazy service constructors (avoids import-time coupling)
 # ---------------------------------------------------------------------------
+
 
 def _import_creation_service(
     client: AsanaClient, config: LifecycleConfig
@@ -857,15 +842,14 @@ def _import_reopen_service(client: AsanaClient) -> ReopenServiceProtocol:
 # Adapters and stubs for parallel-rewrite compatibility
 # ---------------------------------------------------------------------------
 
+
 class _CompletionAdapter:
     """Adapts PipelineAutoCompletionService to CompletionServiceProtocol."""
 
     def __init__(self, service: object) -> None:
         self._service = service
 
-    async def complete_source_async(
-        self, source_process: Process
-    ) -> CompletionResult:
+    async def complete_source_async(self, source_process: Process) -> CompletionResult:
         """Delegate to the old auto_complete_async with minimal args."""
         # The old service needs (source_process, new_pipeline_stage, ctx)
         # but we only have the source_process. Return empty for now.

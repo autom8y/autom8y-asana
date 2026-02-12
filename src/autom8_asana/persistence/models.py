@@ -542,21 +542,21 @@ def _build_comment_data(extra_params: dict[str, Any]) -> dict[str, Any]:
 #   "no_target"   - {"data": {}}
 #   "comment"     - {"data": _build_comment_data(extra_params)}
 _ACTION_SPECS: dict[ActionType, tuple[str, str, str]] = {
-    ActionType.ADD_TAG:              ("addTag",              "tag",          "single"),
-    ActionType.REMOVE_TAG:           ("removeTag",           "tag",          "single"),
-    ActionType.REMOVE_FROM_PROJECT:  ("removeProject",       "project",      "single"),
-    ActionType.ADD_TO_PROJECT:       ("addProject",          "project",      "positioning"),
-    ActionType.MOVE_TO_SECTION:      ("addTask",             "task",         "section"),
-    ActionType.SET_PARENT:           ("setParent",           "parent",       "parent"),
-    ActionType.ADD_DEPENDENCY:       ("addDependencies",     "dependencies", "list"),
-    ActionType.REMOVE_DEPENDENCY:    ("removeDependencies",  "dependencies", "list"),
-    ActionType.ADD_FOLLOWER:         ("addFollowers",        "followers",    "list"),
-    ActionType.REMOVE_FOLLOWER:      ("removeFollowers",     "followers",    "list"),
-    ActionType.ADD_DEPENDENT:        ("addDependents",       "dependents",   "list"),
-    ActionType.REMOVE_DEPENDENT:     ("removeDependents",    "dependents",   "list"),
-    ActionType.ADD_LIKE:             ("addLike",             "",             "no_target"),
-    ActionType.REMOVE_LIKE:          ("removeLike",          "",             "no_target"),
-    ActionType.ADD_COMMENT:          ("stories",             "",             "comment"),
+    ActionType.ADD_TAG: ("addTag", "tag", "single"),
+    ActionType.REMOVE_TAG: ("removeTag", "tag", "single"),
+    ActionType.REMOVE_FROM_PROJECT: ("removeProject", "project", "single"),
+    ActionType.ADD_TO_PROJECT: ("addProject", "project", "positioning"),
+    ActionType.MOVE_TO_SECTION: ("addTask", "task", "section"),
+    ActionType.SET_PARENT: ("setParent", "parent", "parent"),
+    ActionType.ADD_DEPENDENCY: ("addDependencies", "dependencies", "list"),
+    ActionType.REMOVE_DEPENDENCY: ("removeDependencies", "dependencies", "list"),
+    ActionType.ADD_FOLLOWER: ("addFollowers", "followers", "list"),
+    ActionType.REMOVE_FOLLOWER: ("removeFollowers", "followers", "list"),
+    ActionType.ADD_DEPENDENT: ("addDependents", "dependents", "list"),
+    ActionType.REMOVE_DEPENDENT: ("removeDependents", "dependents", "list"),
+    ActionType.ADD_LIKE: ("addLike", "", "no_target"),
+    ActionType.REMOVE_LIKE: ("removeLike", "", "no_target"),
+    ActionType.ADD_COMMENT: ("stories", "", "comment"),
 }
 
 
@@ -617,20 +617,14 @@ class ActionOperation:
         # MOVE_TO_SECTION: path uses target_gid, data uses task_gid (reversed)
         if style == "section":
             path = f"/sections/{target_gid}/{endpoint_suffix}"
-            data = _build_positioning_data(
-                {payload_key: task_gid}, self.extra_params
-            )
+            data = _build_positioning_data({payload_key: task_gid}, self.extra_params)
         elif style == "positioning":
             path = f"/tasks/{task_gid}/{endpoint_suffix}"
-            data = _build_positioning_data(
-                {payload_key: target_gid}, self.extra_params
-            )
+            data = _build_positioning_data({payload_key: target_gid}, self.extra_params)
         elif style == "parent":
             path = f"/tasks/{task_gid}/{endpoint_suffix}"
             parent_gid = self.extra_params.get("parent")
-            data = _build_positioning_data(
-                {payload_key: parent_gid}, self.extra_params
-            )
+            data = _build_positioning_data({payload_key: parent_gid}, self.extra_params)
         elif style == "list":
             path = f"/tasks/{task_gid}/{endpoint_suffix}"
             data = {payload_key: [target_gid]}

@@ -154,9 +154,8 @@ class ResolutionContext:
                 return ResolutionResult(
                     status=ResolutionStatus.BUDGET_EXHAUSTED,
                     api_calls_used=budget.used,
-                    diagnostics=diagnostics + [
-                        f"Budget exhausted after {budget.used} API calls"
-                    ],
+                    diagnostics=diagnostics
+                    + [f"Budget exhausted after {budget.used} API calls"],
                 )
 
             result = await strategy.resolve_async(
@@ -206,9 +205,7 @@ class ResolutionContext:
         if result.success and result.entity is not None:
             return result.entity
 
-        raise ResolutionError(
-            f"Cannot resolve Business: {result.diagnostics}"
-        )
+        raise ResolutionError(f"Cannot resolve Business: {result.diagnostics}")
 
     async def unit_async(
         self,
@@ -231,9 +228,7 @@ class ResolutionContext:
         if result.success and result.entity is not None:
             return result.entity
 
-        raise ResolutionError(
-            f"Cannot resolve Unit: {result.diagnostics}"
-        )
+        raise ResolutionError(f"Cannot resolve Unit: {result.diagnostics}")
 
     async def contact_async(
         self,
@@ -256,9 +251,7 @@ class ResolutionContext:
         if result.success and result.entity is not None:
             return result.entity
 
-        raise ResolutionError(
-            f"Cannot resolve Contact: {result.diagnostics}"
-        )
+        raise ResolutionError(f"Cannot resolve Contact: {result.diagnostics}")
 
     async def offer_async(
         self,
@@ -281,9 +274,7 @@ class ResolutionContext:
         if result.success and result.entity is not None:
             return result.entity
 
-        raise ResolutionError(
-            f"Cannot resolve Offer: {result.diagnostics}"
-        )
+        raise ResolutionError(f"Cannot resolve Offer: {result.diagnostics}")
 
     async def process_async(self) -> Process:
         """Resolve current active Process.
@@ -300,9 +291,7 @@ class ResolutionContext:
         if result.success and result.entity is not None:
             return result.entity
 
-        raise ResolutionError(
-            f"Cannot resolve Process: {result.diagnostics}"
-        )
+        raise ResolutionError(f"Cannot resolve Process: {result.diagnostics}")
 
     # --- Holder Resolution (Layer 2) ---
 
@@ -388,9 +377,7 @@ class ResolutionContext:
                 if project_gid == holder_project_gid:
                     # Found matching subtask -- cast to holder type
                     try:
-                        holder = holder_type.model_validate(
-                            subtask.model_dump()
-                        )
+                        holder = holder_type.model_validate(subtask.model_dump())
                         self.cache_entity(holder)
                         logger.info(
                             "resolve_holder_found",
@@ -443,7 +430,9 @@ class ResolutionContext:
         holder = getattr(business, f"_{holder_key}", None)
         if holder is not None and not getattr(holder, "_children_cache", None):
             # Determine children attribute based on holder type
-            children_attr = getattr(holder.__class__, "CHILDREN_ATTR", "_children_cache")
+            children_attr = getattr(
+                holder.__class__, "CHILDREN_ATTR", "_children_cache"
+            )
             await business._fetch_holder_children_async(
                 self._client, holder, children_attr
             )

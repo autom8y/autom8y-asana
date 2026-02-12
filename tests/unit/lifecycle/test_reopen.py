@@ -192,7 +192,8 @@ class TestReopenHappyPath:
         await service.reopen_async(stage, ctx, source_process)
 
         client.tasks.update_async.assert_awaited_once_with(
-            "task_002", completed=False,
+            "task_002",
+            completed=False,
         )
 
     @pytest.mark.asyncio
@@ -228,7 +229,8 @@ class TestReopenHappyPath:
             "1200944186565610",
         )
         client.sections.add_task_async.assert_awaited_once_with(
-            "sec_opp_001", task="task_003",
+            "sec_opp_001",
+            task="task_003",
         )
 
 
@@ -248,13 +250,16 @@ class TestMostRecentSelection:
         holder = _make_holder()
 
         old_task = _make_task(
-            "task_old", created_at="2024-06-01T00:00:00.000Z",
+            "task_old",
+            created_at="2024-06-01T00:00:00.000Z",
         )
         mid_task = _make_task(
-            "task_mid", created_at="2025-01-15T00:00:00.000Z",
+            "task_mid",
+            created_at="2025-01-15T00:00:00.000Z",
         )
         new_task = _make_task(
-            "task_new", created_at="2025-03-20T00:00:00.000Z",
+            "task_new",
+            created_at="2025-03-20T00:00:00.000Z",
         )
 
         subtasks_paginator = MagicMock()
@@ -288,11 +293,13 @@ class TestMostRecentSelection:
         holder = _make_holder()
 
         sales_task = _make_task(
-            "task_sales", created_at="2025-01-01T00:00:00.000Z",
+            "task_sales",
+            created_at="2025-01-01T00:00:00.000Z",
             process_type_value="Sales",
         )
         onboarding_task = _make_task(
-            "task_onboarding", created_at="2025-06-01T00:00:00.000Z",
+            "task_onboarding",
+            created_at="2025-06-01T00:00:00.000Z",
             process_type_value="Onboarding",
         )
 
@@ -336,7 +343,8 @@ class TestNoCandidates:
         holder = _make_holder()
 
         onboarding_task = _make_task(
-            "task_ob", process_type_value="Onboarding",
+            "task_ob",
+            process_type_value="Onboarding",
         )
 
         subtasks_paginator = MagicMock()
@@ -526,7 +534,8 @@ class TestSectionMoveEdgeCases:
 
         assert result.success is True
         client.sections.add_task_async.assert_awaited_once_with(
-            "sec_opp", task="task_case",
+            "sec_opp",
+            task="task_case",
         )
 
     @pytest.mark.asyncio
@@ -663,12 +672,16 @@ class TestProcessTypeMatching:
 
     def test_object_custom_fields_match(self) -> None:
         """Object-style custom field (attributes, not dict keys)."""
-        task = _make_task("t3", process_type_value="Sales", use_dict_custom_fields=False)
+        task = _make_task(
+            "t3", process_type_value="Sales", use_dict_custom_fields=False
+        )
         assert ReopenService._matches_process_type(task, "sales") is True
 
     def test_object_custom_fields_case_insensitive(self) -> None:
         """Object-style custom field with different case."""
-        task = _make_task("t4", process_type_value="ONBOARDING", use_dict_custom_fields=False)
+        task = _make_task(
+            "t4", process_type_value="ONBOARDING", use_dict_custom_fields=False
+        )
         assert ReopenService._matches_process_type(task, "onboarding") is True
 
     def test_no_match_returns_false(self) -> None:
@@ -767,7 +780,9 @@ class TestSubtaskListing:
         client.tasks.subtasks_async.assert_called_once()
         call_args = client.tasks.subtasks_async.call_args
         assert call_args[0][0] == "holder_check"
-        opt_fields = call_args[1].get("opt_fields", call_args[0][1] if len(call_args[0]) > 1 else None)
+        opt_fields = call_args[1].get(
+            "opt_fields", call_args[0][1] if len(call_args[0]) > 1 else None
+        )
         assert "name" in opt_fields
         assert "created_at" in opt_fields
         assert "custom_fields" in opt_fields

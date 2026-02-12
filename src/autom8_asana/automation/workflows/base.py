@@ -69,7 +69,8 @@ class WorkflowResult:
         return self.failed / self.total if self.total > 0 else 0.0
 
     def to_response_dict(
-        self, extra_metadata_keys: list[str] | None = None,
+        self,
+        extra_metadata_keys: list[str] | None = None,
     ) -> dict[str, Any]:
         """Serialize to a Lambda response body dict.
 

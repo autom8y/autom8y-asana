@@ -181,9 +181,7 @@ class FieldWriteService:
         fields_skipped = len(resolved_fields) - fields_written
 
         if fields_written == 0:
-            raise NoValidFieldsError(
-                "All fields failed resolution -- nothing to write"
-            )
+            raise NoValidFieldsError("All fields failed resolution -- nothing to write")
 
         # [7] Execute Asana update (single API call)
         update_kwargs: dict[str, Any] = {**core_payload}
@@ -332,9 +330,7 @@ class FieldWriteService:
                 elif subtype == "multi_enum":
                     multi = cf.get("multi_enum_values") or []
                     updated[field_name] = [
-                        opt.get("name")
-                        for opt in multi
-                        if isinstance(opt, dict)
+                        opt.get("name") for opt in multi if isinstance(opt, dict)
                     ]
                 else:
                     updated[field_name] = cf.get("display_value")

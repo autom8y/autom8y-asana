@@ -35,9 +35,7 @@ class TestResolutionContext:
 
         assert ctx._session_cache["test-123"] == entity
 
-    def test_get_cached(
-        self, mock_client: MagicMock, mock_business: Business
-    ) -> None:
+    def test_get_cached(self, mock_client: MagicMock, mock_business: Business) -> None:
         """Test retrieving cached entity by type."""
         ctx = ResolutionContext(mock_client)
         ctx.cache_entity(mock_business)
@@ -64,9 +62,7 @@ class TestResolutionContext:
         assert result == mock_business
 
     @pytest.mark.asyncio
-    async def test_resolve_entity_async_no_source(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_entity_async_no_source(self, mock_client: MagicMock) -> None:
         """Test resolve_entity_async fails with no source entity."""
         ctx = ResolutionContext(mock_client)  # No trigger_entity
 
@@ -105,9 +101,13 @@ class TestResolutionContext:
 
     @pytest.mark.asyncio
     async def test_business_async_with_gid(
-        self, mock_client: MagicMock, mock_business: Business, monkeypatch: pytest.MonkeyPatch
+        self,
+        mock_client: MagicMock,
+        mock_business: Business,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test business_async fast path with direct GID."""
+
         # Mock Business.from_gid_async (monkeypatch ensures cleanup)
         async def mock_from_gid(client, gid, hydrate=True):
             return mock_business
@@ -148,6 +148,7 @@ class TestResolutionContext:
         self, mock_client: MagicMock, mock_business: Business
     ) -> None:
         """Test branch hydration."""
+
         # Mock subtasks fetch
         async def mock_collect():
             return []
@@ -171,6 +172,7 @@ class TestResolutionContext:
         self, mock_client: MagicMock, mock_business: Business
     ) -> None:
         """Test branch hydration uses cached holders."""
+
         async def mock_collect():
             return []
 
@@ -249,9 +251,7 @@ class TestResolveHolderAsync:
         mock_client.tasks.subtasks_async.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_finds_holder_by_project_gid(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_finds_holder_by_project_gid(self, mock_client: MagicMock) -> None:
         """Test finds holder among subtasks by matching PRIMARY_PROJECT_GID."""
         from autom8_asana.models.business.contact import ContactHolder
 
@@ -314,9 +314,7 @@ class TestResolveHolderAsync:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_returns_none_when_no_subtasks(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_returns_none_when_no_subtasks(self, mock_client: MagicMock) -> None:
         """Test returns None when parent has no subtasks."""
         from autom8_asana.models.business.contact import ContactHolder
 
@@ -333,9 +331,7 @@ class TestResolveHolderAsync:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_uses_explicit_parent_gid(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_uses_explicit_parent_gid(self, mock_client: MagicMock) -> None:
         """Test uses explicit parent_gid parameter over business_gid."""
         from autom8_asana.models.business.contact import ContactHolder
 

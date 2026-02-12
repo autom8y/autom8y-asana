@@ -34,8 +34,12 @@ class TestCommentHandler:
 
     @pytest.mark.asyncio
     async def test_comment_contains_source_link(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """Comment text includes Asana deep link to source process."""
         handler = CommentHandler(mock_client, lifecycle_config)
@@ -58,8 +62,12 @@ class TestCommentHandler:
 
     @pytest.mark.asyncio
     async def test_comment_contains_business_name(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """Comment text includes business name."""
         handler = CommentHandler(mock_client, lifecycle_config)
@@ -79,8 +87,12 @@ class TestCommentHandler:
 
     @pytest.mark.asyncio
     async def test_comment_contains_today_date(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """Comment text includes today's date in ISO format."""
         handler = CommentHandler(mock_client, lifecycle_config)
@@ -100,8 +112,12 @@ class TestCommentHandler:
 
     @pytest.mark.asyncio
     async def test_comment_contains_source_name(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """Comment text includes the source process name."""
         handler = CommentHandler(mock_client, lifecycle_config)
@@ -121,8 +137,12 @@ class TestCommentHandler:
 
     @pytest.mark.asyncio
     async def test_comment_contains_pipeline_conversion_header(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """Comment text starts with Pipeline Conversion header."""
         handler = CommentHandler(mock_client, lifecycle_config)
@@ -142,8 +162,12 @@ class TestCommentHandler:
 
     @pytest.mark.asyncio
     async def test_comment_soft_fail_on_error(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """Comment handler returns success=True even when API fails."""
         handler = CommentHandler(mock_client, lifecycle_config)
@@ -164,8 +188,12 @@ class TestCommentHandler:
 
     @pytest.mark.asyncio
     async def test_comment_called_with_correct_task_gid(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """Comment is created on the correct task (created_entity_gid)."""
         handler = CommentHandler(mock_client, lifecycle_config)
@@ -175,7 +203,9 @@ class TestCommentHandler:
         mock_client.stories.create_comment_async = AsyncMock()
 
         await handler.execute_async(
-            mock_resolution_context, "target_task_999", action_config,
+            mock_resolution_context,
+            "target_task_999",
+            action_config,
             mock_process,
         )
 
@@ -184,8 +214,12 @@ class TestCommentHandler:
 
     @pytest.mark.asyncio
     async def test_comment_source_with_no_memberships(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """When source has no memberships, uses '0' as project GID."""
         mock_process.memberships = []
@@ -215,7 +249,10 @@ class TestEntityCreationHandler:
 
     @pytest.mark.asyncio
     async def test_entity_creation_delegates_to_creation_service(
-        self, lifecycle_config, mock_client, mock_resolution_context,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
         mock_process,
     ):
         """Handler delegates to EntityCreationService.create_entity_async."""
@@ -227,20 +264,18 @@ class TestEntityCreationHandler:
             holder_type="asset_edit_holder",
         )
 
-        expected_result = CreationResult(
-            success=True, entity_gid="new_entity_123"
-        )
+        expected_result = CreationResult(success=True, entity_gid="new_entity_123")
 
         with patch(
             "autom8_asana.lifecycle.creation.EntityCreationService"
         ) as MockService:
             mock_service = MockService.return_value
-            mock_service.create_entity_async = AsyncMock(
-                return_value=expected_result
-            )
+            mock_service.create_entity_async = AsyncMock(return_value=expected_result)
 
             result = await handler.execute_async(
-                mock_resolution_context, "created123", action_config,
+                mock_resolution_context,
+                "created123",
+                action_config,
                 mock_process,
             )
 
@@ -250,7 +285,10 @@ class TestEntityCreationHandler:
 
     @pytest.mark.asyncio
     async def test_entity_creation_passes_correct_params(
-        self, lifecycle_config, mock_client, mock_resolution_context,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
         mock_process,
     ):
         """Handler passes project_gid, holder_type, and stage_config."""
@@ -271,7 +309,9 @@ class TestEntityCreationHandler:
             )
 
             await handler.execute_async(
-                mock_resolution_context, "created123", action_config,
+                mock_resolution_context,
+                "created123",
+                action_config,
                 mock_process,
             )
 
@@ -284,7 +324,10 @@ class TestEntityCreationHandler:
 
     @pytest.mark.asyncio
     async def test_entity_creation_default_holder_type(
-        self, lifecycle_config, mock_client, mock_resolution_context,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
         mock_process,
     ):
         """When holder_type not specified, defaults to asset_edit_holder."""
@@ -305,7 +348,9 @@ class TestEntityCreationHandler:
             )
 
             await handler.execute_async(
-                mock_resolution_context, "created123", action_config,
+                mock_resolution_context,
+                "created123",
+                action_config,
                 mock_process,
             )
 
@@ -314,7 +359,10 @@ class TestEntityCreationHandler:
 
     @pytest.mark.asyncio
     async def test_entity_creation_returns_service_result(
-        self, lifecycle_config, mock_client, mock_resolution_context,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
         mock_process,
     ):
         """Handler returns the CreationResult from the service directly."""
@@ -337,12 +385,12 @@ class TestEntityCreationHandler:
             "autom8_asana.lifecycle.creation.EntityCreationService"
         ) as MockService:
             mock_service = MockService.return_value
-            mock_service.create_entity_async = AsyncMock(
-                return_value=service_result
-            )
+            mock_service.create_entity_async = AsyncMock(return_value=service_result)
 
             result = await handler.execute_async(
-                mock_resolution_context, "created123", action_config,
+                mock_resolution_context,
+                "created123",
+                action_config,
                 mock_process,
             )
 
@@ -350,7 +398,10 @@ class TestEntityCreationHandler:
 
     @pytest.mark.asyncio
     async def test_entity_creation_handles_exception(
-        self, lifecycle_config, mock_client, mock_resolution_context,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
         mock_process,
     ):
         """Handler catches exceptions and returns failure result."""
@@ -370,7 +421,9 @@ class TestEntityCreationHandler:
             )
 
             result = await handler.execute_async(
-                mock_resolution_context, "created123", action_config,
+                mock_resolution_context,
+                "created123",
+                action_config,
                 mock_process,
             )
 
@@ -379,7 +432,10 @@ class TestEntityCreationHandler:
 
     @pytest.mark.asyncio
     async def test_entity_creation_no_stage_config(
-        self, mock_client, mock_resolution_context, mock_process,
+        self,
+        mock_client,
+        mock_resolution_context,
+        mock_process,
     ):
         """Handler returns failure when stage config not found."""
         # Use a config with no stages
@@ -394,7 +450,9 @@ class TestEntityCreationHandler:
         )
 
         result = await handler.execute_async(
-            mock_resolution_context, "created123", action_config,
+            mock_resolution_context,
+            "created123",
+            action_config,
             mock_process,
         )
 
@@ -412,8 +470,12 @@ class TestProductsCheckHandler:
 
     @pytest.mark.asyncio
     async def test_video_match_creates_entity(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """When products match video*, creates entity via service."""
         mock_business.products = ["video_production", "photography"]
@@ -424,20 +486,18 @@ class TestProductsCheckHandler:
             action="request_source_videographer",
         )
 
-        expected_result = CreationResult(
-            success=True, entity_gid="videographer_123"
-        )
+        expected_result = CreationResult(success=True, entity_gid="videographer_123")
 
         with patch(
             "autom8_asana.lifecycle.creation.EntityCreationService"
         ) as MockService:
             mock_service = MockService.return_value
-            mock_service.create_entity_async = AsyncMock(
-                return_value=expected_result
-            )
+            mock_service.create_entity_async = AsyncMock(return_value=expected_result)
 
             result = await handler.execute_async(
-                mock_resolution_context, "created123", action_config,
+                mock_resolution_context,
+                "created123",
+                action_config,
                 mock_process,
             )
 
@@ -447,8 +507,12 @@ class TestProductsCheckHandler:
 
     @pytest.mark.asyncio
     async def test_video_match_uses_videography_holder(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """When no holder_type specified, defaults to videography_holder."""
         mock_business.products = ["video_editing"]
@@ -469,7 +533,9 @@ class TestProductsCheckHandler:
             )
 
             await handler.execute_async(
-                mock_resolution_context, "created123", action_config,
+                mock_resolution_context,
+                "created123",
+                action_config,
                 mock_process,
             )
 
@@ -480,8 +546,12 @@ class TestProductsCheckHandler:
 
     @pytest.mark.asyncio
     async def test_no_match_returns_success(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """When no products match, returns success with no entity created."""
         mock_business.products = ["photography", "design"]
@@ -501,8 +571,12 @@ class TestProductsCheckHandler:
 
     @pytest.mark.asyncio
     async def test_no_products_returns_success(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """When business has no products field, returns success."""
         mock_business.products = None
@@ -522,8 +596,12 @@ class TestProductsCheckHandler:
 
     @pytest.mark.asyncio
     async def test_string_products_match(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """Products as a single string (not list) are also matched."""
         mock_business.products = "video_editing"
@@ -543,7 +621,9 @@ class TestProductsCheckHandler:
             )
 
             result = await handler.execute_async(
-                mock_resolution_context, "created123", action_config,
+                mock_resolution_context,
+                "created123",
+                action_config,
                 mock_process,
             )
 
@@ -552,8 +632,12 @@ class TestProductsCheckHandler:
 
     @pytest.mark.asyncio
     async def test_products_check_exception_handling(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """Handler catches exceptions and returns failure."""
         mock_business.products = ["video_production"]
@@ -573,7 +657,9 @@ class TestProductsCheckHandler:
             )
 
             result = await handler.execute_async(
-                mock_resolution_context, "created123", action_config,
+                mock_resolution_context,
+                "created123",
+                action_config,
                 mock_process,
             )
 
@@ -582,8 +668,11 @@ class TestProductsCheckHandler:
 
     @pytest.mark.asyncio
     async def test_products_check_no_stage_config(
-        self, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """Returns failure when stage config not found for process type."""
         mock_business.products = ["video_production"]
@@ -615,8 +704,12 @@ class TestPlayCreationHandler:
 
     @pytest.mark.asyncio
     async def test_play_creation_success(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """Test successful play creation with template."""
         handler = PlayCreationHandler(mock_client, lifecycle_config)
@@ -646,14 +739,14 @@ class TestPlayCreationHandler:
             # Mock duplicate
             mock_play = MagicMock()
             mock_play.gid = "play123"
-            mock_client.tasks.duplicate_async = AsyncMock(
-                return_value=mock_play
-            )
+            mock_client.tasks.duplicate_async = AsyncMock(return_value=mock_play)
             mock_client.tasks.add_to_project_async = AsyncMock()
             mock_client.tasks.add_dependencies_async = AsyncMock()
 
             result = await handler.execute_async(
-                mock_resolution_context, "created123", action_config,
+                mock_resolution_context,
+                "created123",
+                action_config,
                 mock_process,
             )
 
@@ -666,7 +759,10 @@ class TestPlayCreationHandler:
 
     @pytest.mark.asyncio
     async def test_play_creation_already_linked(
-        self, lifecycle_config, mock_client, mock_resolution_context,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
         mock_process,
     ):
         """Test play creation when already linked as dependency."""
@@ -708,7 +804,10 @@ class TestPlayCreationHandler:
 
     @pytest.mark.asyncio
     async def test_play_creation_no_template(
-        self, lifecycle_config, mock_client, mock_resolution_context,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
         mock_process,
     ):
         """Test play creation when template not found."""
@@ -729,12 +828,12 @@ class TestPlayCreationHandler:
             "autom8_asana.automation.templates.TemplateDiscovery"
         ) as MockDiscovery:
             mock_discovery = MockDiscovery.return_value
-            mock_discovery.find_template_task_async = AsyncMock(
-                return_value=None
-            )
+            mock_discovery.find_template_task_async = AsyncMock(return_value=None)
 
             result = await handler.execute_async(
-                mock_resolution_context, "created123", action_config,
+                mock_resolution_context,
+                "created123",
+                action_config,
                 mock_process,
             )
 
@@ -743,7 +842,10 @@ class TestPlayCreationHandler:
 
     @pytest.mark.asyncio
     async def test_play_creation_exception(
-        self, lifecycle_config, mock_client, mock_resolution_context,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
         mock_process,
     ):
         """Test play creation handler exception handling."""
@@ -768,8 +870,12 @@ class TestPlayCreationHandler:
 
     @pytest.mark.asyncio
     async def test_play_reopen_within_threshold(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """Test reopen-or-create: reopens play completed within threshold."""
         handler = PlayCreationHandler(mock_client, lifecycle_config)
@@ -791,12 +897,8 @@ class TestPlayCreationHandler:
         mock_completed_play.gid = "reopened_play_456"
 
         mock_search_result = AsyncMock()
-        mock_search_result.collect = AsyncMock(
-            return_value=[mock_completed_play]
-        )
-        mock_client.tasks.search_async = AsyncMock(
-            return_value=mock_search_result
-        )
+        mock_search_result.collect = AsyncMock(return_value=[mock_completed_play])
+        mock_client.tasks.search_async = AsyncMock(return_value=mock_search_result)
         mock_client.tasks.update_async = AsyncMock()
         mock_client.tasks.add_dependencies_async = AsyncMock()
 
@@ -819,8 +921,12 @@ class TestPlayCreationHandler:
 
     @pytest.mark.asyncio
     async def test_play_create_new_when_outside_threshold(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """When no plays found within threshold, creates a new one."""
         handler = PlayCreationHandler(mock_client, lifecycle_config)
@@ -840,9 +946,7 @@ class TestPlayCreationHandler:
         # Search returns empty (no plays within threshold)
         mock_search_result = AsyncMock()
         mock_search_result.collect = AsyncMock(return_value=[])
-        mock_client.tasks.search_async = AsyncMock(
-            return_value=mock_search_result
-        )
+        mock_client.tasks.search_async = AsyncMock(return_value=mock_search_result)
 
         # Template discovery for new creation
         mock_template = MagicMock()
@@ -857,14 +961,14 @@ class TestPlayCreationHandler:
 
             mock_play = MagicMock()
             mock_play.gid = "new_play_789"
-            mock_client.tasks.duplicate_async = AsyncMock(
-                return_value=mock_play
-            )
+            mock_client.tasks.duplicate_async = AsyncMock(return_value=mock_play)
             mock_client.tasks.add_to_project_async = AsyncMock()
             mock_client.tasks.add_dependencies_async = AsyncMock()
 
             result = await handler.execute_async(
-                mock_resolution_context, "created123", action_config,
+                mock_resolution_context,
+                "created123",
+                action_config,
                 mock_process,
             )
 
@@ -875,8 +979,12 @@ class TestPlayCreationHandler:
 
     @pytest.mark.asyncio
     async def test_play_reopen_failure_falls_through_to_create(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """When reopen search fails, falls through to create new play."""
         handler = PlayCreationHandler(mock_client, lifecycle_config)
@@ -911,14 +1019,14 @@ class TestPlayCreationHandler:
 
             mock_play = MagicMock()
             mock_play.gid = "fallback_play"
-            mock_client.tasks.duplicate_async = AsyncMock(
-                return_value=mock_play
-            )
+            mock_client.tasks.duplicate_async = AsyncMock(return_value=mock_play)
             mock_client.tasks.add_to_project_async = AsyncMock()
             mock_client.tasks.add_dependencies_async = AsyncMock()
 
             result = await handler.execute_async(
-                mock_resolution_context, "created123", action_config,
+                mock_resolution_context,
+                "created123",
+                action_config,
                 mock_process,
             )
 
@@ -928,8 +1036,12 @@ class TestPlayCreationHandler:
 
     @pytest.mark.asyncio
     async def test_play_no_reopen_threshold_creates_directly(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """When reopen_if_completed_within_days is None, skips reopen check."""
         handler = PlayCreationHandler(mock_client, lifecycle_config)
@@ -959,22 +1071,24 @@ class TestPlayCreationHandler:
 
             mock_play = MagicMock()
             mock_play.gid = "direct_play"
-            mock_client.tasks.duplicate_async = AsyncMock(
-                return_value=mock_play
-            )
+            mock_client.tasks.duplicate_async = AsyncMock(return_value=mock_play)
             mock_client.tasks.add_to_project_async = AsyncMock()
             mock_client.tasks.add_dependencies_async = AsyncMock()
 
             result = await handler.execute_async(
-                mock_resolution_context, "created123", action_config,
+                mock_resolution_context,
+                "created123",
+                action_config,
                 mock_process,
             )
 
             assert result.success is True
             assert result.entity_gid == "direct_play"
             # No search_async call should have been made
-            assert not hasattr(mock_client.tasks, "search_async") or \
-                not mock_client.tasks.search_async.called
+            assert (
+                not hasattr(mock_client.tasks, "search_async")
+                or not mock_client.tasks.search_async.called
+            )
 
 
 # -----------------------------------------------------------------------
@@ -987,8 +1101,12 @@ class TestCampaignHandler:
 
     @pytest.mark.asyncio
     async def test_campaign_activate(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """Test campaign activation handler logs and returns success."""
         handler = CampaignHandler(mock_client, lifecycle_config)
@@ -1002,8 +1120,12 @@ class TestCampaignHandler:
 
     @pytest.mark.asyncio
     async def test_campaign_deactivate(
-        self, lifecycle_config, mock_client, mock_resolution_context,
-        mock_business, mock_process,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
+        mock_business,
+        mock_process,
     ):
         """Test campaign deactivation handler logs and returns success."""
         handler = CampaignHandler(mock_client, lifecycle_config)
@@ -1017,7 +1139,10 @@ class TestCampaignHandler:
 
     @pytest.mark.asyncio
     async def test_campaign_handler_exception(
-        self, lifecycle_config, mock_client, mock_resolution_context,
+        self,
+        lifecycle_config,
+        mock_client,
+        mock_resolution_context,
         mock_process,
     ):
         """Test campaign handler catches exceptions."""

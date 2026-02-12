@@ -455,7 +455,9 @@ class TestDataServiceClientGetAuthToken:
         with (
             patch.dict(
                 os.environ,
-                {"AUTOM8_DATA_API_KEY_ARN": "arn:aws:secretsmanager:us-east-1:123:secret:key"},
+                {
+                    "AUTOM8_DATA_API_KEY_ARN": "arn:aws:secretsmanager:us-east-1:123:secret:key"
+                },
                 clear=False,
             ),
             patch(

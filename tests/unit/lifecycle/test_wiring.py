@@ -352,9 +352,7 @@ async def test_one_play_failure_does_not_prevent_others(
 
 
 @pytest.mark.asyncio
-async def test_wire_entity_as_dependency(
-    lifecycle_config, mock_client
-):
+async def test_wire_entity_as_dependency(lifecycle_config, mock_client):
     """Created entity is wired as dependency of the target entity."""
     mock_client.tasks.add_dependency_async = AsyncMock()
 
@@ -371,9 +369,7 @@ async def test_wire_entity_as_dependency(
 
 
 @pytest.mark.asyncio
-async def test_wire_entity_as_dependency_no_target_gid(
-    lifecycle_config, mock_client
-):
+async def test_wire_entity_as_dependency_no_target_gid(lifecycle_config, mock_client):
     """Missing target GID produces warning without API call."""
     mock_client.tasks.add_dependency_async = AsyncMock()
 
@@ -390,9 +386,7 @@ async def test_wire_entity_as_dependency_no_target_gid(
 
 
 @pytest.mark.asyncio
-async def test_wire_entity_as_dependency_api_failure(
-    lifecycle_config, mock_client
-):
+async def test_wire_entity_as_dependency_api_failure(lifecycle_config, mock_client):
     """API failure on entity dependency wiring produces warning, not exception."""
     mock_client.tasks.add_dependency_async = AsyncMock(
         side_effect=ConnectionError("API timeout")

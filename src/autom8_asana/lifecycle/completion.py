@@ -57,9 +57,7 @@ class CompletionService:
     def __init__(self, client: AsanaClient) -> None:
         self._client = client
 
-    async def complete_source_async(
-        self, source_process: Process
-    ) -> CompletionResult:
+    async def complete_source_async(self, source_process: Process) -> CompletionResult:
         """Mark the source process as complete.
 
         Only called when transition config has auto_complete_prior=true.
@@ -79,9 +77,7 @@ class CompletionService:
             return result
 
         try:
-            await self._client.tasks.update_async(
-                source_process.gid, completed=True
-            )
+            await self._client.tasks.update_async(source_process.gid, completed=True)
             result.completed.append(source_process.gid)
             logger.info(
                 "lifecycle_auto_completed",

@@ -164,25 +164,15 @@ def _make_workflow(
     default_response = insights_response or _make_insights_response()
 
     if insights_error:
-        mock_data_client.get_insights_async = AsyncMock(
-            side_effect=insights_error
-        )
-        mock_data_client.get_appointments_async = AsyncMock(
-            side_effect=insights_error
-        )
-        mock_data_client.get_leads_async = AsyncMock(
-            side_effect=insights_error
-        )
+        mock_data_client.get_insights_async = AsyncMock(side_effect=insights_error)
+        mock_data_client.get_appointments_async = AsyncMock(side_effect=insights_error)
+        mock_data_client.get_leads_async = AsyncMock(side_effect=insights_error)
     else:
-        mock_data_client.get_insights_async = AsyncMock(
-            return_value=default_response
-        )
+        mock_data_client.get_insights_async = AsyncMock(return_value=default_response)
         mock_data_client.get_appointments_async = AsyncMock(
             return_value=default_response
         )
-        mock_data_client.get_leads_async = AsyncMock(
-            return_value=default_response
-        )
+        mock_data_client.get_leads_async = AsyncMock(return_value=default_response)
 
     mock_data_client._circuit_breaker = MagicMock()
     mock_data_client._circuit_breaker.check = AsyncMock()
@@ -467,13 +457,13 @@ class TestFetchAllTables:
 
         # These are the expected factory+period combinations for the 7 insights calls
         expected_pairs = {
-            ("base", "lifetime"),       # SUMMARY
-            ("base", "quarter"),        # BY QUARTER
-            ("base", "month"),          # BY MONTH
-            ("base", "week"),           # BY WEEK
+            ("base", "lifetime"),  # SUMMARY
+            ("base", "quarter"),  # BY QUARTER
+            ("base", "month"),  # BY MONTH
+            ("base", "week"),  # BY WEEK
             ("ad_questions", "lifetime"),  # AD QUESTIONS
-            ("assets", "t30"),          # ASSET TABLE
-            ("business_offers", "t30"), # OFFER TABLE
+            ("assets", "t30"),  # ASSET TABLE
+            ("business_offers", "t30"),  # OFFER TABLE
         }
         assert factory_period_pairs == expected_pairs
 
@@ -522,9 +512,7 @@ class TestUnusedAssetsFilter:
         assert unused_result.success is True
         assert unused_result.row_count == 2
         assert len(unused_result.data) == 2
-        assert all(
-            r["spend"] == 0 and r["imp"] == 0 for r in unused_result.data
-        )
+        assert all(r["spend"] == 0 and r["imp"] == 0 for r in unused_result.data)
 
     @pytest.mark.asyncio
     async def test_unused_assets_fails_when_asset_table_fails(self) -> None:
@@ -683,8 +671,7 @@ class TestConcurrency:
     async def test_max_concurrency_from_params(self) -> None:
         """Verify max_concurrency parameter is respected."""
         offers = [
-            _make_task(f"o{i}", f"Offer {i}", parent_gid=f"biz{i}")
-            for i in range(10)
+            _make_task(f"o{i}", f"Offer {i}", parent_gid=f"biz{i}") for i in range(10)
         ]
         wf, _, _, _ = _make_workflow(offers=offers)
 
@@ -999,9 +986,7 @@ class TestAdversarialUploadFailure:
         )
 
         # Make upload fail
-        mock_att.upload_async = AsyncMock(
-            side_effect=Exception("Upload failed")
-        )
+        mock_att.upload_async = AsyncMock(side_effect=Exception("Upload failed"))
 
         with patch(
             "autom8_asana.automation.workflows.insights_export.ResolutionContext"

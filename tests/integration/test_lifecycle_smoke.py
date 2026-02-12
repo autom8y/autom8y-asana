@@ -37,6 +37,7 @@ def _run_async(coro):
     finally:
         loop.close()
 
+
 import pytest
 import yaml
 
@@ -47,9 +48,7 @@ import yaml
 ASANA_PAT = os.getenv("ASANA_PAT")
 SALES_PROCESS_GID = "1209719836385072"
 
-skip_no_pat = pytest.mark.skipif(
-    not ASANA_PAT, reason="ASANA_PAT not set"
-)
+skip_no_pat = pytest.mark.skipif(not ASANA_PAT, reason="ASANA_PAT not set")
 
 CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "lifecycle_stages.yaml"
 
@@ -108,9 +107,7 @@ def _make_mock_client() -> MagicMock:
     # list_for_project_async returns an object with .collect()
     sections_paginator = MagicMock()
     sections_paginator.collect = AsyncMock(return_value=[])
-    client.sections.list_for_project_async = MagicMock(
-        return_value=sections_paginator
-    )
+    client.sections.list_for_project_async = MagicMock(return_value=sections_paginator)
 
     client.stories = MagicMock()
     client.stories.create_comment_async = AsyncMock()
@@ -144,9 +141,7 @@ class TestYAMLConfigIntegrity:
 
         config = LifecycleConfig(CONFIG_PATH)
         for key, stage in config.stages.items():
-            assert stage.name == key, (
-                f"Stage key '{key}' != stage.name '{stage.name}'"
-            )
+            assert stage.name == key, f"Stage key '{key}' != stage.name '{stage.name}'"
             assert len(key) > 0
 
     def test_all_stages_have_pipeline_stage_numbers(self):
@@ -156,8 +151,7 @@ class TestYAMLConfigIntegrity:
         config = LifecycleConfig(CONFIG_PATH)
         for name, stage in config.stages.items():
             assert stage.pipeline_stage >= 0, (
-                f"Stage '{name}' has negative pipeline_stage: "
-                f"{stage.pipeline_stage}"
+                f"Stage '{name}' has negative pipeline_stage: {stage.pipeline_stage}"
             )
 
     def test_no_duplicate_stage_names(self):
@@ -165,9 +159,7 @@ class TestYAMLConfigIntegrity:
         with open(CONFIG_PATH) as f:
             raw = yaml.safe_load(f)
         stage_names = list(raw["stages"].keys())
-        assert len(stage_names) == len(set(stage_names)), (
-            "Duplicate stage names found"
-        )
+        assert len(stage_names) == len(set(stage_names)), "Duplicate stage names found"
 
     def test_transitions_reference_valid_stages(self):
         """All transition targets must reference defined stage names (DAG)."""
@@ -181,16 +173,13 @@ class TestYAMLConfigIntegrity:
                 stage.transitions.converted
                 and stage.transitions.converted not in stage_names
             ):
-                issues.append(
-                    f"{name} -> converted: '{stage.transitions.converted}'"
-                )
+                issues.append(f"{name} -> converted: '{stage.transitions.converted}'")
             if (
                 stage.transitions.did_not_convert
                 and stage.transitions.did_not_convert not in stage_names
             ):
                 issues.append(
-                    f"{name} -> did_not_convert: "
-                    f"'{stage.transitions.did_not_convert}'"
+                    f"{name} -> did_not_convert: '{stage.transitions.did_not_convert}'"
                 )
         assert not issues, f"DAG integrity failures: {issues}"
 
@@ -222,9 +211,7 @@ class TestYAMLConfigIntegrity:
         for stage_name in ("outreach", "sales", "onboarding", "implementation"):
             stage = config.get_stage(stage_name)
             assert stage is not None
-            assert stage.target_section, (
-                f"Stage '{stage_name}' missing target_section"
-            )
+            assert stage.target_section, f"Stage '{stage_name}' missing target_section"
             assert stage.template_section, (
                 f"Stage '{stage_name}' missing template_section"
             )
@@ -240,9 +227,7 @@ class TestYAMLConfigIntegrity:
             assert stage is not None
             cs = stage.cascading_sections
             has_any = cs.offer or cs.unit or cs.business
-            assert has_any, (
-                f"Stage '{stage_name}' has no cascading sections defined"
-            )
+            assert has_any, f"Stage '{stage_name}' has no cascading sections defined"
 
     def test_dnc_actions_are_valid_literals(self):
         """All stages' dnc_action should be one of the allowed literals."""
@@ -267,9 +252,7 @@ class TestYAMLConfigIntegrity:
             for action in stage.init_actions:
                 if action.type not in HANDLER_REGISTRY:
                     unregistered.append(f"{name}: {action.type}")
-        assert not unregistered, (
-            f"Unregistered init action types: {unregistered}"
-        )
+        assert not unregistered, f"Unregistered init action types: {unregistered}"
 
     def test_project_gids_on_active_stages(self):
         """Stages 1-4 must have non-null project_gid for template
@@ -304,9 +287,7 @@ class TestYAMLConfigIntegrity:
         # This is informational, not a failure
         if unreachable:
             # Just verify it doesn't include core pipeline stages 2-4
-            core_unreachable = unreachable & {
-                "sales", "onboarding", "implementation"
-            }
+            core_unreachable = unreachable & {"sales", "onboarding", "implementation"}
             assert not core_unreachable, (
                 f"Core stages unreachable via transitions: {core_unreachable}"
             )
@@ -373,6 +354,7 @@ class TestLiveProcessEntityInspection:
     @pytest.mark.integration
     def test_fetch_sales_process(self, asana_client):
         """Fetch the Sales process entity and inspect its fields."""
+
         async def _run():
             task = await asana_client.tasks.get_async(
                 SALES_PROCESS_GID,
@@ -408,10 +390,7 @@ class TestLiveProcessEntityInspection:
             print(f"Custom fields count: {len(task.custom_fields)}")
             for cf in task.custom_fields[:10]:
                 if isinstance(cf, dict):
-                    print(
-                        f"  {cf.get('name', '?')}: "
-                        f"{cf.get('display_value', '?')}"
-                    )
+                    print(f"  {cf.get('name', '?')}: {cf.get('display_value', '?')}")
 
 
 # ===========================================================================
@@ -435,9 +414,7 @@ class TestCompletionService:
 
         result = _run_async(_run())
         assert result.completed == [process.gid]
-        client.tasks.update_async.assert_called_once_with(
-            process.gid, completed=True
-        )
+        client.tasks.update_async.assert_called_once_with(process.gid, completed=True)
 
     def test_complete_already_completed_is_idempotent(self):
         """Completing an already-completed process should return empty."""
@@ -498,21 +475,15 @@ class TestCascadingSectionService:
         # Create mock entities with memberships
         mock_offer = MagicMock()
         mock_offer.gid = "offer_gid"
-        mock_offer.memberships = [
-            {"project": {"gid": "proj_offer"}}
-        ]
+        mock_offer.memberships = [{"project": {"gid": "proj_offer"}}]
 
         mock_unit = MagicMock()
         mock_unit.gid = "unit_gid"
-        mock_unit.memberships = [
-            {"project": {"gid": "proj_unit"}}
-        ]
+        mock_unit.memberships = [{"project": {"gid": "proj_unit"}}]
 
         mock_business = MagicMock()
         mock_business.gid = "biz_gid"
-        mock_business.memberships = [
-            {"project": {"gid": "proj_biz"}}
-        ]
+        mock_business.memberships = [{"project": {"gid": "proj_biz"}}]
 
         # Mock sections list to return matching sections
         def make_section(name, gid):
@@ -528,15 +499,9 @@ class TestCascadingSectionService:
 
         client.sections.list_for_project_async = MagicMock(
             side_effect=[
-                make_paginator(
-                    [make_section("Sales Process", "sec_offer")]
-                ),
-                make_paginator(
-                    [make_section("Next Steps", "sec_unit")]
-                ),
-                make_paginator(
-                    [make_section("OPPORTUNITY", "sec_biz")]
-                ),
+                make_paginator([make_section("Sales Process", "sec_offer")]),
+                make_paginator([make_section("Next Steps", "sec_unit")]),
+                make_paginator([make_section("OPPORTUNITY", "sec_biz")]),
             ]
         )
 
@@ -568,16 +533,12 @@ class TestCascadingSectionService:
 
         mock_offer = MagicMock()
         mock_offer.gid = "offer_gid"
-        mock_offer.memberships = [
-            {"project": {"gid": "proj_offer"}}
-        ]
+        mock_offer.memberships = [{"project": {"gid": "proj_offer"}}]
 
         # Empty sections list -- section not found
         paginator = MagicMock()
         paginator.collect = AsyncMock(return_value=[])
-        client.sections.list_for_project_async = MagicMock(
-            return_value=paginator
-        )
+        client.sections.list_for_project_async = MagicMock(return_value=paginator)
 
         ctx = MagicMock()
         ctx.offer_async = AsyncMock(return_value=mock_offer)
@@ -625,9 +586,7 @@ class TestCascadingSectionService:
 
         mock_offer = MagicMock()
         mock_offer.gid = "offer_gid"
-        mock_offer.memberships = [
-            {"project": {"gid": "proj_offer"}}
-        ]
+        mock_offer.memberships = [{"project": {"gid": "proj_offer"}}]
 
         def make_section(name, gid):
             s = MagicMock()
@@ -639,9 +598,7 @@ class TestCascadingSectionService:
         paginator.collect = AsyncMock(
             return_value=[make_section("Sales Process", "sec_1")]
         )
-        client.sections.list_for_project_async = MagicMock(
-            return_value=paginator
-        )
+        client.sections.list_for_project_async = MagicMock(return_value=paginator)
 
         ctx = MagicMock()
         ctx.offer_async = AsyncMock(return_value=mock_offer)
@@ -681,9 +638,7 @@ class TestDependencyWiringService:
         ctx.business_async = AsyncMock(return_value=MagicMock())
 
         async def _run():
-            return await service.wire_defaults_async(
-                "new_entity_gid", "sales", ctx
-            )
+            return await service.wire_defaults_async("new_entity_gid", "sales", ctx)
 
         result = _run_async(_run())
         # Should have wired unit and offer_holder
@@ -819,9 +774,7 @@ class TestEntityCreationService:
         from autom8_asana.lifecycle.creation import EntityCreationService
 
         task = MagicMock()
-        task.custom_fields = [
-            {"name": "Process Type", "display_value": "Sales"}
-        ]
+        task.custom_fields = [{"name": "Process Type", "display_value": "Sales"}]
         assert EntityCreationService._matches_process_type(task, "sales")
 
     def test_matches_process_type_no_match(self):
@@ -829,9 +782,7 @@ class TestEntityCreationService:
         from autom8_asana.lifecycle.creation import EntityCreationService
 
         task = MagicMock()
-        task.custom_fields = [
-            {"name": "Process Type", "display_value": "Onboarding"}
-        ]
+        task.custom_fields = [{"name": "Process Type", "display_value": "Onboarding"}]
         assert not EntityCreationService._matches_process_type(task, "sales")
 
     def test_matches_process_type_no_custom_fields(self):
@@ -840,9 +791,7 @@ class TestEntityCreationService:
 
         task = MagicMock()
         task.custom_fields = None
-        assert not EntityCreationService._matches_process_type(
-            task, "sales"
-        )
+        assert not EntityCreationService._matches_process_type(task, "sales")
 
 
 # ===========================================================================
@@ -875,9 +824,7 @@ class TestInitActionHandlers:
         source = MagicMock()
         source.name = "Test Sales Process"
         source.gid = "12345"
-        source.memberships = [
-            {"project": {"gid": "proj_gid"}}
-        ]
+        source.memberships = [{"project": {"gid": "proj_gid"}}]
         business = MagicMock()
         business.name = "Acme Corp"
 
@@ -908,9 +855,7 @@ class TestInitActionHandlers:
         )
 
         async def _run():
-            return await handler.execute_async(
-                ctx, "new_gid", action_config, process
-            )
+            return await handler.execute_async(ctx, "new_gid", action_config, process)
 
         result = _run_async(_run())
         assert result.success is True
@@ -934,9 +879,7 @@ class TestInitActionHandlers:
         ctx.business_async = AsyncMock(return_value=business_mock)
 
         async def _run():
-            return await handler.execute_async(
-                ctx, "new_gid", action_config, process
-            )
+            return await handler.execute_async(ctx, "new_gid", action_config, process)
 
         result = _run_async(_run())
         assert result.success is True
@@ -960,9 +903,7 @@ class TestInitActionHandlers:
         ctx.business_async = AsyncMock(return_value=business_mock)
 
         async def _run():
-            return await handler.execute_async(
-                ctx, "new_gid", action_config, process
-            )
+            return await handler.execute_async(ctx, "new_gid", action_config, process)
 
         result = _run_async(_run())
         assert result.success is True
@@ -987,9 +928,7 @@ class TestInitActionHandlers:
         ctx.business_async = AsyncMock(return_value=business_mock)
 
         async def _run():
-            return await handler.execute_async(
-                ctx, "new_gid", action_config, process
-            )
+            return await handler.execute_async(ctx, "new_gid", action_config, process)
 
         result = _run_async(_run())
         assert result.success is True
@@ -1025,9 +964,7 @@ class TestLifecycleEngineIntegration:
         # Mock creation service
         creation_service = MagicMock()
         creation_service.create_process_async = AsyncMock(
-            return_value=CreationResult(
-                success=True, entity_gid="new_proc_gid"
-            )
+            return_value=CreationResult(success=True, entity_gid="new_proc_gid")
         )
 
         # Mock section service
@@ -1057,9 +994,7 @@ class TestLifecycleEngineIntegration:
         # Mock reopen service
         reopen_service = MagicMock()
         reopen_service.reopen_async = AsyncMock(
-            return_value=ReopenResult(
-                success=True, entity_gid="reopened_gid"
-            )
+            return_value=ReopenResult(success=True, entity_gid="reopened_gid")
         )
 
         engine = LifecycleEngine(
@@ -1084,16 +1019,14 @@ class TestLifecycleEngineIntegration:
 
     def test_converted_transition_runs_all_phases(self):
         """CONVERTED transition should run all 4 phases in order."""
-        (
-            engine, creation, sections, completion, actions, wiring, _
-        ) = self._make_engine()
+        (engine, creation, sections, completion, actions, wiring, _) = (
+            self._make_engine()
+        )
 
         process = _make_mock_process(process_type_value="sales")
 
         async def _run():
-            return await engine.handle_transition_async(
-                process, "converted"
-            )
+            return await engine.handle_transition_async(process, "converted")
 
         result = _run_async(_run())
         assert result.success is True
@@ -1110,16 +1043,14 @@ class TestLifecycleEngineIntegration:
 
     def test_outreach_converted_skips_auto_complete(self):
         """Outreach CONVERTED should NOT auto-complete (flag=false)."""
-        (
-            engine, creation, sections, completion, actions, wiring, _
-        ) = self._make_engine()
+        (engine, creation, sections, completion, actions, wiring, _) = (
+            self._make_engine()
+        )
 
         process = _make_mock_process(process_type_value="outreach")
 
         async def _run():
-            return await engine.handle_transition_async(
-                process, "converted"
-            )
+            return await engine.handle_transition_async(process, "converted")
 
         result = _run_async(_run())
         assert result.success is True
@@ -1128,18 +1059,14 @@ class TestLifecycleEngineIntegration:
 
     def test_terminal_transition(self):
         """Implementation CONVERTED is terminal (target=null)."""
-        (
-            engine, creation, sections, completion, actions, wiring, _
-        ) = self._make_engine()
-
-        process = _make_mock_process(
-            process_type_value="implementation"
+        (engine, creation, sections, completion, actions, wiring, _) = (
+            self._make_engine()
         )
 
+        process = _make_mock_process(process_type_value="implementation")
+
         async def _run():
-            return await engine.handle_transition_async(
-                process, "converted"
-            )
+            return await engine.handle_transition_async(process, "converted")
 
         result = _run_async(_run())
         assert result.success is True
@@ -1149,16 +1076,14 @@ class TestLifecycleEngineIntegration:
 
     def test_dnc_deferred(self):
         """Outreach DNC is 'deferred' - should just log."""
-        (
-            engine, creation, sections, completion, actions, wiring, _
-        ) = self._make_engine()
+        (engine, creation, sections, completion, actions, wiring, _) = (
+            self._make_engine()
+        )
 
         process = _make_mock_process(process_type_value="outreach")
 
         async def _run():
-            return await engine.handle_transition_async(
-                process, "did_not_convert"
-            )
+            return await engine.handle_transition_async(process, "did_not_convert")
 
         result = _run_async(_run())
         assert result.success is True
@@ -1167,16 +1092,14 @@ class TestLifecycleEngineIntegration:
 
     def test_dnc_create_new(self):
         """Sales DNC should create a new outreach process."""
-        (
-            engine, creation, sections, completion, actions, wiring, reopen
-        ) = self._make_engine()
+        (engine, creation, sections, completion, actions, wiring, reopen) = (
+            self._make_engine()
+        )
 
         process = _make_mock_process(process_type_value="sales")
 
         async def _run():
-            return await engine.handle_transition_async(
-                process, "did_not_convert"
-            )
+            return await engine.handle_transition_async(process, "did_not_convert")
 
         result = _run_async(_run())
         assert result.success is True
@@ -1185,18 +1108,14 @@ class TestLifecycleEngineIntegration:
 
     def test_dnc_reopen(self):
         """Onboarding DNC should reopen, not create new."""
-        (
-            engine, creation, sections, completion, actions, wiring, reopen
-        ) = self._make_engine()
-
-        process = _make_mock_process(
-            process_type_value="onboarding"
+        (engine, creation, sections, completion, actions, wiring, reopen) = (
+            self._make_engine()
         )
 
+        process = _make_mock_process(process_type_value="onboarding")
+
         async def _run():
-            return await engine.handle_transition_async(
-                process, "did_not_convert"
-            )
+            return await engine.handle_transition_async(process, "did_not_convert")
 
         result = _run_async(_run())
         assert result.success is True
@@ -1206,16 +1125,14 @@ class TestLifecycleEngineIntegration:
 
     def test_unknown_stage_returns_error(self):
         """Unknown source stage should return error result, not crash."""
-        (
-            engine, creation, sections, completion, actions, wiring, _
-        ) = self._make_engine()
+        (engine, creation, sections, completion, actions, wiring, _) = (
+            self._make_engine()
+        )
 
         process = _make_mock_process(process_type_value="nonexistent")
 
         async def _run():
-            return await engine.handle_transition_async(
-                process, "converted"
-            )
+            return await engine.handle_transition_async(process, "converted")
 
         result = _run_async(_run())
         assert result.success is False
@@ -1225,21 +1142,17 @@ class TestLifecycleEngineIntegration:
         """If Phase 1 creation fails, the transition should hard-fail."""
         from autom8_asana.lifecycle.engine import CreationResult
 
-        (
-            engine, creation, sections, completion, actions, wiring, _
-        ) = self._make_engine()
+        (engine, creation, sections, completion, actions, wiring, _) = (
+            self._make_engine()
+        )
         creation.create_process_async = AsyncMock(
-            return_value=CreationResult(
-                success=False, error="Template not found"
-            )
+            return_value=CreationResult(success=False, error="Template not found")
         )
 
         process = _make_mock_process(process_type_value="sales")
 
         async def _run():
-            return await engine.handle_transition_async(
-                process, "converted"
-            )
+            return await engine.handle_transition_async(process, "converted")
 
         result = _run_async(_run())
         assert result.success is False
@@ -1250,19 +1163,15 @@ class TestLifecycleEngineIntegration:
 
     def test_phase2_failure_fail_forward(self):
         """If Phase 2 cascade fails, should warn but continue."""
-        (
-            engine, creation, sections, completion, actions, wiring, _
-        ) = self._make_engine()
-        sections.cascade_async = AsyncMock(
-            side_effect=RuntimeError("cascade boom")
+        (engine, creation, sections, completion, actions, wiring, _) = (
+            self._make_engine()
         )
+        sections.cascade_async = AsyncMock(side_effect=RuntimeError("cascade boom"))
 
         process = _make_mock_process(process_type_value="sales")
 
         async def _run():
-            return await engine.handle_transition_async(
-                process, "converted"
-            )
+            return await engine.handle_transition_async(process, "converted")
 
         result = _run_async(_run())
         # Should succeed overall (fail-forward)
@@ -1274,20 +1183,16 @@ class TestLifecycleEngineIntegration:
     def test_exception_in_engine_is_boundary_guarded(self):
         """Unhandled exception in transition should be caught by
         boundary guard."""
-        (
-            engine, creation, sections, completion, actions, wiring, _
-        ) = self._make_engine()
-        # Force an unexpected error in creation service
-        creation.create_process_async = AsyncMock(
-            side_effect=TypeError("unexpected")
+        (engine, creation, sections, completion, actions, wiring, _) = (
+            self._make_engine()
         )
+        # Force an unexpected error in creation service
+        creation.create_process_async = AsyncMock(side_effect=TypeError("unexpected"))
 
         process = _make_mock_process(process_type_value="sales")
 
         async def _run():
-            return await engine.handle_transition_async(
-                process, "converted"
-            )
+            return await engine.handle_transition_async(process, "converted")
 
         # The exception from the mock is inside _run_pipeline_async which
         # is inside the try/except boundary in handle_transition_async
@@ -1297,9 +1202,9 @@ class TestLifecycleEngineIntegration:
     def test_pre_validation_warn_mode(self):
         """Onboarding stage has pre_transition validation in warn mode.
         Missing fields should add warning but allow transition."""
-        (
-            engine, creation, sections, completion, actions, wiring, _
-        ) = self._make_engine()
+        (engine, creation, sections, completion, actions, wiring, _) = (
+            self._make_engine()
+        )
 
         # Process missing Contact Phone
         process = _make_mock_process(
@@ -1308,9 +1213,7 @@ class TestLifecycleEngineIntegration:
         )
 
         async def _run():
-            return await engine.handle_transition_async(
-                process, "converted"
-            )
+            return await engine.handle_transition_async(process, "converted")
 
         result = _run_async(_run())
         # Should succeed (warn mode, not block)
@@ -1323,18 +1226,14 @@ class TestLifecycleEngineIntegration:
         D-LC-004 FIXED: _handle_terminal_async now calls CompletionService
         instead of just recording the action string.
         """
-        (
-            engine, creation, sections, completion, actions, wiring, _
-        ) = self._make_engine()
-
-        process = _make_mock_process(
-            process_type_value="implementation"
+        (engine, creation, sections, completion, actions, wiring, _) = (
+            self._make_engine()
         )
 
+        process = _make_mock_process(process_type_value="implementation")
+
         async def _run():
-            return await engine.handle_transition_async(
-                process, "converted"
-            )
+            return await engine.handle_transition_async(process, "converted")
 
         result = _run_async(_run())
         assert result.success is True
@@ -1357,6 +1256,7 @@ class TestPipelineAutoCompletionServiceBackwardCompat:
         from autom8_asana.lifecycle.completion import (
             PipelineAutoCompletionService,
         )
+
         assert PipelineAutoCompletionService is not None
 
     def test_delegates_to_completion_service(self):
@@ -1372,15 +1272,11 @@ class TestPipelineAutoCompletionServiceBackwardCompat:
         process = _make_mock_process(completed=False)
 
         async def _run():
-            return await service.auto_complete_async(
-                process, new_pipeline_stage=3
-            )
+            return await service.auto_complete_async(process, new_pipeline_stage=3)
 
         result = _run_async(_run())
         assert result.completed == [process.gid]
-        client.tasks.update_async.assert_called_once_with(
-            process.gid, completed=True
-        )
+        client.tasks.update_async.assert_called_once_with(process.gid, completed=True)
 
     def test_new_pipeline_stage_parameter_ignored(self):
         """The new_pipeline_stage parameter should be accepted but
@@ -1396,9 +1292,7 @@ class TestPipelineAutoCompletionServiceBackwardCompat:
         process = _make_mock_process(completed=True)
 
         async def _run():
-            return await service.auto_complete_async(
-                process, new_pipeline_stage=999
-            )
+            return await service.auto_complete_async(process, new_pipeline_stage=999)
 
         result = _run_async(_run())
         assert result.completed == []
@@ -1429,9 +1323,7 @@ class TestEdgeCasesAdversarial:
         from autom8_asana.lifecycle.config import LifecycleConfig
 
         # Write invalid YAML
-        with tempfile.NamedTemporaryFile(
-            suffix=".yaml", mode="w", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(suffix=".yaml", mode="w", delete=False) as f:
             f.write("stages:\n  broken:\n    pipeline_stage: not_a_number\n")
             f.flush()
             path = Path(f.name)
@@ -1460,9 +1352,7 @@ class TestEdgeCasesAdversarial:
             }
         }
 
-        with tempfile.NamedTemporaryFile(
-            suffix=".yaml", mode="w", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(suffix=".yaml", mode="w", delete=False) as f:
             yaml.dump(yaml_content, f)
             path = Path(f.name)
 
@@ -1498,9 +1388,7 @@ class TestEdgeCasesAdversarial:
             }
         }
 
-        with tempfile.NamedTemporaryFile(
-            suffix=".yaml", mode="w", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(suffix=".yaml", mode="w", delete=False) as f:
             yaml.dump(yaml_content, f)
             path = Path(f.name)
 
@@ -1577,9 +1465,7 @@ class TestEdgeCasesAdversarial:
         ctx.resolve_holder_async = AsyncMock(return_value=None)
 
         async def _run():
-            return await service.reopen_async(
-                target_stage, ctx, process
-            )
+            return await service.reopen_async(target_stage, ctx, process)
 
         result = _run_async(_run())
         assert result.success is False
@@ -1607,9 +1493,7 @@ class TestEdgeCasesAdversarial:
         # list subtasks
         paginator = MagicMock()
         paginator.collect = AsyncMock(return_value=[subtask])
-        client.tasks.subtasks_async = MagicMock(
-            return_value=paginator
-        )
+        client.tasks.subtasks_async = MagicMock(return_value=paginator)
 
         process = _make_mock_process()
         process.process_holder = holder
@@ -1622,9 +1506,7 @@ class TestEdgeCasesAdversarial:
         ctx = MagicMock()
 
         async def _run():
-            return await service.reopen_async(
-                target_stage, ctx, process
-            )
+            return await service.reopen_async(target_stage, ctx, process)
 
         result = _run_async(_run())
         assert result.success is False
@@ -1673,9 +1555,7 @@ class TestEdgeCasesAdversarial:
         tr = TransitionResult(process.gid)
 
         # Without error
-        result = engine._build_result(
-            "test_rule", process, start, tr
-        )
+        result = engine._build_result("test_rule", process, start, tr)
         assert result.success is True
         assert result.error == ""
 
@@ -1688,9 +1568,7 @@ class TestEdgeCasesAdversarial:
 
         # With hard_failure
         tr.fail("hard failure")
-        result_hard = engine._build_result(
-            "test_rule", process, start, tr
-        )
+        result_hard = engine._build_result("test_rule", process, start, tr)
         assert result_hard.success is False
         assert result_hard.error == "hard failure"
 
@@ -1701,9 +1579,7 @@ class TestEdgeCasesAdversarial:
 
         from autom8_asana.lifecycle.config import LifecycleConfig
 
-        with tempfile.NamedTemporaryFile(
-            suffix=".yaml", mode="w", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(suffix=".yaml", mode="w", delete=False) as f:
             f.write("stages: {}\n")
             path = Path(f.name)
 
@@ -1732,9 +1608,7 @@ class TestEdgeCasesAdversarial:
 
         creation_service = MagicMock()
         creation_service.create_process_async = AsyncMock(
-            return_value=CreationResult(
-                success=True, entity_gid="new_gid"
-            )
+            return_value=CreationResult(success=True, entity_gid="new_gid")
         )
         section_service = MagicMock()
         section_service.cascade_async = AsyncMock(
@@ -1745,9 +1619,7 @@ class TestEdgeCasesAdversarial:
             return_value=CompletionResult(completed=[])
         )
         init_action_registry = MagicMock()
-        init_action_registry.execute_actions_async = AsyncMock(
-            return_value=[]
-        )
+        init_action_registry.execute_actions_async = AsyncMock(return_value=[])
         wiring_service = MagicMock()
         wiring_service.wire_defaults_async = AsyncMock(
             return_value=WiringResult(wired=[])
@@ -1872,9 +1744,7 @@ class TestEdgeCasesAdversarial:
         process = _make_mock_process()
 
         async def _run():
-            return await stub.reopen_async(
-                target_stage, ctx, process
-            )
+            return await stub.reopen_async(target_stage, ctx, process)
 
         result = _run_async(_run())
         assert result.success is False
@@ -1955,9 +1825,7 @@ class TestEdgeCasesAdversarial:
             }
         }
 
-        with tempfile.NamedTemporaryFile(
-            suffix=".yaml", mode="w", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(suffix=".yaml", mode="w", delete=False) as f:
             yaml.dump(yaml_content, f)
             path = Path(f.name)
 

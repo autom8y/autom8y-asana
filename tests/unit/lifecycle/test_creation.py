@@ -90,7 +90,8 @@ def _make_mock_client() -> MagicMock:
 
 
 def _make_mock_ctx(
-    business: Any = None, unit: Any = None,
+    business: Any = None,
+    unit: Any = None,
 ) -> AsyncMock:
     """Build a mock ResolutionContext."""
     if business is None:
@@ -167,12 +168,10 @@ async def test_create_process_template_happy_path():
 
     stage_config = _make_stage_config()
 
-    with patch(
-        "autom8_asana.lifecycle.creation.TemplateDiscovery"
-    ) as MockTD, patch(
-        "autom8_asana.lifecycle.creation.AutoCascadeSeeder"
-    ) as MockSeeder, patch(
-        "autom8_asana.lifecycle.creation.SubtaskWaiter"
+    with (
+        patch("autom8_asana.lifecycle.creation.TemplateDiscovery") as MockTD,
+        patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
+        patch("autom8_asana.lifecycle.creation.SubtaskWaiter"),
     ):
         MockTD.return_value.find_template_task_async = AsyncMock(
             return_value=template_task,
@@ -186,7 +185,9 @@ async def test_create_process_template_happy_path():
         )
 
         result = await service.create_process_async(
-            stage_config, ctx, source_process,
+            stage_config,
+            ctx,
+            source_process,
         )
 
     assert result.success is True
@@ -228,12 +229,10 @@ async def test_create_process_blank_fallback():
 
     stage_config = _make_stage_config()
 
-    with patch(
-        "autom8_asana.lifecycle.creation.TemplateDiscovery"
-    ) as MockTD, patch(
-        "autom8_asana.lifecycle.creation.AutoCascadeSeeder"
-    ) as MockSeeder, patch(
-        "autom8_asana.lifecycle.creation.SubtaskWaiter"
+    with (
+        patch("autom8_asana.lifecycle.creation.TemplateDiscovery") as MockTD,
+        patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
+        patch("autom8_asana.lifecycle.creation.SubtaskWaiter"),
     ):
         MockTD.return_value.find_template_task_async = AsyncMock(
             return_value=None,
@@ -243,7 +242,9 @@ async def test_create_process_blank_fallback():
         )
 
         result = await service.create_process_async(
-            stage_config, ctx, source_process,
+            stage_config,
+            ctx,
+            source_process,
         )
 
     assert result.success is True
@@ -269,7 +270,9 @@ def test_generate_name_business_placeholder():
     unit.name = "Downtown"
 
     result = EntityCreationService._generate_name(
-        "[Business Name] - Sales", business, unit,
+        "[Business Name] - Sales",
+        business,
+        unit,
     )
     assert result == "Acme Corp - Sales"
 
@@ -282,7 +285,9 @@ def test_generate_name_unit_placeholder():
     unit.name = "Downtown Office"
 
     result = EntityCreationService._generate_name(
-        "[Unit Name] Onboarding", business, unit,
+        "[Unit Name] Onboarding",
+        business,
+        unit,
     )
     assert result == "Downtown Office Onboarding"
 
@@ -295,7 +300,9 @@ def test_generate_name_both_placeholders():
     unit.name = "Downtown"
 
     result = EntityCreationService._generate_name(
-        "[Business Name] - [Unit Name]", business, unit,
+        "[Business Name] - [Unit Name]",
+        business,
+        unit,
     )
     assert result == "Acme Corp - Downtown"
 
@@ -308,7 +315,9 @@ def test_generate_name_business_unit_name_variant():
     unit.name = "Downtown"
 
     result = EntityCreationService._generate_name(
-        "[Business Unit Name] Process", business, unit,
+        "[Business Unit Name] Process",
+        business,
+        unit,
     )
     assert result == "Downtown Process"
 
@@ -327,7 +336,9 @@ def test_generate_name_case_insensitive():
     unit.name = None
 
     result = EntityCreationService._generate_name(
-        "[BUSINESS NAME] - Sales", business, unit,
+        "[BUSINESS NAME] - Sales",
+        business,
+        unit,
     )
     assert result == "Acme - Sales"
 
@@ -345,8 +356,11 @@ async def test_auto_cascade_matching_field_cascades():
     # Target task has custom fields: Vertical, Contact Phone
     target_task = MagicMock()
     target_task.custom_fields = [
-        {"name": "Vertical", "resource_subtype": "enum",
-         "enum_options": [{"name": "Dental", "gid": "opt1"}]},
+        {
+            "name": "Vertical",
+            "resource_subtype": "enum",
+            "enum_options": [{"name": "Dental", "gid": "opt1"}],
+        },
         {"name": "Contact Phone", "resource_subtype": "text"},
     ]
     client.tasks.get_async.return_value = target_task
@@ -354,19 +368,23 @@ async def test_auto_cascade_matching_field_cascades():
     # Source process has matching fields
     source_process = _make_mock_process(
         custom_fields=[
-            {"name": "Vertical", "resource_subtype": "enum",
-             "enum_value": {"name": "Dental", "gid": "opt1"}},
-            {"name": "Contact Phone", "resource_subtype": "text",
-             "text_value": "555-1234"},
+            {
+                "name": "Vertical",
+                "resource_subtype": "enum",
+                "enum_value": {"name": "Dental", "gid": "opt1"},
+            },
+            {
+                "name": "Contact Phone",
+                "resource_subtype": "text",
+                "text_value": "555-1234",
+            },
         ],
     )
 
     # Mock the FieldSeeder.write_fields_async call
     from autom8_asana.automation.seeding import WriteResult
 
-    with patch(
-        "autom8_asana.lifecycle.seeding.FieldSeeder"
-    ) as MockFS:
+    with patch("autom8_asana.lifecycle.seeding.FieldSeeder") as MockFS:
         mock_seeder_write = MockFS.return_value
         mock_seeder_write.write_fields_async = AsyncMock(
             return_value=WriteResult(
@@ -396,26 +414,33 @@ async def test_auto_cascade_exclusion_prevents_cascade():
 
     target_task = MagicMock()
     target_task.custom_fields = [
-        {"name": "Vertical", "resource_subtype": "enum",
-         "enum_options": [{"name": "Dental", "gid": "opt1"}]},
+        {
+            "name": "Vertical",
+            "resource_subtype": "enum",
+            "enum_options": [{"name": "Dental", "gid": "opt1"}],
+        },
         {"name": "Internal Notes", "resource_subtype": "text"},
     ]
     client.tasks.get_async.return_value = target_task
 
     source_process = _make_mock_process(
         custom_fields=[
-            {"name": "Vertical", "resource_subtype": "enum",
-             "enum_value": {"name": "Dental", "gid": "opt1"}},
-            {"name": "Internal Notes", "resource_subtype": "text",
-             "text_value": "secret notes"},
+            {
+                "name": "Vertical",
+                "resource_subtype": "enum",
+                "enum_value": {"name": "Dental", "gid": "opt1"},
+            },
+            {
+                "name": "Internal Notes",
+                "resource_subtype": "text",
+                "text_value": "secret notes",
+            },
         ],
     )
 
     from autom8_asana.automation.seeding import WriteResult
 
-    with patch(
-        "autom8_asana.lifecycle.seeding.FieldSeeder"
-    ) as MockFS:
+    with patch("autom8_asana.lifecycle.seeding.FieldSeeder") as MockFS:
         mock_seeder_write = MockFS.return_value
         mock_seeder_write.write_fields_async = AsyncMock(
             return_value=WriteResult(
@@ -455,16 +480,17 @@ async def test_auto_cascade_computed_field_overrides():
 
     source_process = _make_mock_process(
         custom_fields=[
-            {"name": "Launch Date", "resource_subtype": "text",
-             "text_value": "2025-01-01"},
+            {
+                "name": "Launch Date",
+                "resource_subtype": "text",
+                "text_value": "2025-01-01",
+            },
         ],
     )
 
     from autom8_asana.automation.seeding import WriteResult
 
-    with patch(
-        "autom8_asana.lifecycle.seeding.FieldSeeder"
-    ) as MockFS:
+    with patch("autom8_asana.lifecycle.seeding.FieldSeeder") as MockFS:
         mock_seeder_write = MockFS.return_value
         mock_seeder_write.write_fields_async = AsyncMock(
             return_value=WriteResult(
@@ -506,28 +532,23 @@ async def test_auto_cascade_precedence_process_overrides_unit_overrides_business
 
     business = MagicMock()
     business.custom_fields = [
-        {"name": "Priority", "resource_subtype": "text",
-         "text_value": "Low"},
+        {"name": "Priority", "resource_subtype": "text", "text_value": "Low"},
     ]
 
     unit = MagicMock()
     unit.custom_fields = [
-        {"name": "Priority", "resource_subtype": "text",
-         "text_value": "Medium"},
+        {"name": "Priority", "resource_subtype": "text", "text_value": "Medium"},
     ]
 
     source_process = _make_mock_process(
         custom_fields=[
-            {"name": "Priority", "resource_subtype": "text",
-             "text_value": "High"},
+            {"name": "Priority", "resource_subtype": "text", "text_value": "High"},
         ],
     )
 
     from autom8_asana.automation.seeding import WriteResult
 
-    with patch(
-        "autom8_asana.lifecycle.seeding.FieldSeeder"
-    ) as MockFS:
+    with patch("autom8_asana.lifecycle.seeding.FieldSeeder") as MockFS:
         mock_seeder_write = MockFS.return_value
         mock_seeder_write.write_fields_async = AsyncMock(
             return_value=WriteResult(
@@ -558,26 +579,30 @@ async def test_auto_cascade_enum_field_gid_resolution():
 
     target_task = MagicMock()
     target_task.custom_fields = [
-        {"name": "Vertical", "resource_subtype": "enum",
-         "enum_options": [
-             {"name": "Dental", "gid": "target_opt1"},
-             {"name": "Medical", "gid": "target_opt2"},
-         ]},
+        {
+            "name": "Vertical",
+            "resource_subtype": "enum",
+            "enum_options": [
+                {"name": "Dental", "gid": "target_opt1"},
+                {"name": "Medical", "gid": "target_opt2"},
+            ],
+        },
     ]
     client.tasks.get_async.return_value = target_task
 
     source_process = _make_mock_process(
         custom_fields=[
-            {"name": "Vertical", "resource_subtype": "enum",
-             "enum_value": {"name": "Dental", "gid": "source_opt1"}},
+            {
+                "name": "Vertical",
+                "resource_subtype": "enum",
+                "enum_value": {"name": "Dental", "gid": "source_opt1"},
+            },
         ],
     )
 
     from autom8_asana.automation.seeding import WriteResult
 
-    with patch(
-        "autom8_asana.lifecycle.seeding.FieldSeeder"
-    ) as MockFS:
+    with patch("autom8_asana.lifecycle.seeding.FieldSeeder") as MockFS:
         mock_seeder_write = MockFS.return_value
         mock_seeder_write.write_fields_async = AsyncMock(
             return_value=WriteResult(
@@ -635,7 +660,9 @@ async def test_duplicate_detected_skips_creation():
     stage_config = _make_stage_config()
 
     result = await service.create_process_async(
-        stage_config, ctx, source_process,
+        stage_config,
+        ctx,
+        source_process,
     )
 
     assert result.success is True
@@ -686,12 +713,10 @@ async def test_duplicate_check_completed_tasks_skipped():
     template_task.gid = "tmpl_gid"
     template_task.name = "Onboarding Template"
 
-    with patch(
-        "autom8_asana.lifecycle.creation.TemplateDiscovery"
-    ) as MockTD, patch(
-        "autom8_asana.lifecycle.creation.AutoCascadeSeeder"
-    ) as MockSeeder, patch(
-        "autom8_asana.lifecycle.creation.SubtaskWaiter"
+    with (
+        patch("autom8_asana.lifecycle.creation.TemplateDiscovery") as MockTD,
+        patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
+        patch("autom8_asana.lifecycle.creation.SubtaskWaiter"),
     ):
         MockTD.return_value.find_template_task_async = AsyncMock(
             return_value=template_task,
@@ -701,7 +726,9 @@ async def test_duplicate_check_completed_tasks_skipped():
         )
 
         result = await service.create_process_async(
-            stage_config, ctx, source_process,
+            stage_config,
+            ctx,
+            source_process,
         )
 
     # Completed task not treated as duplicate => creation proceeds
@@ -738,12 +765,17 @@ async def test_assignee_stage_specific_field():
     )
 
     warning = await service._set_assignee_async(
-        new_task, source_process, unit, business, assignee_config,
+        new_task,
+        source_process,
+        unit,
+        business,
+        assignee_config,
     )
 
     assert warning is None
     client.tasks.set_assignee_async.assert_called_once_with(
-        "new_task_gid", "specialist_gid",
+        "new_task_gid",
+        "specialist_gid",
     )
 
 
@@ -764,12 +796,17 @@ async def test_assignee_fixed_gid():
     assignee_config = AssigneeConfig(assignee_gid="fixed_gid_123")
 
     warning = await service._set_assignee_async(
-        new_task, source_process, unit, business, assignee_config,
+        new_task,
+        source_process,
+        unit,
+        business,
+        assignee_config,
     )
 
     assert warning is None
     client.tasks.set_assignee_async.assert_called_once_with(
-        "new_task_gid", "fixed_gid_123",
+        "new_task_gid",
+        "fixed_gid_123",
     )
 
 
@@ -790,12 +827,17 @@ async def test_assignee_fallback_to_unit_rep():
     assignee_config = AssigneeConfig()  # No source or fixed GID
 
     warning = await service._set_assignee_async(
-        new_task, source_process, unit, business, assignee_config,
+        new_task,
+        source_process,
+        unit,
+        business,
+        assignee_config,
     )
 
     assert warning is None
     client.tasks.set_assignee_async.assert_called_once_with(
-        "new_task_gid", "unit_rep_gid",
+        "new_task_gid",
+        "unit_rep_gid",
     )
 
 
@@ -816,12 +858,17 @@ async def test_assignee_fallback_to_business_rep():
     assignee_config = AssigneeConfig()
 
     warning = await service._set_assignee_async(
-        new_task, source_process, unit, business, assignee_config,
+        new_task,
+        source_process,
+        unit,
+        business,
+        assignee_config,
     )
 
     assert warning is None
     client.tasks.set_assignee_async.assert_called_once_with(
-        "new_task_gid", "biz_rep_gid",
+        "new_task_gid",
+        "biz_rep_gid",
     )
 
 
@@ -842,7 +889,11 @@ async def test_assignee_none_available_returns_warning():
     assignee_config = AssigneeConfig()
 
     warning = await service._set_assignee_async(
-        new_task, source_process, unit, business, assignee_config,
+        new_task,
+        source_process,
+        unit,
+        business,
+        assignee_config,
     )
 
     assert warning is not None
@@ -869,7 +920,9 @@ async def test_hierarchy_placement_via_process_holder():
     ctx = _make_mock_ctx()
 
     result = await service._resolve_holder_for_placement(
-        ctx, "process_holder", source_process,
+        ctx,
+        "process_holder",
+        source_process,
     )
 
     # Should use source_process.process_holder directly
@@ -894,7 +947,9 @@ async def test_hierarchy_placement_fallback_to_context():
     ctx.resolve_holder_async = AsyncMock(return_value=resolved_holder)
 
     result = await service._resolve_holder_for_placement(
-        ctx, "process_holder", source_process,
+        ctx,
+        "process_holder",
+        source_process,
     )
 
     assert result is resolved_holder
@@ -925,23 +980,28 @@ async def test_due_date_calculation():
     stage_config = _make_stage_config(due_date_offset_days=14)
     ctx = _make_mock_ctx(business=business, unit=unit)
 
-    with patch(
-        "autom8_asana.lifecycle.creation.AutoCascadeSeeder"
-    ) as MockSeeder, patch(
-        "autom8_asana.lifecycle.creation.SubtaskWaiter"
+    with (
+        patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
+        patch("autom8_asana.lifecycle.creation.SubtaskWaiter"),
     ):
         MockSeeder.return_value.seed_async = AsyncMock(
             return_value=SeedingResult(),
         )
 
         warnings, _, _ = await service._configure_async(
-            new_task, stage_config, ctx,
-            source_process, business, unit, 0,
+            new_task,
+            stage_config,
+            ctx,
+            source_process,
+            business,
+            unit,
+            0,
         )
 
     expected_due = (date.today() + timedelta(days=14)).isoformat()
     client.tasks.update_async.assert_called_once_with(
-        "new_task_gid", due_on=expected_due,
+        "new_task_gid",
+        due_on=expected_due,
     )
 
 
@@ -967,12 +1027,15 @@ async def test_section_placement_case_insensitive():
     client.sections.list_for_project_async.return_value = sections_iter
 
     result = await service._move_to_section_async(
-        "task_gid", "proj_gid", "OPPORTUNITY",  # uppercase
+        "task_gid",
+        "proj_gid",
+        "OPPORTUNITY",  # uppercase
     )
 
     assert result is True
     client.sections.add_task_async.assert_called_once_with(
-        "section_gid", task="task_gid",
+        "section_gid",
+        task="task_gid",
     )
 
 
@@ -988,7 +1051,9 @@ async def test_section_placement_not_found():
     client.sections.list_for_project_async.return_value = sections_iter
 
     result = await service._move_to_section_async(
-        "task_gid", "proj_gid", "NONEXISTENT",
+        "task_gid",
+        "proj_gid",
+        "NONEXISTENT",
     )
 
     assert result is False
@@ -1017,7 +1082,9 @@ async def test_creation_failure_returns_error_result():
     stage_config = _make_stage_config()
 
     result = await service.create_process_async(
-        stage_config, ctx, source_process,
+        stage_config,
+        ctx,
+        source_process,
     )
 
     assert result.success is False
@@ -1044,12 +1111,10 @@ async def test_seeding_failure_non_fatal():
     template_task.gid = "tmpl_gid"
     template_task.name = "Template"
 
-    with patch(
-        "autom8_asana.lifecycle.creation.TemplateDiscovery"
-    ) as MockTD, patch(
-        "autom8_asana.lifecycle.creation.AutoCascadeSeeder"
-    ) as MockSeeder, patch(
-        "autom8_asana.lifecycle.creation.SubtaskWaiter"
+    with (
+        patch("autom8_asana.lifecycle.creation.TemplateDiscovery") as MockTD,
+        patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
+        patch("autom8_asana.lifecycle.creation.SubtaskWaiter"),
     ):
         MockTD.return_value.find_template_task_async = AsyncMock(
             return_value=template_task,
@@ -1060,7 +1125,9 @@ async def test_seeding_failure_non_fatal():
         )
 
         result = await service.create_process_async(
-            stage_config, ctx, source_process,
+            stage_config,
+            ctx,
+            source_process,
         )
 
     # Creation should still succeed
@@ -1133,12 +1200,10 @@ async def test_full_creation_flow_with_all_configure_steps():
         assignee=AssigneeConfig(),
     )
 
-    with patch(
-        "autom8_asana.lifecycle.creation.TemplateDiscovery"
-    ) as MockTD, patch(
-        "autom8_asana.lifecycle.creation.AutoCascadeSeeder"
-    ) as MockSeeder, patch(
-        "autom8_asana.lifecycle.creation.SubtaskWaiter"
+    with (
+        patch("autom8_asana.lifecycle.creation.TemplateDiscovery") as MockTD,
+        patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
+        patch("autom8_asana.lifecycle.creation.SubtaskWaiter"),
     ):
         MockTD.return_value.find_template_task_async = AsyncMock(
             return_value=template_task,
@@ -1151,7 +1216,9 @@ async def test_full_creation_flow_with_all_configure_steps():
         )
 
         result = await service.create_process_async(
-            stage_config, ctx, source_process,
+            stage_config,
+            ctx,
+            source_process,
         )
 
     assert result.success is True
@@ -1163,11 +1230,13 @@ async def test_full_creation_flow_with_all_configure_steps():
     client.tasks.update_async.assert_called_once()
     # Assignee was set (Unit.rep[0] used)
     client.tasks.set_assignee_async.assert_called_once_with(
-        "created_gid", "unit_rep_gid",
+        "created_gid",
+        "unit_rep_gid",
     )
     # Section placement
     client.sections.add_task_async.assert_called_once_with(
-        "section_gid", task="created_gid",
+        "section_gid",
+        task="created_gid",
     )
 
 

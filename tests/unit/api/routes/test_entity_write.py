@@ -173,12 +173,15 @@ def app(mock_write_registry):
 
         # Patch EntityWriteRegistry at its source module so the lazy import
         # in lifespan picks up the mock.
-        with patch(
-            "autom8_asana.resolution.write_registry.EntityWriteRegistry",
-            return_value=mock_write_registry,
-        ), patch(
-            "autom8_asana.core.entity_registry.get_registry",
-            return_value=MagicMock(),
+        with (
+            patch(
+                "autom8_asana.resolution.write_registry.EntityWriteRegistry",
+                return_value=mock_write_registry,
+            ),
+            patch(
+                "autom8_asana.core.entity_registry.get_registry",
+                return_value=MagicMock(),
+            ),
         ):
             yield create_app()
 
@@ -205,7 +208,14 @@ def _patches(
         return_value="test_bot_pat",
     )
     client_patch = patch("autom8_asana.AsanaClient")
-    return jwt_patch, pat_patch, client_patch, task_data, get_side_effect, update_side_effect
+    return (
+        jwt_patch,
+        pat_patch,
+        client_patch,
+        task_data,
+        get_side_effect,
+        update_side_effect,
+    )
 
 
 def _apply_patches(

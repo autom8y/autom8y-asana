@@ -179,11 +179,7 @@ class ReopenService:
         )
         sections = await sections_result.collect()
         target = next(
-            (
-                s
-                for s in sections
-                if s.name and s.name.lower() == section_name.lower()
-            ),
+            (s for s in sections if s.name and s.name.lower() == section_name.lower()),
             None,
         )
         if target:
@@ -209,9 +205,7 @@ class ReopenService:
         cfs = getattr(task, "custom_fields", None) or []
         for cf in cfs:
             name = (
-                cf.get("name", "")
-                if isinstance(cf, dict)
-                else getattr(cf, "name", "")
+                cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
             )
             if name.lower() in ("process type", "processtype"):
                 display = (

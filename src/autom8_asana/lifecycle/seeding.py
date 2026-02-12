@@ -132,20 +132,26 @@ class AutoCascadeSeeder:
         # Layer 1: Business cascade
         if business is not None:
             business_values = self._extract_matching_fields(
-                business, target_field_names, excludes,
+                business,
+                target_field_names,
+                excludes,
             )
             seeded.update(business_values)
 
         # Layer 2: Unit cascade (overrides Business)
         if unit is not None:
             unit_values = self._extract_matching_fields(
-                unit, target_field_names, excludes,
+                unit,
+                target_field_names,
+                excludes,
             )
             seeded.update(unit_values)
 
         # Layer 3: Source process carry-through (overrides Unit)
         process_values = self._extract_matching_fields(
-            source_process, target_field_names, excludes,
+            source_process,
+            target_field_names,
+            excludes,
         )
         seeded.update(process_values)
 
@@ -174,15 +180,14 @@ class AutoCascadeSeeder:
         # Write using FieldSeeder infrastructure (enum resolution + API call)
         field_seeder = FieldSeeder(self._client)
         write_result = await field_seeder.write_fields_async(
-            target_task_gid, seeded,
+            target_task_gid,
+            seeded,
         )
 
         result.fields_seeded = write_result.fields_written
         result.fields_skipped = write_result.fields_skipped
         if write_result.error:
-            result.warnings.append(
-                f"Field write error: {write_result.error}"
-            )
+            result.warnings.append(f"Field write error: {write_result.error}")
 
         return result
 
@@ -241,7 +246,9 @@ class AutoCascadeSeeder:
 
         if subtype == "multi_enum":
             multi_values = _get_field_attr(
-                field_dict, "multi_enum_values", [],
+                field_dict,
+                "multi_enum_values",
+                [],
             )
             if multi_values:
                 return [

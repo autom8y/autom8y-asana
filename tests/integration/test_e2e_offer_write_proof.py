@@ -167,7 +167,8 @@ async def test_e2e_offer_write_proof():
             created_gid,
             raw=True,
             opt_fields=[
-                "custom_fields", "custom_fields.name",
+                "custom_fields",
+                "custom_fields.name",
                 "custom_fields.resource_subtype",
                 "custom_fields.enum_options",
             ],
@@ -180,8 +181,12 @@ async def test_e2e_offer_write_proof():
             if (
                 cf.get("resource_subtype") == "enum"
                 and cf.get("enum_options")
-                and cf.get("name") in (
-                    "Language", "Specialty", "Campaign Type", "Optimize For",
+                and cf.get("name")
+                in (
+                    "Language",
+                    "Specialty",
+                    "Campaign Type",
+                    "Optimize For",
                 )
             ):
                 options = [
@@ -221,8 +226,10 @@ async def test_e2e_offer_write_proof():
             target_gid,
             raw=True,
             opt_fields=[
-                "custom_fields", "custom_fields.name",
-                "custom_fields.text_value", "custom_fields.resource_subtype",
+                "custom_fields",
+                "custom_fields.name",
+                "custom_fields.text_value",
+                "custom_fields.resource_subtype",
             ],
         )
         original_notes = None
@@ -267,10 +274,14 @@ async def test_e2e_offer_write_proof():
             created_gid,
             raw=True,
             opt_fields=[
-                "name", "notes",
-                "custom_fields", "custom_fields.name",
-                "custom_fields.text_value", "custom_fields.number_value",
-                "custom_fields.display_value", "custom_fields.resource_subtype",
+                "name",
+                "notes",
+                "custom_fields",
+                "custom_fields.name",
+                "custom_fields.text_value",
+                "custom_fields.number_value",
+                "custom_fields.display_value",
+                "custom_fields.resource_subtype",
             ],
         )
 

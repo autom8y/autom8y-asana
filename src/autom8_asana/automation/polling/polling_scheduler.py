@@ -406,9 +406,7 @@ class PollingScheduler:
             timestamp_utc=utc_end.isoformat(),
         )
 
-    def _dispatch_scheduled_workflow(
-        self, rule: Any, structured_log: Any
-    ) -> None:
+    def _dispatch_scheduled_workflow(self, rule: Any, structured_log: Any) -> None:
         """Dispatch a schedule-driven workflow rule.
 
         Checks if the schedule is due, looks up the workflow in the registry,
@@ -433,9 +431,7 @@ class PollingScheduler:
             workflow = self._workflow_registry.get(workflow_id)
             if workflow:
                 asyncio.run(
-                    self._execute_workflow_async(
-                        workflow, rule, structured_log
-                    )
+                    self._execute_workflow_async(workflow, rule, structured_log)
                 )
             else:
                 structured_log.error(

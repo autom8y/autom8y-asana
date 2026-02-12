@@ -15,6 +15,7 @@ from autom8_asana.automation.workflows.mixins import AttachmentReplacementMixin
 
 # --- Concrete stub that uses the mixin ---
 
+
 class _StubWorkflow(AttachmentReplacementMixin):
     """Minimal concrete class to exercise the mixin."""
 

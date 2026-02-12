@@ -154,11 +154,14 @@ class TestGetBotPatExtensionResolution:
     """Test bot PAT retrieval via Lambda extension ARN resolution."""
 
     def test_resolves_via_arn_when_set(
-        self, monkeypatch: pytest.MonkeyPatch,
+        self,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Resolves PAT via Lambda extension when ASANA_PAT_ARN is set."""
         test_pat = "0/resolved_from_extension_1234567890"
-        monkeypatch.setenv("ASANA_PAT_ARN", "arn:aws:secretsmanager:us-east-1:123:secret:pat")
+        monkeypatch.setenv(
+            "ASANA_PAT_ARN", "arn:aws:secretsmanager:us-east-1:123:secret:pat"
+        )
         monkeypatch.delenv("ASANA_PAT", raising=False)
         clear_bot_pat_cache()
 
@@ -171,7 +174,8 @@ class TestGetBotPatExtensionResolution:
         assert result == test_pat
 
     def test_falls_back_to_direct_env_when_no_arn(
-        self, monkeypatch: pytest.MonkeyPatch,
+        self,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Falls back to ASANA_PAT env var when no ARN is set."""
         test_pat = "0/direct_env_var_pat_1234567890abc"
@@ -184,7 +188,8 @@ class TestGetBotPatExtensionResolution:
         assert result == test_pat
 
     def test_raises_when_neither_arn_nor_env_set(
-        self, monkeypatch: pytest.MonkeyPatch,
+        self,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Raises BotPATError when no secret source is available."""
         monkeypatch.delenv("ASANA_PAT_ARN", raising=False)

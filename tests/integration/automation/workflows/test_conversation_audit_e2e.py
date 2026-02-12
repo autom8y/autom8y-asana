@@ -38,9 +38,7 @@ def _make_task(
     return task
 
 
-def _make_parent_task(
-    office_phone: str | None, gid: str = "biz-mock"
-) -> MagicMock:
+def _make_parent_task(office_phone: str | None, gid: str = "biz-mock") -> MagicMock:
     """Create a mock parent Business task.
 
     Supports Business.from_gid_async by being a proper Pydantic-validatable
@@ -50,13 +48,15 @@ def _make_parent_task(
 
     cf_list: list[dict[str, Any]] = []
     if office_phone:
-        cf_list.append({
-            "gid": "1205917451230123",
-            "name": "Office Phone",
-            "text_value": office_phone,
-            "display_value": office_phone,
-            "resource_subtype": "text",
-        })
+        cf_list.append(
+            {
+                "gid": "1205917451230123",
+                "name": "Office Phone",
+                "text_value": office_phone,
+                "display_value": office_phone,
+                "resource_subtype": "text",
+            }
+        )
     # Return a real Business instance so model_validate succeeds
     return Business(
         gid=gid,

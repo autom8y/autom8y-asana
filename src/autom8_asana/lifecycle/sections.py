@@ -118,9 +118,7 @@ class CascadingSectionService:
         """
         try:
             entity = await resolve_fn()
-            moved = await self._move_to_section_async(
-                entity, section_name, entity_type
-            )
+            moved = await self._move_to_section_async(entity, section_name, entity_type)
             if moved:
                 result.updates.append(entity.gid)
             else:
@@ -133,9 +131,7 @@ class CascadingSectionService:
                 section=section_name,
                 error=str(e),
             )
-            result.warnings.append(
-                f"Failed to update {entity_type} section: {e}"
-            )
+            result.warnings.append(f"Failed to update {entity_type} section: {e}")
 
     async def _move_to_section_async(
         self,
@@ -182,18 +178,12 @@ class CascadingSectionService:
             return False
 
         # Find section by name (case-insensitive)
-        sections = (
-            await self._client.sections.list_for_project_async(
-                project_gid
-            ).collect()
-        )
+        sections = await self._client.sections.list_for_project_async(
+            project_gid
+        ).collect()
 
         target = next(
-            (
-                s
-                for s in sections
-                if s.name and s.name.lower() == section_name.lower()
-            ),
+            (s for s in sections if s.name and s.name.lower() == section_name.lower()),
             None,
         )
 
@@ -207,9 +197,7 @@ class CascadingSectionService:
             return False
 
         # Move entity to target section
-        await self._client.sections.add_task_async(
-            target.gid, task=entity.gid
-        )
+        await self._client.sections.add_task_async(target.gid, task=entity.gid)
 
         logger.info(
             f"cascade_{entity_type}_section_updated",

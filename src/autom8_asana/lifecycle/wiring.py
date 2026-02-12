@@ -88,18 +88,14 @@ class DependencyWiringService:
         for dep_config in pipeline_rules.dependents:
             entity_type = dep_config.get("entity_type")
             try:
-                dependent_gid = await self._resolve_dependent_gid(
-                    entity_type, ctx
-                )
+                dependent_gid = await self._resolve_dependent_gid(entity_type, ctx)
                 if dependent_gid:
                     await self._client.tasks.add_dependent_async(
                         entity_gid, dependent_gid
                     )
                     result.wired.append(dependent_gid)
             except (ConnectionError, TimeoutError, OSError) as e:
-                msg = (
-                    f"Failed to wire dependent '{entity_type}': {e}"
-                )
+                msg = f"Failed to wire dependent '{entity_type}': {e}"
                 logger.warning(
                     "lifecycle_wire_dependent_failed",
                     entity_type=entity_type,
@@ -107,9 +103,7 @@ class DependencyWiringService:
                 )
                 result.warnings.append(msg)
             except Exception as e:  # BROAD-CATCH: fail-forward boundary
-                msg = (
-                    f"Unexpected error wiring dependent '{entity_type}': {e}"
-                )
+                msg = f"Unexpected error wiring dependent '{entity_type}': {e}"
                 logger.warning(
                     "lifecycle_wire_dependent_failed",
                     entity_type=entity_type,

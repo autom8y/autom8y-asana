@@ -230,9 +230,7 @@ class TestEnumResolution:
         assert rf.value == "OPT_ACTIVE"
         assert rf.gid == "CF_002"
 
-    def test_resolve_enum_by_gid_passthrough(
-        self, resolver: FieldResolver
-    ) -> None:
+    def test_resolve_enum_by_gid_passthrough(self, resolver: FieldResolver) -> None:
         """Numeric GID string 'OPT_ACTIVE' passes through when it matches a known GID."""
         # The GID passthrough works for numeric-looking GIDs.
         # Since our test GIDs are not numeric, test with a numeric option GID.
@@ -280,9 +278,7 @@ class TestEnumResolution:
 class TestMultiEnumResolution:
     """Multi-enum replace mode and append mode."""
 
-    def test_resolve_multi_enum_replace(
-        self, resolver: FieldResolver
-    ) -> None:
+    def test_resolve_multi_enum_replace(self, resolver: FieldResolver) -> None:
         """Replace mode: list of names resolves to list of GIDs."""
         results = resolver.resolve_fields(
             {"platforms": ["Facebook", "Google"]}, list_mode="replace"
@@ -293,9 +289,7 @@ class TestMultiEnumResolution:
         assert rf.gid == "CF_003"
         assert set(rf.value) == {"OPT_FB", "OPT_GOOG"}
 
-    def test_resolve_multi_enum_append(
-        self, resolver: FieldResolver
-    ) -> None:
+    def test_resolve_multi_enum_append(self, resolver: FieldResolver) -> None:
         """Append mode: merges with existing multi_enum_values."""
         # Existing: [Facebook (OPT_FB)]. Appending: [Google, Facebook].
         # Result should be: [OPT_FB, OPT_GOOG] (deduped, FB not duplicated).
@@ -331,18 +325,14 @@ class TestTextAppend:
     def test_resolve_text_append_dedup(self, resolver: FieldResolver) -> None:
         """Append deduplicates values already present in text_value."""
         # "Asset ID" (CF_004) has text_value="asset-123,asset-456"
-        results = resolver.resolve_fields(
-            {"asset_id": "asset-123"}, list_mode="append"
-        )
+        results = resolver.resolve_fields({"asset_id": "asset-123"}, list_mode="append")
         assert len(results) == 1
         rf = results[0]
         assert rf.status == "resolved"
         # asset-123 already exists, should not be duplicated
         assert rf.value == "asset-123,asset-456"
 
-    def test_resolve_text_append_list_input(
-        self, resolver: FieldResolver
-    ) -> None:
+    def test_resolve_text_append_list_input(self, resolver: FieldResolver) -> None:
         """Append accepts a list of strings."""
         # "Asset ID" (CF_004) has text_value="asset-123,asset-456"
         results = resolver.resolve_fields(
@@ -409,9 +399,7 @@ class TestTypeValidation:
         assert rf.error is not None
         assert "number" in rf.error.lower()
 
-    def test_type_validation_text_rejects_number(
-        self, resolver: FieldResolver
-    ) -> None:
+    def test_type_validation_text_rejects_number(self, resolver: FieldResolver) -> None:
         """Text field with raw number returns type error."""
         results = resolver.resolve_fields({"Asset ID": 12345})
         assert len(results) == 1

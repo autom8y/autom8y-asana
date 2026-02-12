@@ -59,9 +59,7 @@ async def test_complete_source_marks_process_complete(mock_client):
 
     assert len(result.completed) == 1
     assert result.completed[0] == "proc1"
-    mock_client.tasks.update_async.assert_awaited_once_with(
-        "proc1", completed=True
-    )
+    mock_client.tasks.update_async.assert_awaited_once_with("proc1", completed=True)
 
 
 @pytest.mark.asyncio
@@ -111,9 +109,7 @@ async def test_auto_complete_prior_true_calls_service(mock_client):
     the engine calls complete_source_async."""
     from autom8_asana.lifecycle.config import TransitionConfig
 
-    transition = TransitionConfig(
-        converted="onboarding", auto_complete_prior=True
-    )
+    transition = TransitionConfig(converted="onboarding", auto_complete_prior=True)
 
     process = _make_process(gid="sales1", completed=False)
     mock_client.tasks.update_async = AsyncMock()
@@ -136,9 +132,7 @@ async def test_auto_complete_prior_false_skips_service(mock_client):
     the engine does NOT call complete_source_async."""
     from autom8_asana.lifecycle.config import TransitionConfig
 
-    transition = TransitionConfig(
-        converted="sales", auto_complete_prior=False
-    )
+    transition = TransitionConfig(converted="sales", auto_complete_prior=False)
 
     process = _make_process(gid="outreach1", completed=False)
     mock_client.tasks.update_async = AsyncMock()
@@ -191,9 +185,7 @@ async def test_legacy_service_delegates_to_completion_service(mock_client):
 
     assert len(result.completed) == 1
     assert result.completed[0] == "proc1"
-    mock_client.tasks.update_async.assert_awaited_once_with(
-        "proc1", completed=True
-    )
+    mock_client.tasks.update_async.assert_awaited_once_with("proc1", completed=True)
 
 
 @pytest.mark.asyncio
@@ -233,9 +225,7 @@ async def test_legacy_service_already_completed(mock_client):
 async def test_legacy_service_api_failure(mock_client):
     """PipelineAutoCompletionService handles API failures gracefully."""
     process = _make_process(gid="proc1", completed=False)
-    mock_client.tasks.update_async = AsyncMock(
-        side_effect=ConnectionError("API error")
-    )
+    mock_client.tasks.update_async = AsyncMock(side_effect=ConnectionError("API error"))
 
     legacy_service = PipelineAutoCompletionService(mock_client)
     result = await legacy_service.auto_complete_async(
