@@ -80,7 +80,7 @@ __all__ = [
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/v1/resolve", tags=["resolver"])
+router = APIRouter(prefix="/v1/resolve", tags=["resolver"], include_in_schema=False)
 
 # Include schema discovery sub-router
 router.include_router(schema_router)

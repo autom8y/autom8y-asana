@@ -16,9 +16,33 @@ Per PRD-ASANA-SATELLITE Appendix A:
 from datetime import UTC, datetime
 from typing import Any, Generic, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 T = TypeVar("T")
+
+
+class AsanaResource(BaseModel):
+    """Base Asana resource returned by the Asana API.
+
+    All Asana resources share a gid and resource_type. Additional fields
+    vary by endpoint and the opt_fields parameter. The extra="allow"
+    config accepts any additional fields without declaring them, which
+    avoids the circular $ref problem that dict[str, Any] causes in the
+    generated OpenAPI schema.
+
+    Attributes:
+        gid: Globally unique identifier for the Asana resource.
+        resource_type: Resource type string (e.g., "task", "project").
+        name: Display name of the resource (optional, depends on opt_fields).
+    """
+
+    gid: str = Field(..., description="Globally unique Asana resource identifier")
+    resource_type: str | None = Field(
+        default=None, description="Asana resource type"
+    )
+    name: str | None = Field(default=None, description="Resource display name")
+
+    model_config = ConfigDict(extra="allow")
 
 
 class PaginationMeta(BaseModel):
@@ -441,6 +465,7 @@ class ReorderSectionRequest(BaseModel):
 
 __all__ = [
     # Response models
+    "AsanaResource",
     "ErrorDetail",
     "ErrorResponse",
     "PaginationMeta",

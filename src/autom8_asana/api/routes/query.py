@@ -59,7 +59,7 @@ __all__ = [
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/v1/query", tags=["query"])
+router = APIRouter(prefix="/v1/query", tags=["query"], include_in_schema=False)
 
 
 DEFAULT_SELECT_FIELDS = ["gid", "name", "section"]

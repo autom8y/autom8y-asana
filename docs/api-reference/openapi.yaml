@@ -89,7 +89,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -125,7 +125,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -187,7 +187,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_list_dict_str__Any___'
+                $ref: '#/components/schemas/SuccessResponse_list_AsanaResource__'
         '422':
           description: Validation Error
           content:
@@ -241,7 +241,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_list_dict_str__Any___'
+                $ref: '#/components/schemas/SuccessResponse_list_AsanaResource__'
         '422':
           description: Validation Error
           content:
@@ -278,7 +278,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -556,7 +556,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_list_dict_str__Any___'
+                $ref: '#/components/schemas/SuccessResponse_list_AsanaResource__'
         '422':
           description: Validation Error
           content:
@@ -592,7 +592,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -641,7 +641,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -683,7 +683,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -773,7 +773,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_list_dict_str__Any___'
+                $ref: '#/components/schemas/SuccessResponse_list_AsanaResource__'
         '422':
           description: Validation Error
           content:
@@ -832,7 +832,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_list_dict_str__Any___'
+                $ref: '#/components/schemas/SuccessResponse_list_AsanaResource__'
         '422':
           description: Validation Error
           content:
@@ -875,7 +875,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -917,7 +917,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -959,7 +959,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -1002,7 +1002,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -1045,7 +1045,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -1087,7 +1087,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -1130,7 +1130,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -1193,7 +1193,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_list_dict_str__Any___'
+                $ref: '#/components/schemas/SuccessResponse_list_AsanaResource__'
         '422':
           description: Validation Error
           content:
@@ -1229,7 +1229,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -1278,7 +1278,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -1321,7 +1321,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -1411,7 +1411,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_list_dict_str__Any___'
+                $ref: '#/components/schemas/SuccessResponse_list_AsanaResource__'
         '422':
           description: Validation Error
           content:
@@ -1454,7 +1454,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -1496,7 +1496,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -1532,7 +1532,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -1573,7 +1573,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -1640,7 +1640,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse_dict_str__Any__'
+                $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
         '422':
           description: Validation Error
           content:
@@ -1726,224 +1726,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /v1/resolve/{entity_type}/schema:
-    get:
-      tags:
-      - resolver
-      summary: Get queryable fields for entity type
-      description: Returns schema information including all fields that can be used
-        in resolution criteria.
-      operationId: get_entity_schema_v1_resolve__entity_type__schema_get
-      parameters:
-      - name: entity_type
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Entity Type
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EntitySchemaResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /v1/resolve/{entity_type}:
-    post:
-      tags:
-      - resolver
-      summary: Resolve Entities
-      description: "Resolve entity identifiers to task GIDs.\n\nThis endpoint resolves\
-        \ business identifiers (phone/vertical, offer_id, etc.)\nto Asana task GIDs\
-        \ using entity-type-specific resolution strategies.\n\nAuthentication:\n \
-        \   Requires valid service token (S2S JWT).\n    PAT tokens are NOT supported.\n\
-        \nPath Parameters:\n    entity_type: Entity type to resolve (unit, business,\
-        \ offer, contact)\n\nRequest:\n    POST /v1/resolve/unit\n    {\n        \"\
-        criteria\": [\n            {\"phone\": \"+15551234567\", \"vertical\": \"\
-        dental\"},\n            {\"phone\": \"+15559876543\", \"vertical\": \"medical\"\
-        }\n        ]\n    }\n\nResponse:\n    {\n        \"results\": [\n        \
-        \    {\"gid\": \"1234567890123456\"},\n            {\"gid\": null, \"error\"\
-        : \"NOT_FOUND\"}\n        ],\n        \"meta\": {\n            \"resolved_count\"\
-        : 1,\n            \"unresolved_count\": 1,\n            \"entity_type\": \"\
-        unit\",\n            \"project_gid\": \"1201081073731555\"\n        }\n  \
-        \  }\n\nError Responses:\n    - 401 MISSING_AUTH: No Authorization header\n\
-        \    - 401 SERVICE_TOKEN_REQUIRED: PAT token provided (S2S only)\n    - 404\
-        \ UNKNOWN_ENTITY_TYPE: entity_type not in allowed values\n    - 422 VALIDATION_ERROR:\
-        \ Invalid request body\n    - 503 DISCOVERY_INCOMPLETE: Startup discovery\
-        \ not finished\n\nArgs:\n    entity_type: Path parameter for entity type\n\
-        \    request_body: ResolutionRequest with criteria\n    request: FastAPI request\
-        \ object\n    claims: Validated service claims from JWT\n\nReturns:\n    ResolutionResponse\
-        \ with results and metadata."
-      operationId: resolve_entities_v1_resolve__entity_type__post
-      parameters:
-      - name: entity_type
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Entity Type
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ResolutionRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ResolutionResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /v1/query/{entity_type}:
-    post:
-      tags:
-      - query
-      summary: Query Entities
-      description: Query entities from DataFrame cache (deprecated -- use /rows).
-      operationId: query_entities_v1_query__entity_type__post
-      parameters:
-      - name: entity_type
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Entity Type
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/QueryRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/QueryResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /v1/query/{entity_type}/rows:
-    post:
-      tags:
-      - query-v2
-      summary: Query Rows
-      description: 'Query entity rows with composable predicate filtering.
-
-
-        See PRD-dynamic-query-service FR-004.'
-      operationId: query_rows_v1_query__entity_type__rows_post
-      parameters:
-      - name: entity_type
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Entity Type
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RowsRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RowsResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /v1/query/{entity_type}/aggregate:
-    post:
-      tags:
-      - query-v2
-      summary: Query Aggregate
-      description: 'Aggregate entity data with grouping and optional HAVING filter.
-
-
-        See PRD-dynamic-query-service FR-005.'
-      operationId: query_aggregate_v1_query__entity_type__aggregate_post
-      parameters:
-      - name: entity_type
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Entity Type
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AggregateRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AggregateResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /v1/admin/cache/refresh:
-    post:
-      tags:
-      - admin
-      summary: Refresh Cache
-      description: "Trigger cache refresh for one or all entity types.\n\nRequires\
-        \ S2S JWT authentication. Kicks off a background task and\nreturns 202 Accepted\
-        \ immediately.\n\nArgs:\n    request: FastAPI request object.\n    body: Cache\
-        \ refresh request parameters.\n    background_tasks: FastAPI background tasks.\n\
-        \    claims: Validated service claims from S2S JWT.\n\nReturns:\n    CacheRefreshResponse\
-        \ with refresh details.\n\nRaises:\n    HTTPException: 400 for invalid entity\
-        \ type, 503 for cache not ready."
-      operationId: refresh_cache_v1_admin_cache_refresh_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CacheRefreshRequest'
-        required: true
-      responses:
-        '202':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CacheRefreshResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/webhooks/inbound:
     post:
       tags:
@@ -1974,57 +1756,6 @@ paths:
           content:
             application/json:
               schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/entity/{entity_type}/{gid}:
-    patch:
-      tags:
-      - entity-write
-      summary: Write Entity Fields
-      description: "Write fields to an Asana entity.\n\nAuthentication: S2S JWT only\
-        \ (require_service_claims dependency).\n\nPath Parameters:\n    entity_type:\
-        \ Entity type (offer, unit, business, etc.)\n    gid: Asana task GID\n\nQuery\
-        \ Parameters:\n    include_updated: If true, re-fetch and return current field\
-        \ values.\n\nRequest Body:\n    EntityWriteRequest with fields dict and optional\
-        \ list_mode.\n\nReturns:\n    EntityWriteResponse with per-field results."
-      operationId: write_entity_fields_api_v1_entity__entity_type___gid__patch
-      parameters:
-      - name: entity_type
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Entity Type
-      - name: gid
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Gid
-      - name: include_updated
-        in: query
-        required: false
-        schema:
-          type: boolean
-          default: false
-          title: Include Updated
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/EntityWriteRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EntityWriteResponse'
         '422':
           description: Validation Error
           content:
@@ -2078,232 +1809,37 @@ components:
       description: "Request body for adding task to a project.\n\nPer FR-API-TASK-016:\
         \ Add task to project endpoint.\n\nAttributes:\n    project_gid: GID of the\
         \ project to add task to."
-    AggFunction:
-      type: string
-      enum:
-      - sum
-      - count
-      - mean
-      - min
-      - max
-      - count_distinct
-      title: AggFunction
-      description: Supported aggregation functions for /aggregate endpoint.
-    AggSpec:
+    AsanaResource:
       properties:
-        column:
+        gid:
           type: string
-          title: Column
-        agg:
-          $ref: '#/components/schemas/AggFunction'
-        alias:
+          title: Gid
+          description: Globally unique Asana resource identifier
+        resource_type:
           anyOf:
           - type: string
           - type: 'null'
-          title: Alias
-      additionalProperties: false
-      type: object
-      required:
-      - column
-      - agg
-      title: AggSpec
-      description: "Single aggregation specification within an /aggregate request.\n\
-        \nAttributes:\n    column: Column to aggregate (must exist in SchemaRegistry).\n\
-        \    agg: Aggregation function to apply.\n    alias: Output column name. Defaults\
-        \ to \"{agg}_{column}\"."
-    AggregateMeta:
-      properties:
-        group_count:
-          type: integer
-          title: Group Count
-        aggregation_count:
-          type: integer
-          title: Aggregation Count
-        group_by:
-          items:
-            type: string
-          type: array
-          title: Group By
-        entity_type:
-          type: string
-          title: Entity Type
-        project_gid:
-          type: string
-          title: Project Gid
-        query_ms:
-          type: number
-          title: Query Ms
-        freshness:
+          title: Resource Type
+          description: Asana resource type
+        name:
           anyOf:
           - type: string
           - type: 'null'
-          title: Freshness
-        data_age_seconds:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Data Age Seconds
-        staleness_ratio:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Staleness Ratio
-      additionalProperties: false
+          title: Name
+          description: Resource display name
+      additionalProperties: true
       type: object
       required:
-      - group_count
-      - aggregation_count
-      - group_by
-      - entity_type
-      - project_gid
-      - query_ms
-      title: AggregateMeta
-      description: Response metadata for /aggregate endpoint.
-    AggregateRequest:
-      properties:
-        where:
-          anyOf:
-          - oneOf:
-            - $ref: '#/components/schemas/Comparison'
-            - $ref: '#/components/schemas/AndGroup'
-            - $ref: '#/components/schemas/OrGroup'
-            - $ref: '#/components/schemas/NotGroup'
-          - type: 'null'
-          title: Where
-        section:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Section
-        group_by:
-          items:
-            type: string
-          type: array
-          maxItems: 5
-          minItems: 1
-          title: Group By
-        aggregations:
-          items:
-            $ref: '#/components/schemas/AggSpec'
-          type: array
-          maxItems: 10
-          minItems: 1
-          title: Aggregations
-        having:
-          anyOf:
-          - oneOf:
-            - $ref: '#/components/schemas/Comparison'
-            - $ref: '#/components/schemas/AndGroup'
-            - $ref: '#/components/schemas/OrGroup'
-            - $ref: '#/components/schemas/NotGroup'
-          - type: 'null'
-          title: Having
-      additionalProperties: false
-      type: object
-      required:
-      - group_by
-      - aggregations
-      title: AggregateRequest
-      description: POST /v1/query/{entity_type}/aggregate request body.
-    AggregateResponse:
-      properties:
-        data:
-          items:
-            additionalProperties: true
-            type: object
-          type: array
-          title: Data
-        meta:
-          $ref: '#/components/schemas/AggregateMeta'
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      - meta
-      title: AggregateResponse
-      description: Response body for /aggregate endpoint.
-    AndGroup:
-      properties:
-        and:
-          items:
-            oneOf:
-            - $ref: '#/components/schemas/Comparison'
-            - $ref: '#/components/schemas/AndGroup'
-            - $ref: '#/components/schemas/OrGroup'
-            - $ref: '#/components/schemas/NotGroup'
-          type: array
-          title: And
-      additionalProperties: false
-      type: object
-      required:
-      - and
-      title: AndGroup
-      description: 'AND group node: all children must match.'
-    CacheRefreshRequest:
-      properties:
-        entity_type:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Entity Type
-        force_full_rebuild:
-          type: boolean
-          title: Force Full Rebuild
-          default: false
-      type: object
-      title: CacheRefreshRequest
-      description: "Request body for cache refresh endpoint.\n\nAttributes:\n    entity_type:\
-        \ Specific entity type to refresh. If None, refresh all.\n    force_full_rebuild:\
-        \ If True, delete manifests and rebuild from scratch."
-    CacheRefreshResponse:
-      properties:
-        status:
-          type: string
-          title: Status
-          default: accepted
-        message:
-          type: string
-          title: Message
-        entity_types:
-          items:
-            type: string
-          type: array
-          title: Entity Types
-        refresh_id:
-          type: string
-          title: Refresh Id
-        force_full_rebuild:
-          type: boolean
-          title: Force Full Rebuild
-      type: object
-      required:
-      - message
-      - entity_types
-      - refresh_id
-      - force_full_rebuild
-      title: CacheRefreshResponse
-      description: "Response body for cache refresh endpoint.\n\nAttributes:\n   \
-        \ status: Always \"accepted\" for 202 responses.\n    message: Human-readable\
-        \ description of the action taken.\n    entity_types: List of entity types\
-        \ being refreshed.\n    refresh_id: Unique identifier for this refresh operation.\n\
-        \    force_full_rebuild: Whether full rebuild was requested."
-    Comparison:
-      properties:
-        field:
-          type: string
-          title: Field
-        op:
-          $ref: '#/components/schemas/Op'
-        value:
-          title: Value
-      additionalProperties: false
-      type: object
-      required:
-      - field
-      - op
-      - value
-      title: Comparison
-      description: 'Leaf predicate node: single field comparison.'
+      - gid
+      title: AsanaResource
+      description: "Base Asana resource returned by the Asana API.\n\nAll Asana resources\
+        \ share a gid and resource_type. Additional fields\nvary by endpoint and the\
+        \ opt_fields parameter. The extra=\"allow\"\nconfig accepts any additional\
+        \ fields without declaring them, which\navoids the circular $ref problem that\
+        \ dict[str, Any] causes in the\ngenerated OpenAPI schema.\n\nAttributes:\n\
+        \    gid: Globally unique identifier for the Asana resource.\n    resource_type:\
+        \ Resource type string (e.g., \"task\", \"project\").\n    name: Display name\
+        \ of the resource (optional, depends on opt_fields)."
     CreateProjectRequest:
       properties:
         name:
@@ -2418,118 +1954,6 @@ components:
       title: DuplicateTaskRequest
       description: "Request body for duplicating a task.\n\nPer FR-API-TASK-011: Duplicate\
         \ task endpoint.\n\nAttributes:\n    name: Name for the new duplicated task."
-    EntitySchemaResponse:
-      properties:
-        entity_type:
-          type: string
-          title: Entity Type
-        version:
-          type: string
-          title: Version
-        queryable_fields:
-          items:
-            $ref: '#/components/schemas/SchemaFieldInfo'
-          type: array
-          title: Queryable Fields
-      additionalProperties: false
-      type: object
-      required:
-      - entity_type
-      - version
-      - queryable_fields
-      title: EntitySchemaResponse
-      description: 'Response for schema discovery endpoint.
-
-
-        Returns metadata about queryable fields for an entity type.'
-    EntityWriteRequest:
-      properties:
-        fields:
-          additionalProperties: true
-          type: object
-          title: Fields
-        list_mode:
-          type: string
-          enum:
-          - replace
-          - append
-          title: List Mode
-          default: replace
-      type: object
-      required:
-      - fields
-      title: EntityWriteRequest
-      description: "Request body for PATCH /api/v1/entity/{entity_type}/{gid}.\n\n\
-        Attributes:\n    fields: Dict mapping field names to values. Accepts both\n\
-        \        Python descriptor names (weekly_ad_spend) and Asana\n        display\
-        \ names (\"Weekly Ad Spend\"). Core fields (name,\n        assignee, due_on,\
-        \ completed, notes) are also accepted.\n    list_mode: How to handle list-type\
-        \ fields.\n        \"replace\" (default): Replace entire field value.\n  \
-        \      \"append\": Append to existing values (multi_enum, text lists)."
-    EntityWriteResponse:
-      properties:
-        gid:
-          type: string
-          title: Gid
-        entity_type:
-          type: string
-          title: Entity Type
-        fields_written:
-          type: integer
-          title: Fields Written
-        fields_skipped:
-          type: integer
-          title: Fields Skipped
-        field_results:
-          items:
-            $ref: '#/components/schemas/FieldWriteResult'
-          type: array
-          title: Field Results
-        updated_fields:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          title: Updated Fields
-      type: object
-      required:
-      - gid
-      - entity_type
-      - fields_written
-      - fields_skipped
-      - field_results
-      title: EntityWriteResponse
-      description: Response for entity write endpoint.
-    FieldWriteResult:
-      properties:
-        name:
-          type: string
-          title: Name
-        status:
-          type: string
-          enum:
-          - written
-          - skipped
-          - error
-          title: Status
-        error:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Error
-        suggestions:
-          anyOf:
-          - items:
-              type: string
-            type: array
-          - type: 'null'
-          title: Suggestions
-      type: object
-      required:
-      - name
-      - status
-      title: FieldWriteResult
-      description: Per-field write result.
     HTTPValidationError:
       properties:
         detail:
@@ -2539,32 +1963,6 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
-    JoinSpec:
-      properties:
-        entity_type:
-          type: string
-          title: Entity Type
-        select:
-          items:
-            type: string
-          type: array
-          maxItems: 10
-          minItems: 1
-          title: Select
-        'on':
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: 'On'
-      additionalProperties: false
-      type: object
-      required:
-      - entity_type
-      - select
-      title: JoinSpec
-      description: "Specification for a cross-entity join on /rows.\n\nExample:\n\
-        \    {\n        \"entity_type\": \"business\",\n        \"select\": [\"booking_type\"\
-        , \"stripe_id\"],\n        \"on\": \"office_phone\"\n    }"
     MembersRequest:
       properties:
         members:
@@ -2603,53 +2001,6 @@ components:
       description: "Request body for moving a task to a section.\n\nPer FR-API-TASK-014:\
         \ Move task to section endpoint.\n\nAttributes:\n    section_gid: GID of the\
         \ target section.\n    project_gid: GID of the project containing the section."
-    NotGroup:
-      properties:
-        not:
-          oneOf:
-          - $ref: '#/components/schemas/Comparison'
-          - $ref: '#/components/schemas/AndGroup'
-          - $ref: '#/components/schemas/OrGroup'
-          - $ref: '#/components/schemas/NotGroup'
-          title: Not
-      additionalProperties: false
-      type: object
-      required:
-      - not
-      title: NotGroup
-      description: 'NOT group node: child must not match.'
-    Op:
-      type: string
-      enum:
-      - eq
-      - ne
-      - gt
-      - lt
-      - gte
-      - lte
-      - in
-      - not_in
-      - contains
-      - starts_with
-      title: Op
-      description: Supported comparison operators.
-    OrGroup:
-      properties:
-        or:
-          items:
-            oneOf:
-            - $ref: '#/components/schemas/Comparison'
-            - $ref: '#/components/schemas/AndGroup'
-            - $ref: '#/components/schemas/OrGroup'
-            - $ref: '#/components/schemas/NotGroup'
-          type: array
-          title: Or
-      additionalProperties: false
-      type: object
-      required:
-      - or
-      title: OrGroup
-      description: 'OR group node: at least one child must match.'
     PaginationMeta:
       properties:
         limit:
@@ -2678,76 +2029,6 @@ components:
         \ of items requested per page.\n    has_more: Whether more items exist after\
         \ this page.\n    next_offset: Opaque cursor for next page (None if no more\
         \ pages)."
-    QueryMeta:
-      properties:
-        total_count:
-          type: integer
-          title: Total Count
-        limit:
-          type: integer
-          title: Limit
-        offset:
-          type: integer
-          title: Offset
-        entity_type:
-          type: string
-          title: Entity Type
-        project_gid:
-          type: string
-          title: Project Gid
-      additionalProperties: false
-      type: object
-      required:
-      - total_count
-      - limit
-      - offset
-      - entity_type
-      - project_gid
-      title: QueryMeta
-      description: Response metadata for pagination and context.
-    QueryRequest:
-      properties:
-        where:
-          additionalProperties: true
-          type: object
-          title: Where
-          default: {}
-        select:
-          anyOf:
-          - items:
-              type: string
-            type: array
-          - type: 'null'
-          title: Select
-        limit:
-          type: integer
-          title: Limit
-          default: 100
-        offset:
-          type: integer
-          title: Offset
-          default: 0
-      additionalProperties: false
-      type: object
-      title: QueryRequest
-      description: Legacy query request with flat equality filtering (AND semantics).
-    QueryResponse:
-      properties:
-        data:
-          items:
-            additionalProperties: true
-            type: object
-          type: array
-          title: Data
-        meta:
-          $ref: '#/components/schemas/QueryMeta'
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      - meta
-      title: QueryResponse
-      description: Response body for entity query.
     ReorderSectionRequest:
       properties:
         project_gid:
@@ -2777,174 +2058,6 @@ components:
         \ or after_section must be provided.\n\nAttributes:\n    project_gid: Project\
         \ GID containing the section.\n    before_section: Section GID to insert before\
         \ (optional).\n    after_section: Section GID to insert after (optional)."
-    ResolutionCriterion:
-      properties:
-        phone:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Phone
-        vertical:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Vertical
-        offer_id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Offer Id
-        offer_name:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Offer Name
-        contact_email:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Contact Email
-        contact_phone:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Contact Phone
-      additionalProperties: true
-      type: object
-      title: ResolutionCriterion
-      description: "Single lookup criterion - accepts any schema column dynamically.\n\
-        \nPer SPIKE-dynamic-api-criteria: Uses extra=\"allow\" to accept arbitrary\n\
-        schema columns. Common fields are typed for validation and documentation.\n\
-        Additional fields are validated against the entity schema at runtime.\n\n\
-        Common Fields (typed):\n    - phone: E.164 formatted phone number (maps to\
-        \ office_phone)\n    - vertical: Business vertical\n\nOffer Fields:\n    -\
-        \ offer_id: Offer identifier\n    - offer_name: For phone/vertical + discriminator\n\
-        \nContact Fields:\n    - contact_email: Email address\n    - contact_phone:\
-        \ Phone number\n\nDynamic Fields (any schema column):\n    - Use GET /v1/resolve/{entity_type}/schema\
-        \ to discover valid fields\n    - Examples: mrr, specialty, weekly_ad_spend,\
-        \ stripe_id, etc."
-    ResolutionMeta:
-      properties:
-        resolved_count:
-          type: integer
-          title: Resolved Count
-        unresolved_count:
-          type: integer
-          title: Unresolved Count
-        entity_type:
-          type: string
-          title: Entity Type
-        project_gid:
-          type: string
-          title: Project Gid
-        available_fields:
-          items:
-            type: string
-          type: array
-          title: Available Fields
-          default: []
-        criteria_schema:
-          items:
-            type: string
-          type: array
-          title: Criteria Schema
-          default: []
-      additionalProperties: false
-      type: object
-      required:
-      - resolved_count
-      - unresolved_count
-      - entity_type
-      - project_gid
-      title: ResolutionMeta
-      description: "Response metadata.\n\nPer TDD: Summary statistics for the resolution\
-        \ batch.\n\nAttributes:\n    resolved_count: Number of successful resolutions\n\
-        \    unresolved_count: Number of failed resolutions\n    entity_type: Entity\
-        \ type that was resolved\n    project_gid: Project GID used for resolution\n\
-        \    available_fields: Valid fields for entity (from schema)\n    criteria_schema:\
-        \ Fields used in the resolution request criteria"
-    ResolutionRequest:
-      properties:
-        criteria:
-          items:
-            $ref: '#/components/schemas/ResolutionCriterion'
-          type: array
-          title: Criteria
-        fields:
-          anyOf:
-          - items:
-              type: string
-            type: array
-          - type: 'null'
-          title: Fields
-      additionalProperties: false
-      type: object
-      required:
-      - criteria
-      title: ResolutionRequest
-      description: "Request body for entity resolution.\n\nPer TDD: Batch resolution\
-        \ with max 1000 criteria.\n\nAttributes:\n    criteria: List of lookup criteria\
-        \ (max 1000 items)\n    fields: Optional field filtering (Phase 2)"
-    ResolutionResponse:
-      properties:
-        results:
-          items:
-            $ref: '#/components/schemas/ResolutionResultModel'
-          type: array
-          title: Results
-        meta:
-          $ref: '#/components/schemas/ResolutionMeta'
-      additionalProperties: false
-      type: object
-      required:
-      - results
-      - meta
-      title: ResolutionResponse
-      description: "Response body for entity resolution.\n\nPer TDD: Results in same\
-        \ order as input criteria.\n\nAttributes:\n    results: List of resolution\
-        \ results\n    meta: Response metadata"
-    ResolutionResultModel:
-      properties:
-        gid:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Gid
-        gids:
-          anyOf:
-          - items:
-              type: string
-            type: array
-          - type: 'null'
-          title: Gids
-        match_count:
-          type: integer
-          title: Match Count
-          default: 0
-        error:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Error
-        data:
-          anyOf:
-          - items:
-              additionalProperties: true
-              type: object
-            type: array
-          - type: 'null'
-          title: Data
-      additionalProperties: false
-      type: object
-      required:
-      - gid
-      title: ResolutionResultModel
-      description: "Single resolution result.\n\nPer TDD: Result of a single criterion\
-        \ resolution.\nPer TDD-FIELDS-ENRICHMENT-001: Added data field for enriched\
-        \ field values.\n\nAttributes:\n    gid: First matching GID or None if not\
-        \ found (backwards compat)\n    gids: All matching GIDs (new multi-match support)\n\
-        \    match_count: Number of matches\n    error: Error code if resolution failed\n\
-        \    data: Field data for each match (only when fields requested)"
     ResponseMeta:
       properties:
         request_id:
@@ -2972,172 +2085,6 @@ components:
         Attributes:\n    request_id: Unique 16-character hex identifier for this request.\n\
         \    timestamp: UTC timestamp when response was generated.\n    pagination:\
         \ Pagination info for list responses (optional)."
-    RowsMeta:
-      properties:
-        total_count:
-          type: integer
-          title: Total Count
-        returned_count:
-          type: integer
-          title: Returned Count
-        limit:
-          type: integer
-          title: Limit
-        offset:
-          type: integer
-          title: Offset
-        entity_type:
-          type: string
-          title: Entity Type
-        project_gid:
-          type: string
-          title: Project Gid
-        query_ms:
-          type: number
-          title: Query Ms
-        join_entity:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Join Entity
-        join_key:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Join Key
-        join_matched:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Join Matched
-        join_unmatched:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Join Unmatched
-        freshness:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Freshness
-        data_age_seconds:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Data Age Seconds
-        staleness_ratio:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Staleness Ratio
-      additionalProperties: false
-      type: object
-      required:
-      - total_count
-      - returned_count
-      - limit
-      - offset
-      - entity_type
-      - project_gid
-      - query_ms
-      title: RowsMeta
-      description: Response metadata for /rows endpoint.
-    RowsRequest:
-      properties:
-        where:
-          anyOf:
-          - oneOf:
-            - $ref: '#/components/schemas/Comparison'
-            - $ref: '#/components/schemas/AndGroup'
-            - $ref: '#/components/schemas/OrGroup'
-            - $ref: '#/components/schemas/NotGroup'
-          - type: 'null'
-          title: Where
-        section:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Section
-        select:
-          anyOf:
-          - items:
-              type: string
-            type: array
-          - type: 'null'
-          title: Select
-        limit:
-          type: integer
-          maximum: 1000.0
-          minimum: 1.0
-          title: Limit
-          default: 100
-        offset:
-          type: integer
-          minimum: 0.0
-          title: Offset
-          default: 0
-        order_by:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Order By
-        order_dir:
-          type: string
-          enum:
-          - asc
-          - desc
-          title: Order Dir
-          default: asc
-        join:
-          anyOf:
-          - $ref: '#/components/schemas/JoinSpec'
-          - type: 'null'
-      additionalProperties: false
-      type: object
-      title: RowsRequest
-      description: POST /v1/query/{entity_type}/rows request body.
-    RowsResponse:
-      properties:
-        data:
-          items:
-            additionalProperties: true
-            type: object
-          type: array
-          title: Data
-        meta:
-          $ref: '#/components/schemas/RowsMeta'
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      - meta
-      title: RowsResponse
-      description: Response body for /rows endpoint.
-    SchemaFieldInfo:
-      properties:
-        name:
-          type: string
-          title: Name
-        type:
-          type: string
-          title: Type
-        description:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Description
-      additionalProperties: false
-      type: object
-      required:
-      - name
-      - type
-      title: SchemaFieldInfo
-      description: 'Information about a queryable schema field.
-
-
-        Per SPIKE-dynamic-api-criteria: Enables API consumers to discover
-
-        valid criterion fields dynamically.'
     SetAssigneeRequest:
       properties:
         assignee_gid:
@@ -3152,12 +2099,10 @@ components:
       description: "Request body for setting task assignee.\n\nPer FR-API-TASK-015:\
         \ Set task assignee endpoint.\n\nAttributes:\n    assignee_gid: GID of the\
         \ user to assign (null to unassign)."
-    SuccessResponse_dict_str__Any__:
+    SuccessResponse_AsanaResource_:
       properties:
         data:
-          additionalProperties: true
-          type: object
-          title: Data
+          $ref: '#/components/schemas/AsanaResource'
           description: Response data payload
         meta:
           $ref: '#/components/schemas/ResponseMeta'
@@ -3167,13 +2112,12 @@ components:
       required:
       - data
       - meta
-      title: SuccessResponse[dict[str, Any]]
-    SuccessResponse_list_dict_str__Any___:
+      title: SuccessResponse[AsanaResource]
+    SuccessResponse_list_AsanaResource__:
       properties:
         data:
           items:
-            additionalProperties: true
-            type: object
+            $ref: '#/components/schemas/AsanaResource'
           type: array
           title: Data
           description: Response data payload
@@ -3185,7 +2129,7 @@ components:
       required:
       - data
       - meta
-      title: SuccessResponse[list[dict[str, Any]]]
+      title: SuccessResponse[list[AsanaResource]]
     UpdateProjectRequest:
       properties:
         name:

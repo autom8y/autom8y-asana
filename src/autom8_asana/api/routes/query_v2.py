@@ -37,7 +37,7 @@ __all__ = [
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/v1/query", tags=["query-v2"])
+router = APIRouter(prefix="/v1/query", tags=["query-v2"], include_in_schema=False)
 
 
 # Error-to-status mapping

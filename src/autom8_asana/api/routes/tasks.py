@@ -27,7 +27,7 @@ Per TDD-ASANA-SATELLITE:
 - List endpoints support cursor-based pagination
 """
 
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
 
@@ -39,6 +39,7 @@ from autom8_asana.api.dependencies import (
 from autom8_asana.api.models import (
     AddTagRequest,
     AddToProjectRequest,
+    AsanaResource,
     CreateTaskRequest,
     DuplicateTaskRequest,
     MoveSectionRequest,
@@ -64,7 +65,7 @@ MAX_LIMIT = 100
 @router.get(
     "",
     summary="List tasks by project or section",
-    response_model=SuccessResponse[list[dict[str, Any]]],
+    response_model=SuccessResponse[list[AsanaResource]],
 )
 async def list_tasks(
     client: AsanaClientDualMode,
@@ -86,7 +87,7 @@ async def list_tasks(
         str | None,
         Query(description="Pagination cursor from previous response"),
     ] = None,
-) -> SuccessResponse[list[dict[str, Any]]]:
+) -> SuccessResponse[list[AsanaResource]]:
     """List tasks by project or section with pagination.
 
     Args:
@@ -122,7 +123,7 @@ async def list_tasks(
 @router.get(
     "/{gid}",
     summary="Get task by GID",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
 )
 async def get_task(
     gid: str,
@@ -136,7 +137,7 @@ async def get_task(
             examples=["name,notes,due_on,assignee"],
         ),
     ] = None,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Get a task by its GID.
 
     Args:
@@ -161,7 +162,7 @@ async def get_task(
 @router.post(
     "",
     summary="Create a new task",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
     status_code=status.HTTP_201_CREATED,
 )
 async def create_task(
@@ -169,7 +170,7 @@ async def create_task(
     client: AsanaClientDualMode,
     request_id: RequestId,
     task_service: TaskServiceDep,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Create a new task.
 
     Args:
@@ -203,7 +204,7 @@ async def create_task(
 @router.put(
     "/{gid}",
     summary="Update a task",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
 )
 async def update_task(
     gid: str,
@@ -211,7 +212,7 @@ async def update_task(
     client: AsanaClientDualMode,
     request_id: RequestId,
     task_service: TaskServiceDep,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Update an existing task.
 
     Only provided fields are updated; omitted fields retain their values.
@@ -271,7 +272,7 @@ async def delete_task(
 @router.get(
     "/{gid}/subtasks",
     summary="List subtasks of a task",
-    response_model=SuccessResponse[list[dict[str, Any]]],
+    response_model=SuccessResponse[list[AsanaResource]],
 )
 async def list_subtasks(
     gid: str,
@@ -286,7 +287,7 @@ async def list_subtasks(
         str | None,
         Query(description="Pagination cursor from previous response"),
     ] = None,
-) -> SuccessResponse[list[dict[str, Any]]]:
+) -> SuccessResponse[list[AsanaResource]]:
     """List subtasks of a task with pagination.
 
     Args:
@@ -318,7 +319,7 @@ async def list_subtasks(
 @router.get(
     "/{gid}/dependents",
     summary="List dependent tasks",
-    response_model=SuccessResponse[list[dict[str, Any]]],
+    response_model=SuccessResponse[list[AsanaResource]],
 )
 async def list_dependents(
     gid: str,
@@ -333,7 +334,7 @@ async def list_dependents(
         str | None,
         Query(description="Pagination cursor from previous response"),
     ] = None,
-) -> SuccessResponse[list[dict[str, Any]]]:
+) -> SuccessResponse[list[AsanaResource]]:
     """List tasks that depend on this task with pagination.
 
     Args:
@@ -366,7 +367,7 @@ async def list_dependents(
 @router.post(
     "/{gid}/duplicate",
     summary="Duplicate a task",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
     status_code=status.HTTP_201_CREATED,
 )
 async def duplicate_task(
@@ -375,7 +376,7 @@ async def duplicate_task(
     client: AsanaClientDualMode,
     request_id: RequestId,
     task_service: TaskServiceDep,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Duplicate a task.
 
     Args:
@@ -399,7 +400,7 @@ async def duplicate_task(
 @router.post(
     "/{gid}/tags",
     summary="Add tag to task",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
 )
 async def add_tag(
     gid: str,
@@ -407,7 +408,7 @@ async def add_tag(
     client: AsanaClientDualMode,
     request_id: RequestId,
     task_service: TaskServiceDep,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Add a tag to a task.
 
     Args:
@@ -428,7 +429,7 @@ async def add_tag(
 @router.delete(
     "/{gid}/tags/{tag_gid}",
     summary="Remove tag from task",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
 )
 async def remove_tag(
     gid: str,
@@ -436,7 +437,7 @@ async def remove_tag(
     client: AsanaClientDualMode,
     request_id: RequestId,
     task_service: TaskServiceDep,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Remove a tag from a task.
 
     Args:
@@ -460,7 +461,7 @@ async def remove_tag(
 @router.post(
     "/{gid}/section",
     summary="Move task to section",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
 )
 async def move_to_section(
     gid: str,
@@ -468,7 +469,7 @@ async def move_to_section(
     client: AsanaClientDualMode,
     request_id: RequestId,
     task_service: TaskServiceDep,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Move a task to a section within a project.
 
     Args:
@@ -491,7 +492,7 @@ async def move_to_section(
 @router.put(
     "/{gid}/assignee",
     summary="Set task assignee",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
 )
 async def set_assignee(
     gid: str,
@@ -499,7 +500,7 @@ async def set_assignee(
     client: AsanaClientDualMode,
     request_id: RequestId,
     task_service: TaskServiceDep,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Set or clear the task assignee.
 
     Args:
@@ -520,7 +521,7 @@ async def set_assignee(
 @router.post(
     "/{gid}/projects",
     summary="Add task to project",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
 )
 async def add_to_project(
     gid: str,
@@ -528,7 +529,7 @@ async def add_to_project(
     client: AsanaClientDualMode,
     request_id: RequestId,
     task_service: TaskServiceDep,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Add a task to a project.
 
     Args:
@@ -549,7 +550,7 @@ async def add_to_project(
 @router.delete(
     "/{gid}/projects/{project_gid}",
     summary="Remove task from project",
-    response_model=SuccessResponse[dict[str, Any]],
+    response_model=SuccessResponse[AsanaResource],
 )
 async def remove_from_project(
     gid: str,
@@ -557,7 +558,7 @@ async def remove_from_project(
     client: AsanaClientDualMode,
     request_id: RequestId,
     task_service: TaskServiceDep,
-) -> SuccessResponse[dict[str, Any]]:
+) -> SuccessResponse[AsanaResource]:
     """Remove a task from a project.
 
     Args:
