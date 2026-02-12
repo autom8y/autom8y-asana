@@ -765,8 +765,8 @@ class _DefaultInitActionRegistry:
                 results.append(
                     ActionResult(
                         success=creation_result.success,
-                        entity_gid=creation_result.entity_gid,
-                        error=creation_result.error,
+                        entity_gid=creation_result.entity_gid,  # type: ignore[arg-type]  # entity_gid is str when success=True
+                        error=creation_result.error,  # type: ignore[arg-type]  # error is str when success=False
                     )
                 )
             except Exception as e:  # BROAD-CATCH: per-action isolation

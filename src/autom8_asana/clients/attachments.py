@@ -74,7 +74,7 @@ class AttachmentsClient(BaseClient):
         """Overload: get (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def get(
         self,
         attachment_gid: str,
@@ -99,7 +99,7 @@ class AttachmentsClient(BaseClient):
             return data
         return Attachment.model_validate(data)
 
-    @async_method  # type: ignore[arg-type]
+    @async_method
     async def delete(self, attachment_gid: str) -> None:
         """Delete an attachment.
 
@@ -199,7 +199,7 @@ class AttachmentsClient(BaseClient):
         """Overload: upload (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def upload(
         self,
         *,
@@ -295,7 +295,7 @@ class AttachmentsClient(BaseClient):
         """Overload: upload from path (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def upload_from_path(
         self,
         *,
@@ -381,7 +381,7 @@ class AttachmentsClient(BaseClient):
         """Overload: create external (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def create_external(
         self,
         *,
@@ -422,7 +422,7 @@ class AttachmentsClient(BaseClient):
 
     # --- Download Operations ---
 
-    @async_method  # type: ignore[arg-type]
+    @async_method
     async def download(
         self,
         attachment_gid: str,

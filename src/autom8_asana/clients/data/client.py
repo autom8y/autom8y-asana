@@ -418,7 +418,7 @@ class DataServiceClient:
                 # on_http_error MUST raise; this is a safety fallback
                 raise  # pragma: no cover
 
-        return response, attempt  # type: ignore[return-value]
+        return response, attempt
 
     # --- Resource Management ---
 
@@ -885,7 +885,7 @@ class DataServiceClient:
             ...     )
             ...     df = response.to_dataframe()
         """
-        return self._run_sync(
+        result: InsightsResponse = self._run_sync(
             self.get_insights_async(
                 factory=factory,
                 office_phone=office_phone,
@@ -903,6 +903,7 @@ class DataServiceClient:
             method_name="get_insights",
             async_name="get_insights_async",
         )
+        return result
 
     async def get_insights_batch_async(
         self,

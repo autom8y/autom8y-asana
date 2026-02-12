@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 from autom8_asana.models.business.base import BusinessEntity
 
@@ -66,9 +66,9 @@ class ResolutionResult(Generic[T]):
         diagnostics: list[str],
         api_calls: int = 0,
         strategy: str = "",
-    ) -> ResolutionResult:
+    ) -> ResolutionResult[Any]:
         """Factory for failed resolution."""
-        return ResolutionResult(
+        return ResolutionResult[Any](
             status=ResolutionStatus.FAILED,
             api_calls_used=api_calls,
             strategy_used=strategy,

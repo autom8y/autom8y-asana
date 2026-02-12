@@ -69,7 +69,7 @@ class PortfoliosClient(BaseClient):
         """Overload: get (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def get(
         self,
         portfolio_gid: str,
@@ -150,7 +150,7 @@ class PortfoliosClient(BaseClient):
         """Overload: create (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def create(
         self,
         *,
@@ -234,7 +234,7 @@ class PortfoliosClient(BaseClient):
         """Overload: update (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def update(
         self,
         portfolio_gid: str,
@@ -260,7 +260,7 @@ class PortfoliosClient(BaseClient):
             return result
         return Portfolio.model_validate(result)
 
-    @async_method  # type: ignore[arg-type]
+    @async_method
     async def delete(self, portfolio_gid: str) -> None:
         """Delete a portfolio.
 
@@ -346,7 +346,7 @@ class PortfoliosClient(BaseClient):
 
         return PageIterator(fetch_page, page_size=min(limit, 100))
 
-    @async_method  # type: ignore[arg-type]
+    @async_method
     async def add_item(
         self,
         portfolio_gid: str,
@@ -375,7 +375,7 @@ class PortfoliosClient(BaseClient):
             f"/portfolios/{portfolio_gid}/addItem", json={"data": data}
         )
 
-    @async_method  # type: ignore[arg-type]
+    @async_method
     async def remove_item(
         self,
         portfolio_gid: str,
@@ -440,7 +440,7 @@ class PortfoliosClient(BaseClient):
         """Overload: add members (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def add_members(
         self,
         portfolio_gid: str,
@@ -511,7 +511,7 @@ class PortfoliosClient(BaseClient):
         """Overload: remove members (sync), returning raw dict."""
         ...
 
-    @async_method  # type: ignore[arg-type, operator, misc]
+    @async_method  # type: ignore[operator, misc]
     async def remove_members(
         self,
         portfolio_gid: str,
@@ -540,7 +540,7 @@ class PortfoliosClient(BaseClient):
 
     # --- Custom Fields ---
 
-    @async_method  # type: ignore[arg-type]
+    @async_method
     async def add_custom_field_setting(
         self,
         portfolio_gid: str,
@@ -566,7 +566,7 @@ class PortfoliosClient(BaseClient):
             json={"data": data},
         )
 
-    @async_method  # type: ignore[arg-type]
+    @async_method
     async def remove_custom_field_setting(
         self,
         portfolio_gid: str,

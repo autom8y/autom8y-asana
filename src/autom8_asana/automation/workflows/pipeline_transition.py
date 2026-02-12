@@ -243,7 +243,7 @@ class PipelineTransitionWorkflow(WorkflowAction):
         for project_gid in project_gids:
             try:
                 # List incomplete tasks in this project
-                page_iter = self._client.tasks.list_for_project_async(
+                page_iter = self._client.tasks.list_for_project_async(  # type: ignore[attr-defined]
                     project_gid,
                     opt_fields=[
                         "name",
@@ -303,7 +303,7 @@ class PipelineTransitionWorkflow(WorkflowAction):
             (success, error) tuple.
         """
         try:
-            result = await self._engine.handle_transition_async(process, outcome)
+            result = await self._engine.handle_transition_async(process, outcome)  # type: ignore[union-attr]  # _engine is initialized before this method is called
 
             if result.success:
                 logger.info(

@@ -39,7 +39,7 @@ class FieldPredicate(SelectionPredicate):
         actual = entity.get_custom_fields().get(self.field_name)
         if isinstance(actual, dict):
             actual = actual.get("name", actual.get("display_value"))
-        return actual == self.expected_value
+        return bool(actual == self.expected_value)
 
 
 @dataclass(frozen=True)

@@ -197,7 +197,7 @@ class CascadingSectionService:
             return False
 
         # Move entity to target section
-        await self._client.sections.add_task_async(target.gid, task=entity.gid)
+        await self._client.sections.add_task_async(target.gid, task=entity.gid)  # type: ignore[attr-defined]
 
         logger.info(
             f"cascade_{entity_type}_section_updated",

@@ -106,7 +106,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         self._attachments_client = attachments_client
 
     @property
-    def workflow_id(self) -> str:
+    def workflow_id(self) -> str:  # type: ignore[override]  # read-only property overrides base attribute
         return "insights-export"
 
     async def validate_async(self) -> list[str]:

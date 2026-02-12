@@ -239,7 +239,7 @@ class FieldWriteService:
             result = await self._client.tasks.get_async(
                 gid, raw=True, opt_fields=_TASK_OPT_FIELDS
             )
-            return result  # type: ignore[return-value]
+            return result
         except NotFoundError as exc:
             raise TaskNotFoundError(gid) from exc
 
@@ -284,9 +284,9 @@ class FieldWriteService:
             if rf.status != "resolved":
                 continue
             if rf.is_core:
-                core_payload[rf.matched_name] = rf.value
+                core_payload[rf.matched_name] = rf.value  # type: ignore[index]  # matched_name validated non-None when resolved
             else:
-                custom_payload[rf.gid] = rf.value
+                custom_payload[rf.gid] = rf.value  # type: ignore[index]  # gid validated non-None when resolved
 
         return core_payload, custom_payload
 
