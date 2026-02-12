@@ -262,7 +262,7 @@ async def test_e2e_offer_write_proof():
             gid=target_gid,
             fields={"internal_notes": original_notes},
         )
-        print(f"  Restored sibling internal_notes to original value")
+        print("  Restored sibling internal_notes to original value")
 
         # ==============================================================
         # Phase 6: Final round-trip verification

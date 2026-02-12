@@ -185,9 +185,9 @@ class TestHeader:
         result = _format_header(data)
         lines = result.split("\n")
         # Phone, Vertical, Generated lines end with "  " for markdown linebreaks
-        phone_line = [l for l in lines if "**Phone**" in l][0]
-        vertical_line = [l for l in lines if "**Vertical**" in l][0]
-        generated_line = [l for l in lines if "**Generated**" in l][0]
+        phone_line = [ln for ln in lines if "**Phone**" in ln][0]
+        vertical_line = [ln for ln in lines if "**Vertical**" in ln][0]
+        generated_line = [ln for ln in lines if "**Generated**" in ln][0]
         assert phone_line.endswith("  ")
         assert vertical_line.endswith("  ")
         assert generated_line.endswith("  ")
@@ -403,7 +403,9 @@ class TestRowLimit:
         lines = result.split("\n")
         # Should have heading + blank + header + alignment + 100 data rows + blank + truncation
         data_rows = [
-            l for l in lines if l.startswith("| ") and "---" not in l and "Id" not in l
+            ln
+            for ln in lines
+            if ln.startswith("| ") and "---" not in ln and "Id" not in ln
         ]
         assert len(data_rows) == 100
         assert "> Showing first 100 of 150 rows" in result
@@ -423,9 +425,9 @@ class TestRowLimit:
         result = _format_table_section("BY MONTH", rows, row_limit=None)
         assert "> Showing first" not in result
         data_rows = [
-            l
-            for l in result.split("\n")
-            if l.startswith("| ") and "---" not in l and "Id" not in l
+            ln
+            for ln in result.split("\n")
+            if ln.startswith("| ") and "---" not in ln and "Id" not in ln
         ]
         assert len(data_rows) == 200
 
@@ -451,7 +453,7 @@ class TestErrorMarker:
         result = _format_error_section("SUMMARY", "timeout", "Server unavailable")
         # Blockquote starts with >
         lines = result.split("\n")
-        error_line = [l for l in lines if "[ERROR]" in l][0]
+        error_line = [ln for ln in lines if "[ERROR]" in ln][0]
         assert error_line.startswith(">")
 
     def test_error_marker_includes_heading(self):
@@ -784,9 +786,9 @@ class TestAdversarialRowLimitEdgeCases:
         result = _format_table_section("TEST", rows, row_limit=1)
         assert "> Showing first 1 of 3 rows" in result
         data_rows = [
-            l
-            for l in result.split("\n")
-            if l.startswith("| ") and "---" not in l and "Id" not in l
+            ln
+            for ln in result.split("\n")
+            if ln.startswith("| ") and "---" not in ln and "Id" not in ln
         ]
         assert len(data_rows) == 1
 
@@ -808,8 +810,8 @@ class TestAdversarialRowLimitZero:
         result = _format_table_section("TEST", rows, row_limit=0)
         # Due to `if row_limit` being falsy for 0, all rows are displayed
         data_rows = [
-            l
-            for l in result.split("\n")
-            if l.startswith("| ") and "---" not in l and "Id" not in l
+            ln
+            for ln in result.split("\n")
+            if ln.startswith("| ") and "---" not in ln and "Id" not in ln
         ]
         assert len(data_rows) == 2

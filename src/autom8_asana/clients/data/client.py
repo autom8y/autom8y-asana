@@ -17,7 +17,7 @@ import re
 import time
 import uuid
 from collections.abc import Awaitable, Callable
-from datetime import date, datetime
+from datetime import date
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -53,7 +53,6 @@ from autom8_asana.clients.data.models import (
 from autom8_asana.exceptions import (
     ExportError,
     InsightsError,
-    InsightsNotFoundError,
     InsightsServiceError,
     InsightsValidationError,
     SyncInAsyncContextError,

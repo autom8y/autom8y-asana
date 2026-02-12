@@ -29,7 +29,7 @@ from autom8_asana.cache.models.mutation_event import (
     MutationEvent,
     MutationType,
 )
-from autom8_asana.exceptions import NotFoundError, RateLimitError
+from autom8_asana.exceptions import NotFoundError
 from autom8_asana.resolution.field_resolver import FieldResolver, ResolvedField
 from autom8_asana.resolution.write_registry import (
     CORE_FIELD_NAMES,

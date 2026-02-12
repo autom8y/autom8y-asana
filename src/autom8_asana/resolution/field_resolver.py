@@ -13,7 +13,7 @@ Constructed per-request with the target task's custom field definitions.
 from __future__ import annotations
 
 import difflib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from autom8y_log import get_logger

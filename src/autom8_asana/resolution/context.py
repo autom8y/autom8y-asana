@@ -22,11 +22,10 @@ from autom8_asana.resolution.strategies import (
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
     from autom8_asana.models.business.business import Business
-    from autom8_asana.models.business.contact import Contact, ContactHolder
+    from autom8_asana.models.business.contact import Contact
     from autom8_asana.models.business.offer import Offer
     from autom8_asana.models.business.process import Process
     from autom8_asana.models.business.unit import Unit
-    from autom8_asana.models.task import Task
 
 logger = get_logger(__name__)
 

@@ -16,6 +16,7 @@ from autom8_asana.resolution.budget import ApiBudget
 from autom8_asana.resolution.result import ResolutionResult
 
 if TYPE_CHECKING:
+    from autom8_asana.models.business.business import Business
     from autom8_asana.resolution.context import ResolutionContext
 
 logger = get_logger(__name__)

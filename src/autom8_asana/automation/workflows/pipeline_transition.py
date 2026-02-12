@@ -30,8 +30,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
@@ -42,7 +41,7 @@ from autom8_asana.automation.workflows.base import (
     WorkflowResult,
 )
 from autom8_asana.core.project_registry import all_pipeline_project_gids
-from autom8_asana.models.business.process import Process, ProcessSection
+from autom8_asana.models.business.process import Process
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
@@ -125,7 +124,7 @@ class PipelineTransitionWorkflow(WorkflowAction):
         Returns:
             WorkflowResult with per-item success/failure tracking.
         """
-        started_at = datetime.now(timezone.utc)
+        started_at = datetime.now(UTC)
         errors: list[WorkflowItemError] = []
 
         # Extract parameters
@@ -196,7 +195,7 @@ class PipelineTransitionWorkflow(WorkflowAction):
                 else:
                     skipped += 1
 
-        completed_at = datetime.now(timezone.utc)
+        completed_at = datetime.now(UTC)
 
         logger.info(
             "pipeline_transition_workflow_completed",
