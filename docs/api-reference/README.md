@@ -249,7 +249,7 @@ Returns Polars JSON-serialized DataFrame for efficient deserialization by Polars
 
 ## Route Groups
 
-### Health
+### Health ([full reference](endpoints/health.md))
 
 **Base path**: `/health`
 **Authentication**: None
@@ -272,7 +272,7 @@ $ curl https://api.example.com/health
 }
 ```
 
-### Tasks
+### Tasks ([full reference](endpoints/tasks.md))
 
 **Base path**: `/api/v1/tasks`
 **Authentication**: PAT Bearer
@@ -344,14 +344,14 @@ $ curl -X POST \
 }
 ```
 
-### Projects
+### Projects ([full reference](endpoints/projects.md))
 
 **Base path**: `/api/v1/projects`
 **Authentication**: PAT Bearer
 
 Project management operations.
 
-### Sections
+### Sections ([full reference](endpoints/sections.md))
 
 **Base path**: `/api/v1/sections`
 **Authentication**: PAT Bearer
@@ -372,7 +372,7 @@ User information and workspace membership.
 
 Workspace information and project listings.
 
-### DataFrames
+### DataFrames ([full reference](endpoints/dataframes.md))
 
 **Base path**: `/api/v1/dataframes`
 **Authentication**: PAT Bearer
@@ -416,14 +416,14 @@ $ curl -H "Authorization: Bearer xoxp-..." \
 }
 ```
 
-### Entity Write
+### Entity Write ([full reference](endpoints/entity-write.md))
 
 **Base path**: `/api/v1/entity`
 **Authentication**: S2S JWT
 
 Field write operations for entity custom fields.
 
-### Resolver
+### Resolver ([full reference](endpoints/resolver.md))
 
 **Base path**: `/v1/resolve`
 **Authentication**: S2S JWT
@@ -477,7 +477,7 @@ $ curl -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..." \
 }
 ```
 
-### Query
+### Query ([full reference](endpoints/query.md))
 
 **Base path**: `/v1/query`
 **Authentication**: S2S JWT
