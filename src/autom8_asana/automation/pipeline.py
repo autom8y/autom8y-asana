@@ -216,7 +216,7 @@ class PipelineConversionRule:
         actions_executed: list[str] = []
         entities_created: list[str] = []
         entities_updated: list[str] = []
-        enhancement_results: dict[str, bool] = {}
+        enhancement_results: dict[str, bool | int] = {}
 
         try:
             # Check entity type by name (supports both real Process and mocks)

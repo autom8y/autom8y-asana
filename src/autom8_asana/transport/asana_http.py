@@ -44,9 +44,10 @@ from autom8_asana.transport.adaptive_semaphore import (
 from autom8_asana.transport.config_translator import ConfigTranslator
 from autom8_asana.transport.response_handler import AsanaResponseHandler
 
+from autom8y_log import LoggerProtocol
+
 if TYPE_CHECKING:
     from autom8y_http import CircuitBreakerProtocol, RetryPolicyProtocol
-    from autom8y_log import LoggerProtocol
 
     from autom8_asana.config import AsanaConfig
     from autom8_asana.protocols.auth import AuthProvider
@@ -152,18 +153,21 @@ class AsanaHttpClient:
                 cooldown_trigger=cc.aimd_cooldown_trigger,
                 cooldown_duration_seconds=cc.aimd_cooldown_duration_seconds,
             )
+            semaphore_logger: LoggerProtocol | None = (
+                logger if isinstance(logger, LoggerProtocol) else None
+            )
             self._read_semaphore: AsyncAdaptiveSemaphore | FixedSemaphoreAdapter = (
                 AsyncAdaptiveSemaphore(
                     config=read_aimd_config,
                     name="read",
-                    logger=logger,
+                    logger=semaphore_logger,
                 )
             )
             self._write_semaphore: AsyncAdaptiveSemaphore | FixedSemaphoreAdapter = (
                 AsyncAdaptiveSemaphore(
                     config=write_aimd_config,
                     name="write",
-                    logger=logger,
+                    logger=semaphore_logger,
                 )
             )
         else:

@@ -485,53 +485,50 @@ class FieldSeeder:
 
             logger.info("seeding_mapped_fields", mapped_fields=mapped_fields)
 
-            for name, value in mapped_fields.items():
-                # Check if field exists on target (case-insensitive)
-                name_lower = name.lower()
-                matched_field: str | None = None
-                field_def: Any = None
-                for field in custom_fields_list:
-                    field_name = _get_field_attr(field, "name", "")
-                    if field_name.lower() == name_lower:
-                        matched_field = field_name
-                        field_def = field
-                        break
-
-                logger.info(
-                    "seeding_field_match",
-                    field_name=name,
-                    matched=matched_field is not None,
-                    value=value,
-                )
-
-                if matched_field is None or field_def is None:
-                    logger.warning(
-                        "seeding_field_not_found",
-                        field_name=name,
-                        task_gid=target_task_gid,
+            # Build resource_subtype lookup for post-resolution checks
+            # (e.g., skipping empty people fields)
+            _subtype_by_name: dict[str, str] = {}
+            for cf in custom_fields_list:
+                cf_name = cf.get("name", "")
+                if cf_name:
+                    _subtype_by_name[cf_name.lower().strip()] = cf.get(
+                        "resource_subtype", ""
                     )
-                    fields_skipped.append(name)
-                    continue
 
-                # Resolve enum string values to GIDs
-                resolved_value = self._resolve_enum_value(
-                    field_def, value, matched_field, target_task_gid
-                )
-                if resolved_value is None and value is not None:
-                    # Enum resolution failed, skip this field
-                    fields_skipped.append(name)
-                    continue
+            # Resolve fields via shared FieldResolver (ADR-EW-003)
+            from autom8_asana.resolution.field_resolver import FieldResolver
 
-                # Skip empty/falsy values for people fields (they expect lists)
-                field_type = _get_field_attr(field_def, "resource_subtype", "")
-                if field_type == "people" and not resolved_value:
-                    logger.debug("seeding_skipping_empty_people_field", field_name=name)
-                    fields_skipped.append(name)
-                    continue
+            resolver = FieldResolver(
+                custom_fields_data=custom_fields_list,
+                descriptor_index={},  # FieldSeeder uses display names only
+                core_fields=frozenset(),  # FieldSeeder never writes core fields
+            )
+            resolved = resolver.resolve_fields(mapped_fields)
 
-                # Set value (accessor handles type conversion)
-                accessor.set(matched_field, resolved_value)
-                fields_to_write.append(matched_field)
+            for rf in resolved:
+                if rf.status == "resolved" and rf.gid:
+                    # Skip empty/falsy values for people fields (they expect lists)
+                    field_subtype = _subtype_by_name.get(
+                        (rf.matched_name or "").lower().strip(), ""
+                    )
+                    if field_subtype == "people" and not rf.value:
+                        logger.debug(
+                            "seeding_skipping_empty_people_field",
+                            field_name=rf.input_name,
+                        )
+                        fields_skipped.append(rf.input_name)
+                        continue
+
+                    accessor.set(rf.matched_name, rf.value)
+                    fields_to_write.append(rf.matched_name)
+                else:
+                    if rf.status == "skipped":
+                        logger.warning(
+                            "seeding_field_not_found",
+                            field_name=rf.input_name,
+                            task_gid=target_task_gid,
+                        )
+                    fields_skipped.append(rf.input_name)
 
             # Step 4: Single API call with all fields (FR-SEED-002)
             if accessor.has_changes():

@@ -1,1 +1,3 @@
 {"timestamp":"2026-02-04T18:57:00Z","event":"SESSION_CREATED","from":"NONE","to":"ACTIVE","metadata":{"complexity":"MIGRATION","initiative":"Platform Maturity: Deferred Work Execution","rite":"10x-dev"}}
+{"ts":"2026-02-10T22:01:07.567Z","type":"session.parked","summary":"Session parked: session-20260204-195700-0f38ebf6","meta":{"from":"ACTIVE","reason":"Parking for Deep Code Hygiene initiative","session_id":"session-20260204-195700-0f38ebf6","to":"PARKED"}}
+{"ts":"2026-02-10T22:01:07.567Z","type":"session.ended","summary":"Session ended: parked","meta":{"duration_ms":529447567,"session_id":"session-20260204-195700-0f38ebf6","status":"parked"}}

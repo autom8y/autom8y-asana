@@ -15,11 +15,14 @@ import pytest
 from autom8_asana.services.errors import (
     CacheNotReadyError,
     EntityNotFoundError,
+    EntityTypeMismatchError,
     EntityValidationError,
     InvalidFieldError,
     InvalidParameterError,
+    NoValidFieldsError,
     ServiceError,
     ServiceNotConfiguredError,
+    TaskNotFoundError,
     UnknownEntityError,
     UnknownSectionError,
     get_status_for_error,
@@ -108,6 +111,90 @@ class TestUnknownSectionError:
         assert "available_sections" not in result
 
 
+class TestTaskNotFoundError:
+    """Tests for TaskNotFoundError."""
+
+    def test_inherits_from_entity_not_found(self) -> None:
+        assert issubclass(TaskNotFoundError, EntityNotFoundError)
+        assert issubclass(TaskNotFoundError, ServiceError)
+
+    def test_attributes(self) -> None:
+        err = TaskNotFoundError("1234567890")
+        assert err.gid == "1234567890"
+        assert "1234567890" in str(err)
+
+    def test_error_code(self) -> None:
+        err = TaskNotFoundError("123")
+        assert err.error_code == "TASK_NOT_FOUND"
+
+    def test_status_hint(self) -> None:
+        err = TaskNotFoundError("123")
+        assert err.status_hint == 404
+
+    def test_to_dict(self) -> None:
+        err = TaskNotFoundError("1234567890")
+        result = err.to_dict()
+        assert result["error"] == "TASK_NOT_FOUND"
+        assert "1234567890" in result["message"]
+
+    def test_catchable_as_entity_not_found(self) -> None:
+        with pytest.raises(EntityNotFoundError):
+            raise TaskNotFoundError("123")
+
+    def test_catchable_as_service_error(self) -> None:
+        with pytest.raises(ServiceError):
+            raise TaskNotFoundError("123")
+
+
+class TestEntityTypeMismatchError:
+    """Tests for EntityTypeMismatchError."""
+
+    def test_inherits_from_entity_not_found(self) -> None:
+        assert issubclass(EntityTypeMismatchError, EntityNotFoundError)
+        assert issubclass(EntityTypeMismatchError, ServiceError)
+
+    def test_attributes(self) -> None:
+        err = EntityTypeMismatchError(
+            "1234567890", "proj_expected", ["proj_a", "proj_b"]
+        )
+        assert err.gid == "1234567890"
+        assert err.expected_project == "proj_expected"
+        assert err.actual_projects == ["proj_a", "proj_b"]
+
+    def test_error_code(self) -> None:
+        err = EntityTypeMismatchError("123", "proj_a", ["proj_b"])
+        assert err.error_code == "ENTITY_TYPE_MISMATCH"
+
+    def test_status_hint(self) -> None:
+        err = EntityTypeMismatchError("123", "proj_a", ["proj_b"])
+        assert err.status_hint == 404
+
+    def test_message_contains_context(self) -> None:
+        err = EntityTypeMismatchError("123", "proj_expected", ["proj_actual"])
+        msg = str(err)
+        assert "123" in msg
+        assert "proj_expected" in msg
+        assert "proj_actual" in msg
+
+    def test_to_dict(self) -> None:
+        err = EntityTypeMismatchError(
+            "1234567890", "proj_expected", ["proj_a", "proj_b"]
+        )
+        result = err.to_dict()
+        assert result["error"] == "ENTITY_TYPE_MISMATCH"
+        assert "1234567890" in result["message"]
+        assert result["expected_project"] == "proj_expected"
+        assert result["actual_projects"] == ["proj_a", "proj_b"]
+
+    def test_catchable_as_entity_not_found(self) -> None:
+        with pytest.raises(EntityNotFoundError):
+            raise EntityTypeMismatchError("123", "a", ["b"])
+
+    def test_catchable_as_service_error(self) -> None:
+        with pytest.raises(ServiceError):
+            raise EntityTypeMismatchError("123", "a", ["b"])
+
+
 class TestInvalidFieldError:
     """Tests for InvalidFieldError."""
 
@@ -155,6 +242,36 @@ class TestInvalidParameterError:
     def test_status_hint(self) -> None:
         err = InvalidParameterError("bad")
         assert err.status_hint == 400
+
+
+class TestNoValidFieldsError:
+    """Tests for NoValidFieldsError."""
+
+    def test_inherits_from_entity_validation(self) -> None:
+        assert issubclass(NoValidFieldsError, EntityValidationError)
+        assert issubclass(NoValidFieldsError, ServiceError)
+
+    def test_error_code(self) -> None:
+        err = NoValidFieldsError("all fields failed resolution")
+        assert err.error_code == "NO_VALID_FIELDS"
+
+    def test_status_hint(self) -> None:
+        err = NoValidFieldsError("no valid fields")
+        assert err.status_hint == 422
+
+    def test_to_dict(self) -> None:
+        err = NoValidFieldsError("all fields failed resolution")
+        result = err.to_dict()
+        assert result["error"] == "NO_VALID_FIELDS"
+        assert "all fields failed resolution" in result["message"]
+
+    def test_catchable_as_validation_error(self) -> None:
+        with pytest.raises(EntityValidationError):
+            raise NoValidFieldsError("no valid fields")
+
+    def test_catchable_as_service_error(self) -> None:
+        with pytest.raises(ServiceError):
+            raise NoValidFieldsError("no valid fields")
 
 
 class TestCacheNotReadyError:
@@ -205,8 +322,20 @@ class TestGetStatusForError:
         err = UnknownSectionError("Backlog")
         assert get_status_for_error(err) == 404
 
+    def test_task_not_found_maps_to_404(self) -> None:
+        err = TaskNotFoundError("123")
+        assert get_status_for_error(err) == 404
+
+    def test_entity_type_mismatch_maps_to_404(self) -> None:
+        err = EntityTypeMismatchError("123", "proj_a", ["proj_b"])
+        assert get_status_for_error(err) == 404
+
     def test_invalid_field_maps_to_422(self) -> None:
         err = InvalidFieldError(["x"], ["y"])
+        assert get_status_for_error(err) == 422
+
+    def test_no_valid_fields_maps_to_422(self) -> None:
+        err = NoValidFieldsError("no fields")
         assert get_status_for_error(err) == 422
 
     def test_invalid_parameter_maps_to_400(self) -> None:

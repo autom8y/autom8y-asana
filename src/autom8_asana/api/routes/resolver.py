@@ -418,7 +418,7 @@ async def resolve_entities(
     criteria_schema: list[str] = []
     if criteria_dicts:
         # Collect all unique keys used across all criteria
-        all_keys = set()
+        all_keys: set[str] = set()
         for criterion in criteria_dicts:
             all_keys.update(criterion.keys())
         criteria_schema = sorted(all_keys)

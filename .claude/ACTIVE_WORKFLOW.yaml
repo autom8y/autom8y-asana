@@ -1,4 +1,4 @@
-name: 10x-dev-pack
+name: 10x-dev
 workflow_type: sequential
 description: Full development lifecycle (PRD → TDD → Code → QA)
 
@@ -73,7 +73,7 @@ complexity_levels:
 # Security consultation routing
 # Proactive gates for security-sensitive work
 security_consultation:
-  # Triggers that indicate security-pack consultation is recommended
+  # Triggers that indicate security consultation is recommended
   triggers:
     - pattern: "auth|authentication|authorization"
       domain: authentication
@@ -102,7 +102,7 @@ security_consultation:
 
   # Consultation target
   target:
-    team: security-pack
+    rite: security
     agent: threat-modeler
     phase: pre-implementation
 
@@ -181,8 +181,8 @@ back_routes:
 #    /task --entry=architect "Redesign caching layer"
 #    /task --entry=principal-engineer "Fix null pointer in user service"
 #
-# 3. Via Orchestrator consultation:
-#    The Orchestrator's Entry Point Selection guidance (see orchestrator.md)
+# 3. Via Pythia consultation:
+#    Pythia's Entry Point Selection guidance (see pythia.md)
 #    determines entry based on work type analysis during session init.
 #
 # Entry Point Implications:

@@ -38,14 +38,32 @@ def _make_task(
     return task
 
 
-def _make_parent_task(office_phone: str | None) -> MagicMock:
-    parent = MagicMock()
+def _make_parent_task(
+    office_phone: str | None, gid: str = "biz-mock"
+) -> MagicMock:
+    """Create a mock parent Business task.
+
+    Supports Business.from_gid_async by being a proper Pydantic-validatable
+    object (Business.model_validate receives the return of tasks.get_async).
+    """
+    from autom8_asana.models.business.business import Business
+
+    cf_list: list[dict[str, Any]] = []
     if office_phone:
-        cf = {"name": "Office Phone", "display_value": office_phone}
-        parent.custom_fields = [cf]
-    else:
-        parent.custom_fields = []
-    return parent
+        cf_list.append({
+            "gid": "1205917451230123",
+            "name": "Office Phone",
+            "text_value": office_phone,
+            "display_value": office_phone,
+            "resource_subtype": "text",
+        })
+    # Return a real Business instance so model_validate succeeds
+    return Business(
+        gid=gid,
+        name=f"Business {gid}",
+        resource_type="task",
+        custom_fields=cf_list,
+    )
 
 
 def _make_attachment(gid: str, name: str) -> MagicMock:
@@ -103,10 +121,10 @@ class TestConversationAuditE2E:
 
         # Setup parent tasks
         parent_tasks = {
-            "biz1": _make_parent_task("+17705753101"),
-            "biz2": _make_parent_task("+17705753102"),
-            "biz_no_phone": _make_parent_task(None),
-            "biz4": _make_parent_task("+17705753104"),
+            "biz1": _make_parent_task("+17705753101", gid="biz1"),
+            "biz2": _make_parent_task("+17705753102", gid="biz2"),
+            "biz_no_phone": _make_parent_task(None, gid="biz_no_phone"),
+            "biz4": _make_parent_task("+17705753104", gid="biz4"),
         }
 
         # Setup mock Asana client

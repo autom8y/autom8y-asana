@@ -1,0 +1,368 @@
+"""Resolution strategies for entity traversal.
+
+Per TDD: Resolution Primitives -- Strategy ABC and concrete strategies.
+"""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, TypeVar
+
+from autom8y_log import get_logger
+from pydantic import ValidationError
+
+from autom8_asana.models.business.base import BusinessEntity
+from autom8_asana.resolution.budget import ApiBudget
+from autom8_asana.resolution.result import ResolutionResult
+
+if TYPE_CHECKING:
+    from autom8_asana.resolution.context import ResolutionContext
+
+logger = get_logger(__name__)
+
+T = TypeVar("T", bound=BusinessEntity)
+
+
+class ResolutionStrategy(ABC):
+    """Base class for entity resolution strategies.
+
+    Each strategy attempts one approach to resolving an entity.
+    Returns ResolutionResult if successful, None to pass to next strategy.
+    """
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Human-readable strategy name for diagnostics."""
+        ...
+
+    @abstractmethod
+    async def resolve_async(
+        self,
+        target_type: type[T],
+        context: ResolutionContext,
+        *,
+        from_entity: BusinessEntity,
+        budget: ApiBudget,
+    ) -> ResolutionResult[T] | None:
+        """Attempt to resolve entity.
+
+        Args:
+            target_type: Type of entity to resolve.
+            context: Resolution context with client and session cache.
+            from_entity: Starting entity for traversal.
+            budget: API call budget tracker.
+
+        Returns:
+            ResolutionResult if resolved, None to try next strategy.
+        """
+        ...
+
+
+class SessionCacheStrategy(ResolutionStrategy):
+    """Check session cache for previously resolved entity."""
+
+    @property
+    def name(self) -> str:
+        return "session_cache"
+
+    async def resolve_async(
+        self,
+        target_type: type[T],
+        context: ResolutionContext,
+        *,
+        from_entity: BusinessEntity,
+        budget: ApiBudget,
+    ) -> ResolutionResult[T] | None:
+        cached = context.get_cached(target_type)
+        if cached is not None:
+            return ResolutionResult.resolved(
+                entity=cached,
+                api_calls=0,
+                strategy=self.name,
+            )
+        return None
+
+
+class NavigationRefStrategy(ResolutionStrategy):
+    """Use existing in-memory navigation references."""
+
+    @property
+    def name(self) -> str:
+        return "navigation_ref"
+
+    async def resolve_async(
+        self,
+        target_type: type[T],
+        context: ResolutionContext,
+        *,
+        from_entity: BusinessEntity,
+        budget: ApiBudget,
+    ) -> ResolutionResult[T] | None:
+        # Walk known navigation paths
+        resolved = self._walk_refs(from_entity, target_type)
+        if resolved is not None:
+            context.cache_entity(resolved)
+            return ResolutionResult.resolved(
+                entity=resolved,
+                api_calls=0,
+                strategy=self.name,
+            )
+        return None
+
+    def _walk_refs(
+        self,
+        entity: BusinessEntity,
+        target_type: type[T],
+    ) -> T | None:
+        """Walk in-memory references to find target type."""
+        if isinstance(entity, target_type):
+            return entity
+
+        # Walk upward references using _CACHED_REF_ATTRS
+        if hasattr(entity.__class__, "_CACHED_REF_ATTRS"):
+            for attr_name in entity.__class__._CACHED_REF_ATTRS:
+                ref = getattr(entity, attr_name, None)
+                if ref is not None and isinstance(ref, target_type):
+                    return ref
+
+        return None
+
+
+class DependencyShortcutStrategy(ResolutionStrategy):
+    """Resolve via Asana dependency links (2 API calls)."""
+
+    @property
+    def name(self) -> str:
+        return "dependency_shortcut"
+
+    async def resolve_async(
+        self,
+        target_type: type[T],
+        context: ResolutionContext,
+        *,
+        from_entity: BusinessEntity,
+        budget: ApiBudget,
+    ) -> ResolutionResult[T] | None:
+        if budget.remaining < 2:
+            return None
+
+        # Fetch dependencies for the source entity
+        deps = await context.client.tasks.dependencies_async(
+            from_entity.gid
+        ).collect()
+        budget.consume(1)
+
+        # Check each dependency for target type match
+        for dep in deps:
+            dep_task = await context.client.tasks.get_async(dep.gid)
+            budget.consume(1)
+
+            entity = self._try_cast(dep_task, target_type)
+            if entity is not None:
+                context.cache_entity(entity)
+                return ResolutionResult.resolved(
+                    entity=entity,
+                    api_calls=2,
+                    strategy=self.name,
+                )
+
+            if budget.exhausted:
+                return None
+
+        return None
+
+    def _try_cast(self, task: BusinessEntity, target_type: type[T]) -> T | None:
+        """Try to cast task to target type."""
+        try:
+            return target_type.model_validate(task.model_dump())
+        except (ValueError, ValidationError):
+            return None
+
+
+class HierarchyTraversalStrategy(ResolutionStrategy):
+    """Resolve via parent chain traversal (3-5 API calls)."""
+
+    @property
+    def name(self) -> str:
+        return "hierarchy_traversal"
+
+    async def resolve_async(
+        self,
+        target_type: type[T],
+        context: ResolutionContext,
+        *,
+        from_entity: BusinessEntity,
+        budget: ApiBudget,
+    ) -> ResolutionResult[T] | None:
+        if budget.remaining < 3:
+            return None
+
+        from autom8_asana.models.business.business import Business
+
+        # Step 1: Traverse up to Business
+        business = await self._traverse_to_business_async(
+            from_entity, context, budget
+        )
+        if business is None:
+            return None
+
+        # Step 2: If target IS Business, we are done
+        if target_type is Business:
+            return ResolutionResult.resolved(
+                entity=business,
+                api_calls=budget.used,
+                strategy=self.name,
+            )
+
+        # Step 3: Hydrate the specific branch needed
+        holder_key = self._get_holder_key(target_type)
+        if holder_key is None:
+            return None
+
+        await context.hydrate_branch_async(business, holder_key)
+        budget.consume(2)  # holder subtasks + holder children
+
+        # Step 4: Find target entity in hydrated branch
+        entity = self._find_in_branch(business, target_type, holder_key)
+        if entity is not None:
+            context.cache_entity(entity)
+            return ResolutionResult.resolved(
+                entity=entity,
+                api_calls=budget.used,
+                strategy=self.name,
+            )
+
+        return None
+
+    async def _traverse_to_business_async(
+        self,
+        entity: BusinessEntity,
+        context: ResolutionContext,
+        budget: ApiBudget,
+    ) -> Business | None:
+        """Walk parent chain to reach Business."""
+        from autom8_asana.models.business.business import Business
+
+        # Check session cache first
+        cached_business = context.get_cached_business()
+        if cached_business is not None:
+            return cached_business
+
+        current = entity
+        depth = 0
+        max_depth = 5  # Business -> UnitHolder -> Unit -> ProcessHolder -> Process
+
+        while depth < max_depth:
+            if isinstance(current, Business):
+                context.cache_entity(current)
+                return current
+
+            if budget.exhausted:
+                return None
+
+            # Fetch parent
+            parent_task = await context.client.tasks.get_async(
+                current.gid, opt_fields=["parent", "parent.gid"]
+            )
+            budget.consume(1)
+
+            if parent_task.parent is None or parent_task.parent.gid is None:
+                return None
+
+            parent = await context.client.tasks.get_async(parent_task.parent.gid)
+            budget.consume(1)
+
+            # Try to cast parent to Business
+            try:
+                business = Business.model_validate(parent.model_dump())
+                context.cache_entity(business)
+                return business
+            except (ValueError, ValidationError):
+                pass
+
+            current = parent
+            depth += 1
+
+        return None
+
+    def _get_holder_key(self, target_type: type[T]) -> str | None:
+        """Map entity type to holder key."""
+        from autom8_asana.models.business.contact import Contact
+        from autom8_asana.models.business.offer import Offer
+        from autom8_asana.models.business.process import Process
+        from autom8_asana.models.business.unit import Unit
+
+        # Map known entity types to holder keys
+        mapping = {
+            Contact: "contact_holder",
+            Unit: "unit_holder",
+            Process: "process_holder",
+            Offer: "offer_holder",
+        }
+        return mapping.get(target_type)
+
+    def _find_in_branch(
+        self,
+        business: Business,
+        target_type: type[T],
+        holder_key: str,
+    ) -> T | None:
+        """Find target entity in hydrated holder branch."""
+        from autom8_asana.models.business.contact import Contact
+        from autom8_asana.models.business.offer import Offer
+        from autom8_asana.models.business.process import Process
+        from autom8_asana.models.business.unit import Unit
+
+        # Get the holder
+        holder = getattr(business, f"_{holder_key}", None)
+        if holder is None:
+            return None
+
+        # Get children based on holder type
+        children_attr = None
+        if target_type is Contact:
+            children_attr = "_contacts"
+        elif target_type is Unit:
+            children_attr = "_units"
+        elif target_type is Process:
+            # Process is nested under Unit, not directly under Business
+            # For simplicity, check all units
+            for unit in getattr(business, "_units", []) or []:
+                process_holder = getattr(unit, "_process_holder", None)
+                if process_holder:
+                    processes = getattr(process_holder, "_processes", []) or []
+                    if processes:
+                        return processes[0]
+            return None
+        elif target_type is Offer:
+            # Offer is nested under Unit
+            for unit in getattr(business, "_units", []) or []:
+                offer_holder = getattr(unit, "_offer_holder", None)
+                if offer_holder:
+                    offers = getattr(offer_holder, "_offers", []) or []
+                    if offers:
+                        return offers[0]
+            return None
+
+        if children_attr:
+            children = getattr(holder, children_attr, []) or []
+            if children:
+                return children[0]
+
+        return None
+
+
+# Default strategy chains
+DEFAULT_CHAIN = [
+    SessionCacheStrategy(),
+    NavigationRefStrategy(),
+    DependencyShortcutStrategy(),
+    HierarchyTraversalStrategy(),
+]
+
+BUSINESS_CHAIN = [
+    SessionCacheStrategy(),
+    NavigationRefStrategy(),
+    HierarchyTraversalStrategy(),
+]

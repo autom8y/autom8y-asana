@@ -284,13 +284,18 @@ class TestProcessTypeEnum:
         assert ProcessType.GENERIC == "generic"
 
     def test_process_type_enum_member_count(self) -> None:
-        """ProcessType includes 7 pipeline types.
+        """ProcessType includes 10 pipeline types.
 
-        Per FR-TYPE-001: 6 pipeline types + GENERIC fallback.
+        Per FR-TYPE-001: 6 original pipeline types + GENERIC fallback.
+        Per TDD-lifecycle-engine: +3 new types (MONTH1, ACCOUNT_ERROR, EXPANSION).
         """
         members = list(ProcessType)
-        assert len(members) == 7
+        assert len(members) == 10
         assert ProcessType.GENERIC in members
+        # Verify new lifecycle types exist
+        assert ProcessType.MONTH1 in members
+        assert ProcessType.ACCOUNT_ERROR in members
+        assert ProcessType.EXPANSION in members
 
     def test_process_type_pipeline_types(self) -> None:
         """ProcessType includes all pipeline types.

@@ -1,47 +1,28 @@
 schema_version: "1.0"
-inscription_version: "1"
-last_sync: 2026-01-08T12:49:12.610365Z
+inscription_version: "12"
+last_sync: 2026-02-12T14:20:22.68126Z
+active_rite: 10x-dev
 template_path: knossos/templates/CLAUDE.md.tpl
 regions:
     agent-configurations:
         owner: regenerate
         source: agents/*.md
+        hash: sha256:09b5932b96d92fde7b77d101c73c799057abcecc78ef2ae806921336531dfb94
     agent-routing:
         owner: knossos
-    ariadne-cli:
-        owner: knossos
-    dynamic-context:
-        owner: knossos
+        hash: sha256:370e24cbac30607ce5a56a9b83357457e88792d6976d3dcaf0a1cbeec6e74593
     execution-mode:
         owner: knossos
-    getting-help:
-        owner: knossos
-    hooks:
-        owner: knossos
-    knossos-identity:
-        owner: knossos
+        hash: sha256:9d5509b60c76dc933c490d710696d8849be1a54516b59b2eabb3851f8eabcf50
     quick-start:
         owner: regenerate
         source: ACTIVE_RITE+agents
-    skills:
-        owner: knossos
-    slash-commands:
-        owner: knossos
-    state-management:
-        owner: knossos
+        hash: sha256:19f50079c9e6cc0c8759bb10608b237622e9f0a33579997f985d1aad3672d528
     user-content:
         owner: satellite
 section_order:
     - execution-mode
-    - knossos-identity
     - quick-start
     - agent-routing
-    - skills
     - agent-configurations
-    - hooks
-    - dynamic-context
-    - ariadne-cli
-    - getting-help
-    - state-management
-    - slash-commands
     - user-content

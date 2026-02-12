@@ -459,7 +459,8 @@ class HolderEnsurer:
                     continue
 
             # Wire the child's parent reference to the holder
-            entity.parent = NameGid(gid=holder_gid)
+            if hasattr(entity, "parent"):
+                entity.parent = NameGid(gid=holder_gid)
 
             # Also wire the holder back-reference on the child
             if parent_ref_name:

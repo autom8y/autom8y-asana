@@ -14,9 +14,12 @@ Hierarchy:
     +-- EntityNotFoundError (maps to 404)
     |   +-- UnknownEntityError (entity type not resolvable)
     |   +-- UnknownSectionError (section name not found)
+    |   +-- TaskNotFoundError (task GID not found in Asana)
+    |   +-- EntityTypeMismatchError (task in wrong project)
     +-- EntityValidationError (maps to 400/422)
     |   +-- InvalidFieldError (field not in schema)
     |   +-- InvalidParameterError (bad request parameter)
+    |   +-- NoValidFieldsError (all fields failed resolution)
     +-- CacheNotReadyError (maps to 503)
     +-- ServiceNotConfiguredError (maps to 503)
 """
@@ -130,6 +133,55 @@ class UnknownSectionError(EntityNotFoundError):
         return result
 
 
+class TaskNotFoundError(EntityNotFoundError):
+    """Task GID does not exist in Asana.
+
+    Attributes:
+        gid: The task GID that was not found.
+    """
+
+    def __init__(self, gid: str) -> None:
+        self.gid = gid
+        super().__init__(f"Task not found: {gid}")
+
+    @property
+    def error_code(self) -> str:
+        return "TASK_NOT_FOUND"
+
+
+class EntityTypeMismatchError(EntityNotFoundError):
+    """Task exists but belongs to wrong project.
+
+    Attributes:
+        gid: The task GID.
+        expected_project: Project GID the entity type requires.
+        actual_projects: Project GIDs the task actually belongs to.
+    """
+
+    def __init__(
+        self, gid: str, expected_project: str, actual_projects: list[str]
+    ) -> None:
+        self.gid = gid
+        self.expected_project = expected_project
+        self.actual_projects = actual_projects
+        super().__init__(
+            f"Task {gid} does not belong to entity type's project "
+            f"(expected {expected_project}, found {actual_projects})"
+        )
+
+    @property
+    def error_code(self) -> str:
+        return "ENTITY_TYPE_MISMATCH"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "error": self.error_code,
+            "message": self.message,
+            "expected_project": self.expected_project,
+            "actual_projects": self.actual_projects,
+        }
+
+
 # ---------------------------------------------------------------------------
 # Validation Errors (400/422)
 # ---------------------------------------------------------------------------
@@ -185,6 +237,18 @@ class InvalidParameterError(EntityValidationError):
         return "INVALID_PARAMETER"
 
 
+class NoValidFieldsError(EntityValidationError):
+    """All fields failed resolution -- nothing to write. Maps to HTTP 422."""
+
+    @property
+    def error_code(self) -> str:
+        return "NO_VALID_FIELDS"
+
+    @property
+    def status_hint(self) -> int:
+        return 422
+
+
 # ---------------------------------------------------------------------------
 # Service Availability (503)
 # ---------------------------------------------------------------------------
@@ -232,8 +296,11 @@ class ServiceNotConfiguredError(ServiceError):
 SERVICE_ERROR_MAP: dict[type[ServiceError], int] = {
     UnknownEntityError: 404,
     UnknownSectionError: 404,
+    TaskNotFoundError: 404,
+    EntityTypeMismatchError: 404,
     InvalidFieldError: 422,
     InvalidParameterError: 400,
+    NoValidFieldsError: 422,
     EntityValidationError: 400,
     ServiceNotConfiguredError: 503,
     CacheNotReadyError: 503,
@@ -261,12 +328,15 @@ def get_status_for_error(error: ServiceError) -> int:
 __all__ = [
     "CacheNotReadyError",
     "EntityNotFoundError",
+    "EntityTypeMismatchError",
     "EntityValidationError",
     "InvalidFieldError",
     "InvalidParameterError",
+    "NoValidFieldsError",
     "SERVICE_ERROR_MAP",
     "ServiceError",
     "ServiceNotConfiguredError",
+    "TaskNotFoundError",
     "UnknownEntityError",
     "UnknownSectionError",
     "get_status_for_error",

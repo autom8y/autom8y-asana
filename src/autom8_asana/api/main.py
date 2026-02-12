@@ -45,6 +45,7 @@ from .rate_limit import limiter
 from .routes import (
     admin_router,
     dataframes_router,
+    entity_write_router,
     health_router,
     internal_router,
     projects_router,
@@ -142,7 +143,7 @@ def create_app() -> FastAPI:
             CORSMiddleware,
             allow_origins=settings.cors_origins_list,
             allow_credentials=True,
-            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
             allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
         )
         logger.info(
@@ -175,6 +176,7 @@ def create_app() -> FastAPI:
     app.include_router(query_v2_router)
     app.include_router(admin_router)
     app.include_router(webhooks_router)
+    app.include_router(entity_write_router)
 
     # --- Exception Handlers ---
     register_exception_handlers(app)

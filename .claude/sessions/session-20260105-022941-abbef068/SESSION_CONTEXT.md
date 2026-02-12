@@ -1,13 +1,16 @@
 ---
+schema_version: "1.0"
 session_id: session-20260105-022941-abbef068
-status: ACTIVE
-created_at: 2026-01-05T02:31:15Z
+status: PARKED
+created_at: "2026-01-05T02:31:15Z"
 initiative: SDK Cascade Resolution Fix
 complexity: MODULE
-active_team: 10x-dev-pack
+active_rite: ""
 current_phase: requirements
-schema_version: "1.0"
+parked_at: "2026-02-10T22:01:07Z"
+parked_reason: Stale — parking for hygiene initiative
 ---
+
 
 # Session Context: SDK Cascade Resolution Fix
 

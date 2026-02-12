@@ -18,9 +18,11 @@ Current routes:
 - Internal router (/api/v1/internal) - S2S only (service token required)
 - Resolver router (/v1/resolve) - S2S only (entity resolution)
 - Query router (/v1/query) - S2S only (entity query)
+- Entity write router (/api/v1/entity) - S2S only (entity write)
 """
 
 from .admin import router as admin_router
+from .entity_write import router as entity_write_router
 from .dataframes import router as dataframes_router
 from .health import router as health_router
 from .internal import router as internal_router
@@ -37,6 +39,7 @@ from .workspaces import router as workspaces_router
 __all__ = [
     "admin_router",
     "dataframes_router",
+    "entity_write_router",
     "health_router",
     "internal_router",
     "projects_router",
