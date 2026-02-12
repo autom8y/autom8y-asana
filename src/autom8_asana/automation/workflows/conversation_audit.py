@@ -9,7 +9,6 @@ attachment on each ContactHolder task.
 from __future__ import annotations
 
 import asyncio
-import fnmatch
 import io
 import os
 from dataclasses import dataclass as _dataclass
@@ -23,6 +22,7 @@ from autom8_asana.automation.workflows.base import (
     WorkflowItemError,
     WorkflowResult,
 )
+from autom8_asana.automation.workflows.mixins import AttachmentReplacementMixin
 from autom8_asana.clients.attachments import AttachmentsClient
 from autom8_asana.clients.data.client import DataServiceClient, mask_phone_number
 from autom8_asana.exceptions import ExportError
@@ -47,7 +47,7 @@ DEFAULT_ATTACHMENT_PATTERN = "conversations_*.csv"
 DEFAULT_DATE_RANGE_DAYS = 30
 
 
-class ConversationAuditWorkflow(WorkflowAction):
+class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
     """Weekly conversation audit CSV refresh for ContactHolders.
 
     Per PRD REQ-F18: First concrete WorkflowAction implementation.
@@ -375,48 +375,6 @@ class ConversationAuditWorkflow(WorkflowAction):
         ) as ctx:
             business = await ctx.business_async()
             return business.office_phone  # Descriptor access
-
-    async def _delete_old_attachments(
-        self,
-        holder_gid: str,
-        pattern: str,
-        exclude_name: str,
-    ) -> None:
-        """Delete old CSV attachments matching pattern.
-
-        Per PRD REQ-F04: Only deletes attachments matching the
-        conversations_*.csv pattern. Non-CSV attachments are untouched.
-        The just-uploaded file (exclude_name) is not deleted.
-
-        Args:
-            holder_gid: Task GID to list attachments for.
-            pattern: Glob pattern to match (e.g., "conversations_*.csv").
-            exclude_name: Filename to exclude from deletion (the new upload).
-        """
-        page_iter = self._attachments_client.list_for_task_async(
-            holder_gid,
-            opt_fields=["name"],
-        )
-        async for attachment in page_iter:
-            att_name = attachment.name or ""
-            if fnmatch.fnmatch(att_name, pattern) and att_name != exclude_name:
-                try:
-                    await self._attachments_client.delete_async(attachment.gid)
-                    logger.debug(
-                        "old_attachment_deleted",
-                        holder_gid=holder_gid,
-                        attachment_gid=attachment.gid,
-                        attachment_name=att_name,
-                    )
-                except Exception as exc:
-                    # Per EC-05: Delete failure is non-fatal.
-                    # Next run cleans up the duplicate.
-                    logger.warning(
-                        "old_attachment_delete_failed",
-                        holder_gid=holder_gid,
-                        attachment_gid=attachment.gid,
-                        error=str(exc),
-                    )
 
 
 # --- Internal Data Structure ---

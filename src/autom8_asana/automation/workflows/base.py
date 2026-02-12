@@ -68,6 +68,32 @@ class WorkflowResult:
         """Fraction of items that failed (0.0-1.0)."""
         return self.failed / self.total if self.total > 0 else 0.0
 
+    def to_response_dict(
+        self, extra_metadata_keys: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Serialize to a Lambda response body dict.
+
+        Args:
+            extra_metadata_keys: Additional keys to pull from ``self.metadata``
+                into the top-level response dict.  Missing keys default to ``0``.
+
+        Returns:
+            Dict suitable for ``json.dumps`` in a Lambda response body.
+        """
+        d: dict[str, Any] = {
+            "status": "completed",
+            "workflow_id": self.workflow_id,
+            "total": self.total,
+            "succeeded": self.succeeded,
+            "failed": self.failed,
+            "skipped": self.skipped,
+            "duration_seconds": round(self.duration_seconds, 2),
+            "failure_rate": round(self.failure_rate, 4),
+        }
+        for key in extra_metadata_keys or []:
+            d[key] = self.metadata.get(key, 0)
+        return d
+
 
 class WorkflowAction(ABC):
     """Protocol for batch automation workflows.

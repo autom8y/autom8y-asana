@@ -9,7 +9,6 @@ and uploads as attachment to each Offer task.
 from __future__ import annotations
 
 import asyncio
-import fnmatch
 import os
 import re
 import time
@@ -24,6 +23,7 @@ from autom8_asana.automation.workflows.base import (
     WorkflowItemError,
     WorkflowResult,
 )
+from autom8_asana.automation.workflows.mixins import AttachmentReplacementMixin
 from autom8_asana.automation.workflows.insights_formatter import (
     InsightsReportData,
     TableResult,
@@ -73,7 +73,7 @@ TABLE_NAMES: list[str] = [
 TOTAL_TABLE_COUNT = len(TABLE_NAMES)  # 10
 
 
-class InsightsExportWorkflow(WorkflowAction):
+class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
     """Daily insights export markdown report for Offer tasks.
 
     Per PRD-EXPORT-001: Second WorkflowAction implementation.
@@ -674,46 +674,6 @@ class InsightsExportWorkflow(WorkflowAction):
                 error_type=error_type,
                 error_message=str(exc),
             )
-
-    async def _delete_old_attachments(
-        self,
-        offer_gid: str,
-        pattern: str,
-        exclude_name: str,
-    ) -> None:
-        """Delete old export attachments matching pattern.
-
-        Per PRD FR-W01.8: Only deletes attachments matching the
-        insights_export_*.md pattern. The just-uploaded file is excluded.
-        Delete failure is non-fatal.
-
-        Args:
-            offer_gid: Task GID to list attachments for.
-            pattern: Glob pattern to match.
-            exclude_name: Filename to exclude from deletion.
-        """
-        page_iter = self._attachments_client.list_for_task_async(
-            offer_gid,
-            opt_fields=["name"],
-        )
-        async for attachment in page_iter:
-            att_name = attachment.name or ""
-            if fnmatch.fnmatch(att_name, pattern) and att_name != exclude_name:
-                try:
-                    await self._attachments_client.delete_async(attachment.gid)
-                    logger.debug(
-                        "insights_export_old_attachment_deleted",
-                        offer_gid=offer_gid,
-                        attachment_gid=attachment.gid,
-                        attachment_name=att_name,
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "insights_export_old_attachment_delete_failed",
-                        offer_gid=offer_gid,
-                        attachment_gid=attachment.gid,
-                        error=str(exc),
-                    )
 
 
 # --- Helper Functions ---

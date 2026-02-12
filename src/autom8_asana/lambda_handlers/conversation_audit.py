@@ -12,118 +12,37 @@ Environment Variables Required:
 
 from __future__ import annotations
 
-import asyncio
-import json
-import traceback
 from typing import Any
 
-from autom8y_log import get_logger
-
-logger = get_logger(__name__)
-
-
-def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
-    """AWS Lambda entry point for conversation audit workflow.
-
-    Args:
-        event: EventBridge event (can contain override params).
-        context: Lambda context with timeout info.
-
-    Returns:
-        Dict with execution result summary.
-    """
-    return asyncio.run(_handler_async(event, context))
+from autom8_asana.lambda_handlers.workflow_handler import (
+    WorkflowHandlerConfig,
+    create_workflow_handler,
+)
 
 
-async def _handler_async(event: dict[str, Any], context: Any) -> dict[str, Any]:
-    """Async implementation of the Lambda handler."""
-    try:
-        return await _execute(event)
-    except Exception as exc:
-        logger.error(
-            "lambda_conversation_audit_error",
-            error=str(exc),
-            error_type=type(exc).__name__,
-            traceback=traceback.format_exc(),
-        )
-        return {
-            "statusCode": 500,
-            "body": json.dumps(
-                {
-                    "status": "error",
-                    "error": str(exc),
-                    "error_type": type(exc).__name__,
-                }
-            ),
-        }
-
-
-async def _execute(event: dict[str, Any]) -> dict[str, Any]:
-    """Execute the workflow with client initialization and cleanup."""
+def _create_workflow(asana_client: Any, data_client: Any) -> Any:
+    """Deferred workflow construction for cold-start optimization."""
     from autom8_asana.automation.workflows.conversation_audit import (
-        DEFAULT_ATTACHMENT_PATTERN,
-        DEFAULT_DATE_RANGE_DAYS,
-        DEFAULT_MAX_CONCURRENCY,
         ConversationAuditWorkflow,
     )
-    from autom8_asana.client import AsanaClient
-    from autom8_asana.clients.data.client import DataServiceClient
 
-    logger.info("lambda_conversation_audit_started", lambda_event=event)
+    return ConversationAuditWorkflow(
+        asana_client=asana_client,
+        data_client=data_client,
+        attachments_client=asana_client.attachments,
+    )
 
-    # Build params from event or defaults
-    params = {
-        "workflow_id": "conversation-audit",
-        "max_concurrency": event.get("max_concurrency", DEFAULT_MAX_CONCURRENCY),
-        "attachment_pattern": event.get(
-            "attachment_pattern", DEFAULT_ATTACHMENT_PATTERN
-        ),
-        "date_range_days": event.get("date_range_days", DEFAULT_DATE_RANGE_DAYS),
-    }
 
-    # Initialize clients
-    asana_client = AsanaClient()
-    async with DataServiceClient() as data_client:
-        workflow = ConversationAuditWorkflow(
-            asana_client=asana_client,
-            data_client=data_client,
-            attachments_client=asana_client.attachments,
-        )
+_config = WorkflowHandlerConfig(
+    workflow_factory=_create_workflow,
+    workflow_id="conversation-audit",
+    log_prefix="lambda_conversation_audit",
+    default_params={
+        "max_concurrency": 5,
+        "attachment_pattern": "conversations_*.csv",
+        "date_range_days": 30,
+    },
+    response_metadata_keys=("truncated_count",),
+)
 
-        # Pre-flight validation
-        validation_errors = await workflow.validate_async()
-        if validation_errors:
-            logger.error(
-                "lambda_validation_failed",
-                errors=validation_errors,
-            )
-            return {
-                "statusCode": 200,
-                "body": json.dumps(
-                    {
-                        "status": "skipped",
-                        "reason": "validation_failed",
-                        "errors": validation_errors,
-                    }
-                ),
-            }
-
-        # Execute workflow
-        result = await workflow.execute_async(params)
-
-        return {
-            "statusCode": 200,
-            "body": json.dumps(
-                {
-                    "status": "completed",
-                    "workflow_id": result.workflow_id,
-                    "total": result.total,
-                    "succeeded": result.succeeded,
-                    "failed": result.failed,
-                    "skipped": result.skipped,
-                    "duration_seconds": round(result.duration_seconds, 2),
-                    "failure_rate": round(result.failure_rate, 4),
-                    "truncated_count": result.metadata.get("truncated_count", 0),
-                }
-            ),
-        }
+handler = create_workflow_handler(_config)
