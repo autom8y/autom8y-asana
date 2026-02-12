@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import abc
 import time
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from autom8y_log import get_logger

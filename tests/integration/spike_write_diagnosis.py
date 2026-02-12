@@ -264,7 +264,7 @@ async def main():
         if rf.suggestions:
             print(f"           SUGGESTIONS: {rf.suggestions}")
 
-    print(f"\n  include_updated response:")
+    print("\n  include_updated response:")
     if result.updated_fields:
         for k, v in result.updated_fields.items():
             print(f"    {k}: {v!r}")
@@ -349,7 +349,7 @@ async def main():
         ch = "YES" if before.get(field) != after.get(field) else ""
         print(f"  {field:30s}  {b:35s}  {a:35s}  {ch}")
 
-    print(f"\n  Core 'name':")
+    print("\n  Core 'name':")
     print(f"    BEFORE: {baseline.get('name')!r}")
     print(f"    AFTER:  {verify.get('name')!r}")
 
@@ -360,14 +360,14 @@ async def main():
     all_changed = all(before.get(f) != after.get(f) for f in INTEREST)
     if all_changed and result.fields_written == len(fields_to_write):
         print("VERDICT: ALL FIELD TYPES WRITE CORRECTLY")
-        print(f"  text:       OK (4 fields)")
-        print(f"  number:     OK (1 field)")
+        print("  text:       OK (4 fields)")
+        print("  number:     OK (1 field)")
         print(f"  enum:       OK ({enum_field} = {enum_value!r})")
         print(f"  multi_enum: OK ({multi_field} = {multi_values!r})")
-        print(f"  core:       OK (name)")
+        print("  core:       OK (name)")
     else:
         failed = [f for f in INTEREST if before.get(f) == after.get(f)]
-        print(f"VERDICT: FAILURES DETECTED")
+        print("VERDICT: FAILURES DETECTED")
         print(f"  Written: {result.fields_written}/{len(fields_to_write)}")
         print(f"  Unchanged fields: {failed}")
 
