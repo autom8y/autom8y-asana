@@ -248,6 +248,76 @@ class TestGetAuthContextJWTMode:
             assert exc_info.value.detail["error"] == "S2S_NOT_CONFIGURED"
 
 
+class TestGetAuthContextCircuitOpen:
+    """Test CircuitOpenError handling in get_auth_context."""
+
+    @pytest.mark.asyncio
+    async def test_circuit_open_returns_503(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """CircuitOpenError maps to HTTP 503."""
+        mock_request = MagicMock()
+        mock_request.state.request_id = "test-circuit-open"
+        jwt_token = "header.payload.signature"
+
+        from autom8y_auth import CircuitOpenError
+
+        with patch(
+            "autom8_asana.auth.jwt_validator.validate_service_token",
+            new_callable=AsyncMock,
+            side_effect=CircuitOpenError("Circuit breaker is open (failed 5 times)"),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await get_auth_context(request=mock_request, token=jwt_token)
+
+            assert exc_info.value.status_code == 503
+            assert exc_info.value.detail["error"] == "CIRCUIT_OPEN"
+
+    @pytest.mark.asyncio
+    async def test_jwks_fetch_error_returns_503(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """JWKSFetchError (transient) maps to HTTP 503."""
+        mock_request = MagicMock()
+        mock_request.state.request_id = "test-jwks-fetch-error"
+        jwt_token = "header.payload.signature"
+
+        from autom8y_auth import JWKSFetchError
+
+        with patch(
+            "autom8_asana.auth.jwt_validator.validate_service_token",
+            new_callable=AsyncMock,
+            side_effect=JWKSFetchError("JWKS endpoint unreachable"),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await get_auth_context(request=mock_request, token=jwt_token)
+
+            assert exc_info.value.status_code == 503
+            assert exc_info.value.detail["error"] == "JWKS_FETCH_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_permanent_error_returns_401(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """PermanentAuthError subclasses map to HTTP 401."""
+        mock_request = MagicMock()
+        mock_request.state.request_id = "test-permanent-error"
+        jwt_token = "header.payload.signature"
+
+        from autom8y_auth import InvalidSignatureError
+
+        with patch(
+            "autom8_asana.auth.jwt_validator.validate_service_token",
+            new_callable=AsyncMock,
+            side_effect=InvalidSignatureError("Signature verification failed"),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await get_auth_context(request=mock_request, token=jwt_token)
+
+            assert exc_info.value.status_code == 401
+            assert exc_info.value.detail["error"] == "INVALID_SIGNATURE"
+
+
 class TestBotPatNeverLogged:
     """Test that bot PAT values never appear in logs or errors."""
 

@@ -3,11 +3,11 @@
 This module wraps the autom8y-auth SDK to provide JWT validation
 for service-to-service (S2S) requests. It handles:
 - Lazy initialization of the AuthClient
-- JWKS caching (managed by SDK, 5-minute TTL)
+- JWKS caching (managed by SDK, 5-minute TTL + stale cache fallback)
 - Thread-safe singleton pattern
 
-Per TDD-S2S-001 Section 5.2:
-- Uses AuthConfig.from_env() for configuration
+Per TDD-auth-v1-migration Section 4.1:
+- Uses AuthSettings() for configuration (v1.0 API)
 - Validates service tokens specifically
 - Logs validation events (not token values)
 
@@ -34,7 +34,7 @@ def _get_auth_client() -> AuthClient:
 
     Thread-safe lazy initialization. Client is reused across requests.
     JWKS caching is handled by the SDK (5-minute TTL by default,
-    configurable via AUTH_JWKS_CACHE_TTL).
+    configurable via AUTH__CACHE__TTL_SECONDS).
 
     Returns:
         AuthClient instance configured from environment.
@@ -44,16 +44,16 @@ def _get_auth_client() -> AuthClient:
     """
     global _auth_client
     if _auth_client is None:
-        from autom8y_auth import AuthClient, AuthConfig
+        from autom8y_auth import AuthClient, AuthSettings
 
-        config = AuthConfig.from_env()
-        _auth_client = AuthClient(config)
+        settings = AuthSettings()
+        _auth_client = AuthClient(settings)
         logger.debug(
             "auth_client_initialized",
             extra={
-                "issuer": config.issuer,
-                "jwks_url": config.jwks_url,
-                "dev_mode": config.dev_mode,
+                "issuer": settings.issuer,
+                "jwks_url": settings.jwks_url,
+                "dev_mode": settings.dev_mode,
             },
         )
     return _auth_client

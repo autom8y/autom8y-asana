@@ -26,6 +26,12 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
+from autom8y_auth import (
+    AuthError,
+    CircuitOpenError,
+    PermanentAuthError,
+    TransientAuthError,
+)
 from autom8y_log import get_logger
 from fastapi import Depends, Header, HTTPException, Request
 
@@ -182,40 +188,68 @@ async def get_auth_context(
                 "message": "Service-to-service authentication is not available",
             },
         )
-    except Exception as e:  # BROAD-CATCH: boundary -- API auth boundary, wraps diverse errors into HTTPException
-        # Import the error base class for type checking
-        try:
-            from autom8y_auth import AuthError
-
-            if isinstance(e, AuthError):
-                logger.warning(
-                    "s2s_jwt_validation_failed",
-                    extra={
-                        "request_id": request_id,
-                        "error_code": e.code,
-                        "error_message": str(e),
-                    },
-                )
-                raise HTTPException(
-                    status_code=401,
-                    detail={
-                        "error": e.code,
-                        "message": "JWT validation failed",
-                    },
-                )
-        except ImportError:
-            pass
-
-        # Re-raise unexpected errors
-        logger.exception(
-            "s2s_jwt_validation_unexpected_error",
-            extra={"request_id": request_id},
+    except CircuitOpenError as e:
+        logger.warning(
+            "s2s_circuit_open",
+            extra={
+                "request_id": request_id,
+                "error_code": e.code,
+                "error_message": str(e),
+            },
         )
         raise HTTPException(
-            status_code=500,
+            status_code=503,
             detail={
-                "error": "INTERNAL_ERROR",
-                "message": "Authentication error",
+                "error": e.code,
+                "message": "Authentication service temporarily unavailable",
+            },
+        )
+    except TransientAuthError as e:
+        logger.warning(
+            "s2s_transient_auth_error",
+            extra={
+                "request_id": request_id,
+                "error_code": e.code,
+                "error_message": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": e.code,
+                "message": "Authentication service temporarily unavailable",
+            },
+        )
+    except PermanentAuthError as e:
+        logger.warning(
+            "s2s_jwt_validation_failed",
+            extra={
+                "request_id": request_id,
+                "error_code": e.code,
+                "error_message": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": e.code,
+                "message": "JWT validation failed",
+            },
+        )
+    except AuthError as e:
+        logger.warning(
+            "s2s_jwt_validation_failed",
+            extra={
+                "request_id": request_id,
+                "error_code": e.code,
+                "error_message": str(e),
+            },
+        )
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": e.code,
+                "message": "JWT validation failed",
             },
         )
 
