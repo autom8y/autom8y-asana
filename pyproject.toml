@@ -38,7 +38,7 @@ api = [
 # auth: Platform authentication via autom8y-auth SDK
 # JWT validation, JWKS fetching, and crypto are encapsulated in the SDK
 auth = [
-    "autom8y-auth>=0.1.0",
+    "autom8y-auth[observability]>=1.0.0",
 ]
 # scheduler: Polling scheduler for development mode (production uses cron)
 scheduler = [
@@ -62,7 +62,7 @@ dev = [
     "moto>=5.0.0",  # AWS/S3 mocking for tests
     "boto3>=1.34.0",  # AWS SDK (required for moto)
     "boto3-stubs[secretsmanager]>=1.34.0",  # Type stubs for boto3
-    "autom8y-auth>=0.1.0",  # Required for test_auth tests
+    "autom8y-auth[observability]>=1.0.0",  # Required for test_auth tests
 ]
 
 [build-system]

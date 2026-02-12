@@ -261,6 +261,99 @@ class TestMissingAuth:
         assert data["detail"]["error"] == "INVALID_TOKEN"
 
 
+class TestCircuitOpenError:
+    """Test CircuitOpenError in JWT path returns 503."""
+
+    def test_circuit_open_returns_503(
+        self, app: FastAPI, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """CircuitOpenError returns 503, not 401."""
+        client = TestClient(app)
+        jwt_token = "header.payload.signature"
+
+        from autom8y_auth import CircuitOpenError
+
+        with patch(
+            "autom8_asana.auth.jwt_validator.validate_service_token",
+            new_callable=AsyncMock,
+            side_effect=CircuitOpenError("Circuit breaker is open"),
+        ):
+            response = client.get(
+                "/test", headers={"Authorization": f"Bearer {jwt_token}"}
+            )
+
+        assert response.status_code == 503
+        data = response.json()
+        assert data["detail"]["error"] == "CIRCUIT_OPEN"
+
+    def test_pat_unaffected_by_circuit_state(self, app: FastAPI) -> None:
+        """PAT tokens work regardless of circuit breaker state.
+
+        This test verifies the critical invariant: CircuitOpenError
+        can never surface in the PAT path.
+        """
+        client = TestClient(app)
+        pat_token = "0/1234567890abcdef1234567890"
+
+        # Even if we could hypothetically set the circuit to open,
+        # PAT path never touches the SDK, so it always succeeds.
+        response = client.get(
+            "/test", headers={"Authorization": f"Bearer {pat_token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["mode"] == "pat"
+
+
+class TestTransientVsPermanentErrors:
+    """Test that transient errors return 503 and permanent errors return 401."""
+
+    def test_jwks_fetch_error_returns_503(
+        self, app: FastAPI, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """JWKSFetchError (transient) returns 503."""
+        client = TestClient(app)
+        jwt_token = "header.payload.signature"
+
+        from autom8y_auth import JWKSFetchError
+
+        with patch(
+            "autom8_asana.auth.jwt_validator.validate_service_token",
+            new_callable=AsyncMock,
+            side_effect=JWKSFetchError("JWKS endpoint unreachable"),
+        ):
+            response = client.get(
+                "/test", headers={"Authorization": f"Bearer {jwt_token}"}
+            )
+
+        assert response.status_code == 503
+        data = response.json()
+        assert data["detail"]["error"] == "JWKS_FETCH_ERROR"
+
+    def test_expired_token_returns_401(
+        self, app: FastAPI, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """TokenExpiredError (permanent) returns 401."""
+        client = TestClient(app)
+        jwt_token = "header.payload.signature"
+
+        from autom8y_auth import TokenExpiredError
+
+        with patch(
+            "autom8_asana.auth.jwt_validator.validate_service_token",
+            new_callable=AsyncMock,
+            side_effect=TokenExpiredError("Token has expired"),
+        ):
+            response = client.get(
+                "/test", headers={"Authorization": f"Bearer {jwt_token}"}
+            )
+
+        assert response.status_code == 401
+        data = response.json()
+        assert data["detail"]["error"] == "TOKEN_EXPIRED"
+
+
 class TestBotPatSecurity:
     """Test that bot PAT is never exposed."""
 

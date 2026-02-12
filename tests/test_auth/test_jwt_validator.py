@@ -72,3 +72,30 @@ class TestValidateServiceTokenIntegration:
         # Base64-looking but invalid JWT
         with pytest.raises(InvalidTokenError):
             await validate_service_token("eyJhbGciOiJub25lIn0.notvalid.signature")
+
+
+class TestAuthClientUsesSettings:
+    """Verify jwt_validator uses AuthSettings (v1.0), not AuthConfig (deprecated)."""
+
+    def test_no_deprecation_warning_on_init(self) -> None:
+        """Initializing auth client does not trigger AuthConfig deprecation warning."""
+        import warnings
+
+        from autom8_asana.auth.jwt_validator import _get_auth_client
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            try:
+                _get_auth_client()
+            except Exception:
+                pass  # JWKS fetch may fail in test env
+            deprecation_warnings = [
+                x
+                for x in w
+                if issubclass(x.category, DeprecationWarning)
+                and "AuthConfig" in str(x.message)
+            ]
+            assert len(deprecation_warnings) == 0, (
+                "AuthConfig deprecation warning detected -- "
+                "jwt_validator should use AuthSettings, not AuthConfig"
+            )
