@@ -53,6 +53,7 @@ Include severity in the Problem Statement to help responders prioritize.
 | Runbook | System | Use When |
 |---------|--------|----------|
 | [RUNBOOK-cache-troubleshooting.md](RUNBOOK-cache-troubleshooting.md) | Cache | Cache misses, staleness issues, TTL problems, degraded performance |
+| [RUNBOOK-rate-limiting.md](RUNBOOK-rate-limiting.md) | Rate Limiting | HTTP 429 errors, rate limit exceeded, slow requests, token bucket depletion, hierarchy warming backpressure |
 | [RUNBOOK-savesession-debugging.md](RUNBOOK-savesession-debugging.md) | SaveSession | Save failures, dependency graph errors, partial failures, healing system issues |
 | [RUNBOOK-detection-troubleshooting.md](RUNBOOK-detection-troubleshooting.md) | Detection | Entity type detection failures, tier fallback issues |
 
@@ -71,7 +72,6 @@ Include severity in the Problem Statement to help responders prioritize.
 Additional runbooks needed for:
 - **Batch operations** - Chunking failures, parallelization issues, timeout handling
 - **Business model navigation** - Hierarchy traversal errors, missing parent/child relationships
-- **Automation troubleshooting** - Automation execution failures, rule conflicts
 
 These represent areas with operational complexity that would benefit from documented troubleshooting procedures.
 
