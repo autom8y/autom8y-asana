@@ -36,7 +36,12 @@ class MockCacheLoggingProvider:
 
 
 class MockCacheProvider:
-    """Mock cache provider with metrics."""
+    """Mock cache provider with metrics.
+
+    Note: Uses satellite CacheMetrics (not SDK CacheMetrics) since the
+    test_events module tests satellite-specific cache event integration.
+    Cannot directly use SDK MockCacheProvider due to CacheMetrics class mismatch.
+    """
 
     def __init__(self) -> None:
         self._metrics = CacheMetrics()

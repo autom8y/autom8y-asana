@@ -434,13 +434,13 @@ class TestLogging:
         await tasks_client.update_async("123", name="Updated")
         await tasks_client.delete_async("123")
 
-        # Check that operations were logged
+        # Check that operations were logged (SDK MockLogger: .entries with .level/.event)
         # With @async_method, canonical method name is the base name (get, create, etc.)
-        debug_messages = [msg for level, msg in logger.messages if level == "debug"]
-        assert any("TasksClient.get(" in msg for msg in debug_messages)
-        assert any("TasksClient.create(" in msg for msg in debug_messages)
-        assert any("TasksClient.update(" in msg for msg in debug_messages)
-        assert any("TasksClient.delete(" in msg for msg in debug_messages)
+        debug_events = [e.event for e in logger.get_events("debug")]
+        assert any("TasksClient.get(" in ev for ev in debug_events)
+        assert any("TasksClient.create(" in ev for ev in debug_events)
+        assert any("TasksClient.update(" in ev for ev in debug_events)
+        assert any("TasksClient.delete(" in ev for ev in debug_events)
 
 
 class TestSubtasksAsync:
@@ -599,9 +599,9 @@ class TestSubtasksAsync:
         result = tasks_client.subtasks_async("5123")
         await result.collect()
 
-        # Verify operation was logged
-        debug_messages = [msg for level, msg in logger.messages if level == "debug"]
-        assert any("subtasks_async" in msg for msg in debug_messages)
+        # Verify operation was logged (SDK MockLogger: .entries with .level/.event)
+        debug_events = [e.event for e in logger.get_events("debug")]
+        assert any("subtasks_async" in ev for ev in debug_events)
 
 
 class TestP1DirectMethodsSetAssignee:

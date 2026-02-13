@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from autom8_asana.config import AsanaConfig
-
-if TYPE_CHECKING:
-    from typing import Any
+from autom8y_log.testing import MockLogger
 
 
 class MockHTTPClient:
@@ -34,28 +32,6 @@ class MockAuthProvider:
         return "test-token"
 
 
-class MockLogger:
-    """Mock logger for testing (5-method superset)."""
-
-    def __init__(self) -> None:
-        self.messages: list[tuple[str, str]] = []
-
-    def debug(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("debug", msg))
-
-    def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("info", msg))
-
-    def warning(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("warning", msg))
-
-    def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("error", msg))
-
-    def exception(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.messages.append(("exception", msg))
-
-
 @pytest.fixture
 def mock_http() -> MockHTTPClient:
     """Create a mock HTTP client."""
@@ -76,7 +52,12 @@ def auth_provider() -> MockAuthProvider:
 
 @pytest.fixture
 def logger() -> MockLogger:
-    """Create a mock logger."""
+    """SDK MockLogger for capturing and asserting log calls.
+
+    Uses autom8y-log SDK MockLogger which stores _LogEntry objects
+    in .entries (not .messages). Use logger.assert_logged(level, event)
+    or logger.get_events(level) for assertions.
+    """
     return MockLogger()
 
 

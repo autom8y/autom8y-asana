@@ -21,31 +21,40 @@ from autom8_asana.cache.integration.dataframes import make_dataframe_key
 from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.models import Task
 from autom8_asana.persistence.session import SaveSession
+from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 # ---------------------------------------------------------------------------
 # Mock Cache Provider with DataFrame Support
 # ---------------------------------------------------------------------------
 
 
-class MockCacheProviderWithDataFrame:
-    """Mock cache provider for testing DataFrame invalidation."""
+class MockCacheProviderWithDataFrame(_SDKMockCacheProvider):
+    """Mock cache provider for testing DataFrame invalidation (extends SDK).
+
+    Adds fail_on_invalidate, fail_on_dataframe_invalidate flags,
+    invalidate_calls tracking, and get_invalidations_for_type helper.
+    """
 
     def __init__(self) -> None:
-        self._cache: dict[str, Any] = {}
+        super().__init__()
         self.invalidate_calls: list[tuple[str, list[EntryType] | None]] = []
         self.fail_on_invalidate: bool = False
         self.fail_on_dataframe_invalidate: bool = False
 
-    def get_versioned(self, key: str, entry_type: EntryType) -> None:
-        """Get entry from cache."""
+    def get_versioned(
+        self, key: str, entry_type: EntryType, freshness: object = None
+    ) -> None:
+        """Get entry from cache (always returns None for invalidation tests)."""
         return None
 
     def set_versioned(self, key: str, entry: Any) -> None:
-        """Store entry in cache."""
+        """Store entry in cache (no-op for invalidation tests)."""
         pass
 
-    def invalidate(self, key: str, entry_types: list[EntryType] | None = None) -> None:
-        """Invalidate cache entry."""
+    def invalidate(
+        self, key: str, entry_types: list[EntryType] | None = None
+    ) -> None:
+        """Invalidate cache entry with fail simulation."""
         if self.fail_on_invalidate:
             raise ConnectionError("Cache invalidation failed")
         if (

@@ -15,26 +15,38 @@ from autom8_asana.cache.integration.stories import (
     load_stories_incremental,
 )
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 
-class MockCacheProvider:
-    """Mock cache provider for testing."""
+class MockCacheProvider(_SDKMockCacheProvider):
+    """Mock cache provider for story tests (extends SDK MockCacheProvider).
 
-    def __init__(self) -> None:
-        self._cache: dict[str, CacheEntry] = {}
+    Overrides versioned ops to handle EntryType enum composite keys.
+    """
+
+    @property
+    def _cache(self) -> dict[str, CacheEntry]:
+        """Alias for SDK _versioned_store (backward compat for direct access)."""
+        return self._versioned_store  # type: ignore[return-value]
 
     def get_versioned(
         self,
         key: str,
         entry_type: EntryType,
-        freshness: Any = None,
+        freshness: object = None,
     ) -> CacheEntry | None:
+        """Get entry from cache using EntryType enum."""
+        self.calls.append(
+            ("get_versioned", {"key": key, "entry_type": entry_type, "freshness": freshness})
+        )
         cache_key = f"{entry_type.value}:{key}"
-        return self._cache.get(cache_key)
+        return self._versioned_store.get(cache_key)
 
     def set_versioned(self, key: str, entry: CacheEntry) -> None:
+        """Store entry in cache using EntryType enum."""
+        self.calls.append(("set_versioned", {"key": key, "entry": entry}))
         cache_key = f"{entry.entry_type.value}:{key}"
-        self._cache[cache_key] = entry
+        self._versioned_store[cache_key] = entry
 
 
 class TestLoadStoriesIncremental:

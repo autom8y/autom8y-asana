@@ -63,6 +63,16 @@ dev = [
     "boto3>=1.34.0",  # AWS SDK (required for moto)
     "boto3-stubs[secretsmanager]>=1.34.0",  # Type stubs for boto3
     "autom8y-auth[observability]>=1.0.1",  # Required for test_auth tests
+    # SDK testing subpackages (per TDD-SDK-TESTING-ADOPTION)
+    # [testing] extras activate once SDKs are published with testing subpackages.
+    # Required versions: log>=0.5.0, cache>=0.3.1, http>=0.3.2
+    # TODO: bump version pins after `just ca-publish-all` from autom8y monorepo
+    "autom8y-log[testing]>=0.4.0",
+    "autom8y-cache[testing]>=0.3.0",
+    "autom8y-http[testing]>=0.3.0",
+    "autom8y-config[testing]>=0.2.1",
+    "autom8y-core[testing]>=0.1.0",
+    "autom8y-auth[testing]>=1.0.0",
 ]
 
 [build-system]

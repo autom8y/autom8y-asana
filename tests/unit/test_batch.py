@@ -803,13 +803,13 @@ class TestBatchClientLogging:
             [BatchRequest("/tasks", "POST", data={"name": "Task"})]
         )
 
-        # Check info and debug messages were logged
-        info_messages = [msg for level, msg in logger.messages if level == "info"]
-        debug_messages = [msg for level, msg in logger.messages if level == "debug"]
+        # Check info and debug messages were logged (SDK MockLogger: .entries with .level/.event)
+        info_events = [e.event for e in logger.get_events("info")]
+        debug_events = [e.event for e in logger.get_events("debug")]
 
-        assert any("Starting batch" in msg for msg in info_messages)
-        assert any("complete" in msg for msg in info_messages)
-        assert any("Chunk" in msg for msg in debug_messages)
+        assert any("Starting batch" in ev for ev in info_events)
+        assert any("complete" in ev for ev in info_events)
+        assert any("Chunk" in ev for ev in debug_events)
 
 
 # --- Edge Case Tests ---
