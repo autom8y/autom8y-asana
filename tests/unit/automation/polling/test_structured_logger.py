@@ -19,6 +19,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import autom8_asana.core.logging as core_logging
 from autom8_asana.automation.polling.structured_logger import (
     _STRUCTLOG_AVAILABLE,
     StructuredLogger,
@@ -32,6 +33,7 @@ class TestStructuredLoggerConfigure:
     def setup_method(self) -> None:
         """Reset configured state before each test."""
         StructuredLogger._configured = False
+        core_logging._configured = False
 
     def test_configure_sets_configured_flag(self) -> None:
         """configure() sets the _configured flag."""
@@ -93,6 +95,7 @@ class TestStructuredLoggerGetLogger:
     def setup_method(self) -> None:
         """Reset configured state before each test."""
         StructuredLogger._configured = False
+        core_logging._configured = False
 
     def test_get_logger_auto_configures(self) -> None:
         """get_logger() auto-configures on first use."""
@@ -151,22 +154,23 @@ class TestStructuredLoggerLogRuleEvaluation:
     def setup_method(self) -> None:
         """Reset configured state before each test."""
         StructuredLogger._configured = False
+        core_logging._configured = False
 
-    def test_log_rule_evaluation_outputs_correct_fields(self, caplog) -> None:
+    def test_log_rule_evaluation_outputs_correct_fields(self, capsys) -> None:
         """log_rule_evaluation() includes all expected fields."""
         StructuredLogger.configure(json_format=False, level="INFO")
 
-        with caplog.at_level(logging.INFO):
-            StructuredLogger.log_rule_evaluation(
-                rule_id="test-rule",
-                rule_name="Test Rule",
-                project_gid="123456789",
-                matches=5,
-                duration_ms=150.5,
-            )
+        StructuredLogger.log_rule_evaluation(
+            rule_id="test-rule",
+            rule_name="Test Rule",
+            project_gid="123456789",
+            matches=5,
+            duration_ms=150.5,
+        )
 
-        # Check log output contains expected fields
-        log_output = caplog.text
+        # SDK routes structlog output to stdout/stderr, not stdlib caplog
+        captured = capsys.readouterr()
+        log_output = captured.out + captured.err
         assert "rule_evaluation_complete" in log_output or "test-rule" in log_output
 
     def test_log_rule_evaluation_accepts_all_parameters(self) -> None:
@@ -215,6 +219,7 @@ class TestStructuredLoggerLogActionResult:
     def setup_method(self) -> None:
         """Reset configured state before each test."""
         StructuredLogger._configured = False
+        core_logging._configured = False
 
     def test_log_action_result_with_success(self) -> None:
         """log_action_result() logs successful action results."""
@@ -264,7 +269,7 @@ class TestStructuredLoggerLogActionResult:
         # Should not raise
         StructuredLogger.log_action_result(result)
 
-    def test_log_action_result_outputs_correct_event(self, caplog) -> None:
+    def test_log_action_result_outputs_correct_event(self, capsys) -> None:
         """log_action_result() outputs correct event name based on success."""
         from autom8_asana.automation.polling.action_executor import ActionResult
 
@@ -282,19 +287,19 @@ class TestStructuredLoggerLogActionResult:
             error="Failed",
         )
 
-        with caplog.at_level(logging.INFO):
-            StructuredLogger.log_action_result(success_result)
+        StructuredLogger.log_action_result(success_result)
 
-        # Check log contains expected info
-        log_output = caplog.text
+        # SDK routes structlog output to stdout/stderr, not stdlib caplog
+        captured = capsys.readouterr()
+        log_output = captured.out + captured.err
         assert "action_executed" in log_output or "task-123" in log_output
 
-        with caplog.at_level(logging.ERROR):
-            StructuredLogger.log_action_result(failure_result)
+        StructuredLogger.log_action_result(failure_result)
 
-        # Failure should be logged at error level
-        error_records = [r for r in caplog.records if r.levelname == "ERROR"]
-        assert len(error_records) >= 1
+        # Failure should appear in output
+        captured = capsys.readouterr()
+        error_output = captured.out + captured.err
+        assert "action_failed" in error_output or "task-456" in error_output
 
 
 class TestStructuredLoggerLogAutomationResult:
@@ -303,6 +308,7 @@ class TestStructuredLoggerLogAutomationResult:
     def setup_method(self) -> None:
         """Reset configured state before each test."""
         StructuredLogger._configured = False
+        core_logging._configured = False
 
     def test_log_automation_result_with_success(self) -> None:
         """log_automation_result() logs successful results correctly."""
@@ -543,6 +549,7 @@ class TestStructuredLoggerFallback:
     def setup_method(self) -> None:
         """Reset configured state before each test."""
         StructuredLogger._configured = False
+        core_logging._configured = False
 
     def test_fallback_produces_parseable_json(self) -> None:
         """Fallback logger produces valid JSON-like output."""

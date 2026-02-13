@@ -36,7 +36,6 @@ from __future__ import annotations
 
 import asyncio
 import fcntl
-import logging
 import sys
 import time
 from datetime import UTC, datetime
@@ -626,10 +625,8 @@ class PollingScheduler:
 if __name__ == "__main__":
     import argparse
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    from autom8_asana.core.logging import configure
+    configure(level="INFO")
 
     parser = argparse.ArgumentParser(
         description="Run polling scheduler for automation rules.",

@@ -111,53 +111,14 @@ class StructuredLogger:
         cls._level = level.upper()
 
         if _STRUCTLOG_AVAILABLE:
-            cls._configure_structlog(json_format, cls._level)
+            # Delegate to SDK configure (idempotent, respects _configured guard)
+            from autom8_asana.core.logging import configure as sdk_configure
+            fmt = "json" if json_format else "console"
+            sdk_configure(level=cls._level, format=fmt)
         else:
             cls._configure_stdlib(cls._level)
 
         cls._configured = True
-
-    @classmethod
-    def _configure_structlog(cls, json_format: bool, level: str) -> None:
-        """Configure structlog with processors and renderers.
-
-        Args:
-            json_format: Whether to use JSON output format.
-            level: Log level string.
-        """
-        # Build processor chain
-        shared_processors: list[Any] = [
-            structlog.stdlib.filter_by_level,
-            structlog.stdlib.add_logger_name,
-            structlog.stdlib.add_log_level,
-            structlog.stdlib.PositionalArgumentsFormatter(),
-            structlog.processors.TimeStamper(fmt="iso", utc=True, key="timestamp"),
-            structlog.processors.StackInfoRenderer(),
-            structlog.processors.UnicodeDecoder(),
-        ]
-
-        if json_format:
-            # JSON output for machine parsing
-            shared_processors.append(structlog.processors.JSONRenderer())
-        else:
-            # Human-readable console output
-            shared_processors.append(structlog.dev.ConsoleRenderer())
-
-        # Configure structlog
-        structlog.configure(
-            processors=shared_processors,
-            wrapper_class=structlog.stdlib.BoundLogger,
-            context_class=dict,
-            logger_factory=structlog.stdlib.LoggerFactory(),
-            cache_logger_on_first_use=True,
-        )
-
-        # Configure stdlib logging for structlog integration
-        logging.basicConfig(
-            format="%(message)s",
-            stream=sys.stdout,
-            level=getattr(logging, level, logging.INFO),
-        )
 
     @classmethod
     def _configure_stdlib(cls, level: str) -> None:
@@ -205,7 +166,8 @@ class StructuredLogger:
             cls.configure()
 
         if _STRUCTLOG_AVAILABLE:
-            return structlog.get_logger().bind(**bound_context)
+            from autom8_asana.core.logging import get_logger as sdk_get_logger
+            return sdk_get_logger("autom8_asana.automation.polling").bind(**bound_context)
         else:
             # Return adapted stdlib logger
             return _StdlibLoggerAdapter(
