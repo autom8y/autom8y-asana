@@ -16,30 +16,38 @@ from autom8_asana.batch.models import BatchResult
 from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.models import Task
 from autom8_asana.persistence.session import SaveSession
+from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 # ---------------------------------------------------------------------------
 # Mock Cache Provider
 # ---------------------------------------------------------------------------
 
 
-class MockCacheProvider:
-    """Mock cache provider for testing invalidation."""
+class MockCacheProvider(_SDKMockCacheProvider):
+    """Mock cache provider for testing invalidation (extends SDK MockCacheProvider).
+
+    Adds fail_on_invalidate flag and satellite-specific invalidate_calls tracking.
+    """
 
     def __init__(self) -> None:
-        self._cache: dict[str, Any] = {}
+        super().__init__()
         self.invalidate_calls: list[tuple[str, list[EntryType] | None]] = []
         self.fail_on_invalidate: bool = False
 
-    def get_versioned(self, key: str, entry_type: EntryType) -> None:
-        """Get entry from cache."""
+    def get_versioned(
+        self, key: str, entry_type: EntryType, freshness: object = None
+    ) -> None:
+        """Get entry from cache (always returns None for invalidation tests)."""
         return None
 
     def set_versioned(self, key: str, entry: Any) -> None:
-        """Store entry in cache."""
+        """Store entry in cache (no-op for invalidation tests)."""
         pass
 
-    def invalidate(self, key: str, entry_types: list[EntryType] | None = None) -> None:
-        """Invalidate cache entry."""
+    def invalidate(
+        self, key: str, entry_types: list[EntryType] | None = None
+    ) -> None:
+        """Invalidate cache entry with fail simulation."""
         if self.fail_on_invalidate:
             raise ConnectionError("Cache invalidation failed")
         self.invalidate_calls.append((key, entry_types))

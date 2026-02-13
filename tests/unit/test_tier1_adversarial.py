@@ -1795,10 +1795,10 @@ class TestClientLogging:
 
         await client.get_async("ws123")
 
-        # Should have logged something
-        assert len(logger.messages) > 0
+        # Should have logged something (SDK MockLogger: .entries with .level/.event)
+        assert len(logger.entries) > 0
         # Should have logged at debug level
-        assert any(level == "debug" for level, _ in logger.messages)
+        assert len(logger.get_events("debug")) > 0
 
     async def test_client_logs_list_operation(
         self,
@@ -1819,5 +1819,5 @@ class TestClientLogging:
         iterator = client.list_async(workspace="ws123")
         await iterator.collect()
 
-        # Should have logged something
-        assert len(logger.messages) > 0
+        # Should have logged something (SDK MockLogger: .entries with .level/.event)
+        assert len(logger.entries) > 0

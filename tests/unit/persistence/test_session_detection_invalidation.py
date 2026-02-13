@@ -18,38 +18,39 @@ from autom8_asana.batch.models import BatchResult
 from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.models import Task
 from autom8_asana.persistence.session import SaveSession
+from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 # ---------------------------------------------------------------------------
 # Mock Cache Provider
 # ---------------------------------------------------------------------------
 
 
-class MockCacheProviderWithDetection:
-    """Mock cache provider for testing detection invalidation."""
+class MockCacheProviderWithDetection(_SDKMockCacheProvider):
+    """Mock cache provider for testing detection invalidation (extends SDK).
+
+    Adds fail_on_invalidate flag, invalidate_calls tracking, and
+    get_invalidations_for_type helper for detection-specific assertions.
+    """
 
     def __init__(self) -> None:
-        self._cache: dict[str, Any] = {}
+        super().__init__()
         self.invalidate_calls: list[tuple[str, list[EntryType] | None]] = []
         self.fail_on_invalidate: bool = False
 
-    def get(self, key: str, entry_type: EntryType) -> None:
-        """Get entry from cache."""
+    def get_versioned(
+        self, key: str, entry_type: EntryType, freshness: object = None
+    ) -> None:
+        """Get entry from cache (always returns None for invalidation tests)."""
         return None
-
-    def get_versioned(self, key: str, entry_type: EntryType) -> None:
-        """Get entry from cache."""
-        return None
-
-    def set(self, key: str, entry: Any) -> None:
-        """Store entry in cache."""
-        pass
 
     def set_versioned(self, key: str, entry: Any) -> None:
-        """Store entry in cache."""
+        """Store entry in cache (no-op for invalidation tests)."""
         pass
 
-    def invalidate(self, key: str, entry_types: list[EntryType] | None = None) -> None:
-        """Invalidate cache entry."""
+    def invalidate(
+        self, key: str, entry_types: list[EntryType] | None = None
+    ) -> None:
+        """Invalidate cache entry with fail simulation."""
         if self.fail_on_invalidate:
             raise ConnectionError("Cache invalidation failed")
         self.invalidate_calls.append((key, entry_types))
