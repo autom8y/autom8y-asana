@@ -43,6 +43,8 @@ Usage:
 
 from __future__ import annotations
 
+from typing import Any
+
 from autom8y_log import LogConfig, configure_logging, get_logger, reset_logging
 
 __all__ = ["configure", "get_logger", "logger", "reset_logging"]
@@ -54,6 +56,7 @@ def configure(
     level: str = "INFO",
     format: str = "auto",
     intercept_stdlib: bool = True,
+    additional_processors: list[Any] | None = None,
 ) -> None:
     """Configure logging for autom8_asana.
 
@@ -68,14 +71,18 @@ def configure(
         intercept_stdlib: Redirect stdlib logging through autom8y-log. Default: True
             This ensures all logging calls (including third-party libraries)
             go through the structured logging pipeline.
+        additional_processors: Optional list of structlog processors to inject
+            into the processor chain. Useful for custom filtering (e.g.,
+            sensitive data redaction). Processors must follow the structlog
+            processor protocol: (logger, method_name, event_dict) -> event_dict.
 
     Example:
         # In api/main.py lifespan - auto-format detection (recommended)
         from autom8_asana.core.logging import configure
         configure()
 
-        # Or use environment variables (LOG_LEVEL, LOG_FORMAT)
-        configure()
+        # With custom processors (e.g., sensitive field filtering)
+        configure(additional_processors=[my_filter_processor])
     """
     global _configured
     if _configured:
@@ -90,7 +97,7 @@ def configure(
         format=format,  # type: ignore[arg-type]
         intercept_stdlib=intercept_stdlib,
     )
-    configure_logging(config)
+    configure_logging(config, additional_processors=additional_processors)
     _configured = True
 
 

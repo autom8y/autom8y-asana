@@ -16,16 +16,14 @@ Per NFR-OBS-001:
 - X-Request-ID on 100% of responses
 """
 
-import logging
 import time
 import uuid
 from typing import Any
 
-import structlog
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
-from .config import get_settings
+from autom8_asana.core.logging import get_logger
 
 # Threshold for slow request warnings (milliseconds)
 SLOW_REQUEST_THRESHOLD_MS = 1000
@@ -35,7 +33,7 @@ SENSITIVE_FIELDS = frozenset({"authorization", "token", "pat", "password", "secr
 
 
 def _filter_sensitive_data(
-    _logger: logging.Logger,
+    _logger: Any,
     _method_name: str,
     event_dict: dict[str, Any],
 ) -> dict[str, Any]:
@@ -58,45 +56,8 @@ def _filter_sensitive_data(
     return event_dict
 
 
-def configure_structlog() -> None:
-    """Configure structlog with JSON output and security filtering.
-
-    Sets up structured logging with:
-    - JSON output format (CloudWatch compatible)
-    - Timestamp in ISO format
-    - Log level in output
-    - Sensitive data filtering
-    """
-    settings = get_settings()
-
-    processors = [
-        structlog.contextvars.merge_contextvars,
-        structlog.stdlib.add_log_level,
-        structlog.stdlib.add_logger_name,
-        structlog.processors.TimeStamper(fmt="iso"),
-        _filter_sensitive_data,
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
-        structlog.processors.UnicodeDecoder(),
-    ]
-
-    # Use JSON for production, console for debug
-    if settings.debug:
-        processors.append(structlog.dev.ConsoleRenderer())
-    else:
-        processors.append(structlog.processors.JSONRenderer())
-
-    structlog.configure(
-        processors=processors,  # type: ignore[arg-type]
-        wrapper_class=structlog.stdlib.BoundLogger,
-        context_class=dict,
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        cache_logger_on_first_use=True,
-    )
-
-
-# Get logger after configuration
-logger = structlog.get_logger(__name__)
+# Get logger via SDK
+logger = get_logger(__name__)
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
@@ -208,5 +169,6 @@ __all__ = [
     "RequestIDMiddleware",
     "RequestLoggingMiddleware",
     "SLOW_REQUEST_THRESHOLD_MS",
-    "configure_structlog",
+    "_filter_sensitive_data",
+    "SENSITIVE_FIELDS",
 ]
