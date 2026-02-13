@@ -136,13 +136,17 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+select = ["E", "F", "I", "UP", "B", "G", "LOG"]
 ignore = [
     "E501",   # Line length handled by formatter
     "B904",   # raise-without-from-inside-except - common pattern in HTTP handlers
     "B028",   # stacklevel in warnings - not critical for tests
     "B007",   # unused loop variable - often intentional for unpacking
     "B905",   # zip-without-strict - not needed for equal-length iterables
+    "G002",   # %-format in logging is intentional (FR-LOG-005 lazy formatting)
+    "G004",   # f-string in logging - we prefer lazy %s but don't ban f-strings
+    "G010",   # logging.warn() deprecated -> logging.warning() (safety net)
+    "G101",   # extra field name clashes - structlog unpacks extra into event_dict, no stdlib LogRecord conflict
 ]
 
 [tool.ruff.lint.per-file-ignores]
