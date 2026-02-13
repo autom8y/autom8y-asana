@@ -24,7 +24,6 @@ Exit Codes:
 from __future__ import annotations
 
 import argparse
-import logging
 import sys
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -237,11 +236,9 @@ def main() -> int:
         status <config_path>             Show scheduler and rule status
         evaluate <config_path> [--dry-run]  Run one evaluation cycle
     """
-    # Configure basic logging for CLI
-    logging.basicConfig(
-        level=logging.WARNING,
-        format="%(levelname)s: %(message)s",
-    )
+    # Configure logging via SDK (idempotent guard prevents double-configure)
+    from autom8_asana.core.logging import configure
+    configure(level="WARNING")
 
     # Create main parser
     parser = argparse.ArgumentParser(
