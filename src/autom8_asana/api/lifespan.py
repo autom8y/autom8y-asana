@@ -14,8 +14,10 @@ from contextlib import asynccontextmanager
 from autom8y_log import get_logger
 from fastapi import FastAPI
 
+from autom8_asana.core.logging import configure as configure_logging
+
 from .config import get_settings
-from .middleware import configure_structlog
+from .middleware import _filter_sensitive_data
 from .preload import _preload_dataframe_cache_progressive
 from .startup import (
     _discover_entity_projects,
@@ -59,8 +61,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         None (no persistent state stored on app.state for SDK).
     """
     # Startup
-    configure_structlog()
     settings = get_settings()
+    configure_logging(
+        level=settings.log_level,
+        format="console" if settings.debug else "auto",
+        additional_processors=[_filter_sensitive_data],
+    )
 
     logger.info(
         "api_starting",
