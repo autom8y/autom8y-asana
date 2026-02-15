@@ -242,7 +242,7 @@ class HealingManager:
                     project_gid=project_gid,
                 )
 
-            except Exception as e:  # BROAD-CATCH: isolation -- per-entity healing loop, failure must not abort batch
+            except (ConnectionError, TimeoutError, OSError, RuntimeError) as e:  # isolation -- per-entity healing loop, failure must not abort batch
                 error_msg = str(e)
                 result = HealingResult(
                     entity_gid=entity.gid,

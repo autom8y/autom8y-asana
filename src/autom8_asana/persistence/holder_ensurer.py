@@ -220,7 +220,7 @@ class HolderEnsurer:
                 existing_holders = await detect_existing_holders(
                     self._client, parent.gid, holder_key_map
                 )
-            except Exception:
+            except (ConnectionError, TimeoutError, OSError, RuntimeError):
                 # Per TDD Section 9.1: If detection fails, proceed without
                 # detection -- create the holder. Worst case: duplicate.
                 logger.warning(

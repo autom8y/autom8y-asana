@@ -324,7 +324,7 @@ class ActionExecutor:
                 response_data=response,
             )
 
-        except Exception as e:  # BROAD-CATCH: isolation -- action execution returns error result, never propagates
+        except (ConnectionError, TimeoutError, OSError, RuntimeError, ValueError) as e:  # isolation -- action execution returns error result, never propagates
             return ActionResult(
                 action=action,
                 success=False,

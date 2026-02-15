@@ -1719,7 +1719,7 @@ class TestSelectiveActionClearing:
         """When all actions fail, all pending actions remain."""
         mock_client = create_mock_client()
         # Make all HTTP requests fail
-        mock_client._http.request = AsyncMock(side_effect=Exception("API Error"))
+        mock_client._http.request = AsyncMock(side_effect=ConnectionError("API Error"))
         session = SaveSession(mock_client)
 
         task = Task(gid="task_123")
@@ -1753,7 +1753,7 @@ class TestSelectiveActionClearing:
             call_count += 1
             if call_count == 1:
                 return {"data": {}}  # First action succeeds
-            raise Exception("API Error")  # Others fail
+            raise ConnectionError("API Error")  # Others fail
 
         mock_client._http.request = AsyncMock(side_effect=selective_failure)
         session = SaveSession(mock_client)
@@ -1810,7 +1810,7 @@ class TestSelectiveActionClearing:
             call_count += 1
             if call_count == 1:
                 return {"data": {}}  # task_a succeeds
-            raise Exception("API Error")  # task_b fails
+            raise ConnectionError("API Error")  # task_b fails
 
         mock_client._http.request = AsyncMock(side_effect=task_selective)
         session = SaveSession(mock_client)
@@ -1842,7 +1842,7 @@ class TestSelectiveActionClearing:
         async def retry_behavior(*args: Any, **kwargs: Any) -> dict[str, Any]:
             nonlocal commit_number
             if commit_number == 1:
-                raise Exception("API Error")
+                raise ConnectionError("API Error")
             return {"data": {}}
 
         mock_client._http.request = AsyncMock(side_effect=retry_behavior)

@@ -517,7 +517,7 @@ class TestHealingExecution:
     async def test_healing_failure_non_blocking(self) -> None:
         """Healing failures are non-blocking - commit still succeeds."""
         mock_client = create_mock_client()
-        mock_client._http.request = AsyncMock(side_effect=Exception("API Error"))
+        mock_client._http.request = AsyncMock(side_effect=ConnectionError("API Error"))
         session = SaveSession(mock_client, auto_heal=True)
 
         entity = create_entity_with_detection("123", "Test", tier_used=2)
@@ -556,7 +556,7 @@ class TestHealingExecution:
     async def test_healing_queue_cleared_even_on_failure(self) -> None:
         """Healing queue is cleared even when healing fails."""
         mock_client = create_mock_client()
-        mock_client._http.request = AsyncMock(side_effect=Exception("API Error"))
+        mock_client._http.request = AsyncMock(side_effect=ConnectionError("API Error"))
         session = SaveSession(mock_client, auto_heal=True)
 
         entity = create_entity_with_detection("123", "Test", tier_used=2)
@@ -649,7 +649,7 @@ class TestHealingExecution:
             call_count += 1
             if call_count == 1:
                 return {"data": {}}
-            raise Exception("API Error")
+            raise ConnectionError("API Error")
 
         mock_client._http.request = AsyncMock(side_effect=selective_failure)
         session = SaveSession(mock_client, auto_heal=True)
