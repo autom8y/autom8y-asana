@@ -19,10 +19,8 @@ from __future__ import annotations
 import asyncio
 import os
 import tempfile
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 
 def _run_async(coro):
@@ -1575,7 +1573,6 @@ class TestEdgeCasesAdversarial:
     def test_empty_yaml_stages_raises_validation_error(self):
         """YAML with empty stages dict should raise ValidationError
         (stages is required)."""
-        from pydantic import ValidationError
 
         from autom8_asana.lifecycle.config import LifecycleConfig
 
@@ -1595,7 +1592,6 @@ class TestEdgeCasesAdversarial:
         interfere with each other. Each creates its own TransitionResult."""
         from autom8_asana.lifecycle.config import LifecycleConfig
         from autom8_asana.lifecycle.engine import (
-            ActionResult,
             CascadeResult,
             CompletionResult,
             CreationResult,
@@ -1681,7 +1677,6 @@ class TestEdgeCasesAdversarial:
             LifecycleConfig,
         )
         from autom8_asana.lifecycle.engine import (
-            ActionResult,
             _DefaultInitActionRegistry,
         )
 

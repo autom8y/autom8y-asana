@@ -7,7 +7,6 @@ import pytest
 from autom8_asana.automation.workflows.pipeline_transition import (
     PipelineTransitionWorkflow,
 )
-from autom8_asana.models.business.process import ProcessType
 from autom8_asana.persistence.models import AutomationResult
 
 

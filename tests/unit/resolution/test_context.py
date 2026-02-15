@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
 from autom8_asana.models.business.business import Business
-from autom8_asana.models.business.contact import Contact, ContactHolder
+from autom8_asana.models.business.contact import ContactHolder
 from autom8_asana.resolution.context import ResolutionContext, ResolutionError
 from autom8_asana.resolution.result import ResolutionStatus
 from tests.unit.resolution.conftest import make_business_entity

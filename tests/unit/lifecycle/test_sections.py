@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from autom8_asana.lifecycle.config import CascadingSectionConfig
-from autom8_asana.lifecycle.sections import CascadeResult, CascadingSectionService
+from autom8_asana.lifecycle.sections import CascadingSectionService
 
 
 def _make_section(gid: str, name: str) -> MagicMock:

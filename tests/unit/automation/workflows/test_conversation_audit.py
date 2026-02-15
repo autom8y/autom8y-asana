@@ -7,18 +7,14 @@ ordering, feature flag, and concurrency.
 
 from __future__ import annotations
 
-import asyncio
 import os
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from autom8_asana.automation.workflows.conversation_audit import (
     AUDIT_ENABLED_ENV_VAR,
-    CONTACT_HOLDER_PROJECT_GID,
-    DEFAULT_ATTACHMENT_PATTERN,
-    DEFAULT_MAX_CONCURRENCY,
     ConversationAuditWorkflow,
 )
 from autom8_asana.clients.data.models import ExportResult

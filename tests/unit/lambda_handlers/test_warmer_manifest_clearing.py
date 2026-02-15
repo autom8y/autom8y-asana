@@ -15,7 +15,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from autom8_asana.lambda_handlers.cache_warmer import (
-    WarmResponse,
     _warm_cache_async,
 )
 

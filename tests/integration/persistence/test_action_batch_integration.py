@@ -13,7 +13,6 @@ import pytest
 
 from autom8_asana.batch.models import BatchResult
 from autom8_asana.models import Task
-from autom8_asana.models.common import NameGid
 
 # ---------------------------------------------------------------------------
 # Helpers

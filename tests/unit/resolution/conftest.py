@@ -10,7 +10,7 @@ import pytest
 from autom8_asana.models.business.base import BusinessEntity
 from autom8_asana.models.business.business import Business
 from autom8_asana.models.business.contact import Contact, ContactHolder
-from autom8_asana.models.business.process import Process, ProcessType
+from autom8_asana.models.business.process import Process
 from autom8_asana.models.business.unit import Unit
 
 

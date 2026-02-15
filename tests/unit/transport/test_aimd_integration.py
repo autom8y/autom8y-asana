@@ -6,10 +6,8 @@ AsanaHttpClient request path with mocked HTTP responses.
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-import httpx
 import pytest
 
 from autom8_asana.config import AsanaConfig, ConcurrencyConfig

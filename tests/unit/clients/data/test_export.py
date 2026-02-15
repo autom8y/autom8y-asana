@@ -7,7 +7,7 @@ including success, header parsing, circuit breaker, retry, and error scenarios.
 from __future__ import annotations
 
 from datetime import date
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -268,7 +268,6 @@ class TestGetExportCsvAsyncErrors:
         """Timeout -> retry, then ExportError with reason=timeout."""
         from dataclasses import replace as dc_replace
 
-        from autom8_asana.clients.data.config import RetryConfig
 
         client = _make_client()
         # Create a new config with 0 retries (RetryConfig is frozen)

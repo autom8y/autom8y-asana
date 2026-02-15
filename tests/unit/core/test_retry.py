@@ -11,12 +11,10 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from autom8_asana.core.exceptions import (
-    Autom8Error,
     CacheError,
     RedisTransportError,
     S3TransportError,

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import polars as pl
 import pytest
-from polars.testing import assert_frame_equal
 
 from autom8_asana.metrics.expr import SUPPORTED_AGGS, MetricExpr
 

@@ -8,10 +8,8 @@ to connection managers when provided, and work unchanged without them.
 from __future__ import annotations
 
 import time
-from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from autom8_asana.cache.backends.redis import RedisCacheProvider, RedisConfig
 from autom8_asana.cache.backends.s3 import S3CacheProvider, S3Config

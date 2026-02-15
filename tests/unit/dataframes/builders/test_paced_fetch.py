@@ -7,7 +7,6 @@ and small section passthrough per TDD-large-section-resilience section 9.1.
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl

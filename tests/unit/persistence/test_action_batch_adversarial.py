@@ -11,23 +11,20 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from autom8_asana.batch.models import BatchRequest, BatchResult
+from autom8_asana.batch.models import BatchResult
 from autom8_asana.exceptions import AsanaError
 from autom8_asana.models import Task
 from autom8_asana.models.common import NameGid
 from autom8_asana.persistence.action_executor import (
     ActionExecutor,
     _chunk_actions,
-    action_to_batch_request,
     batch_result_to_action_result,
 )
 from autom8_asana.persistence.action_ordering import (
-    OrderingRule,
     resolve_order,
 )
 from autom8_asana.persistence.models import (
     ActionOperation,
-    ActionResult,
     ActionType,
 )
 

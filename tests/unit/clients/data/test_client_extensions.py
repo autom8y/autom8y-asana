@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-from autom8_asana.clients.data.client import DataServiceClient, mask_phone_number
+from autom8_asana.clients.data.client import DataServiceClient
 from autom8_asana.clients.data.config import DataServiceConfig
 from autom8_asana.clients.data.models import InsightsRequest, InsightsResponse
 from autom8_asana.exceptions import InsightsServiceError

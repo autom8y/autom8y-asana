@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import polars as pl
 import pytest
 
 from autom8_asana.metrics.expr import MetricExpr

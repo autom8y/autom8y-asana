@@ -18,7 +18,6 @@ from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
 from autom8_asana.cache.integration.dataframe_cache import (
     CacheEntry,
     DataFrameCache,
-    FreshnessInfo,
     FreshnessStatus,
     _get_schema_version_for_entity,
     get_dataframe_cache,

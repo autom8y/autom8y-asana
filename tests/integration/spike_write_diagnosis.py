@@ -11,7 +11,6 @@ Run: ASANA_PAT=... .venv/bin/python tests/integration/spike_write_diagnosis.py
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import sys
 

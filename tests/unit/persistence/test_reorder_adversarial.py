@@ -15,7 +15,6 @@ import pytest
 
 from autom8_asana.persistence.reorder import (
     Move,
-    ReorderPlan,
     _compute_lis_indices,
     compute_reorder_plan,
 )

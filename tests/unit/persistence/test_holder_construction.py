@@ -6,7 +6,7 @@ detect_existing_holders functions.
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -345,7 +345,6 @@ class TestDetectExistingHolders:
             VideographyHolder,
         )
         from autom8_asana.models.business.contact import ContactHolder
-        from autom8_asana.models.business.location import LocationHolder
         from autom8_asana.models.business.unit import UnitHolder
 
         # Create subtasks matching all holder types
