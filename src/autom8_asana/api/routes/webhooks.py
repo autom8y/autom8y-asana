@@ -17,6 +17,8 @@ from fastapi.responses import JSONResponse
 
 from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
+from pydantic import ValidationError
+
 from autom8_asana.models.task import Task
 from autom8_asana.settings import get_settings
 
@@ -361,7 +363,7 @@ async def receive_inbound_webhook(
     # Parse into Task model
     try:
         task = Task.model_validate(body)
-    except Exception as exc:
+    except (ValidationError, ValueError) as exc:  # NARROW: Pydantic model_validate raises ValidationError; ValueError for malformed data
         logger.warning(
             "webhook_task_validation_error",
             extra={"error": str(exc)},

@@ -108,7 +108,7 @@ class CommentHandler(InitActionHandler):
             )
             return CreationResult(success=True, entity_gid="")
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: boundary -- comment failure must not block pipeline transition
             logger.warning(
                 "lifecycle_comment_failed",
                 task_gid=created_entity_gid,
@@ -271,7 +271,7 @@ class PlayCreationHandler(InitActionHandler):
 
             return CreationResult(success=True, entity_gid=new_play.gid)
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: boundary -- play creation failure returns CreationResult(success=False)
             logger.error(
                 "lifecycle_play_creation_error",
                 play_type=action_config.play_type,
@@ -342,7 +342,7 @@ class PlayCreationHandler(InitActionHandler):
                 was_reopened=True,
             )
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: boundary -- reopen failure is non-fatal, falls through to create new
             # Reopen failure is non-fatal; fall through to create new
             logger.warning(
                 "lifecycle_play_reopen_failed",
@@ -402,7 +402,7 @@ class EntityCreationHandler(InitActionHandler):
             )
             return result
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: boundary -- entity creation failure returns CreationResult(success=False)
             logger.error(
                 "lifecycle_entity_creation_error",
                 entity_type=action_config.entity_type,
@@ -507,7 +507,7 @@ class ProductsCheckHandler(InitActionHandler):
 
             return result
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: boundary -- products check failure returns CreationResult(success=False)
             logger.error(
                 "lifecycle_products_check_error",
                 condition=action_config.condition,
@@ -551,7 +551,7 @@ class CampaignHandler(InitActionHandler):
 
             return CreationResult(success=True, entity_gid="")
 
-        except Exception as e:
+        except Exception as e:  # BROAD-CATCH: boundary -- campaign action failure returns CreationResult(success=False)
             logger.error(
                 "lifecycle_campaign_action_error",
                 action_type=action_config.type,
