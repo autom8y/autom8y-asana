@@ -33,6 +33,23 @@ from autom8_asana.clients.data.models import (
     InsightsResponse,
 )
 
+# Patch path for resolve_section_gids (lazy import inside _enumerate_offers)
+_RESOLVE_PATCH = (
+    "autom8_asana.automation.workflows.section_resolution.resolve_section_gids"
+)
+
+
+@pytest.fixture()
+def _force_fallback():
+    """Patch resolve_section_gids to raise, forcing the fallback path.
+
+    Apply via @pytest.mark.usefixtures("_force_fallback") on test classes
+    whose mocks target the old project-level fetch pattern.
+    """
+    with patch(_RESOLVE_PATCH, side_effect=Exception("force-fallback")):
+        yield
+
+
 # --- Helpers ---
 
 
@@ -284,8 +301,9 @@ class TestValidateAsync:
         assert "circuit breaker" in errors[0].lower()
 
 
+@pytest.mark.usefixtures("_force_fallback")
 class TestEnumeration:
-    """Tests for offer enumeration (AC-W01.4)."""
+    """Tests for offer enumeration (AC-W01.4) -- via fallback path."""
 
     @pytest.mark.asyncio
     async def test_only_non_completed_offers(self) -> None:
@@ -336,8 +354,9 @@ class TestEnumeration:
         )
 
 
+@pytest.mark.usefixtures("_force_fallback")
 class TestResolution:
-    """Tests for offer resolution (AC-W01.5, AC-W01.6)."""
+    """Tests for offer resolution (AC-W01.5, AC-W01.6) -- via fallback path."""
 
     @pytest.mark.asyncio
     async def test_successful_resolution(self) -> None:
@@ -422,8 +441,9 @@ class TestResolution:
         assert result.skipped == 1
 
 
+@pytest.mark.usefixtures("_force_fallback")
 class TestFetchAllTables:
-    """Tests for table fetching (AC-W01.7)."""
+    """Tests for table fetching (AC-W01.7) -- via fallback path."""
 
     @pytest.mark.asyncio
     async def test_all_nine_api_calls_dispatched(self) -> None:
@@ -557,8 +577,9 @@ class TestUnusedAssetsFilter:
         assert "ASSET TABLE which failed" in unused_result.error_message
 
 
+@pytest.mark.usefixtures("_force_fallback")
 class TestUploadAndCleanup:
-    """Tests for upload and attachment cleanup (AC-W01.8-W01.10, AC-W03.11)."""
+    """Tests for upload and attachment cleanup (AC-W01.8-W01.10, AC-W03.11) -- via fallback."""
 
     @pytest.mark.asyncio
     async def test_upload_called_with_correct_params(self) -> None:
@@ -679,8 +700,9 @@ class TestUploadAndCleanup:
         assert call_order == ["upload", "delete"]
 
 
+@pytest.mark.usefixtures("_force_fallback")
 class TestConcurrency:
-    """Tests for semaphore concurrency bounds (AC-W01.11)."""
+    """Tests for semaphore concurrency bounds (AC-W01.11) -- via fallback path."""
 
     @pytest.mark.asyncio
     async def test_max_concurrency_from_params(self) -> None:
@@ -715,8 +737,9 @@ class TestConcurrency:
         assert result.total == 0
 
 
+@pytest.mark.usefixtures("_force_fallback")
 class TestWorkflowResult:
-    """Tests for WorkflowResult structure (AC-W01.12, AC-W02.4)."""
+    """Tests for WorkflowResult structure (AC-W01.12, AC-W02.4) -- via fallback path."""
 
     @pytest.mark.asyncio
     async def test_result_includes_per_offer_table_counts(self) -> None:
@@ -768,8 +791,9 @@ class TestWorkflowResult:
         assert result.workflow_id == "insights-export"
 
 
+@pytest.mark.usefixtures("_force_fallback")
 class TestPartialFailure:
-    """Tests for partial table failure (AC-W02.1, AC-W02.2)."""
+    """Tests for partial table failure (AC-W02.1, AC-W02.2) -- via fallback path."""
 
     @pytest.mark.asyncio
     async def test_one_table_fails_rest_succeed(self) -> None:
@@ -811,8 +835,9 @@ class TestPartialFailure:
         assert table_counts["tables_succeeded"] > 0
 
 
+@pytest.mark.usefixtures("_force_fallback")
 class TestTotalFailure:
-    """Tests for total table failure (AC-W02.3)."""
+    """Tests for total table failure (AC-W02.3) -- via fallback path."""
 
     @pytest.mark.asyncio
     async def test_all_tables_fail_no_upload(self) -> None:
@@ -845,8 +870,9 @@ class TestTotalFailure:
         assert result.errors[0].recoverable is True
 
 
+@pytest.mark.usefixtures("_force_fallback")
 class TestDeleteFailureTolerance:
-    """Tests for non-fatal delete failure."""
+    """Tests for non-fatal delete failure -- via fallback path."""
 
     @pytest.mark.asyncio
     async def test_delete_failure_still_succeeded(self) -> None:
@@ -880,8 +906,9 @@ class TestDeleteFailureTolerance:
         assert result.failed == 0
 
 
+@pytest.mark.usefixtures("_force_fallback")
 class TestEmptyProject:
-    """Tests for empty project (no offers)."""
+    """Tests for empty project (no offers) -- via fallback path."""
 
     @pytest.mark.asyncio
     async def test_no_offers(self) -> None:
@@ -984,8 +1011,9 @@ class TestAdversarialFeatureFlag:
             assert errors == [], f"Expected enabled for value '{value}'"
 
 
+@pytest.mark.usefixtures("_force_fallback")
 class TestAdversarialUploadFailure:
-    """QA-ADVERSARY: Upload failure prevents delete loop (AC-W01.10)."""
+    """QA-ADVERSARY: Upload failure prevents delete loop (AC-W01.10) -- via fallback."""
 
     @pytest.mark.asyncio
     async def test_upload_failure_prevents_delete(self) -> None:
@@ -1021,8 +1049,9 @@ class TestAdversarialUploadFailure:
         mock_att.delete_async.assert_not_called()
 
 
+@pytest.mark.usefixtures("_force_fallback")
 class TestAdversarialComposeRaisesPreventsUpload:
-    """QA-ADVERSARY: If compose_report raises, no upload occurs."""
+    """QA-ADVERSARY: If compose_report raises, no upload occurs -- via fallback."""
 
     @pytest.mark.asyncio
     async def test_compose_failure_marks_offer_failed(self) -> None:
@@ -1052,3 +1081,250 @@ class TestAdversarialComposeRaisesPreventsUpload:
         assert result.succeeded == 0
         # No upload should have happened
         mock_att.upload_async.assert_not_called()
+
+
+# --- Section-Targeted Enumeration Tests (TDD-SECTION-ENUM-001 Section 7.3) ---
+
+
+def _make_section_task(
+    gid: str,
+    name: str,
+    parent_gid: str | None = None,
+    completed: bool = False,
+) -> MagicMock:
+    """Create a mock task for section-targeted fetch (no memberships needed)."""
+    task = MagicMock()
+    task.gid = gid
+    task.name = name
+    task.completed = completed
+    if parent_gid:
+        task.parent = MagicMock()
+        task.parent.gid = parent_gid
+    else:
+        task.parent = None
+    return task
+
+
+class TestEnumerateOffersSectionTargeted:
+    """Section-targeted primary path: resolve + parallel fetch + dedup."""
+
+    @pytest.mark.asyncio
+    async def test_enumerate_offers_section_targeted(self) -> None:
+        """Mock resolution + section fetches; verify dedup and dict construction."""
+        t1 = _make_section_task("t1", "Offer A", parent_gid="biz1")
+        t2 = _make_section_task("t2", "Offer B", parent_gid="biz2")
+
+        wf, mock_asana, _, _ = _make_workflow()
+
+        # Mock section-level task fetches via side_effect
+        def list_async_dispatch(**kwargs):
+            if kwargs.get("section") == "sec-alpha":
+                return _AsyncIterator([t1])
+            if kwargs.get("section") == "sec-beta":
+                return _AsyncIterator([t2])
+            # Fallback path should not be reached
+            return _AsyncIterator([])
+
+        mock_asana.tasks.list_async.side_effect = list_async_dispatch
+
+        with patch(
+            _RESOLVE_PATCH,
+            return_value={"alpha section": "sec-alpha", "beta section": "sec-beta"},
+        ):
+            offers = await wf._enumerate_offers()
+
+        assert len(offers) == 2
+        gids = {o["gid"] for o in offers}
+        assert gids == {"t1", "t2"}
+        # Verify dict structure
+        for o in offers:
+            assert "gid" in o
+            assert "name" in o
+            assert "parent_gid" in o
+
+    @pytest.mark.asyncio
+    async def test_section_targeted_skips_completed(self) -> None:
+        """Completed tasks from section fetch are excluded."""
+        t1 = _make_section_task("t1", "Active", parent_gid="biz1")
+        t2 = _make_section_task("t2", "Done", parent_gid="biz2", completed=True)
+
+        wf, mock_asana, _, _ = _make_workflow()
+        mock_asana.tasks.list_async.side_effect = (
+            lambda **kw: _AsyncIterator([t1, t2])
+        )
+
+        with patch(
+            _RESOLVE_PATCH,
+            return_value={"section": "sec-1"},
+        ):
+            offers = await wf._enumerate_offers()
+
+        assert len(offers) == 1
+        assert offers[0]["gid"] == "t1"
+
+    @pytest.mark.asyncio
+    async def test_section_targeted_parent_gid_none(self) -> None:
+        """Tasks without parent produce parent_gid=None in dict."""
+        t1 = _make_section_task("t1", "No Parent")  # parent_gid=None
+
+        wf, mock_asana, _, _ = _make_workflow()
+        mock_asana.tasks.list_async.side_effect = (
+            lambda **kw: _AsyncIterator([t1])
+        )
+
+        with patch(
+            _RESOLVE_PATCH,
+            return_value={"section": "sec-1"},
+        ):
+            offers = await wf._enumerate_offers()
+
+        assert len(offers) == 1
+        assert offers[0]["parent_gid"] is None
+
+    @pytest.mark.asyncio
+    async def test_section_targeted_opt_fields(self) -> None:
+        """Section-level fetch uses reduced opt_fields (no memberships)."""
+        wf, mock_asana, _, _ = _make_workflow()
+        mock_asana.tasks.list_async.side_effect = (
+            lambda **kw: _AsyncIterator([])
+        )
+
+        with patch(
+            _RESOLVE_PATCH,
+            return_value={"section": "sec-1"},
+        ):
+            await wf._enumerate_offers()
+
+        # Verify the section-level call used the correct opt_fields
+        call_kwargs = mock_asana.tasks.list_async.call_args[1]
+        assert call_kwargs.get("section") == "sec-1"
+        assert "memberships.section.name" not in call_kwargs.get("opt_fields", [])
+        assert "parent" in call_kwargs.get("opt_fields", [])
+        assert "parent.name" in call_kwargs.get("opt_fields", [])
+
+
+class TestEnumerateOffersFallbackOnResolutionFailure:
+    """Fallback path triggered by resolution failure."""
+
+    @pytest.mark.asyncio
+    async def test_fallback_on_resolution_exception(self) -> None:
+        """resolve_section_gids raises -> project-level fetch is used."""
+        t1 = _make_task("t1", "Offer 1", parent_gid="biz1")
+
+        wf, mock_asana, _, _ = _make_workflow(offers=[t1])
+
+        with patch(
+            _RESOLVE_PATCH,
+            side_effect=ConnectionError("API timeout"),
+        ):
+            offers = await wf._enumerate_offers()
+
+        assert len(offers) == 1
+        assert offers[0]["gid"] == "t1"
+        # Should have called project-level fetch
+        mock_asana.tasks.list_async.assert_called_once_with(
+            project=OFFER_PROJECT_GID,
+            opt_fields=[
+                "name",
+                "completed",
+                "parent",
+                "parent.name",
+                "memberships.section.name",
+            ],
+            completed_since="now",
+        )
+
+    @pytest.mark.asyncio
+    async def test_fallback_on_empty_resolution(self) -> None:
+        """resolve_section_gids returns empty dict -> project-level fetch is used."""
+        t1 = _make_task("t1", "Offer 1", parent_gid="biz1")
+
+        wf, mock_asana, _, _ = _make_workflow(offers=[t1])
+
+        with patch(
+            _RESOLVE_PATCH,
+            return_value={},
+        ):
+            offers = await wf._enumerate_offers()
+
+        assert len(offers) == 1
+        assert offers[0]["gid"] == "t1"
+        # Should have called project-level fetch (fallback)
+        mock_asana.tasks.list_async.assert_called_once()
+        call_kwargs = mock_asana.tasks.list_async.call_args[1]
+        assert call_kwargs.get("project") == OFFER_PROJECT_GID
+
+
+class TestEnumerateOffersFallbackOnPartialFetchFailure:
+    """Fallback triggered when one section fetch raises during gather."""
+
+    @pytest.mark.asyncio
+    async def test_partial_fetch_failure_triggers_full_fallback(self) -> None:
+        """One section fetch raises -> full fallback to project-level fetch."""
+        t1 = _make_task("t1", "Offer 1", parent_gid="biz1")
+
+        wf, mock_asana, _, _ = _make_workflow(offers=[t1])
+
+        call_count = 0
+
+        def list_async_dispatch(**kwargs):
+            nonlocal call_count
+            if kwargs.get("section") == "sec-good":
+                return _AsyncIterator([_make_section_task("t1", "Offer 1", "biz1")])
+            if kwargs.get("section") == "sec-bad":
+                # Return an iterator whose collect() raises
+                class _FailingIterator:
+                    async def collect(self):
+                        raise ConnectionError("section fetch failed")
+                return _FailingIterator()
+            # Project-level fallback
+            call_count += 1
+            return _AsyncIterator([t1])
+
+        mock_asana.tasks.list_async.side_effect = list_async_dispatch
+
+        with patch(
+            _RESOLVE_PATCH,
+            return_value={"good section": "sec-good", "bad section": "sec-bad"},
+        ):
+            offers = await wf._enumerate_offers()
+
+        # Should have fallen back to project-level fetch
+        assert call_count == 1
+        assert len(offers) == 1
+        assert offers[0]["gid"] == "t1"
+
+
+class TestEnumerateOffersDedup:
+    """Deduplication when same task appears in multiple sections."""
+
+    @pytest.mark.asyncio
+    async def test_dedup_multi_homed_task(self) -> None:
+        """Same task GID in 2 sections appears exactly once in result."""
+        # Same task in both sections
+        t1_sec1 = _make_section_task("t1", "Multi-Homed", parent_gid="biz1")
+        t1_sec2 = _make_section_task("t1", "Multi-Homed", parent_gid="biz1")
+        t2 = _make_section_task("t2", "Unique", parent_gid="biz2")
+
+        wf, mock_asana, _, _ = _make_workflow()
+
+        def list_async_dispatch(**kwargs):
+            if kwargs.get("section") == "sec-1":
+                return _AsyncIterator([t1_sec1, t2])
+            if kwargs.get("section") == "sec-2":
+                return _AsyncIterator([t1_sec2])
+            return _AsyncIterator([])
+
+        mock_asana.tasks.list_async.side_effect = list_async_dispatch
+
+        with patch(
+            _RESOLVE_PATCH,
+            return_value={"section a": "sec-1", "section b": "sec-2"},
+        ):
+            offers = await wf._enumerate_offers()
+
+        # t1 appears in both sections but should only be in result once
+        assert len(offers) == 2
+        gids = [o["gid"] for o in offers]
+        assert gids.count("t1") == 1
+        assert gids.count("t2") == 1
