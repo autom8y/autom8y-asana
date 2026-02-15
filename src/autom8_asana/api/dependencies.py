@@ -533,10 +533,26 @@ def get_section_service(
     return SectionService(invalidator=invalidator)
 
 
+def get_dataframe_service() -> DataFrameService:
+    """Get DataFrameService instance.
+
+    Stateless, cheap to create. Per-request lifecycle.
+    No constructor dependencies -- schema resolution uses
+    module-level cache backed by SchemaRegistry singleton.
+
+    Returns:
+        DataFrameService instance.
+    """
+    from autom8_asana.services.dataframe_service import DataFrameService
+
+    return DataFrameService()
+
+
 # Import types for Annotated aliases (lazy to avoid cycles)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from autom8_asana.services.dataframe_service import DataFrameService
     from autom8_asana.services.entity_service import EntityService
     from autom8_asana.services.section_service import SectionService
     from autom8_asana.services.task_service import TaskService
@@ -544,6 +560,7 @@ if TYPE_CHECKING:
 EntityServiceDep = Annotated["EntityService", Depends(get_entity_service)]
 TaskServiceDep = Annotated["TaskService", Depends(get_task_service)]
 SectionServiceDep = Annotated["SectionService", Depends(get_section_service)]
+DataFrameServiceDep = Annotated["DataFrameService", Depends(get_dataframe_service)]
 
 
 __all__ = [
@@ -558,9 +575,11 @@ __all__ = [
     "get_entity_service",
     "get_task_service",
     "get_section_service",
+    "get_dataframe_service",
     "EntityServiceDep",
     "TaskServiceDep",
     "SectionServiceDep",
+    "DataFrameServiceDep",
     # Legacy dependencies (backward compatibility)
     "get_asana_client",
     "get_asana_pat",
