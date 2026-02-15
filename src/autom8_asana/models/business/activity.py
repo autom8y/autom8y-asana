@@ -141,22 +141,29 @@ def extract_section_name(
 ) -> str | None:
     """Extract section name from task memberships.
 
-    Canonical implementation of section name extraction. DRYs the pattern
-    currently inline in Process.pipeline_state, BaseExtractor._extract_section,
-    and DataFrameView._extract_section.
+    Canonical implementation of section name extraction. Handles both
+    Task model objects (with .memberships attribute) and raw dicts
+    (with "memberships" key).
 
     Args:
-        task: Task instance with populated memberships.
+        task: Task instance or dict with memberships data.
         project_gid: Optional project GID to disambiguate multi-project tasks.
                      If provided, only memberships for that project are checked.
 
     Returns:
         Section name string or None if no section found.
     """
-    if not task.memberships:
+    # Duck-type: support both Task model (.memberships) and dict (.get("memberships"))
+    memberships = (
+        task.get("memberships") if isinstance(task, dict) else getattr(task, "memberships", None)
+    )
+    if not memberships:
         return None
 
-    for membership in task.memberships:
+    for membership in memberships:
+        if not isinstance(membership, dict):
+            continue
+
         if project_gid:
             project = membership.get("project", {})
             if isinstance(project, dict) and project.get("gid") != project_gid:
