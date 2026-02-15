@@ -16,13 +16,14 @@ Per TDD-ASANA-SATELLITE:
 - Responses use standard envelope: {"data": ..., "meta": {...}}
 """
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 
 from autom8_asana.api.dependencies import (
     AsanaClientDualMode,
     RequestId,
     SectionServiceDep,
 )
+from autom8_asana.api.errors import raise_service_error
 from autom8_asana.api.models import (
     AddTaskToSectionRequest,
     AsanaResource,
@@ -32,7 +33,7 @@ from autom8_asana.api.models import (
     UpdateSectionRequest,
     build_success_response,
 )
-from autom8_asana.services.errors import ServiceError, get_status_for_error
+from autom8_asana.services.errors import ServiceError
 
 router = APIRouter(prefix="/api/v1/sections", tags=["sections"])
 
@@ -62,7 +63,7 @@ async def get_section(
     try:
         section = await section_service.get_section(client, gid)
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
     return build_success_response(data=section, request_id=request_id)
 
 
@@ -92,7 +93,7 @@ async def create_section(
             client, name=body.name, project=body.project
         )
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
     return build_success_response(data=section, request_id=request_id)
 
 
@@ -121,7 +122,7 @@ async def update_section(
     try:
         section = await section_service.update_section(client, gid, body.name)
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
     return build_success_response(data=section, request_id=request_id)
 
 
@@ -134,6 +135,7 @@ async def update_section(
 async def delete_section(
     gid: str,
     client: AsanaClientDualMode,
+    request_id: RequestId,
     section_service: SectionServiceDep,
 ) -> None:
     """Delete a section.
@@ -147,7 +149,7 @@ async def delete_section(
     try:
         await section_service.delete_section(client, gid)
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
 
 
 # --- Task Operations ---
@@ -163,6 +165,7 @@ async def add_task_to_section(
     gid: str,
     body: AddTaskToSectionRequest,
     client: AsanaClientDualMode,
+    request_id: RequestId,
     section_service: SectionServiceDep,
 ) -> None:
     """Add a task to a section.
@@ -177,7 +180,7 @@ async def add_task_to_section(
     try:
         await section_service.add_task(client, gid, body.task_gid)
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
 
 
 # --- Reorder Operations ---
@@ -192,6 +195,7 @@ async def reorder_section(
     gid: str,
     body: ReorderSectionRequest,
     client: AsanaClientDualMode,
+    request_id: RequestId,
     section_service: SectionServiceDep,
 ) -> None:
     """Reorder a section within a project.
@@ -218,7 +222,7 @@ async def reorder_section(
             after_section=body.after_section,
         )
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
 
 
 __all__ = ["router"]

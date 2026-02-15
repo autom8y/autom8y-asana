@@ -29,13 +29,14 @@ Per TDD-ASANA-SATELLITE:
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 
 from autom8_asana.api.dependencies import (
     AsanaClientDualMode,
     RequestId,
     TaskServiceDep,
 )
+from autom8_asana.api.errors import raise_service_error
 from autom8_asana.api.models import (
     AddTagRequest,
     AddToProjectRequest,
@@ -49,7 +50,7 @@ from autom8_asana.api.models import (
     UpdateTaskRequest,
     build_success_response,
 )
-from autom8_asana.services.errors import ServiceError, get_status_for_error
+from autom8_asana.services.errors import ServiceError
 from autom8_asana.services.task_service import CreateTaskParams, UpdateTaskParams
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
@@ -107,7 +108,7 @@ async def list_tasks(
             client, project=project, section=section, limit=limit, offset=offset
         )
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
 
     pagination = PaginationMeta(
         limit=limit,
@@ -154,7 +155,7 @@ async def get_task(
     try:
         task = await task_service.get_task(client, gid, opt_fields=fields_list)
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
     return build_success_response(data=task, request_id=request_id)
 
 
@@ -195,7 +196,7 @@ async def create_task(
             ),
         )
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
 
     return build_success_response(data=task, request_id=request_id)
 
@@ -236,7 +237,7 @@ async def update_task(
             ),
         )
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
 
     return build_success_response(data=task, request_id=request_id)
 
@@ -250,6 +251,7 @@ async def update_task(
 async def delete_task(
     gid: str,
     client: AsanaClientDualMode,
+    request_id: RequestId,
     task_service: TaskServiceDep,
 ) -> None:
     """Delete a task.
@@ -263,7 +265,7 @@ async def delete_task(
     try:
         await task_service.delete_task(client, gid)
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
 
 
 # --- Related Operations ---
@@ -303,7 +305,7 @@ async def list_subtasks(
             client, gid, limit=limit, offset=offset
         )
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
 
     pagination = PaginationMeta(
         limit=limit,
@@ -350,7 +352,7 @@ async def list_dependents(
             client, gid, limit=limit, offset=offset
         )
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
 
     pagination = PaginationMeta(
         limit=limit,
@@ -389,7 +391,7 @@ async def duplicate_task(
     try:
         task = await task_service.duplicate_task(client, gid, body.name)
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
     return build_success_response(data=task, request_id=request_id)
 
 
@@ -421,7 +423,7 @@ async def add_tag(
     try:
         task_data = await task_service.add_tag(client, gid, body.tag_gid)
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
     return build_success_response(data=task_data, request_id=request_id)
 
 
@@ -450,7 +452,7 @@ async def remove_tag(
     try:
         task_data = await task_service.remove_tag(client, gid, tag_gid)
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
     return build_success_response(data=task_data, request_id=request_id)
 
 
@@ -484,7 +486,7 @@ async def move_to_section(
             client, gid, body.section_gid, body.project_gid
         )
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
     return build_success_response(data=task_data, request_id=request_id)
 
 
@@ -513,7 +515,7 @@ async def set_assignee(
     try:
         task = await task_service.set_assignee(client, gid, body.assignee_gid)
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
     return build_success_response(data=task, request_id=request_id)
 
 
@@ -542,7 +544,7 @@ async def add_to_project(
     try:
         task_data = await task_service.add_to_project(client, gid, body.project_gid)
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
     return build_success_response(data=task_data, request_id=request_id)
 
 
@@ -571,7 +573,7 @@ async def remove_from_project(
     try:
         task_data = await task_service.remove_from_project(client, gid, project_gid)
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
     return build_success_response(data=task_data, request_id=request_id)
 
 
