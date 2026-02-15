@@ -15,6 +15,11 @@ from autom8_asana.models.project import Project
 from autom8_asana.models.section import Section
 from autom8_asana.observability import error_handler
 from autom8_asana.patterns import async_method
+from autom8_asana.settings import get_settings
+
+# Cache TTL for project data (15 minutes)
+# Configurable via ASANA_CACHE_TTL_PROJECT environment variable
+PROJECT_CACHE_TTL = get_settings().cache.ttl_project
 
 
 class ProjectsClient(BaseClient):
@@ -114,7 +119,7 @@ class ProjectsClient(BaseClient):
         data = await self._http.get(f"/projects/{project_gid}", params=params)
 
         # Step 5: Store in cache (15 min TTL)
-        self._cache_set(project_gid, data, EntryType.PROJECT, ttl=900)
+        self._cache_set(project_gid, data, EntryType.PROJECT, ttl=PROJECT_CACHE_TTL)
 
         # Step 6: Return model or raw dict
         if raw:
