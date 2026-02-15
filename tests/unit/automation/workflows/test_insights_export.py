@@ -37,9 +37,18 @@ from autom8_asana.clients.data.models import (
 
 
 def _make_task(
-    gid: str, name: str, parent_gid: str | None = None, completed: bool = False
+    gid: str,
+    name: str,
+    parent_gid: str | None = None,
+    completed: bool = False,
+    section_name: str = "ACTIVE",
 ) -> MagicMock:
-    """Create a mock task object."""
+    """Create a mock task object.
+
+    Args:
+        section_name: Section name for membership (default "ACTIVE" to pass
+            activity filtering). Set to None-ish or non-ACTIVE to test filtering.
+    """
     task = MagicMock()
     task.gid = gid
     task.name = name
@@ -49,6 +58,7 @@ def _make_task(
         task.parent.gid = parent_gid
     else:
         task.parent = None
+    task.memberships = [{"section": {"name": section_name}}] if section_name else []
     return task
 
 
@@ -147,7 +157,7 @@ def _make_workflow(
 
     # Enumerate offers
     offer_list = offers or []
-    mock_asana.tasks.list_for_project_async.return_value = _AsyncIterator(offer_list)
+    mock_asana.tasks.list_async.return_value = _AsyncIterator(offer_list)
 
     # Resolve parent: get_async returns the offer task (for parent ref)
     offer_by_gid = {o.gid: o for o in offer_list}
@@ -285,7 +295,7 @@ class TestEnumeration:
             "o2", "Completed Offer", parent_gid="biz2", completed=True
         )
         mock_asana = MagicMock()
-        mock_asana.tasks.list_for_project_async.return_value = _AsyncIterator(
+        mock_asana.tasks.list_async.return_value = _AsyncIterator(
             [active_offer, completed_offer]
         )
 
@@ -313,9 +323,15 @@ class TestEnumeration:
         wf, mock_asana, _, _ = _make_workflow(offers=[])
         await wf.execute_async(_default_params())
 
-        mock_asana.tasks.list_for_project_async.assert_called_once_with(
-            OFFER_PROJECT_GID,
-            opt_fields=["name", "completed", "parent", "parent.name"],
+        mock_asana.tasks.list_async.assert_called_once_with(
+            project=OFFER_PROJECT_GID,
+            opt_fields=[
+                "name",
+                "completed",
+                "parent",
+                "parent.name",
+                "memberships.section.name",
+            ],
             completed_since="now",
         )
 

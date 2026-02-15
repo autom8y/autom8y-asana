@@ -251,28 +251,65 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
     # --- Private Methods ---
 
     async def _enumerate_offers(self) -> list[dict[str, Any]]:
-        """List all active (non-completed) Offer tasks in BusinessOffers project.
+        """List ACTIVE (non-completed) Offer tasks in BusinessOffers project.
 
-        Uses paginated task listing with completed_since=now filter.
+        Uses section-based activity classification to filter out inactive,
+        activating, and ignored offers. Only ACTIVE offers are returned.
 
         Returns:
             List of dicts with {gid, name, parent_gid} fields.
         """
-        page_iterator = self._asana_client.tasks.list_for_project_async(
-            OFFER_PROJECT_GID,
-            opt_fields=["name", "completed", "parent", "parent.name"],
+        from autom8_asana.models.business.activity import (
+            AccountActivity,
+            OFFER_CLASSIFIER,
+        )
+
+        page_iterator = self._asana_client.tasks.list_async(
+            project=OFFER_PROJECT_GID,
+            opt_fields=[
+                "name",
+                "completed",
+                "parent",
+                "parent.name",
+                "memberships.section.name",
+            ],
             completed_since="now",
         )
         tasks = await page_iterator.collect()
-        return [
-            {
+
+        offers = []
+        skipped = 0
+        for t in tasks:
+            if t.completed:
+                continue
+
+            # Classify by section membership
+            section_name = None
+            for m in getattr(t, "memberships", None) or []:
+                sec = m.get("section", {}) if isinstance(m, dict) else getattr(m, "section", None)
+                if sec:
+                    section_name = sec.get("name") if isinstance(sec, dict) else getattr(sec, "name", None)
+                    break
+
+            activity = OFFER_CLASSIFIER.classify(section_name) if section_name else None
+            if activity != AccountActivity.ACTIVE:
+                skipped += 1
+                continue
+
+            offers.append({
                 "gid": t.gid,
                 "name": t.name,
                 "parent_gid": t.parent.gid if t.parent else None,
-            }
-            for t in tasks
-            if not t.completed
-        ]
+            })
+
+        if skipped:
+            logger.info(
+                "insights_export_offers_filtered",
+                active=len(offers),
+                skipped=skipped,
+            )
+
+        return offers
 
     async def _process_offer(
         self,

@@ -19,6 +19,7 @@ from autom8_asana.automation.workflows.conversation_audit import (
 )
 from autom8_asana.clients.data.models import ExportResult
 from autom8_asana.exceptions import ExportError
+from autom8_asana.models.business.activity import AccountActivity
 
 # --- Helpers ---
 
@@ -129,7 +130,7 @@ class TestConversationAuditE2E:
 
         # Setup mock Asana client
         mock_asana = MagicMock()
-        mock_asana.tasks.list_for_project_async.return_value = _AsyncIterator(
+        mock_asana.tasks.list_async.return_value = _AsyncIterator(
             all_holders
         )
 
@@ -190,6 +191,10 @@ class TestConversationAuditE2E:
             attachments_client=mock_attachments,
         )
 
+        # Pre-populate activity map: all parent Businesses are ACTIVE
+        for gid in parent_tasks:
+            workflow._activity_map[gid] = AccountActivity.ACTIVE
+
         # Execute
         result = await workflow.execute_async(
             {
@@ -223,7 +228,7 @@ class TestConversationAuditE2E:
     async def test_validate_then_execute(self) -> None:
         """Test the full validate -> execute lifecycle as called by scheduler/lambda."""
         mock_asana = MagicMock()
-        mock_asana.tasks.list_for_project_async.return_value = _AsyncIterator([])
+        mock_asana.tasks.list_async.return_value = _AsyncIterator([])
         mock_asana.tasks.get_async = AsyncMock()
 
         mock_data_client = MagicMock()
