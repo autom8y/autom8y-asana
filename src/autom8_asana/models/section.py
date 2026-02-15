@@ -126,9 +126,9 @@ class Section(AsanaResource):
             ['gid', 'name', 'type', 'mrr', ...]
         """
         from autom8_asana.dataframes.builders.section import SectionDataFrameBuilder
-        from autom8_asana.dataframes.models.registry import SchemaRegistry
+        from autom8_asana.dataframes.models.registry import get_schema
 
-        schema = SchemaRegistry.get_instance().get_schema(task_type)
+        schema = get_schema(task_type)
         builder = SectionDataFrameBuilder(
             section=self,
             task_type=task_type,

@@ -450,7 +450,7 @@ async def _do_incremental_catchup(
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
     from autom8_asana.config import get_workspace_gid
     from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
-    from autom8_asana.dataframes.models.registry import SchemaRegistry
+    from autom8_asana.dataframes.models.registry import get_schema
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
     from autom8_asana.dataframes.section_persistence import create_section_persistence
     from autom8_asana.services.resolver import to_pascal_case
@@ -478,7 +478,7 @@ async def _do_incremental_catchup(
         async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
             # Select schema based on entity type (falls back to BASE_SCHEMA)
             task_type = to_pascal_case(entity_type)  # "unit" -> "Unit"
-            schema = SchemaRegistry.get_instance().get_schema(task_type)
+            schema = get_schema(task_type)
 
             resolver = DefaultCustomFieldResolver()
             section_persistence = create_section_persistence()
@@ -551,7 +551,7 @@ async def _do_full_rebuild(
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
     from autom8_asana.config import get_workspace_gid
     from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
-    from autom8_asana.dataframes.models.registry import SchemaRegistry
+    from autom8_asana.dataframes.models.registry import get_schema
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
     from autom8_asana.dataframes.section_persistence import create_section_persistence
     from autom8_asana.services.resolver import to_pascal_case
@@ -580,7 +580,7 @@ async def _do_full_rebuild(
         async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
             # Select schema based on entity type (falls back to BASE_SCHEMA)
             task_type = to_pascal_case(entity_type)  # "unit" -> "Unit"
-            schema = SchemaRegistry.get_instance().get_schema(task_type)
+            schema = get_schema(task_type)
 
             resolver = DefaultCustomFieldResolver()
             section_persistence = create_section_persistence()

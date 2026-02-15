@@ -87,7 +87,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
     from autom8_asana.dataframes.builders.progressive import (
         ProgressiveProjectBuilder,
     )
-    from autom8_asana.dataframes.models.registry import SchemaRegistry
+    from autom8_asana.dataframes.models.registry import get_schema
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
     from autom8_asana.dataframes.section_persistence import SectionPersistence
     from autom8_asana.dataframes.watermark import get_watermark_repo
@@ -288,7 +288,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                             token=bot_pat, workspace_gid=workspace_gid
                         ) as client:
                             task_type = to_pascal_case(entity_type)
-                            schema = SchemaRegistry.get_instance().get_schema(task_type)
+                            schema = get_schema(task_type)
                             resolver = DefaultCustomFieldResolver()
 
                             builder = ProgressiveProjectBuilder(
