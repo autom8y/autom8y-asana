@@ -104,6 +104,11 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         self._asana_client = asana_client
         self._data_client = data_client
         self._attachments_client = attachments_client
+        # Dedup cache: parent_gid -> (office_phone, vertical, business_name)
+        # Per AT3-001: eliminates redundant Business fetches across offers
+        # sharing the same parent Business. Same pattern as
+        # conversation_audit.py._activity_map.
+        self._business_cache: dict[str, tuple[str, str, str | None] | None] = {}
 
     @property
     def workflow_id(self) -> str:  # type: ignore[override]  # read-only property overrides base attribute
@@ -196,6 +201,17 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
 
         await asyncio.gather(
             *[process_one(o["gid"], o.get("name"), o.get("parent_gid")) for o in offers]
+        )
+
+        # Log Business cache summary for observability (per AT3-001)
+        logger.info(
+            "insights_business_cache_summary",
+            extra={
+                "total_offers": len(offers),
+                "unique_businesses": len(self._business_cache),
+                "cache_hits": len(offers) - len(self._business_cache),
+                "api_calls_saved": len(offers) - len(self._business_cache),
+            },
         )
 
         # Step 3: Aggregate results
@@ -577,7 +593,20 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 return None
             parent_gid = offer_task.parent.gid
 
-        # Use ResolutionContext to resolve Business
+        # Check dedup cache first (per AT3-001: same pattern as
+        # conversation_audit._activity_map)
+        if parent_gid in self._business_cache:
+            cached = self._business_cache[parent_gid]
+            logger.debug(
+                "insights_business_cache_hit",
+                extra={
+                    "offer_gid": offer_gid,
+                    "parent_gid": parent_gid,
+                },
+            )
+            return cached
+
+        # Cache miss -- resolve via ResolutionContext
         async with ResolutionContext(
             self._asana_client,
             business_gid=parent_gid,
@@ -588,9 +617,14 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             business_name = business.name
 
         if not office_phone or not vertical:
-            return None
+            result = None
+        else:
+            result = (office_phone, vertical, business_name)
 
-        return (office_phone, vertical, business_name)
+        # Populate dedup cache
+        self._business_cache[parent_gid] = result
+
+        return result
 
     async def _fetch_all_tables(
         self,
