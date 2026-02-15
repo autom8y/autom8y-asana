@@ -242,7 +242,8 @@ class DataFrameService:
             f"/sections/{section_gid}",
             params={"opt_fields": "project.gid"},
         )
-        project_gid = section_data.get("project", {}).get("gid")
+        project_data = section_data.get("project") or {}
+        project_gid = project_data.get("gid") if isinstance(project_data, dict) else None
 
         if not project_gid:
             raise EntityNotFoundError("Section not found or has no parent project")
