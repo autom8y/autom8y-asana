@@ -33,6 +33,8 @@ from typing import (
 
 from autom8y_log import get_logger
 
+from autom8_asana.exceptions import CircuitBreakerOpenError
+
 logger = get_logger(__name__)
 
 T = TypeVar("T")
@@ -393,26 +395,6 @@ class RetryBudget:
 # ---------------------------------------------------------------------------
 # CircuitBreaker
 # ---------------------------------------------------------------------------
-
-
-class CircuitBreakerOpenError(Exception):
-    """Raised when an operation is rejected because the circuit breaker is open.
-
-    Attributes:
-        backend: The backend subsystem name.
-        operation: The operation that was rejected.
-    """
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        backend: str = "unknown",
-        operation: str = "unknown",
-    ) -> None:
-        super().__init__(message)
-        self.backend = backend
-        self.operation = operation
 
 
 class CircuitBreaker:

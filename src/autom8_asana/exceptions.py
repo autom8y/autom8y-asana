@@ -202,21 +202,25 @@ class SyncInAsyncContextError(RuntimeError):
 
 
 class CircuitBreakerOpenError(AsanaError):
-    """Raised when circuit breaker is open.
+    """Raised when an operation is rejected because the circuit breaker is open.
 
     Per ADR-0048: Fast-fail when service appears degraded.
 
     Attributes:
-        time_until_recovery: Seconds until circuit breaker enters half-open state
+        backend: The backend subsystem name.
+        operation: The operation that was rejected.
     """
 
-    def __init__(self, time_until_recovery: float) -> None:
-        self.time_until_recovery = time_until_recovery
-        super().__init__(
-            f"Circuit breaker open. Service appears degraded. "
-            f"Retry in {time_until_recovery:.1f}s. "
-            f"Check Asana status: https://status.asana.com/"
-        )
+    def __init__(
+        self,
+        message: str,
+        *,
+        backend: str = "unknown",
+        operation: str = "unknown",
+    ) -> None:
+        super().__init__(message)
+        self.backend = backend
+        self.operation = operation
 
 
 class NameNotFoundError(AsanaError):
