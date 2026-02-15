@@ -251,13 +251,99 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
     # --- Private Methods ---
 
     async def _enumerate_offers(self) -> list[dict[str, Any]]:
-        """List ACTIVE (non-completed) Offer tasks in BusinessOffers project.
+        """List ACTIVE (non-completed) Offer tasks using section-targeted fetch.
 
-        Uses section-based activity classification to filter out inactive,
-        activating, and ignored offers. Only ACTIVE offers are returned.
+        Primary path: resolve ACTIVE section GIDs, fetch tasks per section
+        in parallel (Semaphore(5)), merge and deduplicate by GID.
 
-        Returns:
-            List of dicts with {gid, name, parent_gid} fields.
+        Fallback: project-level fetch with client-side classification (current behavior).
+        """
+        from autom8_asana.automation.workflows.section_resolution import (
+            resolve_section_gids,
+        )
+        from autom8_asana.models.business.activity import (
+            AccountActivity,
+            OFFER_CLASSIFIER,
+        )
+
+        active_section_names = OFFER_CLASSIFIER.sections_for(AccountActivity.ACTIVE)
+
+        # Resolve section GIDs
+        try:
+            resolved = await resolve_section_gids(
+                self._asana_client.sections,
+                OFFER_PROJECT_GID,
+                active_section_names,
+            )
+        except Exception:
+            logger.warning(
+                "section_resolution_failed_fallback",
+                workflow_id=self.workflow_id,
+                project_gid=OFFER_PROJECT_GID,
+            )
+            return await self._enumerate_offers_fallback()
+
+        if not resolved:
+            logger.warning(
+                "section_resolution_empty_fallback",
+                workflow_id=self.workflow_id,
+                project_gid=OFFER_PROJECT_GID,
+            )
+            return await self._enumerate_offers_fallback()
+
+        # Parallel section fetch with bounded concurrency
+        semaphore = asyncio.Semaphore(5)
+
+        async def fetch_section(section_gid: str) -> list:
+            async with semaphore:
+                return await self._asana_client.tasks.list_async(
+                    section=section_gid,
+                    opt_fields=["name", "completed", "parent", "parent.name"],
+                    completed_since="now",
+                ).collect()
+
+        results = await asyncio.gather(
+            *[fetch_section(gid) for gid in resolved.values()],
+            return_exceptions=True,
+        )
+
+        # If any section fetch failed, fall back entirely
+        if any(isinstance(r, Exception) for r in results):
+            logger.warning(
+                "section_fetch_partial_failure_fallback",
+                workflow_id=self.workflow_id,
+                project_gid=OFFER_PROJECT_GID,
+                failed_count=sum(1 for r in results if isinstance(r, Exception)),
+            )
+            return await self._enumerate_offers_fallback()
+
+        # Flatten, dedup by GID, build offer dicts
+        seen_gids: set[str] = set()
+        offers: list[dict[str, Any]] = []
+        for section_tasks in results:
+            for t in section_tasks:
+                if t.completed or t.gid in seen_gids:
+                    continue
+                seen_gids.add(t.gid)
+                offers.append({
+                    "gid": t.gid,
+                    "name": t.name,
+                    "parent_gid": t.parent.gid if t.parent else None,
+                })
+
+        logger.info(
+            "insights_section_targeted_enumeration",
+            sections_targeted=len(resolved),
+            tasks_enumerated=len(offers),
+        )
+
+        return offers
+
+    async def _enumerate_offers_fallback(self) -> list[dict[str, Any]]:
+        """Fallback: project-level fetch with client-side ACTIVE classification.
+
+        This is the pre-migration enumeration logic, preserved verbatim for
+        resilience when section resolution or section-level fetch fails.
         """
         from autom8_asana.models.business.activity import (
             AccountActivity,
@@ -304,9 +390,10 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
 
         if skipped:
             logger.info(
-                "insights_export_offers_filtered",
+                "insights_export_offers_filtered_fallback",
                 active=len(offers),
                 skipped=skipped,
+                fallback=True,
             )
 
         return offers
