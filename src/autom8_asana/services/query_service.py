@@ -31,6 +31,8 @@ from autom8_asana.cache.integration.dataframe_cache import FreshnessInfo
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
+    from autom8_asana.metrics.resolve import SectionIndex
+    from autom8_asana.query.models import RowsRequest
     from autom8_asana.services.universal_strategy import UniversalResolutionStrategy
 
 __all__ = [
@@ -38,6 +40,8 @@ __all__ = [
     "QueryResult",
     "EntityQueryService",
     "resolve_section",
+    "resolve_section_index",
+    "strip_section_conflicts",
     "validate_fields",
 ]
 
@@ -142,6 +146,93 @@ async def resolve_section(
         return section_name
 
     raise UnknownSectionError(section_name)
+
+
+async def resolve_section_index(
+    section_name: str | None,
+    entity_type: str,
+    project_gid: str,
+) -> SectionIndex | None:
+    """Build section index with manifest-first, enum-fallback strategy.
+
+    Used by query_v2.py endpoints to construct a SectionIndex for
+    QueryEngine without duplicating the manifest/enum resolution pattern.
+
+    Returns None if section_name is None.
+
+    Args:
+        section_name: Section name to build index for. None means no section filtering.
+        entity_type: Entity type for enum fallback.
+        project_gid: Project GID for manifest lookup.
+
+    Returns:
+        SectionIndex if section_name is provided, None otherwise.
+    """
+    if section_name is None:
+        return None
+
+    from autom8_asana.dataframes.section_persistence import create_section_persistence
+    from autom8_asana.metrics.resolve import SectionIndex
+
+    persistence = create_section_persistence()
+    section_index = await SectionIndex.from_manifest_async(persistence, project_gid)
+    if section_index.resolve(section_name) is None:
+        section_index = SectionIndex.from_enum_fallback(entity_type)
+    return section_index
+
+
+def _has_section_pred(node: Any) -> bool:
+    """Check if a predicate tree contains any section comparisons.
+
+    Walks the predicate tree (Comparison, And, Or, Not nodes) looking
+    for any Comparison with field == "section".
+
+    Args:
+        node: Root of the predicate tree.
+
+    Returns:
+        True if any section comparison found.
+    """
+    from autom8_asana.query.models import Comparison
+
+    if isinstance(node, Comparison):
+        return node.field == "section"
+    if hasattr(node, "and_"):
+        return any(_has_section_pred(c) for c in node.and_)
+    if hasattr(node, "or_"):
+        return any(_has_section_pred(c) for c in node.or_)
+    if hasattr(node, "not_"):
+        return _has_section_pred(node.not_)
+    return False
+
+
+def strip_section_conflicts(
+    request_body: RowsRequest,
+    section_name: str | None,
+) -> RowsRequest:
+    """Strip section predicates if section parameter conflicts.
+
+    Per EC-006: When both ?section param and predicate tree contain
+    section comparisons, the param wins and predicates are stripped.
+
+    Returns the request unmodified if no conflict exists.
+
+    Args:
+        request_body: The RowsRequest containing optional predicate tree.
+        section_name: The section query parameter (None if absent).
+
+    Returns:
+        The request, potentially with section predicates stripped from where clause.
+    """
+    if section_name is None or request_body.where is None:
+        return request_body
+    if not _has_section_pred(request_body.where):
+        return request_body
+
+    from autom8_asana.query.compiler import strip_section_predicates
+
+    stripped = strip_section_predicates(request_body.where)
+    return request_body.model_copy(update={"where": stripped})
 
 
 class CacheNotWarmError(Exception):

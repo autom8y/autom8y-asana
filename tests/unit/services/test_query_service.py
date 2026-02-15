@@ -1,7 +1,7 @@
 """Unit tests for QueryService functions.
 
-Tests for validate_fields() and resolve_section() functions
-extracted from query.py during I2-S2 wiring.
+Tests for validate_fields(), resolve_section(), resolve_section_index(),
+and strip_section_conflicts() functions in the query service layer.
 """
 
 from __future__ import annotations
@@ -11,7 +11,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from autom8_asana.services.errors import InvalidFieldError, UnknownSectionError
-from autom8_asana.services.query_service import resolve_section, validate_fields
+from autom8_asana.services.query_service import (
+    resolve_section,
+    resolve_section_index,
+    strip_section_conflicts,
+    validate_fields,
+)
 
 
 class TestValidateFields:
@@ -233,3 +238,168 @@ class TestResolveSection:
             result = await resolve_section("ACTIVE", "offer", "proj-123")
 
         assert result == "ACTIVE"
+
+
+class TestResolveSectionIndex:
+    """Tests for resolve_section_index() function."""
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_section_name_is_none(self) -> None:
+        """Returns None when section_name is None (no section filtering)."""
+        result = await resolve_section_index(None, "offer", "proj-123")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_manifest_first_strategy(self) -> None:
+        """Returns manifest-based section index when manifest resolves."""
+        mock_manifest_index = MagicMock()
+        mock_manifest_index.resolve.return_value = "gid-123"
+
+        with (
+            patch(
+                "autom8_asana.dataframes.section_persistence.create_section_persistence",
+            ) as mock_create,
+            patch(
+                "autom8_asana.metrics.resolve.SectionIndex.from_manifest_async",
+                new_callable=AsyncMock,
+                return_value=mock_manifest_index,
+            ),
+        ):
+            mock_create.return_value = MagicMock()
+
+            result = await resolve_section_index("ACTIVE", "offer", "proj-123")
+
+        assert result is mock_manifest_index
+
+    @pytest.mark.asyncio
+    async def test_enum_fallback_when_manifest_fails(self) -> None:
+        """Falls back to enum when manifest resolution returns None."""
+        mock_manifest_index = MagicMock()
+        mock_manifest_index.resolve.return_value = None
+
+        mock_enum_index = MagicMock()
+
+        with (
+            patch(
+                "autom8_asana.dataframes.section_persistence.create_section_persistence",
+            ) as mock_create,
+            patch(
+                "autom8_asana.metrics.resolve.SectionIndex.from_manifest_async",
+                new_callable=AsyncMock,
+                return_value=mock_manifest_index,
+            ),
+            patch(
+                "autom8_asana.metrics.resolve.SectionIndex.from_enum_fallback",
+                return_value=mock_enum_index,
+            ),
+        ):
+            mock_create.return_value = MagicMock()
+
+            result = await resolve_section_index("ACTIVE", "offer", "proj-123")
+
+        assert result is mock_enum_index
+
+
+class TestStripSectionConflicts:
+    """Tests for strip_section_conflicts() function."""
+
+    def _make_rows_request(
+        self, where=None, section: str | None = None
+    ) -> MagicMock:
+        """Create a mock RowsRequest-like object for testing.
+
+        Uses the real RowsRequest model to ensure compatibility.
+        """
+        from autom8_asana.query.models import RowsRequest
+
+        kwargs: dict = {}
+        if section is not None:
+            kwargs["section"] = section
+        if where is not None:
+            kwargs["where"] = where
+        return RowsRequest(**kwargs)
+
+    def test_no_conflict_when_section_is_none(self) -> None:
+        """Returns request unmodified when section_name is None."""
+        request = self._make_rows_request(
+            where={"field": "section", "op": "eq", "value": "ACTIVE"}
+        )
+        result = strip_section_conflicts(request, None)
+        assert result is request
+
+    def test_no_conflict_when_where_is_none(self) -> None:
+        """Returns request unmodified when where clause is None."""
+        request = self._make_rows_request(section="ACTIVE")
+        result = strip_section_conflicts(request, "ACTIVE")
+        assert result is request
+
+    def test_no_conflict_when_no_section_in_predicate(self) -> None:
+        """Returns request unmodified when predicate has no section fields."""
+        request = self._make_rows_request(
+            where={"field": "vertical", "op": "eq", "value": "dental"},
+            section="ACTIVE",
+        )
+        result = strip_section_conflicts(request, "ACTIVE")
+        assert result is request
+
+    def test_strips_section_predicate_on_conflict(self) -> None:
+        """Strips section predicates when section param and predicate both present."""
+        request = self._make_rows_request(
+            where={
+                "and": [
+                    {"field": "section", "op": "eq", "value": "ACTIVE"},
+                    {"field": "vertical", "op": "eq", "value": "dental"},
+                ]
+            },
+            section="PAUSED",
+        )
+        result = strip_section_conflicts(request, "PAUSED")
+
+        # Should return a new request with section predicates stripped
+        assert result is not request
+        # The vertical predicate should survive
+        assert result.where is not None
+
+    def test_returns_none_where_when_only_section_predicate(self) -> None:
+        """When the only predicate is a section comparison, where becomes None."""
+        request = self._make_rows_request(
+            where={"field": "section", "op": "eq", "value": "ACTIVE"},
+            section="PAUSED",
+        )
+        result = strip_section_conflicts(request, "PAUSED")
+
+        # The section predicate should be stripped, leaving None
+        assert result.where is None
+
+
+class TestEntityServiceProjectRegistry:
+    """Tests for EntityService.project_registry property."""
+
+    def test_project_registry_property_returns_registry(self) -> None:
+        """project_registry property exposes _project_registry."""
+        from autom8_asana.services.entity_service import EntityService
+
+        mock_entity_registry = MagicMock()
+        mock_project_registry = MagicMock()
+
+        service = EntityService(
+            entity_registry=mock_entity_registry,
+            project_registry=mock_project_registry,
+        )
+
+        assert service.project_registry is mock_project_registry
+
+    def test_project_registry_is_read_only(self) -> None:
+        """project_registry property is read-only (no setter)."""
+        from autom8_asana.services.entity_service import EntityService
+
+        mock_entity_registry = MagicMock()
+        mock_project_registry = MagicMock()
+
+        service = EntityService(
+            entity_registry=mock_entity_registry,
+            project_registry=mock_project_registry,
+        )
+
+        with pytest.raises(AttributeError):
+            service.project_registry = MagicMock()  # type: ignore[misc]
