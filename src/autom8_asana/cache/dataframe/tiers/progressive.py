@@ -175,7 +175,7 @@ class ProgressiveTier:
 
                 wm_data = json.loads(wm_bytes.decode("utf-8"))
                 schema_version = wm_data.get("schema_version")
-        except Exception:  # BROAD-CATCH: graceful degradation for metadata
+        except (*S3_TRANSPORT_ERRORS, ValueError, KeyError, UnicodeDecodeError):  # graceful degradation for metadata
             pass
 
         if schema_version is None:
@@ -285,7 +285,7 @@ class ProgressiveTier:
             storage = self.persistence.storage
             df, _wm = await storage.load_dataframe(project_gid)
             return df is not None
-        except Exception:  # BROAD-CATCH: graceful degradation
+        except S3_TRANSPORT_ERRORS:  # graceful degradation
             return False
 
     async def delete_async(self, key: str) -> bool:
