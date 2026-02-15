@@ -56,9 +56,9 @@ async def _swr_build_callback(
         logger.warning("swr_build_no_bot_pat", extra={"project_gid": project_gid})
         return
 
-    import os
+    from autom8_asana.config import get_workspace_gid
 
-    workspace_gid = os.environ.get("ASANA_WORKSPACE_GID")
+    workspace_gid = get_workspace_gid()
     if not workspace_gid:
         logger.warning("swr_build_no_workspace", extra={"project_gid": project_gid})
         return

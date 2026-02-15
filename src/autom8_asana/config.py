@@ -60,9 +60,25 @@ __all__ = [
     "PlatformRateLimiterConfig",
     "PlatformRetryConfig",
     "PlatformCircuitBreakerConfig",
+    # Accessors
+    "get_workspace_gid",
 ]
 
 logger = get_logger(__name__)
+
+
+# =============================================================================
+# Environment Accessors
+# =============================================================================
+
+
+def get_workspace_gid() -> str | None:
+    """Get workspace GID from settings (ASANA_WORKSPACE_GID env var).
+
+    Returns:
+        Workspace GID string if configured, None otherwise.
+    """
+    return get_settings().asana.workspace_gid
 
 
 # =============================================================================

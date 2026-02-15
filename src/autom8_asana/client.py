@@ -27,14 +27,13 @@ from autom8_asana.clients.teams import TeamsClient
 from autom8_asana.clients.users import UsersClient
 from autom8_asana.clients.webhooks import WebhooksClient
 from autom8_asana.clients.workspaces import WorkspacesClient
-from autom8_asana.config import AsanaConfig
+from autom8_asana.config import AsanaConfig, get_workspace_gid
 from autom8_asana.exceptions import AsanaError, AuthenticationError, ConfigurationError
 
 logger = get_logger(__name__)
 
 from autom8_asana.persistence import SaveSession
 from autom8_asana.protocols.cache import WarmResult
-from autom8_asana.settings import get_settings
 from autom8_asana.transport.asana_http import AsanaHttpClient
 
 if TYPE_CHECKING:
@@ -47,19 +46,6 @@ if TYPE_CHECKING:
     from autom8_asana.protocols.observability import ObservabilityHook
     from autom8_asana.search import SearchService
 
-
-def _get_workspace_gid_from_env() -> str | None:
-    """Get workspace GID from ASANA_WORKSPACE_GID environment variable.
-
-    Returns:
-        Workspace GID if ASANA_WORKSPACE_GID is set, None otherwise.
-
-    Example:
-        # export ASANA_WORKSPACE_GID=1234567890123456
-        gid = _get_workspace_gid_from_env()  # Returns "1234567890123456"
-    """
-    settings = get_settings()
-    return settings.asana.workspace_gid
 
 
 class AsanaClient:
@@ -206,7 +192,7 @@ class AsanaClient:
         # Resolve workspace_gid: parameter > env var > auto-detect
         if workspace_gid is None:
             # Check ASANA_WORKSPACE_GID environment variable
-            env_workspace = _get_workspace_gid_from_env()
+            env_workspace = get_workspace_gid()
             if env_workspace and env_workspace.strip():
                 workspace_gid = env_workspace.strip()
             elif token is not None:

@@ -214,11 +214,10 @@ async def _perform_incremental_rebuild(
         entity_types: Entity types to incrementally refresh.
         refresh_id: Unique identifier for logging correlation.
     """
-    import os
-
     from autom8_asana import AsanaClient
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
     from autom8_asana.cache.dataframe.factory import get_dataframe_cache
+    from autom8_asana.config import get_workspace_gid
     from autom8_asana.dataframes.builders.progressive import ProgressiveProjectBuilder
     from autom8_asana.dataframes.models.registry import SchemaRegistry
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
@@ -235,7 +234,7 @@ async def _perform_incremental_rebuild(
         )
         return
 
-    workspace_gid = os.environ.get("ASANA_WORKSPACE_GID")
+    workspace_gid = get_workspace_gid()
     if not workspace_gid:
         logger.error(
             "cache_refresh_no_workspace",
