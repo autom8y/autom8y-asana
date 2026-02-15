@@ -258,16 +258,25 @@ class HierarchyTraversalStrategy(ResolutionStrategy):
             if budget.exhausted:
                 return None
 
-            # Fetch parent
-            parent_task = await context.client.tasks.get_async(
-                current.gid, opt_fields=["parent", "parent.gid"]
-            )
-            budget.consume(1)
+            # Get parent GID from current entity.
+            # On first iteration, current may lack parent -- fetch with parent fields.
+            # On subsequent iterations, current is a full task from previous get_async
+            # which already includes parent.
+            parent_gid = getattr(getattr(current, "parent", None), "gid", None)
 
-            if parent_task.parent is None or parent_task.parent.gid is None:
-                return None
+            if parent_gid is None:
+                # Need to fetch current to discover its parent
+                parent_task = await context.client.tasks.get_async(
+                    current.gid, opt_fields=["parent", "parent.gid"]
+                )
+                budget.consume(1)
 
-            parent = await context.client.tasks.get_async(parent_task.parent.gid)
+                if parent_task.parent is None or parent_task.parent.gid is None:
+                    return None
+                parent_gid = parent_task.parent.gid
+
+            # Fetch the full parent task (single call instead of two)
+            parent = await context.client.tasks.get_async(parent_gid)
             budget.consume(1)
 
             # Try to cast parent to Business
