@@ -49,7 +49,7 @@ from autom8_asana.dataframes.extractors import (
     ContactExtractor,
     UnitExtractor,
 )
-from autom8_asana.dataframes.models.registry import SchemaRegistry
+from autom8_asana.dataframes.models.registry import SchemaRegistry, get_schema
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.dataframes.models.task_row import ContactRow, TaskRow, UnitRow
 from autom8_asana.dataframes.resolver import (
@@ -80,6 +80,7 @@ __all__ = [
     "ContactRow",
     # Registry
     "SchemaRegistry",
+    "get_schema",
     # Schemas
     "BASE_SCHEMA",
     "UNIT_SCHEMA",

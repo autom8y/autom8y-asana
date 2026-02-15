@@ -13,6 +13,24 @@ from autom8_asana.dataframes.exceptions import SchemaNotFoundError, SchemaVersio
 from autom8_asana.dataframes.models.schema import DataFrameSchema
 
 
+def get_schema(task_type: str) -> DataFrameSchema:
+    """Convenience accessor: look up schema by task type.
+
+    Equivalent to ``SchemaRegistry.get_instance().get_schema(task_type)``
+    but avoids the ceremony of obtaining the singleton first.
+
+    Args:
+        task_type: Task type identifier (e.g., "Unit", "Contact", "*")
+
+    Returns:
+        DataFrameSchema for the task type
+
+    Raises:
+        SchemaNotFoundError: If no schema registered for type
+    """
+    return SchemaRegistry.get_instance().get_schema(task_type)
+
+
 class SchemaRegistry:
     """Singleton registry for task-type to schema mapping (FR-MODEL-030-033).
 

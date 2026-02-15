@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import polars as pl
 from autom8y_log import get_logger
 
-from autom8_asana.dataframes.models.registry import SchemaRegistry
+from autom8_asana.dataframes.models.registry import SchemaRegistry, get_schema
 from autom8_asana.dataframes.models.schema import DataFrameSchema
 from autom8_asana.services.errors import EntityNotFoundError, InvalidParameterError
 
@@ -130,7 +130,7 @@ class DataFrameService:
         mapping, valid_schemas = self._get_schema_mapping()
 
         if not schema_name or not schema_name.strip():
-            return SchemaRegistry.get_instance().get_schema("*")
+            return get_schema("*")
 
         normalized = schema_name.lower().strip()
 
@@ -141,7 +141,7 @@ class DataFrameService:
         if task_type is None:
             raise InvalidSchemaError(schema_name, valid_schemas)
 
-        return SchemaRegistry.get_instance().get_schema(task_type)
+        return get_schema(task_type)
 
     async def build_project_dataframe(
         self,

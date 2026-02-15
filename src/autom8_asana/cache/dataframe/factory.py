@@ -45,7 +45,7 @@ async def _swr_build_callback(
     from autom8_asana import AsanaClient
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
     from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
-    from autom8_asana.dataframes.models.registry import SchemaRegistry
+    from autom8_asana.dataframes.models.registry import get_schema
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
     from autom8_asana.dataframes.section_persistence import create_section_persistence
     from autom8_asana.services.resolver import to_pascal_case
@@ -65,7 +65,7 @@ async def _swr_build_callback(
 
     async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
         task_type = to_pascal_case(entity_type)
-        schema = SchemaRegistry.get_instance().get_schema(task_type)
+        schema = get_schema(task_type)
         resolver = DefaultCustomFieldResolver()
         section_persistence = create_section_persistence()
 

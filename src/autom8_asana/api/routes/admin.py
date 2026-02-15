@@ -219,7 +219,7 @@ async def _perform_incremental_rebuild(
     from autom8_asana.cache.dataframe.factory import get_dataframe_cache
     from autom8_asana.config import get_workspace_gid
     from autom8_asana.dataframes.builders.progressive import ProgressiveProjectBuilder
-    from autom8_asana.dataframes.models.registry import SchemaRegistry
+    from autom8_asana.dataframes.models.registry import get_schema
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
     from autom8_asana.dataframes.section_persistence import create_section_persistence
     from autom8_asana.dataframes.watermark import get_watermark_repo
@@ -279,7 +279,7 @@ async def _perform_incremental_rebuild(
                 token=bot_pat, workspace_gid=workspace_gid
             ) as client:
                 task_type = to_pascal_case(entity_type)
-                schema = SchemaRegistry.get_instance().get_schema(task_type)
+                schema = get_schema(task_type)
                 resolver = DefaultCustomFieldResolver()
 
                 async with persistence:

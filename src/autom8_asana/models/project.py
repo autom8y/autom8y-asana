@@ -195,7 +195,7 @@ class Project(AsanaResource):
             ['gid', 'name', 'type', 'mrr', ...]
         """
         from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
-        from autom8_asana.dataframes.models.registry import SchemaRegistry
+        from autom8_asana.dataframes.models.registry import get_schema
         from autom8_asana.dataframes.section_persistence import (
             create_section_persistence,
         )
@@ -206,7 +206,7 @@ class Project(AsanaResource):
                 "Pass an AsanaClient instance."
             )
 
-        schema = SchemaRegistry.get_instance().get_schema(task_type)
+        schema = get_schema(task_type)
         entity_type = task_type.lower() if task_type != "*" else "task"
 
         # Create section persistence for S3 storage
@@ -285,14 +285,14 @@ class Project(AsanaResource):
             ... )
         """
         from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
-        from autom8_asana.dataframes.models.registry import SchemaRegistry
+        from autom8_asana.dataframes.models.registry import get_schema as _get_schema
         from autom8_asana.dataframes.section_persistence import (
             create_section_persistence,
         )
 
         # Auto-detect schema if not provided
         if schema is None:
-            schema = SchemaRegistry.get_instance().get_schema(task_type)
+            schema = _get_schema(task_type)
 
         entity_type = task_type.lower() if task_type != "*" else "task"
 
