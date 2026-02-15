@@ -409,7 +409,7 @@ async def resolve_entities(
                 for col in schema.columns
                 if col.source is not None or col.name in {"gid", "name", "parent_gid"}
             ]
-    except Exception:  # BROAD-CATCH: non-critical metadata
+    except (KeyError, AttributeError, RuntimeError):  # non-critical metadata
         # If schema lookup fails, leave available_fields empty
         # This is metadata, not critical to resolution success
         pass

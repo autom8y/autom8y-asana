@@ -16,6 +16,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, R
 from fastapi.responses import JSONResponse
 
 from autom8_asana.cache.models.entry import EntryType
+from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 from autom8_asana.models.task import Task
 from autom8_asana.settings import get_settings
 
@@ -235,8 +236,10 @@ def invalidate_stale_task_cache(
             )
             return False
 
-    except Exception:
+    except (*CACHE_TRANSIENT_ERRORS, ValueError, RuntimeError):
         # Per NFR-03: Cache failures must not affect response or dispatch
+        # ValueError can come from timestamp parsing in is_stale()
+        # RuntimeError can come from cache.invalidate() operations
         logger.exception(
             "webhook_cache_invalidation_error",
             extra={"task_gid": task_gid},
@@ -272,7 +275,7 @@ async def _process_inbound_task(task: Task, cache_provider: Any) -> None:
     # Step 2: Dispatch (no-op in V1)
     try:
         await _dispatcher.dispatch(task)
-    except Exception:
+    except (ConnectionError, TimeoutError, OSError, RuntimeError):
         # Per NFR-03: Dispatch errors logged but do not propagate
         logger.exception(
             "webhook_dispatch_error",
@@ -313,7 +316,7 @@ async def receive_inbound_webhook(
     # Parse body
     try:
         body = await request.json()
-    except Exception:
+    except (ValueError, UnicodeDecodeError):
         logger.warning(
             "webhook_body_parse_error",
             extra={"content_type": request.headers.get("content-type")},
