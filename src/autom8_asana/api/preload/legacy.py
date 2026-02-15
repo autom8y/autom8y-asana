@@ -448,6 +448,7 @@ async def _do_incremental_catchup(
     """
     from autom8_asana import AsanaClient
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
+    from autom8_asana.config import get_workspace_gid
     from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
     from autom8_asana.dataframes.models.registry import SchemaRegistry
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
@@ -465,9 +466,7 @@ async def _do_incremental_catchup(
         # Return existing state unchanged
         return existing_df, watermark, False
 
-    import os
-
-    workspace_gid = os.environ.get("ASANA_WORKSPACE_GID")
+    workspace_gid = get_workspace_gid()
     if not workspace_gid:
         logger.warning(
             "incremental_catchup_no_workspace",
@@ -550,6 +549,7 @@ async def _do_full_rebuild(
     """
     from autom8_asana import AsanaClient
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
+    from autom8_asana.config import get_workspace_gid
     from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
     from autom8_asana.dataframes.models.registry import SchemaRegistry
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
@@ -568,9 +568,7 @@ async def _do_full_rebuild(
         )
         return None, now
 
-    import os
-
-    workspace_gid = os.environ.get("ASANA_WORKSPACE_GID")
+    workspace_gid = get_workspace_gid()
     if not workspace_gid:
         logger.warning(
             "full_rebuild_no_workspace",

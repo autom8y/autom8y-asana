@@ -10,10 +10,9 @@ Requires environment variables:
 
 from __future__ import annotations
 
-import os
-
 from autom8y_log import get_logger
 
+from autom8_asana.config import get_workspace_gid
 from autom8_asana.services.resolver import EntityProjectRegistry
 
 logger = get_logger(__name__)
@@ -105,7 +104,7 @@ async def discover_entity_projects_async() -> EntityProjectRegistry:
         )
         return EntityProjectRegistry.get_instance()
 
-    workspace_gid = os.environ.get("ASANA_WORKSPACE_GID")
+    workspace_gid = get_workspace_gid()
 
     if not workspace_gid:
         logger.warning(
