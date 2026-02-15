@@ -114,7 +114,7 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 "DataServiceClient circuit breaker is open. "
                 "autom8_data may be degraded."
             )
-        except Exception:
+        except (ConnectionError, TimeoutError, OSError):
             pass  # Non-circuit-breaker errors are not pre-flight failures
 
         return errors

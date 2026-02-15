@@ -580,7 +580,7 @@ class BusinessSeeder:
                 limit=1,
             )
             return result.hits[0] if result.hits else None
-        except Exception as e:  # BROAD-CATCH: catch-all-and-degrade -- search API + assertion can raise diverse errors
+        except (ConnectionError, TimeoutError, OSError, RuntimeError) as e:  # catch-all-and-degrade -- search API + assertion can raise diverse errors
             logger.warning(
                 "Search by name failed",
                 extra={"business_name": name, "error": str(e)},
