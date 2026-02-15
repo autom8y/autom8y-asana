@@ -664,3 +664,160 @@ class TestExecuteAsyncDateRange:
         expected_start = expected_end - timedelta(days=30)
         assert call_kwargs["start_date"] == expected_start
         assert call_kwargs["end_date"] == expected_end
+
+
+class TestPreResolveBusinessActivities:
+    """Tests for bulk activity pre-resolution and pre-filtering."""
+
+    @pytest.mark.asyncio
+    async def test_prefilter_skips_inactive_holders(self) -> None:
+        """Holders with INACTIVE parent Business are pre-filtered before processing."""
+        h_active = _make_task("h1", "Active Holder", parent_gid="biz-active")
+        h_inactive = _make_task("h2", "Inactive Holder", parent_gid="biz-inactive")
+        parent_tasks = {
+            "biz-active": _make_parent_task("+17705753101", gid="biz-active"),
+            "biz-inactive": _make_parent_task("+17705753102", gid="biz-inactive"),
+        }
+
+        wf, _, mock_data, mock_att = _make_workflow(
+            holders=[h_active, h_inactive],
+            parent_tasks=parent_tasks,
+        )
+        # Override: mark one Business as INACTIVE
+        wf._activity_map["biz-inactive"] = AccountActivity.INACTIVE
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.total == 2
+        assert result.succeeded == 1
+        assert result.skipped == 1
+        # Only the active holder should trigger CSV export
+        assert mock_data.get_export_csv_async.call_count == 1
+        assert mock_att.upload_async.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_prefilter_skips_none_activity(self) -> None:
+        """Holders with None activity (hydration failed) are pre-filtered."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz-unknown")
+        parent_tasks = {
+            "biz-unknown": _make_parent_task("+17705753101", gid="biz-unknown"),
+        }
+
+        wf, _, mock_data, _ = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+        )
+        # Override: simulate failed hydration (None activity)
+        wf._activity_map["biz-unknown"] = None
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.total == 1
+        assert result.skipped == 1
+        assert result.succeeded == 0
+        mock_data.get_export_csv_async.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_prefilter_passes_holders_without_parent(self) -> None:
+        """Holders with no parent_gid pass through pre-filter to processing."""
+        h_orphan = _make_task("h1", "Orphan Holder")  # No parent_gid
+
+        wf, _, _, _ = _make_workflow(holders=[h_orphan])
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        # Orphan passes pre-filter, then skipped at phone resolution
+        assert result.total == 1
+        assert result.skipped == 1
+
+    @pytest.mark.asyncio
+    async def test_preresolution_deduplicates_business_gids(self) -> None:
+        """Multiple holders sharing a parent Business hydrate it only once."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="shared-biz")
+        h2 = _make_task("h2", "Holder 2", parent_gid="shared-biz")
+        h3 = _make_task("h3", "Holder 3", parent_gid="shared-biz")
+        parent_tasks = {
+            "shared-biz": _make_parent_task("+17705753101", gid="shared-biz"),
+        }
+
+        wf, _, _, _ = _make_workflow(
+            holders=[h1, h2, h3],
+            parent_tasks=parent_tasks,
+        )
+        # Clear pre-populated activity_map to test dedup via pre-resolution
+        wf._activity_map.clear()
+
+        # Track actual hydrations (cache misses) vs cached lookups
+        hydration_calls: list[str] = []
+
+        async def tracking_resolve(gid: str) -> AccountActivity | None:
+            if gid in wf._activity_map:
+                return wf._activity_map[gid]
+            hydration_calls.append(gid)
+            wf._activity_map[gid] = AccountActivity.ACTIVE
+            return AccountActivity.ACTIVE
+
+        wf._resolve_business_activity = tracking_resolve  # type: ignore[assignment]
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        # Hydration (expensive depth=2 call) should happen exactly once
+        assert hydration_calls.count("shared-biz") == 1
+        assert result.total == 3
+        assert result.succeeded == 3
+
+    @pytest.mark.asyncio
+    async def test_preresolution_handles_hydration_failure(self) -> None:
+        """If hydration fails for a Business, its holders are pre-filtered."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz-fail")
+        parent_tasks = {
+            "biz-fail": _make_parent_task("+17705753101", gid="biz-fail"),
+        }
+
+        wf, _, mock_data, _ = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+        )
+        # Clear pre-populated map and mock hydration to fail
+        wf._activity_map.clear()
+
+        async def failing_resolve(gid: str) -> AccountActivity | None:
+            wf._activity_map[gid] = None  # Simulate failed hydration
+            return None
+
+        wf._resolve_business_activity = failing_resolve  # type: ignore[assignment]
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.total == 1
+        assert result.skipped == 1
+        mock_data.get_export_csv_async.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_prefilter_mixed_activities(self) -> None:
+        """Mix of ACTIVE, INACTIVE, ACTIVATING parents: only ACTIVE processed."""
+        h_active = _make_task("h1", "Active", parent_gid="biz-a")
+        h_inactive = _make_task("h2", "Inactive", parent_gid="biz-i")
+        h_activating = _make_task("h3", "Activating", parent_gid="biz-g")
+        h_active2 = _make_task("h4", "Active 2", parent_gid="biz-a")  # Shares parent
+        parent_tasks = {
+            "biz-a": _make_parent_task("+17705753101", gid="biz-a"),
+            "biz-i": _make_parent_task("+17705753102", gid="biz-i"),
+            "biz-g": _make_parent_task("+17705753103", gid="biz-g"),
+        }
+
+        wf, _, mock_data, _ = _make_workflow(
+            holders=[h_active, h_inactive, h_activating, h_active2],
+            parent_tasks=parent_tasks,
+        )
+        # Override activities
+        wf._activity_map["biz-a"] = AccountActivity.ACTIVE
+        wf._activity_map["biz-i"] = AccountActivity.INACTIVE
+        wf._activity_map["biz-g"] = AccountActivity.ACTIVATING
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.total == 4
+        assert result.succeeded == 2  # h1 and h4 (both biz-a)
+        assert result.skipped == 2  # h2 (inactive) and h3 (activating)
+        assert mock_data.get_export_csv_async.call_count == 2

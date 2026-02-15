@@ -150,15 +150,40 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
         # Step 1: Enumerate active ContactHolders
         holders = await self._enumerate_contact_holders()
 
+        # Step 1.5: Bulk pre-resolve Business activities
+        await self._pre_resolve_business_activities(holders)
+
+        # Step 1.6: Pre-filter holders with inactive parent Businesses
+        from autom8_asana.models.business.activity import AccountActivity
+
+        active_holders: list[dict[str, Any]] = []
+        prefiltered: list[_HolderOutcome] = []
+        for h in holders:
+            parent_gid = h.get("parent_gid")
+            if parent_gid:
+                activity = self._activity_map.get(parent_gid)
+                if activity != AccountActivity.ACTIVE:
+                    prefiltered.append(
+                        _HolderOutcome(
+                            holder_gid=h["gid"],
+                            status="skipped",
+                            reason="inactive_business",
+                        )
+                    )
+                    continue
+            active_holders.append(h)
+
         logger.info(
             "conversation_audit_started",
             total_holders=len(holders),
+            active_holders=len(active_holders),
+            skipped_inactive=len(prefiltered),
             max_concurrency=max_concurrency,
         )
 
-        # Step 2: Process each holder with concurrency control
+        # Step 2: Process each ACTIVE holder with concurrency control
         semaphore = asyncio.Semaphore(max_concurrency)
-        results: list[_HolderOutcome] = []
+        results: list[_HolderOutcome] = list(prefiltered)
 
         async def process_one(
             holder_gid: str,
@@ -179,7 +204,7 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
         await asyncio.gather(
             *[
                 process_one(h["gid"], h.get("name"), h.get("parent_gid"))
-                for h in holders
+                for h in active_holders
             ]
         )
 
@@ -243,6 +268,39 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
             for t in tasks
             if not t.completed
         ]
+
+    async def _pre_resolve_business_activities(
+        self,
+        holders: list[dict[str, Any]],
+    ) -> None:
+        """Bulk-resolve parent Business activities into _activity_map.
+
+        Extracts unique parent_gids, hydrates each Business to depth=2 in
+        parallel (Semaphore(8)), and populates self._activity_map. After
+        this call, _resolve_business_activity() is a cache hit for all GIDs.
+
+        Args:
+            holders: List of holder dicts with "parent_gid" key.
+        """
+        unique_gids = {
+            h["parent_gid"]
+            for h in holders
+            if h.get("parent_gid") and h["parent_gid"] not in self._activity_map
+        }
+
+        if not unique_gids:
+            return
+
+        semaphore = asyncio.Semaphore(8)
+
+        async def resolve_one(gid: str) -> None:
+            async with semaphore:
+                await self._resolve_business_activity(gid)
+
+        await asyncio.gather(
+            *[resolve_one(gid) for gid in unique_gids],
+            return_exceptions=True,
+        )
 
     async def _resolve_business_activity(
         self,
