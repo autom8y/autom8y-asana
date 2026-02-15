@@ -19,6 +19,7 @@ from autom8y_log import get_logger
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, model_validator
 
+from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.routes.internal import (
     ServiceClaims,
     require_service_claims,
@@ -144,13 +145,12 @@ async def write_entity_fields(
     # Get EntityWriteRegistry from app.state
     write_registry = getattr(request.app.state, "entity_write_registry", None)
     if write_registry is None:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "DISCOVERY_INCOMPLETE",
-                "message": "Entity write registry not initialized. "
-                "Please retry after service is fully initialized.",
-            },
+        raise_api_error(
+            request,
+            503,
+            "DISCOVERY_INCOMPLETE",
+            "Entity write registry not initialized. "
+            "Please retry after service is fully initialized.",
         )
 
     # Validate entity type is writable
@@ -164,14 +164,13 @@ async def write_entity_fields(
                 "available_types": available,
             },
         )
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": "UNKNOWN_ENTITY_TYPE",
-                "message": f"Unknown or non-writable entity type: {entity_type}. "
-                f"Available types: {', '.join(available)}",
-                "available_types": available,
-            },
+        raise_api_error(
+            request,
+            404,
+            "UNKNOWN_ENTITY_TYPE",
+            f"Unknown or non-writable entity type: {entity_type}. "
+            f"Available types: {', '.join(available)}",
+            details={"available_types": available},
         )
 
     # Acquire bot PAT and create AsanaClient
@@ -188,12 +187,11 @@ async def write_entity_fields(
                 "error": str(exc),
             },
         )
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "BOT_PAT_UNAVAILABLE",
-                "message": "Bot PAT not configured for S2S Asana access.",
-            },
+        raise_api_error(
+            request,
+            503,
+            "BOT_PAT_UNAVAILABLE",
+            "Bot PAT not configured for S2S Asana access.",
         )
 
     # Get optional MutationInvalidator from app.state
@@ -211,37 +209,40 @@ async def write_entity_fields(
                 mutation_invalidator=mutation_invalidator,
             )
     except TaskNotFoundError:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": "TASK_NOT_FOUND",
-                "message": f"Task not found: {gid}",
-            },
+        raise_api_error(
+            request,
+            404,
+            "TASK_NOT_FOUND",
+            f"Task not found: {gid}",
         )
     except EntityTypeMismatchError as exc:
-        raise HTTPException(
-            status_code=404,
-            detail=exc.to_dict(),
+        raise_api_error(
+            request,
+            404,
+            exc.error_code,
+            exc.message,
+            details={
+                "expected_project": exc.expected_project,
+                "actual_projects": exc.actual_projects,
+            },
         )
     except NoValidFieldsError:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "error": "NO_VALID_FIELDS",
-                "message": "All fields failed resolution -- nothing to write.",
-            },
+        raise_api_error(
+            request,
+            422,
+            "NO_VALID_FIELDS",
+            "All fields failed resolution -- nothing to write.",
         )
     except RateLimitError as exc:
-        headers = {}
+        headers: dict[str, str] | None = None
         if exc.retry_after is not None:
-            headers["Retry-After"] = str(exc.retry_after)
-        raise HTTPException(
-            status_code=429,
-            detail={
-                "error": "RATE_LIMITED",
-                "message": "Rate limit exceeded. Please retry after backoff.",
-            },
-            headers=headers if headers else None,
+            headers = {"Retry-After": str(exc.retry_after)}
+        raise_api_error(
+            request,
+            429,
+            "RATE_LIMITED",
+            "Rate limit exceeded. Please retry after backoff.",
+            headers=headers,
         )
     except AsanaTimeoutError as exc:
         logger.warning(
@@ -252,12 +253,11 @@ async def write_entity_fields(
                 "error": str(exc),
             },
         )
-        raise HTTPException(
-            status_code=504,
-            detail={
-                "error": "ASANA_TIMEOUT",
-                "message": "Asana API call timed out.",
-            },
+        raise_api_error(
+            request,
+            504,
+            "ASANA_TIMEOUT",
+            "Asana API call timed out.",
         )
     except ServerError as exc:
         logger.error(
@@ -268,12 +268,11 @@ async def write_entity_fields(
                 "error": str(exc),
             },
         )
-        raise HTTPException(
-            status_code=502,
-            detail={
-                "error": "ASANA_UPSTREAM_ERROR",
-                "message": "Asana server error.",
-            },
+        raise_api_error(
+            request,
+            502,
+            "ASANA_UPSTREAM_ERROR",
+            "Asana server error.",
         )
     except HTTPException:
         raise
@@ -287,12 +286,11 @@ async def write_entity_fields(
                 "error": str(exc),
             },
         )
-        raise HTTPException(
-            status_code=502,
-            detail={
-                "error": "ASANA_UPSTREAM_ERROR",
-                "message": "An unexpected error occurred during entity write.",
-            },
+        raise_api_error(
+            request,
+            502,
+            "ASANA_UPSTREAM_ERROR",
+            "An unexpected error occurred during entity write.",
         )
 
     # Build response
