@@ -23,6 +23,7 @@ from autom8_asana.automation.workflows.conversation_audit import (
 )
 from autom8_asana.clients.data.models import ExportResult
 from autom8_asana.exceptions import ExportError
+from autom8_asana.models.business.activity import AccountActivity
 
 # --- Helpers ---
 
@@ -137,7 +138,7 @@ def _make_workflow(
 
     # Enumerate holders
     holder_list = holders or []
-    mock_asana.tasks.list_for_project_async.return_value = _AsyncIterator(holder_list)
+    mock_asana.tasks.list_async.return_value = _AsyncIterator(holder_list)
 
     # Resolve parent: get_async returns the holder task first (for parent ref),
     # then the parent Business task (for custom_fields)
@@ -188,6 +189,12 @@ def _make_workflow(
         data_client=mock_data_client,
         attachments_client=mock_attachments,
     )
+
+    # Pre-populate activity map so existing tests bypass hydration.
+    # All parent GIDs are treated as ACTIVE by default.
+    for h in holder_list:
+        if h.parent:
+            workflow._activity_map[h.parent.gid] = AccountActivity.ACTIVE
 
     return workflow, mock_asana, mock_data_client, mock_attachments
 
@@ -581,7 +588,7 @@ class TestExecuteAsyncFeatureFlagDisabled:
         assert len(errors) == 1
         # Caller (scheduler/lambda) checks validation before execute_async
         # Verify no Asana API calls were made
-        mock_asana.tasks.list_for_project_async.assert_not_called()
+        mock_asana.tasks.list_async.assert_not_called()
 
 
 class TestExecuteAsyncEmptyProject:

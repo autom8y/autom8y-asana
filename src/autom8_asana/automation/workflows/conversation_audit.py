@@ -13,7 +13,10 @@ import io
 import os
 from dataclasses import dataclass as _dataclass
 from datetime import UTC, date, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from autom8_asana.models.business.activity import AccountActivity
 
 from autom8y_log import get_logger
 
@@ -77,6 +80,7 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
         self._asana_client = asana_client
         self._data_client = data_client
         self._attachments_client = attachments_client
+        self._activity_map: dict[str, AccountActivity | None] = {}
 
     @property
     def workflow_id(self) -> str:  # type: ignore[override]  # read-only property overrides base attribute
@@ -156,7 +160,11 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
         semaphore = asyncio.Semaphore(max_concurrency)
         results: list[_HolderOutcome] = []
 
-        async def process_one(holder_gid: str, holder_name: str | None) -> None:
+        async def process_one(
+            holder_gid: str,
+            holder_name: str | None,
+            parent_gid: str | None,
+        ) -> None:
             async with semaphore:
                 outcome = await self._process_holder(
                     holder_gid=holder_gid,
@@ -164,10 +172,16 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
                     attachment_pattern=attachment_pattern,
                     start_date=start_date,
                     end_date=end_date,
+                    parent_gid=parent_gid,
                 )
                 results.append(outcome)
 
-        await asyncio.gather(*[process_one(h["gid"], h.get("name")) for h in holders])
+        await asyncio.gather(
+            *[
+                process_one(h["gid"], h.get("name"), h.get("parent_gid"))
+                for h in holders
+            ]
+        )
 
         # Step 3: Aggregate results
         succeeded = sum(1 for r in results if r.status == "succeeded")
@@ -213,17 +227,61 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
         Returns:
             List of task dicts with at least {gid, name, parent} fields.
         """
-        page_iterator = self._asana_client.tasks.list_for_project_async(
-            CONTACT_HOLDER_PROJECT_GID,
+        page_iterator = self._asana_client.tasks.list_async(
+            project=CONTACT_HOLDER_PROJECT_GID,
             opt_fields=["name", "completed", "parent", "parent.name"],
             completed_since="now",
         )
         tasks = await page_iterator.collect()
         return [
-            {"gid": t.gid, "name": t.name, "parent": t.parent}
+            {
+                "gid": t.gid,
+                "name": t.name,
+                "parent": t.parent,
+                "parent_gid": t.parent.gid if t.parent else None,
+            }
             for t in tasks
             if not t.completed
         ]
+
+    async def _resolve_business_activity(
+        self,
+        business_gid: str,
+    ) -> AccountActivity | None:
+        """Resolve the max unit activity for a Business, with dedup caching.
+
+        Fetches the Business task, hydrates its Unit children, and returns
+        the highest activity level across all Units. Caches results by
+        business_gid to avoid redundant API calls across ContactHolders
+        sharing the same parent Business.
+
+        Returns:
+            AccountActivity or None if resolution fails.
+        """
+        if business_gid in self._activity_map:
+            return self._activity_map[business_gid]
+
+        try:
+            from autom8_asana.models.business.hydration import hydrate_from_gid_async
+
+            result = await hydrate_from_gid_async(
+                self._asana_client,
+                business_gid,
+                depth=2,  # Business -> UnitHolder -> Units
+            )
+            if result.entity is not None:
+                activity = getattr(result.entity, "max_unit_activity", None)
+            else:
+                activity = None
+        except Exception:
+            logger.warning(
+                "conversation_audit_activity_resolution_failed",
+                business_gid=business_gid,
+            )
+            activity = None
+
+        self._activity_map[business_gid] = activity
+        return activity
 
     async def _process_holder(
         self,
@@ -232,6 +290,7 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
         attachment_pattern: str,
         start_date: date | None = None,
         end_date: date | None = None,
+        parent_gid: str | None = None,
     ) -> _HolderOutcome:
         """Process a single ContactHolder: resolve phone, fetch CSV, replace attachment.
 
@@ -241,10 +300,29 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
             holder_gid: ContactHolder task GID.
             holder_name: ContactHolder task name (for logging).
             attachment_pattern: Glob pattern for old attachment cleanup.
+            parent_gid: Parent Business GID for activity gating.
 
         Returns:
             _HolderOutcome with status and optional error.
         """
+        # Step 0: Activity gate -- skip if parent Business is not ACTIVE
+        if parent_gid:
+            from autom8_asana.models.business.activity import AccountActivity
+
+            business_activity = await self._resolve_business_activity(parent_gid)
+            if business_activity != AccountActivity.ACTIVE:
+                logger.debug(
+                    "conversation_audit_holder_skipped_inactive",
+                    holder_gid=holder_gid,
+                    business_gid=parent_gid,
+                    activity=str(business_activity) if business_activity else "unknown",
+                )
+                return _HolderOutcome(
+                    holder_gid=holder_gid,
+                    status="skipped",
+                    reason="inactive_business",
+                )
+
         try:
             # Step A: Resolve office_phone via parent Business
             office_phone = await self._resolve_office_phone(holder_gid)

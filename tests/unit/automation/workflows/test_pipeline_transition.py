@@ -102,7 +102,7 @@ async def test_execute_async_no_processes(lifecycle_config, mock_client):
     workflow = PipelineTransitionWorkflow(mock_client, lifecycle_config)
 
     # Mock empty project
-    mock_client.tasks.list_for_project_async.return_value = _AsyncIterator([])
+    mock_client.tasks.list_async.return_value = _AsyncIterator([])
 
     # Execute
     result = await workflow.execute_async(
@@ -126,7 +126,7 @@ async def test_execute_async_converted_processes(lifecycle_config, mock_client):
     task1 = _make_task("task1", "Sales Process - Business A", "CONVERTED")
     task2 = _make_task("task2", "Sales Process - Business B", "CONVERTED")
 
-    mock_client.tasks.list_for_project_async.return_value = _AsyncIterator(
+    mock_client.tasks.list_async.return_value = _AsyncIterator(
         [task1, task2]
     )
 
@@ -168,7 +168,7 @@ async def test_execute_async_did_not_convert_processes(lifecycle_config, mock_cl
     # Mock tasks in DID NOT CONVERT section
     task1 = _make_task("task1", "Sales Process - Business A", "DID NOT CONVERT")
 
-    mock_client.tasks.list_for_project_async.return_value = _AsyncIterator([task1])
+    mock_client.tasks.list_async.return_value = _AsyncIterator([task1])
 
     # Mock engine
     mock_result = AutomationResult(
@@ -210,7 +210,7 @@ async def test_execute_async_mixed_sections(lifecycle_config, mock_client):
         "task4", "Sales Process - Business D", "CONVERTED", completed=True
     )
 
-    mock_client.tasks.list_for_project_async.return_value = _AsyncIterator(
+    mock_client.tasks.list_async.return_value = _AsyncIterator(
         [task1, task2, task3, task4]
     )
 
@@ -248,7 +248,7 @@ async def test_execute_async_transition_failure(lifecycle_config, mock_client):
     # Mock task
     task1 = _make_task("task1", "Sales Process - Business A", "CONVERTED")
 
-    mock_client.tasks.list_for_project_async.return_value = _AsyncIterator([task1])
+    mock_client.tasks.list_async.return_value = _AsyncIterator([task1])
 
     # Mock engine with failure
     mock_result = AutomationResult(
@@ -288,7 +288,7 @@ async def test_execute_async_transition_exception(lifecycle_config, mock_client)
     # Mock task
     task1 = _make_task("task1", "Sales Process - Business A", "CONVERTED")
 
-    mock_client.tasks.list_for_project_async.return_value = _AsyncIterator([task1])
+    mock_client.tasks.list_async.return_value = _AsyncIterator([task1])
 
     # Mock engine with exception
     with patch("autom8_asana.lifecycle.engine.LifecycleEngine") as MockEngine:
@@ -319,14 +319,14 @@ async def test_execute_async_multiple_projects(lifecycle_config, mock_client):
     task1 = _make_task("task1", "Sales Process", "CONVERTED")
     task2 = _make_task("task2", "Onboarding Process", "CONVERTED")
 
-    def mock_list(project_gid, **kwargs):
-        if project_gid == "1200944186565610":
+    def mock_list(*, project=None, **kwargs):
+        if project == "1200944186565610":
             return _AsyncIterator([task1])
-        elif project_gid == "1201319387632570":
+        elif project == "1201319387632570":
             return _AsyncIterator([task2])
         return _AsyncIterator([])
 
-    mock_client.tasks.list_for_project_async = mock_list
+    mock_client.tasks.list_async = mock_list
 
     # Mock engine
     mock_result = AutomationResult(
@@ -367,14 +367,14 @@ async def test_execute_async_enumerate_error(lifecycle_config, mock_client):
     # Mock client to raise exception for first project, succeed for second
     task1 = _make_task("task1", "Sales Process", "CONVERTED")
 
-    def mock_list(project_gid, **kwargs):
-        if project_gid == "1200944186565610":
+    def mock_list(*, project=None, **kwargs):
+        if project == "1200944186565610":
             raise Exception("Project not found")
-        elif project_gid == "1201319387632570":
+        elif project == "1201319387632570":
             return _AsyncIterator([task1])
         return _AsyncIterator([])
 
-    mock_client.tasks.list_for_project_async = mock_list
+    mock_client.tasks.list_async = mock_list
 
     # Mock engine
     mock_result = AutomationResult(

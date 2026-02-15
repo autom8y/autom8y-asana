@@ -503,8 +503,8 @@ async def test_evaluate_real_project_tasks(
     evaluator = TriggerEvaluator()
 
     # Fetch tasks from the test project
-    tasks_iter = asana_client.tasks.list_for_project_async(
-        test_project_gid,
+    tasks_iter = asana_client.tasks.list_async(
+        project=test_project_gid,
         opt_fields=[
             "gid",
             "name",

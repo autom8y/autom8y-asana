@@ -243,8 +243,8 @@ class PipelineTransitionWorkflow(WorkflowAction):
         for project_gid in project_gids:
             try:
                 # List incomplete tasks in this project
-                page_iter = self._client.tasks.list_for_project_async(  # type: ignore[attr-defined]
-                    project_gid,
+                page_iter = self._client.tasks.list_async(
+                    project=project_gid,
                     opt_fields=[
                         "name",
                         "completed",
