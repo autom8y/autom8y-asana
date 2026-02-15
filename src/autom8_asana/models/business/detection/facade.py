@@ -19,6 +19,8 @@ import warnings
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from pydantic import ValidationError
+
 from autom8y_log import get_logger
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
@@ -109,7 +111,7 @@ def _get_cached_detection(
             needs_healing=data["needs_healing"],
             expected_project_gid=data["expected_project_gid"],
         )
-    except Exception:  # BROAD-CATCH: metrics -- per FR-DEGRADE-001, cache lookup failures don't prevent detection
+    except CACHE_TRANSIENT_ERRORS:  # metrics -- per FR-DEGRADE-001, cache lookup failures don't prevent detection
         logger.debug("Detection cache lookup failed", exc_info=True)
         return None
 
@@ -168,7 +170,7 @@ def _cache_detection_result(
 
     try:
         cache.set(task.gid, entry)  # type: ignore[attr-defined]
-    except Exception:  # BROAD-CATCH: metrics -- per FR-DEGRADE-002, cache storage failures don't prevent detection
+    except CACHE_TRANSIENT_ERRORS:  # metrics -- per FR-DEGRADE-002, cache storage failures don't prevent detection
         logger.warning(
             "detection_cache_store_failed_silent",
             extra={
@@ -211,7 +213,7 @@ def detect_entity_type_from_dict(data: dict[str, Any]) -> str | None:
         return None
     except ImportError:
         return None
-    except Exception:  # BROAD-CATCH: vendor-polymorphic -- model_validate can raise diverse pydantic errors
+    except (ValidationError, KeyError, AttributeError):  # vendor-polymorphic -- model_validate can raise diverse pydantic errors
         logger.debug("Detection result fetch failed", exc_info=True)
         return None
 

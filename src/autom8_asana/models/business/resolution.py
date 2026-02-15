@@ -214,7 +214,7 @@ async def resolve_units_async(
         try:
             result = await ae.resolve_unit_async(client, strategy=strategy)
             results[ae.gid] = result
-        except Exception as e:  # BROAD-CATCH: isolation -- per-entity loop, single failure must not abort batch
+        except (ConnectionError, TimeoutError, OSError, RuntimeError) as e:  # isolation -- per-entity loop, single failure must not abort batch
             logger.warning(
                 "AssetEdit resolution failed",
                 extra={"asset_edit_gid": ae.gid, "error": str(e)},
@@ -287,7 +287,7 @@ async def resolve_offers_async(
         try:
             result = await ae.resolve_offer_async(client, strategy=strategy)
             results[ae.gid] = result
-        except Exception as e:  # BROAD-CATCH: isolation -- per-entity loop, single failure must not abort batch
+        except (ConnectionError, TimeoutError, OSError, RuntimeError) as e:  # isolation -- per-entity loop, single failure must not abort batch
             logger.warning(
                 "AssetEdit offer resolution failed",
                 extra={"asset_edit_gid": ae.gid, "error": str(e)},

@@ -72,7 +72,7 @@ class PhoneNormalizer:
             # Invalid number - fall through to digits-only
         except ImportError:
             pass  # phonenumbers not installed
-        except Exception:  # BROAD-CATCH: vendor-polymorphic -- phonenumbers raises diverse parsing errors
+        except (ValueError, TypeError):  # vendor-polymorphic -- phonenumbers raises diverse parsing errors
             pass
 
         # Fallback: extract digits only
