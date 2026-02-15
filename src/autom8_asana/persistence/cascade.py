@@ -178,7 +178,7 @@ class CascadeExecutor:
                 entity.get_custom_fields().set(field_def.name, val)
                 result.entities_updated.append(entity)
                 result.operations_succeeded += 1
-            except Exception as e:  # BROAD-CATCH: isolation -- per-entity loop, single failure must not abort batch
+            except (ConnectionError, TimeoutError, OSError, RuntimeError) as e:  # isolation -- per-entity loop, single failure must not abort batch
                 result.errors.append(f"Failed to update {entity.gid}: {e}")
                 result.operations_failed += 1
 
