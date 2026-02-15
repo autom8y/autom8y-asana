@@ -127,7 +127,7 @@ class SectionsClient(BaseClient):
         data = await self._http.get(f"/sections/{section_gid}", params=params)
 
         # Step 5: Store in cache (30 min TTL, no modified_at available)
-        self._cache_set(section_gid, data, EntryType.SECTION, ttl=1800)
+        self._cache_set(section_gid, data, EntryType.SECTION, ttl=SECTION_CACHE_TTL)
 
         # Step 6: Return model or raw dict
         if raw:
@@ -362,7 +362,7 @@ class SectionsClient(BaseClient):
                                 data=section_data,
                                 entry_type=EntryType.SECTION,
                                 version=now,  # No modified_at for sections
-                                ttl=1800,  # 30 min TTL
+                                ttl=SECTION_CACHE_TTL,
                             )
                             entries[gid] = entry
                     if entries:
