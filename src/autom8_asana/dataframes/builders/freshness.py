@@ -357,20 +357,20 @@ class SectionFreshnessProber:
 
             succeeded = 0
             failed = 0
-            for i, result in enumerate(fetch_results):
-                if isinstance(result, BaseException):
+            for i, fetch_result in enumerate(fetch_results):
+                if isinstance(fetch_result, BaseException):
                     failed += 1
                     logger.warning(
                         "freshness_delta_fetch_added_failed",
                         extra={
                             "section_gid": section_gid,
                             "task_gid": unfetched_added[i],
-                            "error": str(result),
-                            "error_type": type(result).__name__,
+                            "error": str(fetch_result),
+                            "error_type": type(fetch_result).__name__,
                         },
                     )
                 else:
-                    _gid, task = result
+                    _gid, task = fetch_result
                     delta_tasks.append(task)
                     succeeded += 1
 
