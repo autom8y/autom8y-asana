@@ -17,9 +17,11 @@ from __future__ import annotations
 from typing import Annotated
 
 from autom8y_log import get_logger
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict
 
+from autom8_asana.api.dependencies import RequestId
+from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.routes.internal import (
     ServiceClaims,
     require_service_claims,
@@ -71,6 +73,7 @@ class EntitySchemaResponse(BaseModel):
 )
 async def get_entity_schema(
     entity_type: str,
+    request_id: RequestId,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
 ) -> EntitySchemaResponse:
     """Return queryable fields for entity type.
@@ -96,13 +99,12 @@ async def get_entity_schema(
     # Validate entity type
     supported_types = get_supported_entity_types()
     if entity_type not in supported_types:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": "UNKNOWN_ENTITY_TYPE",
-                "message": f"Unknown entity type: {entity_type}",
-                "available_types": sorted(supported_types),
-            },
+        raise_api_error(
+            request_id,
+            404,
+            "UNKNOWN_ENTITY_TYPE",
+            f"Unknown entity type: {entity_type}",
+            details={"available_types": sorted(supported_types)},
         )
 
     # Get schema from registry
@@ -110,12 +112,11 @@ async def get_entity_schema(
     schema = registry.get_schema(entity_type.capitalize())
 
     if schema is None:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": "SCHEMA_NOT_FOUND",
-                "message": f"No schema registered for entity type: {entity_type}",
-            },
+        raise_api_error(
+            request_id,
+            404,
+            "SCHEMA_NOT_FOUND",
+            f"No schema registered for entity type: {entity_type}",
         )
 
     # Build queryable fields list

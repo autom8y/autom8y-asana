@@ -46,6 +46,7 @@ from typing import Annotated
 from autom8y_log import get_logger
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.routes.internal import (
     ServiceClaims,
     require_service_claims,
@@ -226,14 +227,13 @@ async def resolve_entities(
                 "supported": sorted(supported_types),
             },
         )
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error": "UNKNOWN_ENTITY_TYPE",
-                "message": f"Unknown entity type: {entity_type}. "
-                f"Supported types: {', '.join(sorted(supported_types))}",
-                "available_types": sorted(supported_types),
-            },
+        raise_api_error(
+            request,
+            404,
+            "UNKNOWN_ENTITY_TYPE",
+            f"Unknown entity type: {entity_type}. "
+            f"Supported types: {', '.join(sorted(supported_types))}",
+            details={"available_types": sorted(supported_types)},
         )
 
     # Get entity project registry from app.state
@@ -249,13 +249,12 @@ async def resolve_entities(
                 "entity_type": entity_type,
             },
         )
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "DISCOVERY_INCOMPLETE",
-                "message": "Entity resolver startup discovery has not completed. "
-                "Please retry after service is fully initialized.",
-            },
+        raise_api_error(
+            request,
+            503,
+            "DISCOVERY_INCOMPLETE",
+            "Entity resolver startup discovery has not completed. "
+            "Please retry after service is fully initialized.",
         )
 
     # Get project GID for entity type
@@ -269,13 +268,12 @@ async def resolve_entities(
                 "entity_type": entity_type,
             },
         )
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "PROJECT_NOT_CONFIGURED",
-                "message": f"No project configured for entity type: {entity_type}. "
-                f"Check startup discovery logs for configuration issues.",
-            },
+        raise_api_error(
+            request,
+            503,
+            "PROJECT_NOT_CONFIGURED",
+            f"No project configured for entity type: {entity_type}. "
+            f"Check startup discovery logs for configuration issues.",
         )
 
     # Get resolution strategy
@@ -289,12 +287,11 @@ async def resolve_entities(
                 "entity_type": entity_type,
             },
         )
-        raise HTTPException(
-            status_code=501,
-            detail={
-                "error": "STRATEGY_NOT_IMPLEMENTED",
-                "message": f"Resolution strategy not implemented for: {entity_type}",
-            },
+        raise_api_error(
+            request,
+            501,
+            "STRATEGY_NOT_IMPLEMENTED",
+            f"Resolution strategy not implemented for: {entity_type}",
         )
 
     # Convert criteria to dicts for universal strategy
@@ -306,12 +303,11 @@ async def resolve_entities(
     for i, criterion_dict in enumerate(criteria_dicts):
         validation_errors = strategy.validate_criterion(criterion_dict)
         if validation_errors:
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "error": "MISSING_REQUIRED_FIELD",
-                    "message": f"Criterion {i}: {'; '.join(validation_errors)}",
-                },
+            raise_api_error(
+                request,
+                422,
+                "MISSING_REQUIRED_FIELD",
+                f"Criterion {i}: {'; '.join(validation_errors)}",
             )
 
     # Validate requested fields against schema (DEF-001)
@@ -320,12 +316,11 @@ async def resolve_entities(
             # Call filter_result_fields with empty result to validate field names
             filter_result_fields({}, request_body.fields, entity_type)
         except ValueError as e:
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "error": "INVALID_FIELD",
-                    "message": str(e),
-                },
+            raise_api_error(
+                request,
+                422,
+                "INVALID_FIELD",
+                str(e),
             )
 
     # Resolve using strategy
@@ -344,12 +339,11 @@ async def resolve_entities(
                     "error": str(e),
                 },
             )
-            raise HTTPException(
-                status_code=503,
-                detail={
-                    "error": "BOT_PAT_UNAVAILABLE",
-                    "message": "Bot PAT not configured for S2S Asana access.",
-                },
+            raise_api_error(
+                request,
+                503,
+                "BOT_PAT_UNAVAILABLE",
+                "Bot PAT not configured for S2S Asana access.",
             )
 
         async with AsanaClient(token=bot_pat) as client:
@@ -371,12 +365,11 @@ async def resolve_entities(
                 "error": str(e),
             },
         )
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "RESOLUTION_ERROR",
-                "message": "An unexpected error occurred during resolution.",
-            },
+        raise_api_error(
+            request,
+            500,
+            "RESOLUTION_ERROR",
+            "An unexpected error occurred during resolution.",
         )
 
     # Convert ResolutionResult to ResolutionResultModel
