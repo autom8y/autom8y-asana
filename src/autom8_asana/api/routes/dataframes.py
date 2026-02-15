@@ -24,30 +24,30 @@ Per TDD-dynamic-schema-api:
 - All registered schemas are accessible (base, unit, contact, business,
   offer, asset_edit, asset_edit_holder)
 - Invalid schema returns HTTP 400 with list of valid schemas
+
+Per TDD-SERVICE-LAYER-001 v2.0 Phase 4:
+- Business logic delegated to DataFrameService
+- Route handles only HTTP concerns (content negotiation, response formatting)
 """
 
 from io import StringIO
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Header, HTTPException, Query
 from fastapi.responses import JSONResponse, Response
 
-from autom8_asana._defaults.cache import InMemoryCacheProvider
-from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
+from autom8_asana.api.dependencies import (
+    AsanaClientDualMode,
+    DataFrameServiceDep,
+    RequestId,
+)
 from autom8_asana.api.models import (
     PaginationMeta,
     ResponseMeta,
     build_success_response,
 )
-from autom8_asana.cache.providers.unified import UnifiedTaskStore
-from autom8_asana.dataframes import (
-    DefaultCustomFieldResolver,
-    SectionDataFrameBuilder,
-)
-from autom8_asana.dataframes.models.registry import SchemaRegistry
-from autom8_asana.dataframes.models.schema import DataFrameSchema
-from autom8_asana.dataframes.views.dataframe_view import DataFrameViewPlugin
-from autom8_asana.models.task import Task
+from autom8_asana.services.dataframe_service import InvalidSchemaError
+from autom8_asana.services.errors import EntityNotFoundError, get_status_for_error
 
 router = APIRouter(prefix="/api/v1/dataframes", tags=["dataframes"])
 
@@ -58,96 +58,6 @@ MAX_LIMIT = 100
 # MIME types for content negotiation
 MIME_JSON = "application/json"
 MIME_POLARS = "application/x-polars-json"
-
-# Module-level cached mapping (built on first access)
-# Per TDD-dynamic-schema-api: Lazy initialization with thread-safe registry
-_schema_mapping: dict[str, str] | None = None
-_valid_schemas: list[str] | None = None
-
-
-def _get_schema_mapping() -> tuple[dict[str, str], list[str]]:
-    """Get cached schema mapping, building it if necessary.
-
-    Returns:
-        Tuple of (name_to_task_type mapping, sorted valid schema names).
-
-    Note:
-        Thread-safe: SchemaRegistry._ensure_initialized() uses locking.
-        The global assignment is atomic in CPython.
-    """
-    global _schema_mapping, _valid_schemas
-
-    if _schema_mapping is None:
-        registry = SchemaRegistry.get_instance()
-
-        # Build mapping: schema.name -> task_type
-        # Special case: base schema uses "*" wildcard
-        mapping = {"base": "*"}
-        for task_type in registry.list_task_types():
-            schema = registry.get_schema(task_type)
-            mapping[schema.name] = task_type
-
-        _schema_mapping = mapping
-        _valid_schemas = sorted(mapping.keys())
-
-    assert _valid_schemas is not None  # Set together with _schema_mapping
-    return _schema_mapping, _valid_schemas
-
-
-def _get_schema(schema_name: str) -> DataFrameSchema:
-    """Get DataFrameSchema for the given schema name.
-
-    Per TDD-dynamic-schema-api: Dynamic validation against SchemaRegistry.
-
-    Args:
-        schema_name: Schema name from API request (case-insensitive).
-
-    Returns:
-        DataFrameSchema from registry.
-
-    Raises:
-        HTTPException: 400 if schema name is invalid.
-    """
-    mapping, valid_schemas = _get_schema_mapping()
-
-    # Handle empty/whitespace input (FastAPI defaults handle missing)
-    if not schema_name or not schema_name.strip():
-        # Use base schema as fallback
-        return SchemaRegistry.get_instance().get_schema("*")
-
-    # Normalize: lowercase and strip whitespace
-    normalized = schema_name.lower().strip()
-
-    # Block wildcard as direct input (it's exposed as "base")
-    if normalized == "*":
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "INVALID_SCHEMA",
-                "message": (
-                    "Unknown schema '*'. Use 'base' for the base schema. "
-                    f"Valid schemas: {', '.join(valid_schemas)}"
-                ),
-                "valid_schemas": valid_schemas,
-            },
-        )
-
-    task_type = mapping.get(normalized)
-
-    if task_type is None:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "INVALID_SCHEMA",
-                "message": (
-                    f"Unknown schema '{schema_name}'. "
-                    f"Valid schemas: {', '.join(valid_schemas)}"
-                ),
-                "valid_schemas": valid_schemas,
-            },
-        )
-
-    return SchemaRegistry.get_instance().get_schema(task_type)
 
 
 def _should_use_polars_format(accept: str | None) -> bool:
@@ -160,6 +70,62 @@ def _should_use_polars_format(accept: str | None) -> bool:
         return False
     # Check for explicit Polars MIME type
     return MIME_POLARS in accept
+
+
+def _format_dataframe_response(
+    df,
+    request_id: str,
+    limit: int,
+    has_more: bool,
+    next_offset: str | None,
+    accept: str | None,
+) -> Response:
+    """Format DataFrame as HTTP response with content negotiation.
+
+    Args:
+        df: Polars DataFrame to serialize.
+        request_id: Request ID for response metadata.
+        limit: Page size for pagination metadata.
+        has_more: Whether more pages are available.
+        next_offset: Pagination cursor for next page.
+        accept: Accept header value for format selection.
+
+    Returns:
+        JSONResponse in requested format.
+    """
+    pagination = PaginationMeta(
+        limit=limit,
+        has_more=has_more,
+        next_offset=next_offset,
+    )
+
+    if _should_use_polars_format(accept):
+        buffer = StringIO()
+        df.write_json(buffer)
+        polars_json = buffer.getvalue()
+
+        response_data = {
+            "data": polars_json,
+            "meta": ResponseMeta(
+                request_id=request_id,
+                pagination=pagination,
+            ).model_dump(mode="json"),
+        }
+        return JSONResponse(
+            content=response_data,
+            media_type=MIME_POLARS,
+        )
+    else:
+        records = df.to_dicts()
+        response = build_success_response(
+            data=records,
+            request_id=request_id,
+            pagination=pagination,
+        )
+        return JSONResponse(
+            content=response.model_dump(mode="json"),
+            media_type=MIME_JSON,
+        )
 
 
 @router.get(
@@ -197,6 +163,7 @@ async def get_project_dataframe(
     gid: str,
     client: AsanaClientDualMode,
     request_id: RequestId,
+    dataframe_service: DataFrameServiceDep,
     schema: Annotated[
         str,
         Query(
@@ -225,129 +192,28 @@ async def get_project_dataframe(
     - Fetches tasks from the specified project
     - Returns DataFrame in JSON or Polars format based on Accept header
     - Supports all registered schemas via dynamic validation
-
-    Args:
-        gid: Asana project GID.
-        schema: Schema for extraction (base, unit, contact, business,
-            offer, asset_edit, asset_edit_holder). Case-insensitive.
-        limit: Number of items per page (1-100, default 100).
-        offset: Pagination cursor from previous response.
-        accept: Accept header for content negotiation.
-
-    Returns:
-        DataFrame data in requested format with pagination metadata.
-
-    Raises:
-        HTTPException: 400 if schema is invalid (includes valid_schemas list).
     """
-    # Build opt_fields for custom field data needed by extractors
-    opt_fields = [
-        "gid",
-        "name",
-        "resource_type",
-        "completed",
-        "completed_at",
-        "created_at",
-        "modified_at",
-        "notes",
-        "assignee",
-        "assignee.name",
-        "due_on",
-        "due_at",
-        "start_on",
-        "memberships.section.name",
-        "memberships.project.gid",
-        "custom_fields",
-        "custom_fields.gid",
-        "custom_fields.name",
-        "custom_fields.resource_subtype",
-        "custom_fields.display_value",
-        "custom_fields.enum_value",
-        "custom_fields.enum_value.name",
-        "custom_fields.multi_enum_values",
-        "custom_fields.multi_enum_values.name",
-        "custom_fields.number_value",
-        "custom_fields.text_value",
-    ]
+    try:
+        df_schema = dataframe_service.get_schema(schema)
+    except InvalidSchemaError as e:
+        raise HTTPException(status_code=400, detail=e.to_dict())
 
-    # Build params for SDK call
-    params: dict[str, Any] = {
-        "project": gid,
-        "limit": min(limit, MAX_LIMIT),
-        "opt_fields": ",".join(opt_fields),
-    }
-    if offset:
-        params["offset"] = offset
-
-    # Fetch tasks using HTTP client
-    data, next_offset = await client._http.get_paginated("/tasks", params=params)
-
-    # Get schema and build DataFrame
-    df_schema = _get_schema(schema)
-
-    # Create resolver for custom field mapping
-    resolver = DefaultCustomFieldResolver()
-
-    # Build DataFrame using DataFrameViewPlugin
-    # Per TDD-UNIFIED-CACHE-001 Phase 4: unified_store is mandatory.
-    # Create a lightweight in-memory store for the API route since we already
-    # have the tasks fetched - no caching needed for this synchronous path.
-    unified_store = UnifiedTaskStore(cache=InMemoryCacheProvider())
-
-    # Create DataFrameViewPlugin for extraction
-    view_plugin = DataFrameViewPlugin(
+    result = await dataframe_service.build_project_dataframe(
+        client=client,
+        project_gid=gid,
         schema=df_schema,
-        store=unified_store,
-        resolver=resolver,
+        limit=min(limit, MAX_LIMIT),
+        offset=offset,
     )
 
-    # Extract rows from tasks using the view plugin (async endpoint)
-    import polars as pl
-
-    rows = await view_plugin._extract_rows_async(data, project_gid=gid)
-    if rows:
-        df = pl.DataFrame(rows, schema=df_schema.to_polars_schema())
-    else:
-        df = pl.DataFrame(schema=df_schema.to_polars_schema())
-
-    # Create pagination metadata
-    pagination = PaginationMeta(
+    return _format_dataframe_response(
+        df=result.dataframe,
+        request_id=request_id,
         limit=limit,
-        has_more=next_offset is not None,
-        next_offset=next_offset,
+        has_more=result.has_more,
+        next_offset=result.next_offset,
+        accept=accept,
     )
-
-    # Return appropriate format based on Accept header
-    if _should_use_polars_format(accept):
-        # Polars JSON format - write to string buffer
-        buffer = StringIO()
-        df.write_json(buffer)
-        polars_json = buffer.getvalue()
-
-        # Wrap in response envelope
-        response_data = {
-            "data": polars_json,
-            "meta": ResponseMeta(
-                request_id=request_id,
-                pagination=pagination,
-            ).model_dump(mode="json"),
-        }
-        return JSONResponse(
-            content=response_data,
-            media_type=MIME_POLARS,
-        )
-    else:
-        # JSON records format - convert DataFrame to list of dicts
-        records = df.to_dicts()
-        response = build_success_response(
-            data=records,
-            request_id=request_id,
-            pagination=pagination,
-        )
-        return JSONResponse(
-            content=response.model_dump(mode="json"),
-            media_type=MIME_JSON,
-        )
 
 
 @router.get(
@@ -384,6 +250,7 @@ async def get_section_dataframe(
     gid: str,
     client: AsanaClientDualMode,
     request_id: RequestId,
+    dataframe_service: DataFrameServiceDep,
     schema: Annotated[
         str,
         Query(
@@ -412,145 +279,33 @@ async def get_section_dataframe(
     - Fetches tasks from the specified section
     - Returns DataFrame in JSON or Polars format based on Accept header
     - Supports all registered schemas via dynamic validation
-
-    Args:
-        gid: Asana section GID.
-        schema: Schema for extraction (base, unit, contact, business,
-            offer, asset_edit, asset_edit_holder). Case-insensitive.
-        limit: Number of items per page (1-100, default 100).
-        offset: Pagination cursor from previous response.
-        accept: Accept header for content negotiation.
-
-    Returns:
-        DataFrame data in requested format with pagination metadata.
-
-    Raises:
-        HTTPException: 400 if schema is invalid (includes valid_schemas list).
-        HTTPException: 404 if section not found or has no parent project.
     """
-    # First, get the section to find its parent project
-    section_data = await client._http.get(
-        f"/sections/{gid}",
-        params={"opt_fields": "project.gid"},
-    )
-    project_gid = section_data.get("project", {}).get("gid")
+    try:
+        df_schema = dataframe_service.get_schema(schema)
+    except InvalidSchemaError as e:
+        raise HTTPException(status_code=400, detail=e.to_dict())
 
-    if not project_gid:
+    try:
+        result, _project_gid = await dataframe_service.build_section_dataframe(
+            client=client,
+            section_gid=gid,
+            schema=df_schema,
+            limit=min(limit, MAX_LIMIT),
+            offset=offset,
+        )
+    except EntityNotFoundError as e:
         raise HTTPException(
-            status_code=404,
-            detail={
-                "error": "NOT_FOUND",
-                "message": "Section not found or has no parent project",
-            },
+            status_code=get_status_for_error(e), detail=e.to_dict()
         )
 
-    # Build opt_fields for custom field data needed by extractors
-    opt_fields = [
-        "gid",
-        "name",
-        "resource_type",
-        "completed",
-        "completed_at",
-        "created_at",
-        "modified_at",
-        "notes",
-        "assignee",
-        "assignee.name",
-        "due_on",
-        "due_at",
-        "start_on",
-        "memberships.section.name",
-        "memberships.project.gid",
-        "custom_fields",
-        "custom_fields.gid",
-        "custom_fields.name",
-        "custom_fields.resource_subtype",
-        "custom_fields.display_value",
-        "custom_fields.enum_value",
-        "custom_fields.enum_value.name",
-        "custom_fields.multi_enum_values",
-        "custom_fields.multi_enum_values.name",
-        "custom_fields.number_value",
-        "custom_fields.text_value",
-    ]
-
-    # Build params for SDK call
-    params: dict[str, Any] = {
-        "section": gid,
-        "limit": min(limit, MAX_LIMIT),
-        "opt_fields": ",".join(opt_fields),
-    }
-    if offset:
-        params["offset"] = offset
-
-    # Fetch tasks using HTTP client
-    data, next_offset = await client._http.get_paginated("/tasks", params=params)
-
-    # Convert to Task models for builder
-    tasks = [Task.model_validate(t) for t in data]
-
-    # Get schema and build DataFrame
-    df_schema = _get_schema(schema)
-
-    # Create resolver for custom field mapping
-    resolver = DefaultCustomFieldResolver()
-
-    # Create a mock section object with the project reference for the builder
-    class SectionProxy:
-        def __init__(self, gid: str, project_gid: str, tasks: list[Task]):
-            self.gid = gid
-            self.project = {"gid": project_gid}
-            self.tasks = tasks
-
-    section_proxy = SectionProxy(gid, project_gid, tasks)
-
-    # Build DataFrame
-    builder = SectionDataFrameBuilder(
-        section=section_proxy,
-        task_type="*",  # Extract all task types
-        schema=df_schema,
-        resolver=resolver,
-    )
-    df = builder.build(tasks=tasks)
-
-    # Create pagination metadata
-    pagination = PaginationMeta(
+    return _format_dataframe_response(
+        df=result.dataframe,
+        request_id=request_id,
         limit=limit,
-        has_more=next_offset is not None,
-        next_offset=next_offset,
+        has_more=result.has_more,
+        next_offset=result.next_offset,
+        accept=accept,
     )
-
-    # Return appropriate format based on Accept header
-    if _should_use_polars_format(accept):
-        # Polars JSON format - write to string buffer
-        buffer = StringIO()
-        df.write_json(buffer)
-        polars_json = buffer.getvalue()
-
-        # Wrap in response envelope
-        response_data = {
-            "data": polars_json,
-            "meta": ResponseMeta(
-                request_id=request_id,
-                pagination=pagination,
-            ).model_dump(mode="json"),
-        }
-        return JSONResponse(
-            content=response_data,
-            media_type=MIME_POLARS,
-        )
-    else:
-        # JSON records format - convert DataFrame to list of dicts
-        records = df.to_dicts()
-        response = build_success_response(
-            data=records,
-            request_id=request_id,
-            pagination=pagination,
-        )
-        return JSONResponse(
-            content=response.model_dump(mode="json"),
-            media_type=MIME_JSON,
-        )
 
 
 __all__ = ["router"]
