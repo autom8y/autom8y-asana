@@ -331,7 +331,7 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 activity = getattr(result.entity, "max_unit_activity", None)
             else:
                 activity = None
-        except Exception:
+        except Exception:  # BROAD-CATCH: boundary -- activity resolution failure returns None (soft-fail)
             logger.warning(
                 "conversation_audit_activity_resolution_failed",
                 business_gid=business_gid,
@@ -464,7 +464,7 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 truncated=export.truncated,
             )
 
-        except Exception as exc:
+        except Exception as exc:  # BROAD-CATCH: boundary -- holder processing failure returns failed outcome
             logger.error(
                 "holder_processing_error",
                 holder_gid=holder_gid,

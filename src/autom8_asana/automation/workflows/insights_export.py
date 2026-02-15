@@ -291,7 +291,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 OFFER_PROJECT_GID,
                 active_section_names,
             )
-        except Exception:
+        except Exception:  # BROAD-CATCH: boundary -- section resolution failure falls back to full enumeration
             logger.warning(
                 "section_resolution_failed_fallback",
                 workflow_id=self.workflow_id,
@@ -547,7 +547,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 tables_failed=tables_failed,
             )
 
-        except Exception as exc:
+        except Exception as exc:  # BROAD-CATCH: boundary -- offer processing failure returns failed outcome
             logger.error(
                 "insights_export_offer_error",
                 offer_gid=offer_gid,
@@ -844,7 +844,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 row_count=len(data),
             )
 
-        except Exception as exc:
+        except Exception as exc:  # BROAD-CATCH: boundary -- table fetch failure returns failed TableResult
             elapsed_ms = (time.monotonic() - fetch_start) * 1000
             error_type = type(exc).__name__
 

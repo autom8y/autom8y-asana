@@ -82,7 +82,7 @@ def create_workflow_handler(
     ) -> dict[str, Any]:
         try:
             return await _execute(event)
-        except Exception as exc:
+        except Exception as exc:  # BROAD-CATCH: boundary -- lambda top-level error handler returns 500
             logger.error(
                 f"{config.log_prefix}_error",
                 error=str(exc),
