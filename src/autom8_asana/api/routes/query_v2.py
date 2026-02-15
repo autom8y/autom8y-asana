@@ -5,12 +5,13 @@ POST /v1/query/{entity_type}/rows -- Filtered row retrieval with composable pred
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Never
 
 from autom8y_log import get_logger
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
-from autom8_asana.api.dependencies import EntityServiceDep
+from autom8_asana.api.dependencies import EntityServiceDep, RequestId
+from autom8_asana.api.errors import raise_api_error, raise_service_error
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
 from autom8_asana.client import AsanaClient
 from autom8_asana.query.engine import QueryEngine
@@ -26,7 +27,7 @@ from autom8_asana.query.models import (
     RowsRequest,
     RowsResponse,
 )
-from autom8_asana.services.errors import ServiceError, get_status_for_error
+from autom8_asana.services.errors import ServiceError
 from autom8_asana.services.query_service import CacheNotWarmError, resolve_section_index
 
 __all__ = [
@@ -46,16 +47,22 @@ _ERROR_STATUS: dict[type[QueryEngineError], int] = {
 _DEFAULT_ERROR_STATUS = 422
 
 
-def _error_to_response(error: QueryEngineError) -> HTTPException:
-    """Map QueryEngineError to HTTPException."""
+def _raise_query_error(request_id: str, error: QueryEngineError) -> Never:
+    """Map QueryEngineError to HTTPException with request_id.
+
+    Per ADR-I6-001: Preserves existing status mapping while adding
+    request_id to every error response.
+    """
     status = _ERROR_STATUS.get(type(error), _DEFAULT_ERROR_STATUS)
-    return HTTPException(status_code=status, detail=error.to_dict())
+    d = error.to_dict()
+    raise_api_error(request_id, status, d["error"], d["message"])
 
 
 @router.post("/{entity_type}/rows", response_model=RowsResponse)
 async def query_rows(
     entity_type: str,
     request_body: RowsRequest,
+    request_id: RequestId,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
     entity_service: EntityServiceDep,
 ) -> RowsResponse:
@@ -67,7 +74,7 @@ async def query_rows(
     try:
         ctx = entity_service.validate_entity_type(entity_type)
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
 
     # 2. Build section index (manifest-first, enum fallback)
     section_index = await resolve_section_index(
@@ -87,15 +94,14 @@ async def query_rows(
                 entity_project_registry=entity_service.project_registry,
             )
     except QueryEngineError as e:
-        raise _error_to_response(e)
+        _raise_query_error(request_id, e)
     except CacheNotWarmError as e:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "CACHE_NOT_WARMED",
-                "message": str(e),
-                "retry_after_seconds": 30,
-            },
+        raise_api_error(
+            request_id,
+            503,
+            "CACHE_NOT_WARMED",
+            str(e),
+            details={"retry_after_seconds": 30},
         )
 
     # 4. Log query completion
@@ -121,6 +127,7 @@ async def query_rows(
 async def query_aggregate(
     entity_type: str,
     request_body: AggregateRequest,
+    request_id: RequestId,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
     entity_service: EntityServiceDep,
 ) -> AggregateResponse:
@@ -132,7 +139,7 @@ async def query_aggregate(
     try:
         ctx = entity_service.validate_entity_type(entity_type)
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
 
     # 2. Build section index
     section_index = await resolve_section_index(
@@ -151,15 +158,14 @@ async def query_aggregate(
                 section_index=section_index,
             )
     except QueryEngineError as e:
-        raise _error_to_response(e)
+        _raise_query_error(request_id, e)
     except CacheNotWarmError as e:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "CACHE_NOT_WARMED",
-                "message": str(e),
-                "retry_after_seconds": 30,
-            },
+        raise_api_error(
+            request_id,
+            503,
+            "CACHE_NOT_WARMED",
+            str(e),
+            details={"retry_after_seconds": 30},
         )
 
     # 4. Log query completion (TDD Section 16: Observability)
