@@ -25,7 +25,6 @@ from autom8_asana.api.routes.internal import (
     require_service_claims,
 )
 from autom8_asana.client import AsanaClient
-from autom8_asana.query.compiler import strip_section_predicates
 from autom8_asana.query.engine import QueryEngine
 from autom8_asana.query.errors import (
     CoercionError,
@@ -47,6 +46,7 @@ from autom8_asana.services.query_service import (
     CacheNotWarmError,
     EntityQueryService,
     resolve_section,
+    strip_section_conflicts,
     validate_fields,
 )
 
@@ -109,26 +109,6 @@ class QueryResponse(BaseModel):
     meta: QueryMeta
 
 
-def _get_query_service() -> EntityQueryService:
-    """Get EntityQueryService instance."""
-    return EntityQueryService()
-
-
-def _has_section_pred(node: Any) -> bool:
-    """Check if a predicate tree contains any section comparisons."""
-    from autom8_asana.query.models import Comparison
-
-    if isinstance(node, Comparison):
-        return node.field == "section"
-    if hasattr(node, "and_"):
-        return any(_has_section_pred(c) for c in node.and_)
-    if hasattr(node, "or_"):
-        return any(_has_section_pred(c) for c in node.or_)
-    if hasattr(node, "not_"):
-        return _has_section_pred(node.not_)
-    return False
-
-
 @router.post("/{entity_type}", response_model=QueryResponse)
 async def query_entities(
     entity_type: str,
@@ -175,7 +155,7 @@ async def query_entities(
         raise HTTPException(status_code=422, detail=e.to_dict())
 
     # 3. Execute query via EntityQueryService
-    query_service = _get_query_service()
+    query_service = EntityQueryService()
 
     try:
         async with AsanaClient(token=ctx.bot_pat) as client:
@@ -308,18 +288,17 @@ async def query_rows(
         section_index = SectionIndex.from_enum_fallback(entity_type)
 
     # 4. EC-006: If section param + section in predicate, strip conflicts
-    if request_body.section is not None and request_body.where is not None:
-        if _has_section_pred(request_body.where):
-            logger.warning(
-                "section_parameter_conflicts_with_predicate",
-                extra={
-                    "request_id": request_id,
-                    "entity_type": entity_type,
-                    "section": request_body.section,
-                },
-            )
-            stripped = strip_section_predicates(request_body.where)
-            request_body = request_body.model_copy(update={"where": stripped})
+    original_body = request_body
+    request_body = strip_section_conflicts(request_body, request_body.section)
+    if request_body is not original_body:
+        logger.warning(
+            "section_parameter_conflicts_with_predicate",
+            extra={
+                "request_id": request_id,
+                "entity_type": entity_type,
+                "section": request_body.section,
+            },
+        )
 
     # 5. Execute via QueryEngine
     engine = QueryEngine()
