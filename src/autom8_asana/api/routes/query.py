@@ -15,11 +15,12 @@ import time
 from typing import Annotated, Any
 
 from autom8y_log import get_logger
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from autom8_asana.api.dependencies import EntityServiceDep
+from autom8_asana.api.errors import raise_api_error, raise_service_error
 from autom8_asana.api.routes.internal import (
     ServiceClaims,
     require_service_claims,
@@ -37,7 +38,6 @@ from autom8_asana.query.models import RowsRequest, RowsResponse
 from autom8_asana.services.errors import (
     InvalidFieldError,
     ServiceError,
-    get_status_for_error,
 )
 from autom8_asana.services.errors import (
     UnknownSectionError as SvcUnknownSectionError,
@@ -138,21 +138,21 @@ async def query_entities(
     try:
         ctx = entity_service.validate_entity_type(entity_type)
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request, e)
 
     # 2. Field validation via QueryService
     if request_body.where:
         try:
             validate_fields(list(request_body.where.keys()), entity_type, "where")
         except InvalidFieldError as e:
-            raise HTTPException(status_code=422, detail=e.to_dict())
+            raise_service_error(request, e)
 
     select_fields = request_body.select or DEFAULT_SELECT_FIELDS
 
     try:
         validate_fields(select_fields, entity_type, "select")
     except InvalidFieldError as e:
-        raise HTTPException(status_code=422, detail=e.to_dict())
+        raise_service_error(request, e)
 
     # 3. Execute query via EntityQueryService
     query_service = EntityQueryService()
@@ -178,11 +178,12 @@ async def query_entities(
                 "error": str(e),
             },
         )
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "CACHE_NOT_WARMED",
-                "message": str(e),
+        raise_api_error(
+            request,
+            503,
+            "CACHE_NOT_WARMED",
+            str(e),
+            details={
                 "entity_type": entity_type,
                 "retry_after_seconds": 30,
             },
@@ -266,7 +267,7 @@ async def query_rows(
     try:
         ctx = entity_service.validate_entity_type(entity_type)
     except ServiceError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request, e)
 
     # 3. Section resolution (if needed)
     section_index = None
@@ -274,13 +275,12 @@ async def query_rows(
         try:
             await resolve_section(request_body.section, entity_type, ctx.project_gid)
         except SvcUnknownSectionError as e:
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "error": "UNKNOWN_SECTION",
-                    "message": f"Unknown section: '{e.section_name}'",
-                    "section": e.section_name,
-                },
+            raise_api_error(
+                request,
+                422,
+                "UNKNOWN_SECTION",
+                f"Unknown section: '{e.section_name}'",
+                details={"section": e.section_name},
             )
         # Build section index for QueryEngine
         from autom8_asana.metrics.resolve import SectionIndex
@@ -313,21 +313,39 @@ async def query_rows(
                 section_index=section_index,
             )
     except QueryTooComplexError as e:
-        raise HTTPException(status_code=400, detail=e.to_dict())
+        d = e.to_dict()
+        raise_api_error(request, 400, d["error"], d["message"])
     except UnknownFieldError as e:
-        raise HTTPException(status_code=422, detail=e.to_dict())
+        d = e.to_dict()
+        raise_api_error(
+            request,
+            422,
+            d["error"],
+            d["message"],
+            details={"available_fields": d.get("available_fields")},
+        )
     except InvalidOperatorError as e:
-        raise HTTPException(status_code=422, detail=e.to_dict())
+        d = e.to_dict()
+        raise_api_error(request, 422, d["error"], d["message"])
     except CoercionError as e:
-        raise HTTPException(status_code=422, detail=e.to_dict())
+        d = e.to_dict()
+        raise_api_error(request, 422, d["error"], d["message"])
     except UnknownSectionError as e:
-        raise HTTPException(status_code=422, detail=e.to_dict())
+        d = e.to_dict()
+        raise_api_error(
+            request,
+            422,
+            d["error"],
+            d["message"],
+            details={"section": d.get("section")},
+        )
     except CacheNotWarmError as e:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "CACHE_NOT_WARMED",
-                "message": str(e),
+        raise_api_error(
+            request,
+            503,
+            "CACHE_NOT_WARMED",
+            str(e),
+            details={
                 "entity_type": entity_type,
                 "retry_after_seconds": 30,
             },
