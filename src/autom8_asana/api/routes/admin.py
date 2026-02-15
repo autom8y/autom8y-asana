@@ -14,9 +14,10 @@ from __future__ import annotations
 import uuid
 
 from autom8y_log import get_logger
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from pydantic import BaseModel
 
+from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
 from autom8_asana.core.entity_types import ENTITY_TYPES
 
@@ -405,37 +406,32 @@ async def refresh_cache(
 
     # Validate entity type
     if body.entity_type is not None and body.entity_type not in VALID_ENTITY_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "INVALID_ENTITY_TYPE",
-                "message": (
-                    f"Invalid entity_type: '{body.entity_type}'. "
-                    f"Valid types: {sorted(VALID_ENTITY_TYPES)}"
-                ),
-            },
+        raise_api_error(
+            request,
+            400,
+            "INVALID_ENTITY_TYPE",
+            f"Invalid entity_type: '{body.entity_type}'. "
+            f"Valid types: {sorted(VALID_ENTITY_TYPES)}",
         )
 
     # Check cache system is initialized
     cache = get_dataframe_cache()
     if cache is None:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "CACHE_NOT_INITIALIZED",
-                "message": "Cache system is not initialized. Try again later.",
-            },
+        raise_api_error(
+            request,
+            503,
+            "CACHE_NOT_INITIALIZED",
+            "Cache system is not initialized. Try again later.",
         )
 
     # Check registry is ready
     registry = EntityProjectRegistry.get_instance()
     if not registry.is_ready():
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "REGISTRY_NOT_READY",
-                "message": "Entity project registry is not initialized.",
-            },
+        raise_api_error(
+            request,
+            503,
+            "REGISTRY_NOT_READY",
+            "Entity project registry is not initialized.",
         )
 
     # Determine entity types to refresh

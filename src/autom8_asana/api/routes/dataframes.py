@@ -33,7 +33,7 @@ Per TDD-SERVICE-LAYER-001 v2.0 Phase 4:
 from io import StringIO
 from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Header, Query
 from fastapi.responses import JSONResponse, Response
 
 from autom8_asana.api.dependencies import (
@@ -41,13 +41,14 @@ from autom8_asana.api.dependencies import (
     DataFrameServiceDep,
     RequestId,
 )
+from autom8_asana.api.errors import raise_service_error
 from autom8_asana.api.models import (
     PaginationMeta,
     ResponseMeta,
     build_success_response,
 )
 from autom8_asana.services.dataframe_service import InvalidSchemaError
-from autom8_asana.services.errors import EntityNotFoundError, get_status_for_error
+from autom8_asana.services.errors import EntityNotFoundError
 
 router = APIRouter(prefix="/api/v1/dataframes", tags=["dataframes"])
 
@@ -196,7 +197,7 @@ async def get_project_dataframe(
     try:
         df_schema = dataframe_service.get_schema(schema)
     except InvalidSchemaError as e:
-        raise HTTPException(status_code=400, detail=e.to_dict())
+        raise_service_error(request_id, e)
 
     result = await dataframe_service.build_project_dataframe(
         client=client,
@@ -283,7 +284,7 @@ async def get_section_dataframe(
     try:
         df_schema = dataframe_service.get_schema(schema)
     except InvalidSchemaError as e:
-        raise HTTPException(status_code=400, detail=e.to_dict())
+        raise_service_error(request_id, e)
 
     try:
         result, _project_gid = await dataframe_service.build_section_dataframe(
@@ -294,7 +295,7 @@ async def get_section_dataframe(
             offset=offset,
         )
     except EntityNotFoundError as e:
-        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
+        raise_service_error(request_id, e)
 
     return _format_dataframe_response(
         df=result.dataframe,

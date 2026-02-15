@@ -21,9 +21,10 @@ Per TDD-ASANA-SATELLITE:
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 
 from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
+from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.models import (
     AsanaResource,
     CreateProjectRequest,
@@ -204,12 +205,11 @@ async def update_project(
         kwargs["archived"] = body.archived
 
     if not kwargs:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": "INVALID_PARAMETER",
-                "message": "At least one field must be provided for update",
-            },
+        raise_api_error(
+            request_id,
+            status.HTTP_400_BAD_REQUEST,
+            "INVALID_PARAMETER",
+            "At least one field must be provided for update",
         )
 
     project = await client.projects.update_async(gid, raw=True, **kwargs)
