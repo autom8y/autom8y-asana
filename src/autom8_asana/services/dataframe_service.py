@@ -42,8 +42,7 @@ class InvalidSchemaError(InvalidParameterError):
         self.schema_name = schema_name
         self.valid_schemas = valid_schemas
         super().__init__(
-            f"Unknown schema '{schema_name}'. "
-            f"Valid schemas: {', '.join(valid_schemas)}"
+            f"Unknown schema '{schema_name}'. Valid schemas: {', '.join(valid_schemas)}"
         )
 
     @property
@@ -182,9 +181,7 @@ class DataFrameService:
         if offset:
             params["offset"] = offset
 
-        data, next_offset = await client._http.get_paginated(
-            "/tasks", params=params
-        )
+        data, next_offset = await client._http.get_paginated("/tasks", params=params)
 
         resolver = DefaultCustomFieldResolver()
         unified_store = UnifiedTaskStore(cache=InMemoryCacheProvider())
@@ -194,9 +191,7 @@ class DataFrameService:
             resolver=resolver,
         )
 
-        rows = await view_plugin._extract_rows_async(
-            data, project_gid=project_gid
-        )
+        rows = await view_plugin._extract_rows_async(data, project_gid=project_gid)
         if rows:
             df = pl.DataFrame(rows, schema=schema.to_polars_schema())
         else:
@@ -250,9 +245,7 @@ class DataFrameService:
         project_gid = section_data.get("project", {}).get("gid")
 
         if not project_gid:
-            raise EntityNotFoundError(
-                "Section not found or has no parent project"
-            )
+            raise EntityNotFoundError("Section not found or has no parent project")
 
         # Fetch section tasks
         params: dict[str, Any] = {
@@ -263,9 +256,7 @@ class DataFrameService:
         if offset:
             params["offset"] = offset
 
-        data, next_offset = await client._http.get_paginated(
-            "/tasks", params=params
-        )
+        data, next_offset = await client._http.get_paginated("/tasks", params=params)
 
         # Convert to Task models for SectionDataFrameBuilder
         tasks = [Task.model_validate(t) for t in data]
@@ -314,9 +305,7 @@ class _SectionProxy:
 
     __slots__ = ("gid", "project", "tasks")
 
-    def __init__(
-        self, gid: str, project_gid: str, tasks: list[Any]
-    ) -> None:
+    def __init__(self, gid: str, project_gid: str, tasks: list[Any]) -> None:
         self.gid = gid
         self.project = {"gid": project_gid}
         self.tasks = tasks

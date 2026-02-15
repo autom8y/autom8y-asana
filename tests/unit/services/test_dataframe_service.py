@@ -32,7 +32,6 @@ from autom8_asana.services.errors import (
     get_status_for_error,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -245,9 +244,7 @@ class TestBuildProjectDataframe:
     """Tests for DataFrameService.build_project_dataframe()."""
 
     @pytest.mark.asyncio
-    async def test_happy_path(
-        self, service: DataFrameService, mock_client: MagicMock
-    ):
+    async def test_happy_path(self, service: DataFrameService, mock_client: MagicMock):
         """Builds DataFrame from paginated task data."""
         schema = service.get_schema("base")
 
@@ -378,9 +375,7 @@ class TestBuildSectionDataframe:
     """Tests for DataFrameService.build_section_dataframe()."""
 
     @pytest.mark.asyncio
-    async def test_happy_path(
-        self, service: DataFrameService, mock_client: MagicMock
-    ):
+    async def test_happy_path(self, service: DataFrameService, mock_client: MagicMock):
         """Builds DataFrame from section tasks."""
         schema = service.get_schema("base")
 

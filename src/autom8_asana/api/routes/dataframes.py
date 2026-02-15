@@ -294,9 +294,7 @@ async def get_section_dataframe(
             offset=offset,
         )
     except EntityNotFoundError as e:
-        raise HTTPException(
-            status_code=get_status_for_error(e), detail=e.to_dict()
-        )
+        raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
 
     return _format_dataframe_response(
         df=result.dataframe,
