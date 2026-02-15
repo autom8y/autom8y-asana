@@ -12,10 +12,11 @@ API budget: 1-2 calls per section (~300-550ms each), ~34 sections at 8 concurren
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 from autom8y_log import get_logger
@@ -335,24 +336,54 @@ class SectionFreshnessProber:
             ).collect()
             delta_tasks.extend(modified_raw)
 
-        # Fetch added tasks individually (may not appear in modified_since)
+        # Fetch added tasks in parallel (may not appear in modified_since)
         fetched_gids = {t.gid for t in delta_tasks}
-        for gid in added_gids:
-            if gid not in fetched_gids:
-                try:
-                    task = await self._client.tasks.get_async(
+        unfetched_added = [gid for gid in added_gids if gid not in fetched_gids]
+
+        if unfetched_added:
+            sem = asyncio.Semaphore(8)
+
+            async def _fetch_one(gid: str) -> tuple[str, Any]:
+                """Fetch a single added GID with bounded concurrency."""
+                async with sem:
+                    return gid, await self._client.tasks.get_async(
                         gid, opt_fields=BASE_OPT_FIELDS
                     )
-                    delta_tasks.append(task)
-                except Exception as e:  # BROAD-CATCH: api-boundary -- individual task fetch via Asana API
+
+            fetch_results = await asyncio.gather(
+                *[_fetch_one(g) for g in unfetched_added],
+                return_exceptions=True,
+            )
+
+            succeeded = 0
+            failed = 0
+            for i, result in enumerate(fetch_results):
+                if isinstance(result, BaseException):
+                    failed += 1
                     logger.warning(
                         "freshness_delta_fetch_added_failed",
                         extra={
                             "section_gid": section_gid,
-                            "task_gid": gid,
-                            "error": str(e),
+                            "task_gid": unfetched_added[i],
+                            "error": str(result),
+                            "error_type": type(result).__name__,
                         },
                     )
+                else:
+                    _gid, task = result
+                    delta_tasks.append(task)
+                    succeeded += 1
+
+            if unfetched_added:
+                logger.info(
+                    "freshness_delta_parallel_fetch_summary",
+                    extra={
+                        "section_gid": section_gid,
+                        "total_added": len(unfetched_added),
+                        "succeeded": succeeded,
+                        "failed": failed,
+                    },
+                )
 
         if delta_tasks and view is not None:
             # Convert tasks to rows using the view
