@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
+from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 from autom8_asana.cache.models.mutation_event import (
     EntityKind,
     MutationEvent,
@@ -350,7 +351,7 @@ class FieldWriteService:
         """Fire-and-forget cache invalidation with error suppression."""
         try:
             await invalidator.invalidate_async(event)
-        except Exception:
+        except CACHE_TRANSIENT_ERRORS:
             logger.warning(
                 "entity_write_cache_invalidation_failed",
                 extra={

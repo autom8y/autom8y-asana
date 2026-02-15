@@ -36,6 +36,10 @@ __all__ = [
     "UniversalResolutionStrategy",
 ]
 
+# Exception tuples for narrowed exception handling
+_INDEX_BUILD_ERRORS = CACHE_TRANSIENT_ERRORS + (RuntimeError,)
+_DATAFRAME_BUILD_ERRORS = CACHE_TRANSIENT_ERRORS + (RuntimeError, ValueError)
+
 # Cache TTL for shared dynamic index (1 hour)
 # Balances memory vs. rebuild cost for entity resolution indexes
 # Configurable via ASANA_CACHE_TTL_DYNAMIC_INDEX environment variable
@@ -253,7 +257,7 @@ class UniversalResolutionStrategy:
                 key_columns=key_columns,
                 client=client,
             )
-        except Exception as e:
+        except _INDEX_BUILD_ERRORS as e:
             # Index build failure -> all criteria in this group get INDEX_UNAVAILABLE
             logger.warning(
                 "group_index_build_failed",
@@ -461,7 +465,7 @@ class UniversalResolutionStrategy:
             # Return in same order as input GIDs
             return [result_map.get(gid, {"gid": gid}) for gid in gids]
 
-        except Exception as e:  # BROAD-CATCH: degrade
+        except (KeyError, AttributeError, TypeError) as e:
             logger.warning(
                 "enrichment_extraction_failed",
                 extra={
@@ -520,7 +524,7 @@ class UniversalResolutionStrategy:
                         project_gid, self.entity_type
                     )
                     return entry.dataframe
-        except Exception as e:  # BROAD-CATCH: degrade
+        except CACHE_TRANSIENT_ERRORS as e:
             logger.warning(
                 "dataframe_cache_fetch_failed",
                 extra={
@@ -620,7 +624,7 @@ class UniversalResolutionStrategy:
 
             return df
 
-        except Exception as e:  # BROAD-CATCH: degrade
+        except _DATAFRAME_BUILD_ERRORS as e:
             logger.warning(
                 "entity_dataframe_build_failed",
                 extra={
@@ -645,7 +649,7 @@ class UniversalResolutionStrategy:
 
         try:
             return registry.get_schema(schema_key)
-        except Exception:  # BROAD-CATCH: degrade
+        except (KeyError, RuntimeError):
             # Fall back to base schema
             logger.warning("Custom field resolver fallback", exc_info=True)
             return registry.get_schema("*")
