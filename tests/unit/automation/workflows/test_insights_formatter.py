@@ -736,10 +736,6 @@ class TestAdversarialUnusedAssetsNoneSpend:
     @pytest.mark.asyncio
     async def test_none_spend_excluded_from_unused(self):
         """Rows with spend=None are NOT matched by spend==0 filter."""
-        from autom8_asana.automation.workflows.insights_export import (
-            InsightsExportWorkflow,
-        )
-        from autom8_asana.automation.workflows.insights_formatter import TableResult
 
         # Simulate the filter logic directly
         asset_data = [

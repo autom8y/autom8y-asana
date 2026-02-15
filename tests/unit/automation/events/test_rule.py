@@ -6,7 +6,6 @@ Per SC-004: Emission failures do not propagate.
 
 from __future__ import annotations
 
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest

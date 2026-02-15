@@ -469,8 +469,6 @@ class TestRateLimitLogging:
         attempt, and retry_after fields."""
         import httpx
 
-        from autom8_asana.exceptions import RateLimitError
-        from autom8_asana.transport.asana_http import AsanaHttpClient
 
         # Build a minimal mock response that triggers RateLimitError
         mock_response = MagicMock(spec=httpx.Response)

@@ -6,9 +6,8 @@ Business.max_unit_activity properties added in Phase 2.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, PropertyMock
+from unittest.mock import MagicMock
 
-import pytest
 
 from autom8_asana.models.business.activity import (
     ACTIVITY_PRIORITY,

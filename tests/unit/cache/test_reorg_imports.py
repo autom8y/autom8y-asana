@@ -12,7 +12,7 @@ All code now uses canonical paths. Root __init__.py re-exports for public API.
 
 def test_root_imports():
     """Root __init__.py exports are accessible."""
-    from autom8_asana.cache import (
+    from autom8_asana.cache import (  # noqa: F401
         AsanaTaskUpgrader,
         CacheEntry,
         CacheEvent,
@@ -52,25 +52,25 @@ def test_root_imports():
 
 def test_canonical_imports():
     """New canonical paths work."""
-    from autom8_asana.cache.integration.factory import CacheProviderFactory
-    from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
-    from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator
-    from autom8_asana.cache.models.completeness import CompletenessLevel
-    from autom8_asana.cache.models.entry import CacheEntry, EntryType
-    from autom8_asana.cache.models.errors import DegradedModeMixin
-    from autom8_asana.cache.models.freshness import Freshness
-    from autom8_asana.cache.models.freshness_stamp import FreshnessStamp
-    from autom8_asana.cache.models.metrics import CacheEvent, CacheMetrics
-    from autom8_asana.cache.models.mutation_event import MutationEvent
-    from autom8_asana.cache.models.settings import CacheSettings
-    from autom8_asana.cache.models.versioning import compare_versions
-    from autom8_asana.cache.policies.coalescer import RequestCoalescer
-    from autom8_asana.cache.policies.freshness_policy import FreshnessPolicy
-    from autom8_asana.cache.policies.hierarchy import HierarchyIndex
-    from autom8_asana.cache.policies.lightweight_checker import LightweightChecker
-    from autom8_asana.cache.policies.staleness import check_entry_staleness
-    from autom8_asana.cache.providers.tiered import TieredCacheProvider
-    from autom8_asana.cache.providers.unified import UnifiedTaskStore
+    from autom8_asana.cache.integration.factory import CacheProviderFactory  # noqa: F401
+    from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode  # noqa: F401
+    from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator  # noqa: F401
+    from autom8_asana.cache.models.completeness import CompletenessLevel  # noqa: F401
+    from autom8_asana.cache.models.entry import CacheEntry, EntryType  # noqa: F401
+    from autom8_asana.cache.models.errors import DegradedModeMixin  # noqa: F401
+    from autom8_asana.cache.models.freshness import Freshness  # noqa: F401
+    from autom8_asana.cache.models.freshness_stamp import FreshnessStamp  # noqa: F401
+    from autom8_asana.cache.models.metrics import CacheEvent, CacheMetrics  # noqa: F401
+    from autom8_asana.cache.models.mutation_event import MutationEvent  # noqa: F401
+    from autom8_asana.cache.models.settings import CacheSettings  # noqa: F401
+    from autom8_asana.cache.models.versioning import compare_versions  # noqa: F401
+    from autom8_asana.cache.policies.coalescer import RequestCoalescer  # noqa: F401
+    from autom8_asana.cache.policies.freshness_policy import FreshnessPolicy  # noqa: F401
+    from autom8_asana.cache.policies.hierarchy import HierarchyIndex  # noqa: F401
+    from autom8_asana.cache.policies.lightweight_checker import LightweightChecker  # noqa: F401
+    from autom8_asana.cache.policies.staleness import check_entry_staleness  # noqa: F401
+    from autom8_asana.cache.providers.tiered import TieredCacheProvider  # noqa: F401
+    from autom8_asana.cache.providers.unified import UnifiedTaskStore  # noqa: F401
 
     assert CacheEntry is not None
     assert FreshnessStamp is not None
@@ -85,10 +85,10 @@ def test_canonical_imports():
 
 def test_subpackage_imports():
     """Subpackage __init__.py re-exports work."""
-    from autom8_asana.cache.integration import FreshnessMode, MutationInvalidator
-    from autom8_asana.cache.models import CacheEntry, CacheMetrics, FreshnessStamp
-    from autom8_asana.cache.policies import FreshnessPolicy, LightweightChecker
-    from autom8_asana.cache.providers import TieredCacheProvider, UnifiedTaskStore
+    from autom8_asana.cache.integration import FreshnessMode, MutationInvalidator  # noqa: F401
+    from autom8_asana.cache.models import CacheEntry, CacheMetrics, FreshnessStamp  # noqa: F401
+    from autom8_asana.cache.policies import FreshnessPolicy, LightweightChecker  # noqa: F401
+    from autom8_asana.cache.providers import TieredCacheProvider, UnifiedTaskStore  # noqa: F401
 
     assert CacheEntry is not None
     assert FreshnessPolicy is not None

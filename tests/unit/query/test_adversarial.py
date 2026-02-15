@@ -17,7 +17,6 @@ from pydantic import TypeAdapter, ValidationError
 
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.query.compiler import (
-    OPERATOR_MATRIX,
     PredicateCompiler,
     _coerce_scalar,
     _coerce_value,

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
 
 import polars as pl
 import pytest

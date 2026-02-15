@@ -14,7 +14,6 @@ from autom8_asana.protocols.cache import WarmResult
 # Try to import moto, skip integration tests if not available
 try:
     import boto3
-    from botocore.exceptions import ClientError
     from moto import mock_aws
 
     MOTO_AVAILABLE = True

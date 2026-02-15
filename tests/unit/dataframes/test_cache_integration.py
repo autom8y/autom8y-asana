@@ -14,19 +14,14 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
-import polars as pl
 import pytest
 
 from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvider
 from autom8_asana.dataframes import (
-    UNIT_SCHEMA,
     CachedRow,
     DataFrameCacheIntegration,
-    SectionDataFrameBuilder,
 )
-from autom8_asana.dataframes.cache_integration import make_dataframe_key
 from autom8_asana.dataframes.resolver import MockCustomFieldResolver
-from autom8_asana.models.common import NameGid
 from autom8_asana.models.task import Task
 
 # =============================================================================

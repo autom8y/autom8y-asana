@@ -17,13 +17,11 @@ import pytest
 from botocore.exceptions import ClientError
 
 from autom8_asana.config import S3LocationConfig
-from autom8_asana.core.exceptions import S3TransportError
 from autom8_asana.core.retry import (
     BudgetConfig,
     CBState,
     CircuitBreaker,
     CircuitBreakerConfig,
-    CircuitBreakerOpenError,
     DefaultRetryPolicy,
     RetryBudget,
     RetryOrchestrator,

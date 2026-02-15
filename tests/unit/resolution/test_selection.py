@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
 
 from autom8_asana.models.business.process import Process, ProcessType
 from autom8_asana.resolution.selection import (

@@ -17,7 +17,6 @@ import pytest
 from autom8_asana.dataframes.builders import (
     LAZY_THRESHOLD,
     DataFrameBuilder,
-    SectionDataFrameBuilder,
 )
 from autom8_asana.dataframes.extractors.base import BaseExtractor
 from autom8_asana.dataframes.models.schema import DataFrameSchema

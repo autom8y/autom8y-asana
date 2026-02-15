@@ -15,7 +15,6 @@ from fastapi.testclient import TestClient
 
 from autom8_asana.api.routes.admin import (
     VALID_ENTITY_TYPES,
-    CacheRefreshRequest,
     router,
 )
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims

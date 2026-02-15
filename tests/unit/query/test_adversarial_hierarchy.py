@@ -19,7 +19,6 @@ from autom8_asana.query.engine import QueryEngine
 from autom8_asana.query.errors import JoinError, UnknownFieldError
 from autom8_asana.query.hierarchy import (
     ENTITY_RELATIONSHIPS,
-    EntityRelationship,
     find_relationship,
     get_join_key,
     get_joinable_types,

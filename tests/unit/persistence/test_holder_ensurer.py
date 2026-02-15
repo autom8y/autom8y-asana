@@ -12,19 +12,15 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from autom8_asana.batch.models import BatchResult
 from autom8_asana.models import Task
 from autom8_asana.models.common import NameGid
-from autom8_asana.persistence.events import EventSystem
 from autom8_asana.persistence.graph import DependencyGraph
 from autom8_asana.persistence.holder_concurrency import HolderConcurrencyManager
 from autom8_asana.persistence.holder_ensurer import HolderEnsurer
-from autom8_asana.persistence.models import EntityState, OperationType
-from autom8_asana.persistence.pipeline import SavePipeline
 from autom8_asana.persistence.tracker import ChangeTracker
 
 # ---------------------------------------------------------------------------
@@ -763,7 +759,7 @@ class TestDependencyGraphIntegration:
     def test_temp_gid_chain_resolves(self) -> None:
         """All-new Business -> Holder -> Child with temp GIDs resolves correctly."""
         from autom8_asana.models.business.business import Business
-        from autom8_asana.models.business.contact import Contact, ContactHolder
+        from autom8_asana.models.business.contact import Contact
         from autom8_asana.persistence.holder_construction import construct_holder
 
         # All-new entities
@@ -951,8 +947,8 @@ class TestS2005LevelDependencyGraph:
         L4: Offer
         """
         from autom8_asana.models.business.business import Business
-        from autom8_asana.models.business.offer import Offer, OfferHolder
-        from autom8_asana.models.business.unit import Unit, UnitHolder
+        from autom8_asana.models.business.offer import Offer
+        from autom8_asana.models.business.unit import Unit
         from autom8_asana.persistence.holder_construction import construct_holder
 
         # Build 5-level chain manually
@@ -993,10 +989,10 @@ class TestS2005LevelDependencyGraph:
         L4: Offer, Process
         """
         from autom8_asana.models.business.business import Business
-        from autom8_asana.models.business.contact import Contact, ContactHolder
-        from autom8_asana.models.business.offer import Offer, OfferHolder
-        from autom8_asana.models.business.process import Process, ProcessHolder
-        from autom8_asana.models.business.unit import Unit, UnitHolder
+        from autom8_asana.models.business.contact import Contact
+        from autom8_asana.models.business.offer import Offer
+        from autom8_asana.models.business.process import Process
+        from autom8_asana.models.business.unit import Unit
         from autom8_asana.persistence.holder_construction import construct_holder
 
         # Build tree with fan-outs
@@ -1072,7 +1068,6 @@ class TestS2005LevelDependencyGraph:
         and the referenced entity is in the graph, the resolution succeeds.
         """
         from autom8_asana.models.business.business import Business
-        from autom8_asana.models.business.unit import UnitHolder
         from autom8_asana.persistence.holder_construction import construct_holder
 
         business = Business(gid="", name="New Biz")

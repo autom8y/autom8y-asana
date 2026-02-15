@@ -8,7 +8,6 @@ asset derivation.
 
 from __future__ import annotations
 
-import asyncio
 import os
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -26,7 +25,6 @@ from autom8_asana.automation.workflows.insights_export import (
     InsightsExportWorkflow,
     _sanitize_business_name,
 )
-from autom8_asana.automation.workflows.insights_formatter import TableResult
 from autom8_asana.clients.data.models import (
     ColumnInfo,
     InsightsMetadata,

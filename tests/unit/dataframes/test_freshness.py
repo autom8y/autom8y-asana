@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
-import polars as pl
 import pytest
 
 from autom8_asana.dataframes.builders.freshness import (
     ProbeVerdict,
     SectionFreshnessProber,
-    SectionProbeResult,
     compute_gid_hash,
 )
 from autom8_asana.dataframes.section_persistence import (

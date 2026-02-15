@@ -7,7 +7,7 @@ All handlers accept (ctx, created_entity_gid, action_config, source_process)
 per the updated signature contract.
 """
 
-from datetime import date, timedelta
+from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

@@ -6,7 +6,6 @@ configuration filtering, fallback to hard eviction, and default state.
 
 from __future__ import annotations
 
-from dataclasses import replace
 from datetime import UTC, datetime
 from unittest.mock import Mock
 
