@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
     from autom8_asana.clients.data import DataServiceClient
     from autom8_asana.clients.data.models import InsightsResponse
+    from autom8_asana.models.business.activity import AccountActivity
     from autom8_asana.models.business.hours import Hours
     from autom8_asana.models.business.location import Location, LocationHolder
     from autom8_asana.models.business.unit import Unit, UnitHolder
@@ -471,6 +472,27 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
             return []
         units: list[Unit] = self._unit_holder.units  # type: ignore[attr-defined]
         return units
+
+    @property
+    def max_unit_activity(self) -> AccountActivity | None:
+        """Highest activity level across all child Units.
+
+        Uses ACTIVITY_PRIORITY ordering: ACTIVE > ACTIVATING > INACTIVE > IGNORED.
+        Returns None if no units or all units have unknown sections.
+
+        Returns:
+            AccountActivity or None.
+        """
+        from autom8_asana.models.business.activity import ACTIVITY_PRIORITY
+
+        activities = [
+            u.account_activity
+            for u in self.units
+            if u.account_activity is not None
+        ]
+        if not activities:
+            return None
+        return min(activities, key=lambda a: ACTIVITY_PRIORITY.index(a))
 
     @property
     def address(self) -> Location | None:
