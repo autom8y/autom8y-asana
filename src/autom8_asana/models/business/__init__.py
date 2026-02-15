@@ -107,6 +107,16 @@ from autom8_asana.models.business.mixins import (
     SharedCascadingFieldsMixin,
 )
 from autom8_asana.models.business.offer import Offer, OfferHolder
+from autom8_asana.models.business.activity import (
+    ACTIVITY_PRIORITY,
+    AccountActivity,
+    CLASSIFIERS,
+    OFFER_CLASSIFIER,
+    SectionClassifier,
+    UNIT_CLASSIFIER,
+    extract_section_name,
+    get_classifier,
+)
 from autom8_asana.models.business.process import (
     Process,
     ProcessHolder,
@@ -215,4 +225,13 @@ __all__ = [
     "resolve_offers_async",
     "resolve_units",
     "resolve_offers",
+    # Activity Classification
+    "AccountActivity",
+    "ACTIVITY_PRIORITY",
+    "CLASSIFIERS",
+    "OFFER_CLASSIFIER",
+    "SectionClassifier",
+    "UNIT_CLASSIFIER",
+    "extract_section_name",
+    "get_classifier",
 ]
