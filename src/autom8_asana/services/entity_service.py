@@ -65,6 +65,18 @@ class EntityService:
         self._entity_registry = entity_registry
         self._project_registry = project_registry
 
+    @property
+    def project_registry(self) -> EntityProjectRegistry:
+        """Expose project registry for callers that need it directly.
+
+        Used by query_v2.py to pass entity_project_registry to
+        QueryEngine.execute_rows() without accessing app.state.
+
+        Returns:
+            The EntityProjectRegistry instance held by this service.
+        """
+        return self._project_registry
+
     def validate_entity_type(self, entity_type: str) -> EntityContext:
         """Validate entity type and return full context.
 
