@@ -95,7 +95,7 @@ class EntityWriteRegistry:
             for attr_name in dir(model_class):
                 try:
                     attr = getattr(model_class, attr_name)
-                except Exception:
+                except (AttributeError, TypeError):
                     continue
                 if isinstance(attr, CustomFieldDescriptor) and attr.field_name:
                     descriptor_index[attr.public_name] = attr.field_name

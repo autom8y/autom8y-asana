@@ -104,7 +104,7 @@ class PipelineTransitionWorkflow(WorkflowAction):
             sales_stage = self._config.get_stage("sales")
             if not sales_stage:
                 errors.append("No 'sales' stage in lifecycle config")
-        except Exception as e:
+        except (KeyError, ValueError, AttributeError) as e:
             errors.append(f"Config validation error: {e}")
 
         return errors
