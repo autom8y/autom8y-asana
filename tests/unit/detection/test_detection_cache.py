@@ -190,7 +190,7 @@ class TestGetCachedDetection:
 
     def test_cache_error_returns_none(self, mock_cache: MagicMock) -> None:
         """FR-DEGRADE-001: Cache lookup error returns None (graceful degradation)."""
-        mock_cache.get.side_effect = RuntimeError("Cache connection failed")
+        mock_cache.get.side_effect = ConnectionError("Cache connection failed")
 
         result = _get_cached_detection("task_123", mock_cache)
 
@@ -303,7 +303,7 @@ class TestCacheDetectionResult:
 
     def test_cache_error_does_not_raise(self, mock_cache: MagicMock) -> None:
         """FR-DEGRADE-002: Cache storage error does not raise."""
-        mock_cache.set.side_effect = RuntimeError("Cache write failed")
+        mock_cache.set.side_effect = ConnectionError("Cache write failed")
         task = make_task(gid="task_123")
         result = make_detection_result()
 
@@ -478,7 +478,7 @@ class TestDetectEntityTypeAsyncCacheIntegration:
     ) -> None:
         """FR-DEGRADE-001: Cache check failure degrades gracefully."""
         task = make_task(gid="task_123", name="Random Name")
-        mock_cache.get.side_effect = RuntimeError("Cache connection failed")
+        mock_cache.get.side_effect = ConnectionError("Cache connection failed")
 
         # Mock Tier 4 API call (should proceed despite cache failure)
         mock_client_with_cache.tasks.subtasks_async.return_value.collect = AsyncMock(
@@ -503,7 +503,7 @@ class TestDetectEntityTypeAsyncCacheIntegration:
         """FR-DEGRADE-002: Cache store failure degrades gracefully."""
         task = make_task(gid="task_123", name="Random Name")
         mock_cache.get.return_value = None
-        mock_cache.set.side_effect = RuntimeError("Cache write failed")
+        mock_cache.set.side_effect = ConnectionError("Cache write failed")
 
         # Mock Tier 4 API call
         mock_client_with_cache.tasks.subtasks_async.return_value.collect = AsyncMock(
