@@ -20,14 +20,23 @@ Per PRD-ASANA-SATELLITE (FR-ERR-008):
 
 Per PRD-ASANA-SATELLITE (FR-ERR-009):
 - Generic 500 responses hide implementation details
+
+Per ADR-I6-001: API Error Response Convention
+- raise_api_error() for route-level validation/precondition errors
+- raise_service_error() for ServiceError conversion with request_id
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Never
 
 from autom8y_log import get_logger
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from httpx import RequestError
+
+if TYPE_CHECKING:
+    from autom8_asana.services.errors import ServiceError
 
 from autom8_asana.exceptions import (
     AsanaError,
@@ -71,6 +80,93 @@ def _build_error_response(
         ),
         meta=ResponseMeta(request_id=request_id),
     ).model_dump(mode="json")
+
+
+def raise_api_error(
+    request_or_id: Request | str,
+    status_code: int,
+    code: str,
+    message: str,
+    *,
+    details: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+) -> Never:
+    """Raise HTTPException with consistent error format.
+
+    Ensures all route-level error responses include:
+    - Machine-readable error code
+    - Human-readable message
+    - request_id for correlation (per FR-ERR-008)
+
+    Per ADR-I6-001: Used for Tier 2 (ServiceError conversion) and
+    Tier 3 (route-specific validation/precondition checks).
+
+    Args:
+        request_or_id: FastAPI Request (for request_id extraction) or
+            a raw request_id string (for routes using RequestId dependency).
+        status_code: HTTP status code.
+        code: Machine-readable error code (e.g., "INVALID_ENTITY_TYPE").
+        message: Human-readable error description.
+        details: Additional structured context (optional). Merged into detail dict.
+        headers: Additional HTTP headers (e.g., Retry-After).
+
+    Raises:
+        HTTPException: Always raised, never returns.
+    """
+    if isinstance(request_or_id, str):
+        request_id = request_or_id
+    else:
+        request_id = getattr(request_or_id.state, "request_id", "unknown")
+    detail: dict[str, Any] = {
+        "error": code,
+        "message": message,
+        "request_id": request_id,
+    }
+    if details:
+        detail.update(details)
+    raise HTTPException(
+        status_code=status_code,
+        detail=detail,
+        headers=headers,
+    )
+
+
+def raise_service_error(
+    request_or_id: Request | str,
+    error: ServiceError,
+    *,
+    headers: dict[str, str] | None = None,
+) -> Never:
+    """Raise HTTPException from a ServiceError with consistent format.
+
+    Convenience wrapper for the common pattern of catching ServiceError
+    and converting to HTTPException. Preserves all fields from
+    error.to_dict() and injects request_id.
+
+    Per ADR-I6-001 Tier 2: Preferred for routes that delegate to a
+    service layer raising domain exceptions.
+
+    Args:
+        request_or_id: FastAPI Request or raw request_id string.
+        error: ServiceError instance with error_code, message, and to_dict().
+        headers: Additional HTTP headers.
+
+    Raises:
+        HTTPException: Always raised.
+    """
+    from autom8_asana.services.errors import get_status_for_error
+
+    if isinstance(request_or_id, str):
+        request_id = request_or_id
+    else:
+        request_id = getattr(request_or_id.state, "request_id", "unknown")
+    detail = error.to_dict()
+    detail["request_id"] = request_id
+    raise HTTPException(
+        status_code=get_status_for_error(error),
+        detail=detail,
+        headers=headers,
+    )
 
 
 async def not_found_handler(
@@ -405,6 +501,8 @@ def register_exception_handlers(app: FastAPI) -> None:
 
 
 __all__ = [
+    "raise_api_error",
+    "raise_service_error",
     "register_exception_handlers",
     # Individual handlers (for testing)
     "asana_error_handler",
