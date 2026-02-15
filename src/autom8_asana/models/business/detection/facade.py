@@ -177,7 +177,6 @@ def _cache_detection_result(
             },
             exc_info=True,
         )
-        pass
 
 
 # --- Utility Functions ---
