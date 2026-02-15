@@ -493,6 +493,7 @@ class BaseExtractor(ABC):
         """Extract section name from task memberships (FR-MODEL-009).
 
         Per PRD-0003: Section extracted from task's memberships for target project.
+        Delegates to canonical extract_section_name() per DRY-001.
 
         Args:
             task: Task to extract from
@@ -501,24 +502,9 @@ class BaseExtractor(ABC):
         Returns:
             Section name or None
         """
-        if not task.memberships:
-            return None
+        from autom8_asana.models.business.activity import extract_section_name
 
-        for membership in task.memberships:
-            # Skip if project_gid specified and doesn't match
-            if project_gid:
-                project = membership.get("project", {})
-                if isinstance(project, dict) and project.get("gid") != project_gid:
-                    continue
-
-            # Extract section name
-            section = membership.get("section")
-            if section and isinstance(section, dict):
-                section_name = section.get("name")
-                if section_name is not None and isinstance(section_name, str):
-                    return str(section_name)
-
-        return None
+        return extract_section_name(task, project_gid)
 
     def _extract_tags(self, task: Task) -> list[str]:
         """Extract tag names (FR-MODEL-010).

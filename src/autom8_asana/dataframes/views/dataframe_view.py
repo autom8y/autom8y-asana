@@ -839,6 +839,8 @@ class DataFrameViewPlugin:
     ) -> str | None:
         """Extract section name from task memberships.
 
+        Delegates to canonical extract_section_name() per DRY-001.
+
         Args:
             task_data: Task data dict.
             project_gid: Optional project GID filter.
@@ -846,28 +848,9 @@ class DataFrameViewPlugin:
         Returns:
             Section name or None.
         """
-        memberships = task_data.get("memberships")
-        if not memberships:
-            return None
+        from autom8_asana.models.business.activity import extract_section_name
 
-        for membership in memberships:
-            if not isinstance(membership, dict):
-                continue
-
-            # Filter by project if specified
-            if project_gid:
-                project = membership.get("project", {})
-                if isinstance(project, dict) and project.get("gid") != project_gid:
-                    continue
-
-            # Extract section name
-            section = membership.get("section")
-            if section and isinstance(section, dict):
-                section_name = section.get("name")
-                if section_name is not None:
-                    return str(section_name)
-
-        return None
+        return extract_section_name(task_data, project_gid)
 
     def _extract_tags(self, task_data: dict[str, Any]) -> list[str]:
         """Extract tag names from task.
