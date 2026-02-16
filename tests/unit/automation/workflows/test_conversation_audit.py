@@ -817,3 +817,43 @@ class TestPreResolveBusinessActivities:
         assert result.succeeded == 2  # h1 and h4 (both biz-a)
         assert result.skipped == 2  # h2 (inactive) and h3 (activating)
         assert mock_data.get_export_csv_async.call_count == 2
+
+
+class TestResolveOfficePhonePassthrough:
+    """Tests for parent_gid passthrough optimization (IMP-01).
+
+    When parent_gid is provided to _resolve_office_phone, the holder
+    task fetch is skipped, saving 1 API call per holder.
+    """
+
+    @pytest.mark.asyncio
+    async def test_parent_gid_skips_holder_fetch(self) -> None:
+        """When parent_gid is provided, no get_async call for the holder task."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
+
+        wf, mock_asana, _, _ = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+        )
+
+        await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        # get_async should NOT have been called with "h1" (the holder GID)
+        # because parent_gid="biz1" was passed through from enumeration.
+        # It SHOULD have been called with "biz1" for ResolutionContext.
+        call_gids = [call.args[0] for call in mock_asana.tasks.get_async.call_args_list]
+        assert "h1" not in call_gids
+
+    @pytest.mark.asyncio
+    async def test_no_parent_gid_falls_back_to_fetch(self) -> None:
+        """When parent_gid is None, holder task is fetched for parent reference."""
+        h1 = _make_task("h1", "Orphan Holder")  # No parent_gid
+
+        wf, mock_asana, _, _ = _make_workflow(holders=[h1])
+
+        await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        # get_async SHOULD be called with "h1" since parent_gid is None
+        call_gids = [call.args[0] for call in mock_asana.tasks.get_async.call_args_list]
+        assert "h1" in call_gids
