@@ -1004,6 +1004,54 @@ async def test_due_date_calculation():
     )
 
 
+@pytest.mark.asyncio
+async def test_merged_due_date_and_assignee_single_call():
+    """R1 boy-scout: due_date + assignee merged into single update_async call."""
+    client = _make_mock_client()
+    config = MagicMock()
+    service = EntityCreationService(client, config)
+
+    new_task = _make_mock_task()
+    source_process = _make_mock_process()
+    business = MagicMock()
+    business.custom_fields = []
+    business.rep = None
+    unit = MagicMock()
+    unit.custom_fields = []
+    unit.rep = [{"gid": "unit_rep_gid", "name": "Unit Rep"}]
+
+    stage_config = _make_stage_config(due_date_offset_days=7)
+    ctx = _make_mock_ctx(business=business, unit=unit)
+
+    with (
+        patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
+        patch("autom8_asana.lifecycle.creation.SubtaskWaiter"),
+    ):
+        MockSeeder.return_value.seed_async = AsyncMock(
+            return_value=SeedingResult(),
+        )
+
+        warnings, _, _ = await service._configure_async(
+            new_task,
+            stage_config,
+            ctx,
+            source_process,
+            business,
+            unit,
+            0,
+        )
+
+    expected_due = (date.today() + timedelta(days=7)).isoformat()
+    # Single update_async call with both fields (R1 boy-scout)
+    client.tasks.update_async.assert_called_once_with(
+        "new_task_gid",
+        due_on=expected_due,
+        assignee="unit_rep_gid",
+    )
+    # set_assignee_async is NOT called (merged into update)
+    client.tasks.set_assignee_async.assert_not_called()
+
+
 # ------------------------------------------------------------------
 # Section Placement
 # ------------------------------------------------------------------
@@ -1225,13 +1273,15 @@ async def test_full_creation_flow_with_all_configure_steps():
     assert result.entity_name == "Onboarding - Acme Corp"
     assert "Vertical" in result.fields_seeded
     assert "Internal Notes" in result.fields_skipped
-    # Due date was set
-    client.tasks.update_async.assert_called_once()
-    # Assignee was set (Unit.rep[0] used)
-    client.tasks.set_assignee_async.assert_called_once_with(
+    # R1 boy-scout: Due date + assignee merged into single update call
+    expected_due = (date.today() + timedelta(days=14)).isoformat()
+    client.tasks.update_async.assert_called_once_with(
         "created_gid",
-        "unit_rep_gid",
+        due_on=expected_due,
+        assignee="unit_rep_gid",
     )
+    # set_assignee_async is NOT called separately (merged into update)
+    client.tasks.set_assignee_async.assert_not_called()
     # Section placement
     client.sections.add_task_async.assert_called_once_with(
         "section_gid",

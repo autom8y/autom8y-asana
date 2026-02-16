@@ -387,23 +387,13 @@ class EntityCreationService:
                     f"in project {stage_config.project_gid}"
                 )
 
-        # b. Due date
+        # b. Compute due date (deferred to combined update in step f)
+        due_on: str | None = None
         if stage_config.due_date_offset_days is not None:
             due = date.today() + timedelta(
                 days=stage_config.due_date_offset_days,
             )
-            try:
-                await self._client.tasks.update_async(
-                    new_task.gid,
-                    due_on=due.isoformat(),
-                )
-            except Exception as e:  # BROAD-CATCH: non-fatal config step
-                logger.warning(
-                    "lifecycle_set_due_date_failed",
-                    task_gid=new_task.gid,
-                    error=str(e),
-                )
-                warnings.append(f"Due date set failed: {e}")
+            due_on = due.isoformat()
 
         # c. Wait for subtasks
         if expected_subtask_count > 0:
@@ -440,7 +430,7 @@ class EntityCreationService:
             )
             warnings.append(f"Field seeding failed: {e}")
 
-        # e. Hierarchy placement
+        # e. Hierarchy placement (uses setParent endpoint, cannot merge with PUT)
         holder = await self._resolve_holder_for_placement(
             ctx,
             holder_type,
@@ -468,16 +458,36 @@ class EntityCreationService:
         else:
             warnings.append("No holder resolved for hierarchy placement")
 
-        # f. Assignee resolution
-        assignee_warning = await self._set_assignee_async(
-            new_task,
-            source_process,
-            unit,
-            business,
-            stage_config.assignee,
+        # f. Combined due_date + assignee update (R1: merge 2 PUTs into 1)
+        assignee_gid = self._resolve_assignee_gid(
+            source_process, unit, business, stage_config.assignee
         )
-        if assignee_warning:
-            warnings.append(assignee_warning)
+        update_kwargs: dict[str, Any] = {}
+        if due_on is not None:
+            update_kwargs["due_on"] = due_on
+        if assignee_gid is not None:
+            update_kwargs["assignee"] = assignee_gid
+
+        if assignee_gid is None:
+            logger.warning(
+                "lifecycle_no_assignee_found",
+                task_gid=new_task.gid,
+            )
+            warnings.append("No assignee found in resolution chain")
+
+        if update_kwargs:
+            try:
+                await self._client.tasks.update_async(
+                    new_task.gid, **update_kwargs
+                )
+            except Exception as e:  # BROAD-CATCH: non-fatal config step
+                logger.warning(
+                    "lifecycle_configure_update_failed",
+                    task_gid=new_task.gid,
+                    error=str(e),
+                    fields=list(update_kwargs.keys()),
+                )
+                warnings.append(f"Configure update failed: {e}")
 
         return warnings, fields_seeded, fields_skipped
 
@@ -676,25 +686,24 @@ class EntityCreationService:
     # Assignee Resolution
     # ------------------------------------------------------------------
 
-    async def _set_assignee_async(
+    def _resolve_assignee_gid(
         self,
-        new_task: Any,
         source_process: Any,
         unit: Any,
         business: Any,
         assignee_config: AssigneeConfig,
     ) -> str | None:
-        """Set assignee using YAML-configurable cascade.
+        """Resolve assignee GID using YAML-configurable cascade (no API call).
 
         Resolution order (FR-ASSIGN-001):
           1. Stage-specific field (assignee_source) from source process
           2. Fixed GID (assignee_gid) from YAML
           3. Unit.rep[0]
           4. Business.rep[0]
-          5. None with warning
+          5. None
 
         Returns:
-            Warning string if no assignee found or API failed, None on success.
+            Assignee GID if found, None otherwise.
         """
         assignee_gid: str | None = None
 
@@ -723,7 +732,33 @@ class EntityCreationService:
         if not assignee_gid and business:
             assignee_gid = self._extract_first_rep(business)
 
-        # 5. Apply or warn
+        return assignee_gid
+
+    async def _set_assignee_async(
+        self,
+        new_task: Any,
+        source_process: Any,
+        unit: Any,
+        business: Any,
+        assignee_config: AssigneeConfig,
+    ) -> str | None:
+        """Set assignee using YAML-configurable cascade.
+
+        Resolution order (FR-ASSIGN-001):
+          1. Stage-specific field (assignee_source) from source process
+          2. Fixed GID (assignee_gid) from YAML
+          3. Unit.rep[0]
+          4. Business.rep[0]
+          5. None with warning
+
+        Returns:
+            Warning string if no assignee found or API failed, None on success.
+        """
+        assignee_gid = self._resolve_assignee_gid(
+            source_process, unit, business, assignee_config
+        )
+
+        # Apply or warn
         if assignee_gid:
             try:
                 await self._client.tasks.set_assignee_async(
