@@ -142,6 +142,81 @@ def build_mock_response(factory: str, row_count: int = 10) -> dict:
     }
 
 
+def build_batch_mock_handler(
+    factory: str = "account",
+    rows_per_pvp: int = 1,
+) -> callable:
+    """Build a request handler that returns per-entity batch responses.
+
+    Per IMP-20: Batch endpoint returns data with per-entity office_phone
+    and vertical fields so the client can map results back to PVPs.
+
+    Args:
+        factory: Factory name for response metadata.
+        rows_per_pvp: Number of data rows to generate per PVP.
+
+    Returns:
+        A callable that handles respx mock requests.
+    """
+    import json as _json
+
+    import httpx as _httpx
+
+    def handler(request: _httpx.Request) -> _httpx.Response:
+        body = _json.loads(request.content)
+        pvps = body.get("phone_vertical_pairs", [])
+
+        data = []
+        for pvp in pvps:
+            for i in range(rows_per_pvp):
+                data.append({
+                    "office_phone": pvp["phone"],
+                    "vertical": pvp["vertical"],
+                    "date": "2024-01-15",
+                    "spend": 100.50 + i * 10,
+                    "impressions": 5000 + i * 500,
+                    "clicks": 150 + i * 15,
+                    "leads": 10 + i,
+                    "cpl": 10.05 + i * 0.5,
+                    "ctr": 0.03 + i * 0.001,
+                    "campaign_name": f"Campaign {i}",
+                    "adset_name": f"AdSet {i}",
+                })
+
+        response_body = {
+            "data": data,
+            "metadata": {
+                "factory": factory,
+                "frame_type": f"{factory.title()}InsightsFrame",
+                "insights_period": "t30",
+                "row_count": len(data),
+                "column_count": 11,
+                "columns": [
+                    {"name": "office_phone", "dtype": "string", "nullable": False},
+                    {"name": "vertical", "dtype": "string", "nullable": False},
+                    {"name": "date", "dtype": "date", "nullable": False},
+                    {"name": "spend", "dtype": "float64", "nullable": True},
+                    {"name": "impressions", "dtype": "int64", "nullable": True},
+                    {"name": "clicks", "dtype": "int64", "nullable": True},
+                    {"name": "leads", "dtype": "int64", "nullable": True},
+                    {"name": "cpl", "dtype": "float64", "nullable": True},
+                    {"name": "ctr", "dtype": "float64", "nullable": True},
+                    {"name": "campaign_name", "dtype": "string", "nullable": True},
+                    {"name": "adset_name", "dtype": "string", "nullable": True},
+                ],
+                "cache_hit": True,
+                "duration_ms": 5.0,
+                "sort_history": ["date"],
+                "is_stale": False,
+                "cached_at": None,
+            },
+            "warnings": [],
+        }
+        return _httpx.Response(200, json=response_body)
+
+    return handler
+
+
 @pytest.fixture
 def enable_insights_feature(monkeypatch: pytest.MonkeyPatch) -> None:
     """Enable insights feature flag for testing."""
@@ -336,7 +411,6 @@ class TestBatchRequestBenchmark:
 
         Target: Batch coordination overhead < 100ms for 10 PVPs.
         """
-        mock_response = build_mock_response("account", row_count=10)
         pairs = sample_pvps[:10]
         iterations = 20
         latencies_ms: list[float] = []
@@ -344,9 +418,9 @@ class TestBatchRequestBenchmark:
         client = DataServiceClient(config=client_config)
 
         with respx.mock:
-            # Mock all possible endpoints
-            respx.post(url__regex=r".*/api/v1/data-service/insights").respond(
-                json=mock_response
+            # Dynamic handler returns per-entity response (IMP-20)
+            respx.post(url__regex=r".*/api/v1/data-service/insights").mock(
+                side_effect=build_batch_mock_handler("account", rows_per_pvp=1)
             )
 
             async with client:
@@ -398,7 +472,6 @@ class TestBatchRequestBenchmark:
 
         Target: P95 < 500ms for batch of 50 PVPs (including coordination).
         """
-        mock_response = build_mock_response("account", row_count=10)
         pairs = sample_pvps[:50]
         iterations = 10
         latencies_ms: list[float] = []
@@ -406,8 +479,9 @@ class TestBatchRequestBenchmark:
         client = DataServiceClient(config=client_config)
 
         with respx.mock:
-            respx.post(url__regex=r".*/api/v1/data-service/insights").respond(
-                json=mock_response
+            # Dynamic handler returns per-entity response (IMP-20)
+            respx.post(url__regex=r".*/api/v1/data-service/insights").mock(
+                side_effect=build_batch_mock_handler("account", rows_per_pvp=1)
             )
 
             async with client:
@@ -460,7 +534,6 @@ class TestBatchRequestBenchmark:
 
         Tests full path including to_dataframe() on BatchInsightsResponse.
         """
-        mock_response = build_mock_response("account", row_count=20)
         pairs = sample_pvps[:25]
         iterations = 10
         latencies_ms: list[float] = []
@@ -468,8 +541,9 @@ class TestBatchRequestBenchmark:
         client = DataServiceClient(config=client_config)
 
         with respx.mock:
-            respx.post(url__regex=r".*/api/v1/data-service/insights").respond(
-                json=mock_response
+            # Dynamic handler returns 20 rows per PVP (IMP-20)
+            respx.post(url__regex=r".*/api/v1/data-service/insights").mock(
+                side_effect=build_batch_mock_handler("account", rows_per_pvp=20)
             )
 
             async with client:
