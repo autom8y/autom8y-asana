@@ -53,10 +53,14 @@ def _make_mock_task(gid: str, task_name: str, **kwargs) -> MagicMock:
     MagicMock(name=...) sets the mock's internal _mock_name, not the
     .name attribute. This helper sets .name explicitly to avoid issues
     with code that reads task.name (e.g., re.sub in _generate_name).
+
+    Sets num_subtasks=0 by default so that getattr(template, "num_subtasks", 0)
+    returns a real int instead of a MagicMock child (IMP-13 compatibility).
     """
     task = MagicMock()
     task.gid = gid
     task.name = task_name
+    task.num_subtasks = 0
     for key, value in kwargs.items():
         setattr(task, key, value)
     return task

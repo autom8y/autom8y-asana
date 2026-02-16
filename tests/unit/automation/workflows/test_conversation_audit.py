@@ -20,6 +20,7 @@ from autom8_asana.automation.workflows.conversation_audit import (
 from autom8_asana.clients.data.models import ExportResult
 from autom8_asana.exceptions import ExportError
 from autom8_asana.models.business.activity import AccountActivity
+from autom8_asana.models.task import Task
 
 # --- Helpers ---
 
@@ -43,14 +44,13 @@ def _make_task(
 def _make_parent_task(
     office_phone: str | None = "+17705753103",
     gid: str = "biz-mock",
-) -> MagicMock:
-    """Create a mock parent Business task with custom fields.
+) -> Task:
+    """Create a real Task instance representing a parent Business task.
 
-    Supports Business.model_validate() by providing model_dump() that
-    returns a proper dict structure compatible with CustomFieldAccessor.
+    Uses a real Task model so that Business.model_validate(task, from_attributes=True)
+    can read proper attribute values instead of MagicMock auto-generated children.
     """
-    parent = MagicMock()
-    cf_list = []
+    cf_list: list[dict] = []
     if office_phone:
         # CustomFieldAccessor needs gid, name, and text_value/display_value
         cf_list.append(
@@ -62,18 +62,12 @@ def _make_parent_task(
                 "resource_subtype": "text",
             }
         )
-    parent.custom_fields = cf_list
-    parent.gid = gid
-    parent.name = f"Business {gid}"
-
-    # Support model_dump() for Business.model_validate()
-    parent.model_dump.return_value = {
-        "gid": gid,
-        "name": f"Business {gid}",
-        "resource_type": "task",
-        "custom_fields": cf_list,
-    }
-    return parent
+    return Task(
+        gid=gid,
+        name=f"Business {gid}",
+        resource_type="task",
+        custom_fields=cf_list,
+    )
 
 
 def _make_export_result(
@@ -122,7 +116,7 @@ class _AsyncIterator:
 
 def _make_workflow(
     holders: list[MagicMock] | None = None,
-    parent_tasks: dict[str, MagicMock] | None = None,
+    parent_tasks: dict[str, MagicMock | Task] | None = None,
     export_results: dict[str, ExportResult] | None = None,
     export_errors: dict[str, ExportError] | None = None,
     existing_attachments: dict[str, list[MagicMock]] | None = None,
@@ -141,7 +135,7 @@ def _make_workflow(
     holder_by_gid = {h.gid: h for h in holder_list}
     parent_by_gid = parent_tasks or {}
 
-    async def mock_get_async(gid: str, **kwargs: Any) -> MagicMock:
+    async def mock_get_async(gid: str, **kwargs: Any) -> MagicMock | Task:
         if gid in holder_by_gid:
             return holder_by_gid[gid]
         if gid in parent_by_gid:
