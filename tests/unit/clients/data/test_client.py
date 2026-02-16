@@ -3515,17 +3515,19 @@ class TestCircuitBreaker:
         import respx
         from autom8y_http.protocols import CircuitState
 
-        from autom8_asana.clients.data.config import CircuitBreakerConfig
+        from autom8_asana.clients.data.config import CircuitBreakerConfig, RetryConfig
         from autom8_asana.exceptions import InsightsServiceError
 
         # Use config with default failure_threshold=5
+        # Disable retries to isolate circuit breaker behavior
         config = DataServiceConfig(
             circuit_breaker=CircuitBreakerConfig(
                 enabled=True,
                 failure_threshold=5,
                 recovery_timeout=30.0,
                 half_open_max_calls=1,
-            )
+            ),
+            retry=RetryConfig(max_retries=0),
         )
         client = DataServiceClient(config=config)
 
@@ -3556,16 +3558,18 @@ class TestCircuitBreaker:
         import respx
         from autom8y_http.protocols import CircuitState
 
-        from autom8_asana.clients.data.config import CircuitBreakerConfig
+        from autom8_asana.clients.data.config import CircuitBreakerConfig, RetryConfig
         from autom8_asana.exceptions import InsightsServiceError
 
+        # Disable retries to isolate circuit breaker behavior
         config = DataServiceConfig(
             circuit_breaker=CircuitBreakerConfig(
                 enabled=True,
                 failure_threshold=5,
                 recovery_timeout=30.0,  # Long timeout so circuit stays open
                 half_open_max_calls=1,
-            )
+            ),
+            retry=RetryConfig(max_retries=0),
         )
         client = DataServiceClient(config=config)
 
