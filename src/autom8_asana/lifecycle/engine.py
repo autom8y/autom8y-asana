@@ -502,7 +502,11 @@ class LifecycleEngine:
             )
             for i, action_result in enumerate(action_results):
                 action_type = target_stage.init_actions[i].type
-                if action_result.success:
+                if isinstance(action_result, BaseException):
+                    result.add_warning(
+                        f"Init action {action_type} failed: {action_result}"
+                    )
+                elif action_result.success:
                     result.add_action(f"init_{action_type}")
                     if action_result.entity_gid:
                         result.add_entity_created(action_result.entity_gid)
@@ -742,36 +746,52 @@ class _DefaultInitActionRegistry:
         ctx: ResolutionContext,
         source_process: Process,
     ) -> list[ActionResult]:
-        """Execute all init actions sequentially."""
+        """Execute all init actions in parallel with bounded concurrency."""
+        from autom8_asana.core.concurrency import gather_with_semaphore
         from autom8_asana.lifecycle.init_actions import HANDLER_REGISTRY
 
-        results: list[ActionResult] = []
-        for action_config in actions:
-            handler_cls = HANDLER_REGISTRY.get(action_config.type)
-            if handler_cls is None:
-                results.append(
-                    ActionResult(
-                        success=False,
-                        error=f"Unknown init action: {action_config.type}",
-                    )
-                )
-                continue
+        coros = [
+            self._execute_one(
+                action_config,
+                created_entity_gid,
+                ctx,
+                source_process,
+                HANDLER_REGISTRY,
+            )
+            for action_config in actions
+        ]
+        return await gather_with_semaphore(
+            coros, concurrency=4, label="init_actions"
+        )
 
-            handler = handler_cls(self._client, self._config)
-            try:
-                creation_result = await handler.execute_async(
-                    ctx, created_entity_gid, action_config, source_process
-                )
-                results.append(
-                    ActionResult(
-                        success=creation_result.success,
-                        entity_gid=creation_result.entity_gid,  # type: ignore[arg-type]  # entity_gid is str when success=True
-                        error=creation_result.error,  # type: ignore[arg-type]  # error is str when success=False
-                    )
-                )
-            except Exception as e:  # BROAD-CATCH: per-action isolation
-                results.append(ActionResult(success=False, error=str(e)))
-        return results
+    async def _execute_one(
+        self,
+        action_config: InitActionConfig,
+        created_entity_gid: str,
+        ctx: ResolutionContext,
+        source_process: Process,
+        handler_registry: dict,
+    ) -> ActionResult:
+        """Execute a single init action, returning ActionResult."""
+        handler_cls = handler_registry.get(action_config.type)
+        if handler_cls is None:
+            return ActionResult(
+                success=False,
+                error=f"Unknown init action: {action_config.type}",
+            )
+
+        handler = handler_cls(self._client, self._config)
+        try:
+            creation_result = await handler.execute_async(
+                ctx, created_entity_gid, action_config, source_process
+            )
+            return ActionResult(
+                success=creation_result.success,
+                entity_gid=creation_result.entity_gid,  # type: ignore[arg-type]  # entity_gid is str when success=True
+                error=creation_result.error,  # type: ignore[arg-type]  # error is str when success=False
+            )
+        except Exception as e:  # BROAD-CATCH: per-action isolation
+            return ActionResult(success=False, error=str(e))
 
 
 # ---------------------------------------------------------------------------
