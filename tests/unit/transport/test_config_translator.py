@@ -30,13 +30,19 @@ class TestToHttpClientConfig:
         result = ConfigTranslator.to_http_client_config(config)
         assert result.base_url == "https://app.asana.com/api/1.0"
 
-    def test_translates_timeout_from_read_timeout(self):
-        """Timeout uses read timeout value."""
+    def test_translates_timeout_from_connect_timeout(self):
+        """Timeout uses connect timeout for faster failure detection (IMP-10)."""
         from autom8_asana.config import TimeoutConfig
 
-        config = AsanaConfig(timeout=TimeoutConfig(read=45.0))
+        config = AsanaConfig(timeout=TimeoutConfig(connect=7.0))
         result = ConfigTranslator.to_http_client_config(config)
-        assert result.timeout == 45.0
+        assert result.timeout == 7.0
+
+    def test_default_timeout_uses_connect_value(self):
+        """Default timeout uses connect=5.0 (not read=30.0) per IMP-10."""
+        config = AsanaConfig()
+        result = ConfigTranslator.to_http_client_config(config)
+        assert result.timeout == 5.0
 
     def test_translates_max_connections(self):
         """Max connections is preserved."""
