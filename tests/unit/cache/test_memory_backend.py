@@ -2,6 +2,7 @@
 
 import time
 from datetime import UTC, datetime
+from unittest.mock import patch
 
 import pytest
 
@@ -9,6 +10,27 @@ from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvide
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.protocols.cache import WarmResult
+
+
+@pytest.fixture(autouse=True)
+def _fast_clock():
+    """Replace time.sleep with instant clock advancement.
+
+    Patches time.time and time.sleep so that sleep(N) advances the
+    fake clock by N seconds instead of blocking. This eliminates ~3.3s
+    of real sleep in TTL expiry tests while preserving test semantics.
+    """
+    _real_time = time.time
+    _offset = [0.0]
+
+    def _fake_time():
+        return _real_time() + _offset[0]
+
+    def _fake_sleep(seconds):
+        _offset[0] += seconds
+
+    with patch("time.time", _fake_time), patch("time.sleep", _fake_sleep):
+        yield
 
 
 class TestNullCacheProvider:

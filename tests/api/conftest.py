@@ -18,50 +18,69 @@ from autom8_asana.auth.bot_pat import clear_bot_pat_cache
 from autom8_asana.auth.jwt_validator import reset_auth_client
 from autom8_asana.services.resolver import EntityProjectRegistry
 
+# Standard test entity registrations shared by lifespan mock and per-test reset
+_TEST_ENTITIES = [
+    ("offer", "1143843662099250", "Business Offers"),
+    ("unit", "1201081073731555", "Business Units"),
+    ("contact", "1200775689604552", "Contacts"),
+    ("business", "1234567890123456", "Business"),
+]
 
-@pytest.fixture
+
+def _populate_test_registry():
+    """Reset and re-populate EntityProjectRegistry with test data.
+
+    Called both during module-scoped lifespan and per-test reset so that
+    routes using EntityProjectRegistry.get_instance() always see the
+    standard test registrations.
+    """
+    EntityProjectRegistry.reset()
+    registry = EntityProjectRegistry.get_instance()
+    for entity_type, gid, name in _TEST_ENTITIES:
+        registry.register(
+            entity_type=entity_type,
+            project_gid=gid,
+            project_name=name,
+        )
+    return registry
+
+
+@pytest.fixture(scope="module")
 def app():
-    """Create a test application instance with mocked discovery."""
+    """Create a test application instance once per module with mocked discovery.
+
+    Module-scoped to avoid per-test ASGI lifespan overhead (~340ms/test).
+    """
     with patch(
         "autom8_asana.api.lifespan._discover_entity_projects",
         new_callable=AsyncMock,
     ) as mock_discover:
 
         async def setup_registry(app):
-            EntityProjectRegistry.reset()
-            registry = EntityProjectRegistry.get_instance()
-            registry.register(
-                entity_type="offer",
-                project_gid="1143843662099250",
-                project_name="Business Offers",
-            )
-            registry.register(
-                entity_type="unit",
-                project_gid="1201081073731555",
-                project_name="Business Units",
-            )
-            registry.register(
-                entity_type="contact",
-                project_gid="1200775689604552",
-                project_name="Contacts",
-            )
-            registry.register(
-                entity_type="business",
-                project_gid="1234567890123456",
-                project_name="Business",
-            )
+            registry = _populate_test_registry()
             app.state.entity_project_registry = registry
 
         mock_discover.side_effect = setup_registry
         yield create_app()
 
 
+@pytest.fixture(scope="module")
+def _module_client(app):
+    """Module-scoped TestClient — enters ASGI lifespan once."""
+    with TestClient(app) as tc:
+        yield tc
+
+
 @pytest.fixture(autouse=True)
 def reset_singletons() -> Generator[None, None, None]:
-    """Reset singletons before and after each test for isolation."""
+    """Reset singletons before and after each test for isolation.
+
+    Re-populates EntityProjectRegistry so that routes using
+    get_instance() see test data even with module-scoped TestClient.
+    """
     clear_bot_pat_cache()
     reset_auth_client()
-    EntityProjectRegistry.reset()
+    _populate_test_registry()
     yield
     clear_bot_pat_cache()
     reset_auth_client()
@@ -69,17 +88,12 @@ def reset_singletons() -> Generator[None, None, None]:
 
 
 @pytest.fixture
-def client(app) -> Generator[TestClient, None, None]:
-    """Create a synchronous test client for the FastAPI application.
+def client(_module_client) -> TestClient:
+    """Per-test alias for the module-scoped TestClient.
 
-    This uses FastAPI's TestClient which is synchronous but can test
-    async routes. It handles lifespan events automatically.
-
-    Yields:
-        TestClient instance for making HTTP requests.
+    Reuses the module-scoped TestClient to avoid per-test ASGI lifespan overhead.
     """
-    with TestClient(app) as test_client:
-        yield test_client
+    return _module_client
 
 
 @pytest.fixture
@@ -276,15 +290,12 @@ def auth_header() -> dict[str, str]:
 
 @pytest.fixture
 def authed_client(
-    app, mock_asana_client: MagicMock, auth_header: dict[str, str]
+    app, _module_client, mock_asana_client: MagicMock, auth_header: dict[str, str]
 ) -> Generator[tuple[TestClient, MagicMock], None, None]:
-    """Create a test client with mocked AsanaClient dependency.
+    """Create an authenticated test client using dependency overrides.
 
-    This uses FastAPI's dependency_overrides to inject the mock client,
-    allowing tests to verify SDK interactions without live API calls.
-
-    The fixture overrides get_asana_client_from_context (dual-mode auth)
-    which is the current auth dependency used by API routes.
+    Reuses the module-scoped TestClient and app, setting per-test
+    dependency overrides for auth isolation without ASGI lifespan overhead.
 
     Yields:
         Tuple of (TestClient, mock_asana_client) for assertions.
@@ -300,8 +311,7 @@ def authed_client(
     )
 
     try:
-        with TestClient(app) as test_client:
-            yield test_client, mock_asana_client
+        yield _module_client, mock_asana_client
     finally:
         # Clean up override
         app.dependency_overrides.clear()

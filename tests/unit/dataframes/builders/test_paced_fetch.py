@@ -144,7 +144,11 @@ class TestLargeSectionPacingActivated:
         # 150 tasks: first page has 100, second page has 50
         builder._client.tasks.list_async.return_value = _FakePageIterator(150)
 
-        result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
+        with patch(
+            "autom8_asana.dataframes.builders.progressive.asyncio.sleep",
+            new_callable=AsyncMock,
+        ):
+            result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
         # Should have 150 tasks in final write
