@@ -266,34 +266,40 @@ class HolderFactory(Task, HolderMixin[Task]):
             ImportError: If child module cannot be imported.
             AttributeError: If child class not found in module.
         """
-        # Dynamic import to avoid circular imports at class definition time (FR-FACTORY-004)
-        try:
-            module = importlib.import_module(self._CHILD_MODULE)
-            child_class = getattr(module, self._CHILD_CLASS_NAME)
-        except ImportError as e:
-            logger.error(
-                "Failed to import child module",
-                extra={
-                    "holder_class": type(self).__name__,
-                    "child_module": self._CHILD_MODULE,
-                    "error": str(e),
-                },
-            )
-            raise
-        except AttributeError as e:
-            logger.error(
-                "Child class not found in module",
-                extra={
-                    "holder_class": type(self).__name__,
-                    "child_module": self._CHILD_MODULE,
-                    "child_class_name": self._CHILD_CLASS_NAME,
-                    "error": str(e),
-                },
-            )
-            raise
+        # Skip dynamic import if CHILD_TYPE already resolved (not the Task stub).
+        # After the first call, CHILD_TYPE points to the concrete class, so
+        # subsequent calls avoid the importlib overhead entirely.
+        if self.__class__.CHILD_TYPE is Task:
+            # Dynamic import to avoid circular imports at class definition time (FR-FACTORY-004)
+            try:
+                module = importlib.import_module(self._CHILD_MODULE)
+                child_class = getattr(module, self._CHILD_CLASS_NAME)
+            except ImportError as e:
+                logger.error(
+                    "Failed to import child module",
+                    extra={
+                        "holder_class": type(self).__name__,
+                        "child_module": self._CHILD_MODULE,
+                        "error": str(e),
+                    },
+                )
+                raise
+            except AttributeError as e:
+                logger.error(
+                    "Child class not found in module",
+                    extra={
+                        "holder_class": type(self).__name__,
+                        "child_module": self._CHILD_MODULE,
+                        "child_class_name": self._CHILD_CLASS_NAME,
+                        "error": str(e),
+                    },
+                )
+                raise
 
-        # Update CHILD_TYPE for runtime type checking (FR-STUB-007)
-        self.__class__.CHILD_TYPE = child_class
+            # Update CHILD_TYPE for runtime type checking (FR-STUB-007)
+            self.__class__.CHILD_TYPE = child_class
+
+        child_class = self.__class__.CHILD_TYPE
 
         # Sort by (created_at, name) for stability
         sorted_tasks = sorted(
