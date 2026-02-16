@@ -163,8 +163,13 @@ class SearchService:
             )
 
         try:
+            # Build column index once and share across filter + extraction
+            col_index = self._build_column_index(df)
+
             # Build filter expression
-            filter_expr = self._build_filter_expr(search_criteria.conditions, df)
+            filter_expr = self._build_filter_expr(
+                search_criteria.conditions, df, col_index=col_index
+            )
 
             if filter_expr is None:
                 # No valid conditions - return empty
@@ -191,8 +196,10 @@ class SearchService:
             if search_criteria.limit:
                 filtered = filtered.head(search_criteria.limit)
 
-            # Extract results
-            hits = self._extract_hits(filtered, search_criteria.conditions)
+            # Extract results (reuse col_index -- filtered has same columns)
+            hits = self._extract_hits(
+                filtered, search_criteria.conditions, col_index=col_index
+            )
 
             query_time_ms = (time.perf_counter() - start) * 1000
 
@@ -536,6 +543,8 @@ class SearchService:
         self,
         conditions: list[FieldCondition],
         df: pl.DataFrame,
+        *,
+        col_index: dict[str, str] | None = None,
     ) -> pl.Expr | None:
         """Build Polars filter expression from conditions.
 
@@ -544,6 +553,7 @@ class SearchService:
         Args:
             conditions: List of FieldCondition objects.
             df: DataFrame to search (for column name matching).
+            col_index: Pre-computed column index. Built from df if not provided.
 
         Returns:
             Combined Polars expression, or None if no valid conditions.
@@ -551,8 +561,9 @@ class SearchService:
         if not conditions:
             return None
 
-        # Build column name index (normalized -> actual)
-        col_index = self._build_column_index(df)
+        # Use pre-computed column index or build one
+        if col_index is None:
+            col_index = self._build_column_index(df)
 
         exprs: list[pl.Expr] = []
         for condition in conditions:
@@ -661,12 +672,15 @@ class SearchService:
         self,
         df: pl.DataFrame,
         conditions: list[FieldCondition],
+        *,
+        col_index: dict[str, str] | None = None,
     ) -> list[SearchHit]:
         """Extract SearchHit objects from filtered DataFrame.
 
         Args:
             df: Filtered DataFrame with matching rows.
             conditions: Original conditions (for matched_fields).
+            col_index: Pre-computed column index. Built from df if not provided.
 
         Returns:
             List of SearchHit objects.
@@ -675,7 +689,8 @@ class SearchService:
             return []
 
         hits: list[SearchHit] = []
-        col_index = self._build_column_index(df)
+        if col_index is None:
+            col_index = self._build_column_index(df)
 
         # Required columns
         gid_col = col_index.get(NameNormalizer.normalize("gid"), "gid")
