@@ -4237,23 +4237,87 @@ def make_insights_response(factory: str = "account", spend: float = 100.0) -> di
     }
 
 
+def make_batch_insights_response(
+    pvps: list,
+    factory: str = "account",
+    spend: float = 100.0,
+    failed_indices: list[int] | None = None,
+) -> dict:
+    """Create a valid batch insights response for testing.
+
+    Per IMP-20: autom8_data returns all PVP results in a single response
+    with per-entity office_phone and vertical fields in the data list,
+    and per-entity errors in the errors list.
+
+    Args:
+        pvps: List of PhoneVerticalPair objects to include in response.
+        factory: Factory name for metadata.
+        spend: Spend value for each entity.
+        failed_indices: Optional list of PVP indices that should fail.
+            These will be placed in the errors list instead of data.
+    """
+    failed_indices = failed_indices or []
+    data = []
+    errors = []
+
+    for i, pvp in enumerate(pvps):
+        if i in failed_indices:
+            errors.append({
+                "office_phone": pvp.office_phone,
+                "vertical": pvp.vertical,
+                "error": "No insights found for business",
+            })
+        else:
+            data.append({
+                "office_phone": pvp.office_phone,
+                "vertical": pvp.vertical,
+                "spend": spend,
+                "leads": 10,
+            })
+
+    status_code = 207 if errors and data else 200
+    response_dict = {
+        "data": data,
+        "metadata": {
+            "factory": factory,
+            "row_count": len(data),
+            "column_count": 4,
+            "columns": [
+                {"name": "office_phone", "dtype": "string"},
+                {"name": "vertical", "dtype": "string"},
+                {"name": "spend", "dtype": "float64"},
+                {"name": "leads", "dtype": "int64"},
+            ],
+            "cache_hit": False,
+            "duration_ms": 50.0,
+        },
+    }
+    if errors:
+        response_dict["errors"] = errors
+
+    return response_dict, status_code
+
+
 @pytest.mark.usefixtures("enable_insights_feature")
 class TestGetInsightsBatchAsync:
     """Tests for get_insights_batch_async method (Story 2.4)."""
 
     @pytest.mark.asyncio
     async def test_batch_success_all_pvps(self, sample_pvps: list) -> None:
-        """Happy path - batch with 3 PVPs, all succeed."""
+        """Happy path - batch with 3 PVPs, all succeed in single request."""
         import respx
 
         from autom8_asana.clients.data.models import BatchInsightsResponse
 
         client = DataServiceClient()
+        response_body, _status = make_batch_insights_response(
+            sample_pvps, spend=100.0
+        )
 
         with respx.mock:
-            # Mock responses for each PVP
-            respx.post("/api/v1/data-service/insights").respond(
-                json=make_insights_response(spend=100.0)
+            # Single batched response for all PVPs (IMP-20)
+            route = respx.post("/api/v1/data-service/insights").respond(
+                json=response_body
             )
 
             async with client:
@@ -4261,6 +4325,9 @@ class TestGetInsightsBatchAsync:
                     pairs=sample_pvps,
                     factory="account",
                 )
+
+        # Verify only 1 HTTP request was made (not N)
+        assert route.call_count == 1
 
         assert isinstance(result, BatchInsightsResponse)
         assert result.total_count == 3
@@ -4278,31 +4345,28 @@ class TestGetInsightsBatchAsync:
 
     @pytest.mark.asyncio
     async def test_partial_failure_one_pvp_fails(self, sample_pvps: list) -> None:
-        """Partial failure - 3 PVPs, 1 fails with 404, others succeed."""
+        """Partial failure - 3 PVPs, 1 fails via HTTP 207 partial success."""
         import respx
 
         client = DataServiceClient()
-        call_count = 0
-
-        def handle_request(request: Any) -> httpx.Response:
-            nonlocal call_count
-            call_count += 1
-            # First call fails with 404, others succeed
-            if call_count == 1:
-                return httpx.Response(
-                    404,
-                    json={"error": "No insights found for business"},
-                )
-            return httpx.Response(200, json=make_insights_response())
+        # First PVP fails, others succeed -- returned as HTTP 207
+        response_body, status_code = make_batch_insights_response(
+            sample_pvps, failed_indices=[0]
+        )
 
         with respx.mock:
-            respx.post("/api/v1/data-service/insights").mock(side_effect=handle_request)
+            route = respx.post("/api/v1/data-service/insights").respond(
+                status_code=207, json=response_body
+            )
 
             async with client:
                 result = await client.get_insights_batch_async(
                     pairs=sample_pvps,
                     factory="account",
                 )
+
+        # Verify only 1 HTTP request was made
+        assert route.call_count == 1
 
         # Verify partial success/failure counts
         assert result.total_count == 3
@@ -4393,43 +4457,35 @@ class TestGetInsightsBatchAsync:
         assert "Insights integration is disabled" in str(exc.value)
 
     @pytest.mark.asyncio
-    async def test_concurrency_limiting_semaphore(self, sample_pvps: list) -> None:
-        """Concurrency limiting - verify semaphore limits concurrent requests."""
+    async def test_single_request_for_batch(self, sample_pvps: list) -> None:
+        """IMP-20: Verify batch sends single HTTP request instead of N requests."""
+        import json
+
         import respx
 
         client = DataServiceClient()
-        max_concurrent = 0
-        current_concurrent = 0
-        lock = asyncio.Lock()
-
-        async def handle_request(request: Any) -> httpx.Response:
-            nonlocal max_concurrent, current_concurrent
-            async with lock:
-                current_concurrent += 1
-                if current_concurrent > max_concurrent:
-                    max_concurrent = current_concurrent
-
-            # Simulate some async work
-            await asyncio.sleep(0.05)
-
-            async with lock:
-                current_concurrent -= 1
-
-            return httpx.Response(200, json=make_insights_response())
+        response_body, _status = make_batch_insights_response(
+            sample_pvps, spend=100.0
+        )
 
         with respx.mock:
-            respx.post("/api/v1/data-service/insights").mock(side_effect=handle_request)
+            route = respx.post("/api/v1/data-service/insights").respond(
+                json=response_body
+            )
 
             async with client:
-                # Use max_concurrency=2, with 3 PVPs
-                await client.get_insights_batch_async(
+                result = await client.get_insights_batch_async(
                     pairs=sample_pvps,
                     factory="account",
-                    max_concurrency=2,
                 )
 
-        # Should never exceed max_concurrency
-        assert max_concurrent <= 2
+        # IMP-20: exactly 1 HTTP request for 3 PVPs (was 3 requests before)
+        assert route.call_count == 1
+
+        # Verify the request body contains all 3 PVPs
+        request_body = json.loads(route.calls.last.request.content)
+        assert len(request_body["phone_vertical_pairs"]) == 3
+        assert result.success_count == 3
 
     @pytest.mark.asyncio
     async def test_metrics_emission(self, sample_pvps: list) -> None:
@@ -4446,19 +4502,14 @@ class TestGetInsightsBatchAsync:
             original_emit(name, value, tags)
 
         with patch.object(client, "_emit_metric", side_effect=capture_metric):
-            call_count = 0
-
-            def handle_request(request: Any) -> httpx.Response:
-                nonlocal call_count
-                call_count += 1
-                # Make one request fail
-                if call_count == 2:
-                    return httpx.Response(500, json={"error": "Internal server error"})
-                return httpx.Response(200, json=make_insights_response())
+            # HTTP 207 partial response: first PVP fails, others succeed
+            response_body, _status = make_batch_insights_response(
+                sample_pvps, failed_indices=[0]
+            )
 
             with respx.mock:
-                respx.post("/api/v1/data-service/insights").mock(
-                    side_effect=handle_request
+                respx.post("/api/v1/data-service/insights").respond(
+                    status_code=207, json=response_body
                 )
 
                 async with client:
@@ -4470,7 +4521,7 @@ class TestGetInsightsBatchAsync:
         # Extract metric names
         metric_names = [m[0] for m in emitted_metrics]
 
-        # Note: individual request metrics are also emitted, we check batch-specific
+        # Verify batch-specific metrics are emitted
         assert "insights_batch_total" in metric_names
         assert "insights_batch_size" in metric_names
         assert "insights_batch_success_count" in metric_names
@@ -4520,10 +4571,13 @@ class TestGetInsightsBatchAsync:
         import respx
 
         client = DataServiceClient()
+        response_body, _status = make_batch_insights_response(
+            sample_pvps, spend=150.0
+        )
 
         with respx.mock:
             respx.post("/api/v1/data-service/insights").respond(
-                json=make_insights_response(spend=150.0)
+                json=response_body
             )
 
             async with client:
@@ -4544,10 +4598,11 @@ class TestGetInsightsBatchAsync:
         import respx
 
         client = DataServiceClient()
+        response_body, _status = make_batch_insights_response(sample_pvps)
 
         with respx.mock:
             respx.post("/api/v1/data-service/insights").respond(
-                json=make_insights_response()
+                json=response_body
             )
 
             async with client:
@@ -4569,10 +4624,11 @@ class TestGetInsightsBatchAsync:
         import respx
 
         client = DataServiceClient()
+        response_body, _status = make_batch_insights_response(sample_pvps)
 
         with respx.mock:
             respx.post("/api/v1/data-service/insights").respond(
-                json=make_insights_response()
+                json=response_body
             )
 
             async with client:
@@ -4587,17 +4643,18 @@ class TestGetInsightsBatchAsync:
     async def test_batch_with_custom_period_and_refresh(
         self, sample_pvps: list
     ) -> None:
-        """Batch passes period and refresh parameters to individual requests."""
+        """Batch passes period and refresh parameters in single request."""
         import json
 
         import respx
 
         client = DataServiceClient()
+        response_body, _status = make_batch_insights_response(sample_pvps)
         captured_bodies: list[dict] = []
 
         def capture_request(request: httpx.Request) -> httpx.Response:
             captured_bodies.append(json.loads(request.content))
-            return httpx.Response(200, json=make_insights_response())
+            return httpx.Response(200, json=response_body)
 
         with respx.mock:
             respx.post("/api/v1/data-service/insights").mock(
@@ -4612,7 +4669,191 @@ class TestGetInsightsBatchAsync:
                     refresh=True,
                 )
 
-        # Verify all requests have the period and refresh parameters in new format
-        for body in captured_bodies:
-            assert body["period"] == "T30"  # Normalized to uppercase
-            assert body["refresh"] is True
+        # IMP-20: Single request with all PVPs
+        assert len(captured_bodies) == 1
+        body = captured_bodies[0]
+        assert body["period"] == "T30"  # Normalized to uppercase
+        assert body["refresh"] is True
+        assert len(body["phone_vertical_pairs"]) == 3
+
+    @pytest.mark.asyncio
+    async def test_request_body_contains_all_pvps(self, sample_pvps: list) -> None:
+        """IMP-20: Verify request body has all PVPs with correct phone/vertical fields."""
+        import json
+
+        import respx
+
+        client = DataServiceClient()
+        response_body, _status = make_batch_insights_response(sample_pvps)
+        captured_bodies: list[dict] = []
+
+        def capture_request(request: httpx.Request) -> httpx.Response:
+            captured_bodies.append(json.loads(request.content))
+            return httpx.Response(200, json=response_body)
+
+        with respx.mock:
+            respx.post("/api/v1/data-service/insights").mock(
+                side_effect=capture_request
+            )
+
+            async with client:
+                await client.get_insights_batch_async(
+                    pairs=sample_pvps,
+                    factory="account",
+                )
+
+        assert len(captured_bodies) == 1
+        body = captured_bodies[0]
+        pvp_list = body["phone_vertical_pairs"]
+
+        # Verify each PVP has phone and vertical fields
+        expected_pvps = {
+            (pvp.office_phone, pvp.vertical) for pvp in sample_pvps
+        }
+        actual_pvps = {
+            (p["phone"], p["vertical"]) for p in pvp_list
+        }
+        assert actual_pvps == expected_pvps
+
+    @pytest.mark.asyncio
+    async def test_total_server_error_marks_all_pvps_failed(
+        self, sample_pvps: list
+    ) -> None:
+        """IMP-20: HTTP 500 from server marks all PVPs as failed."""
+        import respx
+
+        client = DataServiceClient()
+
+        with respx.mock:
+            respx.post("/api/v1/data-service/insights").respond(
+                status_code=500, json={"error": "Internal server error"}
+            )
+
+            async with client:
+                result = await client.get_insights_batch_async(
+                    pairs=sample_pvps,
+                    factory="account",
+                )
+
+        assert result.total_count == 3
+        assert result.success_count == 0
+        assert result.failure_count == 3
+
+        for pvp in sample_pvps:
+            batch_result = result.results.get(pvp.canonical_key)
+            assert batch_result is not None
+            assert batch_result.success is False
+            assert "Internal server error" in batch_result.error
+
+    @pytest.mark.asyncio
+    async def test_chunking_for_large_batches(self) -> None:
+        """IMP-20: Batches > 1000 PVPs are chunked into multiple requests."""
+        import json
+
+        import respx
+
+        from autom8_asana.models.contracts import PhoneVerticalPair
+
+        # Create 1500 PVPs to trigger chunking (1000 + 500)
+        large_pvps = [
+            PhoneVerticalPair(
+                office_phone=f"+1770575{i:04d}", vertical="chiropractic"
+            )
+            for i in range(1500)
+        ]
+
+        # Need max_batch_size >= 1500
+        config = DataServiceConfig(
+            base_url="https://test.example.com",
+            max_batch_size=2000,
+        )
+        client = DataServiceClient(config=config)
+        request_count = 0
+
+        def handle_request(request: httpx.Request) -> httpx.Response:
+            nonlocal request_count
+            request_count += 1
+            body = json.loads(request.content)
+            pvps_in_request = body["phone_vertical_pairs"]
+
+            # Build response with all requested PVPs
+            data = [
+                {
+                    "office_phone": p["phone"],
+                    "vertical": p["vertical"],
+                    "spend": 100.0,
+                    "leads": 10,
+                }
+                for p in pvps_in_request
+            ]
+            return httpx.Response(200, json={
+                "data": data,
+                "metadata": {
+                    "factory": "account",
+                    "row_count": len(data),
+                    "column_count": 4,
+                    "columns": [
+                        {"name": "office_phone", "dtype": "string"},
+                        {"name": "vertical", "dtype": "string"},
+                        {"name": "spend", "dtype": "float64"},
+                        {"name": "leads", "dtype": "int64"},
+                    ],
+                    "cache_hit": False,
+                    "duration_ms": 50.0,
+                },
+            })
+
+        with respx.mock:
+            respx.post("/api/v1/data-service/insights").mock(
+                side_effect=handle_request
+            )
+
+            async with client:
+                result = await client.get_insights_batch_async(
+                    pairs=large_pvps,
+                    factory="account",
+                )
+
+        # Should chunk into 2 requests: 1000 + 500
+        assert request_count == 2
+        assert result.total_count == 1500
+        assert result.success_count == 1500
+        assert result.failure_count == 0
+
+    @pytest.mark.asyncio
+    async def test_circuit_breaker_open_marks_all_failed(
+        self, sample_pvps: list
+    ) -> None:
+        """IMP-20: Circuit breaker open marks all PVPs as failed without HTTP."""
+        import respx
+
+        client = DataServiceClient()
+
+        # Force circuit breaker open by recording enough failures
+        for _ in range(20):
+            await client._circuit_breaker.record_failure(
+                Exception("simulated failure")
+            )
+
+        with respx.mock:
+            route = respx.post("/api/v1/data-service/insights").respond(
+                json=make_insights_response()
+            )
+
+            async with client:
+                result = await client.get_insights_batch_async(
+                    pairs=sample_pvps,
+                    factory="account",
+                )
+
+        # No HTTP request should have been made
+        assert route.call_count == 0
+
+        assert result.total_count == 3
+        assert result.success_count == 0
+        assert result.failure_count == 3
+
+        for pvp in sample_pvps:
+            batch_result = result.results.get(pvp.canonical_key)
+            assert batch_result is not None
+            assert "Circuit breaker open" in batch_result.error

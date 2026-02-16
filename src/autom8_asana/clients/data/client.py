@@ -905,6 +905,9 @@ class DataServiceClient:
         )
         return result
 
+    # Maximum PVPs per HTTP request (autom8_data's max_length limit)
+    _AUTOM8_DATA_MAX_PVP_PER_REQUEST = 1000
+
     async def get_insights_batch_async(
         self,
         pairs: list[PhoneVerticalPair],
@@ -914,14 +917,16 @@ class DataServiceClient:
         refresh: bool = False,
         max_concurrency: int = 10,
     ) -> BatchInsightsResponse:
-        """Fetch insights for multiple businesses concurrently.
+        """Fetch insights for multiple businesses in a single HTTP request.
 
         Per TDD-INSIGHTS-001 FR-006: Batch support with partial failure handling.
-        Per Story 2.4: Concurrent requests with semaphore for rate limiting.
+        Per IMP-20: Sends all PVPs in a single POST to autom8_data instead of
+        N individual requests, reducing HTTP round-trips from N to 1 (or
+        ceil(N/1000) for very large batches).
 
-        This method executes multiple insights requests in parallel, up to
-        max_concurrency concurrent requests. Partial failures are captured
-        in the response rather than raised as exceptions.
+        autom8_data's POST /api/v1/data-service/insights accepts 1-1000 PVPs
+        per request. For batches exceeding 1000, requests are chunked and
+        executed concurrently with bounded concurrency.
 
         Args:
             pairs: List of PhoneVerticalPairs to query.
@@ -930,8 +935,8 @@ class DataServiceClient:
             period: Time period preset (default: "lifetime").
                 Valid: lifetime, t30, l7, etc.
             refresh: Force cache refresh on autom8_data server.
-            max_concurrency: Maximum concurrent requests (default: 10).
-                Higher values improve throughput but may hit rate limits.
+            max_concurrency: Maximum concurrent chunk requests (default: 10).
+                Only relevant when batch exceeds 1000 PVPs.
 
         Returns:
             BatchInsightsResponse with results keyed by canonical_key.
@@ -982,34 +987,65 @@ class DataServiceClient:
                 },
             )
 
-        # Execute requests concurrently with semaphore
-        semaphore = asyncio.Semaphore(max_concurrency)
+        # Build PVP lookup: canonical_key -> PhoneVerticalPair
+        pvp_by_key: dict[str, PhoneVerticalPair] = {
+            pvp.canonical_key: pvp for pvp in pairs
+        }
         results: dict[str, BatchInsightsResult] = {}
 
-        async def fetch_one(pvp: PhoneVerticalPair) -> None:
-            """Fetch insights for a single PVP with semaphore."""
-            async with semaphore:
-                try:
-                    response = await self.get_insights_async(
-                        factory=factory_normalized,
-                        office_phone=pvp.office_phone,
-                        vertical=pvp.vertical,
-                        period=period,
-                        refresh=refresh,
-                    )
-                    results[pvp.canonical_key] = BatchInsightsResult(
-                        pvp=pvp,
-                        response=response,
-                    )
-                except InsightsError as e:
-                    # Capture partial failures in response (per FR-006)
-                    results[pvp.canonical_key] = BatchInsightsResult(
-                        pvp=pvp,
-                        error=str(e),
+        # Handle empty batch gracefully
+        if not pairs:
+            pass  # results stays empty, counts computed below
+        else:
+            # Chunk PVPs into groups of 1000 (autom8_data's max_length)
+            chunk_size = self._AUTOM8_DATA_MAX_PVP_PER_REQUEST
+            chunks = [
+                pairs[i : i + chunk_size]
+                for i in range(0, len(pairs), chunk_size)
+            ]
+
+            if len(chunks) == 1:
+                # Single chunk: direct execution (common case)
+                chunk_results = await self._execute_batch_request(
+                    chunks[0],
+                    factory_normalized,
+                    period,
+                    refresh,
+                    request_id,
+                )
+                results.update(chunk_results)
+            else:
+                # Multiple chunks: parallel execution with bounded concurrency
+                from autom8_asana.core.concurrency import gather_with_semaphore
+
+                async def execute_chunk(
+                    chunk: list[PhoneVerticalPair],
+                ) -> dict[str, BatchInsightsResult]:
+                    return await self._execute_batch_request(
+                        chunk,
+                        factory_normalized,
+                        period,
+                        refresh,
+                        request_id,
                     )
 
-        # Execute all requests concurrently
-        await asyncio.gather(*[fetch_one(pvp) for pvp in pairs])
+                chunk_results_list = await gather_with_semaphore(
+                    (execute_chunk(chunk) for chunk in chunks),
+                    concurrency=max_concurrency,
+                    label="batch_insights_chunks",
+                )
+                for chunk_result in chunk_results_list:
+                    if isinstance(chunk_result, BaseException):
+                        # If an entire chunk failed, mark all PVPs in that
+                        # chunk as errored. Find unprocessed PVPs.
+                        for pvp in pairs:
+                            if pvp.canonical_key not in results:
+                                results[pvp.canonical_key] = BatchInsightsResult(
+                                    pvp=pvp,
+                                    error=str(chunk_result),
+                                )
+                    else:
+                        results.update(chunk_result)
 
         # Calculate success/failure counts
         success_count = sum(1 for r in results.values() if r.success)
@@ -1056,6 +1092,331 @@ class DataServiceClient:
             total_count=len(pairs),
             success_count=success_count,
             failure_count=failure_count,
+        )
+
+    async def _execute_batch_request(
+        self,
+        pvp_list: list[PhoneVerticalPair],
+        factory: str,
+        period: str,
+        refresh: bool,
+        request_id: str,
+    ) -> dict[str, BatchInsightsResult]:
+        """Execute a single batched HTTP POST with multiple PVPs.
+
+        Per IMP-20: Sends all PVPs in one HTTP request to autom8_data's
+        POST /api/v1/data-service/insights endpoint.
+
+        autom8_data returns:
+        - HTTP 200: All PVPs succeeded. Response body has ``data`` list
+          with per-entity results containing ``office_phone`` and ``vertical``.
+        - HTTP 207: Partial success. Response body has both ``data`` (successes)
+          and ``errors`` (per-PVP error details).
+        - HTTP 4xx/5xx: Total failure for the entire chunk.
+
+        Args:
+            pvp_list: PVPs to include in this request (max 1000).
+            factory: Validated, normalized factory name.
+            period: Period preset (e.g., "lifetime").
+            refresh: Whether to force cache refresh.
+            request_id: Batch request correlation ID.
+
+        Returns:
+            Dict mapping canonical_key to BatchInsightsResult for each PVP.
+        """
+        # Build PVP lookup: canonical_key -> PhoneVerticalPair
+        pvp_by_key: dict[str, PhoneVerticalPair] = {
+            pvp.canonical_key: pvp for pvp in pvp_list
+        }
+        results: dict[str, BatchInsightsResult] = {}
+
+        # --- Circuit Breaker Check (Story 2.3) ---
+        try:
+            await self._circuit_breaker.check()
+        except SdkCircuitBreakerOpenError as e:
+            # Mark all PVPs as failed due to circuit breaker
+            error_msg = (
+                f"Circuit breaker open. Service appears degraded. "
+                f"Retry in {e.time_remaining:.1f}s."
+            )
+            for pvp in pvp_list:
+                results[pvp.canonical_key] = BatchInsightsResult(
+                    pvp=pvp,
+                    error=error_msg,
+                )
+            return results
+
+        client = await self._get_client()
+        path = "/api/v1/data-service/insights"
+
+        # Map factory to frame_type
+        frame_type = self.FACTORY_TO_FRAME_TYPE[factory]
+
+        # Normalize period to autom8_data format
+        normalized_period = self._normalize_period(period)
+
+        # Build request body with all PVPs (IMP-20: multi-PVP batch)
+        request_body: dict[str, Any] = {
+            "frame_type": frame_type,
+            "phone_vertical_pairs": [
+                {"phone": pvp.office_phone, "vertical": pvp.vertical}
+                for pvp in pvp_list
+            ],
+            "period": normalized_period,
+        }
+
+        if refresh:
+            request_body["refresh"] = refresh
+
+        # Start timing for latency metrics (Story 1.9)
+        start_time = time.monotonic()
+
+        # --- Retry Callbacks ---
+
+        async def _on_retry(
+            attempt: int, status_code: int, retry_after: int | None
+        ) -> None:
+            if self._log:
+                extra: dict[str, Any] = {
+                    "request_id": request_id,
+                    "attempt": attempt + 1,
+                    "max_retries": self._config.retry.max_retries,
+                    "batch_size": len(pvp_list),
+                }
+                if status_code:
+                    extra["status_code"] = status_code
+                    extra["retry_after"] = retry_after
+                else:
+                    extra["error_type"] = "TimeoutException"
+                    extra["reason"] = "timeout"
+                self._log.warning("insights_batch_request_retry", extra=extra)
+
+        async def _on_timeout_exhausted(
+            e: httpx.TimeoutException, attempt: int
+        ) -> None:
+            elapsed_ms = (time.monotonic() - start_time) * 1000
+            if self._log:
+                self._log.error(
+                    "insights_batch_request_failed",
+                    extra={
+                        "request_id": request_id,
+                        "error_type": "TimeoutException",
+                        "reason": "timeout",
+                        "duration_ms": elapsed_ms,
+                        "attempt": attempt + 1,
+                        "batch_size": len(pvp_list),
+                    },
+                )
+            await self._circuit_breaker.record_failure(e)
+            raise InsightsServiceError(
+                "Batch request to autom8_data timed out",
+                request_id=request_id,
+                reason="timeout",
+            ) from e
+
+        async def _on_http_error(e: httpx.HTTPError, attempt: int) -> None:
+            elapsed_ms = (time.monotonic() - start_time) * 1000
+            if self._log:
+                self._log.error(
+                    "insights_batch_request_failed",
+                    extra={
+                        "request_id": request_id,
+                        "error_type": e.__class__.__name__,
+                        "reason": "http_error",
+                        "duration_ms": elapsed_ms,
+                        "attempt": attempt + 1,
+                        "batch_size": len(pvp_list),
+                    },
+                )
+            await self._circuit_breaker.record_failure(e)
+            raise InsightsServiceError(
+                f"HTTP error communicating with autom8_data: {e}",
+                request_id=request_id,
+                reason="http_error",
+            ) from e
+
+        # --- Execute HTTP request with retry ---
+        try:
+            response, _attempt = await self._execute_with_retry(
+                lambda: client.post(
+                    path,
+                    json=request_body,
+                    headers={"X-Request-Id": request_id},
+                ),
+                on_retry=_on_retry,
+                on_timeout_exhausted=_on_timeout_exhausted,
+                on_http_error=_on_http_error,
+            )
+        except (InsightsServiceError, InsightsError) as e:
+            # Total failure for entire chunk -- mark all PVPs as errored
+            for pvp in pvp_list:
+                results[pvp.canonical_key] = BatchInsightsResult(
+                    pvp=pvp,
+                    error=str(e),
+                )
+            return results
+
+        elapsed_ms = (time.monotonic() - start_time) * 1000
+
+        # --- Handle total failure (4xx/5xx with no partial data) ---
+        if response.status_code >= 400 and response.status_code != 207:
+            error_msg = f"autom8_data API error (HTTP {response.status_code})"
+            try:
+                body = response.json()
+                if "error" in body:
+                    error_msg = body["error"]
+                elif "detail" in body:
+                    error_msg = body["detail"]
+            except (ValueError, KeyError):
+                pass
+
+            if response.status_code >= 500:
+                error = InsightsServiceError(
+                    error_msg,
+                    request_id=request_id,
+                    status_code=response.status_code,
+                    reason="server_error",
+                )
+                await self._circuit_breaker.record_failure(error)
+
+            for pvp in pvp_list:
+                results[pvp.canonical_key] = BatchInsightsResult(
+                    pvp=pvp,
+                    error=error_msg,
+                )
+            return results
+
+        # --- Parse successful / partial response ---
+        await self._circuit_breaker.record_success()
+
+        try:
+            body = response.json()
+        except (ValueError, Exception) as e:
+            error_msg = f"Failed to parse response JSON: {e}"
+            for pvp in pvp_list:
+                results[pvp.canonical_key] = BatchInsightsResult(
+                    pvp=pvp,
+                    error=error_msg,
+                )
+            return results
+
+        # Parse successful entity data from response
+        data_list: list[dict[str, Any]] = body.get("data", [])
+        response_metadata = body.get("metadata", {})
+        warnings = body.get("warnings", [])
+
+        # Group data rows by canonical key (supports multiple rows per PVP)
+        # Each row in data has office_phone and vertical fields
+        rows_by_key: dict[str, list[dict[str, Any]]] = {}
+        for row in data_list:
+            row_phone = row.get("office_phone", "")
+            row_vertical = row.get("vertical", "")
+            canonical_key = f"pv1:{row_phone}:{row_vertical.lower()}"
+
+            if canonical_key not in pvp_by_key:
+                # Response contained a PVP we didn't request -- skip
+                continue
+
+            rows_by_key.setdefault(canonical_key, []).append(row)
+
+        # Build per-PVP InsightsResponse from grouped rows
+        for canonical_key, rows in rows_by_key.items():
+            pvp = pvp_by_key[canonical_key]
+            entity_response = self._build_entity_response(
+                rows, response_metadata, request_id, warnings
+            )
+            results[canonical_key] = BatchInsightsResult(
+                pvp=pvp,
+                response=entity_response,
+            )
+
+        # Parse per-entity errors from response (HTTP 207 partial failures)
+        errors_list: list[dict[str, Any]] = body.get("errors", [])
+        for error_entry in errors_list:
+            error_phone = error_entry.get("office_phone", "")
+            error_vertical = error_entry.get("vertical", "")
+            error_msg = error_entry.get("error", "Unknown error")
+            canonical_key = f"pv1:{error_phone}:{error_vertical.lower()}"
+
+            pvp = pvp_by_key.get(canonical_key)
+            if pvp is not None and canonical_key not in results:
+                results[canonical_key] = BatchInsightsResult(
+                    pvp=pvp,
+                    error=error_msg,
+                )
+
+        # Mark any remaining PVPs (not in data or errors) as failed
+        for pvp in pvp_list:
+            if pvp.canonical_key not in results:
+                results[pvp.canonical_key] = BatchInsightsResult(
+                    pvp=pvp,
+                    error="No data returned for this PVP",
+                )
+
+        if self._log:
+            self._log.info(
+                "insights_batch_request_completed",
+                extra={
+                    "request_id": request_id,
+                    "batch_size": len(pvp_list),
+                    "data_count": len(data_list),
+                    "error_count": len(errors_list),
+                    "duration_ms": elapsed_ms,
+                },
+            )
+
+        return results
+
+    @staticmethod
+    def _build_entity_response(
+        rows: list[dict[str, Any]],
+        response_metadata: dict[str, Any],
+        request_id: str,
+        warnings: list[str],
+    ) -> InsightsResponse:
+        """Build an InsightsResponse for a single PVP from batch response data.
+
+        Groups all data rows belonging to one PVP into a single response.
+        The metadata is shared across the batch but adapted per entity.
+
+        Args:
+            rows: List of data row dicts for this PVP.
+            response_metadata: Shared metadata from the batch response.
+            request_id: Request correlation ID.
+            warnings: Shared warnings from the batch response.
+
+        Returns:
+            InsightsResponse for the single PVP.
+        """
+        from autom8_asana.clients.data.models import (
+            ColumnInfo,
+            InsightsMetadata,
+        )
+
+        columns = [
+            ColumnInfo(**col)
+            for col in response_metadata.get("columns", [])
+        ]
+
+        metadata = InsightsMetadata(
+            factory=response_metadata.get("factory", "unknown"),
+            frame_type=response_metadata.get("frame_type"),
+            insights_period=response_metadata.get("insights_period"),
+            row_count=len(rows),
+            column_count=len(columns) if columns else (len(rows[0]) if rows else 0),
+            columns=columns,
+            cache_hit=response_metadata.get("cache_hit", False),
+            duration_ms=response_metadata.get("duration_ms", 0.0),
+            sort_history=response_metadata.get("sort_history"),
+            is_stale=response_metadata.get("is_stale", False),
+            cached_at=response_metadata.get("cached_at"),
+        )
+
+        return InsightsResponse(
+            data=rows,
+            metadata=metadata,
+            request_id=request_id,
+            warnings=warnings,
         )
 
     def _normalize_period(self, insights_period: str | None) -> str:
