@@ -188,24 +188,41 @@ class PlayCreationHandler(InitActionHandler):
         try:
             # Check condition: not_already_linked
             if action_config.condition == "not_already_linked":
-                # Check if play already exists as dependency
+                # IMP-12: Fetch dependencies with membership data in one call,
+                # eliminating N+1 per-dependency fetches for project membership.
                 created_task = await self._client.tasks.get_async(
                     created_entity_gid,
-                    opt_fields=["dependencies", "dependencies.gid"],
+                    opt_fields=[
+                        "dependencies",
+                        "dependencies.gid",
+                        "dependencies.memberships",
+                        "dependencies.memberships.project",
+                        "dependencies.memberships.project.gid",
+                    ],
                 )
                 dependencies = getattr(created_task, "dependencies", []) or []
 
-                # Check if any dependency is in the play project
+                # Check if any dependency is already in the play project
                 for dep in dependencies:
                     dep_gid = dep.gid if hasattr(dep, "gid") else dep.get("gid")
                     if dep_gid:
-                        dep_task = await self._client.tasks.get_async(
-                            dep_gid, opt_fields=["memberships"]
+                        memberships = (
+                            getattr(dep, "memberships", None)
+                            or (dep.get("memberships") if isinstance(dep, dict) else None)
+                            or []
                         )
-                        memberships = getattr(dep_task, "memberships", []) or []
                         for membership in memberships:
-                            proj = membership.get("project", {})
-                            if proj.get("gid") == action_config.project_gid:
+                            proj = (
+                                membership.get("project", {})
+                                if isinstance(membership, dict)
+                                else getattr(membership, "project", {})
+                            )
+                            proj_gid = (
+                                proj.get("gid")
+                                if isinstance(proj, dict)
+                                else getattr(proj, "gid", None)
+                            )
+                            if proj_gid == action_config.project_gid:
                                 logger.info(
                                     "lifecycle_play_already_linked",
                                     created_gid=created_entity_gid,
