@@ -325,10 +325,10 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
             result = await hydrate_from_gid_async(
                 self._asana_client,
                 business_gid,
-                depth=2,  # Business -> UnitHolder -> Units
+                hydrate_full=True,  # Business -> UnitHolder -> Units
             )
-            if result.entity is not None:
-                activity = getattr(result.entity, "max_unit_activity", None)
+            if result.business is not None:
+                activity = getattr(result.business, "max_unit_activity", None)
             else:
                 activity = None
         except Exception:  # BROAD-CATCH: boundary -- activity resolution failure returns None (soft-fail)

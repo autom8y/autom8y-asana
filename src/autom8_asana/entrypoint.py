@@ -33,7 +33,7 @@ def log_error(message: str) -> None:
 
 def run_ecs_mode() -> None:
     """Start uvicorn API server for ECS deployment."""
-    import uvicorn
+    import uvicorn  # type: ignore[import-not-found]  # runtime-only dependency
 
     log_info("Starting in ECS mode")
 

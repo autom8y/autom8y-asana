@@ -82,7 +82,7 @@ def _extract_date(date_value: Any) -> str | None:
     """Extract date string from date value."""
     if isinstance(date_value, dict):
         return date_value.get("date")
-    return date_value
+    return str(date_value) if date_value is not None else None
 
 
 def _extract_people(people_value: Any) -> list[str] | None:

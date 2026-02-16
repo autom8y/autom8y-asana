@@ -35,6 +35,9 @@ from autom8y_log import get_logger
 
 from autom8_asana.exceptions import CircuitBreakerOpenError
 
+# Re-export for downstream consumers (e.g., dataframes.storage)
+__all__ = ["CircuitBreakerOpenError"]
+
 logger = get_logger(__name__)
 
 T = TypeVar("T")

@@ -23,7 +23,7 @@ Per ADR-ASANA-007: SDK Client Lifecycle
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, cast
 
 from autom8y_auth import (
     AuthError,
@@ -371,7 +371,7 @@ async def get_asana_client(
     """
     pool = getattr(request.app.state, "client_pool", None)
     if pool is not None:
-        return await pool.get_or_create(pat, is_s2s=False)
+        return cast(AsanaClient, await pool.get_or_create(pat, is_s2s=False))
     # Fallback: no pool (e.g., testing without lifespan)
     return AsanaClient(token=pat)
 
@@ -401,9 +401,12 @@ async def get_asana_client_from_context(
     pool = getattr(request.app.state, "client_pool", None)
     if pool is not None:
         is_s2s = auth_context.mode == AuthMode.JWT
-        return await pool.get_or_create(
-            auth_context.asana_pat,
-            is_s2s=is_s2s,
+        return cast(
+            AsanaClient,
+            await pool.get_or_create(
+                auth_context.asana_pat,
+                is_s2s=is_s2s,
+            ),
         )
     # Fallback: no pool (e.g., testing without lifespan)
     return AsanaClient(token=auth_context.asana_pat)
