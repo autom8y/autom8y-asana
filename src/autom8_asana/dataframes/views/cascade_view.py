@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from autom8y_log import get_logger
 
 from autom8_asana.cache.models.completeness import CompletenessLevel
+from autom8_asana.dataframes.views.cf_utils import extract_cf_value
 
 # Per TDD-registry-consolidation: Import from package to ensure bootstrap runs
 from autom8_asana.models.business import (
@@ -469,77 +470,15 @@ class CascadeViewPlugin:
     def _extract_field_value(self, cf_data: dict[str, Any]) -> Any:
         """Extract raw value from custom field data.
 
-        Handles different custom field types (text, number, enum, multi_enum, etc.).
+        Delegates to the shared ``extract_cf_value`` utility (IMP-18).
 
         Args:
             cf_data: Custom field dict from Asana API.
 
         Returns:
             Extracted value based on resource_subtype.
-
-        Note:
-            For unknown resource_subtype, we check typed value fields in order
-            (number_value, text_value, enum_value, etc.) before falling back to
-            display_value. This handles cases where resource_subtype is missing
-            but the field has typed data (e.g., percentage fields with "0%" in
-            display_value but 0.0 in number_value).
         """
-        if not isinstance(cf_data, dict):
-            return None
-
-        resource_subtype = cf_data.get("resource_subtype")
-
-        match resource_subtype:
-            case "text":
-                return cf_data.get("text_value")
-            case "number":
-                return cf_data.get("number_value")
-            case "enum":
-                enum_value = cf_data.get("enum_value")
-                if enum_value is None:
-                    return None
-                if isinstance(enum_value, dict):
-                    return enum_value.get("name")
-                return getattr(enum_value, "name", None)
-            case "multi_enum":
-                multi_values = cf_data.get("multi_enum_values") or []
-                result: list[str] = []
-                for opt in multi_values:
-                    if isinstance(opt, dict):
-                        name = opt.get("name")
-                    else:
-                        name = getattr(opt, "name", None)
-                    if name:
-                        result.append(name)
-                return result if result else None
-            case "date":
-                date_value = cf_data.get("date_value")
-                if isinstance(date_value, dict):
-                    return date_value.get("date")
-                return date_value
-            case "people":
-                people = cf_data.get("people_value") or []
-                gids: list[str] = []
-                for p in people:
-                    if isinstance(p, dict):
-                        gid = p.get("gid")
-                    else:
-                        gid = getattr(p, "gid", None)
-                    if gid:
-                        gids.append(gid)
-                return gids if gids else None
-            case _:
-                # Fallback: check typed value fields before display_value
-                # This handles fields with missing/unknown resource_subtype
-                # Priority: number > text > enum > display_value
-                if cf_data.get("number_value") is not None:
-                    return cf_data.get("number_value")
-                if cf_data.get("text_value") is not None:
-                    return cf_data.get("text_value")
-                enum_value = cf_data.get("enum_value")
-                if enum_value is not None and isinstance(enum_value, dict):
-                    return enum_value.get("name")
-                return cf_data.get("display_value")
+        return extract_cf_value(cf_data)
 
     def _detect_entity_type_from_dict(self, task_data: dict[str, Any]) -> EntityType:
         """Detect entity type from task dict.
