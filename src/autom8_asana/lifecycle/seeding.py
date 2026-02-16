@@ -84,6 +84,7 @@ class AutoCascadeSeeder:
         source_process: Process,
         exclude_fields: list[str] | None = None,
         computed_fields: dict[str, str] | None = None,
+        target_task: Any | None = None,
     ) -> SeedingResult:
         """Seed fields from hierarchy to target using auto-cascade.
 
@@ -94,6 +95,10 @@ class AutoCascadeSeeder:
             source_process: Source process (layer 3).
             exclude_fields: Field names to skip (from YAML SeedingConfig).
             computed_fields: Computed values (layer 4, highest priority).
+            target_task: Pre-fetched task with custom_fields. When provided,
+                skips the task fetch and reuses for write_fields_async
+                (saves 2 API calls total). Must include custom_fields with
+                name, resource_subtype, and enum_options.
 
         Returns:
             SeedingResult with lists of seeded and skipped fields.
@@ -101,16 +106,17 @@ class AutoCascadeSeeder:
         result = SeedingResult()
         excludes = {f.lower() for f in (exclude_fields or [])}
 
-        # Fetch target custom field definitions
-        target_task = await self._client.tasks.get_async(
-            target_task_gid,
-            opt_fields=[
-                "custom_fields",
-                "custom_fields.name",
-                "custom_fields.resource_subtype",
-                "custom_fields.enum_options",
-            ],
-        )
+        # Fetch target custom field definitions (skip if pre-fetched)
+        if target_task is None:
+            target_task = await self._client.tasks.get_async(
+                target_task_gid,
+                opt_fields=[
+                    "custom_fields",
+                    "custom_fields.name",
+                    "custom_fields.resource_subtype",
+                    "custom_fields.enum_options",
+                ],
+            )
 
         target_fields = _normalize_custom_fields(target_task.custom_fields)
         target_field_names: dict[str, dict[str, Any]] = {
@@ -178,10 +184,12 @@ class AutoCascadeSeeder:
         )
 
         # Write using FieldSeeder infrastructure (enum resolution + API call)
+        # Pass target_task to avoid re-fetching (IMP-02: eliminates double-fetch)
         field_seeder = FieldSeeder(self._client)
         write_result = await field_seeder.write_fields_async(
             target_task_gid,
             seeded,
+            target_task=target_task,
         )
 
         result.fields_seeded = write_result.fields_written
