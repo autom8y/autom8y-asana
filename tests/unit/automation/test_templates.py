@@ -311,6 +311,88 @@ class TestFindTemplateTask:
         client.tasks.list_async.assert_called_once_with(section="template_section_gid")
 
 
+class TestTemplateSectionGidShortcut:
+    """Tests for template_section_gid fast path (IMP-07)."""
+
+    @pytest.mark.asyncio
+    async def test_section_gid_skips_listing(self) -> None:
+        """When template_section_gid is provided, skip section listing entirely."""
+        client = create_mock_client()
+        discovery = TemplateDiscovery(client)
+
+        result = await discovery.find_template_section_async(
+            "project_123", template_section_gid="pre_configured_gid"
+        )
+
+        assert result is not None
+        assert result.gid == "pre_configured_gid"
+        # Section listing should NOT have been called
+        client.sections.list_for_project_async.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_section_gid_uses_section_name_when_provided(self) -> None:
+        """When both template_section_gid and section_name are provided."""
+        client = create_mock_client()
+        discovery = TemplateDiscovery(client)
+
+        result = await discovery.find_template_section_async(
+            "project_123",
+            section_name="My Template Section",
+            template_section_gid="pre_configured_gid",
+        )
+
+        assert result is not None
+        assert result.gid == "pre_configured_gid"
+        assert result.name == "My Template Section"
+
+    @pytest.mark.asyncio
+    async def test_section_gid_default_name(self) -> None:
+        """When template_section_gid is provided without section_name."""
+        client = create_mock_client()
+        discovery = TemplateDiscovery(client)
+
+        result = await discovery.find_template_section_async(
+            "project_123", template_section_gid="pre_configured_gid"
+        )
+
+        assert result.name == "Template"
+
+    @pytest.mark.asyncio
+    async def test_task_with_section_gid_skips_section_listing(self) -> None:
+        """find_template_task_async with template_section_gid skips section listing."""
+        tasks = [MockTask("task_1", "Template Task")]
+        client = create_mock_client(tasks=tasks)
+        discovery = TemplateDiscovery(client)
+
+        result = await discovery.find_template_task_async(
+            "project_123", template_section_gid="pre_configured_gid"
+        )
+
+        assert result is not None
+        assert result.gid == "task_1"
+        # Section listing should NOT have been called
+        client.sections.list_for_project_async.assert_not_called()
+        # But task listing should have been called with the pre-configured GID
+        client.tasks.list_async.assert_called_once_with(section="pre_configured_gid")
+
+    @pytest.mark.asyncio
+    async def test_none_section_gid_falls_back_to_discovery(self) -> None:
+        """When template_section_gid is None, fall back to normal discovery."""
+        sections = [MockSection("section_2", "Template")]
+        tasks = [MockTask("task_1", "Template Task")]
+        client = create_mock_client(sections=sections, tasks=tasks)
+        discovery = TemplateDiscovery(client)
+
+        result = await discovery.find_template_task_async(
+            "project_123", template_section_gid=None
+        )
+
+        assert result is not None
+        assert result.gid == "task_1"
+        # Section listing SHOULD have been called (normal discovery)
+        client.sections.list_for_project_async.assert_called_once()
+
+
 class TestMatchesTemplatePattern:
     """Tests for _matches_template_pattern helper."""
 
