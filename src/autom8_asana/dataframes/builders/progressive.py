@@ -155,6 +155,9 @@ class ProgressiveProjectBuilder:
         self._dataframe_view: DataFrameViewPlugin | None = None
         self._section_dfs: dict[str, pl.DataFrame] = {}
         self._manifest: SectionManifest | None = None
+        # Delta checkpoint state -- reset per section (R5)
+        self._checkpoint_df: pl.DataFrame | None = None
+        self._checkpoint_task_count: int = 0
 
     async def _check_resume_and_probe(
         self,
@@ -591,6 +594,10 @@ class ProgressiveProjectBuilder:
         """
         section_start = time.perf_counter()
 
+        # Reset delta checkpoint state per section (R5: prevent cross-section leakage)
+        self._checkpoint_df = None
+        self._checkpoint_task_count = 0
+
         try:
             await self._persistence.update_manifest_section_async(
                 self._project_gid,
@@ -922,8 +929,11 @@ class ProgressiveProjectBuilder:
     ) -> tuple[pl.DataFrame, str, datetime | None]:
         """Convert tasks to a DataFrame with freshness metadata.
 
-        Handles task→dict conversion, row extraction via DataFrameView,
-        schema coercion, and freshness metadata computation.
+        Uses delta approach (IMP-22) to avoid re-extracting tasks already
+        processed during checkpoints. Three branches:
+        (a) Checkpoint exists AND more tasks remain: extract delta, concatenate
+        (b) Checkpoint exists AND no new tasks: use checkpoint directly
+        (c) No checkpoint: full extraction (original behavior)
 
         Args:
             tasks: Fetched tasks for this section.
@@ -931,10 +941,31 @@ class ProgressiveProjectBuilder:
         Returns:
             Tuple of (section_df, gid_hash, watermark).
         """
-        task_dicts = [self._task_to_dict(task) for task in tasks]
-        rows = await self._extract_rows(task_dicts)
-        coerced_rows = coerce_rows_to_schema(rows, self._schema)
-        section_df = pl.DataFrame(coerced_rows, schema=self._schema.to_polars_schema())
+        if self._checkpoint_df is not None:
+            # Branch (a) or (b): checkpoint exists
+            remaining_tasks = tasks[self._checkpoint_task_count:]
+            if remaining_tasks:
+                # Branch (a): extract only new tasks since last checkpoint
+                task_dicts = [self._task_to_dict(task) for task in remaining_tasks]
+                rows = await self._extract_rows(task_dicts)
+                coerced_rows = coerce_rows_to_schema(rows, self._schema)
+                delta_df = pl.DataFrame(
+                    coerced_rows, schema=self._schema.to_polars_schema()
+                )
+                section_df = pl.concat(
+                    [self._checkpoint_df, delta_df], how="diagonal_relaxed"
+                )
+            else:
+                # Branch (b): all tasks were already checkpointed
+                section_df = self._checkpoint_df
+        else:
+            # Branch (c): no checkpoint, full extraction
+            task_dicts = [self._task_to_dict(task) for task in tasks]
+            rows = await self._extract_rows(task_dicts)
+            coerced_rows = coerce_rows_to_schema(rows, self._schema)
+            section_df = pl.DataFrame(
+                coerced_rows, schema=self._schema.to_polars_schema()
+            )
 
         from autom8_asana.dataframes.builders.freshness import compute_gid_hash
 
@@ -985,9 +1016,9 @@ class ProgressiveProjectBuilder:
     ) -> bool:
         """Write accumulated tasks as a checkpoint parquet to S3.
 
-        Converts accumulated tasks to a DataFrame and delegates to
-        SectionPersistence.write_checkpoint_async() for S3 write and
-        manifest metadata update.
+        Uses delta extraction (IMP-22): only converts tasks added since the
+        last checkpoint, then concatenates with the previous checkpoint
+        DataFrame. This eliminates O(N*checkpoints) re-extraction amplification.
 
         Per TDD-large-section-resilience section 3.2 / ADR-LSR-002.
 
@@ -1000,12 +1031,26 @@ class ProgressiveProjectBuilder:
             True if checkpoint written successfully.
         """
         try:
-            task_dicts = [self._task_to_dict(task) for task in tasks]
+            # Delta extraction: only process tasks since last checkpoint
+            new_tasks = tasks[self._checkpoint_task_count:]
+            task_dicts = [self._task_to_dict(task) for task in new_tasks]
             rows = await self._extract_rows(task_dicts)
             coerced_rows = coerce_rows_to_schema(rows, self._schema)
-            checkpoint_df = pl.DataFrame(
+            delta_df = pl.DataFrame(
                 coerced_rows, schema=self._schema.to_polars_schema()
             )
+
+            # Concatenate with previous checkpoint if it exists
+            if self._checkpoint_df is not None:
+                checkpoint_df = pl.concat(
+                    [self._checkpoint_df, delta_df], how="diagonal_relaxed"
+                )
+            else:
+                checkpoint_df = delta_df
+
+            # Update delta state for next checkpoint
+            self._checkpoint_df = checkpoint_df
+            self._checkpoint_task_count = len(tasks)
 
             success = await self._persistence.write_checkpoint_async(
                 self._project_gid,
@@ -1022,6 +1067,7 @@ class ProgressiveProjectBuilder:
                         "section_gid": section_gid,
                         "pages_fetched": pages_fetched,
                         "rows_checkpointed": len(checkpoint_df),
+                        "delta_rows": len(delta_df),
                     },
                 )
                 # Store in memory for fallback
