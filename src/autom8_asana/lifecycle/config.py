@@ -105,6 +105,7 @@ class StageConfig(BaseModel):
     project_gid: str | None = None
     pipeline_stage: int = 0
     template_section: str = "TEMPLATE"
+    template_section_gid: str | None = None
     target_section: str = "OPPORTUNITY"
     due_date_offset_days: int = 0
 

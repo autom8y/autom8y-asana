@@ -149,6 +149,7 @@ class EntityCreationService:
             template = await template_discovery.find_template_task_async(
                 stage_config.project_gid,  # type: ignore[arg-type]  # project_gid validated non-None by stage_config
                 template_section=stage_config.template_section,
+                template_section_gid=stage_config.template_section_gid,
             )
 
             # 4. Create (template or blank fallback)
