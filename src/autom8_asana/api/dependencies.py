@@ -23,7 +23,6 @@ Per ADR-ASANA-007: SDK Client Lifecycle
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
 from typing import Annotated
 
 from autom8y_auth import (
@@ -351,62 +350,63 @@ async def get_asana_pat(
 
 
 async def get_asana_client(
+    request: Request,
     pat: Annotated[str, Depends(get_asana_pat)],
-) -> AsyncGenerator[AsanaClient, None]:
-    """Create per-request AsanaClient with provided PAT.
+) -> AsanaClient:
+    """Get pooled AsanaClient with provided PAT.
 
     DEPRECATED for new routes: Use get_asana_client_from_context() instead
     for dual-mode support.
 
-    Per ADR-ASANA-007:
-    - Each request gets a fresh client instance
-    - Complete user isolation (no shared state)
-    - Clean error boundaries
-    - Garbage collection handles cleanup
+    Per IMP-19: Uses token-keyed ClientPool for S2S resilience.
+    Pooled clients have aclose() as a no-op to prevent resource leaks.
+    PAT-mode clients use a 5-minute TTL.
 
     Args:
+        request: FastAPI request (for pool access via app.state).
         pat: Personal Access Token from Authorization header.
 
-    Yields:
-        AsanaClient instance configured with the provided PAT.
+    Returns:
+        Pooled AsanaClient instance configured with the provided PAT.
     """
-    client = AsanaClient(token=pat)
-    try:
-        yield client
-    finally:
-        # Explicit cleanup if SDK supports async close
-        if hasattr(client, "aclose"):
-            await client.aclose()
+    pool = getattr(request.app.state, "client_pool", None)
+    if pool is not None:
+        return await pool.get_or_create(pat, is_s2s=False)
+    # Fallback: no pool (e.g., testing without lifespan)
+    return AsanaClient(token=pat)
 
 
 async def get_asana_client_from_context(
+    request: Request,
     auth_context: Annotated[AuthContext, Depends(get_auth_context)],
-) -> AsyncGenerator[AsanaClient, None]:
-    """Create per-request AsanaClient from auth context.
+) -> AsanaClient:
+    """Get pooled AsanaClient from auth context.
 
     Supports both JWT (S2S) and PAT (user) authentication modes.
     The client is configured with the appropriate PAT based on auth mode:
-    - JWT mode: Uses bot PAT
-    - PAT mode: Uses user's PAT
+    - JWT mode: Uses bot PAT (1hr TTL in pool)
+    - PAT mode: Uses user's PAT (5min TTL in pool)
 
-    Per ADR-ASANA-007:
-    - Each request gets a fresh client instance
-    - Complete user isolation (no shared state)
-    - Clean error boundaries
-    - Garbage collection handles cleanup
+    Per IMP-19: Uses token-keyed ClientPool for S2S resilience.
+    Rate limiters, circuit breakers, and AIMD semaphores accumulate
+    state across requests sharing the same token.
 
     Args:
+        request: FastAPI request (for pool access via app.state).
         auth_context: Authentication context with PAT for Asana calls.
 
-    Yields:
-        AsanaClient instance configured with the appropriate PAT.
+    Returns:
+        Pooled AsanaClient instance configured with the appropriate PAT.
     """
-    client = AsanaClient(token=auth_context.asana_pat)
-    try:
-        yield client
-    finally:
-        if hasattr(client, "aclose"):
-            await client.aclose()
+    pool = getattr(request.app.state, "client_pool", None)
+    if pool is not None:
+        is_s2s = auth_context.mode == AuthMode.JWT
+        return await pool.get_or_create(
+            auth_context.asana_pat,
+            is_s2s=is_s2s,
+        )
+    # Fallback: no pool (e.g., testing without lifespan)
+    return AsanaClient(token=auth_context.asana_pat)
 
 
 def get_mutation_invalidator(request: Request) -> MutationInvalidator:

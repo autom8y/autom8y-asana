@@ -16,6 +16,7 @@ from fastapi import FastAPI
 
 from autom8_asana.core.logging import configure as configure_logging
 
+from .client_pool import ClientPool
 from .config import get_settings
 from .middleware import _filter_sensitive_data
 from .preload import _preload_dataframe_cache_progressive
@@ -77,6 +78,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             "rate_limit_rpm": settings.rate_limit_rpm,
         },
     )
+
+    # Initialize token-keyed client pool for S2S resilience (IMP-19)
+    # Allows rate limiters, circuit breakers, and AIMD semaphores to
+    # accumulate state across requests sharing the same token.
+    app.state.client_pool = ClientPool()
+    logger.info("client_pool_initialized")
 
     # Entity resolver startup discovery (FR-004, FR-005)
     try:
@@ -170,6 +177,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     "cache_warming_cancel_error",
                     extra={"error": str(e)},
                 )
+
+    # Close client pool (IMP-19)
+    if hasattr(app.state, "client_pool"):
+        try:
+            await app.state.client_pool.close_all()
+            logger.info("client_pool_shutdown_complete")
+        except Exception as e:  # BROAD-CATCH: degrade
+            logger.warning(
+                "client_pool_shutdown_error",
+                extra={"error": str(e)},
+            )
 
     # Close connection managers (ordered shutdown per TDD-CONNECTION-LIFECYCLE-001)
     if hasattr(app.state, "connection_registry"):
