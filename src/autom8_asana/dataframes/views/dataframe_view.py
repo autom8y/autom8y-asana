@@ -16,6 +16,7 @@ from autom8y_log import get_logger
 from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
 from autom8_asana.dataframes.builders.base import gather_with_limit
 from autom8_asana.dataframes.views.cascade_view import CascadeViewPlugin
+from autom8_asana.dataframes.views.cf_utils import extract_cf_value
 
 # Concurrency limit for parallel row extraction
 # Per FR-EXTRACT-001: 50 concurrent extractions balances speed vs memory
@@ -474,6 +475,8 @@ class DataFrameViewPlugin:
         """Extract custom field value from task dict by name.
 
         Fallback method used when cascade_plugin is not available.
+        Delegates per-field extraction to the shared ``extract_cf_value``
+        utility (IMP-18).
 
         Args:
             task_data: Task data dict.
@@ -481,12 +484,6 @@ class DataFrameViewPlugin:
 
         Returns:
             Field value if found, None otherwise.
-
-        Note:
-            Priority order for extraction: number_value > text_value > enum_value >
-            multi_enum_values > display_value. This ensures typed values are preferred
-            over display_value which may contain formatted strings (e.g., "0%" instead
-            of 0.0 for percentage fields).
         """
         custom_fields = task_data.get("custom_fields")
         if not custom_fields:
@@ -500,19 +497,7 @@ class DataFrameViewPlugin:
                 continue
             cf_name = cf.get("name")
             if cf_name and cf_name.lower().strip() == normalized_name:
-                # Extract value based on field type - prioritize typed values
-                # over display_value to avoid type mismatches (e.g., "0%" vs 0.0)
-                if cf.get("number_value") is not None:
-                    return cf.get("number_value")
-                if cf.get("text_value") is not None:
-                    return cf.get("text_value")
-                if cf.get("enum_value") and isinstance(cf["enum_value"], dict):
-                    return cf["enum_value"].get("name")
-                if "multi_enum_values" in cf:
-                    vals = cf.get("multi_enum_values") or []
-                    return [v.get("name") for v in vals if v.get("name")]
-                # Fallback to display_value for people/date/unknown fields
-                return cf.get("display_value")
+                return extract_cf_value(cf)
 
         return None
 
@@ -742,54 +727,15 @@ class DataFrameViewPlugin:
     def _extract_cf_value(self, cf: dict[str, Any]) -> Any:
         """Extract value from custom field dict.
 
+        Delegates to the shared ``extract_cf_value`` utility (IMP-18).
+
         Args:
             cf: Custom field dict.
 
         Returns:
             Extracted value.
-
-        Note:
-            For unknown resource_subtype, we check typed value fields in order
-            (number_value, text_value, enum_value, etc.) before falling back to
-            display_value. This handles cases where resource_subtype is missing
-            but the field has typed data (e.g., percentage fields with "0%" in
-            display_value but 0.0 in number_value).
         """
-        resource_subtype = cf.get("resource_subtype")
-
-        match resource_subtype:
-            case "text":
-                return cf.get("text_value")
-            case "number":
-                return cf.get("number_value")
-            case "enum":
-                enum_val = cf.get("enum_value")
-                if isinstance(enum_val, dict):
-                    return enum_val.get("name")
-                return None
-            case "multi_enum":
-                values = cf.get("multi_enum_values") or []
-                return [v.get("name") for v in values if v.get("name")]
-            case "date":
-                date_val = cf.get("date_value")
-                if isinstance(date_val, dict):
-                    return date_val.get("date")
-                return date_val
-            case "people":
-                people = cf.get("people_value") or []
-                return [p.get("gid") for p in people if p.get("gid")]
-            case _:
-                # Fallback: check typed value fields before display_value
-                # This handles fields with missing/unknown resource_subtype
-                # Priority: number > text > enum > display_value
-                if cf.get("number_value") is not None:
-                    return cf.get("number_value")
-                if cf.get("text_value") is not None:
-                    return cf.get("text_value")
-                enum_val = cf.get("enum_value")
-                if enum_val is not None and isinstance(enum_val, dict):
-                    return enum_val.get("name")
-                return cf.get("display_value")
+        return extract_cf_value(cf)
 
     def _extract_attribute(
         self,
