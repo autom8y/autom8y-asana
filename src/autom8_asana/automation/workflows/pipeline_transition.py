@@ -239,91 +239,126 @@ class PipelineTransitionWorkflow(WorkflowAction):
         Returns:
             List of (Process, outcome) tuples.
         """
+        from autom8_asana.core.concurrency import gather_with_semaphore
+
+        results = await gather_with_semaphore(
+            [
+                self._enumerate_one_project_async(
+                    project_gid, converted_section, dnc_section
+                )
+                for project_gid in project_gids
+            ],
+            concurrency=5,
+            label="enumerate_processes",
+        )
+
+        # Flatten results, filtering out exceptions from failed projects
         processes: list[tuple[Process, str]] = []
-
-        for project_gid in project_gids:
-            try:
-                # Attempt section-targeted resolution
-                try:
-                    resolved = await resolve_section_gids(
-                        self._client.sections,
-                        project_gid,
-                        {converted_section, dnc_section},
-                    )
-                except Exception:  # BROAD-CATCH: boundary -- section resolution failure falls back to project-level fetch
-                    logger.warning(
-                        "section_resolution_failed_fallback",
-                        project_gid=project_gid,
-                        workflow_id=self.workflow_id,
-                    )
-                    resolved = {}
-
-                if not resolved:
-                    # Fallback: project-level fetch with client-side filtering
-                    page_iter = self._client.tasks.list_async(
-                        project=project_gid,
-                        opt_fields=[
-                            "name",
-                            "completed",
-                            "memberships",
-                            "memberships.section",
-                            "memberships.section.name",
-                        ],
-                        completed_since="now",
-                    )
-                    tasks = await page_iter.collect()
-
-                    for task in tasks:
-                        if task.completed:
-                            continue
-
-                        memberships = getattr(task, "memberships", []) or []
-                        for membership in memberships:
-                            section = membership.get("section", {})
-                            section_name = section.get("name", "")
-
-                            if section_name.upper() == converted_section.upper():
-                                process = Process.model_validate(task)
-                                processes.append((process, "converted"))
-                                break
-
-                            elif section_name.upper() == dnc_section.upper():
-                                process = Process.model_validate(task)
-                                processes.append((process, "did_not_convert"))
-                                break
-                else:
-                    # Primary path: section-targeted fetch
-                    for section_name_lower, section_gid in resolved.items():
-                        outcome = (
-                            "converted"
-                            if section_name_lower == converted_section.lower()
-                            else "did_not_convert"
-                        )
-                        section_tasks = await self._client.tasks.list_async(
-                            section=section_gid,
-                            opt_fields=["name", "completed"],
-                            completed_since="now",
-                        ).collect()
-                        for task in section_tasks:
-                            if not task.completed:
-                                process = Process.model_validate(task)
-                                processes.append((process, outcome))
-
-                    logger.info(
-                        "pipeline_section_targeted_enumeration",
-                        project_gid=project_gid,
-                        sections_targeted=len(resolved),
-                        tasks_enumerated=len(processes),
-                    )
-
-            except Exception as e:  # BROAD-CATCH: boundary -- enumeration failure skips project, continues loop
+        for result in results:
+            if isinstance(result, BaseException):
                 logger.error(
                     "pipeline_transition_enumerate_error",
+                    error=str(result),
+                )
+            else:
+                processes.extend(result)
+        return processes
+
+    async def _enumerate_one_project_async(
+        self,
+        project_gid: str,
+        converted_section: str,
+        dnc_section: str,
+    ) -> list[tuple[Process, str]]:
+        """Enumerate processes for a single project.
+
+        Returns:
+            List of (Process, outcome) tuples for this project.
+        """
+        project_processes: list[tuple[Process, str]] = []
+
+        try:
+            # Attempt section-targeted resolution
+            try:
+                resolved = await resolve_section_gids(
+                    self._client.sections,
+                    project_gid,
+                    {converted_section, dnc_section},
+                )
+            except Exception:  # BROAD-CATCH: boundary -- section resolution failure falls back to project-level fetch
+                logger.warning(
+                    "section_resolution_failed_fallback",
                     project_gid=project_gid,
-                    error=str(e),
+                    workflow_id=self.workflow_id,
+                )
+                resolved = {}
+
+            if not resolved:
+                # Fallback: project-level fetch with client-side filtering
+                page_iter = self._client.tasks.list_async(
+                    project=project_gid,
+                    opt_fields=[
+                        "name",
+                        "completed",
+                        "memberships",
+                        "memberships.section",
+                        "memberships.section.name",
+                    ],
+                    completed_since="now",
+                )
+                tasks = await page_iter.collect()
+
+                for task in tasks:
+                    if task.completed:
+                        continue
+
+                    memberships = getattr(task, "memberships", []) or []
+                    for membership in memberships:
+                        section = membership.get("section", {})
+                        section_name = section.get("name", "")
+
+                        if section_name.upper() == converted_section.upper():
+                            process = Process.model_validate(task)
+                            project_processes.append((process, "converted"))
+                            break
+
+                        elif section_name.upper() == dnc_section.upper():
+                            process = Process.model_validate(task)
+                            project_processes.append((process, "did_not_convert"))
+                            break
+            else:
+                # Primary path: section-targeted fetch
+                for section_name_lower, section_gid in resolved.items():
+                    outcome = (
+                        "converted"
+                        if section_name_lower == converted_section.lower()
+                        else "did_not_convert"
+                    )
+                    section_tasks = await self._client.tasks.list_async(
+                        section=section_gid,
+                        opt_fields=["name", "completed"],
+                        completed_since="now",
+                    ).collect()
+                    for task in section_tasks:
+                        if not task.completed:
+                            process = Process.model_validate(task)
+                            project_processes.append((process, outcome))
+
+                logger.info(
+                    "pipeline_section_targeted_enumeration",
+                    project_gid=project_gid,
+                    sections_targeted=len(resolved),
+                    tasks_enumerated=len(project_processes),
                 )
 
-        return processes
+        except Exception as e:  # BROAD-CATCH: boundary -- enumeration failure skips project
+            logger.error(
+                "pipeline_transition_enumerate_error",
+                project_gid=project_gid,
+                error=str(e),
+            )
+
+        return project_processes
 
     async def _process_transition_async(
         self,
