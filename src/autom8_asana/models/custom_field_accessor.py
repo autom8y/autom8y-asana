@@ -58,16 +58,19 @@ class CustomFieldAccessor:
             str, Any
         ] = {}  # gid -> new_value (or None for removal)
         self._name_to_gid: dict[str, str] = {}  # Cache name->gid from data
+        self._gid_to_field: dict[str, dict[str, Any]] = {}  # Cache gid->field dict
         self._build_index()
 
     def _build_index(self) -> None:
-        """Build name->gid index from existing data."""
+        """Build name->gid and gid->field indexes from existing data."""
         for field in self._data:
             gid = field.get("gid")
             name = field.get("name")
-            if gid and name:
-                # Normalize name for case-insensitive lookup
-                self._name_to_gid[name.lower().strip()] = gid
+            if gid:
+                self._gid_to_field[gid] = field
+                if name:
+                    # Normalize name for case-insensitive lookup
+                    self._name_to_gid[name.lower().strip()] = gid
 
     def set(self, name_or_gid: str, value: Any) -> None:
         """Set custom field value by name or GID.
@@ -104,10 +107,10 @@ class CustomFieldAccessor:
         if gid in self._modifications:
             return self._modifications[gid]
 
-        # Find in original data
-        for field in self._data:
-            if field.get("gid") == gid:
-                return self._extract_value(field)
+        # Find in original data via O(1) index lookup
+        field = self._gid_to_field.get(gid)
+        if field is not None:
+            return self._extract_value(field)
 
         return default
 
@@ -237,7 +240,7 @@ class CustomFieldAccessor:
         Returns:
             Field dict or None if not found.
         """
-        return next((f for f in self._data if f.get("gid") == gid), None)
+        return self._gid_to_field.get(gid)
 
     def _format_value_for_api(self, value: Any) -> Any:
         """Format a value for the Asana API.
@@ -342,10 +345,9 @@ class CustomFieldAccessor:
         if normalized in self._name_to_gid:
             return self._name_to_gid[normalized]
 
-        # Check if input matches a GID exactly (in case resolver stores GIDs with non-digit chars)
-        for field in self._data:
-            if field.get("gid") == name_or_gid:
-                return name_or_gid
+        # Check if input matches a GID exactly (in case GIDs have non-digit chars)
+        if name_or_gid in self._gid_to_field:
+            return name_or_gid
 
         # Try resolver if available
         if self._resolver:
@@ -419,8 +421,8 @@ class CustomFieldAccessor:
         if value is None:
             return  # None is always valid (clears the field)
 
-        # Find field by GID
-        field = next((f for f in self._data if f.get("gid") == gid), None)
+        # Find field by GID via O(1) index
+        field = self._gid_to_field.get(gid)
         if not field:
             return  # Field not found (will be caught by _resolve_gid())
 
