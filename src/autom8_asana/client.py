@@ -858,40 +858,51 @@ class AsanaClient:
             - API errors for individual GIDs don't fail the entire operation;
               they increment the failed count while processing continues.
         """
-        warmed = 0
-        failed = 0
+        from autom8_asana.core.concurrency import gather_with_semaphore
+
+        # Phase 1: Filter already-cached GIDs
+        uncached_gids: list[str] = []
         skipped = 0
 
         for gid in gids:
-            # Check if already cached (skip if so)
             if self._cache_provider is not None:
                 cached = self._cache_provider.get_versioned(gid, entry_type)
                 if cached is not None:
                     skipped += 1
                     continue
+            uncached_gids.append(gid)
 
-            try:
-                # Fetch based on entry type (auto-caches via client methods)
-                match entry_type:
-                    case EntryType.TASK:
-                        await self.tasks.get_async(gid)
-                    case EntryType.PROJECT:
-                        await self.projects.get_async(gid)
-                    case EntryType.SECTION:
-                        await self.sections.get_async(gid)
-                    case EntryType.USER:
-                        await self.users.get_async(gid)
-                    case EntryType.CUSTOM_FIELD:
-                        await self.custom_fields.get_async(gid)
-                    case _:
-                        # Unsupported entry type - count as failed
-                        failed += 1
-                        continue
-                warmed += 1
-            except (AsanaError, ConnectionError, TimeoutError):
-                # API error or other failure - continue with remaining GIDs
-                logger.debug("Bulk API call failed", exc_info=True)
+        # Phase 2: Warm uncached GIDs in parallel
+        async def _warm_one(gid: str) -> str:
+            match entry_type:
+                case EntryType.TASK:
+                    await self.tasks.get_async(gid)
+                case EntryType.PROJECT:
+                    await self.projects.get_async(gid)
+                case EntryType.SECTION:
+                    await self.sections.get_async(gid)
+                case EntryType.USER:
+                    await self.users.get_async(gid)
+                case EntryType.CUSTOM_FIELD:
+                    await self.custom_fields.get_async(gid)
+                case _:
+                    raise ValueError(f"Unsupported entry type: {entry_type}")
+            return gid
+
+        results = await gather_with_semaphore(
+            (_warm_one(gid) for gid in uncached_gids),
+            concurrency=20,
+            label="warm_cache",
+        )
+
+        warmed = 0
+        failed = 0
+        for r in results:
+            if isinstance(r, BaseException):
+                logger.debug("Bulk API call failed", error=str(r))
                 failed += 1
+            else:
+                warmed += 1
 
         return WarmResult(warmed=warmed, failed=failed, skipped=skipped)
 
