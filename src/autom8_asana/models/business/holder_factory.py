@@ -311,7 +311,7 @@ class HolderFactory(Task, HolderMixin[Task]):
         children: list[Any] = []
         for task in sorted_tasks:
             # Convert Task to typed child
-            child = child_class.model_validate(task.model_dump())
+            child = child_class.model_validate(task, from_attributes=True)
 
             # Set parent reference (holder -> child)
             setattr(child, self.PARENT_REF_NAME, self)

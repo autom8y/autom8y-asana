@@ -217,7 +217,7 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
 
         # Fetch Business task
         task_data = await client.tasks.get_async(gid)
-        business = cls.model_validate(task_data.model_dump())
+        business = cls.model_validate(task_data, from_attributes=True)
 
         # Hydrate full hierarchy if requested
         if hydrate:
@@ -579,14 +579,14 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
             Typed holder instance.
         """
         if holder_key == "contact_holder":
-            holder = ContactHolder.model_validate(task.model_dump())
+            holder = ContactHolder.model_validate(task, from_attributes=True)
             holder._business = self
             return holder
         elif holder_key == "unit_holder":
             # Import here to avoid circular import at module load time
             from autom8_asana.models.business.unit import UnitHolder as UH
 
-            unit_holder = UH.model_validate(task.model_dump())
+            unit_holder = UH.model_validate(task, from_attributes=True)
             unit_holder._business = self
             return unit_holder
         elif holder_key == "location_holder":
@@ -595,23 +595,23 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
                 LocationHolder as LH,
             )
 
-            location_holder = LH.model_validate(task.model_dump())
+            location_holder = LH.model_validate(task, from_attributes=True)
             location_holder._business = self
             return location_holder
         elif holder_key == "dna_holder":
-            dna_holder = DNAHolder.model_validate(task.model_dump())
+            dna_holder = DNAHolder.model_validate(task, from_attributes=True)
             dna_holder._business = self
             return dna_holder
         elif holder_key == "reconciliation_holder":
-            recon_holder = ReconciliationHolder.model_validate(task.model_dump())
+            recon_holder = ReconciliationHolder.model_validate(task, from_attributes=True)
             recon_holder._business = self
             return recon_holder
         elif holder_key == "asset_edit_holder":
-            asset_holder = AssetEditHolder.model_validate(task.model_dump())
+            asset_holder = AssetEditHolder.model_validate(task, from_attributes=True)
             asset_holder._business = self
             return asset_holder
         elif holder_key == "videography_holder":
-            video_holder = VideographyHolder.model_validate(task.model_dump())
+            video_holder = VideographyHolder.model_validate(task, from_attributes=True)
             video_holder._business = self
             return video_holder
         # Fallback: return as plain Task (should not reach here)

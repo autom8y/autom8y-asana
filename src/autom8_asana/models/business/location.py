@@ -218,12 +218,12 @@ class LocationHolder(
             # Check if this is an Hours task (name starts with "Hours")
             task_name = task.name or ""
             if task_name.startswith("Hours") or task_name.startswith("hours"):
-                hours = HoursEntity.model_validate(task.model_dump())
+                hours = HoursEntity.model_validate(task, from_attributes=True)
                 hours._location_holder = self
                 hours._business = self._business
                 self._hours = hours
             else:
-                location = Location.model_validate(task.model_dump())
+                location = Location.model_validate(task, from_attributes=True)
                 location._location_holder = self
                 location._business = self._business
                 locations.append(location)

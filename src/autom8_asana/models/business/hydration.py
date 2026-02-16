@@ -316,7 +316,7 @@ async def hydrate_from_gid_async(
     # Step 3: Handle based on type
     if entry_type == EntityType.BUSINESS:
         # Already at Business root with full fields (per IMP-23: no re-fetch needed)
-        business = Business.model_validate(entry_task.model_dump())
+        business = Business.model_validate(entry_task, from_attributes=True)
         entry_entity = None  # Started at Business
 
         if hydrate_full:
@@ -690,7 +690,7 @@ async def _traverse_upward_async(
             # Found Business root - already has full fields (per IMP-23: no re-fetch needed)
             from autom8_asana.models.business.business import Business
 
-            business = Business.model_validate(parent_task.model_dump())
+            business = Business.model_validate(parent_task, from_attributes=True)
 
             # Per NFR-OBS-002: Log traversal completion with path length, business info at INFO level
             logger.info(
@@ -756,8 +756,6 @@ def _convert_to_typed_entity(
     from autom8_asana.models.business.process import Process, ProcessHolder
     from autom8_asana.models.business.unit import Unit, UnitHolder
 
-    task_data = task.model_dump()
-
     # Note: Holders inherit from Task with HolderMixin, not BusinessEntity.
     # We use type[Task] here to accommodate both BusinessEntity and Holder types.
     type_to_class: dict[EntityType, type[Task]] = {
@@ -782,7 +780,7 @@ def _convert_to_typed_entity(
 
     if entity_type in type_to_class:
         entity_class = type_to_class[entity_type]
-        result = entity_class.model_validate(task_data)
+        result = entity_class.model_validate(task, from_attributes=True)
         # Cast to BusinessEntity for return type - all these are Task subclasses
         # and are tracked in path for diagnostic purposes
         return result  # type: ignore[return-value]
