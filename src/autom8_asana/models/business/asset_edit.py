@@ -534,7 +534,7 @@ class AssetEdit(Process):
             # For now, use name-based detection or type checking
             # In practice, would check custom field or name pattern
             if self._is_unit_task(dependent):
-                unit = Unit.model_validate(dependent.model_dump())
+                unit = Unit.model_validate(dependent, from_attributes=True)
                 found_units.append(unit)
 
         if len(found_units) == 1:
@@ -643,7 +643,7 @@ class AssetEdit(Process):
         try:
             # Fetch Offer task
             task = await client.tasks.get_async(offer_gid)
-            offer = Offer.model_validate(task.model_dump())
+            offer = Offer.model_validate(task, from_attributes=True)
 
             # Navigate to Unit
             # If offer has unit cached, use it
@@ -661,7 +661,7 @@ class AssetEdit(Process):
                 # Check if parent's parent is a Unit
                 if parent_task.parent and parent_task.parent.gid:
                     unit_task = await client.tasks.get_async(parent_task.parent.gid)
-                    unit = Unit.model_validate(unit_task.model_dump())
+                    unit = Unit.model_validate(unit_task, from_attributes=True)
                     return ResolutionResult[Unit](
                         entity=unit,
                         strategy_used=ResolutionStrategy.EXPLICIT_OFFER_ID,
@@ -705,7 +705,7 @@ class AssetEdit(Process):
 
         try:
             task = await client.tasks.get_async(offer_gid)
-            offer = Offer.model_validate(task.model_dump())
+            offer = Offer.model_validate(task, from_attributes=True)
             return ResolutionResult[Offer](
                 entity=offer,
                 strategy_used=ResolutionStrategy.EXPLICIT_OFFER_ID,

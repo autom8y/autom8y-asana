@@ -324,12 +324,12 @@ class Unit(
         for subtask in subtasks:
             holder_key = self._identify_holder(subtask)
             if holder_key == "offer_holder":
-                offer_holder = OfferHolder.model_validate(subtask.model_dump())
+                offer_holder = OfferHolder.model_validate(subtask, from_attributes=True)
                 offer_holder._unit = self
                 offer_holder._business = self._business
                 self._offer_holder = offer_holder
             elif holder_key == "process_holder":
-                process_holder = ProcessHolder.model_validate(subtask.model_dump())
+                process_holder = ProcessHolder.model_validate(subtask, from_attributes=True)
                 process_holder._unit = self
                 process_holder._business = self._business
                 self._process_holder = process_holder

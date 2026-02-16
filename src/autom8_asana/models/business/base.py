@@ -126,7 +126,7 @@ class HolderMixin(Generic[T]):
         # Build children list
         children: list[T] = []
         for task in sorted_tasks:
-            child = child_type.model_validate(task.model_dump())
+            child = child_type.model_validate(task, from_attributes=True)
 
             # Set parent reference (holder -> child) if configured
             if parent_ref_name:
