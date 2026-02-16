@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "autom8-asana"
 version = "1.0.0"
@@ -67,10 +71,6 @@ dev = [
     "autom8y-auth[testing]>=1.1.0",
 ]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [tool.hatch.build.targets.wheel]
 packages = ["src/autom8_asana"]
 
@@ -127,6 +127,7 @@ ignore_missing_imports = true
 [tool.ruff]
 line-length = 88
 target-version = "py311"
+src = ["src"]
 
 # Exclude non-production code from strict linting
 extend-exclude = ["examples/", "prototypes/", "scripts/", "tmp/", "docs/"]
@@ -174,6 +175,14 @@ ignore = [
 "src/autom8_asana/api/dependencies.py" = ["E402"]
 "src/autom8_asana/services/resolver.py" = ["E402"]
 "src/autom8_asana/services/universal_strategy.py" = ["E402"]
+
+[tool.uv]
+index-strategy = "first-index"
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+default = true
 
 # CodeArtifact private package registry
 [[tool.uv.index]]
