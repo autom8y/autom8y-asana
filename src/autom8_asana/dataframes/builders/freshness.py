@@ -233,7 +233,10 @@ class SectionFreshnessProber:
         stale_results: list[SectionProbeResult],
         dataframe_view: DataFrameViewPlugin | None = None,
     ) -> int:
-        """Apply delta merges for stale sections.
+        """Apply delta merges for stale sections in parallel.
+
+        Per IMP-08: Each delta application is independent (different sections,
+        different S3 keys), so they can run concurrently with bounded parallelism.
 
         For each stale section:
         1. Read existing parquet from S3
@@ -250,27 +253,34 @@ class SectionFreshnessProber:
         Returns:
             Number of sections successfully delta-updated.
         """
-        view = dataframe_view or self._dataframe_view
-        updated_count = 0
+        from autom8_asana.core.concurrency import gather_with_semaphore
 
-        for result in stale_results:
-            try:
-                success = await self._apply_section_delta(result, view)
-                if success:
-                    updated_count += 1
-            except (
-                Exception
-            ) as e:  # BROAD-CATCH: mixed-boundary -- delta merge calls API + S3
+        view = dataframe_view or self._dataframe_view
+
+        if not stale_results:
+            return 0
+
+        results = await gather_with_semaphore(
+            (self._apply_section_delta(result, view) for result in stale_results),
+            concurrency=5,
+            label="apply_deltas",
+        )
+
+        updated_count = 0
+        for i, outcome in enumerate(results):
+            if isinstance(outcome, BaseException):
                 logger.error(
                     "freshness_delta_section_failed",
                     extra={
                         "project_gid": self._project_gid,
-                        "section_gid": result.section_gid,
-                        "verdict": result.verdict.value,
-                        "error": str(e),
-                        "error_type": type(e).__name__,
+                        "section_gid": stale_results[i].section_gid,
+                        "verdict": stale_results[i].verdict.value,
+                        "error": str(outcome),
+                        "error_type": type(outcome).__name__,
                     },
                 )
+            elif outcome:
+                updated_count += 1
 
         logger.info(
             "freshness_delta_complete",
