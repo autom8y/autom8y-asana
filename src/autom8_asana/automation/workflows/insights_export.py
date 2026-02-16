@@ -310,13 +310,14 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         # Parallel section fetch with bounded concurrency
         semaphore = asyncio.Semaphore(5)
 
-        async def fetch_section(section_gid: str) -> list:
+        async def fetch_section(section_gid: str) -> list[Any]:
             async with semaphore:
-                return await self._asana_client.tasks.list_async(
+                result: list[Any] = await self._asana_client.tasks.list_async(
                     section=section_gid,
                     opt_fields=["name", "completed", "parent", "parent.name"],
                     completed_since="now",
                 ).collect()
+                return result
 
         results = await asyncio.gather(
             *[fetch_section(gid) for gid in resolved.values()],
@@ -337,6 +338,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         seen_gids: set[str] = set()
         offers: list[dict[str, Any]] = []
         for section_tasks in results:
+            assert isinstance(section_tasks, list)  # guarded by early-exit above
             for t in section_tasks:
                 if t.completed or t.gid in seen_gids:
                     continue

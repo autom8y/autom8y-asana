@@ -23,6 +23,13 @@ from autom8_asana.settings import get_settings
 
 logger = get_logger(__name__)
 
+# Combined error tuple for except clauses (star-unpacking not supported by mypy)
+_WEBHOOK_CACHE_ERRORS: tuple[type[Exception], ...] = (
+    *CACHE_TRANSIENT_ERRORS,
+    ValueError,
+    RuntimeError,
+)
+
 router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
 
 # Entry types invalidated for inbound task notifications
@@ -237,7 +244,7 @@ def invalidate_stale_task_cache(
             )
             return False
 
-    except (*CACHE_TRANSIENT_ERRORS, ValueError, RuntimeError):
+    except _WEBHOOK_CACHE_ERRORS:
         # Per NFR-03: Cache failures must not affect response or dispatch
         # ValueError can come from timestamp parsing in is_stale()
         # RuntimeError can come from cache.invalidate() operations

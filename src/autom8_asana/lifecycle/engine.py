@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from autom8y_log import get_logger
 
@@ -768,7 +768,7 @@ class _DefaultInitActionRegistry:
         created_entity_gid: str,
         ctx: ResolutionContext,
         source_process: Process,
-        handler_registry: dict,
+        handler_registry: dict[str, Any],
     ) -> ActionResult:
         """Execute a single init action, returning ActionResult."""
         handler_cls = handler_registry.get(action_config.type)
@@ -785,8 +785,8 @@ class _DefaultInitActionRegistry:
             )
             return ActionResult(
                 success=creation_result.success,
-                entity_gid=creation_result.entity_gid,  # type: ignore[arg-type]  # entity_gid is str when success=True
-                error=creation_result.error,  # type: ignore[arg-type]  # error is str when success=False
+                entity_gid=creation_result.entity_gid or "",
+                error=creation_result.error or "",
             )
         except Exception as e:  # BROAD-CATCH: per-action isolation
             return ActionResult(success=False, error=str(e))

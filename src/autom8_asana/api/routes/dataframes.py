@@ -30,8 +30,13 @@ Per TDD-SERVICE-LAYER-001 v2.0 Phase 4:
 - Route handles only HTTP concerns (content negotiation, response formatting)
 """
 
+from __future__ import annotations
+
 from io import StringIO
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
+
+if TYPE_CHECKING:
+    import polars as pl
 
 from fastapi import APIRouter, Header, Query
 from fastapi.responses import JSONResponse, Response
@@ -74,7 +79,7 @@ def _should_use_polars_format(accept: str | None) -> bool:
 
 
 def _format_dataframe_response(
-    df,
+    df: pl.DataFrame,
     request_id: str,
     limit: int,
     has_more: bool,

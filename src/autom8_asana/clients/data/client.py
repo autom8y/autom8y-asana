@@ -1333,10 +1333,10 @@ class DataServiceClient:
             error_msg = error_entry.get("error", "Unknown error")
             canonical_key = f"pv1:{error_phone}:{error_vertical.lower()}"
 
-            pvp = pvp_by_key.get(canonical_key)
-            if pvp is not None and canonical_key not in results:
+            error_pvp = pvp_by_key.get(canonical_key)
+            if error_pvp is not None and canonical_key not in results:
                 results[canonical_key] = BatchInsightsResult(
-                    pvp=pvp,
+                    pvp=error_pvp,
                     error=error_msg,
                 )
 

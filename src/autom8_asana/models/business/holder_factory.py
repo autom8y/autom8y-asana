@@ -316,8 +316,8 @@ class HolderFactory(Task, HolderMixin[Task]):
             # Set parent reference (holder -> child)
             setattr(child, self.PARENT_REF_NAME, self)
 
-            # Propagate business reference
-            child._business = self._business
+            # Propagate business reference (child is dynamically-typed at runtime)
+            child._business = self._business  # type: ignore[attr-defined]  # child_class is resolved at runtime, not Task
 
             children.append(child)
 

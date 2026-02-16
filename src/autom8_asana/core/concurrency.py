@@ -11,7 +11,7 @@ logger = structlog.get_logger(__name__)
 
 
 async def gather_with_semaphore(
-    coros: Iterable[Coroutine],
+    coros: Iterable[Coroutine[Any, Any, Any]],
     *,
     concurrency: int = 10,
     return_exceptions: bool = True,
@@ -43,7 +43,7 @@ async def gather_with_semaphore(
 
     sem = asyncio.Semaphore(concurrency)
 
-    async def _bounded(coro: Coroutine) -> Any:
+    async def _bounded(coro: Coroutine[Any, Any, Any]) -> Any:
         async with sem:
             return await coro
 
