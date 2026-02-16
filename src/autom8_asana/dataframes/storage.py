@@ -111,6 +111,19 @@ class DataFrameStorage(Protocol):
         """Load DataFrame and watermark. Returns (None, None) if not found."""
         ...
 
+    async def load_dataframe_with_metadata(
+        self,
+        project_gid: str,
+    ) -> tuple[pl.DataFrame | None, datetime | None, dict[str, Any] | None]:
+        """Load DataFrame, watermark, and raw watermark metadata in one pass.
+
+        Returns (DataFrame, watermark, watermark_data_dict) if found.
+        Returns (None, None, None) if not found.
+        The metadata dict contains all fields from watermark.json including
+        schema_version, row_count, columns, etc.
+        """
+        ...
+
     async def delete_dataframe(self, project_gid: str) -> bool:
         """Delete DataFrame, watermark, and index for a project."""
         ...
@@ -776,6 +789,55 @@ class S3DataFrameStorage:
             )
         return df_ok and wm_ok
 
+    async def _load_dataframe_impl(
+        self,
+        project_gid: str,
+    ) -> tuple[pl.DataFrame | None, datetime | None, dict[str, Any] | None]:
+        """Internal helper: load DataFrame, watermark, and raw watermark metadata.
+
+        Reads watermark.json once and deserializes both the datetime and the
+        full metadata dict, avoiding a second S3 GET for schema_version.
+
+        Args:
+            project_gid: Asana project GID.
+
+        Returns:
+            Tuple of (DataFrame, watermark, watermark_data_dict) if found,
+            (None, None, None) otherwise.
+        """
+        if self._permanently_disabled:
+            logger.debug(
+                "s3_storage_skip", operation="load_dataframe", project_gid=project_gid
+            )
+            return None, None, None
+
+        # Load watermark first (fast existence check)
+        wm_data = await self._get_object(self._watermark_key(project_gid))
+        if wm_data is None:
+            return None, None, None
+
+        wm_dict = json.loads(wm_data.decode("utf-8"))
+        watermark = datetime.fromisoformat(wm_dict["watermark"])
+
+        # Load DataFrame
+        df_data = await self._get_object(self._df_key(project_gid))
+        if df_data is None:
+            logger.warning(
+                "s3_storage_orphan_watermark",
+                project_gid=project_gid,
+            )
+            return None, None, None
+
+        df = self._deserialize_parquet(df_data)
+
+        logger.info(
+            "s3_storage_dataframe_loaded",
+            project_gid=project_gid,
+            row_count=len(df),
+            watermark=watermark.isoformat(),
+        )
+        return df, watermark, wm_dict
+
     async def load_dataframe(
         self,
         project_gid: str,
@@ -791,37 +853,27 @@ class S3DataFrameStorage:
         Returns:
             Tuple of (DataFrame, watermark) if found, (None, None) otherwise.
         """
-        if self._permanently_disabled:
-            logger.debug(
-                "s3_storage_skip", operation="load_dataframe", project_gid=project_gid
-            )
-            return None, None
-
-        # Load watermark first (fast existence check)
-        wm_data = await self._get_object(self._watermark_key(project_gid))
-        if wm_data is None:
-            return None, None
-
-        watermark = self._deserialize_watermark(wm_data)
-
-        # Load DataFrame
-        df_data = await self._get_object(self._df_key(project_gid))
-        if df_data is None:
-            logger.warning(
-                "s3_storage_orphan_watermark",
-                project_gid=project_gid,
-            )
-            return None, None
-
-        df = self._deserialize_parquet(df_data)
-
-        logger.info(
-            "s3_storage_dataframe_loaded",
-            project_gid=project_gid,
-            row_count=len(df),
-            watermark=watermark.isoformat(),
-        )
+        df, watermark, _metadata = await self._load_dataframe_impl(project_gid)
         return df, watermark
+
+    async def load_dataframe_with_metadata(
+        self,
+        project_gid: str,
+    ) -> tuple[pl.DataFrame | None, datetime | None, dict[str, Any] | None]:
+        """Load DataFrame, watermark, and raw watermark metadata in one pass.
+
+        Same as load_dataframe but also returns the full watermark.json dict,
+        eliminating a second S3 GET when callers need schema_version or
+        other watermark metadata.
+
+        Args:
+            project_gid: Asana project GID.
+
+        Returns:
+            Tuple of (DataFrame, watermark, watermark_data_dict) if found,
+            (None, None, None) otherwise.
+        """
+        return await self._load_dataframe_impl(project_gid)
 
     async def delete_dataframe(self, project_gid: str) -> bool:
         """Delete DataFrame, watermark, and index for a project.
