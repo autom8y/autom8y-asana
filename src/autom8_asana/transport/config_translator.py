@@ -67,7 +67,8 @@ class ConfigTranslator:
 
         Mapping:
             - base_url: asana_config.base_url
-            - timeout: asana_config.timeout.read (use read timeout as primary)
+            - timeout: asana_config.timeout.connect (use connect timeout for faster
+              failure detection under degraded network conditions)
             - max_connections: asana_config.connection_pool.max_connections
             - enable_rate_limiting: False (we inject shared limiter)
             - enable_retry: False (we inject shared retry policy)
@@ -75,7 +76,7 @@ class ConfigTranslator:
         """
         return HttpClientConfig(
             base_url=asana_config.base_url,
-            timeout=asana_config.timeout.read,
+            timeout=asana_config.timeout.connect,
             max_connections=asana_config.connection_pool.max_connections,
             enable_rate_limiting=False,  # We inject our own shared limiter
             enable_retry=False,  # We inject our own shared retry policy
