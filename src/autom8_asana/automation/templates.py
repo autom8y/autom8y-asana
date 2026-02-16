@@ -121,6 +121,7 @@ class TemplateDiscovery:
         template_name: str | None = None,
         template_section: str | None = None,
         template_section_gid: str | None = None,
+        opt_fields: list[str] | None = None,
     ) -> Task | None:
         """Find template task to clone.
 
@@ -137,6 +138,9 @@ class TemplateDiscovery:
             template_section_gid: Optional pre-configured section GID from YAML.
                 When provided, skips section discovery entirely and lists tasks
                 from this section directly.
+            opt_fields: Optional additional fields to include in the task response.
+                For example, ["num_subtasks"] to get subtask count without a
+                separate API call (IMP-13).
 
         Returns:
             Matching Task, or None if no template found.
@@ -162,6 +166,12 @@ class TemplateDiscovery:
                 "123456",
                 template_section_gid="1234567890"
             )
+
+            # Include subtask count in response (IMP-13)
+            task = await discovery.find_template_task_async(
+                "123456",
+                opt_fields=["num_subtasks"]
+            )
         """
         # First find the template section
         section = await self.find_template_section_async(
@@ -173,7 +183,9 @@ class TemplateDiscovery:
             return None
 
         # List tasks in the template section
-        tasks = await self._client.tasks.list_async(section=section.gid).collect()
+        tasks = await self._client.tasks.list_async(
+            section=section.gid, opt_fields=opt_fields
+        ).collect()
 
         if not tasks:
             return None

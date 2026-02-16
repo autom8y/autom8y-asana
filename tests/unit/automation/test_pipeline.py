@@ -76,10 +76,12 @@ class MockTask:
         gid: str = "template_123",
         name: str | None = None,
         notes: str | None = None,
+        num_subtasks: int | None = None,
     ) -> None:
         self.gid = gid
         self.name = name
         self.notes = notes
+        self.num_subtasks = num_subtasks
 
 
 class MockSection:
@@ -161,10 +163,16 @@ def create_mock_context(
     client.sections.add_task_async = AsyncMock(return_value=None)
 
     # Mock tasks client
+    # IMP-13: Set num_subtasks on template task from template_subtasks count
+    # so pipeline can use template_task.num_subtasks instead of subtasks_async.
+    if template_task and template_subtasks is not None:
+        template_task.num_subtasks = len(template_subtasks)
     tasks = [template_task] if template_task else []
     client.tasks.list_async.return_value = MockPageIterator(tasks)
 
-    # Mock subtasks_async for template subtask count
+    # Mock subtasks_async for SubtaskWaiter polling (waits for subtasks on NEW task).
+    # IMP-13: No longer used for template subtask counting, but SubtaskWaiter
+    # still calls subtasks_async to verify subtask availability after duplication.
     subtasks = template_subtasks or []
     client.tasks.subtasks_async.return_value = MockPageIterator(subtasks)
 
