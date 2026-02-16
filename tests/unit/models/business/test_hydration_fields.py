@@ -133,17 +133,17 @@ class TestFieldSetConsistency:
 class TestHydrationModuleCompatibility:
     """Tests for backward compatibility with hydration module constants."""
 
-    def test_hydration_detection_derives_from_canonical(self) -> None:
-        """hydration._DETECTION_OPT_FIELDS derives from DETECTION_OPT_FIELDS."""
-        from autom8_asana.models.business.hydration import _DETECTION_OPT_FIELDS
-
-        assert set(_DETECTION_OPT_FIELDS) == set(DETECTION_OPT_FIELDS)
-
     def test_hydration_business_full_derives_from_canonical(self) -> None:
         """hydration._BUSINESS_FULL_OPT_FIELDS derives from STANDARD_TASK_OPT_FIELDS."""
         from autom8_asana.models.business.hydration import _BUSINESS_FULL_OPT_FIELDS
 
         assert set(_BUSINESS_FULL_OPT_FIELDS) == set(STANDARD_TASK_OPT_FIELDS)
+
+    def test_hydration_uses_full_fields_for_detection(self) -> None:
+        """Per IMP-23: hydration no longer has _DETECTION_OPT_FIELDS alias."""
+        import autom8_asana.models.business.hydration as hydration_mod
+
+        assert not hasattr(hydration_mod, "_DETECTION_OPT_FIELDS")
 
 
 class TestTasksClientCompatibility:

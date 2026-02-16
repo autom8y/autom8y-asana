@@ -35,7 +35,6 @@ from autom8_asana.models.business.detection import (
     detect_entity_type_async,
 )
 from autom8_asana.models.business.fields import (
-    DETECTION_OPT_FIELDS,
     STANDARD_TASK_OPT_FIELDS,
 )
 
@@ -63,14 +62,10 @@ logger = get_logger(__name__)
 # Constants
 # =============================================================================
 
-# Deprecated: Use DETECTION_OPT_FIELDS from autom8_asana.models.business.fields
-# Kept for backward compatibility - derives from canonical source.
-_DETECTION_OPT_FIELDS: list[str] = list(DETECTION_OPT_FIELDS)
-
-# Deprecated: Use STANDARD_TASK_OPT_FIELDS from autom8_asana.models.business.fields
-# Kept for backward compatibility - derives from canonical source.
-# Per fix for Office Phone cascade bug: Business must have custom_fields populated
-# to support field cascading from Business to descendants during seeding.
+# Unified field set for all detection and traversal fetches.
+# Per IMP-23: Use the full field set for initial fetch so that when Business is
+# detected, no re-fetch is needed -- the task already has custom_fields populated
+# for field cascading (Office Phone, Company ID, etc.).
 _BUSINESS_FULL_OPT_FIELDS: list[str] = list(STANDARD_TASK_OPT_FIELDS)
 
 
@@ -279,12 +274,13 @@ async def hydrate_from_gid_async(
         extra={"gid": gid, "hydrate_full": hydrate_full, "partial_ok": partial_ok},
     )
 
-    # Step 1: Fetch the entry task with detection fields
-    # Per ADR-0094: Include memberships.project.name for ProcessType detection
+    # Step 1: Fetch the entry task with full fields
+    # Per IMP-23: Use full field set upfront to avoid re-fetch when Business is detected.
+    # Per ADR-0094: Include memberships.project.name for ProcessType detection.
     try:
         entry_task = await client.tasks.get_async(
             gid,
-            opt_fields=_DETECTION_OPT_FIELDS,
+            opt_fields=_BUSINESS_FULL_OPT_FIELDS,
         )
         api_calls += 1
     except Exception as e:  # BROAD-CATCH: boundary -- wraps diverse API+model failures into HydrationError
@@ -319,23 +315,8 @@ async def hydrate_from_gid_async(
 
     # Step 3: Handle based on type
     if entry_type == EntityType.BUSINESS:
-        # Already at Business root - re-fetch with full fields for custom_fields
-        # This is required for field cascading (Office Phone, Company ID, etc.)
-        try:
-            business_task = await client.tasks.get_async(
-                gid,
-                opt_fields=_BUSINESS_FULL_OPT_FIELDS,
-            )
-            api_calls += 1
-        except Exception as e:  # BROAD-CATCH: boundary -- wraps diverse API+model failures into HydrationError
-            raise HydrationError(
-                f"Failed to fetch Business with full fields {gid}: {e}",
-                entity_gid=gid,
-                entity_type="business",
-                phase="downward",
-                cause=e,
-            ) from e
-        business = Business.model_validate(business_task.model_dump())
+        # Already at Business root with full fields (per IMP-23: no re-fetch needed)
+        business = Business.model_validate(entry_task.model_dump())
         entry_entity = None  # Started at Business
 
         if hydrate_full:
@@ -670,20 +651,21 @@ async def _traverse_upward_async(
             )
         visited.add(parent_gid)
 
-        # Fetch parent task with detection fields
-        # Per ADR-0094: Include memberships.project.name for ProcessType detection
-        # Per NFR-OBS-001: Log parent fetch with gid, depth, field count at DEBUG level
+        # Fetch parent task with full fields
+        # Per IMP-23: Use full field set so no re-fetch is needed when Business is found.
+        # Per ADR-0094: Include memberships.project.name for ProcessType detection.
+        # Per NFR-OBS-001: Log parent fetch with gid, depth, field count at DEBUG level.
         logger.debug(
             "Fetching parent task",
             extra={
                 "parent_gid": parent_gid,
                 "depth": depth,
-                "opt_fields_count": len(_DETECTION_OPT_FIELDS),
+                "opt_fields_count": len(_BUSINESS_FULL_OPT_FIELDS),
             },
         )
         parent_task = await client.tasks.get_async(
             parent_gid,
-            opt_fields=_DETECTION_OPT_FIELDS,
+            opt_fields=_BUSINESS_FULL_OPT_FIELDS,
         )
 
         # Detect type of parent
@@ -705,15 +687,10 @@ async def _traverse_upward_async(
         )
 
         if entity_type == EntityType.BUSINESS:
-            # Found Business root - re-fetch with full fields for custom_fields
-            # This is required for field cascading (Office Phone, Company ID, etc.)
+            # Found Business root - already has full fields (per IMP-23: no re-fetch needed)
             from autom8_asana.models.business.business import Business
 
-            business_task = await client.tasks.get_async(
-                parent_gid,
-                opt_fields=_BUSINESS_FULL_OPT_FIELDS,
-            )
-            business = Business.model_validate(business_task.model_dump())
+            business = Business.model_validate(parent_task.model_dump())
 
             # Per NFR-OBS-002: Log traversal completion with path length, business info at INFO level
             logger.info(
