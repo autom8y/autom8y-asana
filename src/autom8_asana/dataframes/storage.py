@@ -891,7 +891,7 @@ class S3DataFrameStorage:
     async def load_all_watermarks(self) -> dict[str, datetime]:
         """Bulk load all watermarks from S3.
 
-        Lists all project prefixes, then loads each watermark.
+        Lists all project prefixes, then loads each watermark in parallel.
         Used during startup for WatermarkRepository hydration.
 
         Returns:
@@ -904,11 +904,30 @@ class S3DataFrameStorage:
         if not project_gids:
             return {}
 
+        from autom8_asana.core.concurrency import gather_with_semaphore
+
+        async def _load_one(gid: str) -> tuple[str, datetime | None]:
+            wm = await self.get_watermark(gid)
+            return (gid, wm)
+
+        results = await gather_with_semaphore(
+            (_load_one(gid) for gid in project_gids),
+            concurrency=10,
+            label="load_all_watermarks",
+        )
+
         watermarks: dict[str, datetime] = {}
-        for project_gid in project_gids:
-            wm = await self.get_watermark(project_gid)
-            if wm is not None:
-                watermarks[project_gid] = wm
+        for r in results:
+            if isinstance(r, BaseException):
+                logger.warning(
+                    "watermark_load_failed",
+                    error=str(r),
+                    error_type=type(r).__name__,
+                )
+            else:
+                gid, wm = r
+                if wm is not None:
+                    watermarks[gid] = wm
 
         logger.info("s3_storage_watermarks_loaded", count=len(watermarks))
         return watermarks
