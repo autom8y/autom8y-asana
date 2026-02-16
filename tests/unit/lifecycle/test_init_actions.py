@@ -773,26 +773,17 @@ class TestPlayCreationHandler:
             condition="not_already_linked",
         )
 
-        # Mock task with existing dependency
+        # IMP-12: Dependency membership data is now fetched in the same call,
+        # so the dependency object itself carries memberships.
         mock_dep = MagicMock()
         mock_dep.gid = "dep123"
+        mock_dep.memberships = [
+            {"project": {"gid": "1207507299545000", "name": "Plays"}}
+        ]
         mock_task = MagicMock()
         mock_task.dependencies = [mock_dep]
 
-        # Mock dependency task in play project
-        mock_dep_task = MagicMock()
-        mock_dep_task.memberships = [
-            {"project": {"gid": "1207507299545000", "name": "Plays"}}
-        ]
-
-        async def mock_get_async(gid, opt_fields=None):
-            if gid == "created123":
-                return mock_task
-            elif gid == "dep123":
-                return mock_dep_task
-            return MagicMock()
-
-        mock_client.tasks.get_async = mock_get_async
+        mock_client.tasks.get_async = AsyncMock(return_value=mock_task)
 
         result = await handler.execute_async(
             mock_resolution_context, "created123", action_config, mock_process
@@ -800,6 +791,8 @@ class TestPlayCreationHandler:
 
         assert result.success is True
         assert result.entity_gid == "dep123"
+        # Only one get_async call should be made (no N+1 per-dependency fetches)
+        mock_client.tasks.get_async.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_play_creation_no_template(
