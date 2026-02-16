@@ -120,7 +120,7 @@ dev = [
     { name = "autom8y-config" },
     { name = "autom8y-core" },
     { name = "autom8y-http" },
-    { name = "autom8y-log" },
+    { name = "autom8y-log", extra = ["testing"] },
     { name = "boto3" },
     { name = "boto3-stubs", extra = ["secretsmanager"] },
     { name = "fakeredis" },
@@ -274,15 +274,20 @@ wheels = [
 
 [[package]]
 name = "autom8y-log"
-version = "0.4.0"
+version = "0.5.4"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "autom8y-config" },
     { name = "structlog" },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-log/0.4.0/autom8y_log-0.4.0.tar.gz", hash = "sha256:151523d6c9be1f6434ee5320e825e34398ad54c3fd1a414f04e652765d0f97b5" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-log/0.5.4/autom8y_log-0.5.4.tar.gz", hash = "sha256:fea95eb4d43c2acf88a95161a2a9395b0500744262697142fe137402d6d77a4c" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-log/0.4.0/autom8y_log-0.4.0-py3-none-any.whl", hash = "sha256:ed2ea22b040e146ed1219f38b2c8f6d66032536845e4bbcc373dc396c44b1472" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-log/0.5.4/autom8y_log-0.5.4-py3-none-any.whl", hash = "sha256:760d3abdfb75125b9aebff770cfe37817c6bc0930e767efa1f30f794a107db4b" },
+]
+
+[package.optional-dependencies]
+testing = [
+    { name = "pytest" },
 ]
 
 [[package]]
