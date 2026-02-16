@@ -29,7 +29,7 @@ from autom8_asana.models.business.fields import (
     STANDARD_TASK_OPT_FIELDS,
 )
 from autom8_asana.models.business.hydration import (
-    _DETECTION_OPT_FIELDS as HYDRATION_DETECTION_OPT_FIELDS,
+    _BUSINESS_FULL_OPT_FIELDS as HYDRATION_FULL_OPT_FIELDS,
 )
 from autom8_asana.models.business.hydration import (
     _traverse_upward_async,
@@ -85,13 +85,13 @@ def make_subtask(gid: str, name: str) -> MagicMock:
 class TestTraversalUsesStandardFields:
     """FR-BUSINESS-001: Verify traversal uses standard fields."""
 
-    def test_hydration_detection_fields_equal_canonical(self) -> None:
-        """hydration._DETECTION_OPT_FIELDS equals DETECTION_OPT_FIELDS.
+    def test_hydration_full_fields_equal_standard(self) -> None:
+        """hydration._BUSINESS_FULL_OPT_FIELDS equals STANDARD_TASK_OPT_FIELDS.
 
-        Per FR-DETECT-001: Hydration module's detection fields should be
-        derived from the canonical source in fields.py.
+        Per IMP-23: Hydration module uses full field set for all fetches,
+        eliminating the detection-then-refetch pattern.
         """
-        assert set(HYDRATION_DETECTION_OPT_FIELDS) == set(DETECTION_OPT_FIELDS)
+        assert set(HYDRATION_FULL_OPT_FIELDS) == set(STANDARD_TASK_OPT_FIELDS)
 
     def test_standard_fields_include_parent_gid(self) -> None:
         """FR-FIELDS-003: STANDARD_TASK_OPT_FIELDS includes parent.gid.
