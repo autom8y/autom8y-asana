@@ -383,7 +383,9 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
 
         try:
             # Step A: Resolve office_phone via parent Business
-            office_phone = await self._resolve_office_phone(holder_gid)
+            office_phone = await self._resolve_office_phone(
+                holder_gid, parent_gid=parent_gid
+            )
             if not office_phone:
                 logger.warning(
                     "holder_skipped_no_phone",
@@ -482,7 +484,11 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 ),
             )
 
-    async def _resolve_office_phone(self, holder_gid: str) -> str | None:
+    async def _resolve_office_phone(
+        self,
+        holder_gid: str,
+        parent_gid: str | None = None,
+    ) -> str | None:
         """Resolve ContactHolder -> parent Business -> office_phone.
 
         Per TDD-CONV-AUDIT-001 Section 4: Uses the Asana parent task
@@ -491,23 +497,30 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
 
         Args:
             holder_gid: ContactHolder task GID.
+            parent_gid: Pre-resolved parent Business GID. When provided,
+                skips the holder task fetch (saves 1 API call per holder).
 
         Returns:
             E.164 phone string, or None if parent has no office_phone.
         """
-        # Fetch the ContactHolder task to get its parent reference
-        holder_task = await self._asana_client.tasks.get_async(
-            holder_gid,
-            opt_fields=["parent", "parent.gid"],
-        )
+        business_gid = parent_gid
 
-        if not holder_task.parent or not holder_task.parent.gid:
-            return None
+        if business_gid is None:
+            # Fall back to fetching the holder task for its parent reference
+            holder_task = await self._asana_client.tasks.get_async(
+                holder_gid,
+                opt_fields=["parent", "parent.gid"],
+            )
+
+            if not holder_task.parent or not holder_task.parent.gid:
+                return None
+
+            business_gid = holder_task.parent.gid
 
         # Use ResolutionContext to resolve Business and extract office_phone
         async with ResolutionContext(
             self._asana_client,
-            business_gid=holder_task.parent.gid,
+            business_gid=business_gid,
         ) as ctx:
             business = await ctx.business_async()
             return business.office_phone  # Descriptor access
