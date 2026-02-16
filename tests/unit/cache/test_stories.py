@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
+from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 from autom8_asana.cache.integration.stories import (
     DEFAULT_STORY_TYPES,
@@ -14,7 +15,6 @@ from autom8_asana.cache.integration.stories import (
     load_stories_incremental,
 )
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 
 class MockCacheProvider(_SDKMockCacheProvider):
@@ -36,7 +36,10 @@ class MockCacheProvider(_SDKMockCacheProvider):
     ) -> CacheEntry | None:
         """Get entry from cache using EntryType enum."""
         self.calls.append(
-            ("get_versioned", {"key": key, "entry_type": entry_type, "freshness": freshness})
+            (
+                "get_versioned",
+                {"key": key, "entry_type": entry_type, "freshness": freshness},
+            )
         )
         cache_key = f"{entry_type.value}:{key}"
         return self._versioned_store.get(cache_key)

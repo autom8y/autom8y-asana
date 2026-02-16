@@ -1046,9 +1046,9 @@ class TestAdversarialTaskOptFieldsDeduplication:
         import re
 
         for f in DataFrameService.TASK_OPT_FIELDS:
-            assert re.match(
-                r"^[a-z_]+(\.[a-z_]+)*$", f
-            ), f"Field '{f}' uses unexpected format"
+            assert re.match(r"^[a-z_]+(\.[a-z_]+)*$", f), (
+                f"Field '{f}' uses unexpected format"
+            )
 
     def test_opt_fields_join_produces_valid_csv(self):
         """Joining TASK_OPT_FIELDS produces a valid comma-separated string."""

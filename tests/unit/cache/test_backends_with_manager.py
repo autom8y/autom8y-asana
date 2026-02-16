@@ -10,7 +10,6 @@ from __future__ import annotations
 import time
 from unittest.mock import MagicMock, patch
 
-
 from autom8_asana.cache.backends.redis import RedisCacheProvider, RedisConfig
 from autom8_asana.cache.backends.s3 import S3CacheProvider, S3Config
 from autom8_asana.core.connections import ConnectionState, HealthCheckResult

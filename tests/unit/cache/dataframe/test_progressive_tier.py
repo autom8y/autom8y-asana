@@ -195,9 +195,7 @@ class TestProgressiveTierGet:
 
         storage = make_mock_storage()
         # Metadata is None (watermark.json missing or no schema_version field)
-        storage.load_dataframe_with_metadata = AsyncMock(
-            return_value=(df, None, None)
-        )
+        storage.load_dataframe_with_metadata = AsyncMock(return_value=(df, None, None))
 
         persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)

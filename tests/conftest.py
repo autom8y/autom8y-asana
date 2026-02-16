@@ -6,9 +6,9 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from autom8y_log.testing import MockLogger
 
 from autom8_asana.config import AsanaConfig
-from autom8y_log.testing import MockLogger
 
 
 class MockHTTPClient:

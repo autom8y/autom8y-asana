@@ -278,8 +278,8 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             resolve_section_gids,
         )
         from autom8_asana.models.business.activity import (
-            AccountActivity,
             OFFER_CLASSIFIER,
+            AccountActivity,
         )
 
         active_section_names = OFFER_CLASSIFIER.sections_for(AccountActivity.ACTIVE)
@@ -341,11 +341,13 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 if t.completed or t.gid in seen_gids:
                     continue
                 seen_gids.add(t.gid)
-                offers.append({
-                    "gid": t.gid,
-                    "name": t.name,
-                    "parent_gid": t.parent.gid if t.parent else None,
-                })
+                offers.append(
+                    {
+                        "gid": t.gid,
+                        "name": t.name,
+                        "parent_gid": t.parent.gid if t.parent else None,
+                    }
+                )
 
         logger.info(
             "insights_section_targeted_enumeration",
@@ -362,8 +364,8 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         resilience when section resolution or section-level fetch fails.
         """
         from autom8_asana.models.business.activity import (
-            AccountActivity,
             OFFER_CLASSIFIER,
+            AccountActivity,
         )
 
         page_iterator = self._asana_client.tasks.list_async(
@@ -388,9 +390,17 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             # Classify by section membership
             section_name = None
             for m in getattr(t, "memberships", None) or []:
-                sec = m.get("section", {}) if isinstance(m, dict) else getattr(m, "section", None)
+                sec = (
+                    m.get("section", {})
+                    if isinstance(m, dict)
+                    else getattr(m, "section", None)
+                )
                 if sec:
-                    section_name = sec.get("name") if isinstance(sec, dict) else getattr(sec, "name", None)
+                    section_name = (
+                        sec.get("name")
+                        if isinstance(sec, dict)
+                        else getattr(sec, "name", None)
+                    )
                     break
 
             activity = OFFER_CLASSIFIER.classify(section_name) if section_name else None
@@ -398,11 +408,13 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 skipped += 1
                 continue
 
-            offers.append({
-                "gid": t.gid,
-                "name": t.name,
-                "parent_gid": t.parent.gid if t.parent else None,
-            })
+            offers.append(
+                {
+                    "gid": t.gid,
+                    "name": t.name,
+                    "parent_gid": t.parent.gid if t.parent else None,
+                }
+            )
 
         if skipped:
             logger.info(

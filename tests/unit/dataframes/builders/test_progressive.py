@@ -221,9 +221,7 @@ class TestDeltaCheckpointState:
         builder = _make_builder()
 
         # Simulate leftover state from a previous section
-        builder._checkpoint_df = pl.DataFrame(
-            {"gid": ["old"], "name": ["Old Task"]}
-        )
+        builder._checkpoint_df = pl.DataFrame({"gid": ["old"], "name": ["Old Task"]})
         builder._checkpoint_task_count = 999
 
         # Set up a small section fetch

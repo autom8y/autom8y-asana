@@ -63,6 +63,16 @@ register_all_models()
 
 # Then export all entity classes (unchanged)
 # ruff: noqa: E402
+from autom8_asana.models.business.activity import (
+    ACTIVITY_PRIORITY,
+    CLASSIFIERS,
+    OFFER_CLASSIFIER,
+    UNIT_CLASSIFIER,
+    AccountActivity,
+    SectionClassifier,
+    extract_section_name,
+    get_classifier,
+)
 from autom8_asana.models.business.asset_edit import AssetEdit
 from autom8_asana.models.business.base import BusinessEntity, HolderMixin
 from autom8_asana.models.business.business import (
@@ -107,16 +117,6 @@ from autom8_asana.models.business.mixins import (
     SharedCascadingFieldsMixin,
 )
 from autom8_asana.models.business.offer import Offer, OfferHolder
-from autom8_asana.models.business.activity import (
-    ACTIVITY_PRIORITY,
-    AccountActivity,
-    CLASSIFIERS,
-    OFFER_CLASSIFIER,
-    SectionClassifier,
-    UNIT_CLASSIFIER,
-    extract_section_name,
-    get_classifier,
-)
 from autom8_asana.models.business.process import (
     Process,
     ProcessHolder,

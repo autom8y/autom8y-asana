@@ -10,13 +10,13 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.clients.stories import StoriesClient
 from autom8_asana.config import AsanaConfig
 from autom8_asana.core.exceptions import CacheConnectionError
 from autom8_asana.models.story import Story
-from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 
 class MockCacheProvider(_SDKMockCacheProvider):
@@ -41,7 +41,10 @@ class MockCacheProvider(_SDKMockCacheProvider):
         """Get entry from cache with satellite tracking."""
         self.get_versioned_calls.append((key, entry_type))
         self.calls.append(
-            ("get_versioned", {"key": key, "entry_type": entry_type, "freshness": freshness})
+            (
+                "get_versioned",
+                {"key": key, "entry_type": entry_type, "freshness": freshness},
+            )
         )
         return self._versioned_store.get(f"{key}:{entry_type.value}")
 

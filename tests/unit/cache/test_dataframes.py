@@ -5,6 +5,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
+from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 from autom8_asana.cache.integration.dataframes import (
     invalidate_dataframe,
@@ -15,7 +16,6 @@ from autom8_asana.cache.integration.dataframes import (
     parse_dataframe_key,
 )
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 
 class MockCacheProvider(_SDKMockCacheProvider):
@@ -37,7 +37,10 @@ class MockCacheProvider(_SDKMockCacheProvider):
     ) -> CacheEntry | None:
         """Get entry from cache using EntryType enum."""
         self.calls.append(
-            ("get_versioned", {"key": key, "entry_type": entry_type, "freshness": freshness})
+            (
+                "get_versioned",
+                {"key": key, "entry_type": entry_type, "freshness": freshness},
+            )
         )
         cache_key = f"{entry_type.value}:{key}"
         return self._versioned_store.get(cache_key)
@@ -54,9 +57,7 @@ class MockCacheProvider(_SDKMockCacheProvider):
         entry_types: list[EntryType] | None = None,
     ) -> None:
         """Invalidate cache entries using EntryType enum."""
-        self.calls.append(
-            ("invalidate", {"key": key, "entry_types": entry_types})
-        )
+        self.calls.append(("invalidate", {"key": key, "entry_types": entry_types}))
         if entry_types is None:
             entry_types = list(EntryType)
         for et in entry_types:

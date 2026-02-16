@@ -351,7 +351,9 @@ class PipelineTransitionWorkflow(WorkflowAction):
                     tasks_enumerated=len(project_processes),
                 )
 
-        except Exception as e:  # BROAD-CATCH: boundary -- enumeration failure skips project
+        except (
+            Exception
+        ) as e:  # BROAD-CATCH: boundary -- enumeration failure skips project
             logger.error(
                 "pipeline_transition_enumerate_error",
                 project_gid=project_gid,
@@ -403,7 +405,9 @@ class PipelineTransitionWorkflow(WorkflowAction):
                     ),
                 )
 
-        except Exception as e:  # BROAD-CATCH: boundary -- transition failure returns WorkflowItemError
+        except (
+            Exception
+        ) as e:  # BROAD-CATCH: boundary -- transition failure returns WorkflowItemError
             logger.error(
                 "pipeline_transition_exception",
                 process_gid=process.gid,

@@ -208,7 +208,11 @@ class PlayCreationHandler(InitActionHandler):
                     if dep_gid:
                         memberships = (
                             getattr(dep, "memberships", None)
-                            or (dep.get("memberships") if isinstance(dep, dict) else None)
+                            or (
+                                dep.get("memberships")
+                                if isinstance(dep, dict)
+                                else None
+                            )
                             or []
                         )
                         for membership in memberships:

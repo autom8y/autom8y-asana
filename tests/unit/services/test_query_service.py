@@ -303,9 +303,7 @@ class TestResolveSectionIndex:
 class TestStripSectionConflicts:
     """Tests for strip_section_conflicts() function."""
 
-    def _make_rows_request(
-        self, where=None, section: str | None = None
-    ) -> MagicMock:
+    def _make_rows_request(self, where=None, section: str | None = None) -> MagicMock:
         """Create a mock RowsRequest-like object for testing.
 
         Uses the real RowsRequest model to ensure compatibility.
@@ -541,9 +539,7 @@ class TestResolveSectionIndexAdversarial:
         ):
             mock_create.return_value = MagicMock()
 
-            result = await resolve_section_index(
-                "ACTIVE", "unknown_entity", "proj-123"
-            )
+            result = await resolve_section_index("ACTIVE", "unknown_entity", "proj-123")
 
         # Returns the (empty) enum index, not None
         assert result is mock_enum_index
@@ -769,9 +765,7 @@ class TestEntityServiceValidateAdversarial:
             get_status_for_error,
         )
 
-        err = ServiceNotConfiguredError(
-            "No project configured for entity type: offer"
-        )
+        err = ServiceNotConfiguredError("No project configured for entity type: offer")
         assert err.error_code == "SERVICE_NOT_CONFIGURED"
         assert get_status_for_error(err) == 503
 

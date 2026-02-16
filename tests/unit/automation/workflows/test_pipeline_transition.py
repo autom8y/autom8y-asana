@@ -256,9 +256,7 @@ async def test_execute_async_mixed_sections(lifecycle_config, mock_client):
     # Only tasks in target sections are fetched on primary path
     task1 = _make_task("task1", "Sales Process - Business A")
     task2 = _make_task("task2", "Sales Process - Business B")
-    task4 = _make_task(
-        "task4", "Sales Process - Business D", completed=True
-    )
+    task4 = _make_task("task4", "Sales Process - Business D", completed=True)
 
     _setup_section_targeted_mocks(
         mock_client,
@@ -545,9 +543,7 @@ async def test_enumerate_section_targeted_happy_path(lifecycle_config, mock_clie
         mock_engine = MockEngine.return_value
         mock_engine.handle_transition_async = AsyncMock(return_value=mock_result)
 
-        result = await workflow.execute_async(
-            {"pipeline_project_gids": ["proj-1"]}
-        )
+        result = await workflow.execute_async({"pipeline_project_gids": ["proj-1"]})
 
         assert result.total == 2
         assert result.succeeded == 2
@@ -579,9 +575,7 @@ async def test_enumerate_fallback_on_section_resolution_failure(
     # Clear side_effect so return_value is used
     mock_client.tasks.list_async.side_effect = None
 
-    result = await workflow.execute_async(
-        {"pipeline_project_gids": ["proj-1"]}
-    )
+    result = await workflow.execute_async({"pipeline_project_gids": ["proj-1"]})
 
     # Verify fallback was used: tasks.list_async called with project= kwarg
     call_kwargs = mock_client.tasks.list_async.call_args.kwargs
@@ -614,9 +608,7 @@ async def test_enumerate_fallback_on_empty_resolution(lifecycle_config, mock_cli
     task1 = _make_task("task1", "Sales Process", "CONVERTED")
     mock_client.tasks.list_async.return_value = _AsyncIterator([task1])
 
-    result = await workflow.execute_async(
-        {"pipeline_project_gids": ["proj-1"]}
-    )
+    result = await workflow.execute_async({"pipeline_project_gids": ["proj-1"]})
 
     # Verify fallback was used: tasks.list_async called with project= kwarg
     call_kwargs = mock_client.tasks.list_async.call_args.kwargs
@@ -670,9 +662,7 @@ async def test_enumerate_section_targeted_one_section_missing(
         mock_engine = MockEngine.return_value
         mock_engine.handle_transition_async = AsyncMock(return_value=mock_result)
 
-        result = await workflow.execute_async(
-            {"pipeline_project_gids": ["proj-1"]}
-        )
+        result = await workflow.execute_async({"pipeline_project_gids": ["proj-1"]})
 
         assert result.total == 1
         assert result.succeeded == 1

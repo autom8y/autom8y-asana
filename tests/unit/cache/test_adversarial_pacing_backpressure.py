@@ -469,7 +469,6 @@ class TestRateLimitLogging:
         attempt, and retry_after fields."""
         import httpx
 
-
         # Build a minimal mock response that triggers RateLimitError
         mock_response = MagicMock(spec=httpx.Response)
         mock_response.status_code = 429

@@ -113,6 +113,7 @@ class StructuredLogger:
         if _STRUCTLOG_AVAILABLE:
             # Delegate to SDK configure (idempotent, respects _configured guard)
             from autom8_asana.core.logging import configure as sdk_configure
+
             fmt = "json" if json_format else "console"
             sdk_configure(level=cls._level, format=fmt)
         else:
@@ -167,7 +168,10 @@ class StructuredLogger:
 
         if _STRUCTLOG_AVAILABLE:
             from autom8_asana.core.logging import get_logger as sdk_get_logger
-            return sdk_get_logger("autom8_asana.automation.polling").bind(**bound_context)
+
+            return sdk_get_logger("autom8_asana.automation.polling").bind(
+                **bound_context
+            )
         else:
             # Return adapted stdlib logger
             return _StdlibLoggerAdapter(

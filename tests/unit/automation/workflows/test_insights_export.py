@@ -1147,9 +1147,7 @@ class TestEnumerateOffersSectionTargeted:
         t2 = _make_section_task("t2", "Done", parent_gid="biz2", completed=True)
 
         wf, mock_asana, _, _ = _make_workflow()
-        mock_asana.tasks.list_async.side_effect = (
-            lambda **kw: _AsyncIterator([t1, t2])
-        )
+        mock_asana.tasks.list_async.side_effect = lambda **kw: _AsyncIterator([t1, t2])
 
         with patch(
             _RESOLVE_PATCH,
@@ -1166,9 +1164,7 @@ class TestEnumerateOffersSectionTargeted:
         t1 = _make_section_task("t1", "No Parent")  # parent_gid=None
 
         wf, mock_asana, _, _ = _make_workflow()
-        mock_asana.tasks.list_async.side_effect = (
-            lambda **kw: _AsyncIterator([t1])
-        )
+        mock_asana.tasks.list_async.side_effect = lambda **kw: _AsyncIterator([t1])
 
         with patch(
             _RESOLVE_PATCH,
@@ -1183,9 +1179,7 @@ class TestEnumerateOffersSectionTargeted:
     async def test_section_targeted_opt_fields(self) -> None:
         """Section-level fetch uses reduced opt_fields (no memberships)."""
         wf, mock_asana, _, _ = _make_workflow()
-        mock_asana.tasks.list_async.side_effect = (
-            lambda **kw: _AsyncIterator([])
-        )
+        mock_asana.tasks.list_async.side_effect = lambda **kw: _AsyncIterator([])
 
         with patch(
             _RESOLVE_PATCH,
@@ -1274,6 +1268,7 @@ class TestEnumerateOffersFallbackOnPartialFetchFailure:
                 class _FailingIterator:
                     async def collect(self):
                         raise ConnectionError("section fetch failed")
+
                 return _FailingIterator()
             # Project-level fallback
             call_count += 1

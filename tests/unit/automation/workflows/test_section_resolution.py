@@ -17,7 +17,6 @@ from autom8_asana.automation.workflows.section_resolution import (
 )
 from autom8_asana.models.section import Section
 
-
 # --- Helpers ---
 
 

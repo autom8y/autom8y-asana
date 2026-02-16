@@ -13,12 +13,12 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 from autom8_asana.batch.models import BatchResult
 from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.models import Task
 from autom8_asana.persistence.session import SaveSession
-from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 # ---------------------------------------------------------------------------
 # Mock Cache Provider
@@ -47,9 +47,7 @@ class MockCacheProviderWithDetection(_SDKMockCacheProvider):
         """Store entry in cache (no-op for invalidation tests)."""
         pass
 
-    def invalidate(
-        self, key: str, entry_types: list[EntryType] | None = None
-    ) -> None:
+    def invalidate(self, key: str, entry_types: list[EntryType] | None = None) -> None:
         """Invalidate cache entry with fail simulation."""
         if self.fail_on_invalidate:
             raise ConnectionError("Cache invalidation failed")

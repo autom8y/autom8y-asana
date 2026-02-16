@@ -125,9 +125,7 @@ class TestSeedAsyncTargetTaskPassthrough:
         seeder = AutoCascadeSeeder(client)
 
         # Patch FieldSeeder.write_fields_async to verify it receives target_task
-        with patch(
-            "autom8_asana.lifecycle.seeding.FieldSeeder"
-        ) as MockFieldSeeder:
+        with patch("autom8_asana.lifecycle.seeding.FieldSeeder") as MockFieldSeeder:
             mock_field_seeder = MagicMock()
             mock_write = AsyncMock(
                 return_value=MagicMock(
@@ -162,9 +160,7 @@ class TestSeedAsyncTargetTaskPassthrough:
         seeder = AutoCascadeSeeder(client)
 
         # Patch FieldSeeder to return expected write result
-        with patch(
-            "autom8_asana.lifecycle.seeding.FieldSeeder"
-        ) as MockFieldSeeder:
+        with patch("autom8_asana.lifecycle.seeding.FieldSeeder") as MockFieldSeeder:
             mock_field_seeder = MagicMock()
             mock_write = AsyncMock(
                 return_value=MagicMock(
@@ -195,7 +191,9 @@ class TestSeedAsyncTargetTaskPassthrough:
         # Return a task with no matching fields (no custom fields at all)
         empty_task = MagicMock()
         empty_task.gid = "task_123"
-        empty_task.custom_fields = None  # None triggers early return in _normalize_custom_fields
+        empty_task.custom_fields = (
+            None  # None triggers early return in _normalize_custom_fields
+        )
         client.tasks.get_async.return_value = empty_task
         process = _make_mock_process()
 

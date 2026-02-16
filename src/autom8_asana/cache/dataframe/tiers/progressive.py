@@ -137,8 +137,8 @@ class ProgressiveTier:
             # watermark.json in the same S3 read pass (IMP-06: eliminates
             # a separate load_json call for the same watermark file).
             if hasattr(storage, "load_dataframe_with_metadata"):
-                df, watermark, wm_metadata = (
-                    await storage.load_dataframe_with_metadata(project_gid)
+                df, watermark, wm_metadata = await storage.load_dataframe_with_metadata(
+                    project_gid
                 )
             else:
                 df, watermark = await storage.load_dataframe(project_gid)

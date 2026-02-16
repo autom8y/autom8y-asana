@@ -268,7 +268,6 @@ class TestGetExportCsvAsyncErrors:
         """Timeout -> retry, then ExportError with reason=timeout."""
         from dataclasses import replace as dc_replace
 
-
         client = _make_client()
         # Create a new config with 0 retries (RetryConfig is frozen)
         client._config = dc_replace(

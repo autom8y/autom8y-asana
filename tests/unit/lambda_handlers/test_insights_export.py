@@ -13,7 +13,6 @@ import json
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
-
 from autom8_asana.automation.workflows.base import WorkflowResult
 
 # ---------------------------------------------------------------------------
