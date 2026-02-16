@@ -24,12 +24,12 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 from autom8_asana.cache.models.mutation_event import (
     EntityKind,
     MutationEvent,
     MutationType,
 )
+from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 from autom8_asana.exceptions import NotFoundError
 from autom8_asana.resolution.field_resolver import FieldResolver, ResolvedField
 from autom8_asana.resolution.write_registry import (

@@ -329,7 +329,9 @@ class Unit(
                 offer_holder._business = self._business
                 self._offer_holder = offer_holder
             elif holder_key == "process_holder":
-                process_holder = ProcessHolder.model_validate(subtask, from_attributes=True)
+                process_holder = ProcessHolder.model_validate(
+                    subtask, from_attributes=True
+                )
                 process_holder._unit = self
                 process_holder._business = self._business
                 self._process_holder = process_holder

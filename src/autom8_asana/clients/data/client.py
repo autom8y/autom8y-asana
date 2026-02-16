@@ -987,10 +987,6 @@ class DataServiceClient:
                 },
             )
 
-        # Build PVP lookup: canonical_key -> PhoneVerticalPair
-        pvp_by_key: dict[str, PhoneVerticalPair] = {
-            pvp.canonical_key: pvp for pvp in pairs
-        }
         results: dict[str, BatchInsightsResult] = {}
 
         # Handle empty batch gracefully
@@ -1000,8 +996,7 @@ class DataServiceClient:
             # Chunk PVPs into groups of 1000 (autom8_data's max_length)
             chunk_size = self._AUTOM8_DATA_MAX_PVP_PER_REQUEST
             chunks = [
-                pairs[i : i + chunk_size]
-                for i in range(0, len(pairs), chunk_size)
+                pairs[i : i + chunk_size] for i in range(0, len(pairs), chunk_size)
             ]
 
             if len(chunks) == 1:
@@ -1393,10 +1388,7 @@ class DataServiceClient:
             InsightsMetadata,
         )
 
-        columns = [
-            ColumnInfo(**col)
-            for col in response_metadata.get("columns", [])
-        ]
+        columns = [ColumnInfo(**col) for col in response_metadata.get("columns", [])]
 
         metadata = InsightsMetadata(
             factory=response_metadata.get("factory", "unknown"),

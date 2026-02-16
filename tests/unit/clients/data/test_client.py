@@ -4262,18 +4262,22 @@ def make_batch_insights_response(
 
     for i, pvp in enumerate(pvps):
         if i in failed_indices:
-            errors.append({
-                "office_phone": pvp.office_phone,
-                "vertical": pvp.vertical,
-                "error": "No insights found for business",
-            })
+            errors.append(
+                {
+                    "office_phone": pvp.office_phone,
+                    "vertical": pvp.vertical,
+                    "error": "No insights found for business",
+                }
+            )
         else:
-            data.append({
-                "office_phone": pvp.office_phone,
-                "vertical": pvp.vertical,
-                "spend": spend,
-                "leads": 10,
-            })
+            data.append(
+                {
+                    "office_phone": pvp.office_phone,
+                    "vertical": pvp.vertical,
+                    "spend": spend,
+                    "leads": 10,
+                }
+            )
 
     status_code = 207 if errors and data else 200
     response_dict = {
@@ -4310,9 +4314,7 @@ class TestGetInsightsBatchAsync:
         from autom8_asana.clients.data.models import BatchInsightsResponse
 
         client = DataServiceClient()
-        response_body, _status = make_batch_insights_response(
-            sample_pvps, spend=100.0
-        )
+        response_body, _status = make_batch_insights_response(sample_pvps, spend=100.0)
 
         with respx.mock:
             # Single batched response for all PVPs (IMP-20)
@@ -4464,9 +4466,7 @@ class TestGetInsightsBatchAsync:
         import respx
 
         client = DataServiceClient()
-        response_body, _status = make_batch_insights_response(
-            sample_pvps, spend=100.0
-        )
+        response_body, _status = make_batch_insights_response(sample_pvps, spend=100.0)
 
         with respx.mock:
             route = respx.post("/api/v1/data-service/insights").respond(
@@ -4571,14 +4571,10 @@ class TestGetInsightsBatchAsync:
         import respx
 
         client = DataServiceClient()
-        response_body, _status = make_batch_insights_response(
-            sample_pvps, spend=150.0
-        )
+        response_body, _status = make_batch_insights_response(sample_pvps, spend=150.0)
 
         with respx.mock:
-            respx.post("/api/v1/data-service/insights").respond(
-                json=response_body
-            )
+            respx.post("/api/v1/data-service/insights").respond(json=response_body)
 
             async with client:
                 result = await client.get_insights_batch_async(
@@ -4601,9 +4597,7 @@ class TestGetInsightsBatchAsync:
         response_body, _status = make_batch_insights_response(sample_pvps)
 
         with respx.mock:
-            respx.post("/api/v1/data-service/insights").respond(
-                json=response_body
-            )
+            respx.post("/api/v1/data-service/insights").respond(json=response_body)
 
             async with client:
                 result = await client.get_insights_batch_async(
@@ -4627,9 +4621,7 @@ class TestGetInsightsBatchAsync:
         response_body, _status = make_batch_insights_response(sample_pvps)
 
         with respx.mock:
-            respx.post("/api/v1/data-service/insights").respond(
-                json=response_body
-            )
+            respx.post("/api/v1/data-service/insights").respond(json=response_body)
 
             async with client:
                 result = await client.get_insights_batch_async(
@@ -4707,12 +4699,8 @@ class TestGetInsightsBatchAsync:
         pvp_list = body["phone_vertical_pairs"]
 
         # Verify each PVP has phone and vertical fields
-        expected_pvps = {
-            (pvp.office_phone, pvp.vertical) for pvp in sample_pvps
-        }
-        actual_pvps = {
-            (p["phone"], p["vertical"]) for p in pvp_list
-        }
+        expected_pvps = {(pvp.office_phone, pvp.vertical) for pvp in sample_pvps}
+        actual_pvps = {(p["phone"], p["vertical"]) for p in pvp_list}
         assert actual_pvps == expected_pvps
 
     @pytest.mark.asyncio
@@ -4756,9 +4744,7 @@ class TestGetInsightsBatchAsync:
 
         # Create 1500 PVPs to trigger chunking (1000 + 500)
         large_pvps = [
-            PhoneVerticalPair(
-                office_phone=f"+1770575{i:04d}", vertical="chiropractic"
-            )
+            PhoneVerticalPair(office_phone=f"+1770575{i:04d}", vertical="chiropractic")
             for i in range(1500)
         ]
 
@@ -4786,27 +4772,28 @@ class TestGetInsightsBatchAsync:
                 }
                 for p in pvps_in_request
             ]
-            return httpx.Response(200, json={
-                "data": data,
-                "metadata": {
-                    "factory": "account",
-                    "row_count": len(data),
-                    "column_count": 4,
-                    "columns": [
-                        {"name": "office_phone", "dtype": "string"},
-                        {"name": "vertical", "dtype": "string"},
-                        {"name": "spend", "dtype": "float64"},
-                        {"name": "leads", "dtype": "int64"},
-                    ],
-                    "cache_hit": False,
-                    "duration_ms": 50.0,
+            return httpx.Response(
+                200,
+                json={
+                    "data": data,
+                    "metadata": {
+                        "factory": "account",
+                        "row_count": len(data),
+                        "column_count": 4,
+                        "columns": [
+                            {"name": "office_phone", "dtype": "string"},
+                            {"name": "vertical", "dtype": "string"},
+                            {"name": "spend", "dtype": "float64"},
+                            {"name": "leads", "dtype": "int64"},
+                        ],
+                        "cache_hit": False,
+                        "duration_ms": 50.0,
+                    },
                 },
-            })
+            )
 
         with respx.mock:
-            respx.post("/api/v1/data-service/insights").mock(
-                side_effect=handle_request
-            )
+            respx.post("/api/v1/data-service/insights").mock(side_effect=handle_request)
 
             async with client:
                 result = await client.get_insights_batch_async(
@@ -4831,9 +4818,7 @@ class TestGetInsightsBatchAsync:
 
         # Force circuit breaker open by recording enough failures
         for _ in range(20):
-            await client._circuit_breaker.record_failure(
-                Exception("simulated failure")
-            )
+            await client._circuit_breaker.record_failure(Exception("simulated failure"))
 
         with respx.mock:
             route = respx.post("/api/v1/data-service/insights").respond(

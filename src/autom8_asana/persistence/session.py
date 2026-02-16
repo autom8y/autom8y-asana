@@ -1026,7 +1026,13 @@ class SaveSession:
                     self._client,
                 )
                 crud_result.automation_results = automation_results
-            except (ConnectionError, TimeoutError, OSError, RuntimeError, TypeError) as e:  # isolation -- per NFR-003, automation failures must not fail commit
+            except (
+                ConnectionError,
+                TimeoutError,
+                OSError,
+                RuntimeError,
+                TypeError,
+            ) as e:  # isolation -- per NFR-003, automation failures must not fail commit
                 # Per NFR-003: Automation failures don't fail commit
                 # TypeError can come from mock/plugin configuration issues
                 from autom8y_log import get_logger

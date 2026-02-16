@@ -238,6 +238,7 @@ def main() -> int:
     """
     # Configure logging via SDK (idempotent guard prevents double-configure)
     from autom8_asana.core.logging import configure
+
     configure(level="WARNING")
 
     # Create main parser

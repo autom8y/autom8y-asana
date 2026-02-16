@@ -28,7 +28,7 @@ from autom8_asana.clients.users import UsersClient
 from autom8_asana.clients.webhooks import WebhooksClient
 from autom8_asana.clients.workspaces import WorkspacesClient
 from autom8_asana.config import AsanaConfig, get_workspace_gid
-from autom8_asana.exceptions import AsanaError, AuthenticationError, ConfigurationError
+from autom8_asana.exceptions import AuthenticationError, ConfigurationError
 
 logger = get_logger(__name__)
 
@@ -45,7 +45,6 @@ if TYPE_CHECKING:
     from autom8_asana.protocols.log import LogProvider
     from autom8_asana.protocols.observability import ObservabilityHook
     from autom8_asana.search import SearchService
-
 
 
 class AsanaClient:

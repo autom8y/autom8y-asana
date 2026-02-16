@@ -626,6 +626,7 @@ if __name__ == "__main__":
     import argparse
 
     from autom8_asana.core.logging import configure
+
     configure(level="INFO")
 
     parser = argparse.ArgumentParser(

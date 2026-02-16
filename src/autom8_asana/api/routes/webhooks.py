@@ -14,11 +14,10 @@ from typing import Any, Protocol, runtime_checkable
 from autom8y_log import get_logger
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
 from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
-from pydantic import ValidationError
-
 from autom8_asana.models.task import Task
 from autom8_asana.settings import get_settings
 
@@ -363,7 +362,10 @@ async def receive_inbound_webhook(
     # Parse into Task model
     try:
         task = Task.model_validate(body)
-    except (ValidationError, ValueError) as exc:  # NARROW: Pydantic model_validate raises ValidationError; ValueError for malformed data
+    except (
+        ValidationError,
+        ValueError,
+    ) as exc:  # NARROW: Pydantic model_validate raises ValidationError; ValueError for malformed data
         logger.warning(
             "webhook_task_validation_error",
             extra={"error": str(exc)},

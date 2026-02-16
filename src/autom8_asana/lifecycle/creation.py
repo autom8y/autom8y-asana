@@ -480,9 +480,7 @@ class EntityCreationService:
 
         if update_kwargs:
             try:
-                await self._client.tasks.update_async(
-                    new_task.gid, **update_kwargs
-                )
+                await self._client.tasks.update_async(new_task.gid, **update_kwargs)
             except Exception as e:  # BROAD-CATCH: non-fatal config step
                 logger.warning(
                     "lifecycle_configure_update_failed",

@@ -125,7 +125,9 @@ class CascadingSectionService:
                 result.warnings.append(
                     f"Section '{section_name}' not found for {entity_type}"
                 )
-        except Exception as e:  # BROAD-CATCH: boundary -- cascade section update soft-fails per entity
+        except (
+            Exception
+        ) as e:  # BROAD-CATCH: boundary -- cascade section update soft-fails per entity
             logger.warning(
                 f"cascade_{entity_type}_section_failed",
                 section=section_name,

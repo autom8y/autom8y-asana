@@ -130,9 +130,7 @@ class TestConversationAuditE2E:
 
         # Setup mock Asana client
         mock_asana = MagicMock()
-        mock_asana.tasks.list_async.return_value = _AsyncIterator(
-            all_holders
-        )
+        mock_asana.tasks.list_async.return_value = _AsyncIterator(all_holders)
 
         holder_by_gid = {h.gid: h for h in all_holders}
 

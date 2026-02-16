@@ -486,9 +486,7 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
         from autom8_asana.models.business.activity import ACTIVITY_PRIORITY
 
         activities = [
-            u.account_activity
-            for u in self.units
-            if u.account_activity is not None
+            u.account_activity for u in self.units if u.account_activity is not None
         ]
         if not activities:
             return None
@@ -603,7 +601,9 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
             dna_holder._business = self
             return dna_holder
         elif holder_key == "reconciliation_holder":
-            recon_holder = ReconciliationHolder.model_validate(task, from_attributes=True)
+            recon_holder = ReconciliationHolder.model_validate(
+                task, from_attributes=True
+            )
             recon_holder._business = self
             return recon_holder
         elif holder_key == "asset_edit_holder":

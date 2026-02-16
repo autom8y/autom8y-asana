@@ -943,7 +943,7 @@ class ProgressiveProjectBuilder:
         """
         if self._checkpoint_df is not None:
             # Branch (a) or (b): checkpoint exists
-            remaining_tasks = tasks[self._checkpoint_task_count:]
+            remaining_tasks = tasks[self._checkpoint_task_count :]
             if remaining_tasks:
                 # Branch (a): extract only new tasks since last checkpoint
                 task_dicts = [self._task_to_dict(task) for task in remaining_tasks]
@@ -1032,7 +1032,7 @@ class ProgressiveProjectBuilder:
         """
         try:
             # Delta extraction: only process tasks since last checkpoint
-            new_tasks = tasks[self._checkpoint_task_count:]
+            new_tasks = tasks[self._checkpoint_task_count :]
             task_dicts = [self._task_to_dict(task) for task in new_tasks]
             rows = await self._extract_rows(task_dicts)
             coerced_rows = coerce_rows_to_schema(rows, self._schema)

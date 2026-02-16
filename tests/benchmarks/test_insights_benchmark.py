@@ -169,19 +169,21 @@ def build_batch_mock_handler(
         data = []
         for pvp in pvps:
             for i in range(rows_per_pvp):
-                data.append({
-                    "office_phone": pvp["phone"],
-                    "vertical": pvp["vertical"],
-                    "date": "2024-01-15",
-                    "spend": 100.50 + i * 10,
-                    "impressions": 5000 + i * 500,
-                    "clicks": 150 + i * 15,
-                    "leads": 10 + i,
-                    "cpl": 10.05 + i * 0.5,
-                    "ctr": 0.03 + i * 0.001,
-                    "campaign_name": f"Campaign {i}",
-                    "adset_name": f"AdSet {i}",
-                })
+                data.append(
+                    {
+                        "office_phone": pvp["phone"],
+                        "vertical": pvp["vertical"],
+                        "date": "2024-01-15",
+                        "spend": 100.50 + i * 10,
+                        "impressions": 5000 + i * 500,
+                        "clicks": 150 + i * 15,
+                        "leads": 10 + i,
+                        "cpl": 10.05 + i * 0.5,
+                        "ctr": 0.03 + i * 0.001,
+                        "campaign_name": f"Campaign {i}",
+                        "adset_name": f"AdSet {i}",
+                    }
+                )
 
         response_body = {
             "data": data,

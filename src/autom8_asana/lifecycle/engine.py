@@ -760,9 +760,7 @@ class _DefaultInitActionRegistry:
             )
             for action_config in actions
         ]
-        return await gather_with_semaphore(
-            coros, concurrency=4, label="init_actions"
-        )
+        return await gather_with_semaphore(coros, concurrency=4, label="init_actions")
 
     async def _execute_one(
         self,

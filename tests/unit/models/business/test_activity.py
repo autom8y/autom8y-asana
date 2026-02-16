@@ -24,7 +24,6 @@ from autom8_asana.models.business.activity import (
     get_classifier,
 )
 
-
 # ---------------------------------------------------------------------------
 # AccountActivity Enum
 # ---------------------------------------------------------------------------
@@ -120,32 +119,46 @@ class TestSectionClassifier:
         assert simple_classifier.classify("PAUSED") == AccountActivity.INACTIVE
         assert simple_classifier.classify("TEMPLATE") == AccountActivity.IGNORED
 
-    def test_classify_case_insensitive(self, simple_classifier: SectionClassifier) -> None:
+    def test_classify_case_insensitive(
+        self, simple_classifier: SectionClassifier
+    ) -> None:
         assert simple_classifier.classify("active") == AccountActivity.ACTIVE
         assert simple_classifier.classify("Active") == AccountActivity.ACTIVE
         assert simple_classifier.classify("ACTIVE") == AccountActivity.ACTIVE
         assert simple_classifier.classify("AcTiVe") == AccountActivity.ACTIVE
 
-    def test_classify_unknown_returns_none(self, simple_classifier: SectionClassifier) -> None:
+    def test_classify_unknown_returns_none(
+        self, simple_classifier: SectionClassifier
+    ) -> None:
         assert simple_classifier.classify("UNKNOWN") is None
         assert simple_classifier.classify("") is None
         assert simple_classifier.classify("nonexistent section") is None
 
-    def test_classify_all_categories(self, simple_classifier: SectionClassifier) -> None:
+    def test_classify_all_categories(
+        self, simple_classifier: SectionClassifier
+    ) -> None:
         assert simple_classifier.classify("RUNNING") == AccountActivity.ACTIVE
         assert simple_classifier.classify("STOPPED") == AccountActivity.INACTIVE
 
     # --- sections_for ---
 
-    def test_sections_for_single_category(self, simple_classifier: SectionClassifier) -> None:
+    def test_sections_for_single_category(
+        self, simple_classifier: SectionClassifier
+    ) -> None:
         result = simple_classifier.sections_for(AccountActivity.ACTIVE)
         assert result == frozenset({"active", "running"})
 
-    def test_sections_for_multiple_categories(self, simple_classifier: SectionClassifier) -> None:
-        result = simple_classifier.sections_for(AccountActivity.ACTIVE, AccountActivity.ACTIVATING)
+    def test_sections_for_multiple_categories(
+        self, simple_classifier: SectionClassifier
+    ) -> None:
+        result = simple_classifier.sections_for(
+            AccountActivity.ACTIVE, AccountActivity.ACTIVATING
+        )
         assert result == frozenset({"active", "running", "starting"})
 
-    def test_sections_for_returns_frozenset(self, simple_classifier: SectionClassifier) -> None:
+    def test_sections_for_returns_frozenset(
+        self, simple_classifier: SectionClassifier
+    ) -> None:
         result = simple_classifier.sections_for(AccountActivity.ACTIVE)
         assert isinstance(result, frozenset)
 
@@ -202,11 +215,15 @@ class TestSectionClassifier:
 
     # --- Frozen guarantee ---
 
-    def test_frozen_cannot_mutate_entity_type(self, simple_classifier: SectionClassifier) -> None:
+    def test_frozen_cannot_mutate_entity_type(
+        self, simple_classifier: SectionClassifier
+    ) -> None:
         with pytest.raises(FrozenInstanceError):
             simple_classifier.entity_type = "other"  # type: ignore[misc]
 
-    def test_frozen_cannot_mutate_project_gid(self, simple_classifier: SectionClassifier) -> None:
+    def test_frozen_cannot_mutate_project_gid(
+        self, simple_classifier: SectionClassifier
+    ) -> None:
         with pytest.raises(FrozenInstanceError):
             simple_classifier.project_gid = "999"  # type: ignore[misc]
 
@@ -245,82 +262,98 @@ class TestExtractSectionName:
         assert extract_section_name(task) is None
 
     def test_extracts_section_name(self) -> None:
-        task = _make_task_with_memberships([
-            {
-                "project": {"gid": "proj1", "name": "Project 1"},
-                "section": {"gid": "sec1", "name": "ACTIVE"},
-            }
-        ])
+        task = _make_task_with_memberships(
+            [
+                {
+                    "project": {"gid": "proj1", "name": "Project 1"},
+                    "section": {"gid": "sec1", "name": "ACTIVE"},
+                }
+            ]
+        )
         assert extract_section_name(task) == "ACTIVE"
 
     def test_filters_by_project_gid(self) -> None:
-        task = _make_task_with_memberships([
-            {
-                "project": {"gid": "proj1", "name": "Project 1"},
-                "section": {"gid": "sec1", "name": "WRONG"},
-            },
-            {
-                "project": {"gid": "proj2", "name": "Project 2"},
-                "section": {"gid": "sec2", "name": "CORRECT"},
-            },
-        ])
+        task = _make_task_with_memberships(
+            [
+                {
+                    "project": {"gid": "proj1", "name": "Project 1"},
+                    "section": {"gid": "sec1", "name": "WRONG"},
+                },
+                {
+                    "project": {"gid": "proj2", "name": "Project 2"},
+                    "section": {"gid": "sec2", "name": "CORRECT"},
+                },
+            ]
+        )
         assert extract_section_name(task, project_gid="proj2") == "CORRECT"
 
     def test_without_project_gid_returns_first(self) -> None:
-        task = _make_task_with_memberships([
-            {
-                "project": {"gid": "proj1", "name": "Project 1"},
-                "section": {"gid": "sec1", "name": "FIRST"},
-            },
-            {
-                "project": {"gid": "proj2", "name": "Project 2"},
-                "section": {"gid": "sec2", "name": "SECOND"},
-            },
-        ])
+        task = _make_task_with_memberships(
+            [
+                {
+                    "project": {"gid": "proj1", "name": "Project 1"},
+                    "section": {"gid": "sec1", "name": "FIRST"},
+                },
+                {
+                    "project": {"gid": "proj2", "name": "Project 2"},
+                    "section": {"gid": "sec2", "name": "SECOND"},
+                },
+            ]
+        )
         assert extract_section_name(task) == "FIRST"
 
     def test_no_matching_project_gid_returns_none(self) -> None:
-        task = _make_task_with_memberships([
-            {
-                "project": {"gid": "proj1", "name": "Project 1"},
-                "section": {"gid": "sec1", "name": "ACTIVE"},
-            },
-        ])
+        task = _make_task_with_memberships(
+            [
+                {
+                    "project": {"gid": "proj1", "name": "Project 1"},
+                    "section": {"gid": "sec1", "name": "ACTIVE"},
+                },
+            ]
+        )
         assert extract_section_name(task, project_gid="nonexistent") is None
 
     def test_missing_section_returns_none(self) -> None:
-        task = _make_task_with_memberships([
-            {
-                "project": {"gid": "proj1", "name": "Project 1"},
-            },
-        ])
+        task = _make_task_with_memberships(
+            [
+                {
+                    "project": {"gid": "proj1", "name": "Project 1"},
+                },
+            ]
+        )
         assert extract_section_name(task) is None
 
     def test_section_with_no_name_returns_none(self) -> None:
-        task = _make_task_with_memberships([
-            {
-                "project": {"gid": "proj1", "name": "Project 1"},
-                "section": {"gid": "sec1"},
-            },
-        ])
+        task = _make_task_with_memberships(
+            [
+                {
+                    "project": {"gid": "proj1", "name": "Project 1"},
+                    "section": {"gid": "sec1"},
+                },
+            ]
+        )
         assert extract_section_name(task) is None
 
     def test_section_none_returns_none(self) -> None:
-        task = _make_task_with_memberships([
-            {
-                "project": {"gid": "proj1", "name": "Project 1"},
-                "section": None,
-            },
-        ])
+        task = _make_task_with_memberships(
+            [
+                {
+                    "project": {"gid": "proj1", "name": "Project 1"},
+                    "section": None,
+                },
+            ]
+        )
         assert extract_section_name(task) is None
 
     def test_preserves_original_case(self) -> None:
-        task = _make_task_with_memberships([
-            {
-                "project": {"gid": "proj1", "name": "Project 1"},
-                "section": {"gid": "sec1", "name": "Month 1"},
-            },
-        ])
+        task = _make_task_with_memberships(
+            [
+                {
+                    "project": {"gid": "proj1", "name": "Project 1"},
+                    "section": {"gid": "sec1", "name": "Month 1"},
+                },
+            ]
+        )
         assert extract_section_name(task) == "Month 1"
 
 
@@ -384,14 +417,32 @@ class TestOfferClassifier:
         assert total == 33
 
     def test_classify_optimize_sections(self) -> None:
-        assert OFFER_CLASSIFIER.classify("OPTIMIZE - Human Review") == AccountActivity.ACTIVE
-        assert OFFER_CLASSIFIER.classify("OPTIMIZE QUANTITY - Request Asset Edit") == AccountActivity.ACTIVE
-        assert OFFER_CLASSIFIER.classify("OPTIMIZE QUALITY - Update Targeting") == AccountActivity.ACTIVE
-        assert OFFER_CLASSIFIER.classify("OPTIMIZE QUALITY - Poor Show Rates") == AccountActivity.ACTIVE
+        assert (
+            OFFER_CLASSIFIER.classify("OPTIMIZE - Human Review")
+            == AccountActivity.ACTIVE
+        )
+        assert (
+            OFFER_CLASSIFIER.classify("OPTIMIZE QUANTITY - Request Asset Edit")
+            == AccountActivity.ACTIVE
+        )
+        assert (
+            OFFER_CLASSIFIER.classify("OPTIMIZE QUALITY - Update Targeting")
+            == AccountActivity.ACTIVE
+        )
+        assert (
+            OFFER_CLASSIFIER.classify("OPTIMIZE QUALITY - Poor Show Rates")
+            == AccountActivity.ACTIVE
+        )
 
     def test_classify_restart_sections(self) -> None:
-        assert OFFER_CLASSIFIER.classify("RESTART - Request Testimonial") == AccountActivity.ACTIVE
-        assert OFFER_CLASSIFIER.classify("RESTART - Pending Leads") == AccountActivity.ACTIVE
+        assert (
+            OFFER_CLASSIFIER.classify("RESTART - Request Testimonial")
+            == AccountActivity.ACTIVE
+        )
+        assert (
+            OFFER_CLASSIFIER.classify("RESTART - Pending Leads")
+            == AccountActivity.ACTIVE
+        )
 
     def test_classify_case_insensitive(self) -> None:
         assert OFFER_CLASSIFIER.classify("active") == AccountActivity.ACTIVE

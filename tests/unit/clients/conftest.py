@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import pytest
+from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 
 class MockCacheProvider(_SDKMockCacheProvider):
@@ -38,7 +38,10 @@ class MockCacheProvider(_SDKMockCacheProvider):
         """Get entry from cache with satellite tracking."""
         self.get_versioned_calls.append((key, entry_type))
         self.calls.append(
-            ("get_versioned", {"key": key, "entry_type": entry_type, "freshness": freshness})
+            (
+                "get_versioned",
+                {"key": key, "entry_type": entry_type, "freshness": freshness},
+            )
         )
         composite_key = f"{key}:{entry_type.value}"
         return self._versioned_store.get(composite_key)
@@ -58,24 +61,16 @@ class MockCacheProvider(_SDKMockCacheProvider):
             composite_key = f"{key}:{entry.entry_type.value}"
             self._versioned_store[composite_key] = entry
 
-    def invalidate(
-        self, key: str, entry_types: list[EntryType] | None = None
-    ) -> None:
+    def invalidate(self, key: str, entry_types: list[EntryType] | None = None) -> None:
         """Invalidate cache entry with satellite tracking."""
         self.invalidate_calls.append((key, entry_types))
-        self.calls.append(
-            ("invalidate", {"key": key, "entry_types": entry_types})
-        )
+        self.calls.append(("invalidate", {"key": key, "entry_types": entry_types}))
         if entry_types:
             for entry_type in entry_types:
-                self._versioned_store.pop(
-                    f"{key}:{entry_type.value}", None
-                )
+                self._versioned_store.pop(f"{key}:{entry_type.value}", None)
         else:
             keys_to_remove = [
-                k
-                for k in self._versioned_store
-                if k.startswith(f"{key}:")
+                k for k in self._versioned_store if k.startswith(f"{key}:")
             ]
             for k in keys_to_remove:
                 del self._versioned_store[k]

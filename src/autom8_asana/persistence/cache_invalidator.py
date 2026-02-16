@@ -146,7 +146,9 @@ class CacheInvalidator:
                     gid,
                     [EntryType.TASK, EntryType.SUBTASKS, EntryType.DETECTION],
                 )
-            except CACHE_TRANSIENT_ERRORS as exc:  # isolation -- per-gid loop, single failure must not abort batch
+            except (
+                CACHE_TRANSIENT_ERRORS
+            ) as exc:  # isolation -- per-gid loop, single failure must not abort batch
                 # NFR-DEGRADE-001: Log and continue - invalidation failure is not fatal
                 if self._log:
                     self._log.warning(

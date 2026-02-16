@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-
 from autom8_asana.models.business.activity import (
     ACTIVITY_PRIORITY,
     AccountActivity,
@@ -16,7 +15,6 @@ from autom8_asana.models.business.activity import (
 from autom8_asana.models.business.business import Business
 from autom8_asana.models.business.offer import Offer
 from autom8_asana.models.business.unit import Unit, UnitHolder
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -26,14 +24,18 @@ OFFER_PROJECT_GID = "1143843662099250"
 UNIT_PROJECT_GID = "1201081073731555"
 
 
-def _make_offer(section_name: str | None = None, project_gid: str = OFFER_PROJECT_GID) -> Offer:
+def _make_offer(
+    section_name: str | None = None, project_gid: str = OFFER_PROJECT_GID
+) -> Offer:
     """Create an Offer with optional section membership."""
     memberships = []
     if section_name is not None:
-        memberships.append({
-            "project": {"gid": project_gid, "name": "Offers"},
-            "section": {"gid": "sec1", "name": section_name},
-        })
+        memberships.append(
+            {
+                "project": {"gid": project_gid, "name": "Offers"},
+                "section": {"gid": "sec1", "name": section_name},
+            }
+        )
     return Offer(
         gid="offer1",
         name="Test Offer",
@@ -43,14 +45,18 @@ def _make_offer(section_name: str | None = None, project_gid: str = OFFER_PROJEC
     )
 
 
-def _make_unit(section_name: str | None = None, project_gid: str = UNIT_PROJECT_GID) -> Unit:
+def _make_unit(
+    section_name: str | None = None, project_gid: str = UNIT_PROJECT_GID
+) -> Unit:
     """Create a Unit with optional section membership."""
     memberships = []
     if section_name is not None:
-        memberships.append({
-            "project": {"gid": project_gid, "name": "Units"},
-            "section": {"gid": "sec1", "name": section_name},
-        })
+        memberships.append(
+            {
+                "project": {"gid": project_gid, "name": "Units"},
+                "section": {"gid": "sec1", "name": section_name},
+            }
+        )
     return Unit(
         gid="unit1",
         name="Test Unit",
@@ -60,7 +66,9 @@ def _make_unit(section_name: str | None = None, project_gid: str = UNIT_PROJECT_
     )
 
 
-def _make_business_with_units(unit_activities: list[AccountActivity | None]) -> Business:
+def _make_business_with_units(
+    unit_activities: list[AccountActivity | None],
+) -> Business:
     """Create a Business with mock Units having specific activity values."""
     business = Business(
         gid="biz1",
@@ -243,47 +251,59 @@ class TestBusinessMaxUnitActivity:
         assert business.max_unit_activity == AccountActivity.INACTIVE
 
     def test_active_beats_inactive(self) -> None:
-        business = _make_business_with_units([
-            AccountActivity.INACTIVE,
-            AccountActivity.ACTIVE,
-        ])
+        business = _make_business_with_units(
+            [
+                AccountActivity.INACTIVE,
+                AccountActivity.ACTIVE,
+            ]
+        )
         assert business.max_unit_activity == AccountActivity.ACTIVE
 
     def test_active_beats_activating(self) -> None:
-        business = _make_business_with_units([
-            AccountActivity.ACTIVATING,
-            AccountActivity.ACTIVE,
-        ])
+        business = _make_business_with_units(
+            [
+                AccountActivity.ACTIVATING,
+                AccountActivity.ACTIVE,
+            ]
+        )
         assert business.max_unit_activity == AccountActivity.ACTIVE
 
     def test_activating_beats_inactive(self) -> None:
-        business = _make_business_with_units([
-            AccountActivity.INACTIVE,
-            AccountActivity.ACTIVATING,
-        ])
+        business = _make_business_with_units(
+            [
+                AccountActivity.INACTIVE,
+                AccountActivity.ACTIVATING,
+            ]
+        )
         assert business.max_unit_activity == AccountActivity.ACTIVATING
 
     def test_activating_beats_ignored(self) -> None:
-        business = _make_business_with_units([
-            AccountActivity.IGNORED,
-            AccountActivity.ACTIVATING,
-        ])
+        business = _make_business_with_units(
+            [
+                AccountActivity.IGNORED,
+                AccountActivity.ACTIVATING,
+            ]
+        )
         assert business.max_unit_activity == AccountActivity.ACTIVATING
 
     def test_inactive_beats_ignored(self) -> None:
-        business = _make_business_with_units([
-            AccountActivity.IGNORED,
-            AccountActivity.INACTIVE,
-        ])
+        business = _make_business_with_units(
+            [
+                AccountActivity.IGNORED,
+                AccountActivity.INACTIVE,
+            ]
+        )
         assert business.max_unit_activity == AccountActivity.INACTIVE
 
     def test_all_activities_returns_active(self) -> None:
-        business = _make_business_with_units([
-            AccountActivity.IGNORED,
-            AccountActivity.INACTIVE,
-            AccountActivity.ACTIVATING,
-            AccountActivity.ACTIVE,
-        ])
+        business = _make_business_with_units(
+            [
+                AccountActivity.IGNORED,
+                AccountActivity.INACTIVE,
+                AccountActivity.ACTIVATING,
+                AccountActivity.ACTIVE,
+            ]
+        )
         assert business.max_unit_activity == AccountActivity.ACTIVE
 
     def test_all_none_returns_none(self) -> None:
@@ -291,11 +311,13 @@ class TestBusinessMaxUnitActivity:
         assert business.max_unit_activity is None
 
     def test_mixed_none_and_values(self) -> None:
-        business = _make_business_with_units([
-            None,
-            AccountActivity.INACTIVE,
-            None,
-        ])
+        business = _make_business_with_units(
+            [
+                None,
+                AccountActivity.INACTIVE,
+                None,
+            ]
+        )
         assert business.max_unit_activity == AccountActivity.INACTIVE
 
     def test_single_ignored_unit(self) -> None:
@@ -303,11 +325,13 @@ class TestBusinessMaxUnitActivity:
         assert business.max_unit_activity == AccountActivity.IGNORED
 
     def test_multiple_same_activity(self) -> None:
-        business = _make_business_with_units([
-            AccountActivity.ACTIVATING,
-            AccountActivity.ACTIVATING,
-            AccountActivity.ACTIVATING,
-        ])
+        business = _make_business_with_units(
+            [
+                AccountActivity.ACTIVATING,
+                AccountActivity.ACTIVATING,
+                AccountActivity.ACTIVATING,
+            ]
+        )
         assert business.max_unit_activity == AccountActivity.ACTIVATING
 
     def test_priority_ordering_is_consistent(self) -> None:

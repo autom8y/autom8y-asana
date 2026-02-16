@@ -409,9 +409,7 @@ class TestConcurrency:
         pool = ClientPool(max_size=100)
 
         tokens = [f"token-{i}" for i in range(20)]
-        results = await asyncio.gather(
-            *[pool.get_or_create(t) for t in tokens]
-        )
+        results = await asyncio.gather(*[pool.get_or_create(t) for t in tokens])
 
         # Each token should have its own client
         assert pool.size == 20

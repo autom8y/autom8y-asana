@@ -13,7 +13,6 @@ import structlog.testing
 
 from autom8_asana.core.concurrency import gather_with_semaphore
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -132,7 +131,8 @@ class TestErrorPropagation:
         ]
         with pytest.raises(ValueError, match="propagated"):
             await gather_with_semaphore(
-                coros, return_exceptions=False,
+                coros,
+                return_exceptions=False,
             )
 
 
