@@ -586,7 +586,10 @@ class SectionPersistence:
         self,
         project_gid: str,
     ) -> list[pl.DataFrame]:
-        """Read all complete section DataFrames for a project.
+        """Read all complete section DataFrames for a project in parallel.
+
+        Per IMP-21: Section reads are independent S3 GETs that can be
+        parallelized with bounded concurrency.
 
         Args:
             project_gid: Asana project GID.
@@ -594,6 +597,8 @@ class SectionPersistence:
         Returns:
             List of section DataFrames (empty if none complete).
         """
+        from autom8_asana.core.concurrency import gather_with_semaphore
+
         manifest = await self.get_manifest_async(project_gid)
         if manifest is None:
             return []
@@ -602,11 +607,29 @@ class SectionPersistence:
         if not complete_sections:
             return []
 
-        dfs = []
-        for section_gid in complete_sections:
-            df = await self.read_section_async(project_gid, section_gid)
-            if df is not None:
-                dfs.append(df)
+        results = await gather_with_semaphore(
+            (
+                self.read_section_async(project_gid, section_gid)
+                for section_gid in complete_sections
+            ),
+            concurrency=5,
+            label="read_all_sections",
+        )
+
+        dfs: list[pl.DataFrame] = []
+        for i, result in enumerate(results):
+            if isinstance(result, BaseException):
+                logger.warning(
+                    "read_section_failed",
+                    extra={
+                        "project_gid": project_gid,
+                        "section_gid": complete_sections[i],
+                        "error": str(result),
+                        "error_type": type(result).__name__,
+                    },
+                )
+            elif result is not None:
+                dfs.append(result)
 
         logger.info(
             "read_all_sections_completed",
