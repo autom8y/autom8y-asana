@@ -186,7 +186,7 @@ def create_app() -> FastAPI:
 
 # Allow running directly with uvicorn
 if __name__ == "__main__":
-    import uvicorn  # type: ignore[import-not-found]  # runtime-only dependency
+    import uvicorn
 
     uvicorn.run(
         "autom8_asana.api.main:create_app",
