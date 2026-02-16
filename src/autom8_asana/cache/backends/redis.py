@@ -455,18 +455,16 @@ class RedisCacheProvider(CacheBackendBase):
             redis_key = self._make_key(key, entry.entry_type)
             serialized = self._serialize_entry(entry)
 
-            # Use pipeline for atomic HSET + EXPIRE
+            # Use pipeline for atomic HSET + EXPIRE + metadata in single round-trip
+            meta_key = self._make_meta_key(key)
             pipe = conn.pipeline()
             pipe.hset(redis_key, mapping=serialized)
             if entry.ttl is not None:
                 pipe.expire(redis_key, entry.ttl)
-            pipe.execute()
-
-            # Update version in metadata hash
-            meta_key = self._make_meta_key(key)
-            conn.hset(meta_key, entry.entry_type.value, format_version(entry.version))
+            pipe.hset(meta_key, entry.entry_type.value, format_version(entry.version))
             if entry.ttl is not None:
-                conn.expire(meta_key, entry.ttl)
+                pipe.expire(meta_key, entry.ttl)
+            pipe.execute()
         finally:
             conn.close()
 
