@@ -52,11 +52,27 @@ def make_watermark_json(watermark: str = "2024-01-15T12:00:00+00:00") -> bytes:
     ).encode("utf-8")
 
 
+def make_watermark_metadata(
+    schema_version: str = "1.0.0",
+    watermark: str = "2024-01-15T12:00:00+00:00",
+) -> dict:
+    """Create a watermark metadata dict (as returned by load_dataframe_with_metadata)."""
+    return {
+        "project_gid": "proj-1",
+        "watermark": watermark,
+        "row_count": 2,
+        "columns": ["gid", "name"],
+        "saved_at": "2024-01-15T12:00:00+00:00",
+        "schema_version": schema_version,
+    }
+
+
 def make_mock_storage() -> MagicMock:
     """Create a mock DataFrameStorage with async methods."""
     storage = MagicMock()
     storage.is_available = True
     storage.load_dataframe = AsyncMock(return_value=(None, None))
+    storage.load_dataframe_with_metadata = AsyncMock(return_value=(None, None, None))
     storage.save_dataframe = AsyncMock(return_value=True)
     storage.load_json = AsyncMock(return_value=None)
     storage.delete_dataframe = AsyncMock(return_value=True)
@@ -130,10 +146,12 @@ class TestProgressiveTierGet:
         """Get reads DataFrame and watermark via DataFrameStorage."""
         df = pl.DataFrame({"gid": ["gid-1", "gid-2"], "name": ["A", "B"]})
         watermark = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
+        wm_meta = make_watermark_metadata()
 
         storage = make_mock_storage()
-        storage.load_dataframe = AsyncMock(return_value=(df, watermark))
-        storage.load_json = AsyncMock(return_value=make_watermark_json())
+        storage.load_dataframe_with_metadata = AsyncMock(
+            return_value=(df, watermark, wm_meta)
+        )
 
         persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
@@ -144,13 +162,18 @@ class TestProgressiveTierGet:
         assert result.project_gid == "proj-123"
         assert result.entity_type == "unit"
         assert result.row_count == 2
-        storage.load_dataframe.assert_called_once_with("proj-123")
+        assert result.schema_version == "1.0.0"
+        storage.load_dataframe_with_metadata.assert_called_once_with("proj-123")
+        # load_json should NOT be called -- schema_version comes from metadata
+        storage.load_json.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_async_returns_none_on_missing(self) -> None:
         """Get returns None when DataFrame doesn't exist."""
         storage = make_mock_storage()
-        storage.load_dataframe = AsyncMock(return_value=(None, None))
+        storage.load_dataframe_with_metadata = AsyncMock(
+            return_value=(None, None, None)
+        )
 
         persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
@@ -167,13 +190,14 @@ class TestProgressiveTierGet:
     async def test_get_async_handles_missing_watermark(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Get uses fallback watermark and SchemaRegistry when watermark is None."""
+        """Get uses fallback watermark and SchemaRegistry when watermark metadata is None."""
         df = pl.DataFrame({"gid": ["gid-1", "gid-2"], "name": ["A", "B"]})
 
         storage = make_mock_storage()
-        storage.load_dataframe = AsyncMock(return_value=(df, None))
-        # load_json returns None → watermark.json missing → falls back to registry
-        storage.load_json = AsyncMock(return_value=None)
+        # Metadata is None (watermark.json missing or no schema_version field)
+        storage.load_dataframe_with_metadata = AsyncMock(
+            return_value=(df, None, None)
+        )
 
         persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
@@ -201,17 +225,23 @@ class TestProgressiveTierGet:
         assert result.schema_version == "1.1.0"
 
     @pytest.mark.asyncio
-    async def test_get_async_watermark_json_failure_uses_registry(
+    async def test_get_async_metadata_missing_schema_version_uses_registry(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """When watermark.json load raises, schema_version falls back to SchemaRegistry."""
+        """When watermark metadata lacks schema_version, falls back to SchemaRegistry."""
         df = pl.DataFrame({"gid": ["gid-1", "gid-2"], "name": ["A", "B"]})
         watermark = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
+        # Metadata present but without schema_version key
+        wm_meta = {
+            "project_gid": "proj-123",
+            "watermark": "2024-01-15T12:00:00+00:00",
+            "row_count": 2,
+        }
 
         storage = make_mock_storage()
-        storage.load_dataframe = AsyncMock(return_value=(df, watermark))
-        # load_json raises → watermark metadata unavailable
-        storage.load_json = AsyncMock(side_effect=ConnectionError("S3 timeout"))
+        storage.load_dataframe_with_metadata = AsyncMock(
+            return_value=(df, watermark, wm_meta)
+        )
 
         persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
@@ -233,7 +263,9 @@ class TestProgressiveTierGet:
     async def test_get_async_handles_storage_error(self) -> None:
         """Get returns None on storage read error."""
         storage = make_mock_storage()
-        storage.load_dataframe = AsyncMock(side_effect=ConnectionError("S3 timeout"))
+        storage.load_dataframe_with_metadata = AsyncMock(
+            side_effect=ConnectionError("S3 timeout")
+        )
 
         persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
@@ -244,6 +276,36 @@ class TestProgressiveTierGet:
 
         stats = tier.get_stats()
         assert stats["read_errors"] == 1
+
+    @pytest.mark.asyncio
+    async def test_get_async_fallback_without_metadata_method(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Get falls back to load_dataframe when load_dataframe_with_metadata is absent."""
+        df = pl.DataFrame({"gid": ["gid-1", "gid-2"], "name": ["A", "B"]})
+        watermark = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
+
+        storage = make_mock_storage()
+        # Remove the load_dataframe_with_metadata method to simulate old storage
+        del storage.load_dataframe_with_metadata
+        storage.load_dataframe = AsyncMock(return_value=(df, watermark))
+
+        persistence = make_mock_persistence(storage=storage)
+        tier = ProgressiveTier(persistence=persistence)
+
+        # Mock SchemaRegistry since metadata is unavailable
+        import autom8_asana.core.schema
+
+        monkeypatch.setattr(
+            autom8_asana.core.schema, "get_schema_version", lambda entity_type: "2.0.0"
+        )
+
+        result = await tier.get_async("unit:proj-123")
+
+        assert result is not None
+        assert result.project_gid == "proj-123"
+        assert result.schema_version == "2.0.0"
+        storage.load_dataframe.assert_called_once_with("proj-123")
 
     @pytest.mark.asyncio
     async def test_get_async_invalid_key_returns_none(self) -> None:
@@ -438,10 +500,12 @@ class TestProgressiveTierStats:
         """Stats correctly track reads, writes, errors."""
         df = pl.DataFrame({"gid": ["gid-1", "gid-2"], "name": ["A", "B"]})
         watermark = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
+        wm_meta = make_watermark_metadata()
 
         storage = make_mock_storage()
-        storage.load_dataframe = AsyncMock(return_value=(df, watermark))
-        storage.load_json = AsyncMock(return_value=make_watermark_json())
+        storage.load_dataframe_with_metadata = AsyncMock(
+            return_value=(df, watermark, wm_meta)
+        )
 
         persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)

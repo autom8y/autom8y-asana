@@ -158,6 +158,9 @@ class TestDataFrameStorageProtocol:
             async def load_dataframe(self, *a: Any, **kw: Any) -> tuple:
                 return (None, None)
 
+            async def load_dataframe_with_metadata(self, *a: Any, **kw: Any) -> tuple:
+                return (None, None, None)
+
             async def delete_dataframe(self, *a: Any, **kw: Any) -> bool:
                 return True
 

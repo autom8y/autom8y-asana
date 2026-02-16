@@ -133,7 +133,16 @@ class ProgressiveTier:
 
         try:
             storage = self.persistence.storage
-            df, watermark = await storage.load_dataframe(project_gid)
+            # Use load_dataframe_with_metadata to get schema_version from
+            # watermark.json in the same S3 read pass (IMP-06: eliminates
+            # a separate load_json call for the same watermark file).
+            if hasattr(storage, "load_dataframe_with_metadata"):
+                df, watermark, wm_metadata = (
+                    await storage.load_dataframe_with_metadata(project_gid)
+                )
+            else:
+                df, watermark = await storage.load_dataframe(project_gid)
+                wm_metadata = None
         except S3_TRANSPORT_ERRORS as e:
             self._stats["read_errors"] += 1
             logger.warning(
@@ -165,18 +174,11 @@ class ProgressiveTier:
         if watermark is None:
             watermark = datetime.now(UTC)
 
-        # Schema version: try watermark.json first, fall back to SchemaRegistry
+        # Schema version: extract from watermark metadata (already loaded),
+        # fall back to SchemaRegistry if not available
         schema_version = None
-        try:
-            wm_key = f"{self.persistence._prefix}{project_gid}/watermark.json"
-            wm_bytes = await storage.load_json(wm_key)
-            if wm_bytes is not None:
-                import json
-
-                wm_data = json.loads(wm_bytes.decode("utf-8"))
-                schema_version = wm_data.get("schema_version")
-        except (*S3_TRANSPORT_ERRORS, ValueError, KeyError, UnicodeDecodeError):  # graceful degradation for metadata
-            pass
+        if wm_metadata is not None:
+            schema_version = wm_metadata.get("schema_version")
 
         if schema_version is None:
             from autom8_asana.core.schema import get_schema_version
