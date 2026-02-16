@@ -308,7 +308,9 @@ class TestFindTemplateTask:
         await discovery.find_template_task_async("project_123")
 
         # Verify list_async was called with the template section GID
-        client.tasks.list_async.assert_called_once_with(section="template_section_gid")
+        client.tasks.list_async.assert_called_once_with(
+            section="template_section_gid", opt_fields=None
+        )
 
 
 class TestTemplateSectionGidShortcut:
@@ -373,7 +375,9 @@ class TestTemplateSectionGidShortcut:
         # Section listing should NOT have been called
         client.sections.list_for_project_async.assert_not_called()
         # But task listing should have been called with the pre-configured GID
-        client.tasks.list_async.assert_called_once_with(section="pre_configured_gid")
+        client.tasks.list_async.assert_called_once_with(
+            section="pre_configured_gid", opt_fields=None
+        )
 
     @pytest.mark.asyncio
     async def test_none_section_gid_falls_back_to_discovery(self) -> None:

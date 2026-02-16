@@ -153,14 +153,10 @@ async def test_create_process_template_happy_path():
     template_task = MagicMock()
     template_task.gid = "tmpl_gid"
     template_task.name = "Onboarding - [Business Name]"
+    template_task.num_subtasks = 0  # IMP-13: subtask count from discovery
 
     new_task = _make_mock_task(gid="created_gid", name="Onboarding - Test Business")
     client.tasks.duplicate_async.return_value = new_task
-
-    # No subtasks on template
-    subtask_iter = MagicMock()
-    subtask_iter.collect = AsyncMock(return_value=[])
-    client.tasks.subtasks_async.return_value = subtask_iter
 
     ctx = _make_mock_ctx()
     source_process = _make_mock_process()
@@ -697,13 +693,11 @@ async def test_duplicate_check_completed_tasks_skipped():
     # subtasks_async is called twice:
     #   1) duplicate check on holder (returns completed task)
     #   2) template subtask count (returns empty)
+    # IMP-13: subtasks_async now only called for holder duplicate check,
+    # not for template subtask count (which uses num_subtasks from discovery).
     holder_iter = MagicMock()
     holder_iter.collect = AsyncMock(return_value=[completed_task])
-    template_iter = MagicMock()
-    template_iter.collect = AsyncMock(return_value=[])
-    client.tasks.subtasks_async = MagicMock(
-        side_effect=[holder_iter, template_iter],
-    )
+    client.tasks.subtasks_async = MagicMock(return_value=holder_iter)
 
     ctx = _make_mock_ctx()
     stage_config = _make_stage_config()
@@ -711,6 +705,7 @@ async def test_duplicate_check_completed_tasks_skipped():
     template_task = MagicMock()
     template_task.gid = "tmpl_gid"
     template_task.name = "Onboarding Template"
+    template_task.num_subtasks = 0  # IMP-13: subtask count from discovery
 
     with (
         patch("autom8_asana.lifecycle.creation.TemplateDiscovery") as MockTD,
@@ -1157,6 +1152,7 @@ async def test_seeding_failure_non_fatal():
     template_task = MagicMock()
     template_task.gid = "tmpl_gid"
     template_task.name = "Template"
+    template_task.num_subtasks = 0  # IMP-13: subtask count from discovery
 
     with (
         patch("autom8_asana.lifecycle.creation.TemplateDiscovery") as MockTD,
@@ -1213,6 +1209,7 @@ async def test_full_creation_flow_with_all_configure_steps():
     template_task = MagicMock()
     template_task.gid = "tmpl_gid"
     template_task.name = "Onboarding - [Business Name]"
+    template_task.num_subtasks = 0  # IMP-13: subtask count from discovery
 
     new_task = _make_mock_task(gid="created_gid")
     client.tasks.duplicate_async.return_value = new_task

@@ -277,10 +277,13 @@ class PipelineConversionRule:
             actions_executed.append("lookup_target_project")
 
             # Step 2: Discover template in target project
+            # IMP-13: Include num_subtasks in template discovery to avoid a
+            # separate subtasks_async call for the subtask count.
             template_discovery = TemplateDiscovery(context.client)
             template_task = await template_discovery.find_template_task_async(
                 target_project_gid,
                 template_section=stage.template_section,
+                opt_fields=["num_subtasks"],
             )
 
             if not template_task:
@@ -313,10 +316,9 @@ class PipelineConversionRule:
             )
 
             # Step 3a: Get template subtask count for waiter
-            template_subtasks = await context.client.tasks.subtasks_async(
-                template_task.gid, opt_fields=["gid"]
-            ).collect()
-            expected_subtask_count = len(template_subtasks)
+            # IMP-13: Use num_subtasks from template discovery response
+            # instead of making a separate subtasks_async API call.
+            expected_subtask_count = getattr(template_task, "num_subtasks", 0) or 0
 
             # Step 3b: Duplicate the template task with subtasks and notes
             new_task = await context.client.tasks.duplicate_async(

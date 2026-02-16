@@ -145,11 +145,14 @@ class EntityCreationService:
                 )
 
             # 3. Template discovery
+            # IMP-13: Include num_subtasks in template discovery to avoid a
+            # separate subtasks_async call for the subtask count.
             template_discovery = TemplateDiscovery(self._client)
             template = await template_discovery.find_template_task_async(
                 stage_config.project_gid,  # type: ignore[arg-type]  # project_gid validated non-None by stage_config
                 template_section=stage_config.template_section,
                 template_section_gid=stage_config.template_section_gid,
+                opt_fields=["num_subtasks"],
             )
 
             # 4. Create (template or blank fallback)
@@ -160,11 +163,8 @@ class EntityCreationService:
             )
 
             if template:
-                # Count subtasks before duplication (for waiter)
-                template_subtasks = await self._client.tasks.subtasks_async(
-                    template.gid, opt_fields=["gid"]
-                ).collect()
-                expected_subtask_count = len(template_subtasks)
+                # IMP-13: Use num_subtasks from template discovery response
+                expected_subtask_count = getattr(template, "num_subtasks", 0) or 0
 
                 new_task = await self._client.tasks.duplicate_async(
                     template.gid,
@@ -266,10 +266,13 @@ class EntityCreationService:
             business = await ctx.business_async()
             unit = await ctx.unit_async()
 
+            # IMP-13: Include num_subtasks in template discovery to avoid a
+            # separate subtasks_async call for the subtask count.
             template_discovery = TemplateDiscovery(self._client)
             template = await template_discovery.find_template_task_async(
                 project_gid,
                 template_section=template_section,
+                opt_fields=["num_subtasks"],
             )
 
             new_name = self._generate_name(
@@ -279,15 +282,13 @@ class EntityCreationService:
             )
 
             if template:
-                template_subtasks = await self._client.tasks.subtasks_async(
-                    template.gid, opt_fields=["gid"]
-                ).collect()
                 new_task = await self._client.tasks.duplicate_async(
                     template.gid,
                     name=new_name,
                     include=["subtasks", "notes"],
                 )
-                expected_subtask_count = len(template_subtasks)
+                # IMP-13: Use num_subtasks from template discovery response
+                expected_subtask_count = getattr(template, "num_subtasks", 0) or 0
             else:
                 logger.warning(
                     "lifecycle_entity_template_not_found",
