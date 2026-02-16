@@ -1,656 +1,266 @@
-# TDD: Service Layer Extraction from Route Handlers
+# TDD-SERVICE-LAYER-001 v2.0: Service Layer Completion
 
 **TDD ID**: TDD-SERVICE-LAYER-001
-**Version**: 1.0
-**Date**: 2026-02-04
+**Version**: 2.0
+**Original Date**: 2026-02-04
+**Revision Date**: 2026-02-15
 **Author**: Architect
-**Status**: DRAFT
+**Status**: APPROVED (revised from v1.0 DRAFT)
 **PRD Reference**: Architectural Opportunities Initiative, B5 (Wave 3)
 **Dependency**: B1 EntityRegistry (TDD-ENTITY-REGISTRY-001, Sprint 2 -- delivered)
 
 ---
 
-## Table of Contents
+## Revision Summary
 
-1. [Overview](#overview)
-2. [Problem Statement](#problem-statement)
-3. [Goals and Non-Goals](#goals-and-non-goals)
-4. [Service Inventory](#service-inventory)
-5. [Proposed Architecture](#proposed-architecture)
-6. [Component Design: Service Protocols](#component-design-service-protocols)
-7. [Component Design: Service Implementations](#component-design-service-implementations)
-8. [Dependency Injection Pattern](#dependency-injection-pattern)
-9. [EntityRegistry Integration](#entityregistry-integration)
-10. [Error Handling at Service Boundary](#error-handling-at-service-boundary)
-11. [Migration Plan](#migration-plan)
-12. [Interface Contracts](#interface-contracts)
-13. [Data Flow Diagrams](#data-flow-diagrams)
-14. [Non-Functional Considerations](#non-functional-considerations)
-15. [Test Strategy](#test-strategy)
-16. [Risk Assessment](#risk-assessment)
-17. [ADRs](#adrs)
-18. [Success Criteria](#success-criteria)
+v2.0 is a focused rewrite. The original TDD described a monolithic extraction across four phases. Phases 1-2 shipped during the I5 route decomposition (Feb 5-8, 2026). This revision:
+
+1. **Attests Phase 1-2 as COMPLETE** with file:line evidence. No design content is repeated for completed work.
+2. **Adds query_v2.py to Phase 3 scope.** This 294-line file was created after the original TDD and duplicates the exact inline entity resolution pattern the TDD eliminates. It has three endpoints worth of boilerplate entity validation (lines 68-117 and 187-236) that should delegate to EntityServiceDep.
+3. **Scopes resolver.py OUT** with explicit rationale. It serves a different domain (entity resolution, not query/CRUD) and its extraction belongs to a future initiative.
+4. **Provides detailed Phase 4 design** addressing the two divergent DataFrame build paths (DataFrameViewPlugin vs SectionDataFrameBuilder), the SectionProxy hack, and the module-level schema cache.
+5. **Drops protocols.py from scope** (ADR-SLE-001 addendum). Four services shipped as concrete classes. Retrofitting Protocols for two more would create inconsistency without value.
+6. **Reconciles FieldWriteService's invalidator pattern** with ADR-SLE-002 (accepted variance).
+7. **Updates all stale references**: line counts, file paths, attestation table.
 
 ---
 
-## Overview
+## Current State (Phase 1-2 Attestation)
 
-This TDD specifies the extraction of business logic from FastAPI route handlers in `api/routes/` into a proper service layer under `services/`. Currently, route handlers in `query.py`, `tasks.py`, `sections.py`, and `dataframes.py` contain business logic (entity validation, cache orchestration, DataFrame operations, mutation event construction) interleaved with HTTP concerns (request parsing, status codes, response formatting). This coupling makes the business logic untestable without HTTP fixtures and non-reusable from non-HTTP contexts (CLI tools, background jobs, Lambda functions).
+Phases 1 and 2 are **COMPLETE**. The service layer foundation is fully operational with 113 unit tests across 4 test modules.
 
-The extraction creates four services -- `QueryService`, `TaskService`, `SectionService`, and `DataFrameService` -- that encapsulate all business logic behind protocol-defined interfaces. Route handlers become thin adapters that parse HTTP requests, call service methods, and map results/errors to HTTP responses.
+### Phase 1: Foundation -- COMPLETE
 
-### Solution Summary
+| Artifact | Path | LOC | Evidence |
+|----------|------|-----|----------|
+| Service errors | `services/errors.py` | 343 | 13 exception classes, `get_status_for_error()` MRO walker, `SERVICE_ERROR_MAP` (exceeds v1.0 spec of 6 classes) |
+| EntityContext | `services/entity_context.py` | 41 | Frozen dataclass with `entity_type`, `project_gid`, `descriptor`, `bot_pat` |
+| EntityService | `services/entity_service.py` | 148 | Constructor injection of `EntityRegistry` + `EntityProjectRegistry`. `validate_entity_type()` returns `EntityContext`. `get_queryable_entities()` delegates to `get_resolvable_entities()` |
+| DI wiring | `api/dependencies.py:466-546` | +80 | `get_entity_service()` singleton on `app.state`, `get_task_service()`, `get_section_service()`. Type aliases: `EntityServiceDep`, `TaskServiceDep`, `SectionServiceDep` |
 
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| `QueryServiceProtocol` | `services/protocols.py` | Interface for query operations |
-| `TaskServiceProtocol` | `services/protocols.py` | Interface for task CRUD + invalidation |
-| `SectionServiceProtocol` | `services/protocols.py` | Interface for section CRUD + invalidation |
-| `DataFrameServiceProtocol` | `services/protocols.py` | Interface for DataFrame build operations |
-| `QueryServiceImpl` | `services/query_service.py` | Implementation (extends existing EntityQueryService) |
-| `TaskServiceImpl` | `services/task_service.py` | Task business logic extracted from routes |
-| `SectionServiceImpl` | `services/section_service.py` | Section business logic extracted from routes |
-| `DataFrameServiceImpl` | `services/dataframe_service.py` | DataFrame build logic extracted from routes |
-| DI wiring | `api/dependencies.py` | FastAPI Depends() factories for service injection |
+### Phase 2: TaskService + SectionService -- COMPLETE
 
----
+| Artifact | Path | LOC | Tests | Test Count |
+|----------|------|-----|-------|------------|
+| TaskService | `services/task_service.py` | 634 | `test_task_service.py` (516 LOC) | 25 |
+| SectionService | `services/section_service.py` | 274 | `test_section_service.py` (311 LOC) | 16 |
+| EntityService | `services/entity_service.py` | 148 | `test_entity_service.py` (246 LOC) | 10 |
+| Service errors | `services/errors.py` | 343 | `test_service_errors.py` (365 LOC) | 62 |
 
-## Problem Statement
+### Route Delegation Status
 
-### Current State
+| Route File | Current LOC | Thin Adapter? | SC-1 (<30 lines/endpoint) |
+|------------|-------------|---------------|---------------------------|
+| `routes/tasks.py` | 578 (16 endpoints) | YES | YES -- longest is `list_tasks()` at 20 lines |
+| `routes/sections.py` | 224 (6 endpoints) | YES | YES -- longest is `reorder_section()` at 12 lines |
+| `routes/query.py` | 372 (2 endpoints) | PARTIAL | NO -- `query_rows` is ~80 lines with inline orchestration |
+| `routes/query_v2.py` | 294 (2 endpoints) | NO | NO -- inline entity validation duplicated across both endpoints |
+| `routes/dataframes.py` | 556 (2 endpoints) | NO | NO -- endpoints are ~180 lines each |
 
-Business logic is embedded directly in route handler functions across four modules:
+### Success Criteria Already Met
 
-| Route Module | Business Logic Embedded | Lines of Logic vs HTTP |
-|-------------|------------------------|----------------------|
-| `api/routes/query.py` (666 lines) | Entity validation, project registry lookup, bot PAT acquisition, section resolution, predicate stripping, QueryEngine orchestration | ~70% business, ~30% HTTP |
-| `api/routes/tasks.py` (737 lines) | Parameter validation, SDK call orchestration, MutationEvent construction, project GID extraction | ~50% business, ~50% HTTP |
-| `api/routes/sections.py` (289 lines) | SDK call orchestration, MutationEvent construction, project GID extraction from responses | ~45% business, ~55% HTTP |
-| `api/routes/dataframes.py` (554 lines) | Schema resolution, opt_fields construction, DataFrame building, content negotiation, Polars serialization | ~65% business, ~35% HTTP |
-
-### Specific Problems
-
-**1. Untestable without HTTP layer**: To test that `query_entities` correctly validates entity types, you must construct a full FastAPI TestClient request. The validation logic (`_get_queryable_entities()`, `_validate_fields()`, project registry lookup) cannot be tested in isolation.
-
-**2. Non-reusable**: The Lambda cache warmer in `api/main.py` (`_preload_dataframe_cache_progressive`) duplicates entity resolution and DataFrame building logic because it cannot call route handlers. Background jobs that need to create tasks or query entities must re-implement the business logic.
-
-**3. Interleaved concerns**: In `query_entities()`, a single function handles: request logging, entity type validation, field validation, project registry lookup, bot PAT acquisition, query service invocation, response construction, deprecation headers, and completion logging. This makes the function difficult to reason about and modify safely.
-
-**4. Scattered entity resolution**: Each route module independently performs entity type validation and project GID lookup against `EntityProjectRegistry`. With B1 EntityRegistry now available, these should delegate to a single `EntityService` that provides validated entity context.
-
-**5. Duplicated mutation event construction**: Both `tasks.py` and `sections.py` construct `MutationEvent` instances with identical patterns (extract project GIDs, set entity kind, fire-and-forget). This logic belongs in a service that encapsulates the invalidation concern.
-
-### Why Now
-
-B1 EntityRegistry (Sprint 2) provides the foundation this extraction needs. Services can use `EntityRegistry.get()` and `EntityRegistry.require()` for entity resolution instead of the scattered `EntityProjectRegistry` / `get_resolvable_entities()` pattern currently duplicated across route handlers. Without B1, we would be extracting logic that still depends on the fragmented entity knowledge -- creating services that are marginally better than the status quo.
+| ID | Criterion | Status |
+|----|-----------|--------|
+| SC-2 | Zero `HTTPException` in services/ | MET. `grep -r "HTTPException" services/` returns 0 hits |
+| SC-5 | Services usable without FastAPI | MET. All test files instantiate services with plain constructors |
+| SC-6 | EntityService uses B1 EntityRegistry | MET. `entity_service.py:91` calls `self._entity_registry.require()` |
+| SC-7 | MutationEvent construction consolidated | MET. `grep -r "MutationEvent(" api/routes/` returns 0 hits |
 
 ---
 
-## Goals and Non-Goals
+## Remaining Work
 
-### Goals
+### Phase 3: QueryService DI Wiring + query_v2.py Alignment
 
-| ID | Goal | Rationale |
-|----|------|-----------|
-| G1 | Extract all business logic from `query.py`, `tasks.py`, `sections.py`, `dataframes.py` into service classes | Separation of concerns |
-| G2 | Service classes testable with mock dependencies, zero HTTP fixtures | Testability |
-| G3 | Services use B1 EntityRegistry for entity resolution | Single source of truth |
-| G4 | Route handlers become thin adapters (<30 lines per endpoint) | Readability |
-| G5 | Services callable from non-HTTP contexts (Lambda, CLI, background tasks) | Reusability |
-| G6 | Preserve all existing route behavior (100% backward compatible) | Safety |
-| G7 | Services receive dependencies via constructor injection | Explicit dependency graph |
+**Goal**: Eliminate inline entity resolution from `query_v2.py` and complete DI wiring for `query.py`.
 
-### Non-Goals
+**Scope**: 3 files modified, 1 file augmented (dependencies.py).
 
-| ID | Non-Goal | Rationale |
-|----|----------|-----------|
-| NG1 | Changing any external API contract (URLs, request/response shapes, status codes) | Backward compatibility |
-| NG2 | Duplicating MutationInvalidator logic (A1, Sprint 1) | Services call existing invalidator |
-| NG3 | Introducing a message bus or event system | Premature -- fire-and-forget via asyncio.create_task suffices |
-| NG4 | Extracting authentication logic from `dependencies.py` | Auth concern is already properly separated |
-| NG5 | Replacing existing `EntityQueryService` | Extend and rename, preserving the working implementation |
-| NG6 | Creating abstract base classes for every service | Protocols (structural typing) over ABCs per ADR-SLE-001 |
+#### 3.1 query_v2.py: Replace Inline Entity Resolution with EntityServiceDep
 
----
+`query_v2.py` contains the inline entity resolution pattern at two locations:
 
-## Service Inventory
+1. **`query_rows()` lines 68-117** (50 lines): `get_resolvable_entities()` check, `EntityProjectRegistry` from `app.state`, `get_bot_pat()`, manual section index construction.
+2. **`query_aggregate()` lines 187-236** (50 lines): Exact copy of the same pattern.
 
-### Business Logic Extraction Map
-
-This section catalogs every piece of business logic currently embedded in route handlers, and maps it to its target service.
-
-#### From `api/routes/query.py`
-
-| Logic Block | Current Location | Target Service | Method |
-|------------|-----------------|----------------|--------|
-| Entity type validation | `_get_queryable_entities()` + handler check | `EntityService` | `validate_entity_type(entity_type) -> EntityContext` |
-| Field validation against schema | `_validate_fields()` | `QueryService` | `validate_fields(fields, entity_type, field_type)` |
-| Project GID resolution | `entity_registry.get_project_gid()` + null checks | `EntityService` | `resolve_project_gid(entity_type) -> str` |
-| Bot PAT acquisition | `get_bot_pat()` + error handling | `EntityService` | `get_bot_pat() -> str` |
-| Section resolution | `_resolve_section()` | `QueryService` | `resolve_section(section_name, entity_type, project_gid)` |
-| Section predicate stripping | inline in `query_rows()` | `QueryService` | `prepare_request(request_body, entity_type, project_gid)` |
-| Query execution (legacy) | `query_service.query()` call | `QueryService` | `query(params) -> QueryResult` |
-| Query execution (rows) | `engine.execute_rows()` call | `QueryService` | `query_rows(params) -> RowsResponse` |
-
-#### From `api/routes/tasks.py`
-
-| Logic Block | Current Location | Target Service | Method |
-|------------|-----------------|----------------|--------|
-| List parameter validation | `list_tasks()` inline | `TaskService` | `list_tasks(project, section, limit, offset)` |
-| Task CRUD orchestration | `create_task()`, `update_task()`, `delete_task()` | `TaskService` | `create(params)`, `update(gid, params)`, `delete(gid)` |
-| MutationEvent construction | inline in each handler | `TaskService` | Internal to service (encapsulated) |
-| Project GID extraction from response | `extract_project_gids(task)` calls | `TaskService` | Internal to service |
-| Subtask/dependent listing | `list_subtasks()`, `list_dependents()` | `TaskService` | `list_subtasks(gid, limit, offset)`, `list_dependents(gid, limit, offset)` |
-| Tag operations | `add_tag()`, `remove_tag()` | `TaskService` | `add_tag(gid, tag_gid)`, `remove_tag(gid, tag_gid)` |
-| Membership operations | `move_to_section()`, `set_assignee()`, `add_to_project()`, `remove_from_project()` | `TaskService` | Corresponding methods |
-
-#### From `api/routes/sections.py`
-
-| Logic Block | Current Location | Target Service | Method |
-|------------|-----------------|----------------|--------|
-| Section CRUD orchestration | `create_section()`, `update_section()`, `delete_section()` | `SectionService` | `create(params)`, `update(gid, params)`, `delete(gid)` |
-| MutationEvent construction | inline in each handler | `SectionService` | Internal to service |
-| Project GID extraction from response | inline `section.get("project")` | `SectionService` | Internal to service |
-| Task-to-section operations | `add_task_to_section()` | `SectionService` | `add_task(section_gid, task_gid)` |
-| Reorder validation | `reorder_section()` inline | `SectionService` | `reorder(gid, project_gid, before, after)` |
-
-#### From `api/routes/dataframes.py`
-
-| Logic Block | Current Location | Target Service | Method |
-|------------|-----------------|----------------|--------|
-| Schema resolution | `_get_schema_mapping()`, `_get_schema()` | `DataFrameService` | `get_schema(schema_name) -> DataFrameSchema` |
-| opt_fields construction | hardcoded list in both endpoints | `DataFrameService` | `get_opt_fields() -> list[str]` |
-| DataFrame building (project) | `get_project_dataframe()` inline | `DataFrameService` | `build_project_dataframe(gid, schema, client)` |
-| DataFrame building (section) | `get_section_dataframe()` inline | `DataFrameService` | `build_section_dataframe(gid, schema, client)` |
-| Content negotiation | `_should_use_polars_format()` | Route handler (HTTP concern) | Stays in route |
-
----
-
-## Proposed Architecture
-
-### Layer Diagram
-
-```
-+---------------------------------------------------------------+
-|                     HTTP Layer (routes/)                        |
-|  Thin adapters: parse request, call service, format response   |
-+---------------------------------------------------------------+
-                              |
-                    Depends() injection
-                              |
-+---------------------------------------------------------------+
-|                   Service Layer (services/)                     |
-|  Business logic: validation, orchestration, invalidation       |
-|                                                                |
-|  +------------------+  +------------------+  +---------------+ |
-|  | EntityService    |  | QueryService     |  | TaskService   | |
-|  | (shared context) |  | (query ops)      |  | (CRUD + inv.) | |
-|  +------------------+  +------------------+  +---------------+ |
-|  +------------------+  +------------------+                    |
-|  | SectionService   |  | DataFrameService |                    |
-|  | (CRUD + inv.)    |  | (build ops)      |                    |
-|  +------------------+  +------------------+                    |
-+---------------------------------------------------------------+
-                              |
-                    Constructor injection
-                              |
-+---------------------------------------------------------------+
-|                  Infrastructure Layer                           |
-|  EntityRegistry, AsanaClient, MutationInvalidator,             |
-|  QueryEngine, SchemaRegistry, SectionPersistence               |
-+---------------------------------------------------------------+
-```
-
-### Key Principle: Entity Context as First-Class Object
-
-Currently, every route handler independently resolves entity context: validate entity type, look up project GID, acquire bot PAT, check registry readiness. This is extracted into an `EntityContext` dataclass returned by `EntityService`:
+Both endpoints should receive `EntityServiceDep` and replace the 50-line inline block with:
 
 ```python
-@dataclass(frozen=True)
-class EntityContext:
-    """Validated entity context for service operations."""
-    entity_type: str
-    project_gid: str
-    descriptor: EntityDescriptor  # From B1 EntityRegistry
-    bot_pat: str
+try:
+    ctx = entity_service.validate_entity_type(entity_type)
+except ServiceError as e:
+    raise HTTPException(status_code=get_status_for_error(e), detail=e.to_dict())
 ```
 
-Services that need entity context accept it as a parameter rather than resolving it themselves. This eliminates the 4-way duplication of entity resolution across route modules.
-
----
-
-## Component Design: Service Protocols
-
-### Location: `src/autom8_asana/services/protocols.py`
-
-All service interfaces are defined as `typing.Protocol` classes. This enables structural typing -- any class with matching methods satisfies the protocol without explicit inheritance. This is the Python-native approach and avoids ABC registration overhead.
+**Section index construction** (lines 119-131, 238-249) uses `SectionIndex.from_manifest_async()` with a manifest-first, enum-fallback pattern that differs from `query.py`'s simpler enum-only fallback. This logic should move to `resolve_section_index()` on `query_service.py` as a module-level function (consistent with existing `validate_fields()` and `resolve_section()` pattern):
 
 ```python
-from __future__ import annotations
-from typing import Any, Protocol, runtime_checkable
-from dataclasses import dataclass
+async def resolve_section_index(
+    section_name: str | None,
+    entity_type: str,
+    project_gid: str,
+) -> SectionIndex | None:
+    """Build section index with manifest-first, enum-fallback strategy.
 
-@dataclass(frozen=True)
-class EntityContext:
-    """Validated entity context for service operations."""
-    entity_type: str
-    project_gid: str
-    descriptor: EntityDescriptor
-    bot_pat: str
-
-
-@runtime_checkable
-class EntityServiceProtocol(Protocol):
-    """Entity resolution and validation service."""
-
-    def validate_entity_type(self, entity_type: str) -> EntityContext:
-        """Validate entity type and return full context.
-
-        Raises:
-            UnknownEntityError: Entity type not resolvable.
-            ServiceNotConfiguredError: Registry not ready or bot PAT missing.
-        """
-        ...
-
-    def get_queryable_entities(self) -> set[str]:
-        """Get entity types that support querying."""
-        ...
-
-
-@runtime_checkable
-class QueryServiceProtocol(Protocol):
-    """Query operations on DataFrame cache."""
-
-    async def query_legacy(
-        self,
-        ctx: EntityContext,
-        client: AsanaClient,
-        where: dict[str, Any],
-        select: list[str] | None,
-        limit: int,
-        offset: int,
-    ) -> QueryResult:
-        """Execute legacy equality-filter query."""
-        ...
-
-    async def query_rows(
-        self,
-        ctx: EntityContext,
-        client: AsanaClient,
-        request: RowsRequest,
-    ) -> RowsResponse:
-        """Execute composable predicate query."""
-        ...
-
-    def validate_fields(
-        self,
-        fields: list[str],
-        entity_type: str,
-    ) -> None:
-        """Validate fields against entity schema.
-
-        Raises:
-            InvalidFieldError: Field not in schema.
-        """
-        ...
-
-
-@runtime_checkable
-class TaskServiceProtocol(Protocol):
-    """Task CRUD operations with cache invalidation."""
-
-    async def list_tasks(
-        self,
-        client: AsanaClient,
-        project: str | None,
-        section: str | None,
-        limit: int,
-        offset: str | None,
-    ) -> ServiceListResult:
-        """List tasks by project or section.
-
-        Raises:
-            InvalidParameterError: Neither or both of project/section.
-        """
-        ...
-
-    async def get_task(
-        self,
-        client: AsanaClient,
-        gid: str,
-        opt_fields: list[str] | None,
-    ) -> dict[str, Any]:
-        """Get task by GID."""
-        ...
-
-    async def create_task(
-        self,
-        client: AsanaClient,
-        params: CreateTaskParams,
-    ) -> dict[str, Any]:
-        """Create task and fire invalidation event."""
-        ...
-
-    async def update_task(
-        self,
-        client: AsanaClient,
-        gid: str,
-        params: UpdateTaskParams,
-    ) -> dict[str, Any]:
-        """Update task and fire invalidation event."""
-        ...
-
-    async def delete_task(
-        self,
-        client: AsanaClient,
-        gid: str,
-    ) -> None:
-        """Delete task and fire invalidation event."""
-        ...
-
-
-@runtime_checkable
-class SectionServiceProtocol(Protocol):
-    """Section CRUD operations with cache invalidation."""
-
-    async def get_section(
-        self,
-        client: AsanaClient,
-        gid: str,
-    ) -> dict[str, Any]:
-        """Get section by GID."""
-        ...
-
-    async def create_section(
-        self,
-        client: AsanaClient,
-        name: str,
-        project: str,
-    ) -> dict[str, Any]:
-        """Create section and fire invalidation event."""
-        ...
-
-    async def update_section(
-        self,
-        client: AsanaClient,
-        gid: str,
-        name: str,
-    ) -> dict[str, Any]:
-        """Update section and fire invalidation event."""
-        ...
-
-    async def delete_section(
-        self,
-        client: AsanaClient,
-        gid: str,
-    ) -> None:
-        """Delete section and fire invalidation event."""
-        ...
-
-
-@runtime_checkable
-class DataFrameServiceProtocol(Protocol):
-    """DataFrame build operations."""
-
-    async def build_project_dataframe(
-        self,
-        client: AsanaClient,
-        project_gid: str,
-        schema_name: str,
-        limit: int,
-        offset: str | None,
-    ) -> DataFrameResult:
-        """Build DataFrame for project tasks."""
-        ...
-
-    async def build_section_dataframe(
-        self,
-        client: AsanaClient,
-        section_gid: str,
-        schema_name: str,
-        limit: int,
-        offset: str | None,
-    ) -> DataFrameResult:
-        """Build DataFrame for section tasks."""
-        ...
-```
-
----
-
-## Component Design: Service Implementations
-
-### EntityService
-
-**Location**: `src/autom8_asana/services/entity_service.py`
-
-The EntityService consolidates entity resolution logic that is currently duplicated across all four route modules. It wraps B1 EntityRegistry and `EntityProjectRegistry` with validation logic and bot PAT acquisition.
-
-```python
-class EntityService:
-    """Entity resolution service backed by B1 EntityRegistry.
-
-    Consolidates the entity validation + project lookup + bot PAT
-    acquisition pattern currently duplicated across route handlers.
+    Returns None if section_name is None.
     """
+    if section_name is None:
+        return None
 
-    def __init__(
-        self,
-        entity_registry: EntityRegistry,
-        project_registry: EntityProjectRegistry,
-    ) -> None:
-        self._entity_registry = entity_registry
-        self._project_registry = project_registry
+    from autom8_asana.dataframes.section_persistence import create_section_persistence
+    from autom8_asana.metrics.resolve import SectionIndex
 
-    def validate_entity_type(self, entity_type: str) -> EntityContext:
-        queryable = self.get_queryable_entities()
-        if entity_type not in queryable:
-            raise UnknownEntityError(entity_type, sorted(queryable))
-
-        descriptor = self._entity_registry.require(entity_type)
-        project_gid = self._project_registry.get_project_gid(entity_type)
-
-        if project_gid is None:
-            raise ServiceNotConfiguredError(
-                f"No project configured for entity type: {entity_type}"
-            )
-
-        from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
-        try:
-            bot_pat = get_bot_pat()
-        except BotPATError as e:
-            raise ServiceNotConfiguredError(f"Bot PAT not configured: {e}")
-
-        return EntityContext(
-            entity_type=entity_type,
-            project_gid=project_gid,
-            descriptor=descriptor,
-            bot_pat=bot_pat,
-        )
-
-    def get_queryable_entities(self) -> set[str]:
-        return get_resolvable_entities(
-            project_registry=self._project_registry,
-        )
+    persistence = create_section_persistence()
+    section_index = await SectionIndex.from_manifest_async(persistence, project_gid)
+    if section_index.resolve(section_name) is None:
+        section_index = SectionIndex.from_enum_fallback(entity_type)
+    return section_index
 ```
 
-### QueryService (extends existing EntityQueryService)
-
-**Location**: `src/autom8_asana/services/query_service.py` (modified)
-
-The existing `EntityQueryService` already contains the core query logic. The extraction adds:
-1. Field validation (from `_validate_fields()` in query.py)
-2. Section resolution (from `_resolve_section()` in query.py)
-3. Request preparation (section predicate stripping)
-4. QueryEngine orchestration (from `query_rows()` handler)
+**entity_project_registry parameter**: `query_v2.py` line 143 passes `entity_project_registry=registry` to `engine.execute_rows()`. After migration, this should use `request.app.state.entity_project_registry` accessed via a lightweight dependency or passed from `EntityServiceDep` (EntityService already holds `_project_registry`). Add a property to EntityService:
 
 ```python
-class QueryService(EntityQueryService):
-    """Extended query service with validation and section resolution.
-
-    Inherits DataFrame query mechanics from EntityQueryService.
-    Adds field validation, section resolution, and request preparation
-    extracted from route handlers.
-    """
-
-    def validate_fields(
-        self,
-        fields: list[str],
-        entity_type: str,
-    ) -> None:
-        """Validate fields against entity schema.
-
-        Raises:
-            InvalidFieldError: With available_fields for error response.
-        """
-        registry = SchemaRegistry.get_instance()
-        schema_key = to_pascal_case(entity_type)
-        try:
-            schema = registry.get_schema(schema_key)
-        except SchemaNotFoundError:
-            schema = registry.get_schema("*")
-
-        valid_fields = set(schema.column_names())
-        invalid_fields = set(fields) - valid_fields
-
-        if invalid_fields:
-            raise InvalidFieldError(
-                invalid_fields=sorted(invalid_fields),
-                available_fields=sorted(valid_fields),
-            )
-
-    async def resolve_section(
-        self,
-        section_name: str,
-        entity_type: str,
-        project_gid: str,
-    ) -> str:
-        """Validate section name against manifest or enum fallback.
-
-        Raises:
-            UnknownSectionError: Section name not found.
-        """
-        # Logic extracted from _resolve_section() in query.py
-        ...
-
-    def prepare_rows_request(
-        self,
-        request: RowsRequest,
-        entity_type: str,
-        project_gid: str,
-    ) -> tuple[RowsRequest, SectionIndex | None]:
-        """Prepare rows request: validate section, strip conflicts.
-
-        Returns:
-            Tuple of (possibly modified request, section_index or None).
-        """
-        ...
-
-    async def query_rows(
-        self,
-        ctx: EntityContext,
-        client: AsanaClient,
-        request: RowsRequest,
-    ) -> RowsResponse:
-        """Execute composable predicate query.
-
-        Orchestrates: section resolution, predicate stripping,
-        QueryEngine execution, error mapping.
-        """
-        request, section_index = self.prepare_rows_request(
-            request, ctx.entity_type, ctx.project_gid
-        )
-        engine = QueryEngine()
-        return await engine.execute_rows(
-            entity_type=ctx.entity_type,
-            project_gid=ctx.project_gid,
-            client=client,
-            request=request,
-            section_index=section_index,
-        )
+@property
+def project_registry(self) -> EntityProjectRegistry:
+    """Expose project registry for callers that need it directly."""
+    return self._project_registry
 ```
 
-### TaskService
+#### 3.2 query.py: Remove Inline _get_query_service() and Complete DI
 
-**Location**: `src/autom8_asana/services/task_service.py`
+`query.py` line 112 creates `EntityQueryService` inline via `_get_query_service()`. This conflicts with the DI pattern already in use for `EntityServiceDep`. The fix:
 
-Encapsulates task CRUD operations with integrated cache invalidation. The service owns MutationEvent construction, eliminating the repeated `extract_project_gids()` + `invalidator.fire_and_forget()` pattern from each route handler.
+1. Remove `_get_query_service()` (line 112-114).
+2. The `EntityQueryService` instantiation at line 178 becomes `EntityQueryService()` directly in the handler. This is acceptable because `EntityQueryService` is stateless-per-request (dataclass with `_last_freshness_info` state). Creating it inline is equivalent to DI -- the class has no constructor dependencies that need injection.
+
+**Decision**: Do NOT create `QueryServiceDep` or a DI factory for `EntityQueryService`. The service has no constructor dependencies that benefit from injection. The current `EntityQueryService()` call is self-contained. Adding DI would add complexity without value. The module-level functions `validate_fields()` and `resolve_section()` remain as imports.
+
+**Rationale**: TaskService and SectionService benefit from DI because they receive `MutationInvalidator` (a request-scoped, app-state-dependent object). `EntityQueryService` takes an optional `strategy_factory` with a sensible default. There is no hidden dependency to inject.
+
+#### 3.3 Move _has_section_pred and Section Stripping to query_service.py
+
+The `_has_section_pred()` helper (query.py lines 117-129) and the section predicate stripping logic (lines 310-322) are business logic that belongs in the service layer. Add to `query_service.py`:
 
 ```python
-@dataclass
-class ServiceListResult:
-    """Paginated list result from service layer."""
-    data: list[dict[str, Any]]
-    has_more: bool
-    next_offset: str | None
+def strip_section_conflicts(
+    request_body: RowsRequest,
+    section_name: str | None,
+) -> RowsRequest:
+    """Strip section predicates if section parameter conflicts.
 
+    Per EC-006: When both ?section param and predicate tree contain
+    section comparisons, the param wins and predicates are stripped.
 
-class TaskService:
-    """Task CRUD operations with integrated cache invalidation.
-
-    Encapsulates:
-    - Asana SDK task client calls
-    - MutationEvent construction from response data
-    - Fire-and-forget invalidation via MutationInvalidator
+    Returns the request unmodified if no conflict exists.
     """
+    if section_name is None or request_body.where is None:
+        return request_body
+    if not _has_section_pred(request_body.where):
+        return request_body
 
-    def __init__(
-        self,
-        invalidator: MutationInvalidator,
-    ) -> None:
-        self._invalidator = invalidator
-
-    async def create_task(
-        self,
-        client: AsanaClient,
-        params: CreateTaskParams,
-    ) -> dict[str, Any]:
-        if params.projects is None and params.workspace is None:
-            raise InvalidParameterError(
-                "Either 'projects' or 'workspace' must be provided"
-            )
-
-        kwargs: dict[str, Any] = {}
-        if params.notes: kwargs["notes"] = params.notes
-        if params.assignee: kwargs["assignee"] = params.assignee
-        if params.due_on: kwargs["due_on"] = params.due_on
-
-        task = await client.tasks.create_async(
-            name=params.name,
-            projects=params.projects,
-            workspace=params.workspace,
-            raw=True,
-            **kwargs,
-        )
-
-        # Encapsulated invalidation
-        project_gids = extract_project_gids(task) or (params.projects or [])
-        task_gid = task.get("gid", "") if isinstance(task, dict) else ""
-        self._invalidator.fire_and_forget(MutationEvent(
-            entity_kind=EntityKind.TASK,
-            entity_gid=task_gid,
-            mutation_type=MutationType.CREATE,
-            project_gids=list(project_gids),
-        ))
-
-        return task
-
-    # Similar pattern for update_task, delete_task, etc.
+    stripped = strip_section_predicates(request_body.where)
+    return request_body.model_copy(update={"where": stripped})
 ```
 
-### SectionService
+#### 3.4 Phase 3 Task List
 
-**Location**: `src/autom8_asana/services/section_service.py`
+| Task | File | Description |
+|------|------|-------------|
+| 3.1 | `services/query_service.py` | Add `resolve_section_index()` and `strip_section_conflicts()` module functions |
+| 3.2 | `services/entity_service.py` | Add `project_registry` property |
+| 3.3 | `api/routes/query_v2.py` | Replace inline entity resolution with `EntityServiceDep`, replace inline section index with `resolve_section_index()` |
+| 3.4 | `api/routes/query.py` | Remove `_get_query_service()`, remove `_has_section_pred()`, use `strip_section_conflicts()` |
+| 3.5 | `api/dependencies.py` | No changes needed -- EntityServiceDep already exists |
+| 3.6 | Tests | Add/update `test_query_service.py` for new functions. Update `test_routes_query_rows.py` and `test_routes_query_aggregate.py` for EntityServiceDep |
 
-Mirrors TaskService for section operations. Encapsulates SDK calls and invalidation.
+**Acceptance**: All existing query API tests pass. `query_v2.py` has zero `get_resolvable_entities()` calls. `query.py` has zero `_get_query_service()` or `_has_section_pred()`.
 
-### DataFrameService
+---
+
+### Phase 4: DataFrameService Extraction
+
+**Goal**: Extract business logic from `dataframes.py` into `DataFrameService`. Route becomes a thin adapter handling only HTTP concerns (content negotiation, response formatting).
+
+**Scope**: 1 new file, 2 modified files, 1 new test file.
+
+#### 4.1 Design Analysis: Two Build Paths
+
+The current `dataframes.py` has two fundamentally different build paths:
+
+**Project path** (`get_project_dataframe`, lines 196-350):
+1. Fetches tasks via `client._http.get_paginated("/tasks", params)` with pagination
+2. Creates `InMemoryCacheProvider()` + `UnifiedTaskStore` per-request
+3. Creates `DataFrameViewPlugin(schema, store, resolver)`
+4. Calls `view_plugin._extract_rows_async(data, project_gid=gid)` (async, returns list of dicts)
+5. Constructs `pl.DataFrame` from rows
+
+**Section path** (`get_section_dataframe`, lines 383-553):
+1. Fetches section metadata via `client._http.get("/sections/{gid}", ...)` for parent project GID
+2. Fetches tasks via `client._http.get_paginated("/tasks", params)` with pagination
+3. Converts raw data to `Task` model instances
+4. Creates `SectionProxy` inline class as adapter
+5. Creates `SectionDataFrameBuilder(section=proxy, task_type="*", schema, resolver)`
+6. Calls `builder.build(tasks=tasks)` (sync, returns `pl.DataFrame` directly)
+
+**Key difference**: The project path uses async extraction via `DataFrameViewPlugin._extract_rows_async()` returning raw dicts, while the section path uses sync extraction via `SectionDataFrameBuilder.build()` returning a DataFrame directly. The project path needs `UnifiedTaskStore`; the section path does not.
+
+#### 4.2 DataFrameService Design
+
+The service abstracts over both paths by providing two methods with a common return type. It does NOT attempt to unify the internal build paths -- they serve different purposes and forcing them into a single abstraction would be artificial.
 
 **Location**: `src/autom8_asana/services/dataframe_service.py`
 
-Extracts DataFrame building logic from the dataframes route. Encapsulates schema resolution, opt_fields construction, and DataFrame assembly.
-
 ```python
-@dataclass
+"""DataFrame build service.
+
+Extracts schema resolution, opt_fields management, and DataFrame
+construction from route handlers into a testable service.
+
+Per TDD-SERVICE-LAYER-001 v2.0 Phase 4.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, ClassVar
+
+import polars as pl
+from autom8y_log import get_logger
+
+from autom8_asana.dataframes.models.registry import SchemaRegistry
+from autom8_asana.dataframes.models.schema import DataFrameSchema
+from autom8_asana.services.errors import InvalidParameterError
+
+if TYPE_CHECKING:
+    from autom8_asana.client import AsanaClient
+
+logger = get_logger(__name__)
+
+
+class InvalidSchemaError(InvalidParameterError):
+    """Schema name not found in SchemaRegistry."""
+
+    def __init__(self, schema_name: str, valid_schemas: list[str]) -> None:
+        self.schema_name = schema_name
+        self.valid_schemas = valid_schemas
+        super().__init__(
+            f"Unknown schema '{schema_name}'. "
+            f"Valid schemas: {', '.join(valid_schemas)}"
+        )
+
+    @property
+    def error_code(self) -> str:
+        return "INVALID_SCHEMA"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "error": self.error_code,
+            "message": self.message,
+            "valid_schemas": self.valid_schemas,
+        }
+
+
+@dataclass(frozen=True)
 class DataFrameResult:
     """Result of DataFrame build operation."""
     dataframe: pl.DataFrame
@@ -661,542 +271,552 @@ class DataFrameResult:
 class DataFrameService:
     """DataFrame build operations.
 
-    Extracts schema resolution, opt_fields construction, and
-    DataFrame assembly from route handlers.
+    Extracts schema resolution, opt_fields construction, and DataFrame
+    assembly from route handlers. Handles both project-scoped and
+    section-scoped builds via separate methods.
+
+    Thread Safety: Stateless. Safe for concurrent use.
     """
 
-    # Standard opt_fields for task fetch (was duplicated in both endpoints)
+    # Standard opt_fields for task fetch (was duplicated in both endpoints).
     TASK_OPT_FIELDS: ClassVar[list[str]] = [
-        "gid", "name", "resource_type", "completed", "completed_at",
-        "created_at", "modified_at", "notes", "assignee", "assignee.name",
-        "due_on", "due_at", "start_on", "memberships.section.name",
-        "memberships.project.gid", "custom_fields", "custom_fields.gid",
-        "custom_fields.name", "custom_fields.resource_subtype",
-        "custom_fields.display_value", "custom_fields.enum_value",
-        "custom_fields.enum_value.name", "custom_fields.multi_enum_values",
-        "custom_fields.multi_enum_values.name", "custom_fields.number_value",
+        "gid",
+        "name",
+        "resource_type",
+        "completed",
+        "completed_at",
+        "created_at",
+        "modified_at",
+        "notes",
+        "assignee",
+        "assignee.name",
+        "due_on",
+        "due_at",
+        "start_on",
+        "memberships.section.name",
+        "memberships.project.gid",
+        "custom_fields",
+        "custom_fields.gid",
+        "custom_fields.name",
+        "custom_fields.resource_subtype",
+        "custom_fields.display_value",
+        "custom_fields.enum_value",
+        "custom_fields.enum_value.name",
+        "custom_fields.multi_enum_values",
+        "custom_fields.multi_enum_values.name",
+        "custom_fields.number_value",
         "custom_fields.text_value",
     ]
 
     def get_schema(self, schema_name: str) -> DataFrameSchema:
         """Resolve schema name to DataFrameSchema.
 
+        Handles normalization, wildcard blocking, and fallback to base.
+
+        Args:
+            schema_name: Schema name from API request (case-insensitive).
+
+        Returns:
+            DataFrameSchema from registry.
+
         Raises:
             InvalidSchemaError: Schema name not found.
         """
-        ...
+        mapping, valid_schemas = self._get_schema_mapping()
+
+        if not schema_name or not schema_name.strip():
+            return SchemaRegistry.get_instance().get_schema("*")
+
+        normalized = schema_name.lower().strip()
+
+        if normalized == "*":
+            raise InvalidSchemaError("*", valid_schemas)
+
+        task_type = mapping.get(normalized)
+        if task_type is None:
+            raise InvalidSchemaError(schema_name, valid_schemas)
+
+        return SchemaRegistry.get_instance().get_schema(task_type)
 
     async def build_project_dataframe(
         self,
         client: AsanaClient,
         project_gid: str,
-        schema_name: str,
+        schema: DataFrameSchema,
         limit: int,
         offset: str | None,
     ) -> DataFrameResult:
-        """Build DataFrame for project tasks."""
-        ...
+        """Build DataFrame for project tasks.
+
+        Uses DataFrameViewPlugin._extract_rows_async() for async
+        extraction with UnifiedTaskStore backing.
+
+        Args:
+            client: AsanaClient for API calls.
+            project_gid: Asana project GID.
+            schema: Resolved DataFrameSchema.
+            limit: Page size.
+            offset: Pagination cursor.
+
+        Returns:
+            DataFrameResult with DataFrame and pagination info.
+        """
+        from autom8_asana._defaults.cache import InMemoryCacheProvider
+        from autom8_asana.cache.providers.unified import UnifiedTaskStore
+        from autom8_asana.dataframes import DefaultCustomFieldResolver
+        from autom8_asana.dataframes.views.dataframe_view import (
+            DataFrameViewPlugin,
+        )
+
+        params: dict[str, Any] = {
+            "project": project_gid,
+            "limit": limit,
+            "opt_fields": ",".join(self.TASK_OPT_FIELDS),
+        }
+        if offset:
+            params["offset"] = offset
+
+        data, next_offset = await client._http.get_paginated(
+            "/tasks", params=params
+        )
+
+        resolver = DefaultCustomFieldResolver()
+        unified_store = UnifiedTaskStore(cache=InMemoryCacheProvider())
+        view_plugin = DataFrameViewPlugin(
+            schema=schema,
+            store=unified_store,
+            resolver=resolver,
+        )
+
+        rows = await view_plugin._extract_rows_async(
+            data, project_gid=project_gid
+        )
+        if rows:
+            df = pl.DataFrame(rows, schema=schema.to_polars_schema())
+        else:
+            df = pl.DataFrame(schema=schema.to_polars_schema())
+
+        return DataFrameResult(
+            dataframe=df,
+            has_more=next_offset is not None,
+            next_offset=next_offset,
+        )
+
+    async def build_section_dataframe(
+        self,
+        client: AsanaClient,
+        section_gid: str,
+        schema: DataFrameSchema,
+        limit: int,
+        offset: str | None,
+    ) -> tuple[DataFrameResult, str]:
+        """Build DataFrame for section tasks.
+
+        Uses SectionDataFrameBuilder.build() for synchronous extraction
+        with Task model conversion.
+
+        Args:
+            client: AsanaClient for API calls.
+            section_gid: Asana section GID.
+            schema: Resolved DataFrameSchema.
+            limit: Page size.
+            offset: Pagination cursor.
+
+        Returns:
+            Tuple of (DataFrameResult, project_gid). The project_gid
+            is returned because it is resolved during the section
+            fetch and the route may need it for response metadata.
+
+        Raises:
+            EntityNotFoundError: Section not found or has no parent project.
+        """
+        from autom8_asana.dataframes import (
+            DefaultCustomFieldResolver,
+            SectionDataFrameBuilder,
+        )
+        from autom8_asana.models.task import Task
+        from autom8_asana.services.errors import EntityNotFoundError
+
+        # Fetch section to get parent project GID
+        section_data = await client._http.get(
+            f"/sections/{section_gid}",
+            params={"opt_fields": "project.gid"},
+        )
+        project_gid = section_data.get("project", {}).get("gid")
+
+        if not project_gid:
+            raise EntityNotFoundError(
+                "Section not found or has no parent project"
+            )
+
+        # Fetch section tasks
+        params: dict[str, Any] = {
+            "section": section_gid,
+            "limit": limit,
+            "opt_fields": ",".join(self.TASK_OPT_FIELDS),
+        }
+        if offset:
+            params["offset"] = offset
+
+        data, next_offset = await client._http.get_paginated(
+            "/tasks", params=params
+        )
+
+        # Convert to Task models for SectionDataFrameBuilder
+        tasks = [Task.model_validate(t) for t in data]
+
+        resolver = DefaultCustomFieldResolver()
+
+        # SectionDataFrameBuilder expects a section-like object
+        # with .gid, .project, and .tasks attributes.
+        section_proxy = _SectionProxy(section_gid, project_gid, tasks)
+
+        builder = SectionDataFrameBuilder(
+            section=section_proxy,
+            task_type="*",
+            schema=schema,
+            resolver=resolver,
+        )
+        df = builder.build(tasks=tasks)
+
+        return (
+            DataFrameResult(
+                dataframe=df,
+                has_more=next_offset is not None,
+                next_offset=next_offset,
+            ),
+            project_gid,
+        )
+
+    @staticmethod
+    def _get_schema_mapping() -> tuple[dict[str, str], list[str]]:
+        """Get schema name -> task_type mapping.
+
+        Uses module-level cache for thread-safe lazy initialization.
+        See Decision #4 for rationale on keeping module-level cache.
+        """
+        return _get_schema_mapping_cached()
+
+
+class _SectionProxy:
+    """Adapter for SectionDataFrameBuilder's section interface.
+
+    SectionDataFrameBuilder expects a section object with .gid,
+    .project (dict with 'gid'), and .tasks attributes. This provides
+    that interface from primitive values.
+
+    This replaces the inline class definition that was in dataframes.py.
+    """
+
+    __slots__ = ("gid", "project", "tasks")
+
+    def __init__(
+        self, gid: str, project_gid: str, tasks: list[Any]
+    ) -> None:
+        self.gid = gid
+        self.project = {"gid": project_gid}
+        self.tasks = tasks
+
+
+# Module-level cached schema mapping (thread-safe via CPython GIL).
+# See Decision #4 for rationale on keeping this at module level.
+_schema_mapping_cache: dict[str, str] | None = None
+_valid_schemas_cache: list[str] | None = None
+
+
+def _get_schema_mapping_cached() -> tuple[dict[str, str], list[str]]:
+    """Get cached schema mapping, building it if necessary.
+
+    Thread-safe: SchemaRegistry._ensure_initialized() uses locking.
+    The global assignment is atomic in CPython.
+    """
+    global _schema_mapping_cache, _valid_schemas_cache
+
+    if _schema_mapping_cache is None:
+        registry = SchemaRegistry.get_instance()
+        mapping = {"base": "*"}
+        for task_type in registry.list_task_types():
+            schema = registry.get_schema(task_type)
+            mapping[schema.name] = task_type
+
+        _schema_mapping_cache = mapping
+        _valid_schemas_cache = sorted(mapping.keys())
+
+    assert _valid_schemas_cache is not None
+    return _schema_mapping_cache, _valid_schemas_cache
 ```
 
----
+#### 4.3 DataFrameService DI Wiring
 
-## Dependency Injection Pattern
-
-### Approach: FastAPI `Depends()` with Factory Functions
-
-FastAPI's built-in dependency injection via `Depends()` is the correct pattern for this codebase. Services are instantiated per-request (or shared via singletons stored on `app.state`) and injected into route handlers via `Annotated[ServiceType, Depends(factory)]` type aliases.
-
-### Wiring in `api/dependencies.py`
+Add to `api/dependencies.py`:
 
 ```python
-# --- Service Factories ---
-
-def get_entity_service(request: Request) -> EntityService:
-    """Get EntityService from app state (singleton)."""
-    entity_service = getattr(request.app.state, "entity_service", None)
-    if entity_service is None:
-        # Lazy initialization with existing registries
-        from autom8_asana.core.entity_registry import get_registry
-        from autom8_asana.services.resolver import EntityProjectRegistry
-        from autom8_asana.services.entity_service import EntityService
-
-        entity_service = EntityService(
-            entity_registry=get_registry(),
-            project_registry=EntityProjectRegistry.get_instance(),
-        )
-        request.app.state.entity_service = entity_service
-    return entity_service
-
-
-def get_query_service() -> QueryService:
-    """Get QueryService instance."""
-    from autom8_asana.services.query_service import QueryService
-    return QueryService()
-
-
-def get_task_service(request: Request) -> TaskService:
-    """Get TaskService with MutationInvalidator."""
-    from autom8_asana.services.task_service import TaskService
-
-    invalidator = get_mutation_invalidator(request)
-    return TaskService(invalidator=invalidator)
-
-
-def get_section_service(request: Request) -> SectionService:
-    """Get SectionService with MutationInvalidator."""
-    from autom8_asana.services.section_service import SectionService
-
-    invalidator = get_mutation_invalidator(request)
-    return SectionService(invalidator=invalidator)
-
-
 def get_dataframe_service() -> DataFrameService:
-    """Get DataFrameService instance."""
+    """Get DataFrameService instance.
+
+    Stateless, cheap to create. Per-request lifecycle.
+    """
     from autom8_asana.services.dataframe_service import DataFrameService
     return DataFrameService()
 
-
-# --- Type Aliases ---
-EntityServiceDep = Annotated[EntityService, Depends(get_entity_service)]
-QueryServiceDep = Annotated[QueryService, Depends(get_query_service)]
-TaskServiceDep = Annotated[TaskService, Depends(get_task_service)]
-SectionServiceDep = Annotated[SectionService, Depends(get_section_service)]
-DataFrameServiceDep = Annotated[DataFrameService, Depends(get_dataframe_service)]
+# After existing type aliases:
+DataFrameServiceDep = Annotated["DataFrameService", Depends(get_dataframe_service)]
 ```
 
-### Lifecycle
+#### 4.4 Route Refactor: dataframes.py After Extraction
 
-| Service | Lifecycle | Reason |
-|---------|-----------|--------|
-| `EntityService` | Singleton (app.state) | Wraps singleton registries, no per-request state |
-| `QueryService` | Per-request | Contains `_last_freshness_info` state |
-| `TaskService` | Per-request | Receives request-scoped invalidator |
-| `SectionService` | Per-request | Receives request-scoped invalidator |
-| `DataFrameService` | Per-request | Stateless, cheap to create |
+After extraction, `dataframes.py` becomes a thin adapter handling only:
+- Parameter parsing (schema name, limit, offset, Accept header)
+- Schema resolution via `dataframe_service.get_schema()`
+- Delegation to `dataframe_service.build_*_dataframe()`
+- Content negotiation (`_should_use_polars_format()` stays in route -- it is an HTTP concern)
+- Response formatting (Polars JSON buffer, response envelope)
+- Error mapping (`InvalidSchemaError` -> `HTTPException`)
+
+Estimated post-refactor: ~250 LOC (from 556), with ~180 lines being response formatting, OpenAPI decorators, and parameter declarations.
+
+#### 4.5 SectionProxy Resolution
+
+The inline `SectionProxy` class (dataframes.py lines 499-503) moves to `dataframe_service.py` as `_SectionProxy` (module-private). This is the pragmatic choice:
+
+- **Option A (chosen)**: Keep the adapter as `_SectionProxy` in the service module. It is a 6-line `__slots__` class. The cost of refactoring `SectionDataFrameBuilder` to accept primitives outweighs the benefit.
+- **Option B (rejected)**: Refactor `SectionDataFrameBuilder` to accept `(gid, project_gid, tasks)` instead of a section object. This would change the builder's public API and require updating all downstream callers (builders are also used by progressive builds, not just the API route). The blast radius is not justified.
+
+#### 4.6 Phase 4 Task List
+
+| Task | File | Description |
+|------|------|-------------|
+| 4.1 | `services/dataframe_service.py` | Create DataFrameService with `get_schema()`, `build_project_dataframe()`, `build_section_dataframe()`, `InvalidSchemaError`, `DataFrameResult`, `_SectionProxy` |
+| 4.2 | `services/errors.py` | Add `InvalidSchemaError` to `SERVICE_ERROR_MAP` (maps to 400) |
+| 4.3 | `api/dependencies.py` | Add `get_dataframe_service()` factory and `DataFrameServiceDep` alias |
+| 4.4 | `api/routes/dataframes.py` | Refactor to delegate to `DataFrameServiceDep`. Remove `_get_schema_mapping()`, `_get_schema()`, duplicated `opt_fields`, `SectionProxy` class, module-level cache variables |
+| 4.5 | `tests/unit/services/test_dataframe_service.py` | Unit tests for schema resolution, project build, section build, error cases |
+| 4.6 | Regression | Run `tests/api/test_routes_dataframes.py` (1020 LOC) to verify no behavior change |
+
+**Acceptance**: `dataframes.py` has zero `HTTPException` raises for schema errors (uses `InvalidSchemaError`). Opt_fields list exists in exactly one place (`DataFrameService.TASK_OPT_FIELDS`). No inline `class SectionProxy` in route file.
 
 ---
 
-## EntityRegistry Integration
+## Decision Log (Answers to 7 Critical Questions)
 
-### Before (Current State)
+### Decision 1: Should query_v2.py use EntityServiceDep?
 
-Route handlers perform entity resolution via multiple scattered patterns:
+**YES.** query_v2.py duplicates the exact 50-line entity resolution pattern that EntityService exists to eliminate. The duplication appears twice (lines 68-117 for `/rows`, lines 187-236 for `/aggregate`), making it 100 lines of boilerplate. The likely reason it was not wired during initial implementation is that query_v2.py was created after the EntityService was built but before the wiring pattern was established in query.py. This is an oversight, not a deliberate decision.
 
-```python
-# In query.py -- uses get_resolvable_entities() + EntityProjectRegistry
-queryable_types = _get_queryable_entities()
-if entity_type not in queryable_types:
-    raise HTTPException(status_code=404, ...)
+Phase 3 includes this work.
 
-entity_registry = getattr(request.app.state, "entity_project_registry", None)
-if entity_registry is None or not entity_registry.is_ready():
-    raise HTTPException(status_code=503, ...)
+### Decision 2: Drop Protocol pattern or retrofit?
 
-project_gid = entity_registry.get_project_gid(entity_type)
-if project_gid is None:
-    raise HTTPException(status_code=503, ...)
-```
+**DROP.** ADR-SLE-001 is superseded. The four shipped services (EntityService, TaskService, SectionService, EntityQueryService) all operate as concrete classes. No consumer imports or type-checks against a Protocol. Tests mock concrete classes directly. Retrofitting Protocols for only DataFrameService would create an inconsistency worse than having no Protocols at all.
 
-This 15-line pattern is repeated in both `query_entities()` and `query_rows()` with minor variations.
+**ADR-SLE-001 Addendum**: Status changed from ACCEPTED to SUPERSEDED. The Protocol pattern was evaluated during Phase 1 implementation and found to add type-annotation overhead without practical benefit in a codebase that does not run `mypy --strict`. Concrete classes with constructor injection provide sufficient testability. If `mypy --strict` is adopted in the future, Protocols can be added to all services in a single pass.
 
-### After (With EntityService)
+### Decision 3: How to handle 2 divergent DataFrame build paths?
 
-```python
-# In query.py route handler -- single call
-try:
-    ctx = entity_service.validate_entity_type(entity_type)
-except UnknownEntityError as e:
-    raise HTTPException(status_code=404, detail=e.to_dict())
-except ServiceNotConfiguredError as e:
-    raise HTTPException(status_code=503, detail=e.to_dict())
-```
+**Keep them separate.** `DataFrameService.build_project_dataframe()` uses `DataFrameViewPlugin._extract_rows_async()` (async, dict-based). `DataFrameService.build_section_dataframe()` uses `SectionDataFrameBuilder.build()` (sync, Task-model-based). Both return `DataFrameResult` -- the common return type is the abstraction boundary.
 
-### EntityService Internals Using B1 Registry
+Forcing these into a single method with a `scope: Literal["project", "section"]` parameter would create a false abstraction. The paths have different input types (`project_gid` vs `section_gid`), different intermediate representations (raw dicts vs Task models), different lifecycle requirements (`UnifiedTaskStore` vs none), and different sync/async behaviors. The route already knows which path to call based on the URL.
 
-```python
-def validate_entity_type(self, entity_type: str) -> EntityContext:
-    # B1 EntityRegistry provides O(1) lookup
-    descriptor = self._entity_registry.get(entity_type)
-    if descriptor is None:
-        raise UnknownEntityError(
-            entity_type,
-            available=self._entity_registry.all_names(),
-        )
+### Decision 4: Module-level schema cache -- move to service or keep singleton?
 
-    # Check if entity has schema + project (resolvable)
-    if not descriptor.has_project:
-        raise UnknownEntityError(entity_type, ...)
+**Keep module-level singleton, accessed via service method.** The cache (`_schema_mapping`, `_valid_schemas`) has the following properties:
 
-    project_gid = self._project_registry.get_project_gid(entity_type)
-    if project_gid is None:
-        raise ServiceNotConfiguredError(...)
+1. **Immutable after first write**: SchemaRegistry contents do not change after initialization.
+2. **Thread-safe via CPython GIL**: The single global assignment is atomic.
+3. **Process-lifetime validity**: Schema registration happens at import time.
 
-    bot_pat = self._acquire_bot_pat()
+Moving this into the service instance would mean either (a) the service must be a singleton (contradicting per-request lifecycle), or (b) every request rebuilds the mapping (wasteful). The module-level cache accessed via `DataFrameService._get_schema_mapping()` (which delegates to the module function) preserves the correct semantics while providing a testable API surface.
 
-    return EntityContext(
-        entity_type=entity_type,
-        project_gid=project_gid,
-        descriptor=descriptor,
-        bot_pat=bot_pat,
-    )
-```
+For testing, the module-level cache can be reset by setting `_schema_mapping_cache = None` in test fixtures, exactly as the current `_schema_mapping = None` pattern works.
+
+### Decision 5: Should resolver.py (456 lines) be in scope?
+
+**NO.** `resolver.py` serves the entity resolution domain (POST `/v1/resolve/{entity_type}`), not the query/CRUD domain. It uses `get_resolvable_entities()` and `EntityProjectRegistry` from `app.state` -- the same inline pattern as query_v2.py -- but its business logic is fundamentally different (resolution strategies, criteria validation, field filtering).
+
+Extracting resolver.py into an `EntityResolverService` is a separate initiative. The inline entity validation in resolver.py (lines 218-237, 240-279) duplicates the EntityService pattern and should eventually be replaced with `EntityServiceDep`, but this is lower priority because:
+
+1. resolver.py has a richer validation flow (strategy lookup, criteria validation, field validation against schema) that does not cleanly map to `validate_entity_type()` alone.
+2. The endpoint has its own test suite and is actively evolving (Entity Resolution Hardening initiative).
+3. Mixing resolver.py into I2 would expand the blast radius beyond the query/CRUD/DataFrame scope.
+
+**Deferred to**: Future initiative (INIT-ER-002 or a service-layer sweep).
+
+### Decision 6: Reconcile FieldWriteService invalidator pattern with ADR-SLE-002?
+
+**Accept as documented variance.** ADR-SLE-002 mandates constructor injection for service dependencies. FieldWriteService receives `client` and `write_registry` via constructor but `mutation_invalidator` via method parameter (`write_async(... mutation_invalidator=None)`).
+
+This is intentional, not a violation:
+
+1. `FieldWriteService` is constructed per-request with a pre-validated `AsanaClient` and `EntityWriteRegistry`. These are true dependencies.
+2. `mutation_invalidator` is optional (None disables invalidation) and is a cross-cutting concern. The caller (entity_write route) decides whether to pass it based on app.state availability.
+3. The pattern matches the TDD's own guidance (ADR-SLE-002 note): "Method parameter injection (passing `client` per-call) is appropriate for per-request resources."
+
+**ADR-SLE-002 Addendum**: Constructor injection is the default for service dependencies. Optional cross-cutting concerns (invalidation, telemetry) MAY be passed per-call when their availability depends on runtime state and their absence should not prevent service construction.
+
+### Decision 7: How does inline _get_query_service() interact with DI QueryServiceDep?
+
+**Remove _get_query_service(); do NOT create QueryServiceDep.** The interaction is unnecessary.
+
+`query.py` line 112 defines `_get_query_service() -> EntityQueryService` which returns `EntityQueryService()` with no arguments. Line 178 calls it: `query_service = _get_query_service()`. This is a zero-dependency factory.
+
+`EntityQueryService` is a `@dataclass` with an optional `strategy_factory` that defaults to `get_universal_strategy`. It has no constructor dependencies that benefit from DI injection. Creating a `QueryServiceDep` would add infrastructure (factory function, type alias, Depends chain) for a class that is self-sufficient.
+
+**Action**: Delete `_get_query_service()`. Replace `query_service = _get_query_service()` with `query_service = EntityQueryService()` directly. This is explicit, readable, and does not pretend there is a dependency graph to manage.
 
 ---
 
-## Error Handling at Service Boundary
+## ADRs
 
-### Service-Level Exceptions
+### ADR-SLE-001 (Revised): Protocols Superseded by Concrete Classes
 
-Services raise domain-specific exceptions. Route handlers map these to HTTP responses. This inverts the current pattern where business validation directly raises `HTTPException`.
+**Status**: SUPERSEDED (was ACCEPTED in v1.0)
 
-**Location**: `src/autom8_asana/services/errors.py`
+**Context**: v1.0 mandated `typing.Protocol` for all service interfaces. During Phase 1-2 implementation, Protocols were not created. Four services shipped as concrete classes with constructor injection.
 
-```python
-class ServiceError(Exception):
-    """Base class for service-layer errors."""
+**Decision**: Drop the Protocol requirement. Services are concrete classes. No `services/protocols.py` will be created.
 
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize to API error response format."""
-        return {"error": self.error_code, "message": str(self)}
+**Rationale**: Protocols add value when (a) multiple implementations exist, (b) `mypy --strict` enforces structural typing, or (c) services are consumed across package boundaries. None apply here. All services have exactly one implementation. `mypy --strict` is not in use. Services are consumed within the same package.
 
-    @property
-    def error_code(self) -> str:
-        return "SERVICE_ERROR"
+**Consequences**: Positive: less boilerplate, simpler import graph. Negative: no compile-time interface checking. Mitigation: comprehensive service unit tests (113 tests) serve as the de facto contract.
 
+### ADR-SLE-002 (Amended): Constructor Injection with Per-Call Variance
 
-class UnknownEntityError(ServiceError):
-    """Entity type not resolvable."""
+**Status**: ACCEPTED (amended from v1.0)
 
-    def __init__(self, entity_type: str, available: list[str]) -> None:
-        self.entity_type = entity_type
-        self.available = available
-        super().__init__(f"Unknown entity type: {entity_type}")
+**Original Decision**: Constructor injection for all service dependencies.
 
-    @property
-    def error_code(self) -> str:
-        return "UNKNOWN_ENTITY_TYPE"
+**Amendment**: Optional cross-cutting concerns (e.g., `mutation_invalidator`) MAY be passed as method parameters when their availability depends on runtime state. This is not a violation but a documented variance for concerns that are truly optional.
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "error": self.error_code,
-            "message": str(self),
-            "available_types": self.available,
-        }
+**Evidence**: `FieldWriteService.write_async(mutation_invalidator=None)` -- invalidation is optional. `TaskService.__init__(invalidator=...)` -- invalidation is required for task CRUD. The distinction is whether the concern is integral (constructor) or supplementary (method).
 
+### ADR-SLE-003: Service Errors as Domain Exceptions (Unchanged)
 
-class ServiceNotConfiguredError(ServiceError):
-    """Required service dependency not available."""
+**Status**: ACCEPTED (no changes from v1.0)
 
-    @property
-    def error_code(self) -> str:
-        return "SERVICE_NOT_CONFIGURED"
-
-
-class InvalidFieldError(ServiceError):
-    """Field not valid for entity schema."""
-
-    def __init__(self, invalid_fields: list[str], available_fields: list[str]) -> None:
-        self.invalid_fields = invalid_fields
-        self.available_fields = available_fields
-        super().__init__(f"Invalid fields: {invalid_fields}")
-
-    @property
-    def error_code(self) -> str:
-        return "INVALID_FIELD"
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "error": self.error_code,
-            "message": str(self),
-            "available_fields": self.available_fields,
-        }
-
-
-class InvalidParameterError(ServiceError):
-    """Invalid request parameter."""
-
-    @property
-    def error_code(self) -> str:
-        return "INVALID_PARAMETER"
-
-
-class CacheNotReadyError(ServiceError):
-    """Cache not warmed for requested entity."""
-
-    @property
-    def error_code(self) -> str:
-        return "CACHE_NOT_WARMED"
-```
-
-### Error Mapping in Route Handlers
-
-Route handlers have a single error-mapping responsibility:
-
-```python
-# Standard error mapping pattern for all routes
-SERVICE_ERROR_MAP: dict[type, int] = {
-    UnknownEntityError: 404,
-    InvalidFieldError: 422,
-    InvalidParameterError: 400,
-    ServiceNotConfiguredError: 503,
-    CacheNotReadyError: 503,
-}
-
-def map_service_error(error: ServiceError) -> HTTPException:
-    """Map service error to HTTP response."""
-    status_code = SERVICE_ERROR_MAP.get(type(error), 500)
-    return HTTPException(status_code=status_code, detail=error.to_dict())
-```
+Services raise `ServiceError` subclasses. Routes catch and map to `HTTPException` via `get_status_for_error()`. This remains the governing pattern.
 
 ---
 
 ## Migration Plan
 
-### Phase 1: Foundation (No Route Changes)
+### Phase 3: QueryService DI Wiring + query_v2.py Alignment (1 Sprint)
 
-Create service infrastructure without modifying any routes. All new code, zero risk.
+#### Commit 1: Extract section index + section conflict helpers to query_service.py
 
-| Task | File | Description |
-|------|------|-------------|
-| 1.1 | `services/errors.py` | Service exception hierarchy |
-| 1.2 | `services/protocols.py` | Protocol definitions + EntityContext dataclass |
-| 1.3 | `services/entity_service.py` | EntityService implementation |
-| 1.4 | `api/dependencies.py` | Add service factory functions and type aliases |
-| 1.5 | Tests | Unit tests for EntityService, error hierarchy |
+```
+Modified: services/query_service.py
+  - Add resolve_section_index() module function
+  - Add strip_section_conflicts() module function
+  - Move _has_section_pred() from query.py (renamed, module-private)
 
-**Acceptance**: All new tests pass. No existing tests affected.
+Modified: services/entity_service.py
+  - Add project_registry property
 
-### Phase 2: TaskService + SectionService Extraction
+New/Modified: tests/unit/services/test_query_service.py
+  - Tests for resolve_section_index() (manifest-first, enum-fallback, None case)
+  - Tests for strip_section_conflicts() (no conflict, conflict strips, no section)
+```
 
-These are the simplest extractions -- the route handlers are mostly thin SDK wrappers with MutationEvent construction.
+**Verify**: `.venv/bin/pytest tests/unit/services/test_query_service.py -x -q`
 
-| Task | File | Description |
-|------|------|-------------|
-| 2.1 | `services/task_service.py` | TaskService with all 13 operations |
-| 2.2 | `services/section_service.py` | SectionService with all 6 operations |
-| 2.3 | `api/routes/tasks.py` | Refactor to delegate to TaskService |
-| 2.4 | `api/routes/sections.py` | Refactor to delegate to SectionService |
-| 2.5 | Tests | Service unit tests + integration regression |
+#### Commit 2: Wire query_v2.py to EntityServiceDep
 
-**Acceptance**: All existing API tests pass unchanged. Service tests cover all operations without HTTP fixtures.
+```
+Modified: api/routes/query_v2.py
+  - Add EntityServiceDep parameter to query_rows() and query_aggregate()
+  - Replace inline entity resolution (lines 68-117, 187-236) with:
+    ctx = entity_service.validate_entity_type(entity_type)
+  - Replace inline section index construction with resolve_section_index()
+  - Use entity_service.project_registry for engine.execute_rows() parameter
+  - Remove imports: get_resolvable_entities, EntityProjectRegistry
+  - Add imports: EntityServiceDep, ServiceError, get_status_for_error, resolve_section_index
+```
 
-### Phase 3: QueryService Enhancement
+**Verify**: `.venv/bin/pytest tests/api/test_routes_query_rows.py tests/api/test_routes_query_aggregate.py -x -q`
 
-Extend existing `EntityQueryService` with field validation, section resolution, and request preparation.
+#### Commit 3: Clean up query.py inline factories
 
-| Task | File | Description |
-|------|------|-------------|
-| 3.1 | `services/query_service.py` | Add `validate_fields`, `resolve_section`, `prepare_rows_request`, `query_rows` |
-| 3.2 | `api/routes/query.py` | Refactor both endpoints to delegate to QueryService |
-| 3.3 | Tests | Service unit tests + route integration regression |
+```
+Modified: api/routes/query.py
+  - Remove _get_query_service() (line 112-114)
+  - Remove _has_section_pred() (lines 117-129)
+  - Replace query_service = _get_query_service() with EntityQueryService() direct
+  - Replace inline section stripping (lines 310-322) with strip_section_conflicts()
+  - Import strip_section_conflicts from services.query_service
+```
 
-**Acceptance**: All existing query API tests pass unchanged. Section resolution testable without HTTP.
+**Verify**: `.venv/bin/pytest tests/api/test_routes_query.py -x -q`
 
-### Phase 4: DataFrameService Extraction
+#### Commit 4: Full regression
 
-Most complex extraction due to schema resolution and Polars operations.
+**Verify**: `.venv/bin/pytest tests/ -x -q --timeout=60`
 
-| Task | File | Description |
-|------|------|-------------|
-| 4.1 | `services/dataframe_service.py` | DataFrameService with schema resolution and build |
-| 4.2 | `api/routes/dataframes.py` | Refactor to delegate to DataFrameService |
-| 4.3 | Tests | Service unit tests + route integration regression |
+### Phase 4: DataFrameService Extraction (1 Sprint)
 
-**Acceptance**: Content negotiation stays in route. Build logic testable without HTTP.
+#### Commit 1: Create DataFrameService and InvalidSchemaError
+
+```
+New: services/dataframe_service.py
+  - DataFrameService class
+  - InvalidSchemaError exception class
+  - DataFrameResult dataclass
+  - _SectionProxy adapter class
+  - Module-level schema mapping cache
+
+Modified: services/errors.py
+  - Import and add InvalidSchemaError to SERVICE_ERROR_MAP (400)
+
+Modified: api/dependencies.py
+  - Add get_dataframe_service() factory
+  - Add DataFrameServiceDep type alias
+
+New: tests/unit/services/test_dataframe_service.py
+  - Schema resolution: valid schema, invalid schema, wildcard rejection, empty input
+  - Build project: happy path, empty results, pagination
+  - Build section: happy path, missing project GID, pagination
+  - TASK_OPT_FIELDS: verify deduplicated (single source)
+```
+
+**Verify**: `.venv/bin/pytest tests/unit/services/test_dataframe_service.py -x -q`
+
+#### Commit 2: Refactor dataframes.py to use DataFrameServiceDep
+
+```
+Modified: api/routes/dataframes.py
+  - Add DataFrameServiceDep parameter to both endpoints
+  - Replace _get_schema_mapping(), _get_schema() with dataframe_service.get_schema()
+  - Replace inline opt_fields lists with removal (service handles internally)
+  - Replace inline DataFrame build logic with dataframe_service.build_*_dataframe()
+  - Replace inline SectionProxy with removal (service handles internally)
+  - Replace inline HTTPException for schema errors with InvalidSchemaError mapping
+  - Remove module-level _schema_mapping, _valid_schemas variables
+  - Keep _should_use_polars_format() and content negotiation in route
+  - Keep PaginationMeta construction and response envelope in route
+```
+
+**Verify**: `.venv/bin/pytest tests/api/test_routes_dataframes.py -x -q`
+
+#### Commit 3: Full regression
+
+**Verify**: `.venv/bin/pytest tests/ -x -q --timeout=60`
 
 ---
 
-## Interface Contracts
+## Updated Success Criteria
 
-### EntityContext (shared across all services)
-
-```python
-@dataclass(frozen=True)
-class EntityContext:
-    entity_type: str        # e.g., "unit", "offer"
-    project_gid: str        # Asana project GID
-    descriptor: EntityDescriptor  # From B1 EntityRegistry
-    bot_pat: str            # Bot PAT for Asana API calls
-```
-
-### ServiceListResult (used by TaskService list operations)
-
-```python
-@dataclass
-class ServiceListResult:
-    data: list[dict[str, Any]]
-    has_more: bool
-    next_offset: str | None
-```
-
-### DataFrameResult (used by DataFrameService)
-
-```python
-@dataclass
-class DataFrameResult:
-    dataframe: pl.DataFrame
-    has_more: bool
-    next_offset: str | None
-```
-
-### QueryResult (existing, extended)
-
-```python
-@dataclass
-class QueryResult:
-    data: list[dict[str, Any]]
-    total_count: int
-    project_gid: str
-```
-
----
-
-## Data Flow Diagrams
-
-### Before: Query Request Flow (current)
-
-```
-HTTP Request
-    |
-    v
-query_entities() route handler
-    |-- validate entity type (inline, 15 lines)
-    |-- validate fields (calls _validate_fields(), 15 lines)
-    |-- resolve project GID (inline, 12 lines)
-    |-- acquire bot PAT (inline, 10 lines)
-    |-- create AsanaClient (inline)
-    |-- call EntityQueryService.query() (1 line)
-    |-- build QueryResponse (5 lines)
-    |-- add deprecation headers (3 lines)
-    |-- log completion (10 lines)
-    v
-HTTP Response
-```
-
-### After: Query Request Flow (extracted)
-
-```
-HTTP Request
-    |
-    v
-query_entities() route handler (thin adapter)
-    |-- entity_service.validate_entity_type(entity_type) -> EntityContext
-    |-- query_service.validate_fields(where_fields, entity_type)
-    |-- query_service.validate_fields(select_fields, entity_type)
-    |-- async with AsanaClient(token=ctx.bot_pat) as client:
-    |       result = await query_service.query_legacy(ctx, client, ...)
-    |-- return JSONResponse(...)  # + deprecation headers
-    v
-HTTP Response
-```
-
-### Before: Task Creation Flow (current)
-
-```
-HTTP Request
-    |
-    v
-create_task() route handler
-    |-- validate projects/workspace (3 lines)
-    |-- build kwargs dict (6 lines)
-    |-- call client.tasks.create_async() (5 lines)
-    |-- extract_project_gids(task) (1 line)
-    |-- construct MutationEvent (6 lines)
-    |-- invalidator.fire_and_forget(event) (1 line)
-    |-- build_success_response(data=task) (1 line)
-    v
-HTTP Response
-```
-
-### After: Task Creation Flow (extracted)
-
-```
-HTTP Request
-    |
-    v
-create_task() route handler (thin adapter)
-    |-- task = await task_service.create_task(client, body)
-    |-- return build_success_response(data=task)
-    v
-HTTP Response
-```
-
----
-
-## Non-Functional Considerations
-
-### Performance
-
-**Impact**: Negligible. The extraction adds one function call indirection per request (service method call). No new I/O operations. No additional memory allocation beyond the EntityContext dataclass (frozen, 4 fields).
-
-**Measurement**: Before/after p99 latency comparison on the query endpoint (target: <1ms overhead).
-
-### Backward Compatibility
-
-**API Contract**: Zero changes. Same URLs, same request/response shapes, same status codes, same error formats, same deprecation headers. The `to_dict()` methods on service errors produce the identical JSON structure as the current inline `HTTPException.detail` dicts.
-
-**Import Paths**: Existing imports of `EntityQueryService` and `CacheNotWarmError` from `services/query_service.py` continue to work. The class is extended, not replaced.
-
-### Observability
-
-**Logging**: Service methods include the same structured log events as current route handlers. The log events move from route to service, but the same `entity_type`, `request_id`, and `duration_ms` fields are preserved.
-
-**Metrics**: No metric changes. Existing endpoint-level metrics continue to measure the same operations.
-
----
-
-## Test Strategy
-
-### Unit Tests for Services (no HTTP, no IO)
-
-Each service gets a dedicated test module with mock dependencies:
-
-| Test Module | Tests | Key Assertions |
-|------------|-------|----------------|
-| `tests/unit/services/test_entity_service.py` | Entity validation, unknown entity, unconfigured registry, missing bot PAT | Correct exception types with error details |
-| `tests/unit/services/test_query_service.py` | Field validation, section resolution, request preparation, legacy query, rows query | No HTTPException anywhere in service |
-| `tests/unit/services/test_task_service.py` | All 13 CRUD operations, MutationEvent construction, invalidation called | fire_and_forget called with correct event |
-| `tests/unit/services/test_section_service.py` | All 6 operations, MutationEvent construction | fire_and_forget called with correct event |
-| `tests/unit/services/test_dataframe_service.py` | Schema resolution, DataFrame build, opt_fields | Schema errors raise InvalidSchemaError |
-
-### Mock Patterns
-
-```python
-# TaskService test example -- no HTTP layer needed
-async def test_create_task_fires_invalidation():
-    mock_client = AsyncMock()
-    mock_client.tasks.create_async.return_value = {
-        "gid": "123",
-        "memberships": [{"project": {"gid": "proj-1"}}],
-    }
-    mock_invalidator = MagicMock()
-
-    service = TaskService(invalidator=mock_invalidator)
-    result = await service.create_task(
-        client=mock_client,
-        params=CreateTaskParams(name="Test", projects=["proj-1"]),
-    )
-
-    assert result["gid"] == "123"
-    mock_invalidator.fire_and_forget.assert_called_once()
-    event = mock_invalidator.fire_and_forget.call_args[0][0]
-    assert event.mutation_type == MutationType.CREATE
-    assert "proj-1" in event.project_gids
-```
-
-### Integration Regression Tests
-
-Existing API tests in `tests/api/` continue to pass unchanged. These serve as regression tests ensuring the extraction preserves behavior.
-
-### Error Boundary Tests
-
-```python
-async def test_service_errors_do_not_leak_http_exceptions():
-    """Services must raise ServiceError, never HTTPException."""
-    service = EntityService(...)
-    with pytest.raises(UnknownEntityError):  # NOT HTTPException
-        service.validate_entity_type("nonexistent")
-```
+| ID | Criterion | Measurement | Status |
+|----|-----------|-------------|--------|
+| SC-1 | All route handlers <= 30 lines (excluding decorators/docstrings) | Line count audit | PARTIAL -- tasks.py and sections.py MET. query.py, query_v2.py, dataframes.py NOT MET (targeted by Phase 3-4) |
+| SC-2 | Zero `HTTPException` raised inside any service class | `grep -r "HTTPException" services/` | MET |
+| SC-3 | All existing API tests pass without modification | `.venv/bin/pytest tests/api/ -q` | MET for Phase 1-2 routes. Phase 3-4 will be verified per-commit |
+| SC-4 | Service tests achieve 100% branch coverage on extracted logic | `.venv/bin/pytest --cov=services/` | PARTIAL -- 113 tests exist. Phase 3-4 add coverage for new functions |
+| SC-5 | Services usable without FastAPI | Standalone test: import, call, no HTTP | MET |
+| SC-6 | EntityService uses B1 EntityRegistry | Code review: `entity_service.py:91` calls `self._entity_registry.require()` | MET |
+| SC-7 | MutationEvent construction consolidated | `grep -r "MutationEvent(" api/routes/` returns 0 | MET |
+| SC-8 | p99 latency regression < 1ms | Before/after benchmark on query endpoint | NOT MEASURED -- to be verified during Phase 3 |
+| SC-9 | query_v2.py uses EntityServiceDep (NEW) | `grep "EntityServiceDep" query_v2.py` returns hits | NOT MET -- targeted by Phase 3 |
+| SC-10 | opt_fields defined in exactly one location (NEW) | `grep -r "opt_fields = \[" api/routes/dataframes.py` returns 0 | NOT MET -- targeted by Phase 4 |
+| SC-11 | Zero inline SectionProxy in route files (NEW) | `grep -r "class SectionProxy" api/routes/` returns 0 | NOT MET -- targeted by Phase 4 |
 
 ---
 
@@ -1204,101 +824,77 @@ async def test_service_errors_do_not_leak_http_exceptions():
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Behavior regression during extraction | Medium | High | Phase-by-phase migration with existing API tests as regression gate |
-| Service/route error format mismatch | Low | Medium | `to_dict()` methods produce identical JSON; snapshot tests verify |
-| Circular import from service -> infrastructure | Medium | Low | Lazy imports in factory functions (existing pattern in codebase) |
-| Over-engineering: too many service classes | Low | Low | 5 services matches 4 route modules + 1 shared (EntityService); no artificial splitting |
-| EntityRegistry/EntityProjectRegistry dual dependency | Low | Low | EntityService wraps both; future consolidation (EntityProjectRegistry -> EntityRegistry) is a follow-up |
+| query_v2.py EntityServiceDep breaks section index behavior | Medium | Medium | query_v2.py uses manifest-first section index; new `resolve_section_index()` preserves this. Test with section-parameterized queries |
+| DataFrameService changes UnifiedTaskStore lifecycle | Low | High | Per-request `InMemoryCacheProvider()` creation is preserved exactly as-is in service method. No lifecycle change |
+| Module-level schema cache reset in tests causes flaky tests | Low | Low | Existing pattern (`_schema_mapping = None` in conftest) works identically with renamed cache variable |
+| query_v2.py test mocks depend on `get_resolvable_entities` import path | Medium | Low | Update test mocks to patch `EntityServiceDep` instead. Standard FastAPI DI override pattern |
+| Performance regression from additional service-layer indirection | Low | Low | Single function call overhead. No new I/O. SC-8 gates deployment |
 
 ---
 
-## ADRs
+## Updated Attestation Table
 
-### ADR-SLE-001: Protocols Over ABCs for Service Interfaces
-
-**Context**: Service interfaces need to be defined for testability and documentation. Python offers three patterns: Abstract Base Classes (ABCs), typing.Protocol (structural typing), or no formal interface (duck typing).
-
-**Decision**: Use `typing.Protocol` with `@runtime_checkable` for all service interfaces.
-
-**Rationale**:
-- Protocols enable structural typing -- any class with matching methods satisfies the protocol without explicit registration or inheritance
-- ABCs require `register()` or inheritance, creating coupling between interface and implementation
-- `@runtime_checkable` enables `isinstance()` checks for debugging without enforcing inheritance
-- The codebase already uses Protocol patterns (e.g., `CacheProvider` protocol in `protocols/cache.py`)
-- Protocols work naturally with mock objects in tests (no need to subclass ABC)
-
-**Consequences**:
-- Positive: Clean separation, easy mocking, no import coupling
-- Negative: No enforcement that implementations cover all methods (caught by type checker, not runtime)
-- Mitigation: `mypy --strict` catches missing method implementations
-
-### ADR-SLE-002: Constructor Injection for Service Dependencies
-
-**Context**: Services need dependencies (EntityRegistry, MutationInvalidator, etc.). Options: (1) constructor injection, (2) method parameter injection, (3) module-level singletons, (4) FastAPI Depends() all the way down.
-
-**Decision**: Constructor injection for service dependencies. FastAPI `Depends()` only at the route-to-service boundary.
-
-**Rationale**:
-- Constructor injection makes the dependency graph explicit and inspectable
-- Services can be instantiated in non-HTTP contexts (Lambda, CLI) by passing dependencies directly
-- FastAPI `Depends()` is HTTP-framework-specific and should not leak into the service layer
-- Module-level singletons (current pattern for EntityProjectRegistry) create hidden coupling and hinder testing
-- Method parameter injection (passing `client` per-call) is appropriate for per-request resources like AsanaClient, which naturally vary per call
-
-**Consequences**:
-- Positive: Testable (pass mocks), reusable (non-HTTP), explicit (no hidden state)
-- Negative: Factory functions in `dependencies.py` need to wire up constructors
-- Acceptable: This is the standard FastAPI DI pattern used by the existing `get_mutation_invalidator()`
-
-### ADR-SLE-003: Service Errors as Domain Exceptions, Not HTTPException
-
-**Context**: Currently, route handlers raise `HTTPException` directly when business validation fails. Options: (1) keep HTTPException in services, (2) create service-specific exceptions mapped in routes, (3) return result objects with error states.
-
-**Decision**: Services raise domain-specific exceptions (`ServiceError` subclasses). Route handlers catch and map to `HTTPException`.
-
-**Rationale**:
-- `HTTPException` is an HTTP-framework concern that does not belong in business logic
-- Services must be usable from non-HTTP contexts where `HTTPException` has no meaning
-- Domain exceptions carry richer context (available fields, entity types) than status codes
-- The mapping is mechanical (exception type -> status code) and can be centralized
-- Error `to_dict()` methods produce the same JSON format as current `HTTPException.detail` dicts, ensuring backward compatibility
-
-**Consequences**:
-- Positive: Services portable to any transport, richer error information
-- Negative: One additional layer of exception translation in routes
-- Acceptable: Translation is a 3-line pattern per error type, easily centralized via `map_service_error()`
+| Artifact | Absolute Path | Status | LOC |
+|----------|--------------|--------|-----|
+| TDD (this document) | `/Users/tomtenuta/Code/autom8_asana/docs/design/TDD-service-layer-extraction.md` | v2.0 | - |
+| EntityService | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/services/entity_service.py` | COMPLETE | 148 |
+| EntityContext | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/services/entity_context.py` | COMPLETE | 41 |
+| TaskService | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/services/task_service.py` | COMPLETE | 634 |
+| SectionService | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/services/section_service.py` | COMPLETE | 274 |
+| Service errors | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/services/errors.py` | COMPLETE (Phase 4 adds InvalidSchemaError) | 343 |
+| QueryService | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/services/query_service.py` | PARTIAL (Phase 3 adds helpers) | 512 |
+| DataFrameService | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/services/dataframe_service.py` | NOT STARTED (Phase 4) | 0 |
+| DI wiring | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/api/dependencies.py` | COMPLETE (Phase 4 adds DataFrameServiceDep) | 574 |
+| Route: query.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/api/routes/query.py` | PARTIAL (Phase 3 cleanup) | 372 |
+| Route: query_v2.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/api/routes/query_v2.py` | NOT STARTED (Phase 3 target) | 294 |
+| Route: dataframes.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/api/routes/dataframes.py` | NOT STARTED (Phase 4 target) | 556 |
+| Route: tasks.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/api/routes/tasks.py` | COMPLETE (thin adapter) | 578 |
+| Route: sections.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/api/routes/sections.py` | COMPLETE (thin adapter) | 224 |
+| Route: resolver.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/api/routes/resolver.py` | OUT OF SCOPE | 456 |
+| FieldWriteService | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/services/field_write_service.py` | COMPLETE (accepted variance on invalidator pattern) | 361 |
+| A1 MutationInvalidator | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/cache/integration/mutation_invalidator.py` | Reference | - |
+| A1 MutationEvent | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/cache/models/mutation_event.py` | Reference | - |
+| B1 EntityRegistry | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/core/entity_registry.py` | Reference | - |
+| Test: entity_service | `/Users/tomtenuta/Code/autom8_asana/tests/unit/services/test_entity_service.py` | COMPLETE | 246 |
+| Test: task_service | `/Users/tomtenuta/Code/autom8_asana/tests/unit/services/test_task_service.py` | COMPLETE | 516 |
+| Test: section_service | `/Users/tomtenuta/Code/autom8_asana/tests/unit/services/test_section_service.py` | COMPLETE | 311 |
+| Test: service_errors | `/Users/tomtenuta/Code/autom8_asana/tests/unit/services/test_service_errors.py` | COMPLETE | 365 |
+| Test: query_service | `/Users/tomtenuta/Code/autom8_asana/tests/unit/services/test_query_service.py` | PARTIAL (Phase 3 adds tests) | 235 |
+| Test: dataframes routes | `/Users/tomtenuta/Code/autom8_asana/tests/api/test_routes_dataframes.py` | Regression gate for Phase 4 | 1020 |
+| Steel-man analysis | `/Users/tomtenuta/Code/autom8_asana/.claude/artifacts/I2-steelman-analysis.md` | Input to v2.0 | - |
+| Straw-man analysis | `/Users/tomtenuta/Code/autom8_asana/.claude/artifacts/I2-strawman-analysis.md` | Input to v2.0 | - |
 
 ---
 
-## Success Criteria
+## Non-Functional Considerations
 
-| ID | Criterion | Measurement |
-|----|-----------|-------------|
-| SC-1 | All route handlers <= 30 lines (excluding decorators/docstrings) | Line count audit |
-| SC-2 | Zero `HTTPException` raised inside any service class | Grep for `HTTPException` in `services/` |
-| SC-3 | All existing API tests pass without modification | `pytest tests/api/` green |
-| SC-4 | Service tests achieve 100% branch coverage on extracted logic | `pytest --cov=services/` |
-| SC-5 | Services usable without FastAPI (importable and callable with plain arguments) | Standalone test: import service, call method, no HTTP |
-| SC-6 | EntityService uses B1 EntityRegistry (no direct SchemaRegistry entity enumeration) | Code review: EntityService calls `get_registry()` |
-| SC-7 | MutationEvent construction consolidated (zero in route handlers) | Grep for `MutationEvent(` in `api/routes/` returns zero hits |
-| SC-8 | p99 latency regression < 1ms on query endpoint | Before/after benchmark |
+### Performance
+
+**Impact**: Negligible. Phase 3 replaces 50 lines of inline code with a single `entity_service.validate_entity_type()` call. Phase 4 adds one function call indirection per request. No new I/O operations. No additional memory allocation beyond the service object (stateless, no instance state).
+
+**Measurement**: Before/after p99 latency comparison on query and DataFrame endpoints (SC-8: target <1ms overhead).
+
+### Backward Compatibility
+
+**API Contract**: Zero changes. Same URLs, same request/response shapes, same status codes, same error formats, same deprecation headers. The `to_dict()` methods on `InvalidSchemaError` produce the identical JSON structure as the current inline `HTTPException.detail` dicts.
+
+### Observability
+
+**Logging**: Service methods include structured log events matching current route handler patterns. Log events move from route to service but preserve `entity_type`, `request_id`, and `duration_ms` fields.
 
 ---
 
-## Attestation Table
+## Handoff Checklist
 
-| Artifact | Absolute Path | Verified |
-|----------|--------------|----------|
-| TDD (this document) | `/Users/tomtenuta/Code/autom8_asana/docs/design/TDD-service-layer-extraction.md` | Yes |
-| Route: query.py (extraction source) | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/api/routes/query.py` | Read |
-| Route: tasks.py (extraction source) | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/api/routes/tasks.py` | Read |
-| Route: sections.py (extraction source) | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/api/routes/sections.py` | Read |
-| Route: dataframes.py (extraction source) | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/api/routes/dataframes.py` | Read |
-| Existing DI: dependencies.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/api/dependencies.py` | Read |
-| Existing service: query_service.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/services/query_service.py` | Read |
-| Existing service: resolver.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/services/resolver.py` | Read |
-| B1 EntityRegistry | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/core/entity_registry.py` | Read |
-| A1 MutationInvalidator | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/cache/mutation_invalidator.py` | Read |
-| A1 MutationEvent | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/cache/mutation_event.py` | Read |
-| App initialization: main.py | `/Users/tomtenuta/Code/autom8_asana/src/autom8_asana/api/main.py` | Read |
-| Architectural opportunities | `/Users/tomtenuta/Code/autom8_asana/.claude/artifacts/architectural-opportunities.md` | Read |
+Phase 3 and Phase 4 are ready for implementation when:
+
+- [x] TDD covers all remaining requirements (query_v2.py alignment, DataFrameService extraction)
+- [x] Component boundaries and responsibilities are clear (service vs route)
+- [x] Data model defined (DataFrameResult, _SectionProxy, InvalidSchemaError)
+- [x] API contracts specified (no external changes)
+- [x] ADRs document all significant decisions (7 decisions answered)
+- [x] Risks identified with mitigations (5 risks documented)
+- [x] Principal Engineer can implement without architectural questions (commit-level plan with verify commands)
+- [x] All source artifacts verified via Read tool
+
+**Estimated effort**: Phase 3 = 1 sprint. Phase 4 = 1 sprint. Total: 2 sprints to I2 completion.
