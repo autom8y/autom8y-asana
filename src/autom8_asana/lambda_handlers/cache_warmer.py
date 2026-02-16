@@ -215,6 +215,105 @@ def _self_invoke_continuation(
         )
 
 
+async def _push_gid_mappings_for_completed_entities(
+    completed_entities: list[str],
+    get_project_gid: Any,
+    cache: Any,
+    invocation_id: str,
+) -> None:
+    """Push GID mappings to autom8_data for each successfully warmed entity.
+
+    Per SPIKE-BREAK-CIRCULAR-DEP Phase 3: After cache warming, iterate over
+    completed entities, build a transient GidLookupIndex from each cached
+    DataFrame, and push mappings to autom8_data's sync endpoint.
+
+    Only entity types whose DataFrames contain the required columns
+    (office_phone, vertical, gid) will produce GID mappings. Others are
+    silently skipped.
+
+    This function is non-blocking: all errors are caught and logged so
+    that push failures never affect the cache warmer result.
+
+    Args:
+        completed_entities: Entity types that were successfully warmed.
+        get_project_gid: Callable(entity_type) -> project_gid or None.
+        cache: DataFrameCache instance for retrieving warmed DataFrames.
+        invocation_id: Lambda invocation ID for log correlation.
+    """
+    from autom8_asana.services.gid_lookup import GidLookupIndex
+    from autom8_asana.services.gid_push import push_gid_mappings_to_data_service
+
+    push_count = 0
+
+    for entity_type in completed_entities:
+        project_gid = get_project_gid(entity_type)
+        if not project_gid:
+            continue
+
+        try:
+            # Retrieve the cached DataFrame
+            entry = await cache.get_async(project_gid, entity_type)
+            if entry is None or entry.dataframe is None:
+                continue
+
+            df = entry.dataframe
+
+            # Attempt to build a GidLookupIndex; skip if columns are missing
+            try:
+                index = GidLookupIndex.from_dataframe(df)
+            except KeyError:
+                # DataFrame lacks office_phone/vertical/gid columns -- not
+                # a GID-bearing entity type (e.g., offer, contact). Skip.
+                continue
+
+            if len(index) == 0:
+                continue
+
+            # Push mappings (non-blocking -- failures logged internally)
+            success = await push_gid_mappings_to_data_service(
+                project_gid=project_gid,
+                index=index,
+            )
+
+            if success:
+                push_count += 1
+                emit_metric(
+                    "GidPushSuccess",
+                    1,
+                    dimensions={"entity_type": entity_type},
+                )
+            else:
+                emit_metric(
+                    "GidPushFailure",
+                    1,
+                    dimensions={"entity_type": entity_type},
+                )
+
+        except (
+            Exception
+        ) as e:  # BROAD-CATCH: isolation -- push failure must never fail cache warmer
+            logger.warning(
+                "gid_push_entity_error",
+                extra={
+                    "entity_type": entity_type,
+                    "project_gid": project_gid,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "invocation_id": invocation_id,
+                },
+            )
+
+    if push_count > 0:
+        logger.info(
+            "gid_push_complete",
+            extra={
+                "push_count": push_count,
+                "total_entities": len(completed_entities),
+                "invocation_id": invocation_id,
+            },
+        )
+
+
 async def _warm_cache_async(
     entity_types: list[str] | None = None,
     strict: bool = True,
@@ -591,6 +690,19 @@ async def _warm_cache_async(
 
         # All entities completed - clear checkpoint
         checkpoint_cleared = await checkpoint_mgr.clear_async()
+
+        # ----------------------------------------------------------------
+        # GID mapping push (Phase 3: SPIKE-BREAK-CIRCULAR-DEP)
+        # After warming completes, push GID mappings to autom8_data for
+        # each successfully warmed entity type. Non-blocking: failures are
+        # logged but do not affect the cache warmer's success status.
+        # ----------------------------------------------------------------
+        await _push_gid_mappings_for_completed_entities(
+            completed_entities=completed_entities,
+            get_project_gid=get_project_gid,
+            cache=cache,
+            invocation_id=invocation_id,
+        )
 
         total_rows = sum(r.get("row_count", 0) for r in entity_results)
         duration_ms = (time.monotonic() - start_time) * 1000

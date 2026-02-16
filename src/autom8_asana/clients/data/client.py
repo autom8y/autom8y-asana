@@ -796,7 +796,7 @@ class DataServiceClient:
 
         # Construct and validate PhoneVerticalPair (validates E.164 format)
         try:
-            pvp = PhoneVerticalPair(office_phone=office_phone, vertical=vertical)
+            pvp = PhoneVerticalPair(phone=office_phone, vertical=vertical)
         except ValueError as e:
             raise InsightsValidationError(
                 str(e),

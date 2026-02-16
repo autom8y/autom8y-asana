@@ -13,7 +13,10 @@ import pytest
 from pydantic import ValidationError
 
 from autom8_asana.exceptions import InsightsValidationError
-from autom8_asana.models.contracts.phone_vertical import PhoneVerticalPair
+from autom8_asana.models.contracts.phone_vertical import (
+    PhoneVerticalPair,
+    pvp_from_business,
+)
 
 
 class TestPhoneVerticalPairConstruction:
@@ -284,7 +287,7 @@ class TestFromBusiness:
         business.office_phone = "+17705753103"
         business.vertical = "chiropractic"
 
-        pvp = PhoneVerticalPair.from_business(business)
+        pvp = pvp_from_business(business)
 
         assert pvp.office_phone == "+17705753103"
         assert pvp.vertical == "chiropractic"
@@ -296,7 +299,7 @@ class TestFromBusiness:
         business.vertical = "chiropractic"
 
         with pytest.raises(InsightsValidationError) as exc_info:
-            PhoneVerticalPair.from_business(business)
+            pvp_from_business(business)
 
         assert "office_phone is required" in str(exc_info.value)
         assert exc_info.value.field == "office_phone"
@@ -308,7 +311,7 @@ class TestFromBusiness:
         business.vertical = "chiropractic"
 
         with pytest.raises(InsightsValidationError) as exc_info:
-            PhoneVerticalPair.from_business(business)
+            pvp_from_business(business)
 
         assert "office_phone is required" in str(exc_info.value)
         assert exc_info.value.field == "office_phone"
@@ -320,7 +323,7 @@ class TestFromBusiness:
         business.vertical = None
 
         with pytest.raises(InsightsValidationError) as exc_info:
-            PhoneVerticalPair.from_business(business)
+            pvp_from_business(business)
 
         assert "vertical is required" in str(exc_info.value)
         assert exc_info.value.field == "vertical"
@@ -332,7 +335,7 @@ class TestFromBusiness:
         business.vertical = ""
 
         with pytest.raises(InsightsValidationError) as exc_info:
-            PhoneVerticalPair.from_business(business)
+            pvp_from_business(business)
 
         assert "vertical is required" in str(exc_info.value)
         assert exc_info.value.field == "vertical"
