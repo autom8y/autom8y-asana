@@ -526,3 +526,111 @@ class TestWriteFieldsAsyncIntegration:
         assert result.success is True
         assert "Rep" in result.fields_skipped
         assert "Vertical" in result.fields_written
+
+
+class TestWriteFieldsAsyncTargetTaskPassthrough:
+    """Tests for target_task parameter on write_fields_async (IMP-02).
+
+    When a pre-fetched task is provided, write_fields_async should skip
+    the redundant task fetch and use the provided task's custom_fields.
+    """
+
+    @pytest.mark.asyncio
+    async def test_skips_fetch_when_target_task_provided(self) -> None:
+        """When target_task is provided, no get_async call for the task."""
+        client = create_mock_client()
+
+        # Pre-build the mock task that would normally be fetched
+        mock_task = create_mock_task_with_custom_fields(
+            [
+                {
+                    "gid": "cf_vertical",
+                    "name": "Vertical",
+                    "resource_subtype": "enum",
+                    "enum_options": [
+                        {"gid": "opt_dental", "name": "Dental", "enabled": True},
+                    ],
+                },
+            ]
+        )
+
+        seeder = FieldSeeder(client)
+
+        with patch.object(
+            custom_field_accessor_module,
+            "CustomFieldAccessor",
+        ) as mock_accessor_class:
+            mock_accessor = MagicMock()
+            mock_accessor.list_available_fields.return_value = ["Vertical"]
+            mock_accessor.has_changes.return_value = True
+            mock_accessor.to_api_dict.return_value = {"cf_vertical": "opt_dental"}
+            mock_accessor_class.return_value = mock_accessor
+
+            result = await seeder.write_fields_async(
+                "task_123",
+                {"Vertical": "Dental"},
+                target_task=mock_task,
+            )
+
+        assert result.success is True
+        assert "Vertical" in result.fields_written
+        # get_async should NOT have been called since target_task was provided
+        client.tasks.get_async.assert_not_called()
+        # update_async should still be called to write the fields
+        client.tasks.update_async.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_fetches_when_target_task_not_provided(self) -> None:
+        """When target_task is None, get_async is called as before."""
+        client = create_mock_client()
+
+        mock_task = create_mock_task_with_custom_fields(
+            [
+                {
+                    "gid": "cf_vertical",
+                    "name": "Vertical",
+                    "resource_subtype": "enum",
+                    "enum_options": [
+                        {"gid": "opt_dental", "name": "Dental", "enabled": True},
+                    ],
+                },
+            ]
+        )
+        client.tasks.get_async.return_value = mock_task
+
+        seeder = FieldSeeder(client)
+
+        with patch.object(
+            custom_field_accessor_module,
+            "CustomFieldAccessor",
+        ) as mock_accessor_class:
+            mock_accessor = MagicMock()
+            mock_accessor.list_available_fields.return_value = ["Vertical"]
+            mock_accessor.has_changes.return_value = True
+            mock_accessor.to_api_dict.return_value = {"cf_vertical": "opt_dental"}
+            mock_accessor_class.return_value = mock_accessor
+
+            result = await seeder.write_fields_async(
+                "task_123",
+                {"Vertical": "Dental"},
+            )
+
+        assert result.success is True
+        # get_async should be called to fetch the target task
+        client.tasks.get_async.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_empty_fields_skips_fetch_regardless(self) -> None:
+        """Empty fields returns early before any fetch, with or without target_task."""
+        client = create_mock_client()
+        seeder = FieldSeeder(client)
+
+        result = await seeder.write_fields_async(
+            "task_123",
+            {},
+            target_task=MagicMock(),
+        )
+
+        assert result.success is True
+        assert result.fields_written == []
+        client.tasks.get_async.assert_not_called()

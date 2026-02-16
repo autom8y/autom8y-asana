@@ -398,6 +398,7 @@ class FieldSeeder:
         target_task_gid: str,
         fields: dict[str, Any],
         field_name_mapping: dict[str, str] | None = None,
+        target_task: Any | None = None,
     ) -> WriteResult:
         """Write seeded field values to target task.
 
@@ -412,6 +413,9 @@ class FieldSeeder:
             field_name_mapping: Optional mapping from source field names to target
                 field names. Use when source and target projects have different
                 custom field names. Example: {"Office Phone": "Business Phone"}.
+            target_task: Pre-fetched task with custom_fields. When provided,
+                skips the task fetch (saves 1 API call). Must include
+                custom_fields with name, resource_subtype, and enum_options.
 
         Returns:
             WriteResult with success status and details.
@@ -445,16 +449,17 @@ class FieldSeeder:
 
         try:
             # Step 1: Fetch target task with custom field definitions
-            # Include enum_options for enum field resolution
-            target_task = await self._client.tasks.get_async(
-                target_task_gid,
-                opt_fields=[
-                    "custom_fields",
-                    "custom_fields.name",
-                    "custom_fields.resource_subtype",
-                    "custom_fields.enum_options",
-                ],
-            )
+            # (skip if pre-fetched task provided)
+            if target_task is None:
+                target_task = await self._client.tasks.get_async(
+                    target_task_gid,
+                    opt_fields=[
+                        "custom_fields",
+                        "custom_fields.name",
+                        "custom_fields.resource_subtype",
+                        "custom_fields.enum_options",
+                    ],
+                )
 
             # Normalize custom fields to dicts (may be objects from API)
             # This ensures CustomFieldAccessor receives the expected dict format
