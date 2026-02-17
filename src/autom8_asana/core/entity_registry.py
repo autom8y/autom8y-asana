@@ -1,9 +1,23 @@
 """Entity Knowledge Registry -- single source of truth for entity metadata.
 
-Consolidates 53+ locations of duplicated entity knowledge into one declaration
-per entity type. All existing consumers (ENTITY_TYPES, DEFAULT_ENTITY_TTLS,
-ENTITY_ALIASES, DEFAULT_KEY_COLUMNS) become thin backward-compatible facades
-that delegate to this registry.
+Consolidates entity knowledge into one declaration per entity type. All 4
+DataFrame layer consumers are descriptor-driven:
+
+1. SchemaRegistry._ensure_initialized() -- auto-discovers schemas via
+   schema_module_path (no hardcoded imports).
+2. _create_extractor() -- resolves extractor classes via extractor_class_path
+   (no hardcoded match/case branches).
+3. ENTITY_RELATIONSHIPS -- derived from join_keys on descriptors.
+4. _build_cascading_field_registry() -- discovers providers via
+   cascading_field_provider flag.
+
+Validation checks 6a-6f run at import time to catch triad inconsistencies
+(schema/extractor/row model). Path syntax is validated at module load;
+actual import resolution is deferred to avoid circular imports (tested in
+TestDataFramePathResolution).
+
+Backward-compatible facades (ENTITY_TYPES, DEFAULT_ENTITY_TTLS,
+ENTITY_ALIASES, DEFAULT_KEY_COLUMNS) delegate to this registry.
 
 Per TDD-ENTITY-REGISTRY-001:
 - EntityDescriptor: Frozen dataclass capturing all metadata for one entity type
@@ -190,13 +204,25 @@ class EntityRegistry:
     Thread Safety:
         All state is built once at module load and never mutated.
         No locks needed for reads.
+
+    Attributes:
+        strict_triad_validation: When True, check 6d ("schema_without_extractor")
+            becomes a ValueError instead of a warning. Default: False (preserving
+            backward compatibility). Set to True after all schemas have matching
+            extractors. See ADR-S4-001 and ARCH doc section 4.3.
     """
 
-    def __init__(self, descriptors: tuple[EntityDescriptor, ...]) -> None:
+    def __init__(
+        self,
+        descriptors: tuple[EntityDescriptor, ...],
+        *,
+        strict_triad_validation: bool = False,
+    ) -> None:
         self._descriptors = descriptors
         self._by_name: dict[str, EntityDescriptor] = {}
         self._by_gid: dict[str, EntityDescriptor] = {}
         self._by_type: dict[Any, EntityDescriptor] = {}
+        self.strict_triad_validation = strict_triad_validation
 
         for d in descriptors:
             if d.name in self._by_name:
@@ -337,6 +363,14 @@ def _to_pascal(name: str) -> str:
 # =============================================================================
 # ENTITY_DESCRIPTORS: The single source of truth for all entity types.
 # Adding a new entity type means adding one entry here.
+#
+# Adding a New Entity with a DataFrame Schema (2-File Pattern):
+#   1. Add an EntityDescriptor entry below with schema_module_path set.
+#   2. Create the corresponding schema file in dataframes/schemas/.
+#   Schema files are auto-discovered via schema_module_path; no hardcoded
+#   imports needed in SchemaRegistry. Validation check 6a catches mismatches
+#   at import time. See ADR-S4-001 for the rationale behind keeping schemas
+#   as separate files rather than generating them from descriptor metadata.
 # =============================================================================
 
 ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
@@ -768,8 +802,14 @@ def _validate_registry_integrity(registry: EntityRegistry) -> None:
                     f"{desc.row_model_class_path!r} is not a valid dotted path"
                 )
 
-        # 6d: Schema without extractor (WARNING)
+        # 6d: Schema without extractor (WARNING or ERROR per strict_triad_validation)
         if desc.schema_module_path and not desc.extractor_class_path:
+            if registry.strict_triad_validation:
+                raise ValueError(
+                    f"Entity {desc.name!r}: has schema_module_path but no "
+                    f"extractor_class_path (strict_triad_validation=True). "
+                    f"See ADR-S4-001."
+                )
             logger.warning(
                 "schema_without_extractor",
                 extra={

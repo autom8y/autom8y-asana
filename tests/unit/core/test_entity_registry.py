@@ -1023,3 +1023,239 @@ class TestTriadValidation:
         # If module loaded, validation already passed at import time.
         # Re-run explicitly to confirm no regression.
         _validate_registry_integrity(EntityRegistry(ENTITY_DESCRIPTORS))
+
+
+# =============================================================================
+# Strict Triad Validation Tests (WS1-S4a Task 1)
+# =============================================================================
+
+
+class TestStrictTriadValidation:
+    """Tests for configurable severity of check 6d via strict_triad_validation."""
+
+    def test_strict_false_is_default(self) -> None:
+        """strict_triad_validation defaults to False."""
+        registry = EntityRegistry(())
+        assert registry.strict_triad_validation is False
+
+    def test_strict_false_schema_without_extractor_does_not_raise(self) -> None:
+        """With strict=False, check 6d emits warning but does not raise."""
+        descriptors = (
+            EntityDescriptor(
+                name="partial",
+                pascal_name="Partial",
+                display_name="Partial",
+                schema_module_path="some.module.SCHEMA",
+            ),
+        )
+        registry = EntityRegistry(descriptors, strict_triad_validation=False)
+        # Should complete without error (warning only)
+        _validate_registry_integrity(registry)
+
+    def test_strict_true_schema_without_extractor_raises(self) -> None:
+        """With strict=True, check 6d raises ValueError."""
+        descriptors = (
+            EntityDescriptor(
+                name="partial",
+                pascal_name="Partial",
+                display_name="Partial",
+                schema_module_path="some.module.SCHEMA",
+            ),
+        )
+        registry = EntityRegistry(descriptors, strict_triad_validation=True)
+        with pytest.raises(ValueError, match="strict_triad_validation=True"):
+            _validate_registry_integrity(registry)
+
+    def test_strict_true_complete_triad_passes(self) -> None:
+        """With strict=True, a complete triad (schema+extractor+row) passes."""
+        descriptors = (
+            EntityDescriptor(
+                name="complete",
+                pascal_name="Complete",
+                display_name="Complete",
+                schema_module_path="some.module.SCHEMA",
+                extractor_class_path="some.module.Extractor",
+                row_model_class_path="some.module.Row",
+            ),
+        )
+        registry = EntityRegistry(descriptors, strict_triad_validation=True)
+        _validate_registry_integrity(registry)
+
+    def test_strict_true_no_schema_entities_pass(self) -> None:
+        """With strict=True, entities without schemas are unaffected."""
+        descriptors = (
+            EntityDescriptor(
+                name="no_schema",
+                pascal_name="NoSchema",
+                display_name="No Schema",
+            ),
+        )
+        registry = EntityRegistry(descriptors, strict_triad_validation=True)
+        _validate_registry_integrity(registry)
+
+    def test_strict_true_error_message_includes_entity_name(self) -> None:
+        """The strict error message includes the offending entity name."""
+        descriptors = (
+            EntityDescriptor(
+                name="my_entity",
+                pascal_name="MyEntity",
+                display_name="My Entity",
+                schema_module_path="some.module.SCHEMA",
+            ),
+        )
+        registry = EntityRegistry(descriptors, strict_triad_validation=True)
+        with pytest.raises(ValueError, match="my_entity"):
+            _validate_registry_integrity(registry)
+
+    def test_production_registry_uses_strict_false(self) -> None:
+        """The production registry uses strict=False (backward compat)."""
+        registry = get_registry()
+        assert registry.strict_triad_validation is False
+
+
+# =============================================================================
+# Import-Resolution Coverage Tests (WS1-S4a Task 2)
+# =============================================================================
+
+
+class TestImportResolutionCoverage:
+    """Verify that _resolve_dotted_path() succeeds for ALL populated paths.
+
+    Extends the existing TestDataFramePathResolution tests by using
+    parametrized tests that explicitly name each entity, providing
+    clear failure diagnostics. Covers schema_module_path,
+    extractor_class_path, and row_model_class_path for every entity
+    that declares them.
+    """
+
+    @staticmethod
+    def _entities_with_path(attr_name: str) -> list[tuple[str, str]]:
+        """Collect (entity_name, path) pairs for all descriptors with the given attr set."""
+        registry = get_registry()
+        return [
+            (desc.name, getattr(desc, attr_name))
+            for desc in registry.all_descriptors()
+            if getattr(desc, attr_name) is not None
+        ]
+
+    @pytest.mark.parametrize(
+        "entity_name,path",
+        _entities_with_path.__func__("schema_module_path"),
+        ids=lambda x: x if isinstance(x, str) and "." not in x else "",
+    )
+    def test_schema_module_path_resolves(self, entity_name: str, path: str) -> None:
+        """schema_module_path for {entity_name} resolves to a real object."""
+        result = _resolve_dotted_path(path)
+        assert result is not None, (
+            f"Entity {entity_name!r}: schema_module_path {path!r} resolved to None"
+        )
+
+    @pytest.mark.parametrize(
+        "entity_name,path",
+        _entities_with_path.__func__("extractor_class_path"),
+        ids=lambda x: x if isinstance(x, str) and "." not in x else "",
+    )
+    def test_extractor_class_path_resolves(self, entity_name: str, path: str) -> None:
+        """extractor_class_path for {entity_name} resolves to a class."""
+        cls = _resolve_dotted_path(path)
+        assert isinstance(cls, type), (
+            f"Entity {entity_name!r}: extractor_class_path {path!r} "
+            f"did not resolve to a class, got {type(cls)}"
+        )
+
+    @pytest.mark.parametrize(
+        "entity_name,path",
+        _entities_with_path.__func__("row_model_class_path"),
+        ids=lambda x: x if isinstance(x, str) and "." not in x else "",
+    )
+    def test_row_model_class_path_resolves(self, entity_name: str, path: str) -> None:
+        """row_model_class_path for {entity_name} resolves to a class."""
+        cls = _resolve_dotted_path(path)
+        assert isinstance(cls, type), (
+            f"Entity {entity_name!r}: row_model_class_path {path!r} "
+            f"did not resolve to a class, got {type(cls)}"
+        )
+
+    def test_all_paths_covered(self) -> None:
+        """Ensure this test class covers every populated path across all descriptors.
+
+        Guards against new paths being added without corresponding test coverage.
+        """
+        schema_paths = self._entities_with_path("schema_module_path")
+        extractor_paths = self._entities_with_path("extractor_class_path")
+        row_model_paths = self._entities_with_path("row_model_class_path")
+
+        # Known counts from current descriptors:
+        # 6 entities with schema_module_path (business, unit, contact, offer,
+        #   asset_edit, asset_edit_holder)
+        # 2 entities with extractor_class_path (unit, contact)
+        # 2 entities with row_model_class_path (unit, contact)
+        assert len(schema_paths) >= 6, (
+            f"Expected at least 6 schema paths, got {len(schema_paths)}"
+        )
+        assert len(extractor_paths) >= 2, (
+            f"Expected at least 2 extractor paths, got {len(extractor_paths)}"
+        )
+        assert len(row_model_paths) >= 2, (
+            f"Expected at least 2 row model paths, got {len(row_model_paths)}"
+        )
+
+
+# =============================================================================
+# Schema Column Count Smoke Tests (WS1-S4a Task 3)
+# =============================================================================
+
+
+# Known baseline column counts per entity schema. If a schema changes columns,
+# this test will fail, signaling that the change is intentional (update the
+# count) or accidental (investigate).
+EXPECTED_SCHEMA_COLUMN_COUNTS: list[tuple[str, int]] = [
+    ("business", 17),
+    ("unit", 23),
+    ("contact", 25),
+    ("offer", 23),
+    ("asset_edit", 33),
+    ("asset_edit_holder", 13),
+]
+
+
+class TestSchemaColumnCountSmoke:
+    """Smoke test: verify each entity schema has the expected number of columns.
+
+    Catches accidental column removal or duplication. The expected counts
+    are baseline values from the current schema definitions. If a legitimate
+    schema change occurs, update EXPECTED_SCHEMA_COLUMN_COUNTS above.
+    """
+
+    @pytest.mark.parametrize(
+        "entity_name,expected_count",
+        EXPECTED_SCHEMA_COLUMN_COUNTS,
+        ids=[name for name, _ in EXPECTED_SCHEMA_COLUMN_COUNTS],
+    )
+    def test_schema_column_count(self, entity_name: str, expected_count: int) -> None:
+        """Schema for {entity_name} has {expected_count} columns."""
+        desc = get_registry().require(entity_name)
+        assert desc.schema_module_path is not None, (
+            f"Entity {entity_name!r} has no schema_module_path"
+        )
+        schema = _resolve_dotted_path(desc.schema_module_path)
+        actual_count = len(schema.columns)
+        assert actual_count == expected_count, (
+            f"Entity {entity_name!r}: expected {expected_count} columns, "
+            f"got {actual_count}. If this is intentional, update "
+            f"EXPECTED_SCHEMA_COLUMN_COUNTS in test_entity_registry.py."
+        )
+
+    def test_all_schema_entities_have_baselines(self) -> None:
+        """Every entity with a schema has a baseline entry in EXPECTED_SCHEMA_COLUMN_COUNTS."""
+        schema_entities = {
+            desc.name
+            for desc in get_registry().all_descriptors()
+            if desc.schema_module_path
+        }
+        baseline_entities = {name for name, _ in EXPECTED_SCHEMA_COLUMN_COUNTS}
+        missing = schema_entities - baseline_entities
+        assert not missing, (
+            f"Entities with schemas missing from EXPECTED_SCHEMA_COLUMN_COUNTS: {missing}. "
+            f"Add baseline column counts for these entities."
+        )
