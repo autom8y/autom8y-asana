@@ -409,29 +409,6 @@ class TestPopulateChildren:
         assert holder.children == []
 
 
-class TestDeprecationAlias:
-    """Test ReconciliationsHolder deprecation alias."""
-
-    def test_reconciliations_holder_emits_warning(self) -> None:
-        """Test ReconciliationsHolder emits deprecation warning."""
-        from autom8_asana.models.business.business import ReconciliationsHolder
-
-        with pytest.warns(DeprecationWarning, match="deprecated"):
-            holder = ReconciliationsHolder(gid="123", name="Test")
-
-        # Should still work
-        assert holder.gid == "123"
-
-    def test_reconciliations_holder_is_subclass(self) -> None:
-        """Test ReconciliationsHolder inherits from ReconciliationHolder."""
-        from autom8_asana.models.business.business import (
-            ReconciliationHolder,
-            ReconciliationsHolder,
-        )
-
-        assert issubclass(ReconciliationsHolder, ReconciliationHolder)
-
-
 class TestPydanticCompatibility:
     """Test Pydantic model compatibility."""
 
