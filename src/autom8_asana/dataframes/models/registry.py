@@ -131,6 +131,61 @@ class SchemaRegistry:
             self._schemas["AssetEditHolder"] = ASSET_EDIT_HOLDER_SCHEMA
             self._initialized = True
 
+            # Per TDD-ENTITY-EXT-001: Import-time validation
+            # Warn about schemas without dedicated extractors
+            try:
+                self._validate_extractor_coverage()
+            except Exception:
+                # Per R1.1: Validation MUST NOT crash startup
+                # If validation itself fails, log and continue
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "schema_validation_failed",
+                    exc_info=True,
+                )
+
+    def _validate_extractor_coverage(self) -> None:
+        """Warn about schemas that lack dedicated extractors.
+
+        Per TDD-ENTITY-EXT-001 US-7: Emits structured warnings for schemas
+        registered without hand-coded extractors. SchemaExtractor will handle
+        these at runtime, but the warning makes the situation visible in logs.
+
+        This method is called inside _ensure_initialized() and MUST NOT raise
+        exceptions that propagate to callers.
+        """
+        from autom8_asana.dataframes.schemas.base import BASE_COLUMNS
+
+        # Known hand-coded extractors by task_type
+        dedicated_extractors: set[str] = {"Unit", "Contact", "*"}
+
+        base_col_names = {c.name for c in BASE_COLUMNS}
+
+        for task_type, schema in self._schemas.items():
+            if task_type in dedicated_extractors:
+                continue  # Has a hand-coded extractor -- no warning
+
+            schema_col_names = {c.name for c in schema.columns}
+            extra_columns = schema_col_names - base_col_names
+
+            if extra_columns:
+                from autom8y_log import get_logger
+
+                get_logger(__name__).warning(
+                    "schema_using_generic_extractor",
+                    extra={
+                        "entity": task_type,
+                        "schema_name": schema.name,
+                        "extra_column_count": len(extra_columns),
+                        "note": (
+                            "SchemaExtractor will handle extraction; "
+                            "add a dedicated extractor only if custom "
+                            "derived field logic is needed"
+                        ),
+                    },
+                )
+
     def get_schema(self, task_type: str) -> DataFrameSchema:
         """Get schema for task type (FR-MODEL-004).
 

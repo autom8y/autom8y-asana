@@ -535,8 +535,22 @@ class DataFrameBuilder(ABC):
                     self._schema, self._resolver, client=self._client
                 )
             case _:
-                # For unknown types, fall back to DefaultExtractor
-                # This matches SchemaRegistry's fallback to BASE_SCHEMA
+                # Per TDD-ENTITY-EXT-001: For entity types with schemas
+                # that have columns beyond the base 12, use SchemaExtractor
+                # which dynamically generates a Pydantic row model. For
+                # truly unknown types with no schema (or base-only schemas),
+                # fall back to DefaultExtractor.
+                from autom8_asana.dataframes.extractors.schema import SchemaExtractor
+                from autom8_asana.dataframes.schemas.base import BASE_COLUMNS
+
+                base_col_names = {c.name for c in BASE_COLUMNS}
+                schema_col_names = {c.name for c in self._schema.columns}
+                has_extra_columns = bool(schema_col_names - base_col_names)
+
+                if has_extra_columns:
+                    return SchemaExtractor(
+                        self._schema, self._resolver, client=self._client
+                    )
                 return DefaultExtractor(
                     self._schema, self._resolver, client=self._client
                 )
