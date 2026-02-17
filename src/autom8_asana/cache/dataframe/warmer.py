@@ -288,6 +288,7 @@ class CacheWarmer:
                 "skipped": skipped_count,
                 "total_rows": self._stats["total_rows_warmed"],
                 "total_duration_ms": total_elapsed,
+                "entity_types": {r.entity_type: r.result.value for r in results},
             },
         )
 

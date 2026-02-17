@@ -941,6 +941,7 @@ class DataFrameCache:
             # Another task already building — coalesced
             return
 
+        success = False
         try:
             if self._build_callback is not None:
                 await self._build_callback(project_gid, entity_type)
@@ -949,18 +950,18 @@ class DataFrameCache:
                     "swr_refresh_no_callback",
                     extra={"project_gid": project_gid, "entity_type": entity_type},
                 )
+            success = True
         except Exception:  # BROAD-CATCH: isolation -- SWR refresh callback can throw any error; must not crash background task
             logger.exception(
                 "swr_refresh_failed",
                 extra={"project_gid": project_gid, "entity_type": entity_type},
             )
+        finally:
             if _HAS_METRICS:
-                record_swr_refresh(entity_type, "failure")
-            await self.release_build_lock_async(project_gid, entity_type, success=False)
-        else:
-            if _HAS_METRICS:
-                record_swr_refresh(entity_type, "success")
-            await self.release_build_lock_async(project_gid, entity_type, success=True)
+                record_swr_refresh(entity_type, "success" if success else "failure")
+            await self.release_build_lock_async(
+                project_gid, entity_type, success=success
+            )
 
 
 # Module-level singleton for easy access

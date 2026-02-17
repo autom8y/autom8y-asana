@@ -483,6 +483,9 @@ class UnifiedTaskStore:
         # Pre-compute completeness metadata (same for all tasks in batch)
         completeness_metadata = create_completeness_metadata(opt_fields)
 
+        # Track tasks with valid GIDs for hierarchy registration after cache write
+        valid_tasks: list[dict[str, Any]] = []
+
         for task in tasks:
             gid = task.get("gid")
             if not gid:
@@ -505,15 +508,15 @@ class UnifiedTaskStore:
             )
 
             entries[gid] = entry
-
-            # Register in hierarchy
-            self._hierarchy.register(task)
-
+            valid_tasks.append(task)
             cached_count += 1
 
-        # Batch store in cache
+        # Batch store in cache, then register hierarchy only on success.
+        # This prevents phantom hierarchy entries when set_batch fails.
         if entries:
             self.cache.set_batch(entries)
+            for task in valid_tasks:
+                self._hierarchy.register(task)
             self._stats["put_count"] += cached_count
 
         # INFO-level logging for hierarchy warming visibility
@@ -812,14 +815,26 @@ class UnifiedTaskStore:
         # Optionally invalidate descendants
         if cascade:
             descendant_gids = self._hierarchy.get_descendant_gids(gid)
+            failed_count = 0
             for desc_gid in descendant_gids:
-                self.cache.invalidate(desc_gid, [EntryType.TASK])
+                try:
+                    self.cache.invalidate(desc_gid, [EntryType.TASK])
+                except CACHE_TRANSIENT_ERRORS:
+                    failed_count += 1
+                    logger.warning(
+                        "cascade_invalidate_descendant_failed",
+                        extra={
+                            "gid": gid,
+                            "descendant_gid": desc_gid,
+                        },
+                    )
 
             logger.debug(
                 "unified_store_cascade_invalidate",
                 extra={
                     "gid": gid,
                     "descendant_count": len(descendant_gids),
+                    "failed_count": failed_count,
                 },
             )
 
