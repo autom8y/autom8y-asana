@@ -23,10 +23,15 @@ from autom8y_log import get_logger
 from autom8_asana.automation.base import TriggerCondition
 from autom8_asana.automation.events.types import EventType
 from autom8_asana.automation.seeding import FieldSeeder
-from autom8_asana.automation.templates import TemplateDiscovery
 from autom8_asana.automation.validation import ValidationResult
-from autom8_asana.automation.waiter import SubtaskWaiter
-from autom8_asana.core.creation import generate_entity_name
+from autom8_asana.core.creation import (
+    compute_due_date,
+    discover_template_async,
+    duplicate_from_template_async,
+    generate_entity_name,
+    place_in_section_async,
+    wait_for_subtasks_async,
+)
 from autom8_asana.core.exceptions import ASANA_API_ERRORS
 from autom8_asana.core.timing import elapsed_ms
 from autom8_asana.models.business import Process, ProcessSection, ProcessType
@@ -269,13 +274,12 @@ class PipelineConversionRule:
             actions_executed.append("lookup_target_project")
 
             # Step 2: Discover template in target project
-            # IMP-13: Include num_subtasks in template discovery to avoid a
-            # separate subtasks_async call for the subtask count.
-            template_discovery = TemplateDiscovery(context.client)
-            template_task = await template_discovery.find_template_task_async(
+            # IMP-13: discover_template_async includes num_subtasks in opt_fields
+            # to avoid a separate subtasks_async call for the subtask count.
+            template_task = await discover_template_async(
+                context.client,
                 target_project_gid,
                 template_section=stage.template_section,
-                opt_fields=["num_subtasks"],
             )
 
             if not template_task:
@@ -314,10 +318,10 @@ class PipelineConversionRule:
             expected_subtask_count = getattr(template_task, "num_subtasks", 0) or 0
 
             # Step 3b: Duplicate the template task with subtasks and notes
-            new_task = await context.client.tasks.duplicate_async(
-                template_task.gid,
-                name=new_task_name,
-                include=["subtasks", "notes"],
+            new_task = await duplicate_from_template_async(
+                context.client,
+                template_task,
+                new_task_name,
             )
 
             entities_created.append(new_task.gid)
@@ -334,11 +338,11 @@ class PipelineConversionRule:
             # Step 3e: Move task to target section (G3 Gap Fix)
             # Per PipelineStage: Place new task in configured target section
             if stage.target_section:
-                section_placed = await self._move_to_target_section_async(
-                    new_task=new_task,
-                    target_project_gid=target_project_gid,
-                    target_section_name=stage.target_section,
-                    client=context.client,
+                section_placed = await place_in_section_async(
+                    context.client,
+                    new_task.gid,
+                    target_project_gid,
+                    stage.target_section,
                 )
                 if section_placed:
                     actions_executed.append("section_placement")
@@ -347,11 +351,26 @@ class PipelineConversionRule:
             # Step 3f: Set due date if configured (G4 Gap Fix)
             # Per PipelineStage: Set due date relative to today
             if stage.due_date_offset_days is not None:
-                due_date_set = await self._set_due_date_async(
-                    new_task=new_task,
-                    offset_days=stage.due_date_offset_days,
-                    client=context.client,
-                )
+                due_date_set = False
+                try:
+                    due_on = compute_due_date(stage.due_date_offset_days)
+                    await context.client.tasks.update_async(
+                        new_task.gid,
+                        due_on=due_on,
+                    )
+                    logger.info(
+                        "pipeline_due_date_set",
+                        due_on=due_on,
+                        task_gid=new_task.gid,
+                        offset_days=stage.due_date_offset_days,
+                    )
+                    due_date_set = True
+                except ASANA_API_ERRORS as e:
+                    logger.warning(
+                        "pipeline_set_due_date_failed",
+                        task_gid=new_task.gid,
+                        error=str(e),
+                    )
                 if due_date_set:
                     actions_executed.append("set_due_date")
                 enhancement_results["due_date_set"] = due_date_set
@@ -359,11 +378,10 @@ class PipelineConversionRule:
             # Step 3d: Wait for subtasks to be created (Asana creates them async)
             # Per ADR-0111: Use polling-based wait for subtask availability
             if expected_subtask_count > 0:
-                waiter = SubtaskWaiter(context.client)
-                subtasks_ready = await waiter.wait_for_subtasks_async(
+                subtasks_ready = await wait_for_subtasks_async(
+                    context.client,
                     new_task.gid,
-                    expected_count=expected_subtask_count,
-                    timeout=2.0,
+                    expected_subtask_count,
                 )
                 if subtasks_ready:
                     actions_executed.append("wait_subtasks")
@@ -574,124 +592,6 @@ class PipelineConversionRule:
             # FR-HIER-003: Graceful degradation - log and continue
             logger.warning(
                 "pipeline_hierarchy_error",
-                task_gid=new_task.gid,
-                error=str(e),
-            )
-            return False
-
-    async def _move_to_target_section_async(
-        self,
-        new_task: Any,
-        target_project_gid: str,
-        target_section_name: str,
-        client: Any,
-    ) -> bool:
-        """Move new task to target section in the project.
-
-        Per G3 Gap Fix: Place new task in configured target section.
-        Uses case-insensitive matching for section name.
-        Graceful degradation if section not found (logs warning, continues).
-
-        Args:
-            new_task: Newly created task to move.
-            target_project_gid: GID of the target project.
-            target_section_name: Name of section to move task to.
-            client: AsanaClient for API calls.
-
-        Returns:
-            True if task was moved to section, False if section not found or error.
-        """
-        try:
-            # List sections in target project
-            sections = await client.sections.list_for_project_async(
-                target_project_gid
-            ).collect()
-
-            # Find target section by name (case-insensitive)
-            target_section_lower = target_section_name.lower()
-            target_section = next(
-                (
-                    s
-                    for s in sections
-                    if s.name and s.name.lower() == target_section_lower
-                ),
-                None,
-            )
-
-            if target_section is None:
-                logger.warning(
-                    "pipeline_section_not_found",
-                    section_name=target_section_name,
-                    project_gid=target_project_gid,
-                    task_gid=new_task.gid,
-                )
-                return False
-
-            # Move task to target section
-            await client.sections.add_task_async(
-                target_section.gid,
-                task=new_task.gid,
-            )
-
-            logger.info(
-                "pipeline_task_moved_to_section",
-                task_gid=new_task.gid,
-                section_name=target_section_name,
-                section_gid=target_section.gid,
-            )
-            return True
-
-        except ASANA_API_ERRORS as e:
-            # Graceful degradation - log and continue
-            logger.warning(
-                "pipeline_move_to_section_failed",
-                task_gid=new_task.gid,
-                section_name=target_section_name,
-                error=str(e),
-            )
-            return False
-
-    async def _set_due_date_async(
-        self,
-        new_task: Any,
-        offset_days: int,
-        client: Any,
-    ) -> bool:
-        """Set due date on new task relative to today.
-
-        Per G4 Gap Fix: Set due date as today + offset_days.
-        Supports offset 0 (today), positive (future), and negative (past).
-        Graceful degradation if API call fails.
-
-        Args:
-            new_task: Newly created task to set due date on.
-            offset_days: Number of days from today for due date.
-            client: AsanaClient for API calls.
-
-        Returns:
-            True if due date was set successfully, False otherwise.
-        """
-        try:
-            due_date = date.today() + timedelta(days=offset_days)
-            due_on = due_date.isoformat()  # "YYYY-MM-DD" format
-
-            await client.tasks.update_async(
-                new_task.gid,
-                due_on=due_on,
-            )
-
-            logger.info(
-                "pipeline_due_date_set",
-                due_on=due_on,
-                task_gid=new_task.gid,
-                offset_days=offset_days,
-            )
-            return True
-
-        except ASANA_API_ERRORS as e:
-            # Graceful degradation - log and continue
-            logger.warning(
-                "pipeline_set_due_date_failed",
                 task_gid=new_task.gid,
                 error=str(e),
             )
