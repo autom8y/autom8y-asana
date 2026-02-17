@@ -28,34 +28,43 @@ class EntityRelationship:
 
 
 # Known entity type relationships with their default join keys.
-# These are derived from the Asana subtask hierarchy and cascade field
-# extraction: parent fields cascade to children during DataFrame build.
-ENTITY_RELATIONSHIPS: list[EntityRelationship] = [
-    EntityRelationship(
-        parent_type="business",
-        child_type="unit",
-        default_join_key="office_phone",
-        description="Business is parent of Unit (office_phone cascades)",
-    ),
-    EntityRelationship(
-        parent_type="business",
-        child_type="contact",
-        default_join_key="office_phone",
-        description="Business is parent of Contact (office_phone cascades)",
-    ),
-    EntityRelationship(
-        parent_type="business",
-        child_type="offer",
-        default_join_key="office_phone",
-        description="Business is grandparent of Offer via Unit (office_phone cascades)",
-    ),
-    EntityRelationship(
-        parent_type="unit",
-        child_type="offer",
-        default_join_key="office_phone",
-        description="Unit is parent of Offer (office_phone cascades from Business)",
-    ),
-]
+# Derived from EntityDescriptor.join_keys via _build_relationships_from_registry().
+# Per ARCH-descriptor-driven-auto-wiring section 3.4: The derived list is a
+# superset of the original 4 hardcoded entries (more relationships discoverable
+# from bidirectional join_key declarations on descriptors).
+
+
+def _build_relationships_from_registry() -> list[EntityRelationship]:
+    """Derive entity relationships from descriptor join_keys.
+
+    Per ARCH-descriptor-driven-auto-wiring section 3.4: Loops over all
+    descriptors and creates an EntityRelationship for each join_key entry.
+
+    Import of get_registry is deferred inside the function body to avoid
+    circular imports (core/ must not be imported at module scope from query/).
+
+    Returns:
+        List of EntityRelationship instances derived from descriptor join_keys.
+    """
+    from autom8_asana.core.entity_registry import get_registry
+
+    relationships: list[EntityRelationship] = []
+    for desc in get_registry().all_descriptors():
+        for target, key in desc.join_keys:
+            relationships.append(
+                EntityRelationship(
+                    parent_type=desc.name,
+                    child_type=target,
+                    default_join_key=key,
+                    description=(
+                        f"Auto-derived: {desc.pascal_name} -> {target} via {key}"
+                    ),
+                )
+            )
+    return relationships
+
+
+ENTITY_RELATIONSHIPS: list[EntityRelationship] = _build_relationships_from_registry()
 
 
 def find_relationship(

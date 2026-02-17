@@ -480,7 +480,7 @@ class TestExtractTypeOverride:
         from autom8_asana.dataframes.schemas.business import BUSINESS_SCHEMA
 
         ext = SchemaExtractor(BUSINESS_SCHEMA)
-        assert ext._extract_type(None) == "business"
+        assert ext._extract_type(None) == "Business"
 
 
 class TestCacheClearing:
