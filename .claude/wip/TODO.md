@@ -1,6 +1,6 @@
 # Deferred Work Items
 
-**Updated**: 2026-02-17 (post WS1 merge)
+**Updated**: 2026-02-17 (initiative COMPLETE)
 
 ## Completed (WS1 S0)
 - [x] ~~SM-003: BUSINESS_SCHEMA task_type "business" -> "Business"~~ (commit 03c780e)
@@ -12,11 +12,11 @@
 - [x] Warm-up reliability hardening — SWR build lock try/finally, warmer observability
 - [x] Unified store consistency — cascade per-descendant isolation, hierarchy register reorder
 
-## WS3 Scope: Traversal Consolidation
-- [ ] B/C consolidation: CascadeViewPlugin as primary, CascadingFieldResolver as fallback
-- [ ] Cascade promotion (deferred S3.5): eliminate UnitExtractor._extract_office_async duplication
-- [ ] Traversal unification: generalized parent-chain walker within DataFrame layer
-- [ ] Audit entity traversal needs (Business, AssetEdit, AssetEditHolder)
+## WS3 Scope: Traversal Consolidation (COMPLETE, commit 9947f71)
+- [x] B/C consolidation — DRY extraction to cf_utils.py, source_field wiring in both resolvers
+- [x] Cascade promotion — _extract_office_async eliminated, office now cascade:Business Name
+- [x] ~~Traversal unification~~ — spike determined "do NOT unify A/B/C"; B/C consolidation is the deliverable
+- [x] ~~Entity traversal audit~~ — spike table confirmed no new dedicated extractors needed
 
 ## Backlog (P4, not scheduled)
 - [ ] Query CLI utility (infrastructure exists, scripts in place)
