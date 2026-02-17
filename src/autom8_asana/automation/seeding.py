@@ -22,18 +22,9 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.exceptions import AsanaError
-
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
     from autom8_asana.models.business import Business, Process, Unit
-
-# Asana API call errors: AsanaError + builtin network errors
-_ASANA_API_ERRORS: tuple[type[Exception], ...] = (
-    AsanaError,
-    ConnectionError,
-    TimeoutError,
-)
 
 logger = get_logger(__name__)
 

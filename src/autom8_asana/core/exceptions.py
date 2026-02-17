@@ -319,3 +319,17 @@ ALL_TRANSPORT_ERRORS: tuple[type[Exception], ...] = (
 CACHE_TRANSIENT_ERRORS: tuple[type[Exception], ...] = ALL_TRANSPORT_ERRORS + (
     CacheConnectionError,
 )
+
+# Asana API errors (import-safe)
+# Used by automation/pipeline.py for catch-site convenience.
+# Includes AsanaError from the SDK + builtin network errors.
+ASANA_API_ERRORS: tuple[type[Exception], ...] = (
+    ConnectionError,
+    TimeoutError,
+)
+try:
+    from autom8_asana.exceptions import AsanaError
+
+    ASANA_API_ERRORS = (AsanaError, ConnectionError, TimeoutError)
+except ImportError:
+    pass

@@ -27,20 +27,11 @@ from autom8_asana.automation.seeding import FieldSeeder
 from autom8_asana.automation.templates import TemplateDiscovery
 from autom8_asana.automation.validation import ValidationResult
 from autom8_asana.automation.waiter import SubtaskWaiter
+from autom8_asana.core.exceptions import ASANA_API_ERRORS
 from autom8_asana.core.timing import elapsed_ms
-
-# Per TDD-registry-consolidation: Import from package to ensure bootstrap runs
-from autom8_asana.exceptions import AsanaError
 from autom8_asana.models.business import Process, ProcessSection, ProcessType
 from autom8_asana.persistence.models import AutomationResult
 from autom8_asana.persistence.session import SaveSession
-
-# Asana API call errors: AsanaError + builtin network errors
-_ASANA_API_ERRORS: tuple[type[Exception], ...] = (
-    AsanaError,
-    ConnectionError,
-    TimeoutError,
-)
 
 if TYPE_CHECKING:
     from autom8_asana.automation.context import AutomationContext
@@ -608,7 +599,7 @@ class PipelineConversionRule:
                     if hasattr(unit, "_fetch_holders_async"):
                         await unit._fetch_holders_async(client)
                         process_holder = getattr(unit, "_process_holder", None)
-                except _ASANA_API_ERRORS as e:
+                except ASANA_API_ERRORS as e:
                     logger.warning(
                         "pipeline_fetch_process_holder_failed",
                         unit_gid=getattr(unit, "gid", "unknown"),
@@ -649,7 +640,7 @@ class PipelineConversionRule:
                 )
                 return False
 
-        except _ASANA_API_ERRORS as e:
+        except ASANA_API_ERRORS as e:
             # FR-HIER-003: Graceful degradation - log and continue
             logger.warning(
                 "pipeline_hierarchy_error",
@@ -720,7 +711,7 @@ class PipelineConversionRule:
             )
             return True
 
-        except _ASANA_API_ERRORS as e:
+        except ASANA_API_ERRORS as e:
             # Graceful degradation - log and continue
             logger.warning(
                 "pipeline_move_to_section_failed",
@@ -767,7 +758,7 @@ class PipelineConversionRule:
             )
             return True
 
-        except _ASANA_API_ERRORS as e:
+        except ASANA_API_ERRORS as e:
             # Graceful degradation - log and continue
             logger.warning(
                 "pipeline_set_due_date_failed",
@@ -851,7 +842,7 @@ class PipelineConversionRule:
                 task_gid=new_task.gid,
             )
             return True
-        except _ASANA_API_ERRORS as e:
+        except ASANA_API_ERRORS as e:
             # FR-ASSIGN-006: Graceful degradation
             logger.warning(
                 "pipeline_set_assignee_failed",
@@ -904,7 +895,7 @@ class PipelineConversionRule:
             logger.info("pipeline_comment_created", task_gid=new_task.gid)
             return True
 
-        except _ASANA_API_ERRORS as e:
+        except ASANA_API_ERRORS as e:
             # FR-COMMENT-005: Graceful degradation
             logger.warning(
                 "pipeline_create_comment_failed",
