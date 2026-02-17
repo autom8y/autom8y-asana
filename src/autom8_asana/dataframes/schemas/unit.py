@@ -91,7 +91,7 @@ UNIT_SCHEMA = DataFrameSchema(
     task_type="Unit",
     columns=[
         *BASE_COLUMNS,
-        *[c for c in UNIT_COLUMNS if c not in BASE_COLUMNS],
+        *[c for c in UNIT_COLUMNS if c.name not in {col.name for col in BASE_COLUMNS}],
     ],
     version="1.3.0",  # Bump to force rebuild with generalized cascade resolution fix
 )
