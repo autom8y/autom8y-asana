@@ -6,6 +6,10 @@
 # - Health check for container orchestration
 # - Dual-mode entrypoint for ECS and Lambda deployment
 #
+# WP-LOCK: Uses uv.lock as single source of truth for dependency resolution.
+# No resolution happens at build time -- uv sync --frozen enforces lockfile
+# consistency and fails if uv.lock is stale.
+#
 # Build args:
 #   EXTRA_INDEX_URL: Optional URL for private package index (e.g., CodeArtifact)
 #
@@ -22,25 +26,29 @@
 # =============================================================================
 FROM python:3.12-slim AS builder
 
-# Build arguments for private package index
+# Install uv from official image
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Accept CodeArtifact index URL as build argument
 ARG EXTRA_INDEX_URL
+# Set UV_EXTRA_INDEX_URL for uv to use CodeArtifact as additional index (keeps PyPI as primary)
+ENV UV_EXTRA_INDEX_URL=${EXTRA_INDEX_URL}
 
-# Environment for pip
-ENV PIP_EXTRA_INDEX_URL=${EXTRA_INDEX_URL} \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+# Configure uv for reproducible builds
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
 
-WORKDIR /build
+WORKDIR /app
 
-# Copy dependency files first for better caching
-COPY pyproject.toml ./
+# Copy dependency manifests first (layer caching)
+COPY pyproject.toml uv.lock ./
 
 # Copy source code
 COPY src ./src
 
-# Install dependencies using pip
-# Include awslambdaric for Lambda mode support
-RUN pip install --target /packages ".[api,auth]" "awslambdaric>=2.2.0"
+# Install production dependencies with frozen lockfile
+# Includes api (FastAPI/uvicorn), auth (JWT), and lambda (awslambdaric) extras
+RUN uv sync --frozen --no-dev --extra api --extra auth --extra lambda
 
 # =============================================================================
 # Stage 2: Runtime
@@ -49,20 +57,16 @@ FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 
-# Copy installed packages
-COPY --from=builder /packages /app/packages
-
-# Copy source code
-COPY --from=builder /build/src/autom8_asana /app/autom8_asana
+# Copy virtual environment and source from builder
+COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app/src /app/src
 
 # Copy entrypoint script
 COPY scripts/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Add packages to Python path and bin scripts to PATH
-# Note: pip --target installs executables to /app/packages/bin
-ENV PYTHONPATH="/app/packages:/app" \
-    PATH="/app/packages/bin:${PATH}" \
+# Set PATH to use venv (replaces PYTHONPATH approach)
+ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
