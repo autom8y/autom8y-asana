@@ -12,50 +12,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from autom8_asana.dataframes.builders.base import DataFrameBuilder
-from autom8_asana.dataframes.extractors.base import BaseExtractor
 from autom8_asana.dataframes.extractors.default import DefaultExtractor
 from autom8_asana.dataframes.models.registry import SchemaRegistry
-from autom8_asana.dataframes.models.schema import DataFrameSchema
 from autom8_asana.dataframes.schemas.base import BASE_COLUMNS
-
-
-def _make_mock_task() -> MagicMock:
-    """Create a minimal mock task that satisfies BaseExtractor's base 12 fields."""
-    task = MagicMock()
-    task.gid = "1234567890"
-    task.name = "Test Task"
-    task.resource_subtype = "default_task"
-    task.created_at = "2026-01-01T00:00:00Z"
-    task.due_on = "2026-01-15"
-    task.completed = False
-    task.completed_at = None
-    task.modified_at = "2026-01-01T00:00:00Z"
-    task.tags = []
-    task.memberships = []
-    task.custom_fields = []
-    return task
+from tests.unit.dataframes.conftest import _TestBuilder, make_mock_task
 
 
 def _get_base_column_names() -> set[str]:
     """Return the set of base 12 column names."""
     return {c.name for c in BASE_COLUMNS}
-
-
-class _TestBuilder(DataFrameBuilder):
-    """Minimal concrete builder for calling _create_extractor in tests."""
-
-    def __init__(self, schema: DataFrameSchema) -> None:
-        super().__init__(schema)
-
-    def get_tasks(self) -> list:
-        return []
-
-    def _get_project_gid(self) -> str | None:
-        return None
-
-    def _get_extractor(self) -> BaseExtractor:
-        return self._create_extractor(self._schema.task_type)
 
 
 @pytest.fixture
@@ -104,7 +69,7 @@ class TestSchemaExtractorCompleteness:
                 )
 
             # AC-6.2: Extractor can create a row without crash
-            mock_task = _make_mock_task()
+            mock_task = make_mock_task()
             row = extractor.extract(mock_task)
             assert row is not None, f"{task_type}: extract() returned None"
 

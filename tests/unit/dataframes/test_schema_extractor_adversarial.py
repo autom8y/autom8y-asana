@@ -22,23 +22,7 @@ from autom8_asana.dataframes.extractors.schema import (
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.dataframes.models.task_row import TaskRow
 from autom8_asana.dataframes.schemas.base import BASE_COLUMNS, BASE_SCHEMA
-
-
-def _make_mock_task() -> MagicMock:
-    """Create a minimal mock task that satisfies BaseExtractor's base 12 fields."""
-    task = MagicMock()
-    task.gid = "1234567890"
-    task.name = "Test Task"
-    task.resource_subtype = "default_task"
-    task.created_at = "2026-01-01T00:00:00Z"
-    task.due_on = "2026-01-15"
-    task.completed = False
-    task.completed_at = None
-    task.modified_at = "2026-01-01T00:00:00Z"
-    task.tags = []
-    task.memberships = []
-    task.custom_fields = []
-    return task
+from tests.unit.dataframes.conftest import _TestBuilder, make_mock_task
 
 
 def _make_schema(
@@ -64,22 +48,6 @@ class TestSchemaWithZeroExtraColumns:
     def test_base_only_schema_uses_default_extractor(self) -> None:
         """A schema with only the base 12 columns should use DefaultExtractor,
         not SchemaExtractor, when passed to _create_extractor via the fallback."""
-        from autom8_asana.dataframes.builders.base import DataFrameBuilder
-        from autom8_asana.dataframes.extractors.base import BaseExtractor
-
-        class _TestBuilder(DataFrameBuilder):
-            def __init__(self, schema: DataFrameSchema) -> None:
-                super().__init__(schema)
-
-            def get_tasks(self) -> list:
-                return []
-
-            def _get_project_gid(self) -> str | None:
-                return None
-
-            def _get_extractor(self) -> BaseExtractor:
-                return self._create_extractor(self._schema.task_type)
-
         schema = _make_schema("test_base_only", "TestBaseOnly")
         builder = _TestBuilder(schema)
         extractor = builder._create_extractor("TestBaseOnly")
@@ -92,7 +60,7 @@ class TestSchemaWithZeroExtraColumns:
         from autom8_asana.dataframes.extractors.default import DefaultExtractor
 
         extractor = DefaultExtractor(BASE_SCHEMA)
-        task = _make_mock_task()
+        task = make_mock_task()
         row = extractor.extract(task)
         assert row is not None
         d = row.to_dict()
@@ -111,7 +79,7 @@ class TestSchemaAllNullableColumns:
         ]
         schema = _make_schema("all_nullable", "AllNullable", extra_cols)
         extractor = SchemaExtractor(schema)
-        task = _make_mock_task()
+        task = make_mock_task()
         row = extractor.extract(task)
         assert row is not None
         d = row.to_dict()
@@ -141,7 +109,7 @@ class TestSchemaAllNonNullableColumns:
         ]
         schema = _make_schema("all_required", "AllRequired", extra_cols)
         extractor = SchemaExtractor(schema)
-        task = _make_mock_task()
+        task = make_mock_task()
         row = extractor.extract(task)
         assert row is not None
         d = row.to_dict()
@@ -169,7 +137,7 @@ class TestSchemaEveryDtype:
 
         schema = _make_schema("every_dtype", "EveryDtype", extra_cols)
         extractor = SchemaExtractor(schema)
-        task = _make_mock_task()
+        task = make_mock_task()
         row = extractor.extract(task)
         assert row is not None
         d = row.to_dict()
@@ -203,7 +171,7 @@ class TestSchemaUnknownDtype:
         assert model is not None
 
         # Verify the field exists and accepts None
-        task = _make_mock_task()
+        task = make_mock_task()
         row = extractor.extract(task)
         assert row is not None
         d = row.to_dict()
@@ -257,7 +225,7 @@ class TestEmptyTaskData:
         from autom8_asana.dataframes.schemas.business import BUSINESS_SCHEMA
 
         extractor = SchemaExtractor(BUSINESS_SCHEMA)
-        task = _make_mock_task()
+        task = make_mock_task()
         task.gid = ""
         row = extractor.extract(task)
         assert row is not None
@@ -279,7 +247,7 @@ class TestExtraFieldsNotInSchema:
         )
 
         extractor = SchemaExtractor(ASSET_EDIT_HOLDER_SCHEMA)
-        task = _make_mock_task()
+        task = make_mock_task()
         # Add extra attributes not in any schema
         task.some_random_field = "random_value"
         task.another_extra = 42
@@ -348,7 +316,7 @@ class TestConcurrentExtraction:
         def extract_schema(schema: DataFrameSchema) -> None:
             try:
                 ext = SchemaExtractor(schema)
-                task = _make_mock_task()
+                task = make_mock_task()
                 row = ext.extract(task)
                 d = row.to_dict()
                 results.append((schema.task_type, len(d) == len(schema.columns)))
@@ -428,7 +396,7 @@ class TestDynamicModelProperties:
         from autom8_asana.dataframes.schemas.asset_edit import ASSET_EDIT_SCHEMA
 
         ext = SchemaExtractor(ASSET_EDIT_SCHEMA)
-        task = _make_mock_task()
+        task = make_mock_task()
         row = ext.extract(task)
         d = row.to_dict()
         for col_name in ASSET_EDIT_SCHEMA.column_names():
@@ -444,7 +412,7 @@ class TestSchemaExtractorWithSyntheticSchema:
         extra = [ColumnDef(name="one_extra", dtype="Utf8", nullable=True, source="cf:One")]
         schema = _make_schema("single_extra", "SingleExtra", extra)
         ext = SchemaExtractor(schema)
-        task = _make_mock_task()
+        task = make_mock_task()
         row = ext.extract(task)
         assert row is not None
         d = row.to_dict()
@@ -459,7 +427,7 @@ class TestSchemaExtractorWithSyntheticSchema:
         ]
         schema = _make_schema("many_extra", "ManyExtra", extra)
         ext = SchemaExtractor(schema)
-        task = _make_mock_task()
+        task = make_mock_task()
         row = ext.extract(task)
         assert row is not None
         d = row.to_dict()
@@ -474,7 +442,7 @@ class TestSchemaExtractorWithSyntheticSchema:
         ]
         schema = _make_schema("derived_only", "DerivedOnly", extra)
         ext = SchemaExtractor(schema)
-        task = _make_mock_task()
+        task = make_mock_task()
         row = ext.extract(task)
         assert row is not None
         d = row.to_dict()
@@ -490,7 +458,7 @@ class TestSchemaExtractorWithSyntheticSchema:
         ]
         schema = _make_schema("name_collision", "NameCollision", extra)
         ext = SchemaExtractor(schema)
-        task = _make_mock_task()
+        task = make_mock_task()
         row = ext.extract(task)
         assert row is not None
 
@@ -503,7 +471,7 @@ class TestExtractTypeOverride:
         from autom8_asana.dataframes.schemas.offer import OFFER_SCHEMA
 
         ext = SchemaExtractor(OFFER_SCHEMA)
-        task = _make_mock_task()
+        task = make_mock_task()
         task.resource_subtype = "some_other_subtype"
         assert ext._extract_type(task) == "Offer"
 

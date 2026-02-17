@@ -7,10 +7,9 @@ and type extraction for the generic schema-driven extractor.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
 import pytest
 
+from tests.unit.dataframes.conftest import make_mock_task
 from autom8_asana.dataframes.extractors.schema import (
     DTYPE_MAP,
     SchemaExtractor,
@@ -23,30 +22,13 @@ from autom8_asana.dataframes.schemas.business import BUSINESS_SCHEMA
 from autom8_asana.dataframes.schemas.offer import OFFER_SCHEMA
 
 
-def _make_mock_task() -> MagicMock:
-    """Create a minimal mock task that satisfies BaseExtractor's base 12 fields."""
-    task = MagicMock()
-    task.gid = "1234567890"
-    task.name = "Test Task"
-    task.resource_subtype = "default_task"
-    task.created_at = "2026-01-01T00:00:00Z"
-    task.due_on = "2026-01-15"
-    task.completed = False
-    task.completed_at = None
-    task.modified_at = "2026-01-01T00:00:00Z"
-    task.tags = []
-    task.memberships = []
-    task.custom_fields = []
-    return task
-
-
 class TestSchemaExtractor:
     """Unit tests for SchemaExtractor."""
 
     def test_offer_extraction_does_not_crash(self) -> None:
         """AC-1.1: Offer extraction succeeds."""
         extractor = SchemaExtractor(OFFER_SCHEMA)
-        task = _make_mock_task()
+        task = make_mock_task()
         row = extractor.extract(task)
         assert row is not None
         d = row.to_dict()
@@ -55,7 +37,7 @@ class TestSchemaExtractor:
     def test_asset_edit_extraction_does_not_crash(self) -> None:
         """AC-3.1: AssetEdit extraction succeeds."""
         extractor = SchemaExtractor(ASSET_EDIT_SCHEMA)
-        task = _make_mock_task()
+        task = make_mock_task()
         row = extractor.extract(task)
         assert row is not None
         d = row.to_dict()
@@ -64,21 +46,21 @@ class TestSchemaExtractor:
     def test_asset_edit_holder_extraction_does_not_crash(self) -> None:
         """AC-4.1: AssetEditHolder extraction succeeds."""
         extractor = SchemaExtractor(ASSET_EDIT_HOLDER_SCHEMA)
-        task = _make_mock_task()
+        task = make_mock_task()
         row = extractor.extract(task)
         assert row is not None
 
     def test_business_extraction_does_not_crash(self) -> None:
         """AC-2.1: Business extraction succeeds."""
         extractor = SchemaExtractor(BUSINESS_SCHEMA)
-        task = _make_mock_task()
+        task = make_mock_task()
         row = extractor.extract(task)
         assert row is not None
 
     def test_extract_type_returns_schema_task_type(self) -> None:
         """AC-5.3: _extract_type returns schema.task_type."""
         extractor = SchemaExtractor(OFFER_SCHEMA)
-        task = _make_mock_task()
+        task = make_mock_task()
         assert extractor._extract_type(task) == "Offer"
 
     def test_dynamic_model_cached(self) -> None:
@@ -93,7 +75,7 @@ class TestSchemaExtractor:
     def test_list_fields_default_to_empty_list(self) -> None:
         """AC-5.2: List fields default to [] not None."""
         extractor = SchemaExtractor(OFFER_SCHEMA)
-        task = _make_mock_task()
+        task = make_mock_task()
         row = extractor.extract(task)
         d = row.to_dict()
         assert d["platforms"] == []
@@ -101,7 +83,7 @@ class TestSchemaExtractor:
     def test_derived_fields_return_none(self) -> None:
         """AC-5.3: source=None fields without custom extractors return None."""
         extractor = SchemaExtractor(OFFER_SCHEMA)
-        task = _make_mock_task()
+        task = make_mock_task()
         row = extractor.extract(task)
         d = row.to_dict()
         # office and vertical_id have source=None with no _extract method
@@ -125,7 +107,7 @@ class TestSchemaExtractor:
     def test_row_has_all_schema_columns(self) -> None:
         """Verify extracted row dict has all schema column names."""
         extractor = SchemaExtractor(ASSET_EDIT_SCHEMA)
-        task = _make_mock_task()
+        task = make_mock_task()
         row = extractor.extract(task)
         d = row.to_dict()
         for col_name in ASSET_EDIT_SCHEMA.column_names():
@@ -134,7 +116,7 @@ class TestSchemaExtractor:
     def test_asset_edit_list_fields_default_to_empty_list(self) -> None:
         """AssetEdit List[Utf8] fields (specialty, asset_edit_specialty) default to []."""
         extractor = SchemaExtractor(ASSET_EDIT_SCHEMA)
-        task = _make_mock_task()
+        task = make_mock_task()
         row = extractor.extract(task)
         d = row.to_dict()
         assert d["specialty"] == []
@@ -151,7 +133,7 @@ class TestSchemaExtractor:
     def test_business_type_set_correctly(self) -> None:
         """Business schema task_type is 'business' (lowercase)."""
         extractor = SchemaExtractor(BUSINESS_SCHEMA)
-        task = _make_mock_task()
+        task = make_mock_task()
         row = extractor.extract(task)
         d = row.to_dict()
         assert d["type"] == "business"
