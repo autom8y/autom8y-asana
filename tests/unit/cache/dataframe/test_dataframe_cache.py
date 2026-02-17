@@ -1112,3 +1112,87 @@ class TestFreshnessInfoSideChannel:
         assert info is not None
         assert info.freshness == "circuit_lkg"
         assert info.data_age_seconds >= 59.0
+
+
+class TestSWRBuildLockRelease:
+    """Tests for SWR refresh build lock release guarantees.
+
+    Per TDD-WS2 Section 4.2/4.4: The build lock must be released
+    even when the build callback raises an unexpected error.
+    """
+
+    @pytest.mark.asyncio
+    async def test_swr_build_lock_released_on_callback_error(self) -> None:
+        """Build lock is released when build callback raises an error.
+
+        Per TDD-WS2 Section 4.4 Hardening Item 1: Uses try/finally
+        to guarantee release_build_lock_async is always called.
+        """
+        coalescer = DataFrameCacheCoalescer()
+        cache = make_cache(coalescer=coalescer)
+
+        # Register a callback that raises
+        async def failing_callback(project_gid: str, entity_type: str) -> None:
+            raise ConnectionError("build failed unexpectedly")
+
+        cache.set_build_callback(failing_callback)
+
+        # Run the SWR refresh directly
+        await cache._swr_refresh_async("proj-1", "unit")
+
+        # The build lock should be released (not leaked).
+        # Verify by acquiring it again -- if leaked, this would return False.
+        acquired = await coalescer.try_acquire_async("unit:proj-1")
+        assert acquired is True, "Build lock was not released after callback error"
+
+    @pytest.mark.asyncio
+    async def test_swr_build_lock_released_on_success(self) -> None:
+        """Build lock is released on successful callback execution."""
+        coalescer = DataFrameCacheCoalescer()
+        cache = make_cache(coalescer=coalescer)
+
+        # Register a callback that succeeds
+        callback_called = False
+
+        async def success_callback(project_gid: str, entity_type: str) -> None:
+            nonlocal callback_called
+            callback_called = True
+
+        cache.set_build_callback(success_callback)
+
+        await cache._swr_refresh_async("proj-1", "unit")
+
+        assert callback_called
+        # The build lock should be released
+        acquired = await coalescer.try_acquire_async("unit:proj-1")
+        assert acquired is True, "Build lock was not released after success"
+
+    @pytest.mark.asyncio
+    async def test_swr_build_lock_released_on_no_callback(self) -> None:
+        """Build lock is released when no callback is registered."""
+        coalescer = DataFrameCacheCoalescer()
+        cache = make_cache(coalescer=coalescer)
+
+        # No callback registered (default)
+        await cache._swr_refresh_async("proj-1", "unit")
+
+        # The build lock should be released
+        acquired = await coalescer.try_acquire_async("unit:proj-1")
+        assert acquired is True, "Build lock was not released when no callback set"
+
+    @pytest.mark.asyncio
+    async def test_swr_circuit_breaker_records_failure_on_error(self) -> None:
+        """Circuit breaker records failure when build callback raises."""
+        circuit = CircuitBreaker(failure_threshold=1)
+        coalescer = DataFrameCacheCoalescer()
+        cache = make_cache(coalescer=coalescer, circuit_breaker=circuit)
+
+        async def failing_callback(project_gid: str, entity_type: str) -> None:
+            raise ConnectionError("build failed")
+
+        cache.set_build_callback(failing_callback)
+
+        await cache._swr_refresh_async("proj-1", "unit")
+
+        # Circuit breaker should have recorded the failure
+        assert circuit.is_open("proj-1")

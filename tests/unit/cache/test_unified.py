@@ -375,6 +375,54 @@ class TestUnifiedTaskStorePutBatch:
         assert "task-1" in entries
         assert "task-3" in entries
 
+    @pytest.mark.asyncio
+    async def test_put_batch_hierarchy_after_cache(
+        self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
+    ) -> None:
+        """Hierarchy registration occurs after set_batch succeeds.
+
+        Per TDD-WS2 Section 5.2 Issue 2 (P3): If set_batch() raises,
+        hierarchy is not polluted with phantom entries.
+        """
+        tasks = [
+            make_task("parent"),
+            make_task("child-1", parent_gid="parent"),
+            make_task("child-2", parent_gid="parent"),
+        ]
+
+        # Make set_batch raise a transient error
+        mock_cache_provider.set_batch.side_effect = ConnectionError("cache down")
+
+        with pytest.raises(ConnectionError):
+            await store.put_batch_async(tasks)
+
+        # Hierarchy should NOT contain any of these tasks
+        hierarchy = store.get_hierarchy_index()
+        assert not hierarchy.contains("parent")
+        assert not hierarchy.contains("child-1")
+        assert not hierarchy.contains("child-2")
+
+    @pytest.mark.asyncio
+    async def test_put_batch_hierarchy_registered_on_success(
+        self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
+    ) -> None:
+        """Hierarchy is registered when set_batch succeeds.
+
+        Complementary test: confirms hierarchy registration still works
+        after the reorder (success path).
+        """
+        tasks = [
+            make_task("parent"),
+            make_task("child-1", parent_gid="parent"),
+        ]
+
+        await store.put_batch_async(tasks)
+
+        hierarchy = store.get_hierarchy_index()
+        assert hierarchy.contains("parent")
+        assert hierarchy.contains("child-1")
+        assert hierarchy.get_children_gids("parent") == {"child-1"}
+
 
 class TestUnifiedTaskStoreParentChain:
     """Tests for get_parent_chain_async method."""
@@ -516,6 +564,42 @@ class TestUnifiedTaskStoreInvalidate:
         store.invalidate("task-123")
 
         assert not store._hierarchy.contains("task-123")
+
+    @pytest.mark.asyncio
+    async def test_cascade_invalidation_partial_failure(
+        self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
+    ) -> None:
+        """Cascade invalidation continues on per-descendant failure.
+
+        Per TDD-WS2 Section 5.2 Issue 1 (P2): When cache.invalidate()
+        raises for one descendant, remaining descendants are still
+        invalidated and hierarchy.remove() is still called.
+        """
+        # Build hierarchy: parent -> child-1, child-2, child-3
+        await store.put_async(make_task("parent"))
+        await store.put_async(make_task("child-1", parent_gid="parent"))
+        await store.put_async(make_task("child-2", parent_gid="parent"))
+        await store.put_async(make_task("child-3", parent_gid="parent"))
+
+        # Make invalidate fail for child-2 with a transient error
+        call_count = 0
+
+        def invalidate_side_effect(gid: str, entry_types: list) -> None:
+            nonlocal call_count
+            call_count += 1
+            if gid == "child-2":
+                raise ConnectionError("transient failure for child-2")
+
+        mock_cache_provider.invalidate.side_effect = invalidate_side_effect
+
+        store.invalidate("parent", cascade=True)
+
+        # All four invalidate calls should have been attempted
+        # (parent + child-1 + child-2 + child-3)
+        assert call_count == 4
+
+        # hierarchy.remove should still execute despite child-2 failure
+        assert not store._hierarchy.contains("parent")
 
 
 class TestUnifiedTaskStoreFreshness:
