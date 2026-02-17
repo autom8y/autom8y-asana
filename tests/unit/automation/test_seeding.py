@@ -796,7 +796,7 @@ class TestWriteFieldsEnumResolution:
 
 
 class TestGetFieldAttr:
-    """Tests for _get_field_attr helper function.
+    """Tests for get_field_attr helper function.
 
     This helper handles both dict and object custom field formats that may
     come from different API response handling paths.
@@ -804,24 +804,24 @@ class TestGetFieldAttr:
 
     def test_dict_access(self) -> None:
         """Test accessing attributes from dict."""
-        from autom8_asana.automation.seeding import _get_field_attr
+        from autom8_asana.automation.seeding import get_field_attr
 
         field_dict = {"gid": "123", "name": "Test Field", "resource_subtype": "text"}
-        assert _get_field_attr(field_dict, "name") == "Test Field"
-        assert _get_field_attr(field_dict, "gid") == "123"
-        assert _get_field_attr(field_dict, "resource_subtype") == "text"
+        assert get_field_attr(field_dict, "name") == "Test Field"
+        assert get_field_attr(field_dict, "gid") == "123"
+        assert get_field_attr(field_dict, "resource_subtype") == "text"
 
     def test_dict_access_with_default(self) -> None:
         """Test dict access with default value for missing key."""
-        from autom8_asana.automation.seeding import _get_field_attr
+        from autom8_asana.automation.seeding import get_field_attr
 
         field_dict = {"gid": "123", "name": "Test Field"}
-        assert _get_field_attr(field_dict, "missing") is None
-        assert _get_field_attr(field_dict, "missing", "default") == "default"
+        assert get_field_attr(field_dict, "missing") is None
+        assert get_field_attr(field_dict, "missing", "default") == "default"
 
     def test_object_access(self) -> None:
         """Test accessing attributes from object."""
-        from autom8_asana.automation.seeding import _get_field_attr
+        from autom8_asana.automation.seeding import get_field_attr
 
         class MockField:
             def __init__(self) -> None:
@@ -830,28 +830,28 @@ class TestGetFieldAttr:
                 self.resource_subtype = "enum"
 
         field_obj = MockField()
-        assert _get_field_attr(field_obj, "name") == "Object Field"
-        assert _get_field_attr(field_obj, "gid") == "456"
-        assert _get_field_attr(field_obj, "resource_subtype") == "enum"
+        assert get_field_attr(field_obj, "name") == "Object Field"
+        assert get_field_attr(field_obj, "gid") == "456"
+        assert get_field_attr(field_obj, "resource_subtype") == "enum"
 
     def test_object_access_with_default(self) -> None:
         """Test object access with default value for missing attribute."""
-        from autom8_asana.automation.seeding import _get_field_attr
+        from autom8_asana.automation.seeding import get_field_attr
 
         class MockField:
             def __init__(self) -> None:
                 self.gid = "456"
 
         field_obj = MockField()
-        assert _get_field_attr(field_obj, "missing") is None
-        assert _get_field_attr(field_obj, "missing", "fallback") == "fallback"
+        assert get_field_attr(field_obj, "missing") is None
+        assert get_field_attr(field_obj, "missing", "fallback") == "fallback"
 
     def test_none_input(self) -> None:
         """Test that None input returns default."""
-        from autom8_asana.automation.seeding import _get_field_attr
+        from autom8_asana.automation.seeding import get_field_attr
 
-        assert _get_field_attr(None, "name") is None
-        assert _get_field_attr(None, "name", "default") == "default"
+        assert get_field_attr(None, "name") is None
+        assert get_field_attr(None, "name", "default") == "default"
 
 
 class TestResolveEnumValueWithObjects:

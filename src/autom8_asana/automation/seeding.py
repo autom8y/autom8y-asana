@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def _get_field_attr(field_obj: Any, attr: str, default: Any = None) -> Any:
+def get_field_attr(field_obj: Any, attr: str, default: Any = None) -> Any:
     """Get attribute from a custom field item, handling both dict and object types.
 
     The Asana API returns custom field data that Pydantic may deserialize as either
@@ -55,7 +55,7 @@ def _get_field_attr(field_obj: Any, attr: str, default: Any = None) -> Any:
     return getattr(field_obj, attr, default)
 
 
-def _to_dict(field_obj: Any) -> dict[str, Any]:
+def to_dict(field_obj: Any) -> dict[str, Any]:
     """Convert a custom field item to a dict, handling both dict and object types.
 
     This ensures consistent dict format for CustomFieldAccessor which expects dicts.
@@ -95,7 +95,7 @@ def _to_dict(field_obj: Any) -> dict[str, Any]:
             # Recursively convert nested objects (like enum_options)
             if isinstance(value, list):
                 result[attr] = [
-                    _to_dict(v)
+                    to_dict(v)
                     if not isinstance(v, (str, int, float, bool, type(None)))
                     else v
                     for v in value
@@ -104,14 +104,14 @@ def _to_dict(field_obj: Any) -> dict[str, Any]:
                 result[attr] = value
             elif not isinstance(value, (str, int, float, bool, type(None))):
                 # Nested object like enum_value
-                result[attr] = _to_dict(value)
+                result[attr] = to_dict(value)
             else:
                 result[attr] = value
 
     return result
 
 
-def _normalize_custom_fields(custom_fields: list[Any] | None) -> list[dict[str, Any]]:
+def normalize_custom_fields(custom_fields: list[Any] | None) -> list[dict[str, Any]]:
     """Normalize a list of custom fields to dict format.
 
     Args:
@@ -122,7 +122,7 @@ def _normalize_custom_fields(custom_fields: list[Any] | None) -> list[dict[str, 
     """
     if not custom_fields:
         return []
-    return [_to_dict(f) for f in custom_fields]
+    return [to_dict(f) for f in custom_fields]
 
 
 @dataclass
@@ -454,7 +454,7 @@ class FieldSeeder:
 
             # Normalize custom fields to dicts (may be objects from API)
             # This ensures CustomFieldAccessor receives the expected dict format
-            custom_fields_list = _normalize_custom_fields(target_task.custom_fields)
+            custom_fields_list = normalize_custom_fields(target_task.custom_fields)
 
             # Step 2: Build accessor from target's field definitions
             # Use strict=False to not fail on unknown fields
@@ -468,7 +468,7 @@ class FieldSeeder:
             fields_skipped: list[str] = []
             logger.info(
                 "seeding_target_custom_fields",
-                field_names=[_get_field_attr(f, "name") for f in custom_fields_list],
+                field_names=[get_field_attr(f, "name") for f in custom_fields_list],
             )
 
             # Apply field name mapping (source name -> target name)
@@ -744,8 +744,8 @@ class FieldSeeder:
         """
         name_to_gid: dict[str, str] = {}
         for option in enum_options:
-            opt_name = _get_field_attr(option, "name", "")
-            opt_gid = _get_field_attr(option, "gid", "")
+            opt_name = get_field_attr(option, "name", "")
+            opt_gid = get_field_attr(option, "gid", "")
             if opt_name and opt_gid:
                 name_to_gid[opt_name.lower()] = opt_gid
                 # Also map GID to itself for passthrough
@@ -812,9 +812,9 @@ class FieldSeeder:
 
         # No match found - log warning with available options
         available_options = [
-            _get_field_attr(opt, "name", "")
+            get_field_attr(opt, "name", "")
             for opt in enum_options
-            if _get_field_attr(opt, "enabled", True)
+            if get_field_attr(opt, "enabled", True)
         ]
         not_found_event = (
             "seeding_multi_enum_value_not_found"
@@ -859,14 +859,14 @@ class FieldSeeder:
         if value is None:
             return None
 
-        field_type = _get_field_attr(field_def, "resource_subtype", "")
+        field_type = get_field_attr(field_def, "resource_subtype", "")
 
         # Handle multi_enum fields (list of values)
         if field_type == "multi_enum":
             if not isinstance(value, list):
                 value = [value]
 
-            enum_options = _get_field_attr(field_def, "enum_options", [])
+            enum_options = get_field_attr(field_def, "enum_options", [])
             if not enum_options:
                 logger.warning(
                     "seeding_multi_enum_no_options",
@@ -896,7 +896,7 @@ class FieldSeeder:
 
         # Handle single enum fields
         if field_type == "enum":
-            enum_options = _get_field_attr(field_def, "enum_options", [])
+            enum_options = get_field_attr(field_def, "enum_options", [])
             if not enum_options:
                 logger.warning(
                     "seeding_enum_no_options",

@@ -28,8 +28,8 @@ from autom8y_log import get_logger
 
 from autom8_asana.automation.seeding import (
     FieldSeeder,
-    _get_field_attr,
-    _normalize_custom_fields,
+    get_field_attr,
+    normalize_custom_fields,
 )
 
 if TYPE_CHECKING:
@@ -118,11 +118,11 @@ class AutoCascadeSeeder:
                 ],
             )
 
-        target_fields = _normalize_custom_fields(target_task.custom_fields)
+        target_fields = normalize_custom_fields(target_task.custom_fields)
         target_field_names: dict[str, dict[str, Any]] = {
-            _get_field_attr(f, "name", "").lower(): f
+            get_field_attr(f, "name", "").lower(): f
             for f in target_fields
-            if _get_field_attr(f, "name", "")
+            if get_field_attr(f, "name", "")
         }
 
         if not target_field_names:
@@ -213,10 +213,10 @@ class AutoCascadeSeeder:
 
         # Get entity's custom fields
         entity_cfs = getattr(entity, "custom_fields", None) or []
-        entity_fields = _normalize_custom_fields(entity_cfs)
+        entity_fields = normalize_custom_fields(entity_cfs)
 
         for field_dict in entity_fields:
-            field_name = _get_field_attr(field_dict, "name", "")
+            field_name = get_field_attr(field_dict, "name", "")
             if not field_name:
                 continue
 
@@ -244,52 +244,52 @@ class AutoCascadeSeeder:
         Returns string names for enums (resolved to target GIDs at write time),
         ISO date strings for dates, and raw values for text/number fields.
         """
-        subtype = _get_field_attr(field_dict, "resource_subtype", "")
+        subtype = get_field_attr(field_dict, "resource_subtype", "")
 
         if subtype == "enum":
-            enum_value = _get_field_attr(field_dict, "enum_value", None)
+            enum_value = get_field_attr(field_dict, "enum_value", None)
             if enum_value:
-                return _get_field_attr(enum_value, "name", None)
+                return get_field_attr(enum_value, "name", None)
             return None
 
         if subtype == "multi_enum":
-            multi_values = _get_field_attr(
+            multi_values = get_field_attr(
                 field_dict,
                 "multi_enum_values",
                 [],
             )
             if multi_values:
                 return [
-                    _get_field_attr(v, "name", "")
+                    get_field_attr(v, "name", "")
                     for v in multi_values
-                    if _get_field_attr(v, "name", "")
+                    if get_field_attr(v, "name", "")
                 ]
             return None
 
         if subtype == "people":
-            people = _get_field_attr(field_dict, "people_value", [])
+            people = get_field_attr(field_dict, "people_value", [])
             if people:
                 return [
-                    {"gid": _get_field_attr(p, "gid", "")}
+                    {"gid": get_field_attr(p, "gid", "")}
                     for p in people
-                    if _get_field_attr(p, "gid", "")
+                    if get_field_attr(p, "gid", "")
                 ]
             return None
 
         if subtype == "date":
-            date_val = _get_field_attr(field_dict, "date_value", None)
+            date_val = get_field_attr(field_dict, "date_value", None)
             if date_val:
-                return _get_field_attr(date_val, "date", None)
+                return get_field_attr(date_val, "date", None)
             return None
 
         if subtype == "text":
-            return _get_field_attr(field_dict, "text_value", None)
+            return get_field_attr(field_dict, "text_value", None)
 
         if subtype == "number":
-            return _get_field_attr(field_dict, "number_value", None)
+            return get_field_attr(field_dict, "number_value", None)
 
         # Fallback: display_value
-        return _get_field_attr(field_dict, "display_value", None)
+        return get_field_attr(field_dict, "display_value", None)
 
     @staticmethod
     def _compute_field(computation: str) -> Any:
