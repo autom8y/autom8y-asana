@@ -131,12 +131,12 @@ class TestSchemaExtractor:
         assert schema_col_names == base_col_names
 
     def test_business_type_set_correctly(self) -> None:
-        """Business schema task_type is 'business' (lowercase)."""
+        """Business schema task_type is 'Business' (PascalCase, matches convention)."""
         extractor = SchemaExtractor(BUSINESS_SCHEMA)
         task = make_mock_task()
         row = extractor.extract(task)
         d = row.to_dict()
-        assert d["type"] == "business"
+        assert d["type"] == "Business"
 
     def test_different_schemas_produce_different_models(self) -> None:
         """Each schema type produces a distinct cached model."""

@@ -100,7 +100,16 @@ class SchemaRegistry:
             pass
 
     def _ensure_initialized(self) -> None:
-        """Lazy initialization of built-in schemas."""
+        """Lazy initialization of built-in schemas.
+
+        Per WS1-S2: Auto-wires schemas from EntityDescriptor registry instead
+        of hardcoded imports. Each descriptor with a schema_module_path is
+        resolved via _resolve_dotted_path() and keyed by effective_schema_key.
+        BASE_SCHEMA remains hardcoded because "*" is not an entity type.
+
+        Errors from _resolve_dotted_path() propagate -- a misconfigured
+        descriptor must fail loudly at initialization time.
+        """
         if self._initialized:
             return
 
@@ -109,26 +118,23 @@ class SchemaRegistry:
             if self._initialized:
                 return
 
-            # Import schemas here to avoid circular imports
-            # Note: This is the canonical registration point for schemas.
-            # See core.entity_types.ENTITY_TYPES for the list of entity types.
-            from autom8_asana.dataframes.schemas.asset_edit import ASSET_EDIT_SCHEMA
-            from autom8_asana.dataframes.schemas.asset_edit_holder import (
-                ASSET_EDIT_HOLDER_SCHEMA,
+            # Deferred import to avoid circular dependency:
+            # dataframes/ must not import core.entity_registry at module scope
+            from autom8_asana.core.entity_registry import (
+                _resolve_dotted_path,
+                get_registry,
             )
+
+            # Auto-wire from entity descriptors
+            for desc in get_registry().all_descriptors():
+                if desc.schema_module_path:
+                    schema = _resolve_dotted_path(desc.schema_module_path)
+                    self._schemas[desc.effective_schema_key] = schema
+
+            # BASE_SCHEMA has no entity descriptor -- it's a universal fallback
             from autom8_asana.dataframes.schemas.base import BASE_SCHEMA
-            from autom8_asana.dataframes.schemas.business import BUSINESS_SCHEMA
-            from autom8_asana.dataframes.schemas.contact import CONTACT_SCHEMA
-            from autom8_asana.dataframes.schemas.offer import OFFER_SCHEMA
-            from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
 
             self._schemas["*"] = BASE_SCHEMA
-            self._schemas["Unit"] = UNIT_SCHEMA
-            self._schemas["Business"] = BUSINESS_SCHEMA
-            self._schemas["Contact"] = CONTACT_SCHEMA
-            self._schemas["Offer"] = OFFER_SCHEMA
-            self._schemas["AssetEdit"] = ASSET_EDIT_SCHEMA
-            self._schemas["AssetEditHolder"] = ASSET_EDIT_HOLDER_SCHEMA
             self._initialized = True
 
             # Per TDD-ENTITY-EXT-001: Import-time validation

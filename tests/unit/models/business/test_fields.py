@@ -1,13 +1,20 @@
-"""Tests for CascadingFieldDef and InheritedFieldDef.
+"""Tests for CascadingFieldDef, InheritedFieldDef, and cascading field registry.
 
 Per TDD-BIZMODEL: Tests for field definition classes.
+Per WS1-S3: Tests for descriptor-driven cascading field registry auto-wiring.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from autom8_asana.models.business.fields import CascadingFieldDef, InheritedFieldDef
+from autom8_asana.models.business.fields import (
+    CascadingFieldDef,
+    InheritedFieldDef,
+    _build_cascading_field_registry,
+    get_cascading_field,
+    get_cascading_field_registry,
+)
 from autom8_asana.models.task import Task
 
 
@@ -250,3 +257,124 @@ class TestInheritedFieldDef:
         field_def = InheritedFieldDef(name="Test")
         with pytest.raises(AttributeError):
             field_def.name = "Changed"  # type: ignore[misc]
+
+
+# ============================================================================
+# WS1-S3: Auto-Wire Cascading Field Registry Tests
+# ============================================================================
+
+
+class TestCascadingFieldRegistryAutoWire:
+    """Tests verifying descriptor-driven cascading field registry.
+
+    Per ARCH-descriptor-driven-auto-wiring section 3.5: The auto-wired
+    _build_cascading_field_registry() discovers Business and Unit as
+    cascading field providers via descriptor cascading_field_provider=True.
+    """
+
+    def test_registry_discovers_business_provider(self) -> None:
+        """Business cascading fields are discovered via descriptor."""
+        registry = get_cascading_field_registry()
+        # Business.CascadingFields declares: OFFICE_PHONE, COMPANY_ID,
+        # BUSINESS_NAME, PRIMARY_CONTACT_PHONE
+        result = registry.get("office phone")
+        assert result is not None
+        owner_class, field_def = result
+        assert owner_class.__name__ == "Business"
+        assert field_def.name == "Office Phone"
+
+    def test_registry_discovers_unit_provider(self) -> None:
+        """Unit cascading fields are discovered via descriptor."""
+        registry = get_cascading_field_registry()
+        # Unit.CascadingFields declares: PLATFORMS, VERTICAL, BOOKING_TYPE,
+        # MRR, WEEKLY_AD_SPEND
+        result = registry.get("vertical")
+        assert result is not None
+        owner_class, field_def = result
+        assert owner_class.__name__ == "Unit"
+        assert field_def.name == "Vertical"
+
+    def test_registry_contains_all_business_fields(self) -> None:
+        """All Business cascading fields are present in the registry."""
+        registry = get_cascading_field_registry()
+        expected_business_fields = [
+            "office phone",
+            "company id",
+            "business name",
+            "primary contact phone",
+        ]
+        for field_name in expected_business_fields:
+            assert field_name in registry, (
+                f"Business field {field_name!r} missing from registry"
+            )
+            owner_class, _ = registry[field_name]
+            assert owner_class.__name__ == "Business"
+
+    def test_registry_contains_all_unit_fields(self) -> None:
+        """All Unit cascading fields are present in the registry."""
+        registry = get_cascading_field_registry()
+        expected_unit_fields = [
+            "platforms",
+            "vertical",
+            "booking type",
+            "mrr",
+            "weekly ad spend",
+        ]
+        for field_name in expected_unit_fields:
+            assert field_name in registry, (
+                f"Unit field {field_name!r} missing from registry"
+            )
+            owner_class, _ = registry[field_name]
+            assert owner_class.__name__ == "Unit"
+
+    def test_non_provider_descriptors_are_skipped(self) -> None:
+        """Descriptors without cascading_field_provider=True are not in registry."""
+        from autom8_asana.core.entity_registry import get_registry
+
+        registry_obj = get_registry()
+        # Verify that offer, contact, etc. do NOT have cascading_field_provider
+        for name in ("offer", "contact", "asset_edit", "process", "location"):
+            desc = registry_obj.get(name)
+            assert desc is not None
+            assert desc.cascading_field_provider is False, (
+                f"Descriptor {name!r} should not be a cascading field provider"
+            )
+
+    def test_only_two_providers_exist(self) -> None:
+        """Only business and unit are cascading field providers."""
+        from autom8_asana.core.entity_registry import get_registry
+
+        providers = [
+            desc.name
+            for desc in get_registry().all_descriptors()
+            if desc.cascading_field_provider
+        ]
+        assert sorted(providers) == ["business", "unit"]
+
+    def test_get_cascading_field_helper_works(self) -> None:
+        """get_cascading_field() works with auto-wired registry."""
+        result = get_cascading_field("Office Phone")
+        assert result is not None
+        owner_class, field_def = result
+        assert owner_class.__name__ == "Business"
+        assert field_def.name == "Office Phone"
+
+        # Case-insensitive
+        result_lower = get_cascading_field("office phone")
+        assert result_lower is not None
+        assert result_lower[0].__name__ == "Business"
+
+    def test_get_cascading_field_unknown_returns_none(self) -> None:
+        """get_cascading_field() returns None for unknown fields."""
+        assert get_cascading_field("Unknown Field XYZ") is None
+
+    def test_build_is_deterministic(self) -> None:
+        """_build_cascading_field_registry() returns same keys each call."""
+        result1 = _build_cascading_field_registry()
+        result2 = _build_cascading_field_registry()
+        assert set(result1.keys()) == set(result2.keys())
+        for key in result1:
+            owner1, fd1 = result1[key]
+            owner2, fd2 = result2[key]
+            assert owner1.__name__ == owner2.__name__
+            assert fd1.name == fd2.name

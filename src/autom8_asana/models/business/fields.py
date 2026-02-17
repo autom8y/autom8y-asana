@@ -282,30 +282,43 @@ def _normalize_field_name(name: str) -> str:
 
 
 def _build_cascading_field_registry() -> dict[str, CascadingFieldEntry]:
-    """Build the cascading field registry from Business and Unit CascadingFields.
+    """Build the cascading field registry from descriptor-driven discovery.
 
-    Deferred import to avoid circular dependency at module load time.
-    Business and Unit both import CascadingFieldDef from this module, so we
-    cannot import them at module scope.
+    Per ARCH-descriptor-driven-auto-wiring section 3.5: Loops over descriptors
+    where cascading_field_provider=True, resolves the model class via
+    desc.get_model_class(), and extracts CascadingFields.all() entries.
+
+    Import of get_registry is deferred inside the function body to avoid
+    circular imports (core.entity_registry must not be imported at module
+    scope from models/business/fields.py).
 
     Returns:
         Dict mapping normalized field names to (owner_class, field_def) tuples.
     """
-    # Import here to avoid circular import - Business/Unit import fields.py
-    from autom8_asana.models.business.business import Business
-    from autom8_asana.models.business.unit import Unit
+    from autom8_asana.core.entity_registry import get_registry
 
     registry: dict[str, CascadingFieldEntry] = {}
 
-    # Register Business cascading fields
-    for field_def in Business.CascadingFields.all():
-        key = _normalize_field_name(field_def.name)
-        registry[key] = (Business, field_def)
+    for desc in get_registry().all_descriptors():
+        if not desc.cascading_field_provider:
+            continue
+        model_class = desc.get_model_class()
+        if model_class is None:
+            continue
+        cascading = getattr(model_class, "CascadingFields", None)
+        if cascading is None:
+            import logging
 
-    # Register Unit cascading fields
-    for field_def in Unit.CascadingFields.all():
-        key = _normalize_field_name(field_def.name)
-        registry[key] = (Unit, field_def)
+            logging.getLogger(__name__).warning(
+                "cascading_provider_missing_inner_class: "
+                "entity=%s model=%s",
+                desc.name,
+                desc.model_class_path,
+            )
+            continue
+        for field_def in cascading.all():
+            key = _normalize_field_name(field_def.name)
+            registry[key] = (model_class, field_def)
 
     return registry
 
