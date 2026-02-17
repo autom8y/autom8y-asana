@@ -20,8 +20,7 @@ Phase 1 + 2 + 3 + Hardening Exports:
     - LocationHolder: Holder task containing Location children
     - Hours: Operating hours entity
     - DNAHolder: Stub holder for DNA children
-    - ReconciliationHolder: Stub holder for Reconciliation children (renamed)
-    - ReconciliationsHolder: DEPRECATED alias for ReconciliationHolder
+    - ReconciliationHolder: Stub holder for Reconciliation children
     - AssetEditHolder: Stub holder for Asset Edit children
     - VideographyHolder: Stub holder for Videography children
     - BusinessEntity: Base class for business entities
@@ -80,7 +79,6 @@ from autom8_asana.models.business.business import (
     Business,
     DNAHolder,
     ReconciliationHolder,
-    ReconciliationsHolder,  # DEPRECATED: Use ReconciliationHolder
     VideographyHolder,
 )
 
@@ -176,7 +174,6 @@ __all__ = [
     # Stub Holders
     "DNAHolder",
     "ReconciliationHolder",
-    "ReconciliationsHolder",  # DEPRECATED: Use ReconciliationHolder
     "AssetEditHolder",
     "VideographyHolder",
     # TDD-HARDENING-A/FR-STUB-009: Stub Models

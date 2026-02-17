@@ -11,7 +11,6 @@ Per TDD-PATTERNS-C: Stub holders migrated to HolderFactory pattern.
 
 from __future__ import annotations
 
-import warnings as _warnings
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import PrivateAttr
@@ -75,24 +74,6 @@ class ReconciliationHolder(
 
     # Per TDD-DETECTION: Primary project GID for holder type detection
     PRIMARY_PROJECT_GID: ClassVar[str | None] = "1203404998225231"
-
-
-# Deprecation alias preserved (FR-FACTORY-006)
-class ReconciliationsHolder(ReconciliationHolder):
-    """Deprecated alias for ReconciliationHolder.
-
-    .. deprecated::
-        Use `ReconciliationHolder` instead. This alias will be removed
-        in a future release.
-    """
-
-    def __init__(self, **kwargs: Any) -> None:
-        _warnings.warn(
-            "ReconciliationsHolder is deprecated, use ReconciliationHolder instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__init__(**kwargs)
 
 
 class AssetEditHolder(

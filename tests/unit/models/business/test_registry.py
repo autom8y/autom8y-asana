@@ -214,11 +214,6 @@ class TestClassNameToEntityType:
             _class_name_to_entity_type("ReconciliationHolder")
             == EntityType.RECONCILIATIONS_HOLDER
         )
-        # Legacy alias
-        assert (
-            _class_name_to_entity_type("ReconciliationsHolder")
-            == EntityType.RECONCILIATIONS_HOLDER
-        )
 
     def test_asset_edit_holder(self) -> None:
         """AssetEditHolder converts correctly."""

@@ -235,8 +235,6 @@ def _class_name_to_entity_type(class_name: str) -> EntityType | None:
     SPECIAL_CASES = {
         "DNAHolder": "DNA_HOLDER",
         "ReconciliationHolder": "RECONCILIATIONS_HOLDER",
-        # Deprecated alias
-        "ReconciliationsHolder": "RECONCILIATIONS_HOLDER",
     }
 
     if class_name in SPECIAL_CASES:

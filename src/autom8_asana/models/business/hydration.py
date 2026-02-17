@@ -746,7 +746,7 @@ def _convert_to_typed_entity(
     from autom8_asana.models.business.business import (
         AssetEditHolder,
         DNAHolder,
-        ReconciliationsHolder,
+        ReconciliationHolder,
         VideographyHolder,
     )
     from autom8_asana.models.business.contact import Contact, ContactHolder
@@ -766,7 +766,7 @@ def _convert_to_typed_entity(
         EntityType.PROCESS_HOLDER: ProcessHolder,
         EntityType.LOCATION_HOLDER: LocationHolder,
         EntityType.DNA_HOLDER: DNAHolder,
-        EntityType.RECONCILIATIONS_HOLDER: ReconciliationsHolder,
+        EntityType.RECONCILIATIONS_HOLDER: ReconciliationHolder,
         EntityType.ASSET_EDIT_HOLDER: AssetEditHolder,
         EntityType.VIDEOGRAPHY_HOLDER: VideographyHolder,
         # Entities (BusinessEntity -> Task)
