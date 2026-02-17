@@ -73,9 +73,9 @@ class SchemaExtractor(BaseExtractor):
     def _create_row(self, data: dict[str, Any]) -> TaskRow:
         """Create a dynamically-generated row model from extracted data.
 
-        Sets the type field to schema.task_type and converts None lists
-        to empty lists for List-typed fields (matching UnitRow/ContactRow
-        behavior).
+        Sets the type field to schema.task_type. List field normalization
+        (None -> []) is handled by BaseExtractor._normalize_list_fields()
+        before this method is called.
 
         Args:
             data: Dict of column_name -> extracted value
@@ -85,11 +85,6 @@ class SchemaExtractor(BaseExtractor):
         """
         # Set type to match schema
         data["type"] = self._schema.task_type
-
-        # Convert None lists to empty lists for all List-typed columns
-        for col in self._schema.columns:
-            if col.dtype in ("List[Utf8]", "List[String]") and data.get(col.name) is None:
-                data[col.name] = []
 
         model_class = self._build_dynamic_row_model()
         return model_class.model_validate(data)

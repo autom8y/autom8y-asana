@@ -53,10 +53,6 @@ class ContactExtractor(BaseExtractor):
         # Ensure type is set correctly
         data["type"] = "Contact"
 
-        # Convert None lists to empty lists for list fields
-        if data.get("tags") is None:
-            data["tags"] = []
-
         return ContactRow.model_validate(data)
 
     # =========================================================================

@@ -63,14 +63,6 @@ class UnitExtractor(BaseExtractor):
         # Ensure type is set correctly
         data["type"] = "Unit"
 
-        # Convert None lists to empty lists for list fields
-        if data.get("tags") is None:
-            data["tags"] = []
-        if data.get("products") is None:
-            data["products"] = []
-        if data.get("languages") is None:
-            data["languages"] = []
-
         return UnitRow.model_validate(data)
 
     # =========================================================================
