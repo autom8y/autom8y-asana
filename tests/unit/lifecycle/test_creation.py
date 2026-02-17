@@ -28,6 +28,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from autom8_asana.core.creation import generate_entity_name
 from autom8_asana.lifecycle.config import (
     AssigneeConfig,
     SeedingConfig,
@@ -264,10 +265,10 @@ def test_generate_name_business_placeholder():
     unit = MagicMock()
     unit.name = "Downtown"
 
-    result = EntityCreationService._generate_name(
-        "[Business Name] - Sales",
-        business,
-        unit,
+    result = generate_entity_name(
+        template_name="[Business Name] - Sales",
+        business=business,
+        unit=unit,
     )
     assert result == "Acme Corp - Sales"
 
@@ -279,10 +280,10 @@ def test_generate_name_unit_placeholder():
     unit = MagicMock()
     unit.name = "Downtown Office"
 
-    result = EntityCreationService._generate_name(
-        "[Unit Name] Onboarding",
-        business,
-        unit,
+    result = generate_entity_name(
+        template_name="[Unit Name] Onboarding",
+        business=business,
+        unit=unit,
     )
     assert result == "Downtown Office Onboarding"
 
@@ -294,10 +295,10 @@ def test_generate_name_both_placeholders():
     unit = MagicMock()
     unit.name = "Downtown"
 
-    result = EntityCreationService._generate_name(
-        "[Business Name] - [Unit Name]",
-        business,
-        unit,
+    result = generate_entity_name(
+        template_name="[Business Name] - [Unit Name]",
+        business=business,
+        unit=unit,
     )
     assert result == "Acme Corp - Downtown"
 
@@ -309,17 +310,21 @@ def test_generate_name_business_unit_name_variant():
     unit = MagicMock()
     unit.name = "Downtown"
 
-    result = EntityCreationService._generate_name(
-        "[Business Unit Name] Process",
-        business,
-        unit,
+    result = generate_entity_name(
+        template_name="[Business Unit Name] Process",
+        business=business,
+        unit=unit,
     )
     assert result == "Downtown Process"
 
 
 def test_generate_name_no_template():
-    """None template_name returns 'New Process'."""
-    result = EntityCreationService._generate_name(None, MagicMock(), MagicMock())
+    """None template_name returns default fallback 'New Process'."""
+    result = generate_entity_name(
+        template_name=None,
+        business=MagicMock(),
+        unit=MagicMock(),
+    )
     assert result == "New Process"
 
 
@@ -330,10 +335,10 @@ def test_generate_name_case_insensitive():
     unit = MagicMock()
     unit.name = None
 
-    result = EntityCreationService._generate_name(
-        "[BUSINESS NAME] - Sales",
-        business,
-        unit,
+    result = generate_entity_name(
+        template_name="[BUSINESS NAME] - Sales",
+        business=business,
+        unit=unit,
     )
     assert result == "Acme - Sales"
 
