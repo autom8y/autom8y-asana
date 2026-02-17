@@ -41,8 +41,8 @@ DTYPE_MAP: dict[str, tuple[type, Any]] = {
     "Date": (dt.date, None),
     "Datetime": (dt.datetime, None),
     "Decimal": (float, None),  # Polars maps Decimal->Float64; Python float suffices
-    "List[Utf8]": (list[str], []),  # Default empty list, not None
-    "List[String]": (list[str], []),
+    "List[Utf8]": (list[str], None),  # List normalization handled by BaseExtractor
+    "List[String]": (list[str], None),
 }
 
 
