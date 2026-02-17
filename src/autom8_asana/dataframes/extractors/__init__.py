@@ -5,6 +5,8 @@ into typed TaskRow instances based on schema definitions.
 
 Public API:
     - BaseExtractor: Abstract base with 12 base field extraction methods
+    - DefaultExtractor: Default task extraction with 12 base fields
+    - SchemaExtractor: Schema-driven generic extraction via dynamic Pydantic models
     - UnitExtractor: Unit task extraction with 23 fields
     - ContactExtractor: Contact task extraction with 21 fields
 
