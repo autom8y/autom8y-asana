@@ -138,9 +138,9 @@ class SchemaRegistry:
             except Exception:
                 # Per R1.1: Validation MUST NOT crash startup
                 # If validation itself fails, log and continue
-                import logging
+                from autom8y_log import get_logger
 
-                logging.getLogger(__name__).warning(
+                get_logger(__name__).warning(
                     "schema_validation_failed",
                     exc_info=True,
                 )
