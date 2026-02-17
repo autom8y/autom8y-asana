@@ -56,7 +56,7 @@ BUSINESS_SCHEMA = DataFrameSchema(
     task_type="business",
     columns=[
         *BASE_COLUMNS,
-        *[c for c in BUSINESS_COLUMNS if c not in BASE_COLUMNS],
+        *[c for c in BUSINESS_COLUMNS if c.name not in {col.name for col in BASE_COLUMNS}],
     ],
     version="1.1.0",  # Bump to invalidate stale caches missing warm_hierarchy fix
 )
