@@ -14,7 +14,6 @@ Sales process moves to the "Converted" section.
 
 from __future__ import annotations
 
-import re
 import time
 from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any, Literal, cast
@@ -27,6 +26,7 @@ from autom8_asana.automation.seeding import FieldSeeder
 from autom8_asana.automation.templates import TemplateDiscovery
 from autom8_asana.automation.validation import ValidationResult
 from autom8_asana.automation.waiter import SubtaskWaiter
+from autom8_asana.core.creation import generate_entity_name
 from autom8_asana.core.exceptions import ASANA_API_ERRORS
 from autom8_asana.core.timing import elapsed_ms
 from autom8_asana.models.business import Process, ProcessSection, ProcessType
@@ -301,10 +301,11 @@ class PipelineConversionRule:
             # Step 3: Duplicate task from template (copies subtasks)
             # Per FR-DUP-001: Use duplicate_async to copy template with subtasks
             # Generate name from template pattern, replacing placeholders with actual values
-            new_task_name = self._generate_task_name(
+            new_task_name = generate_entity_name(
                 template_name=template_task.name,
                 business=business,
                 unit=unit,
+                fallback_name=f"New {self._target_type.value.title()}",
             )
 
             # Step 3a: Get template subtask count for waiter
@@ -487,77 +488,6 @@ class PipelineConversionRule:
                 execution_time_ms=elapsed_ms(start_time),
                 enhancement_results=enhancement_results,
             )
-
-    def _generate_task_name(
-        self,
-        template_name: str | None,
-        business: Any,
-        unit: Any,
-    ) -> str:
-        """Generate task name from template by replacing bracketed placeholders.
-
-        Takes the template task's name and replaces bracketed placeholders with
-        actual entity values. Brackets are required around placeholders for
-        explicit, robust matching. Replacement inside brackets is case-insensitive.
-
-        Supported placeholders:
-        - "[Business Name]" -> business.name
-        - "[Unit Name]" -> unit.name
-        - "[Business Unit Name]" -> unit.name
-
-        Args:
-            template_name: Template task name with bracketed placeholders.
-            business: Business entity (may be None).
-            unit: Unit entity (may be None).
-
-        Returns:
-            Task name with placeholders replaced by actual values.
-            Falls back to target type title if template_name is None.
-
-        Example:
-            >>> rule._generate_task_name(
-            ...     "Onboarding Process - [Business Name]",
-            ...     business=Business(name="Acme Corp"),
-            ...     unit=None,
-            ... )
-            "Onboarding Process - Acme Corp"
-        """
-        if not template_name:
-            return f"New {self._target_type.value.title()}"
-
-        result = template_name
-
-        # Get business name with fallback
-        business_name: str | None = None
-        if business is not None:
-            business_name = getattr(business, "name", None)
-
-        # Get unit name with fallback
-        unit_name: str | None = None
-        if unit is not None:
-            unit_name = getattr(unit, "name", None)
-
-        # Replace bracketed placeholders (case-insensitive inside brackets)
-        # Entire [placeholder] is replaced with the value (no leftover brackets)
-        if business_name:
-            # Replace [Business Name] variants
-            result = re.sub(
-                r"\[business\s*name\]",
-                business_name,
-                result,
-                flags=re.IGNORECASE,
-            )
-
-        if unit_name:
-            # Replace [Unit Name] or [Business Unit Name] variants
-            result = re.sub(
-                r"\[(business\s*)?unit\s*name\]",
-                unit_name,
-                result,
-                flags=re.IGNORECASE,
-            )
-
-        return result
 
     async def _place_in_hierarchy_async(
         self,

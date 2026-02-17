@@ -713,34 +713,38 @@ class TestEntityCreationService:
     def test_name_generation_with_placeholders(self):
         """Name generation should replace [Business Name] and
         [Unit Name] placeholders."""
-        from autom8_asana.lifecycle.creation import EntityCreationService
+        from autom8_asana.core.creation import generate_entity_name
 
         business = MagicMock()
         business.name = "Acme Corp"
         unit = MagicMock()
         unit.name = "Unit 1"
 
-        result = EntityCreationService._generate_name(
-            "[Business Name] - [Unit Name] Process", business, unit
+        result = generate_entity_name(
+            template_name="[Business Name] - [Unit Name] Process",
+            business=business,
+            unit=unit,
         )
         assert "Acme Corp" in result
         assert "Unit 1" in result
 
     def test_name_generation_no_template(self):
-        """When no template name, should return 'New Process'."""
-        from autom8_asana.lifecycle.creation import EntityCreationService
+        """When no template name, should return default fallback 'New Process'."""
+        from autom8_asana.core.creation import generate_entity_name
 
-        result = EntityCreationService._generate_name(None, None, None)
+        result = generate_entity_name(template_name=None, business=None, unit=None)
         assert result == "New Process"
 
     def test_name_generation_case_insensitive(self):
         """Placeholder replacement should be case-insensitive."""
-        from autom8_asana.lifecycle.creation import EntityCreationService
+        from autom8_asana.core.creation import generate_entity_name
 
         business = MagicMock()
         business.name = "Acme"
-        result = EntityCreationService._generate_name(
-            "[BUSINESS NAME] Process", business, None
+        result = generate_entity_name(
+            template_name="[BUSINESS NAME] Process",
+            business=business,
+            unit=None,
         )
         assert "Acme" in result
 

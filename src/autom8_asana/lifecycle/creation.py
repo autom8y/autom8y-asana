@@ -25,7 +25,6 @@ Creation flow:
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
@@ -34,6 +33,7 @@ from autom8y_log import get_logger
 
 from autom8_asana.automation.templates import TemplateDiscovery
 from autom8_asana.automation.waiter import SubtaskWaiter
+from autom8_asana.core.creation import generate_entity_name
 from autom8_asana.lifecycle.config import AssigneeConfig, LifecycleConfig, StageConfig
 from autom8_asana.lifecycle.seeding import AutoCascadeSeeder
 
@@ -156,10 +156,10 @@ class EntityCreationService:
             )
 
             # 4. Create (template or blank fallback)
-            new_name = self._generate_name(
-                template.name if template else None,
-                business,
-                unit,
+            new_name = generate_entity_name(
+                template_name=template.name if template else None,
+                business=business,
+                unit=unit,
             )
 
             if template:
@@ -276,10 +276,10 @@ class EntityCreationService:
                 opt_fields=["num_subtasks"],
             )
 
-            new_name = self._generate_name(
-                template.name if template else None,
-                business,
-                unit,
+            new_name = generate_entity_name(
+                template_name=template.name if template else None,
+                business=business,
+                unit=unit,
             )
 
             if template:
@@ -636,52 +636,6 @@ class EntityCreationService:
             return await ctx.resolve_holder_async(holder_cls)
 
         return None
-
-    # ------------------------------------------------------------------
-    # Name Generation
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _generate_name(
-        template_name: str | None,
-        business: Any,
-        unit: Any,
-    ) -> str:
-        """Generate task name by replacing [Business Name] and [Unit Name] placeholders.
-
-        Replacement is case-insensitive within brackets. Falls back to
-        "New Process" if no template name provided.
-
-        Args:
-            template_name: Template task name with placeholders.
-            business: Business entity (may be None).
-            unit: Unit entity (may be None).
-
-        Returns:
-            Task name with placeholders replaced.
-        """
-        if not template_name:
-            return "New Process"
-
-        result = template_name
-        business_name = getattr(business, "name", None)
-        unit_name = getattr(unit, "name", None)
-
-        if business_name:
-            result = re.sub(
-                r"\[business\s*name\]",
-                business_name,
-                result,
-                flags=re.IGNORECASE,
-            )
-        if unit_name:
-            result = re.sub(
-                r"\[(business\s*)?unit\s*name\]",
-                unit_name,
-                result,
-                flags=re.IGNORECASE,
-            )
-        return result
 
     # ------------------------------------------------------------------
     # Assignee Resolution

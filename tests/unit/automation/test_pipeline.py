@@ -15,6 +15,7 @@ from autom8_asana.automation.config import AutomationConfig, PipelineStage
 from autom8_asana.automation.context import AutomationContext
 from autom8_asana.automation.events.types import EventType
 from autom8_asana.automation.pipeline import PipelineConversionRule
+from autom8_asana.core.creation import generate_entity_name
 from autom8_asana.models.business.process import ProcessSection, ProcessType
 
 
@@ -609,15 +610,14 @@ class TestElapsedMs:
 
 
 class TestGenerateTaskName:
-    """Tests for _generate_task_name helper method with bracketed placeholders."""
+    """Tests for generate_entity_name shared helper (extracted from pipeline/creation)."""
 
     def test_replaces_business_name_placeholder(self) -> None:
         """Test [Business Name] placeholder is replaced."""
-        rule = PipelineConversionRule()
         mock_business = MagicMock()
         mock_business.name = "Nation of Wellness"
 
-        result = rule._generate_task_name(
+        result = generate_entity_name(
             template_name="Onboarding Process - [Business Name]",
             business=mock_business,
             unit=None,
@@ -627,12 +627,11 @@ class TestGenerateTaskName:
 
     def test_replaces_business_name_case_insensitive(self) -> None:
         """Test [Business Name] placeholder replacement is case-insensitive inside brackets."""
-        rule = PipelineConversionRule()
         mock_business = MagicMock()
         mock_business.name = "Acme Corp"
 
         # Lowercase variant
-        result = rule._generate_task_name(
+        result = generate_entity_name(
             template_name="Process for [business name]",
             business=mock_business,
             unit=None,
@@ -640,7 +639,7 @@ class TestGenerateTaskName:
         assert result == "Process for Acme Corp"
 
         # Mixed case variant
-        result = rule._generate_task_name(
+        result = generate_entity_name(
             template_name="Process for [BUSINESS NAME]",
             business=mock_business,
             unit=None,
@@ -649,11 +648,10 @@ class TestGenerateTaskName:
 
     def test_replaces_unit_name_placeholder(self) -> None:
         """Test [Unit Name] placeholder is replaced."""
-        rule = PipelineConversionRule()
         mock_unit = MagicMock()
         mock_unit.name = "Downtown Location"
 
-        result = rule._generate_task_name(
+        result = generate_entity_name(
             template_name="Setup - [Unit Name]",
             business=None,
             unit=mock_unit,
@@ -663,11 +661,10 @@ class TestGenerateTaskName:
 
     def test_replaces_business_unit_name_placeholder(self) -> None:
         """Test [Business Unit Name] placeholder is replaced with unit name."""
-        rule = PipelineConversionRule()
         mock_unit = MagicMock()
         mock_unit.name = "Main Office"
 
-        result = rule._generate_task_name(
+        result = generate_entity_name(
             template_name="Onboarding - [Business Unit Name]",
             business=None,
             unit=mock_unit,
@@ -677,13 +674,12 @@ class TestGenerateTaskName:
 
     def test_replaces_multiple_placeholders(self) -> None:
         """Test multiple bracketed placeholders are replaced."""
-        rule = PipelineConversionRule()
         mock_business = MagicMock()
         mock_business.name = "Acme Corp"
         mock_unit = MagicMock()
         mock_unit.name = "West Division"
 
-        result = rule._generate_task_name(
+        result = generate_entity_name(
             template_name="[Business Name] - [Unit Name] Onboarding",
             business=mock_business,
             unit=mock_unit,
@@ -693,35 +689,33 @@ class TestGenerateTaskName:
 
     def test_returns_default_when_template_name_is_none(self) -> None:
         """Test fallback to default name when template name is None."""
-        rule = PipelineConversionRule()  # target_type defaults to ONBOARDING
-
-        result = rule._generate_task_name(
+        # pipeline.py passes fallback_name=f"New {target_type.value.title()}"
+        result = generate_entity_name(
             template_name=None,
             business=None,
             unit=None,
+            fallback_name="New Onboarding",
         )
 
         assert result == "New Onboarding"
 
     def test_returns_default_when_template_name_is_empty(self) -> None:
         """Test fallback to default name when template name is empty string."""
-        rule = PipelineConversionRule()
-
-        result = rule._generate_task_name(
+        result = generate_entity_name(
             template_name="",
             business=None,
             unit=None,
+            fallback_name="New Onboarding",
         )
 
         assert result == "New Onboarding"
 
     def test_preserves_template_name_without_placeholders(self) -> None:
         """Test template name is preserved when no bracketed placeholders match."""
-        rule = PipelineConversionRule()
         mock_business = MagicMock()
         mock_business.name = "Test Corp"
 
-        result = rule._generate_task_name(
+        result = generate_entity_name(
             template_name="Standard Onboarding Process",
             business=mock_business,
             unit=None,
@@ -731,9 +725,7 @@ class TestGenerateTaskName:
 
     def test_handles_none_business_gracefully(self) -> None:
         """Test bracketed placeholder preserved when business is None."""
-        rule = PipelineConversionRule()
-
-        result = rule._generate_task_name(
+        result = generate_entity_name(
             template_name="Onboarding - [Business Name]",
             business=None,
             unit=None,
@@ -744,10 +736,9 @@ class TestGenerateTaskName:
 
     def test_handles_business_without_name_attribute(self) -> None:
         """Test bracketed placeholder preserved when business has no name."""
-        rule = PipelineConversionRule()
         mock_business = MagicMock(spec=[])  # No attributes
 
-        result = rule._generate_task_name(
+        result = generate_entity_name(
             template_name="Onboarding - [Business Name]",
             business=mock_business,
             unit=None,
@@ -758,11 +749,10 @@ class TestGenerateTaskName:
 
     def test_handles_business_with_none_name(self) -> None:
         """Test bracketed placeholder preserved when business.name is None."""
-        rule = PipelineConversionRule()
         mock_business = MagicMock()
         mock_business.name = None
 
-        result = rule._generate_task_name(
+        result = generate_entity_name(
             template_name="Onboarding - [Business Name]",
             business=mock_business,
             unit=None,
@@ -773,12 +763,11 @@ class TestGenerateTaskName:
 
     def test_handles_whitespace_variants_in_placeholder(self) -> None:
         """Test placeholders with optional whitespace inside brackets are replaced."""
-        rule = PipelineConversionRule()
         mock_business = MagicMock()
         mock_business.name = "Test Corp"
 
         # No space variant
-        result = rule._generate_task_name(
+        result = generate_entity_name(
             template_name="Process - [BusinessName]",
             business=mock_business,
             unit=None,
@@ -787,25 +776,23 @@ class TestGenerateTaskName:
         assert result == "Process - Test Corp"
 
     def test_custom_target_type_in_fallback(self) -> None:
-        """Test custom target type is used in fallback name."""
-        rule = PipelineConversionRule(target_type=ProcessType.IMPLEMENTATION)
-
-        result = rule._generate_task_name(
+        """Test custom fallback_name parameter is returned when template_name is None."""
+        result = generate_entity_name(
             template_name=None,
             business=None,
             unit=None,
+            fallback_name="New Implementation",
         )
 
         assert result == "New Implementation"
 
     def test_unbracketed_text_not_replaced(self) -> None:
         """Test that unbracketed 'Business Name' text is NOT replaced."""
-        rule = PipelineConversionRule()
         mock_business = MagicMock()
         mock_business.name = "Test Corp"
 
         # Without brackets, should NOT be replaced
-        result = rule._generate_task_name(
+        result = generate_entity_name(
             template_name="Onboarding Process - Business Name",
             business=mock_business,
             unit=None,
@@ -816,11 +803,10 @@ class TestGenerateTaskName:
 
     def test_entire_bracket_removed_on_replacement(self) -> None:
         """Test that entire [placeholder] including brackets is replaced."""
-        rule = PipelineConversionRule()
         mock_business = MagicMock()
         mock_business.name = "Acme"
 
-        result = rule._generate_task_name(
+        result = generate_entity_name(
             template_name="[Business Name] Onboarding",
             business=mock_business,
             unit=None,
