@@ -27,6 +27,7 @@ from autom8_asana.automation.seeding import FieldSeeder
 from autom8_asana.automation.templates import TemplateDiscovery
 from autom8_asana.automation.validation import ValidationResult
 from autom8_asana.automation.waiter import SubtaskWaiter
+from autom8_asana.core.timing import elapsed_ms
 
 # Per TDD-registry-consolidation: Import from package to ensure bootstrap runs
 from autom8_asana.exceptions import AsanaError
@@ -229,7 +230,7 @@ class PipelineConversionRule:
                     triggered_by_type=entity_type_name,
                     success=False,
                     error=f"Expected Process, got {entity_type_name}",
-                    execution_time_ms=self._elapsed_ms(start_time),
+                    execution_time_ms=elapsed_ms(start_time),
                 )
 
             # Cast to Process for type checker - we've verified the type above
@@ -252,7 +253,7 @@ class PipelineConversionRule:
                         actions_executed=actions_executed,
                         success=False,
                         error=f"Pre-transition validation failed: {pre_validation.errors}",
-                        execution_time_ms=self._elapsed_ms(start_time),
+                        execution_time_ms=elapsed_ms(start_time),
                         pre_validation=pre_validation,
                     )
                 # If mode is "warn", continue with transition even if validation failed
@@ -270,7 +271,7 @@ class PipelineConversionRule:
                         f"No target project configured for "
                         f"{self._target_type.value} pipeline"
                     ),
-                    execution_time_ms=self._elapsed_ms(start_time),
+                    execution_time_ms=elapsed_ms(start_time),
                 )
 
             target_project_gid = stage.project_gid
@@ -297,7 +298,7 @@ class PipelineConversionRule:
                         f"No template found in project {target_project_gid} "
                         f"for {self._target_type.value} pipeline"
                     ),
-                    execution_time_ms=self._elapsed_ms(start_time),
+                    execution_time_ms=elapsed_ms(start_time),
                 )
 
             actions_executed.append("discover_template")
@@ -475,7 +476,7 @@ class PipelineConversionRule:
                 entities_created=entities_created,
                 entities_updated=entities_updated,
                 success=True,
-                execution_time_ms=self._elapsed_ms(start_time),
+                execution_time_ms=elapsed_ms(start_time),
                 enhancement_results=enhancement_results,
                 pre_validation=pre_validation,
                 post_validation=post_validation,
@@ -492,20 +493,9 @@ class PipelineConversionRule:
                 entities_updated=entities_updated,
                 success=False,
                 error=str(e),
-                execution_time_ms=self._elapsed_ms(start_time),
+                execution_time_ms=elapsed_ms(start_time),
                 enhancement_results=enhancement_results,
             )
-
-    def _elapsed_ms(self, start_time: float) -> float:
-        """Calculate elapsed time in milliseconds.
-
-        Args:
-            start_time: Start time from time.perf_counter().
-
-        Returns:
-            Elapsed time in milliseconds.
-        """
-        return (time.perf_counter() - start_time) * 1000
 
     def _generate_task_name(
         self,

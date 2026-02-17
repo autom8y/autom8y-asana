@@ -589,19 +589,20 @@ class TestExecuteAsync:
 
 
 class TestElapsedMs:
-    """Tests for _elapsed_ms helper."""
+    """Tests for elapsed_ms timing utility."""
 
     def test_calculates_elapsed_time(self) -> None:
         """Test elapsed time calculation."""
         import time
 
-        rule = PipelineConversionRule()
+        from autom8_asana.core.timing import elapsed_ms
+
         start = time.perf_counter()
 
         # Small delay
         time.sleep(0.001)
 
-        elapsed = rule._elapsed_ms(start)
+        elapsed = elapsed_ms(start)
 
         assert elapsed > 0
         assert elapsed < 1000  # Should be well under 1 second
