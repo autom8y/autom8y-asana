@@ -16,7 +16,7 @@ jobs:
       contents: read
     strategy:
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.12"]
 
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +48,8 @@ jobs:
 
       - name: Configure uv for CodeArtifact
         run: |
-          echo "UV_EXTRA_INDEX_URL=https://aws:${{ steps.codeartifact.outputs.token }}@autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" >> $GITHUB_ENV
+          echo "UV_INDEX_AUTOM8Y_USERNAME=aws" >> $GITHUB_ENV
+          echo "UV_INDEX_AUTOM8Y_PASSWORD=${{ steps.codeartifact.outputs.token }}" >> $GITHUB_ENV
 
       - name: Install dependencies
         run: uv sync --all-extras
@@ -112,7 +113,8 @@ jobs:
 
       - name: Configure uv for CodeArtifact
         run: |
-          echo "UV_EXTRA_INDEX_URL=https://aws:${{ steps.codeartifact.outputs.token }}@autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" >> $GITHUB_ENV
+          echo "UV_INDEX_AUTOM8Y_USERNAME=aws" >> $GITHUB_ENV
+          echo "UV_INDEX_AUTOM8Y_PASSWORD=${{ steps.codeartifact.outputs.token }}" >> $GITHUB_ENV
 
       - name: Install dependencies
         run: uv sync --all-extras
@@ -163,7 +165,8 @@ jobs:
 
       - name: Configure uv for CodeArtifact
         run: |
-          echo "UV_EXTRA_INDEX_URL=https://aws:${{ steps.codeartifact.outputs.token }}@autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" >> $GITHUB_ENV
+          echo "UV_INDEX_AUTOM8Y_USERNAME=aws" >> $GITHUB_ENV
+          echo "UV_INDEX_AUTOM8Y_PASSWORD=${{ steps.codeartifact.outputs.token }}" >> $GITHUB_ENV
 
       - name: Install dependencies
         run: uv sync --all-extras
