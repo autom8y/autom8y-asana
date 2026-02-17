@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from autom8y_log import get_logger
 
+from autom8_asana.core.timing import elapsed_ms
 from autom8_asana.lifecycle.config import LifecycleConfig, StageConfig
 from autom8_asana.persistence.models import AutomationResult
 from autom8_asana.resolution.context import ResolutionContext
@@ -367,7 +368,7 @@ class LifecycleEngine:
                 actions=result.actions_executed,
                 entities_created=result.entities_created,
                 warnings=result.warnings,
-                duration_ms=self._elapsed_ms(start_time),
+                duration_ms=elapsed_ms(start_time),
             )
 
             return self._build_result(
@@ -595,7 +596,7 @@ class LifecycleEngine:
                 source_stage=source_stage.name,
                 target_stage=target_stage.name,
                 actions=result.actions_executed,
-                duration_ms=self._elapsed_ms(start_time),
+                duration_ms=elapsed_ms(start_time),
             )
 
             return self._build_result(
@@ -621,7 +622,7 @@ class LifecycleEngine:
             outcome="did_not_convert",
             actions=result.actions_executed,
             entities_created=result.entities_created,
-            duration_ms=self._elapsed_ms(start_time),
+            duration_ms=elapsed_ms(start_time),
         )
 
         return self._build_result(
@@ -668,7 +669,7 @@ class LifecycleEngine:
             "lifecycle_terminal",
             source_stage=source_stage.name,
             outcome=outcome,
-            duration_ms=self._elapsed_ms(start_time),
+            duration_ms=elapsed_ms(start_time),
         )
 
         return self._build_result(
@@ -695,10 +696,6 @@ class LifecycleEngine:
                 missing.append(field_name)
         return missing
 
-    def _elapsed_ms(self, start_time: float) -> float:
-        """Calculate elapsed time in milliseconds."""
-        return (time.perf_counter() - start_time) * 1000
-
     def _build_result(
         self,
         rule_id: str,
@@ -719,7 +716,7 @@ class LifecycleEngine:
             entities_updated=tr.entities_updated,
             success=effective_error is None,
             error=effective_error or "",
-            execution_time_ms=self._elapsed_ms(start_time),
+            execution_time_ms=elapsed_ms(start_time),
         )
 
 

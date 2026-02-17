@@ -14,6 +14,7 @@ from autom8y_log import get_logger
 from autom8_asana.automation.base import TriggerCondition
 from autom8_asana.automation.events.envelope import EventEnvelope
 from autom8_asana.automation.events.types import EventType
+from autom8_asana.core.timing import elapsed_ms
 from autom8_asana.persistence.models import AutomationResult
 
 if TYPE_CHECKING:
@@ -120,7 +121,7 @@ class EventEmissionRule:
                 triggered_by_type=entity_type,
                 success=True,
                 skipped_reason=f"unknown_event_type:{self._last_event}",
-                execution_time_ms=self._elapsed_ms(start_time),
+                execution_time_ms=elapsed_ms(start_time),
             )
 
         # Build thin payload
@@ -144,7 +145,7 @@ class EventEmissionRule:
             triggered_by_type=entity_type,
             actions_executed=["emit_event"],
             success=True,  # Emission failures are non-fatal
-            execution_time_ms=self._elapsed_ms(start_time),
+            execution_time_ms=elapsed_ms(start_time),
             enhancement_results={
                 "events_attempted": result.attempted,
                 "events_succeeded": result.succeeded,
@@ -186,6 +187,3 @@ class EventEmissionRule:
                     break
 
         return payload
-
-    def _elapsed_ms(self, start_time: float) -> float:
-        return (time.perf_counter() - start_time) * 1000
