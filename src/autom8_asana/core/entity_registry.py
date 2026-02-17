@@ -1,9 +1,23 @@
 """Entity Knowledge Registry -- single source of truth for entity metadata.
 
-Consolidates 53+ locations of duplicated entity knowledge into one declaration
-per entity type. All existing consumers (ENTITY_TYPES, DEFAULT_ENTITY_TTLS,
-ENTITY_ALIASES, DEFAULT_KEY_COLUMNS) become thin backward-compatible facades
-that delegate to this registry.
+Consolidates entity knowledge into one declaration per entity type. All 4
+DataFrame layer consumers are descriptor-driven:
+
+1. SchemaRegistry._ensure_initialized() -- auto-discovers schemas via
+   schema_module_path (no hardcoded imports).
+2. _create_extractor() -- resolves extractor classes via extractor_class_path
+   (no hardcoded match/case branches).
+3. ENTITY_RELATIONSHIPS -- derived from join_keys on descriptors.
+4. _build_cascading_field_registry() -- discovers providers via
+   cascading_field_provider flag.
+
+Validation checks 6a-6f run at import time to catch triad inconsistencies
+(schema/extractor/row model). Path syntax is validated at module load;
+actual import resolution is deferred to avoid circular imports (tested in
+TestDataFramePathResolution).
+
+Backward-compatible facades (ENTITY_TYPES, DEFAULT_ENTITY_TTLS,
+ENTITY_ALIASES, DEFAULT_KEY_COLUMNS) delegate to this registry.
 
 Per TDD-ENTITY-REGISTRY-001:
 - EntityDescriptor: Frozen dataclass capturing all metadata for one entity type
@@ -29,6 +43,30 @@ from typing import Any
 from autom8y_log import get_logger
 
 logger = get_logger(__name__)
+
+
+def _resolve_dotted_path(dotted_path: str) -> Any:
+    """Resolve a dotted import path to the referenced object.
+
+    Handles both 'module.path.ClassName' and 'module.path.CONSTANT_NAME'.
+
+    Args:
+        dotted_path: Fully qualified dotted path.
+
+    Returns:
+        The resolved object (class, constant, etc.)
+
+    Raises:
+        ImportError: If the module cannot be imported or path is invalid.
+        AttributeError: If the attribute does not exist on the module.
+    """
+    module_path, _, attr_name = dotted_path.rpartition(".")
+    if not module_path:
+        raise ImportError(f"Invalid dotted path (no module): {dotted_path!r}")
+    import importlib
+
+    module = importlib.import_module(module_path)
+    return getattr(module, attr_name)
 
 
 class EntityCategory(str, Enum):
@@ -68,6 +106,14 @@ class EntityDescriptor:
         join_keys: Default join column by target entity type.
         key_columns: Default key columns for DynamicIndex resolution.
         explicit_name_mappings: Asana project name -> entity type mappings.
+        schema_module_path: Dotted path to DataFrame schema constant (e.g.,
+            "autom8_asana.dataframes.schemas.unit.UNIT_SCHEMA").
+        extractor_class_path: Dotted path to extractor class (e.g.,
+            "autom8_asana.dataframes.extractors.unit.UnitExtractor").
+        row_model_class_path: Dotted path to row model class (e.g.,
+            "autom8_asana.dataframes.models.task_row.UnitRow").
+        cascading_field_provider: True if model_class has a CascadingFields
+            inner class used by _build_cascading_field_registry().
     """
 
     # --- Identity ---
@@ -106,6 +152,12 @@ class EntityDescriptor:
     # --- Discovery ---
     explicit_name_mappings: tuple[tuple[str, str], ...] = ()
 
+    # --- DataFrame Layer ---
+    schema_module_path: str | None = None
+    extractor_class_path: str | None = None
+    row_model_class_path: str | None = None
+    cascading_field_provider: bool = False
+
     @property
     def effective_schema_key(self) -> str:
         """Schema key for SchemaRegistry lookup."""
@@ -136,13 +188,7 @@ class EntityDescriptor:
         """
         if self.model_class_path is None:
             return None
-        parts = self.model_class_path.rsplit(".", 1)
-        if len(parts) != 2:
-            return None
-        import importlib
-
-        module = importlib.import_module(parts[0])
-        result: type | None = getattr(module, parts[1])
+        result: type | None = _resolve_dotted_path(self.model_class_path)
         return result
 
 
@@ -158,13 +204,25 @@ class EntityRegistry:
     Thread Safety:
         All state is built once at module load and never mutated.
         No locks needed for reads.
+
+    Attributes:
+        strict_triad_validation: When True, check 6d ("schema_without_extractor")
+            becomes a ValueError instead of a warning. Default: False (preserving
+            backward compatibility). Set to True after all schemas have matching
+            extractors. See ADR-S4-001 and ARCH doc section 4.3.
     """
 
-    def __init__(self, descriptors: tuple[EntityDescriptor, ...]) -> None:
+    def __init__(
+        self,
+        descriptors: tuple[EntityDescriptor, ...],
+        *,
+        strict_triad_validation: bool = False,
+    ) -> None:
         self._descriptors = descriptors
         self._by_name: dict[str, EntityDescriptor] = {}
         self._by_gid: dict[str, EntityDescriptor] = {}
         self._by_type: dict[Any, EntityDescriptor] = {}
+        self.strict_triad_validation = strict_triad_validation
 
         for d in descriptors:
             if d.name in self._by_name:
@@ -305,6 +363,14 @@ def _to_pascal(name: str) -> str:
 # =============================================================================
 # ENTITY_DESCRIPTORS: The single source of truth for all entity types.
 # Adding a new entity type means adding one entry here.
+#
+# Adding a New Entity with a DataFrame Schema (2-File Pattern):
+#   1. Add an EntityDescriptor entry below with schema_module_path set.
+#   2. Create the corresponding schema file in dataframes/schemas/.
+#   Schema files are auto-discovered via schema_module_path; no hardcoded
+#   imports needed in SchemaRegistry. Validation check 6a catches mismatches
+#   at import time. See ADR-S4-001 for the rationale behind keeping schemas
+#   as separate files rather than generating them from descriptor metadata.
 # =============================================================================
 
 ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
@@ -329,6 +395,8 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
             ("offer", "office_phone"),
         ),
         key_columns=("office_phone",),
+        schema_module_path="autom8_asana.dataframes.schemas.business.BUSINESS_SCHEMA",
+        cascading_field_provider=True,
     ),
     # =========================================================================
     # Composite Entity
@@ -350,6 +418,10 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
             ("offer", "office_phone"),
         ),
         key_columns=("office_phone", "vertical"),
+        schema_module_path="autom8_asana.dataframes.schemas.unit.UNIT_SCHEMA",
+        extractor_class_path="autom8_asana.dataframes.extractors.unit.UnitExtractor",
+        row_model_class_path="autom8_asana.dataframes.models.task_row.UnitRow",
+        cascading_field_provider=True,
     ),
     # =========================================================================
     # Leaf Entities
@@ -368,6 +440,9 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         aliases=(),
         join_keys=(("business", "office_phone"),),
         key_columns=("office_phone", "contact_phone", "contact_email"),
+        schema_module_path="autom8_asana.dataframes.schemas.contact.CONTACT_SCHEMA",
+        extractor_class_path="autom8_asana.dataframes.extractors.contact.ContactExtractor",
+        row_model_class_path="autom8_asana.dataframes.models.task_row.ContactRow",
     ),
     EntityDescriptor(
         name="offer",
@@ -386,6 +461,7 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
             ("business", "office_phone"),
         ),
         key_columns=("office_phone", "vertical", "offer_id"),
+        schema_module_path="autom8_asana.dataframes.schemas.offer.OFFER_SCHEMA",
     ),
     EntityDescriptor(
         name="asset_edit",
@@ -401,6 +477,7 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         aliases=("process",),
         key_columns=("office_phone", "vertical", "asset_id", "offer_id"),
         explicit_name_mappings=(("paid content", "asset_edit"),),
+        schema_module_path="autom8_asana.dataframes.schemas.asset_edit.ASSET_EDIT_SCHEMA",
     ),
     EntityDescriptor(
         name="process",
@@ -520,6 +597,7 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         warm_priority=6,
         aliases=(),
         key_columns=("office_phone",),
+        schema_module_path="autom8_asana.dataframes.schemas.asset_edit_holder.ASSET_EDIT_HOLDER_SCHEMA",
     ),
     EntityDescriptor(
         name="videography_holder",
@@ -626,6 +704,19 @@ def _validate_registry_integrity(registry: EntityRegistry) -> None:
     3. No duplicate pascal_names
     4. Join key targets exist
     5. Parent entity references exist
+    6. Schema-Extractor-Row triad consistency:
+       6a. Schema path syntax valid (ERROR)
+       6b. Extractor path syntax valid (ERROR)
+       6c. Row model path syntax valid (ERROR)
+       6d. Schema without extractor (WARNING -- partial wiring)
+       6e. Schema without row model (WARNING -- partial wiring)
+       6f. Extractor without schema (ERROR -- nonsensical)
+    7. Cascading field provider has model_class_path (ERROR)
+
+    Note: Checks 6a-6c validate path syntax only (module.attr format).
+    Actual import resolution is tested in the test suite to avoid circular
+    imports at module load time (dataframes/__init__.py triggers config.py
+    which imports entity_registry.py).
     """
     names = set(registry.all_names())
 
@@ -668,6 +759,88 @@ def _validate_registry_integrity(registry: EntityRegistry) -> None:
         if desc.parent_entity and desc.parent_entity not in names:
             raise ValueError(
                 f"Entity {desc.name!r} references unknown parent {desc.parent_entity!r}"
+            )
+
+    # IMPORTANT: Schema/extractor/row model modules must NOT import from
+    # core.entity_registry, because _validate_registry_integrity() resolves
+    # their paths during entity_registry.py module load. Any such import
+    # would create a circular dependency.
+    #
+    # NOTE: Checks 6a-6c validate path SYNTAX only at import time (the module
+    # part must be non-empty). Actual import resolution is deferred to test
+    # time because importing dataframes/ subpackages triggers the parent
+    # dataframes/__init__.py, which imports builders -> config -> entity_registry
+    # (circular). Per ARCH doc section 6.4 mitigation: split into "module-load
+    # checks" (syntax) and "first-use / test checks" (import resolution).
+
+    # Check 6: Schema-Extractor-Row triad consistency
+    for desc in registry.all_descriptors():
+        # 6a: Schema path has valid syntax (module.attr format)
+        if desc.schema_module_path:
+            _module, _, _attr = desc.schema_module_path.rpartition(".")
+            if not _module or not _attr:
+                raise ValueError(
+                    f"Entity {desc.name!r}: schema_module_path "
+                    f"{desc.schema_module_path!r} is not a valid dotted path"
+                )
+
+        # 6b: Extractor path has valid syntax
+        if desc.extractor_class_path:
+            _module, _, _attr = desc.extractor_class_path.rpartition(".")
+            if not _module or not _attr:
+                raise ValueError(
+                    f"Entity {desc.name!r}: extractor_class_path "
+                    f"{desc.extractor_class_path!r} is not a valid dotted path"
+                )
+
+        # 6c: Row model path has valid syntax
+        if desc.row_model_class_path:
+            _module, _, _attr = desc.row_model_class_path.rpartition(".")
+            if not _module or not _attr:
+                raise ValueError(
+                    f"Entity {desc.name!r}: row_model_class_path "
+                    f"{desc.row_model_class_path!r} is not a valid dotted path"
+                )
+
+        # 6d: Schema without extractor (WARNING or ERROR per strict_triad_validation)
+        if desc.schema_module_path and not desc.extractor_class_path:
+            if registry.strict_triad_validation:
+                raise ValueError(
+                    f"Entity {desc.name!r}: has schema_module_path but no "
+                    f"extractor_class_path (strict_triad_validation=True). "
+                    f"See ADR-S4-001."
+                )
+            logger.warning(
+                "schema_without_extractor",
+                extra={
+                    "entity": desc.name,
+                    "schema_path": desc.schema_module_path,
+                },
+            )
+
+        # 6e: Schema without row model (WARNING)
+        if desc.schema_module_path and not desc.row_model_class_path:
+            logger.warning(
+                "schema_without_row_model",
+                extra={
+                    "entity": desc.name,
+                    "schema_path": desc.schema_module_path,
+                },
+            )
+
+        # 6f: Extractor without schema (ERROR -- nonsensical)
+        if desc.extractor_class_path and not desc.schema_module_path:
+            raise ValueError(
+                f"Entity {desc.name!r}: has extractor_class_path but no "
+                f"schema_module_path (extractor requires a schema)"
+            )
+
+    # Check 7: Cascading field provider validity
+    for desc in registry.all_descriptors():
+        if desc.cascading_field_provider and not desc.model_class_path:
+            raise ValueError(
+                f"Entity {desc.name!r}: cascading_field_provider=True but "
+                f"no model_class_path to resolve the model"
             )
 
 

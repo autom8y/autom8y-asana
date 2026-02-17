@@ -27,9 +27,7 @@ import polars as pl
 from autom8_asana.dataframes.builders.fields import coerce_rows_to_schema
 from autom8_asana.dataframes.extractors import (
     BaseExtractor,
-    ContactExtractor,
     DefaultExtractor,
-    UnitExtractor,
 )
 from autom8_asana.dataframes.models.schema import DataFrameSchema
 
@@ -511,6 +509,9 @@ class DataFrameBuilder(ABC):
 
         Per TDD-0009: Creates extractor based on task type string.
         Per TDD-CASCADING-FIELD-RESOLUTION-001: Passes client for cascade: support.
+        Per WS1-S2: Auto-wires from EntityDescriptor registry instead of
+        hardcoded match/case. Falls back to SchemaExtractor for types with
+        extra columns, or DefaultExtractor for truly unknown types.
 
         Subclasses can override for custom extractor selection logic.
 
@@ -521,39 +522,47 @@ class DataFrameBuilder(ABC):
             Appropriate BaseExtractor subclass instance
 
         Raises:
-            SchemaNotFoundError: If no extractor exists for task_type
+            ImportError: If a descriptor's extractor_class_path fails to resolve.
+            AttributeError: If a descriptor's extractor_class_path attribute missing.
         """
-        match task_type:
-            case "Unit":
-                return UnitExtractor(self._schema, self._resolver, client=self._client)
-            case "Contact":
-                return ContactExtractor(
-                    self._schema, self._resolver, client=self._client
-                )
-            case "*":
-                return DefaultExtractor(
-                    self._schema, self._resolver, client=self._client
-                )
-            case _:
-                # Per TDD-ENTITY-EXT-001: For entity types with schemas
-                # that have columns beyond the base 12, use SchemaExtractor
-                # which dynamically generates a Pydantic row model. For
-                # truly unknown types with no schema (or base-only schemas),
-                # fall back to DefaultExtractor.
-                from autom8_asana.dataframes.extractors.schema import SchemaExtractor
-                from autom8_asana.dataframes.schemas.base import BASE_COLUMNS
+        # Wildcard type always uses DefaultExtractor
+        if task_type == "*":
+            return DefaultExtractor(
+                self._schema, self._resolver, client=self._client
+            )
 
-                base_col_names = {c.name for c in BASE_COLUMNS}
-                schema_col_names = {c.name for c in self._schema.columns}
-                has_extra_columns = bool(schema_col_names - base_col_names)
+        # Deferred import to avoid circular dependency:
+        # dataframes/ must not import core.entity_registry at module scope
+        from autom8_asana.core.entity_registry import (
+            _resolve_dotted_path,
+            get_registry,
+        )
 
-                if has_extra_columns:
-                    return SchemaExtractor(
-                        self._schema, self._resolver, client=self._client
-                    )
-                return DefaultExtractor(
-                    self._schema, self._resolver, client=self._client
-                )
+        # Look up descriptor by pascal_name matching task_type
+        for desc in get_registry().all_descriptors():
+            if desc.pascal_name == task_type and desc.extractor_class_path:
+                cls = _resolve_dotted_path(desc.extractor_class_path)
+                return cls(self._schema, self._resolver, client=self._client)
+
+        # Fallback for task types without a dedicated extractor:
+        # Per TDD-ENTITY-EXT-001: For entity types with schemas that have
+        # columns beyond the base 12, use SchemaExtractor which dynamically
+        # generates a Pydantic row model. For truly unknown types with no
+        # schema (or base-only schemas), fall back to DefaultExtractor.
+        from autom8_asana.dataframes.extractors.schema import SchemaExtractor
+        from autom8_asana.dataframes.schemas.base import BASE_COLUMNS
+
+        base_col_names = {c.name for c in BASE_COLUMNS}
+        schema_col_names = {c.name for c in self._schema.columns}
+        has_extra_columns = bool(schema_col_names - base_col_names)
+
+        if has_extra_columns:
+            return SchemaExtractor(
+                self._schema, self._resolver, client=self._client
+            )
+        return DefaultExtractor(
+            self._schema, self._resolver, client=self._client
+        )
 
     # =========================================================================
     # Cache Integration Methods
