@@ -62,9 +62,17 @@ check-paths:
 
 # === Code Quality ===
 
+# Sync dependencies
+sync:
+    uv sync
+
 # Format code
 fmt:
     uv run ruff format .
+
+# Format check (CI)
+fmt-check:
+    uv run ruff format . --check
 
 # Lint and auto-fix
 lint:
@@ -103,7 +111,7 @@ test-bench *args:
 # === Combined Checks ===
 
 # Full CI-equivalent check
-check-all: fmt lint typecheck test
+check: fmt lint typecheck test
 
 # === Development Server ===
 

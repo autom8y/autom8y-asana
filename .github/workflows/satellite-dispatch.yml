@@ -40,8 +40,8 @@ jobs:
             {
               "service_name": "asana",
               "satellite_repo": "autom8_asana",
-              "ref": "${{ github.ref_name }}",
-              "sha": "${{ github.sha }}",
+              "ref": "${{ github.event.workflow_run.head_branch || github.ref_name }}",
+              "sha": "${{ github.event.workflow_run.head_sha || github.sha }}",
               "triggered_by": "${{ steps.trigger.outputs.triggered_by }}"
             }
 
@@ -50,6 +50,6 @@ jobs:
           echo "Successfully dispatched satellite-deploy event to autom8y/autom8y"
           echo "  Service: asana"
           echo "  Repository: autom8_asana"
-          echo "  Ref: ${{ github.ref_name }}"
-          echo "  SHA: ${{ github.sha }}"
+          echo "  Ref: ${{ github.event.workflow_run.head_branch || github.ref_name }}"
+          echo "  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}"
           echo "  Triggered by: ${{ steps.trigger.outputs.triggered_by }}"
