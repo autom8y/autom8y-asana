@@ -16,6 +16,8 @@ from autom8_asana.core.entity_registry import (
     EntityCategory,
     EntityDescriptor,
     EntityRegistry,
+    _resolve_dotted_path,
+    _validate_registry_integrity,
     get_registry,
 )
 
@@ -633,3 +635,391 @@ class TestEntityDescriptorData:
             if d.primary_project_gid is not None
         ]
         assert len(gids) == len(set(gids))
+
+
+# =============================================================================
+# DataFrame Layer Field Tests (WS1-S1)
+# =============================================================================
+
+
+class TestDataFrameLayerFields:
+    """Tests for the 4 new DataFrame layer fields on EntityDescriptor."""
+
+    def test_new_fields_exist_with_correct_defaults(self) -> None:
+        """New fields default to None/False when not explicitly set."""
+        desc = EntityDescriptor(name="test", pascal_name="Test", display_name="Test")
+        assert desc.schema_module_path is None
+        assert desc.extractor_class_path is None
+        assert desc.row_model_class_path is None
+        assert desc.cascading_field_provider is False
+
+    def test_new_fields_are_settable(self) -> None:
+        """New fields accept explicit values at construction time."""
+        desc = EntityDescriptor(
+            name="test",
+            pascal_name="Test",
+            display_name="Test",
+            schema_module_path="some.module.SCHEMA",
+            extractor_class_path="some.module.Extractor",
+            row_model_class_path="some.module.Row",
+            cascading_field_provider=True,
+        )
+        assert desc.schema_module_path == "some.module.SCHEMA"
+        assert desc.extractor_class_path == "some.module.Extractor"
+        assert desc.row_model_class_path == "some.module.Row"
+        assert desc.cascading_field_provider is True
+
+    def test_new_fields_are_frozen(self) -> None:
+        """New fields cannot be mutated after creation (frozen dataclass)."""
+        desc = EntityDescriptor(
+            name="test",
+            pascal_name="Test",
+            display_name="Test",
+            schema_module_path="some.module.SCHEMA",
+        )
+        with pytest.raises(AttributeError):
+            desc.schema_module_path = "other.path"  # type: ignore[misc]
+        with pytest.raises(AttributeError):
+            desc.cascading_field_provider = True  # type: ignore[misc]
+
+
+class TestDataFrameLayerPopulation:
+    """Tests that schema-bearing entities have correct field values."""
+
+    def test_business_descriptor_fields(self) -> None:
+        """Business has schema, no extractor/row, cascading=True."""
+        desc = get_registry().require("business")
+        assert desc.schema_module_path == (
+            "autom8_asana.dataframes.schemas.business.BUSINESS_SCHEMA"
+        )
+        assert desc.extractor_class_path is None
+        assert desc.row_model_class_path is None
+        assert desc.cascading_field_provider is True
+
+    def test_unit_descriptor_fields(self) -> None:
+        """Unit has full triad (schema, extractor, row) and cascading=True."""
+        desc = get_registry().require("unit")
+        assert desc.schema_module_path == (
+            "autom8_asana.dataframes.schemas.unit.UNIT_SCHEMA"
+        )
+        assert desc.extractor_class_path == (
+            "autom8_asana.dataframes.extractors.unit.UnitExtractor"
+        )
+        assert desc.row_model_class_path == (
+            "autom8_asana.dataframes.models.task_row.UnitRow"
+        )
+        assert desc.cascading_field_provider is True
+
+    def test_contact_descriptor_fields(self) -> None:
+        """Contact has full triad, no cascading."""
+        desc = get_registry().require("contact")
+        assert desc.schema_module_path == (
+            "autom8_asana.dataframes.schemas.contact.CONTACT_SCHEMA"
+        )
+        assert desc.extractor_class_path == (
+            "autom8_asana.dataframes.extractors.contact.ContactExtractor"
+        )
+        assert desc.row_model_class_path == (
+            "autom8_asana.dataframes.models.task_row.ContactRow"
+        )
+        assert desc.cascading_field_provider is False
+
+    def test_offer_descriptor_fields(self) -> None:
+        """Offer has schema only (B1: no extractor/row yet)."""
+        desc = get_registry().require("offer")
+        assert desc.schema_module_path == (
+            "autom8_asana.dataframes.schemas.offer.OFFER_SCHEMA"
+        )
+        assert desc.extractor_class_path is None
+        assert desc.row_model_class_path is None
+        assert desc.cascading_field_provider is False
+
+    def test_asset_edit_descriptor_fields(self) -> None:
+        """AssetEdit has schema only."""
+        desc = get_registry().require("asset_edit")
+        assert desc.schema_module_path == (
+            "autom8_asana.dataframes.schemas.asset_edit.ASSET_EDIT_SCHEMA"
+        )
+        assert desc.extractor_class_path is None
+        assert desc.row_model_class_path is None
+
+    def test_asset_edit_holder_descriptor_fields(self) -> None:
+        """AssetEditHolder has schema only."""
+        desc = get_registry().require("asset_edit_holder")
+        assert desc.schema_module_path == (
+            "autom8_asana.dataframes.schemas.asset_edit_holder.ASSET_EDIT_HOLDER_SCHEMA"
+        )
+        assert desc.extractor_class_path is None
+        assert desc.row_model_class_path is None
+
+    def test_non_schema_entities_have_none_defaults(self) -> None:
+        """Entities without schemas keep None/False defaults."""
+        non_schema_entities = [
+            "process", "location", "hours",
+            "contact_holder", "unit_holder", "location_holder",
+            "dna_holder", "reconciliation_holder", "videography_holder",
+            "offer_holder", "process_holder",
+        ]
+        registry = get_registry()
+        for name in non_schema_entities:
+            desc = registry.require(name)
+            assert desc.schema_module_path is None, f"{name} should have no schema"
+            assert desc.extractor_class_path is None, f"{name} should have no extractor"
+            assert desc.row_model_class_path is None, f"{name} should have no row model"
+            assert desc.cascading_field_provider is False, (
+                f"{name} should not be a cascading provider"
+            )
+
+    def test_cascading_field_provider_only_business_and_unit(self) -> None:
+        """Only business and unit have cascading_field_provider=True."""
+        registry = get_registry()
+        providers = [
+            d.name
+            for d in registry.all_descriptors()
+            if d.cascading_field_provider
+        ]
+        assert sorted(providers) == ["business", "unit"]
+
+
+# =============================================================================
+# _resolve_dotted_path Tests (WS1-S1)
+# =============================================================================
+
+
+class TestResolveDottedPath:
+    """Tests for the _resolve_dotted_path() utility function."""
+
+    def test_resolves_class(self) -> None:
+        """Resolves a dotted path to a class."""
+        cls = _resolve_dotted_path(
+            "autom8_asana.core.entity_registry.EntityRegistry"
+        )
+        assert cls is EntityRegistry
+
+    def test_resolves_constant(self) -> None:
+        """Resolves a dotted path to a module-level constant."""
+        result = _resolve_dotted_path(
+            "autom8_asana.core.entity_registry.ENTITY_DESCRIPTORS"
+        )
+        assert result is ENTITY_DESCRIPTORS
+
+    def test_resolves_enum(self) -> None:
+        """Resolves a dotted path to an enum class."""
+        result = _resolve_dotted_path(
+            "autom8_asana.core.entity_registry.EntityCategory"
+        )
+        assert result is EntityCategory
+
+    def test_raises_import_error_for_bad_module(self) -> None:
+        """Raises ImportError when module does not exist."""
+        with pytest.raises(ImportError):
+            _resolve_dotted_path("nonexistent.module.SomeClass")
+
+    def test_raises_attribute_error_for_bad_attr(self) -> None:
+        """Raises AttributeError when attribute does not exist on module."""
+        with pytest.raises(AttributeError):
+            _resolve_dotted_path(
+                "autom8_asana.core.entity_registry.NonexistentClass"
+            )
+
+    def test_raises_import_error_for_no_module(self) -> None:
+        """Raises ImportError for path with no module part."""
+        with pytest.raises(ImportError, match="Invalid dotted path"):
+            _resolve_dotted_path("JustAName")
+
+    def test_get_model_class_delegates_to_resolve(self) -> None:
+        """get_model_class() uses _resolve_dotted_path internally."""
+        desc = EntityDescriptor(
+            name="test",
+            pascal_name="Test",
+            display_name="Test",
+            model_class_path="autom8_asana.core.entity_registry.EntityRegistry",
+        )
+        cls = desc.get_model_class()
+        assert cls is EntityRegistry
+
+
+# =============================================================================
+# DataFrame Path Resolution Tests (WS1-S1)
+# =============================================================================
+
+
+class TestDataFramePathResolution:
+    """Verify that all populated dotted paths actually resolve to real objects.
+
+    These tests perform the actual import that validation defers at module load
+    time (to avoid circular imports). This ensures the paths are not just
+    syntactically valid but point to real schema/extractor/row objects.
+    """
+
+    def test_all_schema_paths_resolve(self) -> None:
+        """Every populated schema_module_path resolves to a real object."""
+        for desc in get_registry().all_descriptors():
+            if desc.schema_module_path:
+                result = _resolve_dotted_path(desc.schema_module_path)
+                assert result is not None, (
+                    f"{desc.name}: schema path did not resolve"
+                )
+
+    def test_all_extractor_paths_resolve(self) -> None:
+        """Every populated extractor_class_path resolves to a class."""
+        for desc in get_registry().all_descriptors():
+            if desc.extractor_class_path:
+                cls = _resolve_dotted_path(desc.extractor_class_path)
+                assert isinstance(cls, type), (
+                    f"{desc.name}: extractor path did not resolve to a class"
+                )
+
+    def test_all_row_model_paths_resolve(self) -> None:
+        """Every populated row_model_class_path resolves to a class."""
+        for desc in get_registry().all_descriptors():
+            if desc.row_model_class_path:
+                cls = _resolve_dotted_path(desc.row_model_class_path)
+                assert isinstance(cls, type), (
+                    f"{desc.name}: row model path did not resolve to a class"
+                )
+
+
+# =============================================================================
+# Triad Validation Tests (WS1-S1)
+# =============================================================================
+
+
+class TestTriadValidation:
+    """Tests for validation checks 6a-6f and 7."""
+
+    def test_check_6a_bad_schema_path_syntax(self) -> None:
+        """Check 6a: Invalid schema_module_path syntax raises ValueError."""
+        descriptors = (
+            EntityDescriptor(
+                name="bad_schema",
+                pascal_name="BadSchema",
+                display_name="Bad",
+                schema_module_path="NoModulePart",
+            ),
+        )
+        registry = EntityRegistry(descriptors)
+        with pytest.raises(ValueError, match="schema_module_path.*not a valid dotted path"):
+            _validate_registry_integrity(registry)
+
+    def test_check_6b_bad_extractor_path_syntax(self) -> None:
+        """Check 6b: Invalid extractor_class_path syntax raises ValueError."""
+        descriptors = (
+            EntityDescriptor(
+                name="bad_extractor",
+                pascal_name="BadExtractor",
+                display_name="Bad",
+                schema_module_path="some.module.SCHEMA",
+                extractor_class_path="NoModulePart",
+            ),
+        )
+        registry = EntityRegistry(descriptors)
+        with pytest.raises(ValueError, match="extractor_class_path.*not a valid dotted path"):
+            _validate_registry_integrity(registry)
+
+    def test_check_6c_bad_row_model_path_syntax(self) -> None:
+        """Check 6c: Invalid row_model_class_path syntax raises ValueError."""
+        descriptors = (
+            EntityDescriptor(
+                name="bad_row",
+                pascal_name="BadRow",
+                display_name="Bad",
+                schema_module_path="some.module.SCHEMA",
+                row_model_class_path="NoModulePart",
+            ),
+        )
+        registry = EntityRegistry(descriptors)
+        with pytest.raises(ValueError, match="row_model_class_path.*not a valid dotted path"):
+            _validate_registry_integrity(registry)
+
+    def test_check_6d_schema_without_extractor_does_not_raise(self) -> None:
+        """Check 6d: Schema with no extractor logs warning but does not raise."""
+        descriptors = (
+            EntityDescriptor(
+                name="partial",
+                pascal_name="Partial",
+                display_name="Partial",
+                schema_module_path="some.module.SCHEMA",
+            ),
+        )
+        registry = EntityRegistry(descriptors)
+        # Validation should complete without error (warning only via logger)
+        _validate_registry_integrity(registry)
+
+    def test_check_6e_schema_without_row_model_warns(self) -> None:
+        """Check 6e: Schema with no row_model logs warning."""
+        descriptors = (
+            EntityDescriptor(
+                name="partial",
+                pascal_name="Partial",
+                display_name="Partial",
+                schema_module_path="some.module.SCHEMA",
+                extractor_class_path="some.module.Extractor",
+            ),
+        )
+        registry = EntityRegistry(descriptors)
+        # Should complete without error (warning only for 6e)
+        _validate_registry_integrity(registry)
+
+    def test_check_6f_extractor_without_schema_raises(self) -> None:
+        """Check 6f: Extractor without schema is an error (nonsensical)."""
+        descriptors = (
+            EntityDescriptor(
+                name="bad_combo",
+                pascal_name="BadCombo",
+                display_name="Bad",
+                extractor_class_path="some.module.Extractor",
+            ),
+        )
+        registry = EntityRegistry(descriptors)
+        with pytest.raises(ValueError, match="has extractor_class_path but no schema_module_path"):
+            _validate_registry_integrity(registry)
+
+    def test_check_7_cascading_provider_without_model_raises(self) -> None:
+        """Check 7: cascading_field_provider=True without model_class_path."""
+        descriptors = (
+            EntityDescriptor(
+                name="bad_provider",
+                pascal_name="BadProvider",
+                display_name="Bad",
+                cascading_field_provider=True,
+            ),
+        )
+        registry = EntityRegistry(descriptors)
+        with pytest.raises(ValueError, match="cascading_field_provider=True but no model_class_path"):
+            _validate_registry_integrity(registry)
+
+    def test_check_7_cascading_provider_with_model_passes(self) -> None:
+        """Check 7: cascading_field_provider=True with model_class_path is valid."""
+        descriptors = (
+            EntityDescriptor(
+                name="good_provider",
+                pascal_name="GoodProvider",
+                display_name="Good",
+                model_class_path="autom8_asana.core.entity_registry.EntityRegistry",
+                cascading_field_provider=True,
+            ),
+        )
+        registry = EntityRegistry(descriptors)
+        _validate_registry_integrity(registry)
+
+    def test_valid_triad_passes_all_checks(self) -> None:
+        """A descriptor with valid schema+extractor+row passes all checks."""
+        descriptors = (
+            EntityDescriptor(
+                name="complete",
+                pascal_name="Complete",
+                display_name="Complete",
+                schema_module_path="some.module.SCHEMA",
+                extractor_class_path="some.module.Extractor",
+                row_model_class_path="some.module.Row",
+            ),
+        )
+        registry = EntityRegistry(descriptors)
+        _validate_registry_integrity(registry)
+
+    def test_global_registry_passes_all_new_checks(self) -> None:
+        """The production registry passes all triad/cascading checks."""
+        # If module loaded, validation already passed at import time.
+        # Re-run explicitly to confirm no regression.
+        _validate_registry_integrity(EntityRegistry(ENTITY_DESCRIPTORS))

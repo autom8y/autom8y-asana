@@ -53,7 +53,7 @@ BUSINESS_COLUMNS: list[ColumnDef] = [
 
 BUSINESS_SCHEMA = DataFrameSchema(
     name="business",
-    task_type="business",
+    task_type="Business",
     columns=[
         *BASE_COLUMNS,
         *[c for c in BUSINESS_COLUMNS if c.name not in {col.name for col in BASE_COLUMNS}],

@@ -78,14 +78,14 @@ OFFER_COLUMNS: list[ColumnDef] = [
     ),
     ColumnDef(
         name="mrr",
-        dtype="Utf8",
+        dtype="Decimal",
         nullable=True,
         source="cascade:MRR",  # Cascades from Offer's ancestor Unit
         description="Monthly Recurring Revenue (cascades from Unit)",
     ),
     ColumnDef(
         name="weekly_ad_spend",
-        dtype="Utf8",
+        dtype="Decimal",
         nullable=True,
         source="cascade:Weekly Ad Spend",  # Cascades from Offer's ancestor Unit
         description="Weekly advertising spend",
