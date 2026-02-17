@@ -129,6 +129,19 @@ class BaseExtractor(ABC):
             )
         return self._cascading_resolver
 
+    def _normalize_list_fields(self, data: dict[str, Any]) -> None:
+        """Normalize None values to empty lists for List-typed schema columns.
+
+        Called by extract() and extract_async() before _create_row() to ensure
+        subclasses always receive pre-normalized data for list fields.
+
+        Args:
+            data: Mutable dict of column_name -> extracted value (modified in-place)
+        """
+        for col in self._schema.columns:
+            if col.dtype in ("List[Utf8]", "List[String]") and data.get(col.name) is None:
+                data[col.name] = []
+
     def extract(self, task: Task, project_gid: str | None = None) -> TaskRow:
         """Extract a TaskRow from a Task using the schema.
 
@@ -160,6 +173,7 @@ class BaseExtractor(ABC):
 
         # Log errors if any occurred (future: use LogProvider)
         # For now, store them for debugging access
+        self._normalize_list_fields(data)
         row = self._create_row(data)
         return row
 
@@ -194,6 +208,7 @@ class BaseExtractor(ABC):
                 errors.append(ExtractionError(task_gid, col.name, e))
                 data[col.name] = None
 
+        self._normalize_list_fields(data)
         row = self._create_row(data)
         return row
 
