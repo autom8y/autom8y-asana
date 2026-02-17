@@ -36,8 +36,4 @@ class DefaultExtractor(BaseExtractor):
         Returns:
             TaskRow instance with all 12 base fields
         """
-        # Convert None lists to empty lists for list fields
-        if data.get("tags") is None:
-            data["tags"] = []
-
         return TaskRow.model_validate(data)
