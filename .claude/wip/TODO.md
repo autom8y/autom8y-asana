@@ -7,10 +7,10 @@
 - [x] ~~cascade:MRR dtype: Offer mrr/weekly_ad_spend Utf8 -> Decimal~~ (commit 03c780e)
 - [x] ~~MRR dedup documentation: Added to ACTIVE_MRR and ACTIVE_AD_SPEND~~ (commit 03c780e)
 
-## WS2 Scope: Cache Reliability
-- [ ] Cache invalidation & staleness audit
-- [ ] Warm-up reliability hardening
-- [ ] Unified store consistency
+## WS2 Scope: Cache Reliability (COMPLETE, commit 2977717)
+- [x] Cache invalidation & staleness audit — exception audit clean (58/91 typed, 9 BROAD-CATCH, 0 needing narrowing)
+- [x] Warm-up reliability hardening — SWR build lock try/finally, warmer observability
+- [x] Unified store consistency — cascade per-descendant isolation, hierarchy register reorder
 
 ## WS3 Scope: Traversal Consolidation
 - [ ] B/C consolidation: CascadeViewPlugin as primary, CascadingFieldResolver as fallback

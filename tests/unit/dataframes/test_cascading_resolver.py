@@ -12,6 +12,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from autom8_asana.dataframes.resolver.cascading import CascadingFieldResolver
+from autom8_asana.dataframes.views.cf_utils import (
+    class_to_entity_type,
+    get_custom_field_value,
+)
 from autom8_asana.models.business.detection import EntityType
 
 # ============================================================================
@@ -193,7 +197,7 @@ class TestResolveImmediateParent:
         with patch(
             "autom8_asana.dataframes.resolver.cascading.get_cascading_field"
         ) as mock_get_field:
-            mock_field_def = MagicMock()
+            mock_field_def = MagicMock(source_field=None)
             mock_field_def.name = "Vertical"
             mock_field_def.allow_override = True
             mock_field_def.target_types = {"Offer"}
@@ -333,7 +337,7 @@ class TestAllowOverrideBehavior:
         with patch(
             "autom8_asana.dataframes.resolver.cascading.get_cascading_field"
         ) as mock_get_field:
-            mock_field_def = MagicMock()
+            mock_field_def = MagicMock(source_field=None)
             mock_field_def.name = "Platforms"
             mock_field_def.allow_override = True
 
@@ -385,7 +389,7 @@ class TestAllowOverrideBehavior:
                 "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
             ) as mock_detect,
         ):
-            mock_field_def = MagicMock()
+            mock_field_def = MagicMock(source_field=None)
             mock_field_def.name = "Office Phone"
             mock_field_def.allow_override = False
 
@@ -539,7 +543,7 @@ class TestBrokenParentChain:
         with patch(
             "autom8_asana.dataframes.resolver.cascading.get_cascading_field"
         ) as mock_get_field:
-            mock_field_def = MagicMock()
+            mock_field_def = MagicMock(source_field=None)
             mock_field_def.name = "Office Phone"
             mock_field_def.allow_override = False
 
@@ -581,7 +585,7 @@ class TestBrokenParentChain:
                 "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
             ) as mock_detect,
         ):
-            mock_field_def = MagicMock()
+            mock_field_def = MagicMock(source_field=None)
             mock_field_def.name = "Office Phone"
             mock_field_def.allow_override = False
 
@@ -633,7 +637,7 @@ class TestCircularReferenceDetection:
                 "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
             ) as mock_detect,
         ):
-            mock_field_def = MagicMock()
+            mock_field_def = MagicMock(source_field=None)
             mock_field_def.name = "Office Phone"
             mock_field_def.allow_override = False
 
@@ -656,38 +660,36 @@ class TestCircularReferenceDetection:
 
 
 class TestEntityTypeMapping:
-    """Test mapping of business model classes to EntityType."""
+    """Test mapping of business model classes to EntityType.
 
-    def test_class_to_entity_type_business(self, mock_client: MagicMock) -> None:
+    Per TDD-WS3: Tests now target the shared ``class_to_entity_type``
+    function in cf_utils instead of the removed private method.
+    """
+
+    def test_class_to_entity_type_business(self) -> None:
         """Test Business class maps to EntityType.BUSINESS."""
-        resolver = CascadingFieldResolver(mock_client)
-
         mock_class = MagicMock()
         mock_class.__name__ = "Business"
 
-        result = resolver._class_to_entity_type(mock_class)
+        result = class_to_entity_type(mock_class)
 
         assert result == EntityType.BUSINESS
 
-    def test_class_to_entity_type_unit(self, mock_client: MagicMock) -> None:
+    def test_class_to_entity_type_unit(self) -> None:
         """Test Unit class maps to EntityType.UNIT."""
-        resolver = CascadingFieldResolver(mock_client)
-
         mock_class = MagicMock()
         mock_class.__name__ = "Unit"
 
-        result = resolver._class_to_entity_type(mock_class)
+        result = class_to_entity_type(mock_class)
 
         assert result == EntityType.UNIT
 
-    def test_class_to_entity_type_unknown(self, mock_client: MagicMock) -> None:
+    def test_class_to_entity_type_unknown(self) -> None:
         """Test unknown class maps to EntityType.UNKNOWN."""
-        resolver = CascadingFieldResolver(mock_client)
-
         mock_class = MagicMock()
         mock_class.__name__ = "UnknownClass"
 
-        result = resolver._class_to_entity_type(mock_class)
+        result = class_to_entity_type(mock_class)
 
         assert result == EntityType.UNKNOWN
 
@@ -698,51 +700,47 @@ class TestEntityTypeMapping:
 
 
 class TestCustomFieldValueExtraction:
-    """Test extraction of values from custom field data."""
+    """Test extraction of values from custom field data.
 
-    def test_extract_text_value(self, mock_client: MagicMock) -> None:
+    Per TDD-WS3: Tests now target the shared ``get_custom_field_value``
+    function in cf_utils instead of the removed private method.
+    """
+
+    def test_extract_text_value(self) -> None:
         """Test extraction of text field value."""
-        resolver = CascadingFieldResolver(mock_client)
-
         task = MockTask(
             gid="123",
             custom_fields=[make_custom_field("Office Phone", "555-1234", "text")],
         )
 
-        result = resolver._get_custom_field_value(task, "Office Phone")  # type: ignore[arg-type]
+        result = get_custom_field_value(task, "Office Phone")
 
         assert result == "555-1234"
 
-    def test_extract_number_value(self, mock_client: MagicMock) -> None:
+    def test_extract_number_value(self) -> None:
         """Test extraction of number field value."""
-        resolver = CascadingFieldResolver(mock_client)
-
         task = MockTask(
             gid="123",
             custom_fields=[make_custom_field("MRR", 5000.0, "number")],
         )
 
-        result = resolver._get_custom_field_value(task, "MRR")  # type: ignore[arg-type]
+        result = get_custom_field_value(task, "MRR")
 
         assert result == 5000.0
 
-    def test_extract_enum_value(self, mock_client: MagicMock) -> None:
+    def test_extract_enum_value(self) -> None:
         """Test extraction of enum field value."""
-        resolver = CascadingFieldResolver(mock_client)
-
         task = MockTask(
             gid="123",
             custom_fields=[make_custom_field("Vertical", "Healthcare", "enum")],
         )
 
-        result = resolver._get_custom_field_value(task, "Vertical")  # type: ignore[arg-type]
+        result = get_custom_field_value(task, "Vertical")
 
         assert result == "Healthcare"
 
-    def test_extract_multi_enum_value(self, mock_client: MagicMock) -> None:
+    def test_extract_multi_enum_value(self) -> None:
         """Test extraction of multi-enum field value."""
-        resolver = CascadingFieldResolver(mock_client)
-
         task = MockTask(
             gid="123",
             custom_fields=[
@@ -750,31 +748,27 @@ class TestCustomFieldValueExtraction:
             ],
         )
 
-        result = resolver._get_custom_field_value(task, "Platforms")  # type: ignore[arg-type]
+        result = get_custom_field_value(task, "Platforms")
 
         assert result == ["Google", "Facebook"]
 
-    def test_extract_missing_field_returns_none(self, mock_client: MagicMock) -> None:
+    def test_extract_missing_field_returns_none(self) -> None:
         """Test extraction of missing field returns None."""
-        resolver = CascadingFieldResolver(mock_client)
-
         task = MockTask(gid="123", custom_fields=[])
 
-        result = resolver._get_custom_field_value(task, "NonExistent")  # type: ignore[arg-type]
+        result = get_custom_field_value(task, "NonExistent")
 
         assert result is None
 
-    def test_extract_case_insensitive(self, mock_client: MagicMock) -> None:
+    def test_extract_case_insensitive(self) -> None:
         """Test field name lookup is case-insensitive."""
-        resolver = CascadingFieldResolver(mock_client)
-
         task = MockTask(
             gid="123",
             custom_fields=[make_custom_field("Office Phone", "555-1234", "text")],
         )
 
         # Different case should still match
-        result = resolver._get_custom_field_value(task, "office phone")  # type: ignore[arg-type]
+        result = get_custom_field_value(task, "office phone")
 
         assert result == "555-1234"
 
@@ -782,6 +776,132 @@ class TestCustomFieldValueExtraction:
 # ============================================================================
 # Integration Test with Real Registry
 # ============================================================================
+
+
+class TestGetFieldValueSourceField:
+    """Test get_field_value with source_field wiring.
+
+    Per TDD-WS3: Tests that get_field_value checks source_field first
+    before falling through to get_custom_field_value.
+    """
+
+    def test_source_field_reads_task_attribute(self) -> None:
+        """Test source_field="name" reads from task.name attribute."""
+        from autom8_asana.dataframes.views.cf_utils import get_field_value
+        from autom8_asana.models.business.fields import CascadingFieldDef
+
+        field_def = CascadingFieldDef(
+            name="Business Name",
+            source_field="name",
+        )
+
+        task = MockTask(gid="biz-001", name="Acme Dental Corp")
+        result = get_field_value(task, field_def)
+
+        assert result == "Acme Dental Corp"
+
+    def test_source_field_reads_dict_key(self) -> None:
+        """Test source_field="name" reads from dict["name"]."""
+        from autom8_asana.dataframes.views.cf_utils import get_field_value
+        from autom8_asana.models.business.fields import CascadingFieldDef
+
+        field_def = CascadingFieldDef(
+            name="Business Name",
+            source_field="name",
+        )
+
+        task_dict = {"gid": "biz-001", "name": "Acme Dental Corp", "parent": None}
+        result = get_field_value(task_dict, field_def)
+
+        assert result == "Acme Dental Corp"
+
+    def test_no_source_field_falls_through_to_custom_field(self) -> None:
+        """Test that source_field=None falls through to get_custom_field_value."""
+        from autom8_asana.dataframes.views.cf_utils import get_field_value
+        from autom8_asana.models.business.fields import CascadingFieldDef
+
+        field_def = CascadingFieldDef(
+            name="Office Phone",
+            source_field=None,
+        )
+
+        task = MockTask(
+            gid="biz-001",
+            custom_fields=[make_custom_field("Office Phone", "555-1234", "text")],
+        )
+        result = get_field_value(task, field_def)
+
+        assert result == "555-1234"
+
+    def test_source_field_returns_none_for_missing_attribute(self) -> None:
+        """Test source_field returns None when attribute doesn't exist."""
+        from autom8_asana.dataframes.views.cf_utils import get_field_value
+        from autom8_asana.models.business.fields import CascadingFieldDef
+
+        field_def = CascadingFieldDef(
+            name="Business Name",
+            source_field="nonexistent_attr",
+        )
+
+        task = MockTask(gid="biz-001", name="Acme")
+        result = get_field_value(task, field_def)
+
+        assert result is None
+
+    def test_source_field_returns_none_for_missing_dict_key(self) -> None:
+        """Test source_field returns None when dict key doesn't exist."""
+        from autom8_asana.dataframes.views.cf_utils import get_field_value
+        from autom8_asana.models.business.fields import CascadingFieldDef
+
+        field_def = CascadingFieldDef(
+            name="Business Name",
+            source_field="name",
+        )
+
+        task_dict: dict[str, Any] = {"gid": "biz-001"}  # No "name" key
+        result = get_field_value(task_dict, field_def)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_business_name_resolved_via_source_field_in_resolver(
+        self, mock_client: MagicMock
+    ) -> None:
+        """Test that Business Name resolution uses source_field="name".
+
+        Per TDD-WS3: When CascadingFieldResolver resolves "Business Name",
+        get_field_value checks source_field="name" and returns the Business
+        task's name attribute instead of searching custom_fields.
+        """
+        resolver = CascadingFieldResolver(mock_client)
+
+        # Business task with name but NO "Business Name" custom field
+        business_task = MockTask(
+            gid="business_123",
+            name="Acme Dental Corp",
+            custom_fields=[],  # No custom fields at all
+        )
+
+        unit_task = MockTask(
+            gid="unit_456",
+            name="Unit 1",
+            parent=MockNameGid(gid="business_123"),
+        )
+
+        mock_client.tasks.get_async.return_value = business_task
+
+        with patch(
+            "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
+        ) as mock_detect:
+            mock_detect.side_effect = [
+                MagicMock(entity_type=EntityType.UNIT),
+                MagicMock(entity_type=EntityType.BUSINESS),
+            ]
+
+            result = await resolver.resolve_async(unit_task, "Business Name")  # type: ignore[arg-type]
+
+        # Should resolve from task.name via source_field, not custom_fields
+        assert result == "Acme Dental Corp"
 
 
 class TestIntegrationWithRegistry:

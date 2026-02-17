@@ -45,8 +45,8 @@ UNIT_COLUMNS: list[ColumnDef] = [
         name="office",
         dtype="Utf8",
         nullable=True,
-        source=None,  # Derived from business.office_phone lookup
-        description="Office name (derived)",
+        source="cascade:Business Name",  # Per TDD-WS3: Cascades from Business ancestor's task name
+        description="Office name (cascades from Business ancestor name via source_field)",
     ),
     ColumnDef(
         name="office_phone",
@@ -93,5 +93,5 @@ UNIT_SCHEMA = DataFrameSchema(
         *BASE_COLUMNS,
         *[c for c in UNIT_COLUMNS if c.name not in {col.name for col in BASE_COLUMNS}],
     ],
-    version="1.3.0",  # Bump to force rebuild with generalized cascade resolution fix
+    version="1.4.0",  # Per TDD-WS3: office source changed to cascade:Business Name
 )

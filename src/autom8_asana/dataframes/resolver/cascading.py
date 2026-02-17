@@ -27,6 +27,11 @@ except ImportError:
     HierarchyAwareResolver = None  # type: ignore[assignment, misc]
 
 from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
+from autom8_asana.dataframes.views.cf_utils import (
+    class_to_entity_type,
+    get_custom_field_value,
+    get_field_value,
+)
 
 # Per TDD-registry-consolidation: Import from package to ensure bootstrap runs
 from autom8_asana.models.business import (
@@ -249,7 +254,7 @@ class CascadingFieldResolver:
         )
 
         # Check if task has local value and if override is allowed
-        local_value = self._get_custom_field_value(task, field_def.name)
+        local_value = get_custom_field_value(task, field_def.name)
         if local_value is not None and field_def.allow_override:
             logger.debug(
                 "cascade_local_override",
@@ -299,7 +304,7 @@ class CascadingFieldResolver:
         depth = 0
 
         # Map owner class name to EntityType
-        owner_type = self._class_to_entity_type(owner_class)
+        owner_type = class_to_entity_type(owner_class)
 
         while depth < max_depth:
             # Check for circular reference
@@ -322,7 +327,8 @@ class CascadingFieldResolver:
 
             if current_type == owner_type:
                 # Found the owner entity - extract field value
-                value = self._get_custom_field_value(current, field_def.name)
+                # Per TDD-WS3: Use get_field_value to check source_field first
+                value = get_field_value(current, field_def)
                 logger.debug(
                     "cascade_field_found",
                     extra={
@@ -343,7 +349,8 @@ class CascadingFieldResolver:
                 # If owner is Business and detection failed, treat ROOT as Business
                 # This handles the case where project isn't registered in ProjectTypeRegistry
                 if owner_type == EntityType.BUSINESS:
-                    value = self._get_custom_field_value(current, field_def.name)
+                    # Per TDD-WS3: Use get_field_value to check source_field first
+                    value = get_field_value(current, field_def)
                     if value is not None:
                         logger.debug(
                             "cascade_field_found_at_root",
@@ -563,113 +570,3 @@ class CascadingFieldResolver:
             return None
         return task.parent.gid
 
-    def _get_custom_field_value(self, task: Task, field_name: str) -> Any:
-        """Extract custom field value from task by name.
-
-        Args:
-            task: Task to extract field from.
-            field_name: Custom field name to look up.
-
-        Returns:
-            Field value if found, None otherwise.
-        """
-        if task.custom_fields is None:
-            return None
-
-        # Normalize field name for comparison
-        normalized_name = field_name.lower().strip()
-
-        for cf in task.custom_fields:
-            cf_name = (
-                cf.get("name") if isinstance(cf, dict) else getattr(cf, "name", None)
-            )
-            if cf_name and cf_name.lower().strip() == normalized_name:
-                return self._extract_field_value(cf)
-
-        return None
-
-    def _extract_field_value(self, cf_data: dict[str, Any]) -> Any:
-        """Extract raw value from custom field data.
-
-        Handles different custom field types (text, number, enum, multi_enum, etc.).
-
-        Args:
-            cf_data: Custom field dict from Asana API.
-
-        Returns:
-            Extracted value based on resource_subtype.
-        """
-        if not isinstance(cf_data, dict):
-            return None
-
-        resource_subtype = cf_data.get("resource_subtype")
-
-        match resource_subtype:
-            case "text":
-                return cf_data.get("text_value")
-            case "number":
-                return cf_data.get("number_value")
-            case "enum":
-                enum_value = cf_data.get("enum_value")
-                if enum_value is None:
-                    return None
-                if isinstance(enum_value, dict):
-                    return enum_value.get("name")
-                return getattr(enum_value, "name", None)
-            case "multi_enum":
-                multi_values = cf_data.get("multi_enum_values") or []
-                result: list[str] = []
-                for opt in multi_values:
-                    if isinstance(opt, dict):
-                        name = opt.get("name")
-                    else:
-                        name = getattr(opt, "name", None)
-                    if name:
-                        result.append(name)
-                return result if result else None
-            case "date":
-                date_value = cf_data.get("date_value")
-                if isinstance(date_value, dict):
-                    return date_value.get("date")
-                return date_value
-            case "people":
-                people = cf_data.get("people_value") or []
-                gids: list[str] = []
-                for p in people:
-                    if isinstance(p, dict):
-                        gid = p.get("gid")
-                    else:
-                        gid = getattr(p, "gid", None)
-                    if gid:
-                        gids.append(gid)
-                return gids if gids else None
-            case _:
-                # Fallback to display_value
-                return cf_data.get("display_value")
-
-    def _class_to_entity_type(self, cls: type) -> EntityType:
-        """Map business model class to EntityType enum.
-
-        Args:
-            cls: Business model class (e.g., Business, Unit).
-
-        Returns:
-            Corresponding EntityType enum value.
-        """
-        # Map class names to EntityType
-        class_name_map: dict[str, EntityType] = {
-            "Business": EntityType.BUSINESS,
-            "Unit": EntityType.UNIT,
-            "Contact": EntityType.CONTACT,
-            "ContactHolder": EntityType.CONTACT_HOLDER,
-            "UnitHolder": EntityType.UNIT_HOLDER,
-            "LocationHolder": EntityType.LOCATION_HOLDER,
-            "OfferHolder": EntityType.OFFER_HOLDER,
-            "ProcessHolder": EntityType.PROCESS_HOLDER,
-            "Offer": EntityType.OFFER,
-            "Process": EntityType.PROCESS,
-            "Location": EntityType.LOCATION,
-            "Hours": EntityType.HOURS,
-        }
-
-        return class_name_map.get(cls.__name__, EntityType.UNKNOWN)

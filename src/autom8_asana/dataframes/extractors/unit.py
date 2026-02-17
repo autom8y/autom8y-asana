@@ -2,23 +2,19 @@
 
 Per TDD-0009 Phase 3: UnitExtractor extends BaseExtractor with
 Unit-specific custom field extraction and derived field stubs.
-Per WS3-001: Implements _extract_office_async for Business ancestor name resolution.
+Per TDD-WS3: Office extraction eliminated; office column now resolves via
+cascade:Business Name source in UNIT_SCHEMA (using CascadingFieldDef.source_field).
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from autom8y_log import get_logger
-
 from autom8_asana.dataframes.extractors.base import BaseExtractor
 from autom8_asana.dataframes.models.task_row import UnitRow
-from autom8_asana.models.business import EntityType, detect_entity_type
 
 if TYPE_CHECKING:
     from autom8_asana.models.task import Task
-
-logger = get_logger(__name__)
 
 
 class UnitExtractor(BaseExtractor):
@@ -68,135 +64,9 @@ class UnitExtractor(BaseExtractor):
     # =========================================================================
     # Derived field extraction methods (stubs)
     # Per MVP Note: Return None with TODO comments pending business logic input
+    # Per TDD-WS3: _extract_office and _extract_office_async removed.
+    # Office now resolves via cascade:Business Name source in UNIT_SCHEMA.
     # =========================================================================
-
-    def _extract_office(self, task: Task) -> str | None:
-        """Extract office name (sync fallback).
-
-        Per WS3-001: The office name is the Business ancestor task's name.
-        Sync extraction cannot traverse the parent chain (requires API calls),
-        so this returns None. Use extract_async() for full resolution via
-        _extract_office_async().
-
-        Args:
-            task: Task to extract from
-
-        Returns:
-            None (sync path cannot resolve parent chain)
-        """
-        return None
-
-    async def _extract_office_async(self, task: Task) -> str | None:
-        """Extract office name by traversing the parent chain to the Business ancestor.
-
-        Per WS3-001: The office name is the Business task's name. The hierarchy is:
-            Unit -> parent(UnitHolder) -> parent(Business)
-        This method traverses upward through the parent chain, using entity type
-        detection to identify the Business ancestor, then returns its name.
-
-        Uses the CascadingFieldResolver's parent fetching infrastructure to avoid
-        duplicate API calls when cascade fields (e.g., office_phone) are also being
-        resolved in the same extraction pass.
-
-        Args:
-            task: Task to extract from
-
-        Returns:
-            Business task name (the office name), or None if:
-            - Client is not configured (no parent chain traversal possible)
-            - Parent chain is broken (no parent reference)
-            - Business ancestor not found within max_depth
-            - Entity type detection fails for all ancestors
-        """
-        if self._client is None:
-            logger.debug(
-                "extract_office_no_client",
-                extra={"task_gid": task.gid},
-            )
-            return None
-
-        resolver = self._get_cascading_resolver()
-        max_depth = 5
-        visited: set[str] = set()
-        current = task
-        depth = 0
-
-        while depth < max_depth:
-            if current.gid in visited:
-                logger.warning(
-                    "extract_office_loop_detected",
-                    extra={
-                        "task_gid": task.gid,
-                        "visited_gids": list(visited),
-                    },
-                )
-                return None
-
-            visited.add(current.gid)
-
-            # Move to parent
-            parent_gid = resolver._get_parent_gid(current)
-            if parent_gid is None:
-                # Reached root of parent chain without finding Business via detection.
-                # Per cascade resolver pattern: if root has no parent, treat it as
-                # Business (common when project isn't registered in ProjectTypeRegistry).
-                detection_result = detect_entity_type(current)
-                if (
-                    detection_result.entity_type == EntityType.BUSINESS
-                    or detection_result.entity_type == EntityType.UNKNOWN
-                ):
-                    office_name = current.name
-                    logger.debug(
-                        "extract_office_found_at_root",
-                        extra={
-                            "task_gid": task.gid,
-                            "root_gid": current.gid,
-                            "office_name": office_name,
-                            "depth": depth,
-                            "detection_method": "root_fallback",
-                        },
-                    )
-                    return office_name
-                return None
-
-            parent = await resolver._fetch_parent_async(parent_gid)
-            if parent is None:
-                logger.warning(
-                    "extract_office_parent_fetch_failed",
-                    extra={
-                        "task_gid": task.gid,
-                        "parent_gid": parent_gid,
-                    },
-                )
-                return None
-
-            # Check if parent is the Business entity
-            detection_result = detect_entity_type(parent)
-            if detection_result.entity_type == EntityType.BUSINESS:
-                office_name = parent.name
-                logger.debug(
-                    "extract_office_found",
-                    extra={
-                        "task_gid": task.gid,
-                        "business_gid": parent.gid,
-                        "office_name": office_name,
-                        "depth": depth + 1,
-                        "detection_method": "entity_type",
-                    },
-                )
-                return office_name
-
-            current = parent
-            depth += 1
-
-        logger.info(
-            "extract_office_max_depth_exceeded",
-            extra={
-                "task_gid": task.gid,
-                "max_depth": max_depth,
-            },
-        )
-        return None
 
     def _extract_vertical_id(self, task: Task) -> str | None:
         """Extract vertical identifier (derived field stub).
