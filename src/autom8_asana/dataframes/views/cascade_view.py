@@ -12,7 +12,12 @@ from typing import TYPE_CHECKING, Any
 from autom8y_log import get_logger
 
 from autom8_asana.cache.models.completeness import CompletenessLevel
-from autom8_asana.dataframes.views.cf_utils import extract_cf_value
+from autom8_asana.dataframes.views.cf_utils import (
+    class_to_entity_type,
+    extract_cf_value,
+    get_custom_field_value,
+    get_field_value,
+)
 
 # Per TDD-registry-consolidation: Import from package to ensure bootstrap runs
 from autom8_asana.models.business import (
@@ -158,7 +163,7 @@ class CascadeViewPlugin:
         )
 
         # Check if task has local value and if override is allowed
-        local_value = self._get_custom_field_value(task, field_def.name)
+        local_value = get_custom_field_value(task, field_def.name)
         if local_value is not None and field_def.allow_override:
             logger.debug(
                 "cascade_view_local_override",
@@ -204,12 +209,13 @@ class CascadeViewPlugin:
             Field value if found, None otherwise.
         """
         # Map owner class name to EntityType
-        owner_type = self._class_to_entity_type(owner_class)
+        owner_type = class_to_entity_type(owner_class)
 
         # First check the starting task itself
         detection_result = detect_entity_type(task)
         if detection_result.entity_type == owner_type:
-            value = self._get_custom_field_value(task, field_def.name)
+            # Per TDD-WS3: Use get_field_value to check source_field first
+            value = get_field_value(task, field_def)
             if value is not None:
                 logger.debug(
                     "cascade_view_field_found_on_task",
@@ -240,7 +246,8 @@ class CascadeViewPlugin:
             )
             # Check if starting task is root and owner is Business
             if owner_type == EntityType.BUSINESS:
-                value = self._get_custom_field_value(task, field_def.name)
+                # Per TDD-WS3: Use get_field_value to check source_field first
+                value = get_field_value(task, field_def)
                 if value is not None:
                     self._stats["field_found"] += 1
                     return value
@@ -257,9 +264,8 @@ class CascadeViewPlugin:
 
             if parent_entity_type == owner_type:
                 # Found the owner entity - extract field value
-                value = self._get_custom_field_value_from_dict(
-                    parent_data, field_def.name
-                )
+                # Per TDD-WS3: Use get_field_value to check source_field first
+                value = get_field_value(parent_data, field_def)
                 if value is not None:
                     logger.debug(
                         "cascade_view_field_found",
@@ -278,9 +284,8 @@ class CascadeViewPlugin:
             last_parent = parent_chain[-1]
             # If we've reached root of chain, try extracting from it
             if last_parent.get("parent") is None:
-                value = self._get_custom_field_value_from_dict(
-                    last_parent, field_def.name
-                )
+                # Per TDD-WS3: Use get_field_value to check source_field first
+                value = get_field_value(last_parent, field_def)
                 if value is not None:
                     logger.debug(
                         "cascade_view_field_found_at_root",
@@ -414,35 +419,13 @@ class CascadeViewPlugin:
             },
         )
 
-    def _get_custom_field_value(self, task: Task, field_name: str) -> Any:
-        """Extract custom field value from task by name.
-
-        Args:
-            task: Task to extract field from.
-            field_name: Custom field name to look up.
-
-        Returns:
-            Field value if found, None otherwise.
-        """
-        if task.custom_fields is None:
-            return None
-
-        # Normalize field name for comparison
-        normalized_name = field_name.lower().strip()
-
-        for cf in task.custom_fields:
-            cf_name = (
-                cf.get("name") if isinstance(cf, dict) else getattr(cf, "name", None)
-            )
-            if cf_name and cf_name.lower().strip() == normalized_name:
-                return self._extract_field_value(cf)
-
-        return None
-
     def _get_custom_field_value_from_dict(
         self, task_data: dict[str, Any], field_name: str
     ) -> Any:
         """Extract custom field value from task dict by name.
+
+        Thin wrapper around ``get_custom_field_value`` for backward
+        compatibility with external callers (e.g., DataFrameViewPlugin).
 
         Args:
             task_data: Task data dict (from cache).
@@ -451,21 +434,7 @@ class CascadeViewPlugin:
         Returns:
             Field value if found, None otherwise.
         """
-        custom_fields = task_data.get("custom_fields")
-        if not custom_fields:
-            return None
-
-        # Normalize field name for comparison
-        normalized_name = field_name.lower().strip()
-
-        for cf in custom_fields:
-            if not isinstance(cf, dict):
-                continue
-            cf_name = cf.get("name")
-            if cf_name and cf_name.lower().strip() == normalized_name:
-                return self._extract_field_value(cf)
-
-        return None
+        return get_custom_field_value(task_data, field_name)
 
     def _extract_field_value(self, cf_data: dict[str, Any]) -> Any:
         """Extract raw value from custom field data.
@@ -503,28 +472,15 @@ class CascadeViewPlugin:
     def _class_to_entity_type(self, cls: type) -> EntityType:
         """Map business model class to EntityType enum.
 
+        Thin wrapper around ``class_to_entity_type`` for backward compatibility.
+
         Args:
             cls: Business model class (e.g., Business, Unit).
 
         Returns:
             Corresponding EntityType enum value.
         """
-        class_name_map: dict[str, EntityType] = {
-            "Business": EntityType.BUSINESS,
-            "Unit": EntityType.UNIT,
-            "Contact": EntityType.CONTACT,
-            "ContactHolder": EntityType.CONTACT_HOLDER,
-            "UnitHolder": EntityType.UNIT_HOLDER,
-            "LocationHolder": EntityType.LOCATION_HOLDER,
-            "OfferHolder": EntityType.OFFER_HOLDER,
-            "ProcessHolder": EntityType.PROCESS_HOLDER,
-            "Offer": EntityType.OFFER,
-            "Process": EntityType.PROCESS,
-            "Location": EntityType.LOCATION,
-            "Hours": EntityType.HOURS,
-        }
-
-        return class_name_map.get(cls.__name__, EntityType.UNKNOWN)
+        return class_to_entity_type(cls)
 
     def get_stats(self) -> dict[str, int]:
         """Get plugin statistics.

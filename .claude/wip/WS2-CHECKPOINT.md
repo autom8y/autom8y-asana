@@ -2,7 +2,7 @@
 
 **Updated**: 2026-02-17
 **Sprint**: WS2-QA
-**Status**: IN PROGRESS
+**Status**: COMPLETE (commit 2977717)
 
 ## Sprint Scope
 QA: Adversarial validation of all WS2 changes.
@@ -40,4 +40,4 @@ QA: Adversarial validation of all WS2 changes.
 - test_cache_errors_logged_as_warnings — ALREADY FIXED (commit f7c2219)
 
 ## Next
-QA adversarial validation, then commit + update INITIATIVE-INDEX
+WS3 (Traversal Consolidation) — see INITIATIVE-INDEX.md
