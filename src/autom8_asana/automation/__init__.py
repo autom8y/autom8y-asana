@@ -79,7 +79,7 @@ Example - Custom Rule:
 """
 
 from autom8_asana.automation.base import Action, AutomationRule, TriggerCondition
-from autom8_asana.automation.config import AutomationConfig, PipelineStage
+from autom8_asana.automation.config import AssigneeConfig, AutomationConfig, PipelineStage
 from autom8_asana.automation.context import AutomationContext
 from autom8_asana.automation.engine import AutomationEngine
 from autom8_asana.automation.events.types import EventType
@@ -100,6 +100,7 @@ __all__ = [
     "Action",
     "AutomationContext",
     "AutomationConfig",
+    "AssigneeConfig",
     "PipelineStage",
     "EventType",
     # Phase 2: Pipeline Conversion (lazy-loaded)
