@@ -151,9 +151,10 @@ class EntityCreationService:
             # 3. Template discovery
             # IMP-13: Include num_subtasks in template discovery to avoid a
             # separate subtasks_async call for the subtask count.
+            assert stage_config.project_gid is not None  # validated at config load
             template = await discover_template_async(
                 self._client,
-                stage_config.project_gid,  # type: ignore[arg-type]  # project_gid validated non-None by stage_config
+                stage_config.project_gid,
                 template_section=stage_config.template_section,
                 template_section_gid=stage_config.template_section_gid,
             )

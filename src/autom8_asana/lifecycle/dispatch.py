@@ -83,7 +83,7 @@ class AutomationDispatch:
             Process,
         )
 
-        task_gid = trigger.get("task_gid")
+        task_gid: str = trigger.get("task_gid", "")
         section_name = trigger.get("section_name", "").lower()
 
         # Determine outcome from section

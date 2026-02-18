@@ -284,10 +284,12 @@ class FieldWriteService:
         for rf in resolved_fields:
             if rf.status != "resolved":
                 continue
+            assert rf.matched_name is not None  # guaranteed when status == "resolved"
             if rf.is_core:
                 core_payload[rf.matched_name] = rf.value  # type: ignore[index]  # matched_name validated non-None when resolved
             else:
-                custom_payload[rf.gid] = rf.value  # type: ignore[index]  # gid validated non-None when resolved
+                assert rf.gid is not None  # guaranteed when status == "resolved"
+                custom_payload[rf.gid] = rf.value
 
         return core_payload, custom_payload
 

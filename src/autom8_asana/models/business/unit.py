@@ -291,6 +291,30 @@ class Unit(
         procs: list[Process] = self._process_holder.processes  # type: ignore[attr-defined]
         return procs
 
+    # --- Section Activity Classification (TDD-section-activity-classifier Phase 2) ---
+
+    @property
+    def account_activity(self) -> AccountActivity | None:
+        """Classify this unit's section into an activity category.
+
+        Uses UNIT_CLASSIFIER to map the unit's current section name
+        to an AccountActivity value. Requires the task to have been
+        fetched with memberships.section.name in opt_fields.
+
+        Returns:
+            AccountActivity or None if section is unknown or memberships
+            not populated.
+        """
+        from autom8_asana.models.business.activity import (
+            UNIT_CLASSIFIER,
+            extract_section_name,
+        )
+
+        section_name = extract_section_name(self, project_gid=self.PRIMARY_PROJECT_GID)
+        if section_name is None:
+            return None
+        return UNIT_CLASSIFIER.classify(section_name)
+
     # --- Upward Traversal (TDD-HYDRATION Phase 2, TDD-SPRINT-1 Phase 2) ---
     # to_business_async inherited from UpwardTraversalMixin
 

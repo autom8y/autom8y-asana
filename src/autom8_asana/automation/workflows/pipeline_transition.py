@@ -377,7 +377,8 @@ class PipelineTransitionWorkflow(WorkflowAction):
             (success, error) tuple.
         """
         try:
-            result = await self._engine.handle_transition_async(process, outcome)  # type: ignore[union-attr]  # _engine is initialized before this method is called
+            assert self._engine is not None  # set during execute_async
+            result = await self._engine.handle_transition_async(process, outcome)
 
             if result.success:
                 logger.info(

@@ -253,6 +253,30 @@ class Offer(
 
     # --- Ad Status Determination (FR-MODEL-007) ---
 
+    # --- Section Activity Classification (TDD-section-activity-classifier Phase 2) ---
+
+    @property
+    def account_activity(self) -> AccountActivity | None:
+        """Classify this offer's section into an activity category.
+
+        Uses OFFER_CLASSIFIER to map the offer's current section name
+        to an AccountActivity value. Requires the task to have been
+        fetched with memberships.section.name in opt_fields.
+
+        Returns:
+            AccountActivity or None if section is unknown or memberships
+            not populated.
+        """
+        from autom8_asana.models.business.activity import (
+            OFFER_CLASSIFIER,
+            extract_section_name,
+        )
+
+        section_name = extract_section_name(self, project_gid=self.PRIMARY_PROJECT_GID)
+        if section_name is None:
+            return None
+        return OFFER_CLASSIFIER.classify(section_name)
+
     @property
     def has_active_ads(self) -> bool:
         """Check if this offer has active ads.

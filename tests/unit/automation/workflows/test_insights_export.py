@@ -56,13 +56,18 @@ def _make_task(
     name: str,
     parent_gid: str | None = None,
     completed: bool = False,
-    section_name: str = "ACTIVE",
+    section_name: str | None = "ACTIVE",
 ) -> MagicMock:
     """Create a mock task object.
 
     Args:
-        section_name: Section name for membership (default "ACTIVE" to pass
-            activity filtering). Set to None-ish or non-ACTIVE to test filtering.
+        gid: Task GID.
+        name: Task name.
+        parent_gid: Optional parent Business GID.
+        completed: Whether the task is completed.
+        section_name: Section name for memberships. Defaults to "ACTIVE"
+            (classified as active by OFFER_CLASSIFIER). Set to None for
+            no memberships.
     """
     task = MagicMock()
     task.gid = gid
@@ -73,7 +78,15 @@ def _make_task(
         task.parent.gid = parent_gid
     else:
         task.parent = None
-    task.memberships = [{"section": {"name": section_name}}] if section_name else []
+    if section_name is not None:
+        task.memberships = [
+            {
+                "project": {"gid": OFFER_PROJECT_GID},
+                "section": {"name": section_name},
+            }
+        ]
+    else:
+        task.memberships = None
     return task
 
 
@@ -350,6 +363,111 @@ class TestEnumeration:
             ],
             completed_since="now",
         )
+
+
+class TestActivityFiltering:
+    """Tests for section-based activity filtering in _enumerate_offers."""
+
+    @pytest.mark.asyncio
+    async def test_offers_in_inactive_section_excluded(self) -> None:
+        """Offers in an INACTIVE section are excluded by enumeration."""
+        active = _make_task(
+            "o1", "Active Offer", parent_gid="biz1", section_name="ACTIVE"
+        )
+        inactive = _make_task(
+            "o2", "Inactive Offer", parent_gid="biz2", section_name="INACTIVE"
+        )
+        wf, _, _, _ = _make_workflow(offers=[active, inactive])
+
+        with patch(
+            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
+        ) as mock_rc:
+            mock_ctx = AsyncMock()
+            mock_business = _make_mock_business()
+            mock_ctx.business_async = AsyncMock(return_value=mock_business)
+            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
+            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            result = await wf.execute_async(_default_params())
+
+        # Only the ACTIVE offer should be processed
+        assert result.total == 1
+        assert result.succeeded == 1
+
+    @pytest.mark.asyncio
+    async def test_offers_in_unknown_section_excluded(self) -> None:
+        """Offers in an unknown/unclassified section are excluded."""
+        active = _make_task(
+            "o1", "Active Offer", parent_gid="biz1", section_name="ACTIVE"
+        )
+        unknown = _make_task(
+            "o2", "Unknown Section", parent_gid="biz2", section_name="SomeUnknownSection"
+        )
+        wf, _, _, _ = _make_workflow(offers=[active, unknown])
+
+        with patch(
+            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
+        ) as mock_rc:
+            mock_ctx = AsyncMock()
+            mock_business = _make_mock_business()
+            mock_ctx.business_async = AsyncMock(return_value=mock_business)
+            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
+            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            result = await wf.execute_async(_default_params())
+
+        assert result.total == 1
+        assert result.succeeded == 1
+
+    @pytest.mark.asyncio
+    async def test_offers_with_no_memberships_excluded(self) -> None:
+        """Offers with no memberships (section_name=None) are excluded."""
+        active = _make_task(
+            "o1", "Active Offer", parent_gid="biz1", section_name="ACTIVE"
+        )
+        no_membership = _make_task(
+            "o2", "No Membership", parent_gid="biz2", section_name=None
+        )
+        wf, _, _, _ = _make_workflow(offers=[active, no_membership])
+
+        with patch(
+            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
+        ) as mock_rc:
+            mock_ctx = AsyncMock()
+            mock_business = _make_mock_business()
+            mock_ctx.business_async = AsyncMock(return_value=mock_business)
+            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
+            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            result = await wf.execute_async(_default_params())
+
+        assert result.total == 1
+        assert result.succeeded == 1
+
+    @pytest.mark.asyncio
+    async def test_activating_section_excluded(self) -> None:
+        """Offers in ACTIVATING sections are excluded (only ACTIVE passes)."""
+        active = _make_task(
+            "o1", "Active", parent_gid="biz1", section_name="ACTIVE"
+        )
+        activating = _make_task(
+            "o2", "Activating", parent_gid="biz2", section_name="ACTIVATING"
+        )
+        wf, _, _, _ = _make_workflow(offers=[active, activating])
+
+        with patch(
+            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
+        ) as mock_rc:
+            mock_ctx = AsyncMock()
+            mock_business = _make_mock_business()
+            mock_ctx.business_async = AsyncMock(return_value=mock_business)
+            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
+            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            result = await wf.execute_async(_default_params())
+
+        assert result.total == 1
+        assert result.succeeded == 1
 
 
 @pytest.mark.usefixtures("_force_fallback")

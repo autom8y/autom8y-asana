@@ -13,7 +13,7 @@ Authentication:
 from __future__ import annotations
 
 import time
-from typing import Annotated, Any, Literal, Never
+from typing import Annotated, Any, Literal, Never, cast
 
 from autom8y_log import get_logger
 from fastapi import APIRouter, Depends, HTTPException
@@ -293,7 +293,10 @@ async def write_entity_fields(
     field_results = [
         FieldWriteResult(
             name=rf.input_name,
-            status="written" if rf.status == "resolved" else rf.status,  # type: ignore[arg-type]  # rf.status is a valid Literal at runtime
+            status=cast(
+                Literal["written", "skipped", "error"],
+                "written" if rf.status == "resolved" else rf.status,
+            ),
             error=rf.error,
             suggestions=rf.suggestions,
         )

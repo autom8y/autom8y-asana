@@ -193,6 +193,7 @@ class TestConversationAuditE2E:
         for gid in parent_tasks:
             workflow._activity_map[gid] = AccountActivity.ACTIVE
 
+
         # Execute
         result = await workflow.execute_async(
             {
@@ -221,6 +222,9 @@ class TestConversationAuditE2E:
 
         # Verify duration is positive
         assert result.duration_seconds > 0
+
+        # Verify activity_skipped_count metadata
+        assert result.metadata["activity_skipped_count"] == 0
 
     @pytest.mark.asyncio
     async def test_validate_then_execute(self) -> None:

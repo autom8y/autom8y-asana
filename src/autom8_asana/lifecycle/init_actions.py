@@ -245,6 +245,7 @@ class PlayCreationHandler(InitActionHandler):
             # Create play from template
             from autom8_asana.automation.templates import TemplateDiscovery
 
+            assert action_config.project_gid is not None  # validated at config load
             template_discovery = TemplateDiscovery(self._client)
             template = await template_discovery.find_template_task_async(
                 action_config.project_gid  # type: ignore[arg-type]  # project_gid validated non-None by action_config
@@ -394,6 +395,7 @@ class EntityCreationHandler(InitActionHandler):
 
             creation_service = EntityCreationService(self._client, self._config)
 
+            assert action_config.project_gid is not None  # validated at config load
             project_gid = action_config.project_gid
             holder_type = action_config.holder_type or "asset_edit_holder"
             template_section = "TEMPLATE"

@@ -5,7 +5,7 @@ Per TDD: Resolution Primitives -- ResolutionContext and ResolutionError.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from autom8y_log import get_logger
 
@@ -191,7 +191,7 @@ class ResolutionContext:
         if self._business_gid:
             cached = self._session_cache.get(self._business_gid)
             if cached is not None:
-                return cached  # type: ignore[return-value]  # cache stores BusinessEntity, caller expects Business subtype
+                return cast(Business, cached)
 
             business = await Business.from_gid_async(
                 self._client, self._business_gid, hydrate=False
