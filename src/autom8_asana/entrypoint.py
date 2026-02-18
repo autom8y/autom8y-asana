@@ -35,10 +35,13 @@ def run_ecs_mode() -> None:
     """Start uvicorn API server for ECS deployment."""
     import uvicorn
 
+    from autom8_asana.settings import get_settings
+
     log_info("Starting in ECS mode")
 
-    host = os.environ.get("API_HOST", "0.0.0.0")
-    port = int(os.environ.get("API_PORT", "8000"))
+    runtime = get_settings().runtime
+    host = runtime.api_host
+    port = runtime.api_port
 
     log_info(f"Launching uvicorn on {host}:{port}")
 
@@ -54,6 +57,7 @@ def run_lambda_mode(handler: str) -> None:
     """Start Lambda handler via awslambdaric."""
     import awslambdaric
 
+    # ENV-DIRECT: AWS Lambda runtime detection, must be read before Settings is initialized
     runtime_api = os.environ.get("AWS_LAMBDA_RUNTIME_API", "")
     log_info("Starting in Lambda mode")
     log_info(f"Runtime API: {runtime_api}")
@@ -66,6 +70,7 @@ def run_lambda_mode(handler: str) -> None:
 
 def main() -> None:
     """Detect execution mode and run appropriate entrypoint."""
+    # ENV-DIRECT: AWS Lambda runtime detection, must be read before Settings is initialized
     runtime_api = os.environ.get("AWS_LAMBDA_RUNTIME_API")
 
     if not runtime_api:

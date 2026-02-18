@@ -28,7 +28,6 @@ from .health import router as health_router
 from .internal import router as internal_router
 from .projects import router as projects_router
 from .query import router as query_router
-from .query_v2 import router as query_v2_router
 from .resolver import router as resolver_router
 from .sections import router as sections_router
 from .tasks import router as tasks_router
@@ -44,7 +43,6 @@ __all__ = [
     "internal_router",
     "projects_router",
     "query_router",
-    "query_v2_router",
     "resolver_router",
     "sections_router",
     "tasks_router",

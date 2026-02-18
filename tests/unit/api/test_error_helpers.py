@@ -61,13 +61,12 @@ def _make_request_no_state() -> MagicMock:
 
 
 class TestRaiseApiErrorHappyPath:
-    """Verify raise_api_error produces correct format with Request object."""
+    """Verify raise_api_error produces correct format with string request_id."""
 
     def test_basic_error_format(self) -> None:
         """Error response has error, message, and request_id keys."""
-        req = _make_request("req-001")
         with pytest.raises(HTTPException) as exc_info:
-            raise_api_error(req, 400, "INVALID_INPUT", "Bad input")
+            raise_api_error("req-001", 400, "INVALID_INPUT", "Bad input")
 
         exc = exc_info.value
         assert exc.status_code == 400
@@ -86,10 +85,9 @@ class TestRaiseApiErrorHappyPath:
 
     def test_with_details_kwarg(self) -> None:
         """Extra details dict is merged into detail."""
-        req = _make_request("req-002")
         with pytest.raises(HTTPException) as exc_info:
             raise_api_error(
-                req,
+                "req-002",
                 422,
                 "INVALID_FIELD",
                 "Bad field",
@@ -143,10 +141,9 @@ class TestRaiseApiErrorEdgeCases:
     """Adversarial edge cases for raise_api_error."""
 
     def test_missing_request_id_on_state(self) -> None:
-        """When request.state has no request_id, falls back to 'unknown'."""
-        req = _make_request_no_state()
+        """When caller passes 'unknown' as request_id, it is preserved."""
         with pytest.raises(HTTPException) as exc_info:
-            raise_api_error(req, 400, "CODE", "msg")
+            raise_api_error("unknown", 400, "CODE", "msg")
 
         assert exc_info.value.detail["request_id"] == "unknown"
 
@@ -241,11 +238,10 @@ class TestRaiseServiceErrorHappyPath:
 
     def test_basic_service_error(self) -> None:
         """ServiceError.to_dict() is preserved and request_id injected."""
-        req = _make_request("svc-001")
         err = ServiceError("something broke")
 
         with pytest.raises(HTTPException) as exc_info:
-            raise_service_error(req, err)
+            raise_service_error("svc-001", err)
 
         exc = exc_info.value
         assert exc.status_code == 500  # ServiceError -> 500
@@ -324,11 +320,11 @@ class TestRaiseServiceErrorHappyPath:
         assert exc_info.value.detail["request_id"] == "raw-string-id"
 
     def test_with_request_object(self) -> None:
-        """raise_service_error accepts Request object."""
+        """raise_service_error accepts string request_id extracted from Request."""
         req = _make_request("from-request")
         err = ServiceError("test")
         with pytest.raises(HTTPException) as exc_info:
-            raise_service_error(req, err)
+            raise_service_error(req.state.request_id, err)
 
         assert exc_info.value.detail["request_id"] == "from-request"
 
@@ -342,11 +338,10 @@ class TestRaiseServiceErrorEdgeCases:
     """Adversarial edge cases for raise_service_error."""
 
     def test_missing_request_id_on_state(self) -> None:
-        """Fallback to 'unknown' when request.state has no request_id."""
-        req = _make_request_no_state()
+        """Caller passes 'unknown' when no request_id is available."""
         err = ServiceError("test")
         with pytest.raises(HTTPException) as exc_info:
-            raise_service_error(req, err)
+            raise_service_error("unknown", err)
 
         assert exc_info.value.detail["request_id"] == "unknown"
 
@@ -437,7 +432,7 @@ class TestFormatConsistencyAcrossRoutes:
         """entity_write.py REVIEW pattern: recatch SDK errors with raise_api_error."""
         with pytest.raises(HTTPException) as exc_info:
             raise_api_error(
-                _make_request("ew-req-id"),
+                "ew-req-id",
                 429,
                 "RATE_LIMITED",
                 "Rate limit exceeded",
@@ -450,8 +445,8 @@ class TestFormatConsistencyAcrossRoutes:
         assert detail["request_id"] == "ew-req-id"
         assert exc_info.value.headers == {"Retry-After": "60"}
 
-    def test_query_v2_pattern_via_internal_helper(self) -> None:
-        """query_v2.py pattern: _raise_query_error wraps raise_api_error."""
+    def test_query_error_pattern_via_internal_helper(self) -> None:
+        """query.py pattern: _raise_query_error wraps raise_api_error."""
         # Simulating what _raise_query_error does
         d = {"error": "QUERY_TOO_COMPLEX", "message": "Too deep"}
         with pytest.raises(HTTPException) as exc_info:
@@ -518,14 +513,13 @@ class TestKeepSitesUnchanged:
         assert "raise_api_error" not in source
 
     def test_webhook_verify_token_is_raw(self) -> None:
-        """verify_webhook_token uses raw HTTPException."""
+        """verify_webhook_token uses raise_api_error helper (migrated from raw HTTPException)."""
         import inspect
 
         from autom8_asana.api.routes import webhooks
 
         source = inspect.getsource(webhooks.verify_webhook_token)
-        assert "raise HTTPException" in source
-        assert "raise_api_error" not in source
+        assert "raise_api_error" in source
 
 
 # ===========================================================================
@@ -552,22 +546,22 @@ class TestReviewSitesEntityWrite:
         assert "raise_api_error" in source
 
     def test_entity_write_has_timeout_recatch(self) -> None:
-        """entity_write.py still catches AsanaTimeoutError explicitly."""
+        """entity_write.py still catches AsanaTimeoutError (may be in a tuple except)."""
         import inspect
 
         from autom8_asana.api.routes import entity_write
 
         source = inspect.getsource(entity_write.write_entity_fields)
-        assert "except AsanaTimeoutError" in source
+        assert "AsanaTimeoutError" in source
 
     def test_entity_write_has_server_error_recatch(self) -> None:
-        """entity_write.py still catches ServerError explicitly."""
+        """entity_write.py still catches ServerError (may be in a tuple except)."""
         import inspect
 
         from autom8_asana.api.routes import entity_write
 
         source = inspect.getsource(entity_write.write_entity_fields)
-        assert "except ServerError" in source
+        assert "ServerError" in source
 
     def test_entity_write_no_raw_http_exception_in_try_block(self) -> None:
         """entity_write route handler uses raise_api_error, not raw HTTPException.
@@ -687,12 +681,12 @@ class TestMigrationCompleteness:
         source = inspect.getsource(mod)
         assert "raise HTTPException(" not in source
 
-    def test_query_v2_no_raw_http_exception(self) -> None:
-        """query_v2.py should not have raw HTTPException raises."""
+    def test_query_no_raw_http_exception_merged(self) -> None:
+        """Merged query.py should not have raw HTTPException raises."""
         import importlib
         import inspect
 
-        mod = importlib.import_module("autom8_asana.api.routes.query_v2")
+        mod = importlib.import_module("autom8_asana.api.routes.query")
         source = inspect.getsource(mod)
         assert "raise HTTPException(" not in source
 
@@ -749,18 +743,15 @@ class TestRequestIdExtraction:
     """Adversarial tests for request_id extraction from various sources."""
 
     def test_request_with_normal_id(self) -> None:
-        """Normal 16-char hex ID."""
-        req = _make_request("a1b2c3d4e5f67890")
+        """Normal 16-char hex ID passed as string."""
         with pytest.raises(HTTPException) as exc_info:
-            raise_api_error(req, 400, "C", "m")
+            raise_api_error("a1b2c3d4e5f67890", 400, "C", "m")
         assert exc_info.value.detail["request_id"] == "a1b2c3d4e5f67890"
 
     def test_request_object_without_request_id_attr(self) -> None:
-        """Request.state exists but no request_id attribute -> 'unknown'."""
-        req = MagicMock()
-        req.state = SimpleNamespace()  # no request_id
+        """Caller passes 'unknown' when request.state has no request_id."""
         with pytest.raises(HTTPException) as exc_info:
-            raise_api_error(req, 400, "C", "m")
+            raise_api_error("unknown", 400, "C", "m")
         assert exc_info.value.detail["request_id"] == "unknown"
 
     def test_string_request_id_passthrough(self) -> None:
@@ -770,11 +761,11 @@ class TestRequestIdExtraction:
         assert exc_info.value.detail["request_id"] == "my-custom-id"
 
     def test_service_error_with_request_object(self) -> None:
-        """raise_service_error extracts from Request object."""
+        """raise_service_error accepts string request_id extracted from Request."""
         req = _make_request("from-req-obj")
         err = ServiceError("test")
         with pytest.raises(HTTPException) as exc_info:
-            raise_service_error(req, err)
+            raise_service_error(req.state.request_id, err)
         assert exc_info.value.detail["request_id"] == "from-req-obj"
 
     def test_service_error_with_string_id(self) -> None:

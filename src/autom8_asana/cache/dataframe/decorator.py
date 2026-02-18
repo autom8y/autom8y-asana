@@ -6,7 +6,6 @@ with cache miss -> 503 response behavior.
 
 from __future__ import annotations
 
-import os
 from collections.abc import Callable
 from datetime import UTC, datetime
 from functools import wraps
@@ -81,7 +80,9 @@ def dataframe_cache(
 
             Returns resolved result if bypassed, None otherwise.
             """
-            if os.environ.get(bypass_env_var, "").lower() in ("1", "true", "yes"):
+            from autom8_asana.settings import get_settings
+
+            if get_settings().runtime.dataframe_cache_bypass:
                 logger.debug(
                     "dataframe_cache_bypassed",
                     extra={

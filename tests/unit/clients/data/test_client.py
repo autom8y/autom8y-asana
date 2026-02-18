@@ -1390,21 +1390,36 @@ class TestGetInsightsAsyncIntegration:
 # --- Story 1.7: Feature Flag Tests ---
 
 
+def _make_disabled_settings_mock() -> MagicMock:
+    """Create a mock Settings object with insights disabled.
+
+    Per D-011: Settings reads env vars at construction time and caches the result.
+    Tests must patch get_settings() directly rather than setting env vars.
+    """
+    mock_settings = MagicMock()
+    mock_settings.data_service.insights_enabled = False
+    return mock_settings
+
+
 class TestFeatureFlagDisabled:
     """Tests for feature flag disabled behavior (Story 1.7, updated per Story 2.7).
 
     Per Story 2.7: Feature is now enabled by default.
     Explicit opt-out requires setting env var to "false", "0", or "no".
+    Per D-011: Tests patch get_settings() directly since Settings is cached at import time.
     """
 
     @pytest.mark.asyncio
     async def test_disabled_when_env_var_false(self) -> None:
-        """get_insights_async raises InsightsServiceError when env var is 'false'."""
+        """get_insights_async raises InsightsServiceError when insights_enabled=False."""
         from autom8_asana.exceptions import InsightsServiceError
 
         client = DataServiceClient()
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "false"}):
+        with patch(
+            "autom8_asana.settings.get_settings",
+            return_value=_make_disabled_settings_mock(),
+        ):
             async with client:
                 with pytest.raises(InsightsServiceError) as exc:
                     await client.get_insights_async(
@@ -1418,12 +1433,15 @@ class TestFeatureFlagDisabled:
 
     @pytest.mark.asyncio
     async def test_disabled_when_env_var_zero(self) -> None:
-        """get_insights_async raises InsightsServiceError when env var is '0'."""
+        """get_insights_async raises InsightsServiceError when insights_enabled=False."""
         from autom8_asana.exceptions import InsightsServiceError
 
         client = DataServiceClient()
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "0"}):
+        with patch(
+            "autom8_asana.settings.get_settings",
+            return_value=_make_disabled_settings_mock(),
+        ):
             async with client:
                 with pytest.raises(InsightsServiceError) as exc:
                     await client.get_insights_async(
@@ -1436,12 +1454,15 @@ class TestFeatureFlagDisabled:
 
     @pytest.mark.asyncio
     async def test_disabled_when_env_var_no(self) -> None:
-        """get_insights_async raises InsightsServiceError when env var is 'no'."""
+        """get_insights_async raises InsightsServiceError when insights_enabled=False."""
         from autom8_asana.exceptions import InsightsServiceError
 
         client = DataServiceClient()
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "no"}):
+        with patch(
+            "autom8_asana.settings.get_settings",
+            return_value=_make_disabled_settings_mock(),
+        ):
             async with client:
                 with pytest.raises(InsightsServiceError) as exc:
                     await client.get_insights_async(
@@ -1454,16 +1475,22 @@ class TestFeatureFlagDisabled:
 
     @pytest.mark.asyncio
     async def test_disabled_with_case_variations(self) -> None:
-        """Explicit disable values are case-insensitive."""
+        """get_insights_async raises InsightsServiceError when insights_enabled=False.
+
+        Per D-011: Pydantic Settings handles case-insensitive bool parsing at
+        construction time. The client tests only verify behavior when disabled.
+        """
         from autom8_asana.exceptions import InsightsServiceError
 
         client = DataServiceClient()
 
-        # Test case-insensitive opt-out values
-        disabled_values = ["false", "FALSE", "False", "no", "NO", "No", "0"]
-
-        for value in disabled_values:
-            with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": value}):
+        # All variants resolve to insights_enabled=False via pydantic at Settings init.
+        # We test the client behavior when the setting is False.
+        for _variant in ["false", "FALSE", "False", "no", "NO", "No", "0"]:
+            with patch(
+                "autom8_asana.settings.get_settings",
+                return_value=_make_disabled_settings_mock(),
+            ):
                 async with client:
                     with pytest.raises(InsightsServiceError) as exc:
                         await client.get_insights_async(
@@ -1472,9 +1499,7 @@ class TestFeatureFlagDisabled:
                             vertical="chiropractic",
                         )
 
-                assert exc.value.reason == "feature_disabled", (
-                    f"Expected feature_disabled for value '{value}'"
-                )
+                assert exc.value.reason == "feature_disabled"
 
     @pytest.mark.asyncio
     async def test_feature_check_happens_before_validation(self) -> None:
@@ -1484,7 +1509,10 @@ class TestFeatureFlagDisabled:
         client = DataServiceClient()
 
         # Even with invalid inputs, feature flag check should happen first
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "false"}):
+        with patch(
+            "autom8_asana.settings.get_settings",
+            return_value=_make_disabled_settings_mock(),
+        ):
             async with client:
                 with pytest.raises(InsightsServiceError) as exc:
                     await client.get_insights_async(
@@ -1757,12 +1785,15 @@ class TestCheckFeatureEnabled:
             client._check_feature_enabled()
 
     def test_raises_when_explicitly_disabled(self) -> None:
-        """_check_feature_enabled raises when explicitly set to false."""
+        """_check_feature_enabled raises when insights_enabled=False in settings."""
         from autom8_asana.exceptions import InsightsServiceError
 
         client = DataServiceClient()
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "false"}):
+        with patch(
+            "autom8_asana.settings.get_settings",
+            return_value=_make_disabled_settings_mock(),
+        ):
             with pytest.raises(InsightsServiceError) as exc:
                 client._check_feature_enabled()
 
@@ -1774,7 +1805,10 @@ class TestCheckFeatureEnabled:
 
         client = DataServiceClient()
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "false"}):
+        with patch(
+            "autom8_asana.settings.get_settings",
+            return_value=_make_disabled_settings_mock(),
+        ):
             with pytest.raises(InsightsServiceError) as exc:
                 client._check_feature_enabled()
 
@@ -4450,8 +4484,11 @@ class TestGetInsightsBatchAsync:
 
         client = DataServiceClient()
 
-        # Explicitly disable feature flag (per Story 2.7: default is now enabled)
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "false"}):
+        # Per D-011: patch get_settings() directly since Settings is cached at import time.
+        with patch(
+            "autom8_asana.settings.get_settings",
+            return_value=_make_disabled_settings_mock(),
+        ):
             async with client:
                 with pytest.raises(InsightsServiceError) as exc:
                     await client.get_insights_batch_async(

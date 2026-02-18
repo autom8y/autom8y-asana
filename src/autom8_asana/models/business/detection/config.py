@@ -5,7 +5,6 @@ Per TDD-SPRINT-3-DETECTION-DECOMPOSITION: Master configuration and derived looku
 This module provides:
 - ENTITY_TYPE_INFO: Master configuration dict mapping EntityType to EntityTypeInfo
 - NAME_PATTERNS: Derived name pattern map for Tier 2 detection
-- HOLDER_NAME_MAP: Alias to NAME_PATTERNS for backward compatibility
 - PARENT_CHILD_MAP: Derived parent-to-child type inference map
 - get_holder_attr(): Lookup holder attribute from EntityTypeInfo
 - entity_type_to_holder_attr(): Alias for get_holder_attr()
@@ -20,7 +19,6 @@ from autom8_asana.models.business.detection.types import EntityType, EntityTypeI
 __all__ = [
     "ENTITY_TYPE_INFO",
     "NAME_PATTERNS",
-    "HOLDER_NAME_MAP",
     "PARENT_CHILD_MAP",
     "get_holder_attr",
     "entity_type_to_holder_attr",
@@ -218,11 +216,6 @@ def _derive_parent_child_map() -> dict[EntityType, EntityType]:
 # Maps substrings to their EntityType for case-insensitive contains matching
 # DERIVED from ENTITY_TYPE_INFO at module load time
 NAME_PATTERNS: dict[str, EntityType] = _derive_name_patterns()
-
-# Per ADR-0068: Legacy holder name detection map (exact match)
-# DEPRECATED: Use NAME_PATTERNS for new code. Kept for backward compatibility.
-# Alias to NAME_PATTERNS since they contain the same patterns
-HOLDER_NAME_MAP: dict[str, EntityType] = NAME_PATTERNS
 
 # Per TDD-DETECTION: Parent-to-child type inference map for Tier 3
 # Maps parent EntityType to inferred child EntityType

@@ -155,7 +155,7 @@ async def resolve_section_index(
 ) -> SectionIndex | None:
     """Build section index with manifest-first, enum-fallback strategy.
 
-    Used by query_v2.py endpoints to construct a SectionIndex for
+    Used by query.py endpoints to construct a SectionIndex for
     QueryEngine without duplicating the manifest/enum resolution pattern.
 
     Returns None if section_name is None.

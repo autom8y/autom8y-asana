@@ -813,22 +813,10 @@ def _import_section_service(client: AsanaClient) -> SectionServiceProtocol:
 def _import_completion_service(
     client: AsanaClient, config: LifecycleConfig
 ) -> CompletionServiceProtocol:
-    """Lazily import and construct CompletionService.
+    """Lazily import and construct CompletionService."""
+    from autom8_asana.lifecycle.completion import CompletionService
 
-    Falls back to PipelineAutoCompletionService if CompletionService
-    is not yet available (parallel rewrite).
-    """
-    try:
-        from autom8_asana.lifecycle.completion import CompletionService
-
-        return CompletionService(client)  # type: ignore[return-value]
-    except ImportError:
-        from autom8_asana.lifecycle.completion import (
-            PipelineAutoCompletionService,
-        )
-
-        # Wrap the old service to match the new protocol
-        return _CompletionAdapter(PipelineAutoCompletionService(client))
+    return CompletionService(client)  # type: ignore[return-value]
 
 
 def _import_wiring_service(
@@ -854,21 +842,8 @@ def _import_reopen_service(client: AsanaClient) -> ReopenServiceProtocol:
 
 
 # ---------------------------------------------------------------------------
-# Adapters and stubs for parallel-rewrite compatibility
+# Stubs for parallel-rewrite compatibility
 # ---------------------------------------------------------------------------
-
-
-class _CompletionAdapter:
-    """Adapts PipelineAutoCompletionService to CompletionServiceProtocol."""
-
-    def __init__(self, service: object) -> None:
-        self._service = service
-
-    async def complete_source_async(self, source_process: Process) -> CompletionResult:
-        """Delegate to the old auto_complete_async with minimal args."""
-        # The old service needs (source_process, new_pipeline_stage, ctx)
-        # but we only have the source_process. Return empty for now.
-        return CompletionResult()
 
 
 class _StubReopenService:

@@ -645,16 +645,6 @@ class TestBackwardCompatibility:
 
 
 class TestDataFrameCacheEntryRename:
-    def test_alias_exists(self) -> None:
-        from autom8_asana.cache.integration.dataframe_cache import (
-            CacheEntry as AliasCacheEntry,
-        )
-        from autom8_asana.cache.integration.dataframe_cache import (
-            DataFrameCacheEntry,
-        )
-
-        assert AliasCacheEntry is DataFrameCacheEntry
-
     def test_new_name_importable(self) -> None:
         from autom8_asana.cache.integration.dataframe_cache import (
             DataFrameCacheEntry,

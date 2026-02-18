@@ -50,7 +50,6 @@ from .routes import (
     internal_router,
     projects_router,
     query_router,
-    query_v2_router,
     resolver_router,
     sections_router,
     tasks_router,
@@ -176,8 +175,10 @@ def create_app() -> FastAPI:
     app.include_router(sections_router)
     app.include_router(internal_router)
     app.include_router(resolver_router)
+    # Single query router: /rows and /aggregate (active) + deprecated
+    # POST /{entity_type} (sunset 2026-06-01). Route order within the
+    # router ensures /rows is matched before the wildcard /{entity_type}.
     app.include_router(query_router)
-    app.include_router(query_v2_router)
     app.include_router(admin_router)
     app.include_router(webhooks_router)
     app.include_router(entity_write_router)

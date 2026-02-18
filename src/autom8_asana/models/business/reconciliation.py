@@ -9,7 +9,6 @@ Per ADR-0076: Auto-invalidation on parent reference change.
 
 from __future__ import annotations
 
-import warnings
 from typing import TYPE_CHECKING
 
 from pydantic import PrivateAttr
@@ -52,26 +51,6 @@ class Reconciliation(BusinessEntity):
     reconciliation_holder = HolderRef["ReconciliationHolder"]()
 
     # _invalidate_refs() inherited from BusinessEntity (ADR-0076)
-
-    # --- Deprecation Alias (Phase 6: Naming Standardization) ---
-
-    @property
-    def reconciliations_holder(self) -> ReconciliationHolder | None:
-        """Deprecated alias for reconciliation_holder.
-
-        .. deprecated::
-            Use `reconciliation_holder` instead. This alias will be removed
-            in a future release.
-
-        Returns:
-            ReconciliationHolder containing this Reconciliation, or None if not set.
-        """
-        warnings.warn(
-            "reconciliations_holder is deprecated, use reconciliation_holder instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._reconciliation_holder
 
 
 __all__ = ["Reconciliation"]

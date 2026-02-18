@@ -56,7 +56,7 @@ class FreshnessInfo:
     """Freshness metadata for a cache serve operation.
 
     Carried as a side-channel from DataFrameCache to API response.
-    Not stored in CacheEntry (freshness changes over time as data ages).
+    Not stored in DataFrameCacheEntry (freshness changes over time as data ages).
 
     Per TDD-PARTIAL-FAILURE-SIGNALING-001 (C2): Optional build_status
     and sections_failed fields carry build quality through the freshness
@@ -88,7 +88,7 @@ def _get_schema_version_for_entity(entity_type: str) -> str | None:
 class DataFrameCacheEntry:
     """DataFrame cache entry for memory/progressive tier storage.
 
-    Distinct from ``CacheEntry`` in ``cache/models/entry.py`` (versioned
+    Distinct from ``DataFrameCacheEntry`` in ``cache/models/entry.py`` (versioned
     Redis/S3 cache). This holds an actual ``pl.DataFrame`` with
     watermark-based freshness tracking.
 
@@ -99,8 +99,8 @@ class DataFrameCacheEntry:
     records build completeness metadata for downstream consumers.
 
     Per TDD-unified-cacheentry-hierarchy (ADR-S4-001): Renamed from
-    ``CacheEntry`` to ``DataFrameCacheEntry`` to resolve the naming
-    collision with the versioned ``CacheEntry``.
+    ``DataFrameCacheEntry`` to ``DataFrameCacheEntry`` to resolve the naming
+    collision with the versioned ``DataFrameCacheEntry``.
 
     Attributes:
         project_gid: Asana project GID this DataFrame belongs to.
@@ -163,12 +163,6 @@ class DataFrameCacheEntry:
             True if entry watermark >= current_watermark.
         """
         return self.watermark >= current_watermark
-
-
-# Backward-compatible alias. Deprecated: use DataFrameCacheEntry directly.
-# Per TDD-unified-cacheentry-hierarchy (ADR-S4-001): The alias will be
-# removed in a future sprint after all consumers are migrated.
-CacheEntry = DataFrameCacheEntry
 
 
 @dataclass
@@ -265,7 +259,7 @@ class DataFrameCache:
         project_gid: str,
         entity_type: str,
         current_watermark: datetime | None = None,
-    ) -> CacheEntry | None:
+    ) -> DataFrameCacheEntry | None:
         """Get cached DataFrame entry with entity-aware TTL and SWR.
 
         Lookup order:
@@ -285,7 +279,7 @@ class DataFrameCache:
             current_watermark: Optional watermark for freshness check.
 
         Returns:
-            CacheEntry if found and fresh/stale-servable, None otherwise.
+            DataFrameCacheEntry if found and fresh/stale-servable, None otherwise.
         """
         cache_key = self._build_key(project_gid, entity_type)
 
@@ -337,7 +331,7 @@ class DataFrameCache:
         cache_key: str,
         project_gid: str,
         entity_type: str,
-    ) -> CacheEntry | None:
+    ) -> DataFrameCacheEntry | None:
         """Serve LKG from cache when circuit breaker is open.
 
         Checks memory then S3. Returns entry if schema-valid.
@@ -349,7 +343,7 @@ class DataFrameCache:
             entity_type: Entity type for stats and logging.
 
         Returns:
-            CacheEntry if found and schema-valid, None otherwise.
+            DataFrameCacheEntry if found and schema-valid, None otherwise.
         """
         # Try memory tier first
         entry = self.memory_tier.get(cache_key)
@@ -404,13 +398,13 @@ class DataFrameCache:
 
     def _check_freshness_and_serve(
         self,
-        entry: CacheEntry,
+        entry: DataFrameCacheEntry,
         current_watermark: datetime | None,
         project_gid: str,
         entity_type: str,
         cache_key: str,
         tier: str,
-    ) -> CacheEntry | None:
+    ) -> DataFrameCacheEntry | None:
         """Check entry freshness and handle SWR/LKG logic for a tier.
 
         Returns the entry if servable (fresh, stale-within-grace, or LKG),
@@ -569,7 +563,7 @@ class DataFrameCache:
 
             build_quality = BuildQuality.from_build_result(build_result)
 
-        entry = CacheEntry(
+        entry = DataFrameCacheEntry(
             project_gid=project_gid,
             entity_type=entity_type,
             dataframe=dataframe,
@@ -719,7 +713,7 @@ class DataFrameCache:
         project_gid: str,
         entity_type: str,
         timeout_seconds: float = 30.0,
-    ) -> CacheEntry | None:
+    ) -> DataFrameCacheEntry | None:
         """Wait for in-progress build to complete.
 
         Args:
@@ -728,7 +722,7 @@ class DataFrameCache:
             timeout_seconds: Maximum wait time.
 
         Returns:
-            CacheEntry if build succeeded, None on timeout/failure.
+            DataFrameCacheEntry if build succeeded, None on timeout/failure.
         """
         cache_key = self._build_key(project_gid, entity_type)
         success = await self.coalescer.wait_async(cache_key, timeout_seconds)
@@ -762,7 +756,7 @@ class DataFrameCache:
 
     def _build_freshness_info(
         self,
-        entry: CacheEntry,
+        entry: DataFrameCacheEntry,
         status: FreshnessStatus,
         cache_key: str,
     ) -> FreshnessInfo:
@@ -781,7 +775,7 @@ class DataFrameCache:
         entity_ttl = DEFAULT_ENTITY_TTLS.get(entry.entity_type, DEFAULT_TTL)
         age = (datetime.now(UTC) - entry.created_at).total_seconds()
 
-        # Populate build quality fields from CacheEntry (C2)
+        # Populate build quality fields from DataFrameCacheEntry (C2)
         build_status_val = None
         sections_failed_val = 0
         if entry.build_quality is not None:
@@ -812,7 +806,7 @@ class DataFrameCache:
         """
         self._build_callback = callback
 
-    def _schema_is_valid(self, entry: CacheEntry) -> bool:
+    def _schema_is_valid(self, entry: DataFrameCacheEntry) -> bool:
         """Check if entry schema version matches current registry.
 
         Returns True if schema is valid, False on mismatch or lookup failure.
@@ -829,7 +823,7 @@ class DataFrameCache:
 
     def _check_freshness(
         self,
-        entry: CacheEntry,
+        entry: DataFrameCacheEntry,
         current_watermark: datetime | None,
     ) -> FreshnessStatus:
         """Check entry freshness using entity-aware TTL with SWR grace.

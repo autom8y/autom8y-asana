@@ -9,15 +9,11 @@ code duplication across Lambda handlers.
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 from autom8y_log import get_logger
 
 logger = get_logger(__name__)
-
-CLOUDWATCH_NAMESPACE = os.environ.get("CLOUDWATCH_NAMESPACE", "autom8/lambda")
-ENVIRONMENT = os.environ.get("ENVIRONMENT", "staging")
 
 _cloudwatch_client: Any = None
 
@@ -46,13 +42,16 @@ def emit_metric(
         value: Metric value.
         unit: CloudWatch unit (Count, Milliseconds, etc.).
         dimensions: Optional additional dimensions.
-        namespace: Override namespace (defaults to CLOUDWATCH_NAMESPACE).
+        namespace: Override namespace (defaults to settings.observability.cloudwatch_namespace).
     """
+    from autom8_asana.settings import get_settings
+
+    obs = get_settings().observability
     client = _get_cloudwatch_client()
-    ns = namespace or CLOUDWATCH_NAMESPACE
+    ns = namespace or obs.cloudwatch_namespace
 
     metric_dimensions = [
-        {"Name": "environment", "Value": ENVIRONMENT},
+        {"Name": "environment", "Value": obs.environment},
     ]
     if dimensions:
         for dim_name, dim_value in dimensions.items():

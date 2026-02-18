@@ -153,53 +153,6 @@ class TestHoursHelperProperties:
         assert hours.monday_close is None
 
 
-class TestHoursDeprecatedAliases:
-    """Tests for deprecated aliases per ADR-0114."""
-
-    def test_monday_hours_deprecated(self) -> None:
-        """monday_hours emits DeprecationWarning."""
-        hours = Hours(gid="123", custom_fields=[])
-        hours.get_custom_fields().set(
-            "Monday",
-            [
-                {"gid": "t1", "name": "08:00:00"},
-            ],
-        )
-        with pytest.warns(DeprecationWarning, match="monday_hours is deprecated"):
-            result = hours.monday_hours
-        assert result == ["08:00:00"]
-
-    def test_tuesday_hours_deprecated(self) -> None:
-        """tuesday_hours emits DeprecationWarning."""
-        hours = Hours(gid="123", custom_fields=[])
-        with pytest.warns(DeprecationWarning, match="tuesday_hours is deprecated"):
-            _ = hours.tuesday_hours
-
-    def test_wednesday_hours_deprecated(self) -> None:
-        """wednesday_hours emits DeprecationWarning."""
-        hours = Hours(gid="123", custom_fields=[])
-        with pytest.warns(DeprecationWarning, match="wednesday_hours is deprecated"):
-            _ = hours.wednesday_hours
-
-    def test_thursday_hours_deprecated(self) -> None:
-        """thursday_hours emits DeprecationWarning."""
-        hours = Hours(gid="123", custom_fields=[])
-        with pytest.warns(DeprecationWarning, match="thursday_hours is deprecated"):
-            _ = hours.thursday_hours
-
-    def test_friday_hours_deprecated(self) -> None:
-        """friday_hours emits DeprecationWarning."""
-        hours = Hours(gid="123", custom_fields=[])
-        with pytest.warns(DeprecationWarning, match="friday_hours is deprecated"):
-            _ = hours.friday_hours
-
-    def test_saturday_hours_deprecated(self) -> None:
-        """saturday_hours emits DeprecationWarning."""
-        hours = Hours(gid="123", custom_fields=[])
-        with pytest.warns(DeprecationWarning, match="saturday_hours is deprecated"):
-            _ = hours.saturday_hours
-
-
 class TestHoursComputedProperties:
     """Tests for Hours computed properties."""
 

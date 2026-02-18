@@ -8,7 +8,6 @@ This module provides dependency factories for:
 Per TDD-S2S-001 Section 5.4:
 - AuthContext provides unified auth result for both modes
 - get_auth_context() is the primary auth dependency
-- get_asana_pat() provides backward compatibility
 
 Per ADR-ASANA-002: PAT Pass-Through Authentication
 - Extract PAT from Authorization: Bearer header
@@ -287,95 +286,6 @@ async def get_auth_context(
     )
 
 
-async def get_asana_pat(
-    authorization: Annotated[str | None, Header()] = None,
-) -> str:
-    """Extract and validate PAT from Authorization header.
-
-    DEPRECATED: Use get_auth_context() for dual-mode support.
-    This function is maintained for backward compatibility with
-    existing route handlers that expect only PAT authentication.
-
-    Per ADR-ASANA-002:
-    - Requires Bearer scheme
-    - Validates non-empty token
-    - Token must be at least 10 characters
-
-    Args:
-        authorization: Authorization header value.
-
-    Returns:
-        Extracted PAT token.
-
-    Raises:
-        HTTPException: 401 if header missing, wrong scheme, or invalid format.
-    """
-    if authorization is None:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "MISSING_AUTH",
-                "message": "Authorization header required",
-            },
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "INVALID_SCHEME",
-                "message": "Invalid authorization scheme. Use: Bearer <token>",
-            },
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    token = authorization[7:]  # Remove "Bearer " prefix
-
-    if not token:
-        raise HTTPException(
-            status_code=401,
-            detail={"error": "MISSING_TOKEN", "message": "Token is required"},
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    if len(token) < 10:
-        raise HTTPException(
-            status_code=401,
-            detail={"error": "INVALID_TOKEN", "message": "Invalid token format"},
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    return token
-
-
-async def get_asana_client(
-    request: Request,
-    pat: Annotated[str, Depends(get_asana_pat)],
-) -> AsanaClient:
-    """Get pooled AsanaClient with provided PAT.
-
-    DEPRECATED for new routes: Use get_asana_client_from_context() instead
-    for dual-mode support.
-
-    Per IMP-19: Uses token-keyed ClientPool for S2S resilience.
-    Pooled clients have aclose() as a no-op to prevent resource leaks.
-    PAT-mode clients use a 5-minute TTL.
-
-    Args:
-        request: FastAPI request (for pool access via app.state).
-        pat: Personal Access Token from Authorization header.
-
-    Returns:
-        Pooled AsanaClient instance configured with the provided PAT.
-    """
-    pool = getattr(request.app.state, "client_pool", None)
-    if pool is not None:
-        return cast(AsanaClient, await pool.get_or_create(pat, is_s2s=False))
-    # Fallback: no pool (e.g., testing without lifespan)
-    return AsanaClient(token=pat)
-
-
 async def get_asana_client_from_context(
     request: Request,
     auth_context: Annotated[AuthContext, Depends(get_auth_context)],
@@ -455,15 +365,32 @@ def get_request_id(request: Request) -> str:
     return getattr(request.state, "request_id", "unknown")
 
 
+def get_entity_write_registry(request: Request) -> "EntityWriteRegistry | None":
+    """Get EntityWriteRegistry from app state (populated during lifespan startup).
+
+    Per TDD-ENTITY-WRITE-API Section 8.1: The registry is built once at startup
+    and stored on app.state. Returns None if not yet initialized (e.g., startup
+    failed or service is still initializing).
+
+    Args:
+        request: FastAPI request (for app state access).
+
+    Returns:
+        EntityWriteRegistry instance, or None if not initialized.
+    """
+    return getattr(request.app.state, "entity_write_registry", None)
+
+
 # Type aliases for cleaner route signatures
-AsanaPAT = Annotated[str, Depends(get_asana_pat)]
-AsanaClientDep = Annotated[AsanaClient, Depends(get_asana_client)]
 AsanaClientDualMode = Annotated[AsanaClient, Depends(get_asana_client_from_context)]
 AuthContextDep = Annotated[AuthContext, Depends(get_auth_context)]
 MutationInvalidatorDep = Annotated[
     MutationInvalidator, Depends(get_mutation_invalidator)
 ]
 RequestId = Annotated[str, Depends(get_request_id)]
+EntityWriteRegistryDep = Annotated[
+    "EntityWriteRegistry | None", Depends(get_entity_write_registry)
+]
 
 
 # --- Service Factories (I2 additions) ---
@@ -555,6 +482,7 @@ def get_dataframe_service() -> DataFrameService:
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from autom8_asana.resolution.write_registry import EntityWriteRegistry
     from autom8_asana.services.dataframe_service import DataFrameService
     from autom8_asana.services.entity_service import EntityService
     from autom8_asana.services.section_service import SectionService
@@ -583,14 +511,13 @@ __all__ = [
     "TaskServiceDep",
     "SectionServiceDep",
     "DataFrameServiceDep",
-    # Legacy dependencies (backward compatibility)
-    "get_asana_client",
-    "get_asana_pat",
+    # Entity write registry
+    "get_entity_write_registry",
+    "EntityWriteRegistryDep",
+    # Utilities
     "get_request_id",
     # Type aliases
-    "AsanaClientDep",
     "AsanaClientDualMode",
-    "AsanaPAT",
     "AuthContextDep",
     "RequestId",
 ]

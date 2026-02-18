@@ -69,7 +69,7 @@ class EntityService:
     def project_registry(self) -> EntityProjectRegistry:
         """Expose project registry for callers that need it directly.
 
-        Used by query_v2.py to pass entity_project_registry to
+        Used by query.py to pass entity_project_registry to
         QueryEngine.execute_rows() without accessing app.state.
 
         Returns:

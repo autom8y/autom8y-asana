@@ -199,17 +199,25 @@ def _patches(
     update_side_effect: Exception | None = None,
 ):
     """Stack of patches for auth, bot PAT, and AsanaClient."""
+    # Patch JWT validation in both internal.py (for require_service_claims)
+    # and jwt_validator module (for AuthContextDep's lazy import in get_auth_context).
     jwt_patch = patch(
         "autom8_asana.api.routes.internal.validate_service_token",
         _mock_jwt_validation(),
     )
+    jwt_patch_dep = patch(
+        "autom8_asana.auth.jwt_validator.validate_service_token",
+        _mock_jwt_validation(),
+    )
+    # Patch get_bot_pat at the dependencies module level (where get_auth_context uses it).
     pat_patch = patch(
-        "autom8_asana.auth.bot_pat.get_bot_pat",
+        "autom8_asana.api.dependencies.get_bot_pat",
         return_value="test_bot_pat",
     )
     client_patch = patch("autom8_asana.AsanaClient")
     return (
         jwt_patch,
+        jwt_patch_dep,
         pat_patch,
         client_patch,
         task_data,
@@ -220,6 +228,7 @@ def _patches(
 
 def _apply_patches(
     jwt_p,
+    jwt_dep_p,
     pat_p,
     client_p,
     task_data=None,
@@ -228,6 +237,7 @@ def _apply_patches(
 ):
     """Enter patches and configure the mock client."""
     jwt_p.start()
+    jwt_dep_p.start()
     pat_p.start()
     mock_client_class = client_p.start()
 
@@ -252,9 +262,10 @@ def _apply_patches(
     return mock_client
 
 
-def _stop_patches(jwt_p, pat_p, client_p, *_):
+def _stop_patches(jwt_p, jwt_dep_p, pat_p, client_p, *_):
     """Stop all patches."""
     jwt_p.stop()
+    jwt_dep_p.stop()
     pat_p.stop()
     client_p.stop()
 

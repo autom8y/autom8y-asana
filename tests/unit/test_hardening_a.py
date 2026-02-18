@@ -7,7 +7,6 @@ logging context, and observability protocol.
 from __future__ import annotations
 
 import logging
-import warnings
 
 import pytest
 
@@ -15,8 +14,6 @@ from autom8_asana.persistence.exceptions import (
     GidValidationError,
     PositioningConflictError,
     SaveOrchestrationError,
-    ValidationError,
-    _DeprecatedValidationErrorMeta,
 )
 
 
@@ -37,62 +34,6 @@ class TestGidValidationError:
         """GidValidationError can be caught as SaveOrchestrationError."""
         with pytest.raises(SaveOrchestrationError):
             raise GidValidationError("test")
-
-
-class TestValidationErrorDeprecation:
-    """Tests for ValidationError deprecation alias."""
-
-    def setup_method(self) -> None:
-        """Reset warning state before each test."""
-        _DeprecatedValidationErrorMeta.reset_warning()
-
-    def test_validation_error_is_subclass_of_gid_validation_error(self) -> None:
-        """ValidationError is a subclass of GidValidationError."""
-        assert issubclass(ValidationError, GidValidationError)
-
-    def test_instantiation_emits_deprecation_warning(self) -> None:
-        """Instantiating ValidationError emits deprecation warning."""
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            _DeprecatedValidationErrorMeta.reset_warning()
-            ValidationError("test")
-
-            assert len(w) == 1
-            assert issubclass(w[0].category, DeprecationWarning)
-            assert "GidValidationError" in str(w[0].message)
-
-    def test_isinstance_emits_deprecation_warning(self) -> None:
-        """isinstance() with ValidationError emits deprecation warning."""
-        _DeprecatedValidationErrorMeta.reset_warning()
-        error = GidValidationError("test")
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            isinstance(error, ValidationError)
-
-            assert len(w) == 1
-            assert issubclass(w[0].category, DeprecationWarning)
-
-    def test_warning_emitted_once_per_session(self) -> None:
-        """Warning is only emitted once per session."""
-        _DeprecatedValidationErrorMeta.reset_warning()
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            ValidationError("first")
-            ValidationError("second")
-            ValidationError("third")
-
-            assert len(w) == 1  # Only one warning despite 3 instantiations
-
-    def test_backward_compatibility_catch_clause(self) -> None:
-        """ValidationError can still be caught in except clause."""
-        _DeprecatedValidationErrorMeta.reset_warning()
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            with pytest.raises(ValidationError):
-                raise GidValidationError("test")
 
 
 class TestPositioningConflictError:
@@ -346,13 +287,13 @@ class TestStubModels:
         assert dna.business is None
 
     def test_reconciliation_has_navigation_properties(self) -> None:
-        """Reconciliation has reconciliations_holder and business properties."""
+        """Reconciliation has reconciliation_holder and business properties."""
         from autom8_asana.models.business import Reconciliation
 
         recon = Reconciliation(gid="123")
-        assert hasattr(recon, "reconciliations_holder")
+        assert hasattr(recon, "reconciliation_holder")
         assert hasattr(recon, "business")
-        assert recon.reconciliations_holder is None
+        assert recon.reconciliation_holder is None
         assert recon.business is None
 
     def test_videography_has_navigation_properties(self) -> None:

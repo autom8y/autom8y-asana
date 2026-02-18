@@ -13,12 +13,18 @@ Authentication:
 from __future__ import annotations
 
 import time
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Never
 
 from autom8y_log import get_logger
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, model_validator
 
+from autom8_asana.api.dependencies import (
+    AuthContextDep,
+    MutationInvalidatorDep,
+    RequestId,
+    EntityWriteRegistryDep,
+)
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.routes.internal import (
     ServiceClaims,
@@ -97,6 +103,58 @@ class EntityWriteResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Error-to-status mapping (canonical pattern per D-004)
+# ---------------------------------------------------------------------------
+
+_WRITE_ERROR_STATUS: dict[type[Exception], tuple[int, str, str]] = {
+    TaskNotFoundError: (404, "TASK_NOT_FOUND", "Task not found."),
+    NoValidFieldsError: (422, "NO_VALID_FIELDS", "All fields failed resolution -- nothing to write."),
+}
+
+
+def _raise_write_error(
+    request_id: str,
+    gid: str,
+    exc: Exception,
+) -> Never:
+    """Map a write-service exception to an HTTPException with request_id.
+
+    Per ADR-I6-001 / D-004: Consolidates common per-type status mapping.
+    RateLimitError and EntityTypeMismatchError are handled at the call site
+    due to extra headers / structured details.
+    """
+    if isinstance(exc, AsanaTimeoutError):
+        logger.warning(
+            "entity_write_timeout",
+            extra={
+                "request_id": request_id,
+                "gid": gid,
+                "error": str(exc),
+            },
+        )
+        raise_api_error(request_id, 504, "ASANA_TIMEOUT", "Asana API call timed out.")
+
+    if isinstance(exc, ServerError):
+        logger.error(
+            "entity_write_upstream_error",
+            extra={
+                "request_id": request_id,
+                "gid": gid,
+                "error": str(exc),
+            },
+        )
+        raise_api_error(request_id, 502, "ASANA_UPSTREAM_ERROR", "Asana server error.")
+
+    mapping = _WRITE_ERROR_STATUS.get(type(exc))
+    if mapping is not None:
+        status, code, message = mapping
+        raise_api_error(request_id, status, code, message)
+
+    # Unreachable in normal flow; callers must handle remaining exception types.
+    raise exc  # pragma: no cover
+
+
+# ---------------------------------------------------------------------------
 # Route
 # ---------------------------------------------------------------------------
 
@@ -106,8 +164,11 @@ async def write_entity_fields(
     entity_type: str,
     gid: str,
     body: EntityWriteRequest,
-    request: Request,
+    request_id: RequestId,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
+    auth_context: AuthContextDep,
+    mutation_invalidator: MutationInvalidatorDep,
+    write_registry: EntityWriteRegistryDep,
     include_updated: bool = False,
 ) -> EntityWriteResponse:
     """Write fields to an Asana entity.
@@ -128,7 +189,6 @@ async def write_entity_fields(
         EntityWriteResponse with per-field results.
     """
     start_time = time.monotonic()
-    request_id = getattr(request.state, "request_id", "unknown")
 
     logger.info(
         "entity_write_request",
@@ -142,11 +202,10 @@ async def write_entity_fields(
         },
     )
 
-    # Get EntityWriteRegistry from app.state
-    write_registry = getattr(request.app.state, "entity_write_registry", None)
+    # Get EntityWriteRegistry from app.state (via DI)
     if write_registry is None:
         raise_api_error(
-            request,
+            request_id,
             503,
             "DISCOVERY_INCOMPLETE",
             "Entity write registry not initialized. "
@@ -165,7 +224,7 @@ async def write_entity_fields(
             },
         )
         raise_api_error(
-            request,
+            request_id,
             404,
             "UNKNOWN_ENTITY_TYPE",
             f"Unknown or non-writable entity type: {entity_type}. "
@@ -173,32 +232,11 @@ async def write_entity_fields(
             details={"available_types": available},
         )
 
-    # Acquire bot PAT and create AsanaClient
+    # Use bot PAT from auth context and create AsanaClient
     from autom8_asana import AsanaClient
-    from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
 
     try:
-        bot_pat = get_bot_pat()
-    except BotPATError as exc:
-        logger.error(
-            "bot_pat_unavailable",
-            extra={
-                "request_id": request_id,
-                "error": str(exc),
-            },
-        )
-        raise_api_error(
-            request,
-            503,
-            "BOT_PAT_UNAVAILABLE",
-            "Bot PAT not configured for S2S Asana access.",
-        )
-
-    # Get optional MutationInvalidator from app.state
-    mutation_invalidator = getattr(request.app.state, "mutation_invalidator", None)
-
-    try:
-        async with AsanaClient(token=bot_pat) as client:
+        async with AsanaClient(token=auth_context.asana_pat) as client:
             service = FieldWriteService(client, write_registry)
             result: WriteFieldsResult = await service.write_async(
                 entity_type=entity_type,
@@ -208,16 +246,9 @@ async def write_entity_fields(
                 include_updated=include_updated,
                 mutation_invalidator=mutation_invalidator,
             )
-    except TaskNotFoundError:
-        raise_api_error(
-            request,
-            404,
-            "TASK_NOT_FOUND",
-            f"Task not found: {gid}",
-        )
     except EntityTypeMismatchError as exc:
         raise_api_error(
-            request,
+            request_id,
             404,
             exc.error_code,
             exc.message,
@@ -226,56 +257,21 @@ async def write_entity_fields(
                 "actual_projects": exc.actual_projects,
             },
         )
-    except NoValidFieldsError:
-        raise_api_error(
-            request,
-            422,
-            "NO_VALID_FIELDS",
-            "All fields failed resolution -- nothing to write.",
-        )
     except RateLimitError as exc:
         headers: dict[str, str] | None = None
         if exc.retry_after is not None:
             headers = {"Retry-After": str(exc.retry_after)}
         raise_api_error(
-            request,
+            request_id,
             429,
             "RATE_LIMITED",
             "Rate limit exceeded. Please retry after backoff.",
             headers=headers,
         )
-    except AsanaTimeoutError as exc:
-        logger.warning(
-            "entity_write_timeout",
-            extra={
-                "request_id": request_id,
-                "gid": gid,
-                "error": str(exc),
-            },
-        )
-        raise_api_error(
-            request,
-            504,
-            "ASANA_TIMEOUT",
-            "Asana API call timed out.",
-        )
-    except ServerError as exc:
-        logger.error(
-            "entity_write_upstream_error",
-            extra={
-                "request_id": request_id,
-                "gid": gid,
-                "error": str(exc),
-            },
-        )
-        raise_api_error(
-            request,
-            502,
-            "ASANA_UPSTREAM_ERROR",
-            "Asana server error.",
-        )
     except HTTPException:
         raise
+    except (TaskNotFoundError, NoValidFieldsError, AsanaTimeoutError, ServerError) as exc:
+        _raise_write_error(request_id, gid, exc)
     except Exception as exc:  # BROAD-CATCH: boundary
         logger.exception(
             "entity_write_error",
@@ -287,7 +283,7 @@ async def write_entity_fields(
             },
         )
         raise_api_error(
-            request,
+            request_id,
             502,
             "ASANA_UPSTREAM_ERROR",
             "An unexpected error occurred during entity write.",

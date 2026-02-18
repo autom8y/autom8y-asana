@@ -78,7 +78,6 @@ TASK_FULL: dict[str, Any] = {
     ],
     "num_subtasks": 3,
     "num_likes": 5,
-    "num_hearts": 5,
     "is_rendered_as_separator": False,
     "custom_fields": [
         {
@@ -96,8 +95,6 @@ TASK_FULL: dict[str, Any] = {
     "resource_subtype": "default_task",
     "permalink_url": "https://app.asana.com/0/proj111/1234567890",
     "liked": True,
-    "hearted": True,
-    "hearts": [{"gid": "heart1", "user": {"gid": "user1"}}],
     "likes": [{"gid": "like1", "user": {"gid": "user1"}}],
     "actual_time_minutes": 120.5,
 }
@@ -254,16 +251,14 @@ class TestTaskSerialization:
         # Numeric fields
         assert task.num_subtasks == 3
         assert task.num_likes == 5
-        assert task.num_hearts == 5
 
         # Metadata
         assert task.created_at == "2024-12-01T10:00:00.000Z"
         assert task.modified_at == "2024-12-08T15:30:00.000Z"
         assert task.permalink_url == "https://app.asana.com/0/proj111/1234567890"
 
-        # Liked/hearted
+        # Liked status
         assert task.liked is True
-        assert task.hearted is True
         assert task.actual_time_minutes == 120.5
 
     def test_model_dump_produces_dict(self) -> None:
@@ -429,7 +424,6 @@ class TestFieldValidation:
         assert task.followers is None
         assert task.tags is None
         assert task.num_subtasks is None
-        assert task.num_hearts is None
         assert task.num_likes is None
         assert task.is_rendered_as_separator is None
         assert task.custom_fields is None
@@ -441,8 +435,6 @@ class TestFieldValidation:
         assert task.resource_subtype is None
         assert task.permalink_url is None
         assert task.liked is None
-        assert task.hearted is None
-        assert task.hearts is None
         assert task.likes is None
         assert task.actual_time_minutes is None
 
@@ -828,14 +820,12 @@ class TestEdgeCases:
                 "gid": "123",
                 "num_subtasks": 0,
                 "num_likes": 100,
-                "num_hearts": 50,
                 "actual_time_minutes": 0.0,
             }
         )
 
         assert task.num_subtasks == 0
         assert task.num_likes == 100
-        assert task.num_hearts == 50
         assert task.actual_time_minutes == 0.0
 
     def test_float_actual_time(self) -> None:

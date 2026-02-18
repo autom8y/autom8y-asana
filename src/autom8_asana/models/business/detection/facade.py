@@ -15,7 +15,6 @@ Dependencies: types.py, config.py, tier1.py, tier2.py, tier3.py, tier4.py
 
 from __future__ import annotations
 
-import warnings
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -25,7 +24,6 @@ from pydantic import ValidationError
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 from autom8_asana.models.business.detection.config import (
-    HOLDER_NAME_MAP,
     get_holder_attr,
 )
 from autom8_asana.models.business.detection.tier1 import (
@@ -52,7 +50,6 @@ if TYPE_CHECKING:
     from autom8_asana.models.task import Task
 
 __all__ = [
-    "detect_by_name",
     "detect_by_project",
     "detect_by_parent",
     "detect_by_structure_async",
@@ -223,52 +220,6 @@ def detect_entity_type_from_dict(data: dict[str, Any]) -> str | None:
     ):  # vendor-polymorphic -- model_validate can raise diverse pydantic errors
         logger.debug("Detection result fetch failed", exc_info=True)
         return None
-
-
-# --- Legacy Wrapper Functions ---
-
-
-def detect_by_name(name: str | None) -> EntityType | None:
-    """Detect entity type by task name (sync, no API call).
-
-    .. deprecated::
-        Use :func:`detect_entity_type` instead for full detection chain.
-
-    Per ADR-0068: Legacy name-based detection using exact match.
-    This function performs case-insensitive exact matching against known holder names.
-
-    Business and Unit cannot be detected by name alone since they have
-    variable names (e.g., "Acme Corp", "Premium Package").
-
-    Args:
-        name: Task name to check. May be None.
-
-    Returns:
-        EntityType if name matches a known holder pattern, None otherwise.
-
-    Example:
-        >>> detect_by_name("Contacts")
-        EntityType.CONTACT_HOLDER
-        >>> detect_by_name("My Business")
-        None  # Business names are variable
-        >>> detect_by_name(None)
-        None
-    """
-    warnings.warn(
-        "detect_by_name() is deprecated. Use detect_entity_type() instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-
-    if name is None:
-        return None
-
-    name_lower = name.lower().strip()
-
-    if name_lower in HOLDER_NAME_MAP:
-        return HOLDER_NAME_MAP[name_lower]
-
-    return None
 
 
 def detect_by_project(task: Task) -> DetectionResult | None:

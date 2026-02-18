@@ -391,26 +391,6 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
         return self._reconciliation_holder
 
     @property
-    def reconciliations_holder(self) -> ReconciliationHolder | None:
-        """Deprecated alias for reconciliation_holder.
-
-        .. deprecated::
-            Use `reconciliation_holder` instead. This alias will be removed
-            in a future release.
-
-        Returns:
-            ReconciliationHolder or None if not populated.
-        """
-        import warnings
-
-        warnings.warn(
-            "reconciliations_holder is deprecated, use reconciliation_holder instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._reconciliation_holder
-
-    @property
     def asset_edit_holder(self) -> AssetEditHolder | None:
         """AssetEditHolder subtask containing Asset Edit children.
 

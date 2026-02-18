@@ -34,7 +34,6 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import os
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -45,6 +44,7 @@ from autom8y_config.lambda_extension import resolve_secret_from_env
 from autom8y_log import get_logger
 
 from autom8_asana.lambda_handlers.cloudwatch import emit_metric
+from autom8_asana.settings import get_settings
 
 logger = get_logger(__name__)
 
@@ -375,7 +375,7 @@ async def _warm_cache_async(
 
     # Initialize checkpoint manager
     checkpoint_mgr = CheckpointManager(
-        bucket=os.environ.get("ASANA_CACHE_S3_BUCKET", "autom8-s3"),
+        bucket=get_settings().s3.bucket or "autom8-s3",
     )
 
     # Initialize DataFrameCache if not already done

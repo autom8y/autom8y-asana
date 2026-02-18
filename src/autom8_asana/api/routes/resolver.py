@@ -44,8 +44,10 @@ import time
 from typing import Annotated
 
 from autom8y_log import get_logger
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends
 
+from autom8_asana import AsanaClient
+from autom8_asana.api.dependencies import AuthContextDep, RequestId
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.routes.internal import (
     ServiceClaims,
@@ -149,7 +151,8 @@ def get_supported_entity_types() -> set[str]:
 async def resolve_entities(
     entity_type: str,
     request_body: ResolutionRequest,
-    request: Request,
+    request_id: RequestId,
+    auth_context: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
 ) -> ResolutionResponse:
     """Resolve entity identifiers to task GIDs.
@@ -197,14 +200,14 @@ async def resolve_entities(
     Args:
         entity_type: Path parameter for entity type
         request_body: ResolutionRequest with criteria
-        request: FastAPI request object
+        request_id: Request ID from RequestId dependency
+        auth_context: Authentication context with Asana PAT
         claims: Validated service claims from JWT
 
     Returns:
         ResolutionResponse with results and metadata.
     """
     start_time = time.monotonic()
-    request_id = getattr(request.state, "request_id", "unknown")
 
     logger.info(
         "entity_resolution_request",
@@ -228,7 +231,7 @@ async def resolve_entities(
             },
         )
         raise_api_error(
-            request,
+            request_id,
             404,
             "UNKNOWN_ENTITY_TYPE",
             f"Unknown entity type: {entity_type}. "
@@ -236,12 +239,10 @@ async def resolve_entities(
             details={"available_types": sorted(supported_types)},
         )
 
-    # Get entity project registry from app.state
-    entity_registry: EntityProjectRegistry | None = getattr(
-        request.app.state, "entity_project_registry", None
-    )
+    # Get entity project registry from singleton
+    entity_registry = EntityProjectRegistry.get_instance()
 
-    if entity_registry is None or not entity_registry.is_ready():
+    if not entity_registry.is_ready():
         logger.error(
             "entity_discovery_incomplete",
             extra={
@@ -250,7 +251,7 @@ async def resolve_entities(
             },
         )
         raise_api_error(
-            request,
+            request_id,
             503,
             "DISCOVERY_INCOMPLETE",
             "Entity resolver startup discovery has not completed. "
@@ -269,7 +270,7 @@ async def resolve_entities(
             },
         )
         raise_api_error(
-            request,
+            request_id,
             503,
             "PROJECT_NOT_CONFIGURED",
             f"No project configured for entity type: {entity_type}. "
@@ -288,7 +289,7 @@ async def resolve_entities(
             },
         )
         raise_api_error(
-            request,
+            request_id,
             501,
             "STRATEGY_NOT_IMPLEMENTED",
             f"Resolution strategy not implemented for: {entity_type}",
@@ -304,7 +305,7 @@ async def resolve_entities(
         validation_errors = strategy.validate_criterion(criterion_dict)
         if validation_errors:
             raise_api_error(
-                request,
+                request_id,
                 422,
                 "MISSING_REQUIRED_FIELD",
                 f"Criterion {i}: {'; '.join(validation_errors)}",
@@ -317,7 +318,7 @@ async def resolve_entities(
             filter_result_fields({}, request_body.fields, entity_type)
         except ValueError as e:
             raise_api_error(
-                request,
+                request_id,
                 422,
                 "INVALID_FIELD",
                 str(e),
@@ -325,28 +326,7 @@ async def resolve_entities(
 
     # Resolve using strategy
     try:
-        # Import here to avoid circular imports
-        from autom8_asana import AsanaClient
-        from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
-
-        try:
-            bot_pat = get_bot_pat()
-        except BotPATError as e:
-            logger.error(
-                "bot_pat_unavailable",
-                extra={
-                    "request_id": request_id,
-                    "error": str(e),
-                },
-            )
-            raise_api_error(
-                request,
-                503,
-                "BOT_PAT_UNAVAILABLE",
-                "Bot PAT not configured for S2S Asana access.",
-            )
-
-        async with AsanaClient(token=bot_pat) as client:
+        async with AsanaClient(token=auth_context.asana_pat) as client:
             resolution_results = await strategy.resolve(
                 criteria=criteria_dicts,
                 project_gid=project_gid,
@@ -354,8 +334,6 @@ async def resolve_entities(
                 requested_fields=request_body.fields,
             )
 
-    except HTTPException:
-        raise
     except Exception as e:  # BROAD-CATCH: boundary
         logger.exception(
             "entity_resolution_error",
@@ -366,7 +344,7 @@ async def resolve_entities(
             },
         )
         raise_api_error(
-            request,
+            request_id,
             500,
             "RESOLUTION_ERROR",
             "An unexpected error occurred during resolution.",

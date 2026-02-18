@@ -14,7 +14,6 @@ Environment Variables:
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
@@ -30,6 +29,13 @@ logger = get_logger(__name__)
 DEFAULT_BUCKET = "autom8-s3"
 DEFAULT_PREFIX = "cache-warmer/checkpoints/"
 DEFAULT_STALENESS_HOURS = 1.0
+
+
+def _default_bucket() -> str:
+    """Resolve S3 bucket from settings with fallback to DEFAULT_BUCKET."""
+    from autom8_asana.settings import get_settings
+
+    return get_settings().s3.bucket or DEFAULT_BUCKET
 
 
 @dataclass
@@ -151,9 +157,7 @@ class CheckpointManager:
         ...     print(f"Resuming from: {checkpoint.completed_entities}")
     """
 
-    bucket: str = field(
-        default_factory=lambda: os.environ.get("ASANA_CACHE_S3_BUCKET", DEFAULT_BUCKET)
-    )
+    bucket: str = field(default_factory=_default_bucket)
     prefix: str = DEFAULT_PREFIX
     s3_client: S3Client | None = None
     staleness_hours: float = DEFAULT_STALENESS_HOURS

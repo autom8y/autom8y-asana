@@ -5,7 +5,7 @@ from decimal import Decimal
 import pytest
 
 from autom8_asana.models.custom_field_accessor import CustomFieldAccessor
-from autom8_asana.persistence.exceptions import ValidationError
+from autom8_asana.persistence.exceptions import GidValidationError as ValidationError
 
 
 class TestTextFieldValidation:

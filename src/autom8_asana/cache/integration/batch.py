@@ -92,11 +92,13 @@ class ModificationCheckCache:
             Unique string identifying this run/process.
         """
         # Try ECS task metadata URI (ECS Fargate/EC2)
+        # ENV-DIRECT: container-specific, intentional bypass
         ecs_metadata_uri = os.environ.get("ECS_CONTAINER_METADATA_URI_V4")
         if ecs_metadata_uri:
             return ecs_metadata_uri
 
         # Try ECS task ID environment variable
+        # ENV-DIRECT: container-specific, intentional bypass
         ecs_task_id = os.environ.get("ECS_TASK_ID")
         if ecs_task_id:
             return ecs_task_id

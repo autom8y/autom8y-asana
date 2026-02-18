@@ -403,10 +403,12 @@ async def refresh_cache(
     from autom8_asana.cache.dataframe.factory import get_dataframe_cache
     from autom8_asana.services.resolver import EntityProjectRegistry
 
+    request_id = getattr(request.state, "request_id", "unknown")
+
     # Validate entity type
     if body.entity_type is not None and body.entity_type not in VALID_ENTITY_TYPES:
         raise_api_error(
-            request,
+            request_id,
             400,
             "INVALID_ENTITY_TYPE",
             f"Invalid entity_type: '{body.entity_type}'. "
@@ -417,7 +419,7 @@ async def refresh_cache(
     cache = get_dataframe_cache()
     if cache is None:
         raise_api_error(
-            request,
+            request_id,
             503,
             "CACHE_NOT_INITIALIZED",
             "Cache system is not initialized. Try again later.",
@@ -427,7 +429,7 @@ async def refresh_cache(
     registry = EntityProjectRegistry.get_instance()
     if not registry.is_ready():
         raise_api_error(
-            request,
+            request_id,
             503,
             "REGISTRY_NOT_READY",
             "Entity project registry is not initialized.",

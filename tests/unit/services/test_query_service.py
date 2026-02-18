@@ -452,7 +452,7 @@ class TestResolveSectionIndexAdversarial:
         Unlike resolve_section() which wraps S3 calls in try/except
         S3_TRANSPORT_ERRORS, resolve_section_index() lets errors propagate.
         This documents the pre-existing behavior faithfully extracted from
-        the old inline code in query_v2.py.
+        the old inline code in query.py.
         """
         with (
             patch(
