@@ -445,3 +445,92 @@ except AsanaError as e:
 - **[Common Workflows](workflows.md)**: Copy-paste recipes for typical operations
 - **[SaveSession Guide](save-session.md)**: Deep dive into SaveSession features
 - **[SDK Adoption Guide](sdk-adoption.md)**: Migrating from other Asana libraries
+
+---
+
+## Canonical API Route Patterns
+
+This section documents the canonical patterns established for API route development. These patterns were consolidated during the 2026-02 hygiene sprint.
+
+### Error Handling: Dict-Based Status Mapping
+
+Query engine errors are handled through a single `_ERROR_STATUS` dict that maps error types to HTTP status codes. All `QueryEngineError` subclasses flow through one catch block and one mapping lookup, rather than separate `except` branches per error type.
+
+```python
+# Canonical pattern (query.py)
+
+_ERROR_STATUS: dict[type[QueryEngineError], int] = {
+    QueryTooComplexError: 400,
+    AggregateGroupLimitError: 400,
+}
+_DEFAULT_ERROR_STATUS = 422
+
+
+def _raise_query_error(request_id: str, error: QueryEngineError) -> Never:
+    """Map QueryEngineError to HTTPException with request_id."""
+    status = _ERROR_STATUS.get(type(error), _DEFAULT_ERROR_STATUS)
+    d = error.to_dict()
+    raise_api_error(request_id, status, d["error"], d["message"])
+```
+
+In the route handler:
+
+```python
+try:
+    result = await engine.execute_rows(...)
+except QueryEngineError as e:
+    _raise_query_error(request_id, e)
+```
+
+**Why this is preferred over individual `except` blocks:**
+
+- Adding a new error type requires one dict entry, not a new `except` branch in every handler.
+- The default status (422) is explicit and centrally documented.
+- All query errors produce a consistent `{"error": ..., "message": ..., "request_id": ...}` shape via `raise_api_error`.
+
+To extend the mapping, add an entry to `_ERROR_STATUS`. Errors not listed default to 422.
+
+### Dependency Injection: `Depends + Annotated` with `RequestId`
+
+Route signatures use `Annotated` type aliases defined in `api/dependencies.py` rather than inline `Depends(...)` calls. This keeps route signatures readable and ensures the dependency is defined in one place.
+
+```python
+# Defined once in api/dependencies.py
+RequestId = Annotated[str, Depends(get_request_id)]
+EntityServiceDep = Annotated["EntityService", Depends(get_entity_service)]
+```
+
+Canonical route signature:
+
+```python
+@router.post("/{entity_type}/rows", response_model=RowsResponse)
+async def query_rows(
+    entity_type: str,
+    request_body: RowsRequest,
+    request_id: RequestId,
+    claims: Annotated[ServiceClaims, Depends(require_service_claims)],
+    entity_service: EntityServiceDep,
+) -> RowsResponse:
+    ...
+```
+
+`RequestId` resolves to the hex request ID set by `RequestIDMiddleware` on `request.state`. It is a plain `str` — not a `Request` object.
+
+**The old pattern (`request.state.request_id`) is no longer used.** Routes that previously injected `Request` and read `request.state.request_id` directly were replaced by the `RequestId` alias during the hygiene sprint. Do not add `Request` to route signatures solely to access the request ID.
+
+### Service Error Raising: `raise_service_error`
+
+When a route calls a service method that can raise `ServiceError`, catch and convert it using `raise_service_error`:
+
+```python
+from autom8_asana.api.errors import raise_service_error
+
+try:
+    ctx = entity_service.validate_entity_type(entity_type)
+except ServiceError as e:
+    raise_service_error(request_id, e)
+```
+
+`raise_service_error` converts the `ServiceError` to an `HTTPException` with the appropriate HTTP status (via `get_status_for_error`) and injects `request_id` into the response body for correlation. It always raises — the return type is `Never`.
+
+Pass the `request_id` string from the `RequestId` dependency. Do not pass the `Request` object.

@@ -1,5 +1,7 @@
 # TDD: Dynamic Query Service -- Sprint 1 (Query Engine Foundation)
 
+> **Historical note:** This TDD pre-dates `query_v2.py`. The file was later created, then merged back into `query.py` by the hygiene sprint (commit f6e08e5). References to `query_v2.py` below reflect design-time alternatives, not the current codebase.
+
 ## Metadata
 
 | Field | Value |

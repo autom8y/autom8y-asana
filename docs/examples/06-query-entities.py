@@ -20,7 +20,7 @@ import httpx
 
 
 async def main():
-    """Query entities using the query v2 API."""
+    """Query entities using the query API."""
     # Get configuration from environment
     service_token = os.getenv("SERVICE_TOKEN")
     api_base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
@@ -56,7 +56,7 @@ async def main():
             print(f"Query time: {data['meta']['query_ms']}ms\n")
 
             print("First 3 businesses:")
-            for row in data["rows"][:3]:
+            for row in data["data"][:3]:
                 print(f"  - {row.get('Business Name', 'N/A')} (GID: {row.get('gid', 'N/A')})")
         else:
             print(f"Error: {response.status_code}")
@@ -87,7 +87,7 @@ async def main():
             print(f"Active offers in Sales Process: {data['meta']['returned_count']}")
             print(f"Query time: {data['meta']['query_ms']}ms\n")
 
-            for row in data["rows"]:
+            for row in data["data"]:
                 offer_name = row.get("Offer Name", "N/A")
                 status = row.get("Status", "N/A")
                 vertical = row.get("Vertical", "N/A")
@@ -112,8 +112,7 @@ async def main():
             json={
                 "section": "Next Steps",
                 "where": {
-                    "op": "and",
-                    "predicates": [
+                    "and": [
                         {
                             "op": "eq",
                             "field": "Vertical",
@@ -135,8 +134,8 @@ async def main():
             print(f"Matching units: {data['meta']['returned_count']}")
             print(f"Query time: {data['meta']['query_ms']}ms\n")
 
-            if data["rows"]:
-                for row in data["rows"]:
+            if data["data"]:
+                for row in data["data"]:
                     unit_name = row.get("Unit Name", "N/A")
                     status = row.get("Status", "N/A")
                     vertical = row.get("Vertical", "N/A")
