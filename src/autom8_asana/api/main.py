@@ -106,7 +106,11 @@ def create_app() -> FastAPI:
 
         instrument_app(
             app,
-            InstrumentationConfig(service_name="asana"),
+            InstrumentationConfig(
+                service_name="asana",
+                enable_tracing=True,
+                enable_log_correlation=True,
+            ),
         )
         # Register domain-specific Prometheus metrics on the default registry.
         # Per TDD-SDK-ALIGNMENT Path 3: metrics are served alongside SDK metrics

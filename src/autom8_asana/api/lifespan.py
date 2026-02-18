@@ -12,6 +12,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from autom8y_log import get_logger
+from autom8y_log.processors import add_otel_trace_ids
 from fastapi import FastAPI
 
 from autom8_asana.core.logging import configure as configure_logging
@@ -66,8 +67,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     configure_logging(
         level=settings.log_level,
         format="console" if settings.debug else "auto",
-        additional_processors=[_filter_sensitive_data],
+        additional_processors=[add_otel_trace_ids, _filter_sensitive_data],
     )
+
+    # Activate global httpx auto-instrumentation so ALL httpx.AsyncClient
+    # instances (including DataServiceClient's direct clients) propagate
+    # W3C traceparent headers automatically. This complements the transport-
+    # level instrumentation in autom8y-http's InstrumentedTransport.
+    try:
+        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+
+        HTTPXClientInstrumentor().instrument()
+        logger.info("httpx_otel_instrumentation_enabled")
+    except ImportError:
+        logger.warning(
+            "httpx_otel_instrumentation_unavailable",
+            extra={
+                "impact": "Direct httpx clients will not propagate W3C traceparent",
+                "remediation": "Install opentelemetry-instrumentation-httpx>=0.42b0",
+            },
+        )
 
     logger.info(
         "api_starting",

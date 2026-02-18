@@ -1231,6 +1231,9 @@ class DataServiceClient:
             ) from e
 
         # --- Execute HTTP request with retry ---
+        # Note: W3C traceparent is auto-injected by HTTPXClientInstrumentor.
+        # X-Request-Id is kept for backwards compatibility with autom8y-data's
+        # RequestIDMiddleware, which uses it for non-OTEL correlation.
         try:
             response, _attempt = await self._execute_with_retry(
                 lambda: client.post(
@@ -1676,6 +1679,9 @@ class DataServiceClient:
             ) from e
 
         # --- Retry Loop with Stale Fallback (Story 2.2, Story 1.8) ---
+        # Note: W3C traceparent is auto-injected by HTTPXClientInstrumentor.
+        # X-Request-Id is kept for backwards compatibility with autom8y-data's
+        # RequestIDMiddleware, which uses it for non-OTEL correlation.
         try:
             response, attempt = await self._execute_with_retry(
                 lambda: client.post(
@@ -2009,6 +2015,8 @@ class DataServiceClient:
                 reason="http_error",
             ) from e
 
+        # Note: W3C traceparent is auto-injected by HTTPXClientInstrumentor.
+        # X-Request-Id is kept for backwards compatibility.
         response, _attempt = await self._execute_with_retry(
             lambda: client.get(
                 path,
@@ -2119,6 +2127,8 @@ class DataServiceClient:
                 reason="http_error",
             ) from e
 
+        # Note: W3C traceparent is auto-injected by HTTPXClientInstrumentor.
+        # X-Request-Id is kept for backwards compatibility.
         response, _attempt = await self._execute_with_retry(
             lambda: client.get(
                 path,
