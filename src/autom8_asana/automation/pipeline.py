@@ -520,6 +520,11 @@ class PipelineConversionRule:
         Per FR-HIER-002: Uses set_parent() with insert_after=source_process for ordering.
         Per FR-HIER-003: Graceful degradation if ProcessHolder missing or placement fails.
 
+        Resolution strategy chain (mirrors lifecycle pattern):
+          1. source_process.process_holder (public property)
+          2. unit.process_holder (public property)
+          3. ctx.resolve_holder_async(ProcessHolder) (public API, session-cached)
+
         Args:
             new_task: Newly created task to place in hierarchy.
             source_process: Source process (for sibling ordering).
@@ -529,30 +534,34 @@ class PipelineConversionRule:
         Returns:
             True if placement succeeded, False if skipped/failed (graceful degradation).
         """
-        # Step 1: Get ProcessHolder reference
-        process_holder = None
+        # Step 1: Get ProcessHolder reference using public API strategy chain
+        # per lifecycle pattern (lifecycle/creation.py _resolve_holder_for_placement).
 
-        # Try from source_process first
-        if hasattr(source_process, "process_holder") and source_process.process_holder:
-            process_holder = source_process.process_holder
-        elif unit is not None:
-            # Try from unit.process_holder
-            if hasattr(unit, "process_holder") and unit.process_holder:
-                process_holder = unit.process_holder
-            elif hasattr(unit, "_process_holder") and unit._process_holder:
-                process_holder = unit._process_holder
-            else:
-                # ProcessHolder not hydrated - try on-demand fetch
-                try:
-                    if hasattr(unit, "_fetch_holders_async"):
-                        await unit._fetch_holders_async(client)
-                        process_holder = getattr(unit, "_process_holder", None)
-                except ASANA_API_ERRORS as e:
-                    logger.warning(
-                        "pipeline_fetch_process_holder_failed",
-                        unit_gid=getattr(unit, "gid", "unknown"),
-                        error=str(e),
-                    )
+        # Strategy 1: source_process.process_holder (public property)
+        process_holder = getattr(source_process, "process_holder", None)
+
+        # Strategy 2: unit.process_holder (public property)
+        if process_holder is None and unit is not None:
+            process_holder = getattr(unit, "process_holder", None)
+
+        # Strategy 3: resolve_holder_async via ResolutionContext (session-cached,
+        # public API). For ProcessHolder (PRIMARY_PROJECT_GID=None) this returns None,
+        # preserving graceful degradation per FR-HIER-003.
+        if process_holder is None:
+            from autom8_asana.models.business.process import ProcessHolder
+            from autom8_asana.resolution.context import ResolutionContext
+
+            business_gid: str | None = None
+            business = getattr(source_process, "business", None)
+            if business is not None:
+                business_gid = getattr(business, "gid", None)
+
+            ctx = ResolutionContext(
+                client=client,
+                trigger_entity=source_process,
+                business_gid=business_gid,
+            )
+            process_holder = await ctx.resolve_holder_async(ProcessHolder)
 
         # FR-HIER-003: Graceful degradation - no ProcessHolder available
         if process_holder is None:
