@@ -64,63 +64,16 @@ logger = get_logger(__name__)
 __all__ = ["DataServiceClient", "mask_phone_number"]
 
 
-# --- PII Redaction (Story 1.9) ---
+# --- PII Redaction (Story 1.9, XR-003) ---
+# Primitives live in _pii.py to avoid circular imports with submodules.
+# Re-exported here for backward compatibility.
 
-# Pattern matches E.164 phone numbers: +{country code}{digits}
-_PHONE_PATTERN = re.compile(r"\+\d{10,15}")
-
-
-def mask_phone_number(phone: str) -> str:
-    """Mask middle digits of phone number for PII protection.
-
-    Per Story 1.9: Redact phone numbers in logs.
-    Pattern: +17705753103 -> +1770***3103 (keep first 4 + last 4 digits)
-
-    Args:
-        phone: E.164 formatted phone number (e.g., +17705753103).
-
-    Returns:
-        Masked phone number with middle digits replaced by asterisks.
-        Returns original string if not a valid phone format.
-
-    Example:
-        >>> mask_phone_number("+17705753103")
-        '+1770***3103'
-        >>> mask_phone_number("+14155551234")
-        '+1415***1234'
-    """
-    if not phone or len(phone) < 9:
-        return phone
-
-    # Keep first 5 chars (+1xxx) and last 4 chars (xxxx)
-    # Mask everything in between with ***
-    if phone.startswith("+") and len(phone) >= 9:
-        prefix = phone[:5]
-        suffix = phone[-4:]
-        return f"{prefix}***{suffix}"
-
-    return phone
-
-
-def _mask_canonical_key(canonical_key: str) -> str:
-    """Mask phone number in canonical key for PII protection.
-
-    Args:
-        canonical_key: PVP canonical key (e.g., pv1:+17705753103:chiropractic).
-
-    Returns:
-        Canonical key with phone number masked.
-
-    Example:
-        >>> _mask_canonical_key("pv1:+17705753103:chiropractic")
-        'pv1:+1770***3103:chiropractic'
-    """
-    # Pattern: pv1:+phone:vertical
-    parts = canonical_key.split(":")
-    if len(parts) >= 3 and parts[0] == "pv1":
-        parts[1] = mask_phone_number(parts[1])
-        return ":".join(parts)
-    return canonical_key
+from autom8_asana.clients.data._pii import (  # noqa: E402
+    _PHONE_PATTERN,
+    mask_canonical_key as _mask_canonical_key,
+    mask_phone_number,
+    mask_pii_in_string as _mask_pii_in_string,
+)
 
 
 # --- Metrics Hook Type (Story 1.9) ---
@@ -1026,11 +979,13 @@ class DataServiceClient:
                     if isinstance(chunk_result, BaseException):
                         # If an entire chunk failed, mark all PVPs in that
                         # chunk as errored. Find unprocessed PVPs.
+                        # Sanitize error string to redact any PII (XR-003)
+                        sanitized_error = _mask_pii_in_string(str(chunk_result))
                         for pvp in pairs:
                             if pvp.canonical_key not in results:
                                 results[pvp.canonical_key] = BatchInsightsResult(
                                     pvp=pvp,
-                                    error=str(chunk_result),
+                                    error=sanitized_error,
                                 )
                     else:
                         results.update(chunk_result)
