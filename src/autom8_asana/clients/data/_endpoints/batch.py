@@ -16,6 +16,7 @@ from autom8y_http import CircuitBreakerOpenError as SdkCircuitBreakerOpenError
 
 from autom8_asana.clients.data import _normalize as _normalize_mod
 from autom8_asana.clients.data import _retry as _retry_mod
+from autom8_asana.clients.data._pii import mask_pii_in_string as _mask_pii_in_string
 from autom8_asana.clients.data.models import (
     BatchInsightsResult,
     InsightsResponse,
@@ -137,10 +138,12 @@ async def execute_batch_request(
         )
     except (InsightsServiceError, InsightsError) as e:
         # Total failure for entire chunk -- mark all PVPs as errored
+        # Sanitize error string to redact any PII echoed by upstream
+        sanitized_error = _mask_pii_in_string(str(e))
         for pvp in pvp_list:
             results[pvp.canonical_key] = BatchInsightsResult(
                 pvp=pvp,
-                error=str(e),
+                error=sanitized_error,
             )
         return results
 
@@ -157,6 +160,9 @@ async def execute_batch_request(
                 error_msg = body["detail"]
         except (ValueError, KeyError):
             pass
+
+        # Sanitize error message to redact any PII echoed by upstream (XR-003)
+        error_msg = _mask_pii_in_string(error_msg)
 
         if response.status_code >= 500:
             error = InsightsServiceError(
@@ -180,7 +186,7 @@ async def execute_batch_request(
     try:
         body = response.json()
     except (ValueError, Exception) as e:
-        error_msg = f"Failed to parse response JSON: {e}"
+        error_msg = _mask_pii_in_string(f"Failed to parse response JSON: {e}")
         for pvp in pvp_list:
             results[pvp.canonical_key] = BatchInsightsResult(
                 pvp=pvp,
@@ -223,7 +229,7 @@ async def execute_batch_request(
     for error_entry in errors_list:
         error_phone = error_entry.get("office_phone", "")
         error_vertical = error_entry.get("vertical", "")
-        error_msg = error_entry.get("error", "Unknown error")
+        error_msg = _mask_pii_in_string(error_entry.get("error", "Unknown error"))
         canonical_key = f"pv1:{error_phone}:{error_vertical.lower()}"
 
         error_pvp = pvp_by_key.get(canonical_key)

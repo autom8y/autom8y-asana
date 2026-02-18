@@ -66,6 +66,9 @@ async def get_export_csv(
     # Import here to avoid circular import at module level
     from autom8_asana.clients.data.client import mask_phone_number
 
+    # PII-safe logging (computed early for use in all error paths)
+    masked_phone = mask_phone_number(office_phone)
+
     # Check circuit breaker
     try:
         await client._circuit_breaker.check()
@@ -73,7 +76,7 @@ async def get_export_csv(
         raise ExportError(
             f"Circuit breaker open for autom8_data. "
             f"Retry in {e.time_remaining:.1f}s.",
-            office_phone=office_phone,
+            office_phone=masked_phone,
             reason="circuit_breaker",
         ) from e
 
@@ -86,9 +89,6 @@ async def get_export_csv(
         params["start_date"] = start_date.isoformat()
     if end_date is not None:
         params["end_date"] = end_date.isoformat()
-
-    # PII-safe logging
-    masked_phone = mask_phone_number(office_phone)
 
     if client._log:
         client._log.info(
@@ -106,7 +106,7 @@ async def get_export_csv(
         error_class=ExportError,
         timeout_message="Export request timed out",
         http_error_template="HTTP error during export: {e}",
-        error_kwargs={"office_phone": office_phone},
+        error_kwargs={"office_phone": masked_phone},
     )
 
     response, _attempt = await client._execute_with_retry(
@@ -126,14 +126,14 @@ async def get_export_csv(
         if response.status_code >= 500:
             error = ExportError(
                 f"autom8_data export error (HTTP {response.status_code})",
-                office_phone=office_phone,
+                office_phone=masked_phone,
                 reason="server_error",
             )
             await client._circuit_breaker.record_failure(error)
             raise error
         raise ExportError(
             f"autom8_data export error (HTTP {response.status_code})",
-            office_phone=office_phone,
+            office_phone=masked_phone,
             reason="client_error",
         )
 
