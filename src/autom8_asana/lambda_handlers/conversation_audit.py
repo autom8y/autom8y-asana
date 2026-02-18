@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import autom8_asana.models.business  # noqa: F401 - bootstrap side effect
 from autom8_asana.lambda_handlers.workflow_handler import (
     WorkflowHandlerConfig,
     create_workflow_handler,
