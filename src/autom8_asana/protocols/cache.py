@@ -9,6 +9,10 @@ if TYPE_CHECKING:
     from autom8_asana.cache.models.entry import CacheEntry, EntryType
     from autom8_asana.cache.models.freshness import Freshness
     from autom8_asana.cache.models.metrics import CacheMetrics
+    from autom8_asana.cache.integration.dataframe_cache import (
+        DataFrameCacheEntry,
+        FreshnessInfo,
+    )
 
 
 class CacheProvider(Protocol):
@@ -248,3 +252,110 @@ class WarmResult:
     def __repr__(self) -> str:
         """String representation."""
         return f"WarmResult(warmed={self.warmed}, failed={self.failed}, skipped={self.skipped})"
+
+
+class DataFrameCacheProtocol(Protocol):
+    """Protocol for the unified DataFrame cache with tiered storage.
+
+    Captures the public interface of ``DataFrameCache`` for dependency
+    injection boundaries.  Implementations must provide tiered get/put,
+    project-scoped invalidation, and schema-change invalidation.
+
+    Per ADR-0067 dimension 14: Mirrors the ``CacheProvider`` structural
+    typing approach so that a ``NullDataFrameCache`` test double can be
+    introduced without touching production code.
+
+    Lookup order for GET:
+        1. Memory tier (hot cache)
+        2. Progressive tier (cold storage via SectionPersistence)
+        3. Return None (caller should trigger build)
+
+    Write order for PUT:
+        1. Progressive tier (source of truth)
+        2. Memory tier (hot cache)
+
+    Implementations:
+        - DataFrameCache: Production tiered cache (Memory + S3)
+    """
+
+    async def get_async(
+        self,
+        project_gid: str,
+        entity_type: str,
+        current_watermark: datetime | None = None,
+    ) -> DataFrameCacheEntry | None:
+        """Get cached DataFrame entry with entity-aware TTL and SWR.
+
+        Args:
+            project_gid: Asana project GID.
+            entity_type: Entity type (unit, business, offer, contact).
+            current_watermark: Optional watermark for freshness check.
+
+        Returns:
+            DataFrameCacheEntry if found and fresh/stale-servable, None otherwise.
+        """
+        ...
+
+    async def put_async(
+        self,
+        project_gid: str,
+        entity_type: str,
+        dataframe: Any,
+        watermark: datetime,
+        build_result: Any = None,
+    ) -> None:
+        """Store DataFrame in both tiers.
+
+        Args:
+            project_gid: Asana project GID.
+            entity_type: Entity type.
+            dataframe: Polars DataFrame to cache.
+            watermark: Freshness watermark (based on max modified_at).
+            build_result: Optional BuildResult for quality metadata.
+        """
+        ...
+
+    def invalidate(
+        self,
+        project_gid: str,
+        entity_type: str | None = None,
+    ) -> None:
+        """Invalidate cache entries for a project and optional entity type.
+
+        Args:
+            project_gid: Project to invalidate.
+            entity_type: Optional specific entity type. If None, all types.
+        """
+        ...
+
+    def invalidate_project(self, project_gid: str) -> None:
+        """Invalidate all cached DataFrames for a project across entity types.
+
+        Args:
+            project_gid: Project GID whose DataFrames should be invalidated.
+        """
+        ...
+
+    def invalidate_on_schema_change(self, new_version: str) -> None:
+        """Invalidate all entries when schema version changes.
+
+        Args:
+            new_version: New schema version string.
+        """
+        ...
+
+    def get_freshness_info(
+        self,
+        project_gid: str,
+        entity_type: str,
+    ) -> FreshnessInfo | None:
+        """Get freshness info from the most recent get_async() call.
+
+        Args:
+            project_gid: Asana project GID.
+            entity_type: Entity type.
+
+        Returns:
+            FreshnessInfo if available, None on cache miss or no prior call.
+        """
+        ...
