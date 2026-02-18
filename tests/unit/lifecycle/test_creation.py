@@ -165,13 +165,11 @@ async def test_create_process_template_happy_path():
     stage_config = _make_stage_config()
 
     with (
-        patch("autom8_asana.lifecycle.creation.TemplateDiscovery") as MockTD,
+        patch("autom8_asana.lifecycle.creation.discover_template_async") as mock_discover,
         patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
-        patch("autom8_asana.lifecycle.creation.SubtaskWaiter"),
+        patch("autom8_asana.lifecycle.creation.wait_for_subtasks_async"),
     ):
-        MockTD.return_value.find_template_task_async = AsyncMock(
-            return_value=template_task,
-        )
+        mock_discover.return_value = template_task
         seeder_instance = MockSeeder.return_value
         seeder_instance.seed_async = AsyncMock(
             return_value=SeedingResult(
@@ -226,13 +224,11 @@ async def test_create_process_blank_fallback():
     stage_config = _make_stage_config()
 
     with (
-        patch("autom8_asana.lifecycle.creation.TemplateDiscovery") as MockTD,
+        patch("autom8_asana.lifecycle.creation.discover_template_async") as mock_discover,
         patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
-        patch("autom8_asana.lifecycle.creation.SubtaskWaiter"),
+        patch("autom8_asana.lifecycle.creation.wait_for_subtasks_async"),
     ):
-        MockTD.return_value.find_template_task_async = AsyncMock(
-            return_value=None,
-        )
+        mock_discover.return_value = None
         MockSeeder.return_value.seed_async = AsyncMock(
             return_value=SeedingResult(),
         )
@@ -713,13 +709,11 @@ async def test_duplicate_check_completed_tasks_skipped():
     template_task.num_subtasks = 0  # IMP-13: subtask count from discovery
 
     with (
-        patch("autom8_asana.lifecycle.creation.TemplateDiscovery") as MockTD,
+        patch("autom8_asana.lifecycle.creation.discover_template_async") as mock_discover,
         patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
-        patch("autom8_asana.lifecycle.creation.SubtaskWaiter"),
+        patch("autom8_asana.lifecycle.creation.wait_for_subtasks_async"),
     ):
-        MockTD.return_value.find_template_task_async = AsyncMock(
-            return_value=template_task,
-        )
+        mock_discover.return_value = template_task
         MockSeeder.return_value.seed_async = AsyncMock(
             return_value=SeedingResult(),
         )
@@ -981,7 +975,7 @@ async def test_due_date_calculation():
 
     with (
         patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
-        patch("autom8_asana.lifecycle.creation.SubtaskWaiter"),
+        patch("autom8_asana.lifecycle.creation.wait_for_subtasks_async"),
     ):
         MockSeeder.return_value.seed_async = AsyncMock(
             return_value=SeedingResult(),
@@ -1025,7 +1019,7 @@ async def test_merged_due_date_and_assignee_single_call():
 
     with (
         patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
-        patch("autom8_asana.lifecycle.creation.SubtaskWaiter"),
+        patch("autom8_asana.lifecycle.creation.wait_for_subtasks_async"),
     ):
         MockSeeder.return_value.seed_async = AsyncMock(
             return_value=SeedingResult(),
@@ -1160,13 +1154,11 @@ async def test_seeding_failure_non_fatal():
     template_task.num_subtasks = 0  # IMP-13: subtask count from discovery
 
     with (
-        patch("autom8_asana.lifecycle.creation.TemplateDiscovery") as MockTD,
+        patch("autom8_asana.lifecycle.creation.discover_template_async") as mock_discover,
         patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
-        patch("autom8_asana.lifecycle.creation.SubtaskWaiter"),
+        patch("autom8_asana.lifecycle.creation.wait_for_subtasks_async"),
     ):
-        MockTD.return_value.find_template_task_async = AsyncMock(
-            return_value=template_task,
-        )
+        mock_discover.return_value = template_task
         # Seeder raises an error
         MockSeeder.return_value.seed_async = AsyncMock(
             side_effect=ConnectionError("Seeding API down"),
@@ -1250,13 +1242,11 @@ async def test_full_creation_flow_with_all_configure_steps():
     )
 
     with (
-        patch("autom8_asana.lifecycle.creation.TemplateDiscovery") as MockTD,
+        patch("autom8_asana.lifecycle.creation.discover_template_async") as mock_discover,
         patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
-        patch("autom8_asana.lifecycle.creation.SubtaskWaiter"),
+        patch("autom8_asana.lifecycle.creation.wait_for_subtasks_async"),
     ):
-        MockTD.return_value.find_template_task_async = AsyncMock(
-            return_value=template_task,
-        )
+        mock_discover.return_value = template_task
         MockSeeder.return_value.seed_async = AsyncMock(
             return_value=SeedingResult(
                 fields_seeded=["Vertical"],

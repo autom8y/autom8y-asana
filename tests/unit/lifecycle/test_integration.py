@@ -2,8 +2,8 @@
 
 These tests exercise the engine with real LifecycleConfig from YAML and
 let the engine construct its own services. Only the Asana client,
-ResolutionContext, TemplateDiscovery, SubtaskWaiter, AutoCascadeSeeder,
-and SaveSession are mocked.
+ResolutionContext, discover_template_async, wait_for_subtasks_async,
+AutoCascadeSeeder, and SaveSession are mocked.
 
 Key transition paths tested:
 1. Sales CONVERTED -> Onboarding
@@ -238,14 +238,14 @@ def _configure_standard_patches(
 ) -> None:
     """Apply standard patch configuration for the 5-patch integration setup.
 
-    This configures the mocked ResolutionContext, TemplateDiscovery,
-    SubtaskWaiter, AutoCascadeSeeder, and SaveSession with reasonable
+    This configures the mocked ResolutionContext, discover_template_async,
+    wait_for_subtasks_async, AutoCascadeSeeder, and SaveSession with reasonable
     defaults for a successful pipeline execution.
     """
     MockCtx.return_value = mock_ctx
 
-    MockTD.return_value.find_template_task_async = AsyncMock(return_value=mock_template)
-    MockWaiter.return_value.wait_for_subtasks_async = AsyncMock(return_value=True)
+    MockTD.return_value = mock_template
+    MockWaiter.return_value = True
     MockSeeder.return_value.seed_async = AsyncMock(
         return_value=seeding_result or SeedingResult()
     )
@@ -267,17 +267,17 @@ def _integration_patches():
 
     Patches:
     - ResolutionContext at engine module level
-    - TemplateDiscovery at creation module level
-    - SubtaskWaiter at creation module level
+    - discover_template_async at core.creation module level
+    - wait_for_subtasks_async at lifecycle.creation module level
     - AutoCascadeSeeder at creation module level
     - SaveSession at its source module (lazy import in creation.py)
     """
     return {
         "resolution_context": patch("autom8_asana.lifecycle.engine.ResolutionContext"),
         "template_discovery": patch(
-            "autom8_asana.lifecycle.creation.TemplateDiscovery"
+            "autom8_asana.lifecycle.creation.discover_template_async"
         ),
-        "subtask_waiter": patch("autom8_asana.lifecycle.creation.SubtaskWaiter"),
+        "subtask_waiter": patch("autom8_asana.lifecycle.creation.wait_for_subtasks_async"),
         "auto_cascade_seeder": patch(
             "autom8_asana.lifecycle.creation.AutoCascadeSeeder"
         ),
@@ -492,7 +492,7 @@ class TestOnboardingConvertedToImplementation:
         ):
             MockCtx.return_value = mock_ctx
 
-            # TemplateDiscovery returns templates for each creation call
+            # discover_template_async returns templates for each creation call
             template_results = iter(
                 [
                     mock_template,  # process creation
@@ -508,12 +508,8 @@ class TestOnboardingConvertedToImplementation:
                 except StopIteration:
                     return mock_template
 
-            MockTD.return_value.find_template_task_async = AsyncMock(
-                side_effect=_find_template
-            )
-            MockWaiter.return_value.wait_for_subtasks_async = AsyncMock(
-                return_value=True
-            )
+            MockTD.side_effect = _find_template
+            MockWaiter.return_value = True
             MockSeeder.return_value.seed_async = AsyncMock(
                 return_value=SeedingResult(
                     fields_seeded=["Launch Date", "Vertical"],
@@ -968,10 +964,8 @@ class TestEdgeCases:
         ):
             MockCtx.return_value = mock_ctx
 
-            # TemplateDiscovery raises an error (bubbles up to creation service)
-            MockTD.return_value.find_template_task_async = AsyncMock(
-                side_effect=ConnectionError("Asana API unreachable")
-            )
+            # discover_template_async raises an error (bubbles up to creation service)
+            MockTD.side_effect = ConnectionError("Asana API unreachable")
 
             engine = LifecycleEngine(mock_client, lifecycle_config)
             result = await engine.handle_transition_async(process, "converted")

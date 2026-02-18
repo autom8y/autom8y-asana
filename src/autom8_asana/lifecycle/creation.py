@@ -26,14 +26,17 @@ Creation flow:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.automation.templates import TemplateDiscovery
-from autom8_asana.automation.waiter import SubtaskWaiter
-from autom8_asana.core.creation import generate_entity_name
+from autom8_asana.core.creation import (
+    compute_due_date,
+    discover_template_async,
+    duplicate_from_template_async,
+    generate_entity_name,
+    wait_for_subtasks_async,
+)
 from autom8_asana.lifecycle.config import AssigneeConfig, LifecycleConfig, StageConfig
 from autom8_asana.lifecycle.seeding import AutoCascadeSeeder
 
@@ -147,12 +150,11 @@ class EntityCreationService:
             # 3. Template discovery
             # IMP-13: Include num_subtasks in template discovery to avoid a
             # separate subtasks_async call for the subtask count.
-            template_discovery = TemplateDiscovery(self._client)
-            template = await template_discovery.find_template_task_async(
+            template = await discover_template_async(
+                self._client,
                 stage_config.project_gid,  # type: ignore[arg-type]  # project_gid validated non-None by stage_config
                 template_section=stage_config.template_section,
                 template_section_gid=stage_config.template_section_gid,
-                opt_fields=["num_subtasks"],
             )
 
             # 4. Create (template or blank fallback)
@@ -167,10 +169,10 @@ class EntityCreationService:
                 _raw = getattr(template, "num_subtasks", 0)
                 expected_subtask_count = _raw if isinstance(_raw, int) else 0
 
-                new_task = await self._client.tasks.duplicate_async(
-                    template.gid,
-                    name=new_name,
-                    include=["subtasks", "notes"],
+                new_task = await duplicate_from_template_async(
+                    self._client,
+                    template,
+                    new_name,
                 )
             else:
                 # FR-ERR-002: Blank fallback with warning
@@ -269,11 +271,10 @@ class EntityCreationService:
 
             # IMP-13: Include num_subtasks in template discovery to avoid a
             # separate subtasks_async call for the subtask count.
-            template_discovery = TemplateDiscovery(self._client)
-            template = await template_discovery.find_template_task_async(
+            template = await discover_template_async(
+                self._client,
                 project_gid,
                 template_section=template_section,
-                opt_fields=["num_subtasks"],
             )
 
             new_name = generate_entity_name(
@@ -283,10 +284,10 @@ class EntityCreationService:
             )
 
             if template:
-                new_task = await self._client.tasks.duplicate_async(
-                    template.gid,
-                    name=new_name,
-                    include=["subtasks", "notes"],
+                new_task = await duplicate_from_template_async(
+                    self._client,
+                    template,
+                    new_name,
                 )
                 # IMP-13: Use num_subtasks from template discovery response
                 _raw = getattr(template, "num_subtasks", 0)
@@ -393,15 +394,12 @@ class EntityCreationService:
         # b. Compute due date (deferred to combined update in step f)
         due_on: str | None = None
         if stage_config.due_date_offset_days is not None:
-            due = date.today() + timedelta(
-                days=stage_config.due_date_offset_days,
-            )
-            due_on = due.isoformat()
+            due_on = compute_due_date(stage_config.due_date_offset_days)
 
         # c. Wait for subtasks
         if expected_subtask_count > 0:
-            waiter = SubtaskWaiter(self._client)
-            ready = await waiter.wait_for_subtasks_async(
+            ready = await wait_for_subtasks_async(
+                self._client,
                 new_task.gid,
                 expected_count=expected_subtask_count,
                 timeout=2.0,
