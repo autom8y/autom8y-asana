@@ -264,78 +264,83 @@ class TestPlaceInHierarchyAsync:
         assert "API Error" in warning_call
 
     @pytest.mark.asyncio
-    async def test_fetches_holders_on_demand(self) -> None:
-        """Test on-demand holder fetch when ProcessHolder not hydrated."""
+    async def test_graceful_degradation_when_no_hydrated_holder(self) -> None:
+        """Test graceful degradation when ProcessHolder not available via public API.
+
+        Verifies FR-HIER-003: when source_process.process_holder and unit.process_holder
+        are both None, resolve_holder_async returns None and placement is skipped.
+        No private attributes (_process_holder, _fetch_holders_async) are consulted.
+        """
         rule = PipelineConversionRule()
 
-        process_holder = MockProcessHolder("ph_123")
-
-        # Unit without hydrated process_holder initially
+        # Unit with no hydrated process_holder (public property returns None)
         unit = MockUnit(gid="unit_123", process_holder=None)
-
-        # Make _fetch_holders_async populate the holder
-        async def mock_fetch(client: Any) -> None:
-            unit._process_holder = process_holder
-
-        unit._fetch_holders_async = mock_fetch  # type: ignore
-
         source_process = MockProcess(gid="source_123", unit=unit)
         new_task = MockTask("new_123")
         client = MagicMock()
 
         with patch(
-            "autom8_asana.automation.pipeline.SaveSession"
-        ) as mock_session_class:
-            mock_session = MagicMock()
-            mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_session.__aexit__ = AsyncMock(return_value=None)
-            mock_session.commit_async = AsyncMock(
-                return_value=MockSaveResult(success=True)
-            )
-            mock_session.set_parent = MagicMock()
-            mock_session_class.return_value = mock_session
+            "autom8_asana.resolution.context.ResolutionContext.resolve_holder_async",
+            new_callable=AsyncMock,
+            return_value=None,
+        ):
+            with patch("autom8_asana.automation.pipeline.logger") as mock_logger:
+                result = await rule._place_in_hierarchy_async(
+                    new_task=new_task,
+                    source_process=source_process,
+                    unit=unit,
+                    client=client,
+                )
 
-            result = await rule._place_in_hierarchy_async(
-                new_task=new_task,
-                source_process=source_process,
-                unit=unit,
-                client=client,
-            )
-
-        assert result is True
-        # Verify set_parent was called with the fetched holder
-        mock_session.set_parent.assert_called_once()
-        call_args = mock_session.set_parent.call_args
-        assert call_args[0][1] == process_holder
+        assert result is False
+        mock_logger.warning.assert_called()
+        warning_call = str(mock_logger.warning.call_args)
+        assert "pipeline_no_process_holder" in warning_call
 
     @pytest.mark.asyncio
-    async def test_fetch_holders_failure_graceful(self) -> None:
-        """Test graceful degradation when holder fetch fails."""
+    async def test_resolve_holder_async_used_as_fallback(self) -> None:
+        """Test that resolve_holder_async is called as final fallback strategy.
+
+        When source_process.process_holder and unit.process_holder are both None,
+        resolve_holder_async(ProcessHolder) is called via ResolutionContext.
+        This verifies the public API strategy chain mirrors lifecycle pattern.
+        """
         rule = PipelineConversionRule()
 
-        # Unit where _fetch_holders_async raises
+        process_holder = MockProcessHolder("ph_456")
         unit = MockUnit(gid="unit_123", process_holder=None)
-
-        async def mock_fetch_error(client: Any) -> None:
-            raise ConnectionError("Fetch failed")
-
-        unit._fetch_holders_async = mock_fetch_error  # type: ignore
-
         source_process = MockProcess(gid="source_123", unit=unit)
         new_task = MockTask("new_123")
         client = MagicMock()
 
-        with patch("autom8_asana.automation.pipeline.logger") as mock_logger:
-            result = await rule._place_in_hierarchy_async(
-                new_task=new_task,
-                source_process=source_process,
-                unit=unit,
-                client=client,
-            )
+        with patch(
+            "autom8_asana.resolution.context.ResolutionContext.resolve_holder_async",
+            new_callable=AsyncMock,
+            return_value=process_holder,
+        ):
+            with patch(
+                "autom8_asana.automation.pipeline.SaveSession"
+            ) as mock_session_class:
+                mock_session = MagicMock()
+                mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+                mock_session.__aexit__ = AsyncMock(return_value=None)
+                mock_session.commit_async = AsyncMock(
+                    return_value=MockSaveResult(success=True)
+                )
+                mock_session.set_parent = MagicMock()
+                mock_session_class.return_value = mock_session
 
-        assert result is False
-        # Should log warning about fetch failure and about missing holder
-        assert mock_logger.warning.call_count >= 1
+                result = await rule._place_in_hierarchy_async(
+                    new_task=new_task,
+                    source_process=source_process,
+                    unit=unit,
+                    client=client,
+                )
+
+        assert result is True
+        mock_session.set_parent.assert_called_once()
+        call_args = mock_session.set_parent.call_args
+        assert call_args[0][1] == process_holder
 
     @pytest.mark.asyncio
     async def test_disables_automation_in_nested_session(self) -> None:
