@@ -254,7 +254,10 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                     "detail": "S3 not available, falling back to legacy preload",
                 },
             )
-            # Fall back to existing preload (cross-module import within subpackage)
+            # ARCHITECTURE NOTE: Legacy preload is the degraded-mode fallback when S3
+            # is unavailable (persistence.is_available == False). This path exercises
+            # the full in-memory preload from Asana API. Do not remove without
+            # replacing degraded-mode strategy. See REFACTORING-PLAN-WS567.md DC-001.
             from .legacy import _preload_dataframe_cache
 
             await _preload_dataframe_cache(app)

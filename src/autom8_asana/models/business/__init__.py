@@ -52,6 +52,11 @@ Example:
         await session.commit_async()
 """
 
+# ARCHITECTURE: Import-time registration is intentional per TDD-registry-consolidation.
+# The idempotency guard in _bootstrap.py makes repeated calls safe.
+# Moving to explicit initialization would require auditing all entry points
+# (API lifespan, Lambda handlers, CLI, tests). Deferred per RF-009.
+#
 # Per TDD-registry-consolidation: Bootstrap registration FIRST - before any
 # other imports that might trigger detection. This ensures ProjectRegistry
 # is populated at module import time, not at class definition time via
