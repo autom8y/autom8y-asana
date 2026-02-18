@@ -1,4 +1,4 @@
-# autom8_asana API Dockerfile
+# autom8y-asana API Dockerfile
 # Dual-mode container supporting both ECS (uvicorn) and Lambda (awslambdaric)
 #
 # Per TDD-ASANA-SATELLITE (FR-CICD-001):
@@ -18,8 +18,8 @@
 #   Lambda Mode: Invokes handler via awslambdaric (requires CMD override)
 #
 # Usage:
-#   docker build -t autom8_asana:latest .
-#   docker run -p 8000:8000 autom8_asana:latest  # ECS mode (default)
+#   docker build -t autom8y-asana:latest .
+#   docker run -p 8000:8000 autom8y-asana:latest  # ECS mode (default)
 
 # =============================================================================
 # Stage 1: Builder

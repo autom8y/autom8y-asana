@@ -24,7 +24,7 @@ content:
     textAlignment: left
   content:
   - type: text
-    text: Common issues and solutions for autom8_asana development and API usage.
+    text: Common issues and solutions for autom8y-asana development and API usage.
     styles: {}
   children: []
 - id: c91d94da-9e4d-45e3-be77-782c6bec1fc2
@@ -87,7 +87,7 @@ content:
     code: |-
       echo "=== PAT Diagnostic ==="
 
-      ENV_FILE="${HOME}/.config/autom8y/envs/autom8-asana/runbook.env"
+      ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
 
       if [ ! -f "$ENV_FILE" ]; then
           echo "ERROR: Environment file not found"
@@ -235,7 +235,7 @@ content:
       echo "=== PAT Validity Test ==="
 
       # Load environment
-      ENV_FILE="${HOME}/.config/autom8y/envs/autom8-asana/runbook.env"
+      ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
       if [ -f "$ENV_FILE" ]; then
           set -a && source "$ENV_FILE" && set +a
       fi
@@ -330,7 +330,7 @@ content:
       echo "=== Rate Limit Check ==="
 
       # Load environment
-      ENV_FILE="${HOME}/.config/autom8y/envs/autom8-asana/runbook.env"
+      ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
       if [ -f "$ENV_FILE" ]; then
           set -a && source "$ENV_FILE" && set +a
       fi

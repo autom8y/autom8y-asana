@@ -1,4 +1,4 @@
-# autom8_asana
+# autom8y-asana
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![MIT License](https://img.shields.io/badge/license-MIT-green.svg)
@@ -8,12 +8,12 @@ Internal Asana SDK with intelligent caching, batch operations, and Unit of Work 
 ## Installation
 
 ```bash
-pip install autom8_asana
+pip install autom8y-asana
 ```
 
 ## Quick Start
 
-autom8_asana uses four patterns: **Client** for reading, **SaveSession** for creating and updating fields, and **Action Methods** for managing relationships (tags, projects, followers, dependencies).
+autom8y-asana uses four patterns: **Client** for reading, **SaveSession** for creating and updating fields, and **Action Methods** for managing relationships (tags, projects, followers, dependencies).
 
 **New to the SDK?** Start with [Core Concepts](docs/guides/concepts.md) to understand the mental model.
 

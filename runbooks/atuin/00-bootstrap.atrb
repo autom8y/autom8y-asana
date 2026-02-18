@@ -1,5 +1,5 @@
 id: 71617513-8aa9-4ab9-906e-f1eeb3e0a137
-name: Bootstrap autom8_asana Environment
+name: Bootstrap autom8y-asana Environment
 version: 1
 forkedFrom: null
 content:
@@ -13,7 +13,7 @@ content:
     isToggleable: false
   content:
   - type: text
-    text: Bootstrap autom8_asana Environment
+    text: Bootstrap autom8y-asana Environment
     styles: {}
   children: []
 - id: 6ee934f3-860c-4496-958e-eb6b12c487a9
@@ -24,7 +24,7 @@ content:
     textAlignment: left
   content:
   - type: text
-    text: First-time environment setup for the autom8_asana SDK and API service. Configures
+    text: First-time environment setup for the autom8y-asana SDK and API service. Configures
       Asana Personal Access Token (PAT) for API access.
     styles: {}
   children: []
@@ -92,7 +92,7 @@ content:
     text: ' '
     styles: {}
   - type: text
-    text: ~/.config/autom8y/envs/autom8-asana/runbook.env
+    text: ~/.config/autom8y/envs/autom8y-asana/runbook.env
     styles:
       code: true
   children: []
@@ -222,7 +222,7 @@ content:
     text: ' After setup, edit '
     styles: {}
   - type: text
-    text: ~/.config/autom8y/envs/autom8-asana/runbook.env
+    text: ~/.config/autom8y/envs/autom8y-asana/runbook.env
     styles:
       code: true
   - type: text
@@ -325,7 +325,7 @@ content:
     name: test_asana_api
     code: |-
       # Load environment
-      ENV_FILE="${HOME}/.config/autom8y/envs/autom8-asana/runbook.env"
+      ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
       if [ -f "$ENV_FILE" ]; then
           set -a && source "$ENV_FILE" && set +a
       fi

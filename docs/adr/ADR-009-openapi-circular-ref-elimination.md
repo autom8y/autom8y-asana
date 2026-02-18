@@ -245,13 +245,13 @@ async def internal_openapi_spec(
 # Start the app and fetch the spec
 cd ~/code/autom8_asana
 uvicorn autom8_asana.api.main:create_app --factory --port 8000 &
-curl -s http://localhost:8000/openapi.json > /tmp/autom8-asana-openapi-public.json
+curl -s http://localhost:8000/openapi.json > /tmp/autom8y-asana-openapi-public.json
 
 # Verify no circular refs remain
 python3 -c "
 import json, sys
 
-with open('/tmp/autom8-asana-openapi-public.json') as f:
+with open('/tmp/autom8y-asana-openapi-public.json') as f:
     spec = json.load(f)
 
 schemas = spec.get('components', {}).get('schemas', {})
@@ -274,9 +274,9 @@ print(f'Paths: {len(spec[\"paths\"])}')
 # Convert to YAML for starlight-openapi
 python3 -c "
 import json, yaml
-with open('/tmp/autom8-asana-openapi-public.json') as f:
+with open('/tmp/autom8y-asana-openapi-public.json') as f:
     spec = json.load(f)
-with open('sites/docs/specs/autom8-asana-openapi.yaml', 'w') as f:
+with open('sites/docs/specs/autom8y-asana-openapi.yaml', 'w') as f:
     yaml.dump(spec, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 "
 

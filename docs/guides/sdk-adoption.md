@@ -358,7 +358,7 @@ asyncio.run(main())
 ### Step 1: Install the SDK
 
 ```bash
-pip install autom8_asana
+pip install autom8y-asana
 ```
 
 ### Step 2: Update Client Creation

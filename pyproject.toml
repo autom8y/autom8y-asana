@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "autom8-asana"
+name = "autom8y-asana"
 version = "1.0.0"
 description = "Async-first Asana API client extracted from autom8"
 # readme = "README.md"  # Deferred to Phase 5

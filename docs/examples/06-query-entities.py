@@ -6,7 +6,7 @@ section-based filtering. Shows both simple row queries and filtered queries
 using the composable predicate system.
 
 Prerequisites:
-    pip install autom8-asana httpx
+    pip install autom8y-asana httpx
     export SERVICE_TOKEN="your_service_token"
     export API_BASE_URL="http://localhost:8000"  # or production URL
 

@@ -39,7 +39,7 @@ jobs:
           client-payload: |
             {
               "service_name": "asana",
-              "satellite_repo": "autom8_asana",
+              "satellite_repo": "autom8y-asana",
               "ref": "${{ github.event.workflow_run.head_branch || github.ref_name }}",
               "sha": "${{ github.event.workflow_run.head_sha || github.sha }}",
               "triggered_by": "${{ steps.trigger.outputs.triggered_by }}"
@@ -49,7 +49,7 @@ jobs:
         run: |
           echo "Successfully dispatched satellite-deploy event to autom8y/autom8y"
           echo "  Service: asana"
-          echo "  Repository: autom8_asana"
+          echo "  Repository: autom8y-asana"
           echo "  Ref: ${{ github.event.workflow_run.head_branch || github.ref_name }}"
           echo "  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}"
           echo "  Triggered by: ${{ steps.trigger.outputs.triggered_by }}"

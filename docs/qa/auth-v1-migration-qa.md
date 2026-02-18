@@ -1,9 +1,9 @@
 ---
-artifact_id: QA-autom8-asana-auth-v1-migration
+artifact_id: QA-autom8y-asana-auth-v1-migration
 title: "QA Report: autom8_asana Migration to autom8y-auth SDK v1.0.0"
 created_at: "2026-02-12T20:30:00Z"
 author: qa-adversary
-tdd_ref: TDD-autom8-asana-auth-v1-migration
+tdd_ref: TDD-autom8y-asana-auth-v1-migration
 status: complete
 recommendation: GO
 ---

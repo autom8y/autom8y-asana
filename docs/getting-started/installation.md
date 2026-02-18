@@ -1,6 +1,6 @@
 # Installation and Setup
 
-Get started with the autom8_asana SDK in minutes. This guide covers installation, configuration, and your first API call.
+Get started with the autom8y-asana SDK in minutes. This guide covers installation, configuration, and your first API call.
 
 ## Prerequisites
 
@@ -15,7 +15,7 @@ Get started with the autom8_asana SDK in minutes. This guide covers installation
 Install from PyPI:
 
 ```bash
-pip install autom8-asana
+pip install autom8y-asana
 ```
 
 ### Development Setup
@@ -24,8 +24,8 @@ For contributors or advanced users who want to modify the SDK:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/autom8_asana.git
-cd autom8_asana
+git clone https://github.com/autom8y/autom8y-asana.git
+cd autom8y-asana
 
 # Install uv (if not already installed)
 curl -LsSf https://astral.sh/uv/install.sh | sh

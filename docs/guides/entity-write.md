@@ -110,7 +110,7 @@ PATCH /api/v1/entity/{entity_type}/{gid}
 
 ```bash
 curl -X PATCH \
-  https://autom8-asana.example.com/api/v1/entity/offer/1234567890 \
+  https://autom8y-asana.example.com/api/v1/entity/offer/1234567890 \
   -H "Authorization: Bearer <S2S_JWT_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -150,7 +150,7 @@ Response:
 
 ```bash
 curl -X PATCH \
-  https://autom8-asana.example.com/api/v1/entity/unit/1234567891 \
+  https://autom8y-asana.example.com/api/v1/entity/unit/1234567891 \
   -H "Authorization: Bearer <S2S_JWT_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -167,7 +167,7 @@ Appends "Facebook" and "Google" to existing selections. Duplicates are automatic
 
 ```bash
 curl -X PATCH \
-  "https://autom8-asana.example.com/api/v1/entity/offer/1234567890?include_updated=true" \
+  "https://autom8y-asana.example.com/api/v1/entity/offer/1234567890?include_updated=true" \
   -H "Authorization: Bearer <S2S_JWT_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -654,7 +654,7 @@ Auto-discovered from entity models at startup. Any model with `CustomFieldDescri
 ```bash
 # Invalid entity type error returns available types
 curl -X PATCH \
-  https://autom8-asana.example.com/api/v1/entity/invalid/1234567890 \
+  https://autom8y-asana.example.com/api/v1/entity/invalid/1234567890 \
   -H "Authorization: Bearer <S2S_JWT_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"fields": {"test": "value"}}'

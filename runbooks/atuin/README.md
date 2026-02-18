@@ -1,6 +1,6 @@
-# autom8_asana Runbooks
+# autom8y-asana Runbooks
 
-Atuin Desktop runbooks for the autom8_asana SDK and API service. These runbooks provide executable workflows for authentication, development, and API operations.
+Atuin Desktop runbooks for the autom8y-asana SDK and API service. These runbooks provide executable workflows for authentication, development, and API operations.
 
 ---
 
@@ -17,7 +17,7 @@ The runbooks use portable path variables instead of hardcoded paths. On first ru
 
 **Manual setup (if needed):**
 ```bash
-# Run from the autom8_asana repository root
+# Run from the autom8y-asana repository root
 just bootstrap-paths
 
 # Verify configuration
@@ -41,7 +41,7 @@ Before using these runbooks, obtain a Personal Access Token (PAT):
 
 1. Go to [Asana Developer Console](https://app.asana.com/0/my-apps)
 2. Click "Create new token"
-3. Name it (e.g., "autom8_asana development")
+3. Name it (e.g., "autom8y-asana development")
 4. Copy the token (only shown once!)
 
 This token is required for all Asana API operations.
@@ -77,7 +77,7 @@ Personal Access Token -----> 01-authentication (PAT test)
 ## Quick Start
 
 1. Obtain Asana PAT (see Prerequisites above)
-2. Run `just setup-env` to create `~/.config/autom8y/envs/autom8-asana/runbook.env`
+2. Run `just setup-env` to create `~/.config/autom8y/envs/autom8y-asana/runbook.env`
 3. Add your `ASANA_PAT` to the env file
 4. Open this folder in Atuin Desktop
 5. Run `00-bootstrap.md` to verify setup (~3 min)
@@ -88,7 +88,7 @@ Personal Access Token -----> 01-authentication (PAT test)
 
 ## Environment Variables
 
-Required variables in `~/.config/autom8y/envs/autom8-asana/runbook.env`:
+Required variables in `~/.config/autom8y/envs/autom8y-asana/runbook.env`:
 
 ```bash
 # Required
@@ -104,7 +104,7 @@ LOG_LEVEL=INFO
 
 ## Authentication
 
-autom8_asana uses Asana Personal Access Tokens (PAT) directly. Unlike other autom8y services, no cross-service authentication is required.
+autom8y-asana uses Asana Personal Access Tokens (PAT) directly. Unlike other autom8y services, no cross-service authentication is required.
 
 | Component | Value |
 |-----------|-------|
@@ -119,7 +119,7 @@ autom8_asana uses Asana Personal Access Tokens (PAT) directly. Unlike other auto
 
 - [Asana Developer Console](https://app.asana.com/0/my-apps) - Generate PAT
 - [Asana API Documentation](https://developers.asana.com/docs) - API reference
-- [autom8_asana SDK Documentation](../docs/) - SDK usage guides
+- [autom8y-asana SDK Documentation](../docs/) - SDK usage guides
 
 ---
 

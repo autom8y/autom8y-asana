@@ -21,20 +21,20 @@ Validate the dual-mode entrypoint pattern for running both ECS (uvicorn) and Lam
 
 **ECS Execution:**
 ```bash
-docker run -p 8000:8000 autom8_asana:latest
+docker run -p 8000:8000 autom8y-asana:latest
 # AWS_LAMBDA_RUNTIME_API not set → entrypoint.sh runs uvicorn
 ```
 
 **Lambda Execution:**
 ```bash
-docker run -e AWS_LAMBDA_RUNTIME_API=host:port autom8_asana:latest [optional-handler-override]
+docker run -e AWS_LAMBDA_RUNTIME_API=host:port autom8y-asana:latest [optional-handler-override]
 # AWS_LAMBDA_RUNTIME_API set → entrypoint.sh runs awslambdaric with handler
 ```
 
 **Handler Override Example:**
 ```bash
 docker run -e AWS_LAMBDA_RUNTIME_API=host:port \
-  autom8_asana:latest \
+  autom8y-asana:latest \
   autom8_asana.lambda_handlers.cache_warmer.handler
 ```
 
@@ -115,8 +115,8 @@ docker run -e AWS_LAMBDA_RUNTIME_API=host:port \
 
 ### Local ECS Mode Test
 ```bash
-docker build -t autom8_asana:poc .
-docker run -p 8000:8000 autom8_asana:poc
+docker build -t autom8y-asana:poc .
+docker run -p 8000:8000 autom8y-asana:poc
 curl http://localhost:8000/health  # Should return 200
 ```
 
@@ -128,7 +128,7 @@ docker pull amazon/aws-lambda-rie:latest
 # Run container with RIE
 docker run -d -v ~/.aws-lambda-rie:/aws-lambda -p 9000:8080 \
   --entrypoint /aws-lambda/aws-lambda-rie \
-  autom8_asana:poc \
+  autom8y-asana:poc \
   /app/entrypoint.sh autom8_asana.lambda_handlers.cache_warmer.handler
 
 # Invoke handler
@@ -140,8 +140,8 @@ curl -XPOST "http://localhost:9000/2015-03-31/functions/function/invocations" \
 ```bash
 # Push to ECR
 aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <account>.dkr.ecr.us-east-1.amazonaws.com
-docker tag autom8_asana:poc <account>.dkr.ecr.us-east-1.amazonaws.com/autom8-asana:poc
-docker push <account>.dkr.ecr.us-east-1.amazonaws.com/autom8-asana:poc
+docker tag autom8y-asana:poc <account>.dkr.ecr.us-east-1.amazonaws.com/autom8y-asana:poc
+docker push <account>.dkr.ecr.us-east-1.amazonaws.com/autom8y-asana:poc
 
 # Deploy Lambda function with container image
 # Configure handler override in Lambda configuration if needed
