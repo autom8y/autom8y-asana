@@ -105,7 +105,7 @@ async def get_appointments(
     elapsed_ms = (time.monotonic() - start_time) * 1000
 
     if response.status_code >= 400:
-        cache_key = f"appointments:{office_phone}"
+        cache_key = f"appointments:{masked_phone}"
         return await client._handle_error_response(
             response, request_id, cache_key, "appointments", elapsed_ms
         )
@@ -212,7 +212,7 @@ async def get_leads(
     elapsed_ms = (time.monotonic() - start_time) * 1000
 
     if response.status_code >= 400:
-        cache_key = f"leads:{office_phone}"
+        cache_key = f"leads:{masked_phone}"
         return await client._handle_error_response(
             response, request_id, cache_key, "leads", elapsed_ms
         )
