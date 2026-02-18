@@ -31,6 +31,11 @@ from autom8_asana.automation.workflows.insights_formatter import (
 from autom8_asana.automation.workflows.mixins import AttachmentReplacementMixin
 from autom8_asana.clients.attachments import AttachmentsClient
 from autom8_asana.clients.data.client import DataServiceClient, mask_phone_number
+from autom8_asana.models.business.activity import (
+    OFFER_CLASSIFIER,
+    AccountActivity,
+    extract_section_name,
+)
 from autom8_asana.resolution.context import ResolutionContext
 
 logger = get_logger(__name__)
@@ -277,10 +282,6 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         from autom8_asana.automation.workflows.section_resolution import (
             resolve_section_gids,
         )
-        from autom8_asana.models.business.activity import (
-            OFFER_CLASSIFIER,
-            AccountActivity,
-        )
 
         active_section_names = OFFER_CLASSIFIER.sections_for(AccountActivity.ACTIVE)
 
@@ -365,11 +366,6 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         This is the pre-migration enumeration logic, preserved verbatim for
         resilience when section resolution or section-level fetch fails.
         """
-        from autom8_asana.models.business.activity import (
-            OFFER_CLASSIFIER,
-            AccountActivity,
-        )
-
         page_iterator = self._asana_client.tasks.list_async(
             project=OFFER_PROJECT_GID,
             opt_fields=[
@@ -383,34 +379,20 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         )
         tasks = await page_iterator.collect()
 
-        offers = []
-        skipped = 0
-        for t in tasks:
-            if t.completed:
+        # Filter to non-completed tasks first
+        non_completed = [t for t in tasks if not t.completed]
+        total_before = len(non_completed)
+
+        # Filter to only ACTIVE offers by section classification
+        active_offers: list[dict[str, Any]] = []
+        for t in non_completed:
+            section_name = extract_section_name(t, OFFER_PROJECT_GID)
+            if section_name is None:
                 continue
-
-            # Classify by section membership
-            section_name = None
-            for m in getattr(t, "memberships", None) or []:
-                sec = (
-                    m.get("section", {})
-                    if isinstance(m, dict)
-                    else getattr(m, "section", None)
-                )
-                if sec:
-                    section_name = (
-                        sec.get("name")
-                        if isinstance(sec, dict)
-                        else getattr(sec, "name", None)
-                    )
-                    break
-
-            activity = OFFER_CLASSIFIER.classify(section_name) if section_name else None
+            activity = OFFER_CLASSIFIER.classify(section_name)
             if activity != AccountActivity.ACTIVE:
-                skipped += 1
                 continue
-
-            offers.append(
+            active_offers.append(
                 {
                     "gid": t.gid,
                     "name": t.name,
@@ -418,15 +400,16 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 }
             )
 
-        if skipped:
+        filtered_count = total_before - len(active_offers)
+        if filtered_count > 0:
             logger.info(
-                "insights_export_offers_filtered_fallback",
-                active=len(offers),
-                skipped=skipped,
-                fallback=True,
+                "insights_export_offers_filtered_by_activity",
+                total_before=total_before,
+                active_count=len(active_offers),
+                filtered_count=filtered_count,
             )
 
-        return offers
+        return active_offers
 
     async def _process_offer(
         self,

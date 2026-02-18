@@ -86,7 +86,7 @@ class DependencyWiringService:
 
         # Wire dependents (Unit, OfferHolder)
         for dep_config in pipeline_rules.dependents:
-            entity_type = dep_config.get("entity_type")
+            entity_type: str = dep_config.get("entity_type", "")
             try:
                 dependent_gid = await self._resolve_dependent_gid(entity_type, ctx)  # type: ignore[arg-type]  # entity_type is str at runtime from config dict
                 if dependent_gid:

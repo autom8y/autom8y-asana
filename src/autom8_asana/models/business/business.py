@@ -434,6 +434,41 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
         units: list[Unit] = self._unit_holder.units  # type: ignore[attr-defined]
         return units
 
+    # --- Section Activity Classification (TDD-section-activity-classifier Phase 2) ---
+
+    @property
+    def max_unit_activity(self) -> AccountActivity | None:
+        """Highest activity level across all child Units.
+
+        Uses UNIT_CLASSIFIER to classify each Unit's section, then returns
+        the highest-priority activity per ACTIVITY_PRIORITY ordering
+        (ACTIVE > ACTIVATING > INACTIVE > IGNORED).
+
+        Requires the Business to be hydrated (unit_holder populated) and
+        Units to have been fetched with memberships.section.name in opt_fields.
+
+        Returns:
+            AccountActivity or None if no units or no units have classifiable
+            sections.
+        """
+        from autom8_asana.models.business.activity import ACTIVITY_PRIORITY
+
+        units = self.units  # Uses existing convenience property
+        if not units:
+            return None
+
+        activities = []
+        for unit in units:
+            activity = unit.account_activity
+            if activity is not None:
+                activities.append(activity)
+
+        if not activities:
+            return None
+
+        # Return highest priority (lowest index in ACTIVITY_PRIORITY)
+        return min(activities, key=lambda a: ACTIVITY_PRIORITY.index(a))
+
     @property
     def max_unit_activity(self) -> AccountActivity | None:
         """Highest activity level across all child Units.

@@ -16,7 +16,7 @@ import re
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import date
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import httpx
 
@@ -831,25 +831,27 @@ class DataServiceClient:
             ...     )
             ...     df = response.to_dataframe()
         """
-        result: InsightsResponse = self._run_sync(
-            self.get_insights_async(
-                factory=factory,
-                office_phone=office_phone,
-                vertical=vertical,
-                period=period,
-                start_date=start_date,
-                end_date=end_date,
-                metrics=metrics,
-                dimensions=dimensions,
-                groups=groups,
-                break_down=break_down,
-                refresh=refresh,
-                filters=filters,
+        return cast(
+            InsightsResponse,
+            self._run_sync(
+                self.get_insights_async(
+                    factory=factory,
+                    office_phone=office_phone,
+                    vertical=vertical,
+                    period=period,
+                    start_date=start_date,
+                    end_date=end_date,
+                    metrics=metrics,
+                    dimensions=dimensions,
+                    groups=groups,
+                    break_down=break_down,
+                    refresh=refresh,
+                    filters=filters,
+                ),
+                method_name="get_insights",
+                async_name="get_insights_async",
             ),
-            method_name="get_insights",
-            async_name="get_insights_async",
         )
-        return result
 
     # Maximum PVPs per HTTP request (autom8_data's max_length limit)
     _AUTOM8_DATA_MAX_PVP_PER_REQUEST = 1000

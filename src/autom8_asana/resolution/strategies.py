@@ -123,7 +123,7 @@ class NavigationRefStrategy(ResolutionStrategy):
         # Walk upward references using _CACHED_REF_ATTRS
         if hasattr(entity.__class__, "_CACHED_REF_ATTRS"):
             for attr_name in entity.__class__._CACHED_REF_ATTRS:
-                ref = getattr(entity, attr_name, None)
+                ref: Any = getattr(entity, attr_name, None)
                 if ref is not None and isinstance(ref, target_type):
                     return cast(T, ref)
 

@@ -29,6 +29,7 @@ from autom8_asana.automation.workflows.mixins import AttachmentReplacementMixin
 from autom8_asana.clients.attachments import AttachmentsClient
 from autom8_asana.clients.data.client import DataServiceClient, mask_phone_number
 from autom8_asana.exceptions import ExportError
+from autom8_asana.models.business.activity import AccountActivity
 from autom8_asana.models.business.contact import ContactHolder
 from autom8_asana.resolution.context import ResolutionContext
 
@@ -59,10 +60,11 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
     1. Check feature flag (AUTOM8_AUDIT_ENABLED)
     2. Enumerate active ContactHolder tasks in PRIMARY_PROJECT_GID
     3. For each ContactHolder (with concurrency limit):
-       a. Resolve parent Business -> office_phone
-       b. Fetch CSV from DataServiceClient.get_export_csv_async()
-       c. Upload new CSV attachment (upload-first)
-       d. Delete old matching CSV attachments
+       a. Check parent Business activity (skip if not ACTIVE)
+       b. Resolve parent Business -> office_phone
+       c. Fetch CSV from DataServiceClient.get_export_csv_async()
+       d. Upload new CSV attachment (upload-first)
+       e. Delete old matching CSV attachments
     4. Return WorkflowResult with per-item tracking
 
     Args:
@@ -194,10 +196,10 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 outcome = await self._process_holder(
                     holder_gid=holder_gid,
                     holder_name=holder_name,
+                    parent_gid=parent_gid,
                     attachment_pattern=attachment_pattern,
                     start_date=start_date,
                     end_date=end_date,
-                    parent_gid=parent_gid,
                 )
                 results.append(outcome)
 
@@ -213,6 +215,12 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
         failed = sum(1 for r in results if r.status == "failed")
         skipped = sum(1 for r in results if r.status == "skipped")
         truncated_count = sum(1 for r in results if r.truncated)
+        activity_skipped = sum(
+            1
+            for r in results
+            if r.status == "skipped"
+            and r.reason in ("business_not_active", "activity_unknown")
+        )
         errors = [r.error for r in results if r.error is not None]
 
         completed_at = datetime.now(UTC)
@@ -226,7 +234,10 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
             failed=failed,
             skipped=skipped,
             errors=errors,
-            metadata={"truncated_count": truncated_count},
+            metadata={
+                "truncated_count": truncated_count,
+                "activity_skipped_count": activity_skipped,
+            },
         )
 
         logger.info(
@@ -236,6 +247,7 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
             failed=workflow_result.failed,
             skipped=workflow_result.skipped,
             truncated=truncated_count,
+            activity_skipped=activity_skipped,
             duration_seconds=round(workflow_result.duration_seconds, 2),
         )
 
@@ -250,7 +262,7 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
         exclude completed/archived ContactHolders.
 
         Returns:
-            List of task dicts with at least {gid, name, parent} fields.
+            List of task dicts with {gid, name, parent_gid} fields.
         """
         page_iterator = self._asana_client.tasks.list_async(
             project=CONTACT_HOLDER_PROJECT_GID,
@@ -341,14 +353,15 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
         self._activity_map[business_gid] = activity
         return activity
 
+
     async def _process_holder(
         self,
         holder_gid: str,
         holder_name: str | None,
-        attachment_pattern: str,
+        parent_gid: str | None = None,
+        attachment_pattern: str = DEFAULT_ATTACHMENT_PATTERN,
         start_date: date | None = None,
         end_date: date | None = None,
-        parent_gid: str | None = None,
     ) -> _HolderOutcome:
         """Process a single ContactHolder: resolve phone, fetch CSV, replace attachment.
 
@@ -357,31 +370,37 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
         Args:
             holder_gid: ContactHolder task GID.
             holder_name: ContactHolder task name (for logging).
+            parent_gid: Parent Business GID if known from enumeration.
             attachment_pattern: Glob pattern for old attachment cleanup.
-            parent_gid: Parent Business GID for activity gating.
+            start_date: Export date range start.
+            end_date: Export date range end.
 
         Returns:
             _HolderOutcome with status and optional error.
         """
-        # Step 0: Activity gate -- skip if parent Business is not ACTIVE
-        if parent_gid:
-            from autom8_asana.models.business.activity import AccountActivity
-
-            business_activity = await self._resolve_business_activity(parent_gid)
-            if business_activity != AccountActivity.ACTIVE:
-                logger.debug(
-                    "conversation_audit_holder_skipped_inactive",
-                    holder_gid=holder_gid,
-                    business_gid=parent_gid,
-                    activity=str(business_activity) if business_activity else "unknown",
-                )
-                return _HolderOutcome(
-                    holder_gid=holder_gid,
-                    status="skipped",
-                    reason="inactive_business",
-                )
-
         try:
+            # Step 0: Activity gate -- skip if parent Business is not ACTIVE
+            if parent_gid:
+                activity = await self._resolve_business_activity(parent_gid)
+                if activity != AccountActivity.ACTIVE:
+                    reason = (
+                        "activity_unknown"
+                        if activity is None
+                        else "business_not_active"
+                    )
+                    logger.info(
+                        "holder_skipped_inactive_business",
+                        holder_gid=holder_gid,
+                        holder_name=holder_name,
+                        business_gid=parent_gid,
+                        activity=activity.value if activity else None,
+                    )
+                    return _HolderOutcome(
+                        holder_gid=holder_gid,
+                        status="skipped",
+                        reason=reason,
+                    )
+
             # Step A: Resolve office_phone via parent Business
             office_phone = await self._resolve_office_phone(
                 holder_gid, parent_gid=parent_gid

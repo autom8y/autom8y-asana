@@ -155,7 +155,7 @@ def build_success_response(
     """Build a standard success response.
 
     Args:
-        data: Response payload.
+        data: Response payload (AsanaResource, dict, or list).
         request_id: Request correlation ID.
         pagination: Pagination metadata for list responses.
 

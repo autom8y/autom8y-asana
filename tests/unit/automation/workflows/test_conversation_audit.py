@@ -3,6 +3,9 @@
 Per TDD-CONV-AUDIT-001 Section 10.4: Unit tests for the conversation audit
 workflow including happy path, skip scenarios, error isolation, upload-first
 ordering, feature flag, and concurrency.
+
+Per TDD-section-activity-classifier Phase 3: Tests for business-level
+activity checking via _resolve_business_activity with caching.
 """
 
 from __future__ import annotations
@@ -120,8 +123,20 @@ def _make_workflow(
     export_results: dict[str, ExportResult] | None = None,
     export_errors: dict[str, ExportError] | None = None,
     existing_attachments: dict[str, list[MagicMock]] | None = None,
+    activity_override: AccountActivity | None = AccountActivity.ACTIVE,
 ) -> tuple[ConversationAuditWorkflow, MagicMock, MagicMock, MagicMock]:
-    """Build a ConversationAuditWorkflow with configured mocks."""
+    """Build a ConversationAuditWorkflow with configured mocks.
+
+    Args:
+        holders: List of mock holder tasks.
+        parent_tasks: Dict of business GID -> mock parent task.
+        export_results: Dict of phone -> ExportResult.
+        export_errors: Dict of phone -> ExportError.
+        existing_attachments: Dict of holder GID -> list of mock attachments.
+        activity_override: AccountActivity to return from _resolve_business_activity.
+            Defaults to ACTIVE so existing tests pass transparently.
+            Set to None to disable the patch (for tests that need real behavior).
+    """
     mock_asana = MagicMock()
     mock_data_client = MagicMock()
     mock_attachments = MagicMock()
@@ -185,6 +200,7 @@ def _make_workflow(
     for h in holder_list:
         if h.parent:
             workflow._activity_map[h.parent.gid] = AccountActivity.ACTIVE
+
 
     return workflow, mock_asana, mock_data_client, mock_attachments
 
@@ -656,6 +672,7 @@ class TestExecuteAsyncDateRange:
         assert call_kwargs["end_date"] == expected_end
 
 
+
 class TestPreResolveBusinessActivities:
     """Tests for bulk activity pre-resolution and pre-filtering."""
 
@@ -851,3 +868,334 @@ class TestResolveOfficePhonePassthrough:
         # get_async SHOULD be called with "h1" since parent_gid is None
         call_gids = [call.args[0] for call in mock_asana.tasks.get_async.call_args_list]
         assert "h1" in call_gids
+
+
+# --- Activity Filtering Tests (Phase 3) ---
+
+
+class TestEnumerateContactHolders:
+    """Tests for _enumerate_contact_holders return shape."""
+
+    @pytest.mark.asyncio
+    async def test_returns_parent_gid_field(self) -> None:
+        """Enumeration returns parent_gid (not parent object) in dicts."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        h2 = _make_task("h2", "Holder Orphan")
+
+        wf, _, _, _ = _make_workflow(holders=[h1, h2])
+
+        holders = await wf._enumerate_contact_holders()
+
+        assert len(holders) == 2
+        # Holder with parent should have parent_gid
+        h1_dict = next(h for h in holders if h["gid"] == "h1")
+        assert h1_dict["parent_gid"] == "biz1"
+        # Orphan holder should have parent_gid=None
+        h2_dict = next(h for h in holders if h["gid"] == "h2")
+        assert h2_dict["parent_gid"] is None
+
+    @pytest.mark.asyncio
+    async def test_excludes_completed_tasks(self) -> None:
+        """Completed holders are excluded from enumeration."""
+        h1 = _make_task("h1", "Active Holder", parent_gid="biz1")
+        h2 = _make_task("h2", "Completed Holder", parent_gid="biz2", completed=True)
+
+        wf, _, _, _ = _make_workflow(holders=[h1, h2])
+
+        holders = await wf._enumerate_contact_holders()
+
+        assert len(holders) == 1
+        assert holders[0]["gid"] == "h1"
+
+
+class TestResolveBusinessActivity:
+    """Tests for _resolve_business_activity method.
+
+    Per TDD-section-activity-classifier Phase 3: Business-level activity
+    checking with caching and error handling.
+
+    Note: Business is imported inside _resolve_business_activity via
+    ``from autom8_asana.models.business.business import Business``, so
+    we patch at the source module, not the conversation_audit module.
+    """
+
+    _BUSINESS_PATH = "autom8_asana.models.business.business.Business"
+    _CTX_PATH = "autom8_asana.automation.workflows.conversation_audit.ResolutionContext"
+
+    def _make_clean_workflow(self):
+        """Create workflow without pre-populated activity_map."""
+        wf, mock_asana, mock_data, mock_att = _make_workflow()
+        wf._activity_map.clear()
+        return wf, mock_asana, mock_data, mock_att
+
+    @pytest.mark.asyncio
+    async def test_returns_active_for_active_business(self) -> None:
+        """Active business returns AccountActivity.ACTIVE."""
+        wf, _, _, _ = self._make_clean_workflow()
+
+        mock_business = MagicMock()
+        mock_business.max_unit_activity = AccountActivity.ACTIVE
+
+        with patch(self._BUSINESS_PATH) as MockBusiness:
+            MockBusiness.from_gid_async = AsyncMock(return_value=mock_business)
+            with patch(self._CTX_PATH) as MockCtx:
+                mock_ctx_instance = AsyncMock()
+                mock_ctx_instance.hydrate_branch_async = AsyncMock()
+                MockCtx.return_value.__aenter__ = AsyncMock(
+                    return_value=mock_ctx_instance
+                )
+                MockCtx.return_value.__aexit__ = AsyncMock(return_value=False)
+
+                result = await wf._resolve_business_activity("biz1")
+
+        assert result == AccountActivity.ACTIVE
+
+    @pytest.mark.asyncio
+    async def test_caches_activity_result(self) -> None:
+        """Second call for same business_gid returns cached result."""
+        wf, _, _, _ = self._make_clean_workflow()
+
+        mock_business = MagicMock()
+        mock_business.max_unit_activity = AccountActivity.ACTIVE
+
+        with patch(self._BUSINESS_PATH) as MockBusiness:
+            MockBusiness.from_gid_async = AsyncMock(return_value=mock_business)
+            with patch(self._CTX_PATH) as MockCtx:
+                mock_ctx_instance = AsyncMock()
+                mock_ctx_instance.hydrate_branch_async = AsyncMock()
+                MockCtx.return_value.__aenter__ = AsyncMock(
+                    return_value=mock_ctx_instance
+                )
+                MockCtx.return_value.__aexit__ = AsyncMock(return_value=False)
+
+                result1 = await wf._resolve_business_activity("biz1")
+                result2 = await wf._resolve_business_activity("biz1")
+
+        assert result1 == AccountActivity.ACTIVE
+        assert result2 == AccountActivity.ACTIVE
+        # Business.from_gid_async should only be called once (cached)
+        assert MockBusiness.from_gid_async.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_returns_none_on_resolution_failure(self) -> None:
+        """Resolution failure caches and returns None."""
+        wf, _, _, _ = self._make_clean_workflow()
+
+        with patch(self._BUSINESS_PATH) as MockBusiness:
+            MockBusiness.from_gid_async = AsyncMock(
+                side_effect=Exception("API error")
+            )
+
+            result = await wf._resolve_business_activity("biz-bad")
+
+        assert result is None
+        # Verify cached
+        assert "biz-bad" in wf._activity_map
+        assert wf._activity_map["biz-bad"] is None
+
+    @pytest.mark.asyncio
+    async def test_caches_none_on_failure(self) -> None:
+        """Failed resolution is cached so subsequent calls do not retry."""
+        wf, _, _, _ = self._make_clean_workflow()
+
+        with patch(self._BUSINESS_PATH) as MockBusiness:
+            MockBusiness.from_gid_async = AsyncMock(
+                side_effect=Exception("API error")
+            )
+
+            result1 = await wf._resolve_business_activity("biz-bad")
+            result2 = await wf._resolve_business_activity("biz-bad")
+
+        assert result1 is None
+        assert result2 is None
+        # Only called once; second call hits cache
+        assert MockBusiness.from_gid_async.call_count == 1
+
+
+class TestActivityFiltering:
+    """Tests for business activity filtering in execute_async.
+
+    Per TDD-section-activity-classifier Phase 3: Holders whose parent
+    Business is not ACTIVE should be skipped.
+    """
+
+    @pytest.mark.asyncio
+    async def test_process_holder_skips_inactive_business(self) -> None:
+        """Holder with INACTIVE parent business is skipped."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
+
+        wf, _, mock_data, _ = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+        )
+        wf._activity_map["biz1"] = AccountActivity.INACTIVE
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.total == 1
+        assert result.skipped == 1
+        assert result.succeeded == 0
+        assert result.metadata["activity_skipped_count"] == 1
+        # Export should NOT be called for inactive business
+        mock_data.get_export_csv_async.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_process_holder_skips_activating_business(self) -> None:
+        """Holder with ACTIVATING parent business is skipped."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
+
+        wf, _, mock_data, _ = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+        )
+        wf._activity_map["biz1"] = AccountActivity.ACTIVATING
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.total == 1
+        assert result.skipped == 1
+        assert result.metadata["activity_skipped_count"] == 1
+        mock_data.get_export_csv_async.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_process_holder_skips_unknown_activity(self) -> None:
+        """Holder with unknown activity (None) is skipped."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
+
+        wf, _, mock_data, _ = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+        )
+        wf._activity_map["biz1"] = None
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.total == 1
+        assert result.skipped == 1
+        assert result.metadata["activity_skipped_count"] == 1
+        mock_data.get_export_csv_async.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_process_holder_processes_active_business(self) -> None:
+        """Holder with ACTIVE parent business is processed normally."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
+
+        wf, _, mock_data, mock_att = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+        )
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.total == 1
+        assert result.succeeded == 1
+        assert result.metadata["activity_skipped_count"] == 0
+        mock_data.get_export_csv_async.assert_called_once()
+        mock_att.upload_async.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_activity_check_skipped_for_orphan_holder(self) -> None:
+        """Holder with no parent_gid skips activity check (goes to phone resolution)."""
+        h1 = _make_task("h1", "Orphan Holder")  # No parent_gid
+
+        wf, _, _, _ = _make_workflow(holders=[h1])
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        # Should be skipped due to no phone (not activity check)
+        assert result.total == 1
+        assert result.skipped == 1
+        # Activity check is not invoked for orphan holders
+        assert result.metadata["activity_skipped_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_mixed_activity_outcomes(self) -> None:
+        """Batch with mixed activity: 1 active, 1 inactive, 1 unknown."""
+        h1 = _make_task("h1", "Active Holder", parent_gid="biz1")
+        h2 = _make_task("h2", "Inactive Holder", parent_gid="biz2")
+        h3 = _make_task("h3", "Unknown Holder", parent_gid="biz3")
+
+        parent_tasks = {
+            "biz1": _make_parent_task("+17705753101", gid="biz1"),
+            "biz2": _make_parent_task("+17705753102", gid="biz2"),
+            "biz3": _make_parent_task("+17705753103", gid="biz3"),
+        }
+
+        wf, _, mock_data, _ = _make_workflow(
+            holders=[h1, h2, h3],
+            parent_tasks=parent_tasks,
+        )
+        # Override activities per business
+        wf._activity_map["biz1"] = AccountActivity.ACTIVE
+        wf._activity_map["biz2"] = AccountActivity.INACTIVE
+        wf._activity_map["biz3"] = None
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.total == 3
+        assert result.succeeded == 1  # biz1 only
+        assert result.skipped == 2  # biz2 (inactive), biz3 (unknown)
+        assert result.metadata["activity_skipped_count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_activity_map_deduplication(self) -> None:
+        """Multiple holders sharing the same parent should resolve activity once."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="shared-biz")
+        h2 = _make_task("h2", "Holder 2", parent_gid="shared-biz")
+        h3 = _make_task("h3", "Holder 3", parent_gid="shared-biz")
+
+        parent_tasks = {
+            "shared-biz": _make_parent_task("+17705753101", gid="shared-biz"),
+        }
+
+        wf, _, _, _ = _make_workflow(
+            holders=[h1, h2, h3],
+            parent_tasks=parent_tasks,
+        )
+
+        result = await wf.execute_async(
+            {"workflow_id": "conversation-audit", "max_concurrency": 1}
+        )
+
+        assert result.total == 3
+        assert result.succeeded == 3
+
+    @pytest.mark.asyncio
+    async def test_workflow_result_metadata_has_activity_skipped_count(self) -> None:
+        """WorkflowResult metadata always includes activity_skipped_count."""
+        wf, _, _, _ = _make_workflow(holders=[])
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert "activity_skipped_count" in result.metadata
+        assert result.metadata["activity_skipped_count"] == 0
+
+
+class TestResolveOfficePhone:
+    """Tests for _resolve_office_phone parent_gid optimization."""
+
+    @pytest.mark.asyncio
+    async def test_uses_parent_gid_when_provided(self) -> None:
+        """When parent_gid is known, skips the holder GET call."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
+
+        wf, mock_asana, _, _ = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+        )
+
+        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+
+        assert result.succeeded == 1
+        # tasks.get_async should NOT be called for the holder task itself
+        # because parent_gid was provided from enumeration.
+        # It may be called for the parent Business via ResolutionContext,
+        # but NOT for the holder GID "h1" to discover parent.
+        get_calls = mock_asana.tasks.get_async.call_args_list
+        holder_get_calls = [c for c in get_calls if c[0][0] == "h1"]
+        assert len(holder_get_calls) == 0
