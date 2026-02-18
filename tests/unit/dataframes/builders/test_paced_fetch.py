@@ -6,14 +6,6 @@ and small section passthrough per TDD-large-section-resilience section 9.1.
 
 from __future__ import annotations
 
-import pytest
-
-pytestmark = pytest.mark.skip(
-    reason="D-029: Pre-existing checkpoint assertion failures carried forward "
-    "through multiple sprints. Quarantined to restore CI signal integrity. "
-    "Needs dedicated investigation as a separate initiative."
-)
-
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
