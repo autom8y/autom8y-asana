@@ -1,6 +1,6 @@
 # Local Development
 
-Development workflows for autom8_asana: running the API server, testing, and Docker builds.
+Development workflows for autom8y-asana: running the API server, testing, and Docker builds.
 
 **Time:** varies
 

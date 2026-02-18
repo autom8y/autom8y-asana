@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-This specification redesigns the consumer-facing documentation for autom8_asana. The previous IA (2025-12-24) reorganized 613 internal design documents (PRDs, TDDs, ADRs). This specification addresses what that effort did not touch: **consumer-grade documentation that lets a new developer find, understand, and use the SDK in under 30 seconds.**
+This specification redesigns the consumer-facing documentation for autom8y-asana. The previous IA (2025-12-24) reorganized 613 internal design documents (PRDs, TDDs, ADRs). This specification addresses what that effort did not touch: **consumer-grade documentation that lets a new developer find, understand, and use the SDK in under 30 seconds.**
 
 **Current state**: 613 markdown files, zero consolidated API reference, zero consumer-facing guides for cache/lifecycle/resolution/query/automation. Good source code docstrings exist but are invisible without an API reference surface.
 
@@ -356,9 +356,9 @@ Phase 5: Cleanup                             [Est: 1 day]
 - **File path**: `docs/getting-started/overview.md`
 - **Title**: System Architecture Overview
 - **Audience**: New developers, stakeholders, anyone asking "what is this?"
-- **Purpose**: Answer "What does autom8_asana do and how do its components fit together?"
+- **Purpose**: Answer "What does autom8y-asana do and how do its components fit together?"
 - **Sections**:
-  1. What is autom8_asana (2-paragraph summary)
+  1. What is autom8y-asana (2-paragraph summary)
   2. Component map diagram (ASCII or Mermaid): FastAPI service, SDK client, Asana API, cache layer, lifecycle engine, resolution, automation
   3. How requests flow: External caller -> FastAPI routes -> Services -> SDK clients -> Asana HTTP -> Asana API
   4. Key subsystems (one paragraph each): Entity Resolution, Entity Write, Query Engine, Lifecycle Engine, Cache, Automation, DataFrames
@@ -377,7 +377,7 @@ Phase 5: Cleanup                             [Est: 1 day]
 - **Purpose**: Answer "How do I install this and make my first API call?"
 - **Sections**:
   1. Prerequisites (Python 3.10+, Asana PAT, workspace GID)
-  2. Installation (`pip install autom8-asana`)
+  2. Installation (`pip install autom8y-asana`)
   3. Environment variables (ASANA_PAT, ASANA_WORKSPACE_GID, optional config vars)
   4. Verify connectivity (minimal script that fetches one task)
   5. Running the API server (uvicorn command, health check)
@@ -804,7 +804,7 @@ Each example script follows this template:
 <One-paragraph description of what this example demonstrates.>
 
 Prerequisites:
-    pip install autom8-asana
+    pip install autom8y-asana
     export ASANA_PAT="your_token"
     export ASANA_WORKSPACE_GID="your_workspace_gid"
 

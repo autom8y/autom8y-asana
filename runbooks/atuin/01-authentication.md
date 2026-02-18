@@ -1,6 +1,6 @@
 # Authentication Flows
 
-All authentication workflows for autom8_asana: PAT validation, Asana API access, and workspace discovery.
+All authentication workflows for autom8y-asana: PAT validation, Asana API access, and workspace discovery.
 
 **Time:** ~5 minutes
 
@@ -25,7 +25,7 @@ interpreter: bash
 terminalRows: 12
 ---
 # Prerequisite validation with actionable error
-ENV_FILE="${HOME}/.config/autom8y/envs/autom8-asana/runbook.env"
+ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
 
 # Check env file exists
 if [ ! -f "$ENV_FILE" ]; then
@@ -100,7 +100,7 @@ interpreter: bash
 terminalRows: 15
 ---
 # Load environment
-ENV_FILE="${HOME}/.config/autom8y/envs/autom8-asana/runbook.env"
+ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
 if [ -f "$ENV_FILE" ]; then
     set -a && source "$ENV_FILE" && set +a
 fi

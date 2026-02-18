@@ -6,7 +6,7 @@ Shows how the lifecycle engine orchestrates entity creation, section cascading,
 init actions, and dependency wiring when a process transitions stages.
 
 Prerequisites:
-    pip install autom8-asana httpx
+    pip install autom8y-asana httpx
     export SERVICE_TOKEN="your_service_token"
     export API_BASE_URL="http://localhost:8000"  # or production URL
 

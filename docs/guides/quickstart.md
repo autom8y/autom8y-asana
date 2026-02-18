@@ -17,7 +17,7 @@ Get your first SaveSession commit working in under 5 minutes.
 Install the SDK:
 
 ```bash
-pip install autom8-asana
+pip install autom8y-asana
 ```
 
 Set your Asana PAT as an environment variable:

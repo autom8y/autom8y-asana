@@ -1,6 +1,6 @@
 # Authentication Guide
 
-This guide covers authentication patterns for the autom8_asana SDK across different deployment scenarios.
+This guide covers authentication patterns for the autom8y-asana SDK across different deployment scenarios.
 
 ## Overview
 
@@ -61,7 +61,7 @@ client = AsanaClient(auth_provider=provider)
 ```
 
 **Requirements:**
-- Install with AWS extras: `pip install autom8-asana[aws]`
+- Install with AWS extras: `pip install autom8y-asana[aws]`
 - IAM role must have `secretsmanager:GetSecretValue` permission for `autom8y/asana/*`
 
 **Secret Naming Convention:**
@@ -231,5 +231,5 @@ aws secretsmanager get-secret-value --secret-id autom8y/asana/bot_pat
 
 Install AWS extras:
 ```bash
-pip install autom8-asana[aws]
+pip install autom8y-asana[aws]
 ```

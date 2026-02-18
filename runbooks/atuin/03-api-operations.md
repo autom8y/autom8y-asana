@@ -1,6 +1,6 @@
 # API Operations
 
-API usage guide for autom8_asana service: health checks, task operations, and endpoint examples.
+API usage guide for autom8y-asana service: health checks, task operations, and endpoint examples.
 
 **Time:** varies
 
@@ -16,7 +16,7 @@ API usage guide for autom8_asana service: health checks, task operations, and en
 
 ## Service Health Check
 
-Check if the autom8_asana API service is healthy.
+Check if the autom8y-asana API service is healthy.
 
 ```
 ---
@@ -116,7 +116,7 @@ Accept: application/json
 {
   "data": {
     "name": "Test Task from Runbook",
-    "notes": "Created via autom8_asana runbook",
+    "notes": "Created via autom8y-asana runbook",
     "projects": ["{{var.PROJECT_GID}}"]
   }
 }
@@ -141,7 +141,7 @@ Accept: application/json
 {
   "data": {
     "name": "Updated Task Name",
-    "notes": "Updated via autom8_asana runbook"
+    "notes": "Updated via autom8y-asana runbook"
   }
 }
 ```

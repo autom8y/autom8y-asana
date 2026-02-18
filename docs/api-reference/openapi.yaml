@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: autom8_asana API
+  title: autom8y-asana API
   description: REST API for Asana integration via autom8_asana SDK
   version: 0.1.0
 paths:

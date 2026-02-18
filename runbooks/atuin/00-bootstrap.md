@@ -1,6 +1,6 @@
-# Bootstrap autom8_asana Environment
+# Bootstrap autom8y-asana Environment
 
-First-time environment setup for the autom8_asana SDK and API service. Configures Asana Personal Access Token (PAT) for API access.
+First-time environment setup for the autom8y-asana SDK and API service. Configures Asana Personal Access Token (PAT) for API access.
 
 **Time:** ~3 minutes
 
@@ -8,7 +8,7 @@ First-time environment setup for the autom8_asana SDK and API service. Configure
 - Atuin Desktop installed
 - Asana Personal Access Token (PAT) from [Asana Developer Console](https://app.asana.com/0/my-apps)
 
-**Environment location:** `~/.config/autom8y/envs/autom8-asana/runbook.env`
+**Environment location:** `~/.config/autom8y/envs/autom8y-asana/runbook.env`
 
 ---
 
@@ -56,7 +56,7 @@ name: setup_env
 cd ${AUTOM8Y_ASANA_PATH} && just setup-env
 ```
 
-**Note:** After setup, edit `~/.config/autom8y/envs/autom8-asana/runbook.env` to add your `ASANA_PAT` from the Asana Developer Console.
+**Note:** After setup, edit `~/.config/autom8y/envs/autom8y-asana/runbook.env` to add your `ASANA_PAT` from the Asana Developer Console.
 
 ---
 
@@ -86,7 +86,7 @@ interpreter: bash
 terminalRows: 12
 ---
 # Load environment
-ENV_FILE="${HOME}/.config/autom8y/envs/autom8-asana/runbook.env"
+ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
 if [ -f "$ENV_FILE" ]; then
     set -a && source "$ENV_FILE" && set +a
 fi

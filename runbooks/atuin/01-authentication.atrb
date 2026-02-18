@@ -24,7 +24,7 @@ content:
     textAlignment: left
   content:
   - type: text
-    text: 'All authentication workflows for autom8_asana: PAT validation, Asana API
+    text: 'All authentication workflows for autom8y-asana: PAT validation, Asana API
       access, and workspace discovery.'
     styles: {}
   children: []
@@ -138,7 +138,7 @@ content:
     name: validate_pat
     code: |-
       # Prerequisite validation with actionable error
-      ENV_FILE="${HOME}/.config/autom8y/envs/autom8-asana/runbook.env"
+      ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
 
       # Check env file exists
       if [ ! -f "$ENV_FILE" ]; then
@@ -304,7 +304,7 @@ content:
     name: test_auth_flow
     code: |-
       # Load environment
-      ENV_FILE="${HOME}/.config/autom8y/envs/autom8-asana/runbook.env"
+      ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
       if [ -f "$ENV_FILE" ]; then
           set -a && source "$ENV_FILE" && set +a
       fi

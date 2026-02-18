@@ -1,4 +1,4 @@
-# justfile - Developer task runner for autom8_asana
+# justfile - Developer task runner for autom8y-asana
 # Usage: just <recipe>
 
 set dotenv-load
@@ -145,14 +145,14 @@ warm-cache:
 
 # Build Docker image
 docker-build tag="latest":
-    docker build -t autom8_asana:{{tag}} .
+    docker build -t autom8y-asana:{{tag}} .
 
 # Run Docker container
 docker-run port="8000" tag="latest":
     docker run --rm -p {{port}}:8000 \
         -e ASANA_PAT="${ASANA_PAT:-}" \
         -e LOG_LEVEL="${LOG_LEVEL:-INFO}" \
-        autom8_asana:{{tag}}
+        autom8y-asana:{{tag}}
 
 # Build and run Docker container
 docker-serve port="8000" tag="latest": (docker-build tag) (docker-run port tag)
@@ -168,18 +168,18 @@ clean:
 # Runbook Support Commands
 # ============================================
 # Minimal commands designed for one-liner use in Atuin Desktop runbooks.
-# Environment auto-loaded from: ~/.config/autom8y/envs/autom8-asana/runbook.env
+# Environment auto-loaded from: ~/.config/autom8y/envs/autom8y-asana/runbook.env
 
-# Setup runbook environment (creates ~/.config/autom8y/envs/autom8-asana/runbook.env)
+# Setup runbook environment (creates ~/.config/autom8y/envs/autom8y-asana/runbook.env)
 setup-env:
     #!/usr/bin/env bash
     set -euo pipefail
 
     TEMPLATE="runbooks/atuin/environments/local.env.example"
-    TARGET_DIR="${HOME}/.config/autom8y/envs/autom8-asana"
+    TARGET_DIR="${HOME}/.config/autom8y/envs/autom8y-asana"
     TARGET_FILE="${TARGET_DIR}/runbook.env"
 
-    echo "=== autom8_asana Onboarding Setup ==="
+    echo "=== autom8y-asana Onboarding Setup ==="
 
     if [ ! -f "$TEMPLATE" ]; then
         echo "ERROR: Template not found: $TEMPLATE"
@@ -208,10 +208,10 @@ check-env:
     set -euo pipefail
 
     # Auto-load runbook environment
-    ENV_FILE="${HOME}/.config/autom8y/envs/autom8-asana/runbook.env"
+    ENV_FILE="${HOME}/.config/autom8y/envs/autom8y-asana/runbook.env"
     [ -f "$ENV_FILE" ] && set -a && source "$ENV_FILE" && set +a
 
-    echo "=== autom8_asana Environment Check ==="
+    echo "=== autom8y-asana Environment Check ==="
     MISSING=""
 
     # Required variables

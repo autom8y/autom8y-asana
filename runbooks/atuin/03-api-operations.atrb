@@ -24,7 +24,7 @@ content:
     textAlignment: left
   content:
   - type: text
-    text: 'API usage guide for autom8_asana service: health checks, task operations,
+    text: 'API usage guide for autom8y-asana service: health checks, task operations,
       and endpoint examples.'
     styles: {}
   children: []
@@ -132,7 +132,7 @@ content:
     textAlignment: left
   content:
   - type: text
-    text: Check if the autom8_asana API service is healthy.
+    text: Check if the autom8y-asana API service is healthy.
     styles: {}
   children: []
 - id: 01bc65b3-567a-4477-b28a-d63e43a08d41
@@ -399,7 +399,7 @@ content:
       {
         "data": {
           "name": "Test Task from Runbook",
-          "notes": "Created via autom8_asana runbook",
+          "notes": "Created via autom8y-asana runbook",
           "projects": ["{{var.PROJECT_GID}}"]
         }
       }
@@ -452,7 +452,7 @@ content:
       {
         "data": {
           "name": "Updated Task Name",
-          "notes": "Updated via autom8_asana runbook"
+          "notes": "Updated via autom8y-asana runbook"
         }
       }
     headers: "{\"Authorization\": \"Bearer {{env.ASANA_PAT}}\", \"Content-Type\":\

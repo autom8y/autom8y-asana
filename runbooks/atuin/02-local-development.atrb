@@ -24,7 +24,7 @@ content:
     textAlignment: left
   content:
   - type: text
-    text: 'Development workflows for autom8_asana: running the API server, testing,
+    text: 'Development workflows for autom8y-asana: running the API server, testing,
       and Docker builds.'
     styles: {}
   children: []

@@ -1,11 +1,11 @@
-# autom8_asana SDK Examples
+# autom8y-asana SDK Examples
 
 Runnable examples demonstrating common SDK usage patterns.
 
 ## Prerequisites
 
 - Python 3.10 or higher
-- autom8_asana package installed
+- autom8y-asana package installed
 - Asana Personal Access Token (PAT)
 
 ## Setup

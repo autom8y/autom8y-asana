@@ -1,6 +1,6 @@
-# autom8_asana SDK Examples
+# autom8y-asana SDK Examples
 
-This directory contains runnable examples demonstrating the key features of the autom8_asana SDK. Each example is a standalone Python script with clear documentation and usage instructions.
+This directory contains runnable examples demonstrating the key features of the autom8y-asana SDK. Each example is a standalone Python script with clear documentation and usage instructions.
 
 ## Quick Start
 
@@ -21,7 +21,7 @@ This directory contains runnable examples demonstrating the key features of the 
    ```bash
    pip install -e .  # From repository root
    # or
-   pip install autom8_asana  # When published to PyPI
+   pip install autom8y-asana  # When published to PyPI
    ```
 
 ## Configuration

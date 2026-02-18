@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: DataServiceClient API Contract
   description: |
-    Client-side contract for autom8_asana consuming the autom8_data Insights API.
+    Client-side contract for autom8y-asana consuming the autom8_data Insights API.
 
     This specification defines:
     1. The HTTP calls that DataServiceClient makes to autom8_data

@@ -1,5 +1,5 @@
 ---
-artifact_id: TDD-autom8-asana-auth-v1-migration
+artifact_id: TDD-autom8y-asana-auth-v1-migration
 title: "autom8_asana: Migration to autom8y-auth SDK v1.0.0"
 created_at: "2026-02-12T22:00:00Z"
 author: architect

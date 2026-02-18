@@ -6,7 +6,7 @@ Shows how to use set_parent() to establish parent-child relationships and
 commit all entities in a single batch with proper dependency ordering.
 
 Prerequisites:
-    pip install autom8-asana
+    pip install autom8y-asana
     export ASANA_PAT="your_token"
     export ASANA_WORKSPACE_GID="your_workspace_gid"
 
