@@ -1,5 +1,7 @@
 # TDD: /aggregate Endpoint + AggSpec (Sprint 2, Cycle 2)
 
+> **Historical note:** This TDD was written when `query_v2.py` existed as a separate router file. The hygiene sprint (commit f6e08e5) merged it into `query.py`. References to `query_v2.py` below reflect the design-time state, not the current codebase.
+
 ## Metadata
 
 | Field | Value |
