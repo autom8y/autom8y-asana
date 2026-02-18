@@ -13,6 +13,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from autom8_asana.clients.data._pii import mask_pii_in_string as _mask_pii_in_string
 from autom8_asana.clients.data.models import (
     ColumnInfo,
     InsightsMetadata,
@@ -78,8 +79,8 @@ def cache_response(
 
         if log:
             log.debug(
-                f"DataServiceClient: Cached response for {cache_key}",
-                extra={"cache_key": cache_key, "ttl": ttl},
+                f"DataServiceClient: Cached response for {_mask_pii_in_string(cache_key)}",
+                extra={"cache_key": _mask_pii_in_string(cache_key), "ttl": ttl},
             )
     except (
         ConnectionError,
@@ -93,7 +94,7 @@ def cache_response(
         if log:
             log.warning(
                 f"DataServiceClient: Failed to cache response: {e}",
-                extra={"cache_key": cache_key},
+                extra={"cache_key": _mask_pii_in_string(cache_key)},
             )
 
 
@@ -165,9 +166,9 @@ def get_stale_response(
 
         if log:
             log.info(
-                f"DataServiceClient: Returning stale cache fallback for {cache_key}",
+                f"DataServiceClient: Returning stale cache fallback for {_mask_pii_in_string(cache_key)}",
                 extra={
-                    "cache_key": cache_key,
+                    "cache_key": _mask_pii_in_string(cache_key),
                     "cached_at": cached_at_str,
                     "row_count": metadata.row_count,
                 },
@@ -188,6 +189,6 @@ def get_stale_response(
         if log:
             log.warning(
                 f"DataServiceClient: Failed to retrieve stale response: {e}",
-                extra={"cache_key": cache_key},
+                extra={"cache_key": _mask_pii_in_string(cache_key)},
             )
         return None
