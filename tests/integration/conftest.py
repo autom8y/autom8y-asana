@@ -10,24 +10,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from autom8_asana.models.business.registry import (
-    ProjectTypeRegistry,
-    WorkspaceProjectRegistry,
-)
-
-
-@pytest.fixture(autouse=True)
-def reset_registries_after_test() -> Generator[None, None, None]:
-    """Auto-reset registries after each integration test.
-
-    Per ADR-0093/ADR-0108: Singleton registries must be reset between tests
-    to ensure test isolation. This fixture runs automatically for all
-    integration tests.
-    """
-    yield
-    ProjectTypeRegistry.reset()
-    WorkspaceProjectRegistry.reset()
-
 
 @pytest.fixture
 def client_fixture(mock_http, auth_provider, logger):

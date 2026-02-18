@@ -66,6 +66,23 @@ def _ensure_bootstrap() -> None:
 
             _bootstrap_initialized = True
             logger.info("bootstrap_complete", detail="ProjectTypeRegistry populated")
+
+            # Cross-registry validation (QW-4) — Lambda only checks
+            # ProjectTypeRegistry since EntityProjectRegistry is not
+            # populated in Lambda context.
+            from autom8_asana.core.registry_validation import (
+                validate_cross_registry_consistency,
+            )
+
+            validation = validate_cross_registry_consistency(
+                check_project_type_registry=True,
+                check_entity_project_registry=False,
+            )
+            if not validation.ok:
+                logger.error(
+                    "cross_registry_validation_failed",
+                    extra={"errors": validation.errors},
+                )
         except ImportError as e:
             logger.warning(
                 "bootstrap_failed",
