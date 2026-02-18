@@ -11,6 +11,35 @@ from dataclasses import dataclass, field
 from autom8_asana.exceptions import ConfigurationError
 
 
+@dataclass(frozen=True)
+class AssigneeConfig:
+    """Configurable assignee resolution cascade for pipeline stages.
+
+    Mirrors the lifecycle AssigneeConfig pattern (lifecycle/config.py) adapted
+    for the automation pipeline's Python-configured (non-YAML) stages.
+
+    Per ADR-0113: Rep Field Cascade Pattern.
+    Per FR-ASSIGN-001 through FR-ASSIGN-006.
+
+    Attributes:
+        assignee_gid: Fixed assignee GID (highest priority after assignee_source).
+            When set, this GID is used directly without rep field lookup.
+        assignee_source: Field name to look up on source_process or unit for a
+            stage-specific assignee (lifecycle step 1). Automation stages do not
+            currently use YAML-driven field lookup, so this defaults to None.
+            Included for parity with lifecycle AssigneeConfig.
+
+    Resolution order (when both None — the common automation case):
+        1. assignee_source field on source_process / unit  (skipped if None)
+        2. assignee_gid fixed GID                          (skipped if None)
+        3. unit.rep[0]
+        4. business.rep[0]
+    """
+
+    assignee_gid: str | None = None
+    assignee_source: str | None = None
+
+
 @dataclass
 class PipelineStage:
     """Configuration for a pipeline stage.

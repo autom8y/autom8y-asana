@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 from autom8y_log import get_logger
 
 from autom8_asana.automation.base import TriggerCondition
+from autom8_asana.automation.config import AssigneeConfig
 from autom8_asana.automation.events.types import EventType
 from autom8_asana.automation.seeding import FieldSeeder
 from autom8_asana.automation.validation import ValidationResult
@@ -440,14 +441,16 @@ class PipelineConversionRule:
             enhancement_results["hierarchy_placement"] = hierarchy_placed
 
             # Step 6: Resolve rep and set assignee (FR-ASSIGN-001 through FR-ASSIGN-006)
-            # Use fixed assignee_gid from PipelineStage if configured
+            # Construct AssigneeConfig from PipelineStage.assignee_gid (no assignee_source
+            # for automation -- stages are Python-configured, not YAML-driven).
+            assignee_config = AssigneeConfig(assignee_gid=stage.assignee_gid)
             assignee_set = await self._set_assignee_from_rep_async(
                 new_task=new_task,
                 source_process=source_process,
                 unit=unit,
                 business=business,
                 client=context.client,
-                fixed_assignee_gid=stage.assignee_gid,
+                assignee_config=assignee_config,
             )
             if assignee_set:
                 actions_executed.append("set_assignee")
@@ -606,6 +609,64 @@ class PipelineConversionRule:
             )
             return False
 
+    def _resolve_assignee_gid(
+        self,
+        source_process: Any,
+        unit: Any,
+        business: Any,
+        assignee_config: AssigneeConfig,
+    ) -> str | None:
+        """Resolve assignee GID from AssigneeConfig cascade (no API call).
+
+        Per FR-ASSIGN-001 through FR-ASSIGN-004: Configurable cascade.
+        Per ADR-0113: Rep Field Cascade Pattern.
+
+        Resolution order mirrors lifecycle _resolve_assignee_gid:
+          1. assignee_config.assignee_source field on source_process / unit
+             (skipped when None -- automation stages are Python-configured)
+          2. assignee_config.assignee_gid  (fixed GID from PipelineStage)
+          3. unit.rep[0]
+          4. business.rep[0]
+
+        Args:
+            source_process: Source process (for assignee_source field lookup).
+            unit: Unit entity (may be None).
+            business: Business entity (may be None).
+            assignee_config: Configurable assignee cascade settings.
+
+        Returns:
+            Assignee GID if resolved, None otherwise.
+        """
+        assignee_gid: str | None = None
+
+        # Step 1: Stage-specific field (assignee_source) -- mirrors lifecycle step 1.
+        # Automation stages are Python-configured (not YAML), so assignee_source is
+        # None in practice. Included for parity so the cascade is a strict superset.
+        if assignee_config.assignee_source:
+            attr_name = assignee_config.assignee_source.lower().replace(" ", "_")
+            source_field = getattr(source_process, attr_name, None)
+            if source_field:
+                assignee_gid = self._extract_user_gid(source_field)
+            if not assignee_gid and unit is not None:
+                unit_field = getattr(unit, attr_name, None)
+                if unit_field:
+                    assignee_gid = self._extract_user_gid(unit_field)
+
+        # Step 2: Fixed GID from AssigneeConfig (FR-ASSIGN-001)
+        if not assignee_gid and assignee_config.assignee_gid:
+            assignee_gid = assignee_config.assignee_gid
+            logger.info("pipeline_using_fixed_assignee", assignee_gid=assignee_gid)
+
+        # Step 3: Unit.rep[0] (FR-ASSIGN-002)
+        if not assignee_gid and unit is not None:
+            assignee_gid = self._extract_first_rep(unit)
+
+        # Step 4: Business.rep[0] (FR-ASSIGN-003)
+        if not assignee_gid and business is not None:
+            assignee_gid = self._extract_first_rep(business)
+
+        return assignee_gid
+
     async def _set_assignee_from_rep_async(
         self,
         new_task: Any,
@@ -613,9 +674,9 @@ class PipelineConversionRule:
         unit: Any,
         business: Any,
         client: Any,
-        fixed_assignee_gid: str | None = None,
+        assignee_config: AssigneeConfig | None = None,
     ) -> bool:
-        """Set assignee on new task from rep field cascade or fixed GID.
+        """Set assignee on new task via AssigneeConfig cascade.
 
         Per FR-ASSIGN-001: Set assignee from rep field.
         Per FR-ASSIGN-002: Unit.rep takes precedence over Business.rep.
@@ -627,45 +688,18 @@ class PipelineConversionRule:
 
         Args:
             new_task: Newly created task to set assignee on.
-            source_process: Source process (not used, kept for consistency).
+            source_process: Source process (for assignee_source field lookup).
             unit: Unit entity (may be None).
             business: Business entity (may be None).
             client: AsanaClient for API calls.
-            fixed_assignee_gid: Optional fixed assignee GID from PipelineStage.
-                When set, skips rep resolution and uses this GID directly.
+            assignee_config: Configurable assignee cascade. Defaults to empty
+                AssigneeConfig (rep-only cascade) when not provided.
 
         Returns:
             True if assignee was set successfully, False otherwise.
         """
-        assignee_gid: str | None = None
-
-        # Priority 0: Fixed assignee from PipelineStage (highest priority)
-        if fixed_assignee_gid:
-            assignee_gid = fixed_assignee_gid
-            logger.info("pipeline_using_fixed_assignee", assignee_gid=assignee_gid)
-        else:
-            # Priority 1: Unit.rep (FR-ASSIGN-002)
-            if unit is not None:
-                try:
-                    rep_list = getattr(unit, "rep", None)
-                    if rep_list and len(rep_list) > 0:
-                        # FR-ASSIGN-004: Use first user in list
-                        first_rep = rep_list[0]
-                        if isinstance(first_rep, dict):
-                            assignee_gid = first_rep.get("gid")
-                except (AttributeError, KeyError, TypeError, IndexError) as e:
-                    logger.warning("pipeline_unit_rep_access_failed", error=str(e))
-
-            # Priority 2: Business.rep fallback (FR-ASSIGN-003)
-            if assignee_gid is None and business is not None:
-                try:
-                    rep_list = getattr(business, "rep", None)
-                    if rep_list and len(rep_list) > 0:
-                        first_rep = rep_list[0]
-                        if isinstance(first_rep, dict):
-                            assignee_gid = first_rep.get("gid")
-                except (AttributeError, KeyError, TypeError, IndexError) as e:
-                    logger.warning("pipeline_business_rep_access_failed", error=str(e))
+        config = assignee_config if assignee_config is not None else AssigneeConfig()
+        assignee_gid = self._resolve_assignee_gid(source_process, unit, business, config)
 
         # FR-ASSIGN-005: No rep found, log warning
         if assignee_gid is None:
@@ -689,6 +723,35 @@ class PipelineConversionRule:
                 error=str(e),
             )
             return False
+
+    @staticmethod
+    def _extract_user_gid(field_value: Any) -> str | None:
+        """Extract user GID from a people field value.
+
+        Mirrors lifecycle EntityCreationService._extract_user_gid.
+        """
+        if isinstance(field_value, list) and field_value:
+            first = field_value[0]
+            if isinstance(first, dict):
+                return first.get("gid")
+            return getattr(first, "gid", None)
+        if isinstance(field_value, dict):
+            return field_value.get("gid")
+        return None
+
+    @staticmethod
+    def _extract_first_rep(entity: Any) -> str | None:
+        """Extract first rep GID from entity's rep field.
+
+        Per FR-ASSIGN-004: Use first user in list.
+        Mirrors lifecycle EntityCreationService._extract_first_rep.
+        """
+        rep_list = getattr(entity, "rep", None)
+        if rep_list and len(rep_list) > 0:
+            first = rep_list[0]
+            if isinstance(first, dict):
+                return first.get("gid")
+        return None
 
     async def _create_onboarding_comment_async(
         self,
