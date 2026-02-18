@@ -121,6 +121,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Per ADR-0060: Fail-fast on discovery failure
         raise RuntimeError(f"Entity resolver discovery failed: {e}") from e
 
+    # Cross-registry consistency validation (QW-4)
+    # Per ARCH-REVIEW-1: Prevent silent divergence between EntityRegistry
+    # and EntityProjectRegistry (just populated by discovery above).
+    # ProjectTypeRegistry is validated separately in Lambda bootstrap.
+    # GID mismatches are logged as errors but do not block startup, since
+    # EntityProjectRegistry is populated from live workspace discovery and
+    # may legitimately diverge from static EntityDescriptor GIDs.
+    from autom8_asana.core.registry_validation import validate_cross_registry_consistency
+
+    validation = validate_cross_registry_consistency(
+        check_project_type_registry=False,
+        check_entity_project_registry=True,
+    )
+    if not validation.ok:
+        logger.error(
+            "cross_registry_validation_failed",
+            extra={"errors": validation.errors},
+        )
+
     # Initialize DataFrameCache for Offer/Contact resolution strategies
     # Per TDD-DATAFRAME-CACHE-001: Provides tiered caching (Memory + S3)
     _initialize_dataframe_cache()

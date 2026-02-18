@@ -138,46 +138,14 @@ def mock_client_builder() -> type[MockClientBuilder]:
 
 
 @pytest.fixture(autouse=True)
-def reset_settings_singleton():
-    """Reset the settings singleton before and after each test.
+def reset_all_singletons():
+    """Reset all singletons before and after each test.
 
-    This ensures test isolation when tests modify environment variables
-    that affect Pydantic Settings.
+    Per QW-5: Uses SystemContext.reset_all() to ensure complete test
+    isolation across all registries, caches, and settings in one call.
     """
-    from autom8_asana.settings import reset_settings
+    from autom8_asana.core.system_context import SystemContext
 
-    reset_settings()
+    SystemContext.reset_all()
     yield
-    reset_settings()
-
-
-@pytest.fixture(autouse=True)
-def reset_registries():
-    """Reset all registry singletons before and after each test.
-
-    This ensures test isolation for:
-    - ProjectTypeRegistry (entity type detection)
-    - WorkspaceProjectRegistry (project discovery)
-    - SchemaRegistry (task-type to schema mapping)
-    - EntityProjectRegistry (entity-type to project mapping)
-    """
-    from autom8_asana.dataframes.models.registry import SchemaRegistry
-    from autom8_asana.models.business.registry import (
-        ProjectTypeRegistry,
-        WorkspaceProjectRegistry,
-    )
-    from autom8_asana.services.resolver import EntityProjectRegistry
-
-    # Reset before test - use classmethod to clear singletons
-    ProjectTypeRegistry.reset()
-    WorkspaceProjectRegistry.reset()
-    SchemaRegistry.reset()
-    EntityProjectRegistry.reset()
-
-    yield
-
-    # Reset after test
-    ProjectTypeRegistry.reset()
-    WorkspaceProjectRegistry.reset()
-    SchemaRegistry.reset()
-    EntityProjectRegistry.reset()
+    SystemContext.reset_all()
