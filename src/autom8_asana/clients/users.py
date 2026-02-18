@@ -16,12 +16,6 @@ from autom8_asana.observability import error_handler
 from autom8_asana.patterns import async_method
 from autom8_asana.settings import get_settings
 
-# Cache TTL for user metadata (1 hour)
-# User profiles change infrequently (name, email rarely modified)
-# Configurable via ASANA_CACHE_TTL_USER environment variable
-USER_CACHE_TTL = get_settings().cache.ttl_user
-
-
 class UsersClient(BaseClient):
     """Client for Asana User operations.
 
@@ -117,7 +111,8 @@ class UsersClient(BaseClient):
         data = await self._http.get(f"/users/{user_gid}", params=params)
 
         # Step 5: Store in cache
-        self._cache_set(user_gid, data, EntryType.USER, ttl=USER_CACHE_TTL)
+        cache_ttl = get_settings().cache.ttl_user
+        self._cache_set(user_gid, data, EntryType.USER, ttl=cache_ttl)
 
         # Step 6: Return model or raw dict
         if raw:

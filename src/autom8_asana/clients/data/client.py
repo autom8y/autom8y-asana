@@ -12,7 +12,6 @@ Per Story 1.9: Full observability with structured logging, PII redaction, and me
 from __future__ import annotations
 
 import asyncio
-import os
 import re
 import time
 import uuid
@@ -545,10 +544,9 @@ class DataServiceClient:
             InsightsServiceError: If feature is disabled, with reason="feature_disabled"
                 and a helpful message explaining how it was disabled.
         """
-        env_value = os.environ.get(self.FEATURE_FLAG_ENV_VAR, "").lower()
-        disabled_values = {"false", "0", "no"}
+        from autom8_asana.settings import get_settings
 
-        if env_value in disabled_values:
+        if not get_settings().data_service.insights_enabled:
             raise InsightsServiceError(
                 f"Insights integration is disabled. "
                 f"Remove {self.FEATURE_FLAG_ENV_VAR}=false or set to 'true' to enable.",

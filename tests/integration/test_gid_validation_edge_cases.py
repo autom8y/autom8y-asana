@@ -5,7 +5,7 @@ Per TDD-TRIAGE-FIXES Issue #5: GID Input Validation.
 
 import pytest
 
-from autom8_asana.persistence.exceptions import ValidationError
+from autom8_asana.persistence.exceptions import GidValidationError as ValidationError
 from autom8_asana.persistence.validation import validate_gid
 
 

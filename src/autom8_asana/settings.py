@@ -33,6 +33,16 @@ Environment Variables:
     ASANA_CACHE_DF_CB_FAILURE_THRESHOLD: DataFrame circuit breaker failures (default: 3)
     ASANA_CACHE_DF_CB_RESET_TIMEOUT: DataFrame circuit breaker reset secs (default: 60)
     ASANA_CACHE_DF_CB_SUCCESS_THRESHOLD: DataFrame circuit breaker successes (default: 1)
+    AUTOM8_DATA_URL: Base URL for autom8_data service (default: http://localhost:8000)
+    AUTOM8_DATA_CACHE_TTL: Cache TTL in seconds for data service insights (default: 300)
+    AUTOM8_DATA_INSIGHTS_ENABLED: Emergency kill switch for insights integration (default: true)
+    CLOUDWATCH_NAMESPACE: CloudWatch metric namespace (default: autom8/lambda)
+    ENVIRONMENT: Deployment environment for metrics dimensions (default: staging)
+    DATAFRAME_CACHE_BYPASS: Bypass DataFrame cache for testing (default: false)
+    CONTAINER_MEMORY_MB: Explicit container memory limit override in MB (default: None)
+    SECTION_FRESHNESS_PROBE: Enable section freshness probing (default: 1)
+    API_HOST: Host for ECS uvicorn server (default: 0.0.0.0)
+    API_PORT: Port for ECS uvicorn server (default: 8000)
     ASANA_PACING_PAGES_PER_PAUSE: Pages fetched before pausing (default: 25)
     ASANA_PACING_DELAY_SECONDS: Seconds to sleep between page batches (default: 2.0)
     ASANA_PACING_CHECKPOINT_EVERY_N_PAGES: Pages between checkpoint writes (default: 50)
@@ -532,6 +542,116 @@ class S3RetrySettings(Autom8yBaseSettings):
     )
 
 
+class DataServiceSettings(Autom8yBaseSettings):
+    """autom8_data satellite service configuration.
+
+    Environment Variables:
+        AUTOM8_DATA_URL: Base URL for autom8_data API (default: http://localhost:8000)
+        AUTOM8_DATA_CACHE_TTL: Client-side cache TTL in seconds (default: 300)
+        AUTOM8_DATA_INSIGHTS_ENABLED: Emergency kill switch (default: true)
+
+    Attributes:
+        url: Base URL for autom8_data service.
+        cache_ttl: Client-side cache TTL in seconds.
+        insights_enabled: Whether insights integration is enabled.
+            Set to false to disable without code deployment.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="AUTOM8_DATA_",
+        extra="ignore",
+        case_sensitive=False,
+    )
+
+    url: str = Field(
+        default="http://localhost:8000",
+        description="Base URL for autom8_data API",
+    )
+    cache_ttl: int = Field(
+        default=300,
+        description="Client-side cache TTL in seconds for insights",
+        ge=0,
+    )
+    insights_enabled: bool = Field(
+        default=True,
+        description="Emergency kill switch for insights integration (default on)",
+    )
+
+
+class ObservabilitySettings(Autom8yBaseSettings):
+    """Observability and environment settings for Lambda handlers.
+
+    Environment Variables:
+        CLOUDWATCH_NAMESPACE: CloudWatch metric namespace (default: autom8/lambda)
+        ENVIRONMENT: Deployment environment for metric dimensions (default: staging)
+
+    Attributes:
+        cloudwatch_namespace: CloudWatch metric namespace.
+        environment: Deployment environment label for metric dimensions.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="",
+        extra="ignore",
+        case_sensitive=False,
+    )
+
+    cloudwatch_namespace: str = Field(
+        default="autom8/lambda",
+        description="CloudWatch metric namespace",
+    )
+    environment: str = Field(
+        default="staging",
+        description="Deployment environment label for metric dimensions",
+    )
+
+
+class RuntimeSettings(Autom8yBaseSettings):
+    """Runtime and operational feature flag settings.
+
+    Environment Variables:
+        DATAFRAME_CACHE_BYPASS: Bypass DataFrame cache (default: false)
+        CONTAINER_MEMORY_MB: Override container memory limit in MB (default: None)
+        SECTION_FRESHNESS_PROBE: Enable section freshness probing (default: 1)
+        API_HOST: ECS uvicorn bind host (default: 0.0.0.0)
+        API_PORT: ECS uvicorn bind port (default: 8000)
+
+    Attributes:
+        dataframe_cache_bypass: If true, skip DataFrame cache lookup.
+        container_memory_mb: Explicit container memory cap in MB (None = auto-detect).
+        section_freshness_probe: Enabled when "1" (any non-"0" value).
+        api_host: Host for ECS uvicorn server.
+        api_port: Port for ECS uvicorn server.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="",
+        extra="ignore",
+        case_sensitive=False,
+    )
+
+    dataframe_cache_bypass: bool = Field(
+        default=False,
+        description="Bypass DataFrame cache for testing",
+    )
+    container_memory_mb: int | None = Field(
+        default=None,
+        description="Explicit container memory limit in MB (None = auto-detect from cgroup)",
+    )
+    section_freshness_probe: str = Field(
+        default="1",
+        description="Enable section freshness probing (set to '0' to disable)",
+    )
+    api_host: str = Field(
+        default="0.0.0.0",
+        description="Bind host for ECS uvicorn server",
+    )
+    api_port: int = Field(
+        default=8000,
+        description="Bind port for ECS uvicorn server",
+    )
+
+
 class WebhookSettings(Autom8yBaseSettings):
     """Webhook configuration settings.
 
@@ -639,6 +759,12 @@ class Settings(Autom8yBaseSettings):
         redis: Redis connection settings
         s3: S3 cache backend settings
         env: Environment detection settings
+        pacing: Pacing configuration for large section fetches
+        s3_retry: S3 retry and circuit breaker configuration
+        webhook: Webhook configuration
+        data_service: autom8_data satellite service configuration
+        observability: CloudWatch namespace and environment label
+        runtime: Runtime feature flags and operational settings
         project_overrides: Validation-only for ASANA_PROJECT_* env vars
 
     Example:
@@ -665,6 +791,9 @@ class Settings(Autom8yBaseSettings):
     pacing: PacingSettings = Field(default_factory=PacingSettings)
     s3_retry: S3RetrySettings = Field(default_factory=S3RetrySettings)
     webhook: WebhookSettings = Field(default_factory=WebhookSettings)
+    data_service: DataServiceSettings = Field(default_factory=DataServiceSettings)
+    observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
+    runtime: RuntimeSettings = Field(default_factory=RuntimeSettings)
     # Validation-only settings (triggers validation at startup)
     project_overrides: ProjectOverrideSettings = Field(
         default_factory=ProjectOverrideSettings

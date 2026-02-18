@@ -45,7 +45,7 @@ Example:
         if business.address:
             print(f"Address: {business.address.full_address}")
         if business.hours:
-            print(f"Monday: {business.hours.monday_hours}")
+            print(f"Monday: {business.hours.monday}")
 
         # Access typed fields
         business.company_id = "ACME-001"
@@ -90,9 +90,7 @@ from autom8_asana.models.business.business import (
 # TDD-HARDENING-A/FR-STUB-009: Export new stub models
 from autom8_asana.models.business.contact import Contact, ContactHolder
 from autom8_asana.models.business.detection import (
-    HOLDER_NAME_MAP,
     EntityType,
-    detect_by_name,
     detect_entity_type,
     detect_entity_type_async,
     detect_entity_type_from_dict,
@@ -203,8 +201,6 @@ __all__ = [
     "FinancialFieldsMixin",
     # Detection (Phase 2 - Hydration)
     "EntityType",
-    "HOLDER_NAME_MAP",
-    "detect_by_name",
     "detect_entity_type",
     "detect_entity_type_async",
     "detect_entity_type_from_dict",

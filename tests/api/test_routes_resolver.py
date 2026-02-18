@@ -26,7 +26,9 @@ import polars as pl
 import pytest
 from fastapi.testclient import TestClient
 
+from autom8_asana.api.dependencies import AuthContext, get_auth_context
 from autom8_asana.api.main import create_app
+from autom8_asana.auth.dual_mode import AuthMode
 from autom8_asana.services.dynamic_index import DynamicIndex
 from autom8_asana.services.resolution_result import ResolutionResult
 from autom8_asana.services.resolver import (
@@ -430,6 +432,17 @@ class TestResolveDiscoveryIncomplete:
 
             mock_discover.side_effect = no_setup
             test_app = create_app()
+
+            # Override get_auth_context so AuthContextDep doesn't attempt
+            # real JWT validation or bot PAT lookup in this isolated test app.
+            async def _mock_get_auth_context() -> AuthContext:
+                return AuthContext(
+                    mode=AuthMode.JWT,
+                    asana_pat="test_bot_pat",
+                    caller_service="autom8_data",
+                )
+
+            test_app.dependency_overrides[get_auth_context] = _mock_get_auth_context
 
             jwt_token = "header.payload.signature"
 

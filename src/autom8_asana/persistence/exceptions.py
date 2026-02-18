@@ -250,66 +250,6 @@ class GidValidationError(SaveOrchestrationError):
         super().__init__(message)
 
 
-# --- Backward Compatibility (FR-EXC-002) ---
-
-
-class _DeprecatedValidationErrorMeta(type):
-    """Metaclass that warns on ValidationError access.
-
-    Per ADR-HARDENING-A-001: Use metaclass-based deprecation warning that
-    triggers on isinstance/issubclass checks, catch clauses, and instantiation.
-    """
-
-    _warned = False  # Warn only once per session
-
-    def __call__(cls, *args: object, **kwargs: object) -> object:
-        """Warn on instantiation."""
-        cls._warn()
-        return super().__call__(*args, **kwargs)
-
-    def __instancecheck__(cls, instance: object) -> bool:
-        """Warn on isinstance() checks."""
-        cls._warn()
-        return isinstance(instance, GidValidationError)
-
-    def __subclasscheck__(cls, subclass: type) -> bool:
-        """Warn on issubclass() checks."""
-        cls._warn()
-        return issubclass(subclass, GidValidationError)
-
-    @classmethod
-    def _warn(cls) -> None:
-        """Emit deprecation warning once per session."""
-        if not cls._warned:
-            import warnings
-
-            warnings.warn(
-                "ValidationError is deprecated. Use GidValidationError instead. "
-                "ValidationError will be removed in v2.0.",
-                DeprecationWarning,
-                stacklevel=4,
-            )
-            cls._warned = True
-
-    @classmethod
-    def reset_warning(cls) -> None:
-        """Reset warning state (for testing)."""
-        cls._warned = False
-
-
-class ValidationError(GidValidationError, metaclass=_DeprecatedValidationErrorMeta):
-    """Deprecated alias for GidValidationError.
-
-    .. deprecated:: 1.x
-        Use :class:`GidValidationError` instead. This alias will be removed in v2.0.
-
-    Per FR-EXC-002: Backward compatibility alias with deprecation warning.
-    Warning is emitted once per session on first usage.
-    """
-
-    pass
-
-
 class SaveSessionError(SaveOrchestrationError):
     """Raised when a SaveSession commit fails in a convenience method.
 

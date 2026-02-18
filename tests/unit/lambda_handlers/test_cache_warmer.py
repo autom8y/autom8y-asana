@@ -459,6 +459,9 @@ class TestEmitMetric:
     def test_emits_metric_with_dimensions(self) -> None:
         """Metric is emitted with environment and custom dimensions."""
         mock_client = MagicMock()
+        mock_settings = MagicMock()
+        mock_settings.observability.environment = "test-env"
+        mock_settings.observability.cloudwatch_namespace = "autom8/lambda"
 
         with (
             patch(
@@ -466,8 +469,8 @@ class TestEmitMetric:
                 return_value=mock_client,
             ),
             patch(
-                "autom8_asana.lambda_handlers.cloudwatch.ENVIRONMENT",
-                "test-env",
+                "autom8_asana.settings.get_settings",
+                return_value=mock_settings,
             ),
         ):
             emit_metric(

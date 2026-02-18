@@ -1,7 +1,7 @@
 """Lifecycle engine integration smoke tests.
 
 Full-surface validation of the hardened lifecycle engine against both
-config integrity and service correctness. Categories 1-10 covering:
+config integrity and service correctness. Categories 1-9 covering:
 - YAML config loading and DAG validation
 - Live entity inspection (ASANA_PAT required)
 - CompletionService mock validation
@@ -10,7 +10,6 @@ config integrity and service correctness. Categories 1-10 covering:
 - EntityCreationService mock validation
 - Init action handler validation
 - LifecycleEngine integration with mock services
-- PipelineAutoCompletionService backward compatibility
 - Edge cases and adversarial scenarios
 """
 
@@ -1246,63 +1245,7 @@ class TestLifecycleEngineIntegration:
 
 
 # ===========================================================================
-# Category 9: PipelineAutoCompletionService Backward Compat
-# ===========================================================================
-
-
-class TestPipelineAutoCompletionServiceBackwardCompat:
-    """Validate deprecated PipelineAutoCompletionService."""
-
-    def test_class_exists_and_is_importable(self):
-        """PipelineAutoCompletionService should be importable."""
-        from autom8_asana.lifecycle.completion import (
-            PipelineAutoCompletionService,
-        )
-
-        assert PipelineAutoCompletionService is not None
-
-    def test_delegates_to_completion_service(self):
-        """auto_complete_async should delegate to
-        CompletionService.complete_source_async."""
-        from autom8_asana.lifecycle.completion import (
-            PipelineAutoCompletionService,
-        )
-
-        client = _make_mock_client()
-        service = PipelineAutoCompletionService(client)
-
-        process = _make_mock_process(completed=False)
-
-        async def _run():
-            return await service.auto_complete_async(process, new_pipeline_stage=3)
-
-        result = _run_async(_run())
-        assert result.completed == [process.gid]
-        client.tasks.update_async.assert_called_once_with(process.gid, completed=True)
-
-    def test_new_pipeline_stage_parameter_ignored(self):
-        """The new_pipeline_stage parameter should be accepted but
-        ignored."""
-        from autom8_asana.lifecycle.completion import (
-            PipelineAutoCompletionService,
-        )
-
-        client = _make_mock_client()
-        service = PipelineAutoCompletionService(client)
-
-        # Already completed -- new_pipeline_stage should not matter
-        process = _make_mock_process(completed=True)
-
-        async def _run():
-            return await service.auto_complete_async(process, new_pipeline_stage=999)
-
-        result = _run_async(_run())
-        assert result.completed == []
-        client.tasks.update_async.assert_not_called()
-
-
-# ===========================================================================
-# Category 10: Edge Cases and Adversarial Scenarios
+# Category 9: Edge Cases and Adversarial Scenarios
 # ===========================================================================
 
 
@@ -1749,6 +1692,10 @@ class TestEdgeCasesAdversarial:
         assert result.success is False
         assert "not yet implemented" in result.error.lower()
 
+    @pytest.mark.skip(
+        reason="_CompletionAdapter removed: CompletionService is now used directly "
+        "without a shim adapter (see _import_completion_service in engine.py)"
+    )
     def test_completion_adapter_returns_empty(self):
         """The _CompletionAdapter should return empty
         CompletionResult."""

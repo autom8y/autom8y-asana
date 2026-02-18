@@ -14,7 +14,6 @@ This builder enables:
 from __future__ import annotations
 
 import asyncio
-import os
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -267,7 +266,9 @@ class ProgressiveProjectBuilder:
         if not manifest.is_complete():
             return 0, 0
 
-        if os.environ.get("SECTION_FRESHNESS_PROBE", "1") == "0":
+        from autom8_asana.settings import get_settings
+
+        if get_settings().runtime.section_freshness_probe == "0":
             return 0, 0
 
         try:

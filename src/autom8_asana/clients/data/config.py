@@ -17,10 +17,10 @@ See the architectural opportunities report (B4) for the full analysis.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 
 from autom8_asana.exceptions import ConfigurationError
+from autom8_asana.settings import get_settings
 
 __all__ = [
     "TimeoutConfig",
@@ -239,9 +239,7 @@ class DataServiceConfig:
     """
 
     base_url: str = field(
-        default_factory=lambda: os.environ.get(
-            "AUTOM8_DATA_URL", "http://localhost:8000"
-        )
+        default_factory=lambda: get_settings().data_service.url
     )
     token_key: str = "AUTOM8_DATA_API_KEY"
 
@@ -295,14 +293,8 @@ class DataServiceConfig:
             >>> config.cache_ttl
             600
         """
-        # Parse cache TTL with fallback
-        cache_ttl_str = os.environ.get("AUTOM8_DATA_CACHE_TTL", "300")
-        try:
-            cache_ttl = int(cache_ttl_str)
-        except ValueError:
-            cache_ttl = 300  # Default on invalid input
-
+        s = get_settings().data_service
         return cls(
-            base_url=os.environ.get("AUTOM8_DATA_URL", "http://localhost:8000"),
-            cache_ttl=cache_ttl,
+            base_url=s.url,
+            cache_ttl=s.cache_ttl,
         )

@@ -116,7 +116,7 @@ class TestVerifyWebhookToken:
 
     def test_valid_token_returns_token(self, webhook_token):
         """Valid token should be returned unchanged."""
-        result = verify_webhook_token(token=_TEST_TOKEN)
+        result = verify_webhook_token(request_id="test-req-id", token=_TEST_TOKEN)
         assert result == _TEST_TOKEN
 
     def test_missing_token_raises_401(self, webhook_token):
@@ -124,7 +124,7 @@ class TestVerifyWebhookToken:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
-            verify_webhook_token(token=None)
+            verify_webhook_token(request_id="test-req-id", token=None)
         assert exc_info.value.status_code == 401
         assert exc_info.value.detail["error"] == "MISSING_TOKEN"
 
@@ -133,7 +133,7 @@ class TestVerifyWebhookToken:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
-            verify_webhook_token(token="")
+            verify_webhook_token(request_id="test-req-id", token="")
         assert exc_info.value.status_code == 401
         assert exc_info.value.detail["error"] == "MISSING_TOKEN"
 
@@ -142,7 +142,7 @@ class TestVerifyWebhookToken:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
-            verify_webhook_token(token="wrong-token")
+            verify_webhook_token(request_id="test-req-id", token="wrong-token")
         assert exc_info.value.status_code == 401
         assert exc_info.value.detail["error"] == "INVALID_TOKEN"
 
@@ -151,7 +151,7 @@ class TestVerifyWebhookToken:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
-            verify_webhook_token(token="any-token")
+            verify_webhook_token(request_id="test-req-id", token="any-token")
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail["error"] == "WEBHOOK_NOT_CONFIGURED"
 
@@ -159,7 +159,7 @@ class TestVerifyWebhookToken:
         """Verify hmac.compare_digest is used for comparison."""
         with patch("autom8_asana.api.routes.webhooks.hmac.compare_digest") as mock_cmp:
             mock_cmp.return_value = True
-            verify_webhook_token(token=_TEST_TOKEN)
+            verify_webhook_token(request_id="test-req-id", token=_TEST_TOKEN)
             mock_cmp.assert_called_once_with(_TEST_TOKEN, _TEST_TOKEN)
 
 

@@ -74,9 +74,6 @@ class Task(AsanaResource):
 
     # Hierarchy and dependencies
     num_subtasks: int | None = None
-    num_hearts: int | None = Field(
-        default=None, description="Deprecated: use num_likes"
-    )
     num_likes: int | None = None
     is_rendered_as_separator: bool | None = None
 
@@ -115,11 +112,6 @@ class Task(AsanaResource):
 
     # Liked status
     liked: bool | None = None
-    hearted: bool | None = Field(default=None, description="Deprecated: use liked")
-    hearts: list[dict[str, Any]] | None = Field(
-        default=None,
-        description="Deprecated: use likes",
-    )
     likes: list[dict[str, Any]] | None = (
         None  # Keep as dict (user refs with extra data)
     )

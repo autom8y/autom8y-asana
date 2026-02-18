@@ -1,8 +1,9 @@
 """Entity Query routes for list/filter operations on DataFrame cache.
 
 Routes:
-- POST /v1/query/{entity_type} - Legacy query with flat equality filtering (deprecated)
-- POST /v1/query/{entity_type}/rows - New query with composable predicate trees
+- POST /v1/query/{entity_type} - Legacy query with flat equality filtering (deprecated, sunset 2026-06-01)
+- POST /v1/query/{entity_type}/rows - Filtered row retrieval with composable predicates
+- POST /v1/query/{entity_type}/aggregate - Aggregate entity data with grouping
 
 Authentication:
 - All routes require service token (S2S JWT) authentication
@@ -12,46 +13,41 @@ Authentication:
 from __future__ import annotations
 
 import time
-from typing import Annotated, Any
+from typing import Annotated, Any, Never
 
 from autom8y_log import get_logger
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from autom8_asana.api.dependencies import EntityServiceDep
+from autom8_asana.api.dependencies import EntityServiceDep, RequestId
 from autom8_asana.api.errors import raise_api_error, raise_service_error
-from autom8_asana.api.routes.internal import (
-    ServiceClaims,
-    require_service_claims,
-)
+from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
 from autom8_asana.client import AsanaClient
 from autom8_asana.query.engine import QueryEngine
 from autom8_asana.query.errors import (
-    CoercionError,
-    InvalidOperatorError,
+    AggregateGroupLimitError,
+    QueryEngineError,
     QueryTooComplexError,
-    UnknownFieldError,
-    UnknownSectionError,
 )
-from autom8_asana.query.models import RowsRequest, RowsResponse
-from autom8_asana.services.errors import (
-    InvalidFieldError,
-    ServiceError,
+from autom8_asana.query.guards import predicate_depth
+from autom8_asana.query.models import (
+    AggregateRequest,
+    AggregateResponse,
+    RowsRequest,
+    RowsResponse,
 )
-from autom8_asana.services.errors import (
-    UnknownSectionError as SvcUnknownSectionError,
-)
+from autom8_asana.services.errors import InvalidFieldError, ServiceError
 from autom8_asana.services.query_service import (
     CacheNotWarmError,
     EntityQueryService,
-    resolve_section,
-    strip_section_conflicts,
+    resolve_section_index,
     validate_fields,
 )
 
 __all__ = [
     "router",
+    # Legacy models (backward compatibility for imports)
     "QueryRequest",
     "QueryMeta",
     "QueryResponse",
@@ -61,6 +57,32 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/v1/query", tags=["query"], include_in_schema=False)
 
+
+# ---------------------------------------------------------------------------
+# Error-to-status mapping (canonical pattern per D-004)
+# ---------------------------------------------------------------------------
+
+_ERROR_STATUS: dict[type[QueryEngineError], int] = {
+    QueryTooComplexError: 400,
+    AggregateGroupLimitError: 400,
+}
+_DEFAULT_ERROR_STATUS = 422
+
+
+def _raise_query_error(request_id: str, error: QueryEngineError) -> Never:
+    """Map QueryEngineError to HTTPException with request_id.
+
+    Per ADR-I6-001: Preserves existing status mapping while adding
+    request_id to every error response.
+    """
+    status = _ERROR_STATUS.get(type(error), _DEFAULT_ERROR_STATUS)
+    d = error.to_dict()
+    raise_api_error(request_id, status, d["error"], d["message"])
+
+
+# ---------------------------------------------------------------------------
+# Legacy models (for deprecated POST /{entity_type} endpoint)
+# ---------------------------------------------------------------------------
 
 DEFAULT_SELECT_FIELDS = ["gid", "name", "section"]
 
@@ -109,17 +131,159 @@ class QueryResponse(BaseModel):
     meta: QueryMeta
 
 
+# ---------------------------------------------------------------------------
+# Active endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{entity_type}/rows", response_model=RowsResponse)
+async def query_rows(
+    entity_type: str,
+    request_body: RowsRequest,
+    request_id: RequestId,
+    claims: Annotated[ServiceClaims, Depends(require_service_claims)],
+    entity_service: EntityServiceDep,
+) -> RowsResponse:
+    """Query entity rows with composable predicate filtering.
+
+    See PRD-dynamic-query-service FR-004.
+    """
+    # 1. Entity validation via EntityServiceDep
+    try:
+        ctx = entity_service.validate_entity_type(entity_type)
+    except ServiceError as e:
+        raise_service_error(request_id, e)
+
+    # 2. Build section index (manifest-first, enum fallback)
+    section_index = await resolve_section_index(
+        request_body.section, entity_type, ctx.project_gid
+    )
+
+    # 3. Execute query
+    engine = QueryEngine()
+    try:
+        async with AsanaClient(token=ctx.bot_pat) as client:
+            result = await engine.execute_rows(
+                entity_type=entity_type,
+                project_gid=ctx.project_gid,
+                client=client,
+                request=request_body,
+                section_index=section_index,
+                entity_project_registry=entity_service.project_registry,
+            )
+    except QueryEngineError as e:
+        _raise_query_error(request_id, e)
+    except CacheNotWarmError as e:
+        raise_api_error(
+            request_id,
+            503,
+            "CACHE_NOT_WARMED",
+            str(e),
+            details={"retry_after_seconds": 30},
+        )
+
+    # 4. Log query completion
+    logger.info(
+        "query_rows_complete",
+        extra={
+            "entity_type": entity_type,
+            "total_count": result.meta.total_count,
+            "returned_count": result.meta.returned_count,
+            "query_ms": result.meta.query_ms,
+            "caller_service": claims.service_name,
+            "predicate_depth": (
+                predicate_depth(request_body.where) if request_body.where else 0
+            ),
+            "section": request_body.section,
+        },
+    )
+
+    return result
+
+
+@router.post("/{entity_type}/aggregate", response_model=AggregateResponse)
+async def query_aggregate(
+    entity_type: str,
+    request_body: AggregateRequest,
+    request_id: RequestId,
+    claims: Annotated[ServiceClaims, Depends(require_service_claims)],
+    entity_service: EntityServiceDep,
+) -> AggregateResponse:
+    """Aggregate entity data with grouping and optional HAVING filter.
+
+    See PRD-dynamic-query-service FR-005.
+    """
+    # 1. Entity validation via EntityServiceDep
+    try:
+        ctx = entity_service.validate_entity_type(entity_type)
+    except ServiceError as e:
+        raise_service_error(request_id, e)
+
+    # 2. Build section index
+    section_index = await resolve_section_index(
+        request_body.section, entity_type, ctx.project_gid
+    )
+
+    # 3. Execute aggregate query
+    engine = QueryEngine()
+    try:
+        async with AsanaClient(token=ctx.bot_pat) as client:
+            result = await engine.execute_aggregate(
+                entity_type=entity_type,
+                project_gid=ctx.project_gid,
+                client=client,
+                request=request_body,
+                section_index=section_index,
+            )
+    except QueryEngineError as e:
+        _raise_query_error(request_id, e)
+    except CacheNotWarmError as e:
+        raise_api_error(
+            request_id,
+            503,
+            "CACHE_NOT_WARMED",
+            str(e),
+            details={"retry_after_seconds": 30},
+        )
+
+    # 4. Log query completion
+    logger.info(
+        "query_aggregate_complete",
+        extra={
+            "entity_type": entity_type,
+            "group_count": result.meta.group_count,
+            "aggregation_count": result.meta.aggregation_count,
+            "group_by": result.meta.group_by,
+            "query_ms": result.meta.query_ms,
+            "caller_service": claims.service_name,
+            "predicate_depth": (
+                predicate_depth(request_body.where) if request_body.where else 0
+            ),
+            "having_depth": (
+                predicate_depth(request_body.having) if request_body.having else 0
+            ),
+            "section": request_body.section,
+        },
+    )
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Deprecated endpoint (sunset 2026-06-01)
+# ---------------------------------------------------------------------------
+
+
 @router.post("/{entity_type}", response_model=QueryResponse)
 async def query_entities(
     entity_type: str,
     request_body: QueryRequest,
-    request: Request,
+    request_id: RequestId,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
     entity_service: EntityServiceDep,
 ) -> JSONResponse:
     """Query entities from DataFrame cache (deprecated -- use /rows)."""
     start_time = time.monotonic()
-    request_id = getattr(request.state, "request_id", "unknown")
 
     logger.info(
         "entity_query_request",
@@ -134,25 +298,25 @@ async def query_entities(
         },
     )
 
-    # 1. Entity validation (replaces inline entity type + project + bot PAT logic)
+    # 1. Entity validation
     try:
         ctx = entity_service.validate_entity_type(entity_type)
     except ServiceError as e:
-        raise_service_error(request, e)
+        raise_service_error(request_id, e)
 
     # 2. Field validation via QueryService
     if request_body.where:
         try:
             validate_fields(list(request_body.where.keys()), entity_type, "where")
         except InvalidFieldError as e:
-            raise_service_error(request, e)
+            raise_service_error(request_id, e)
 
     select_fields = request_body.select or DEFAULT_SELECT_FIELDS
 
     try:
         validate_fields(select_fields, entity_type, "select")
     except InvalidFieldError as e:
-        raise_service_error(request, e)
+        raise_service_error(request_id, e)
 
     # 3. Execute query via EntityQueryService
     query_service = EntityQueryService()
@@ -179,7 +343,7 @@ async def query_entities(
             },
         )
         raise_api_error(
-            request,
+            request_id,
             503,
             "CACHE_NOT_WARMED",
             str(e),
@@ -234,136 +398,3 @@ async def query_entities(
     )
 
     return response_obj
-
-
-@router.post("/{entity_type}/rows", response_model=RowsResponse)
-async def query_rows(
-    entity_type: str,
-    request_body: RowsRequest,
-    request: Request,
-    claims: Annotated[ServiceClaims, Depends(require_service_claims)],
-    entity_service: EntityServiceDep,
-) -> RowsResponse:
-    """Query entity rows with composable predicate trees."""
-    start_time = time.monotonic()
-    request_id = getattr(request.state, "request_id", "unknown")
-
-    # 1. Log request
-    logger.info(
-        "query_rows_request",
-        extra={
-            "request_id": request_id,
-            "entity_type": entity_type,
-            "caller_service": claims.service_name,
-            "section": request_body.section,
-            "select_fields": request_body.select,
-            "limit": request_body.limit,
-            "offset": request_body.offset,
-            "has_predicate": request_body.where is not None,
-        },
-    )
-
-    # 2. Entity validation (replaces inline entity type + project + bot PAT logic)
-    try:
-        ctx = entity_service.validate_entity_type(entity_type)
-    except ServiceError as e:
-        raise_service_error(request, e)
-
-    # 3. Section resolution (if needed)
-    section_index = None
-    if request_body.section is not None:
-        try:
-            await resolve_section(request_body.section, entity_type, ctx.project_gid)
-        except SvcUnknownSectionError as e:
-            raise_api_error(
-                request,
-                422,
-                "UNKNOWN_SECTION",
-                f"Unknown section: '{e.section_name}'",
-                details={"section": e.section_name},
-            )
-        # Build section index for QueryEngine
-        from autom8_asana.metrics.resolve import SectionIndex
-
-        section_index = SectionIndex.from_enum_fallback(entity_type)
-
-    # 4. EC-006: If section param + section in predicate, strip conflicts
-    original_body = request_body
-    request_body = strip_section_conflicts(request_body, request_body.section)
-    if request_body is not original_body:
-        logger.warning(
-            "section_parameter_conflicts_with_predicate",
-            extra={
-                "request_id": request_id,
-                "entity_type": entity_type,
-                "section": request_body.section,
-            },
-        )
-
-    # 5. Execute via QueryEngine
-    engine = QueryEngine()
-
-    try:
-        async with AsanaClient(token=ctx.bot_pat) as client:
-            response = await engine.execute_rows(
-                entity_type=entity_type,
-                project_gid=ctx.project_gid,
-                client=client,
-                request=request_body,
-                section_index=section_index,
-            )
-    except QueryTooComplexError as e:
-        d = e.to_dict()
-        raise_api_error(request, 400, d["error"], d["message"])
-    except UnknownFieldError as e:
-        d = e.to_dict()
-        raise_api_error(
-            request,
-            422,
-            d["error"],
-            d["message"],
-            details={"available_fields": d.get("available_fields")},
-        )
-    except InvalidOperatorError as e:
-        d = e.to_dict()
-        raise_api_error(request, 422, d["error"], d["message"])
-    except CoercionError as e:
-        d = e.to_dict()
-        raise_api_error(request, 422, d["error"], d["message"])
-    except UnknownSectionError as e:
-        d = e.to_dict()
-        raise_api_error(
-            request,
-            422,
-            d["error"],
-            d["message"],
-            details={"section": d.get("section")},
-        )
-    except CacheNotWarmError as e:
-        raise_api_error(
-            request,
-            503,
-            "CACHE_NOT_WARMED",
-            str(e),
-            details={
-                "entity_type": entity_type,
-                "retry_after_seconds": 30,
-            },
-        )
-
-    # 6. Log completion
-    elapsed_ms = (time.monotonic() - start_time) * 1000
-
-    logger.info(
-        "query_rows_complete",
-        extra={
-            "request_id": request_id,
-            "entity_type": entity_type,
-            "total_count": response.meta.total_count,
-            "returned_count": response.meta.returned_count,
-            "query_ms": round(elapsed_ms, 2),
-            "caller_service": claims.service_name,
-        },
-    )
-
-    return response

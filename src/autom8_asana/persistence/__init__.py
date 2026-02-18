@@ -101,7 +101,6 @@ from autom8_asana.persistence.exceptions import (
     SessionClosedError,
     # TDD-0011: Unsupported operation
     UnsupportedOperationError,
-    ValidationError,  # Deprecated alias for backward compatibility
 )
 from autom8_asana.persistence.healing import HealingManager
 from autom8_asana.persistence.models import (
@@ -153,5 +152,4 @@ __all__ = [
     # TDD-HARDENING-A: Exception hierarchy cleanup (FR-EXC-003, FR-EXC-004)
     "GidValidationError",
     "PositioningConflictError",
-    "ValidationError",  # Deprecated alias for backward compatibility
 ]

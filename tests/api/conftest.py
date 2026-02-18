@@ -13,8 +13,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from autom8_asana.api.dependencies import AuthContext, get_auth_context
 from autom8_asana.api.main import create_app
 from autom8_asana.auth.bot_pat import clear_bot_pat_cache
+from autom8_asana.auth.dual_mode import AuthMode
 from autom8_asana.auth.jwt_validator import reset_auth_client
 from autom8_asana.services.resolver import EntityProjectRegistry
 
@@ -50,6 +52,11 @@ def app():
     """Create a test application instance once per module with mocked discovery.
 
     Module-scoped to avoid per-test ASGI lifespan overhead (~340ms/test).
+
+    Provides a default get_auth_context override so that routes using
+    AuthContextDep don't attempt real JWT validation or bot PAT lookup.
+    Individual tests that need specific auth behaviour use their own
+    patch() or override this override via app.dependency_overrides.
     """
     with patch(
         "autom8_asana.api.lifespan._discover_entity_projects",
@@ -61,7 +68,21 @@ def app():
             app.state.entity_project_registry = registry
 
         mock_discover.side_effect = setup_registry
-        yield create_app()
+        test_app = create_app()
+
+        # Default auth context: JWT mode with a stub bot PAT.
+        # Tests that need PAT-rejection or missing-auth responses rely on
+        # require_service_claims, which validates independently of this override.
+        async def _mock_get_auth_context() -> AuthContext:
+            return AuthContext(
+                mode=AuthMode.JWT,
+                asana_pat="test_bot_pat",
+                caller_service="autom8_data",
+            )
+
+        test_app.dependency_overrides[get_auth_context] = _mock_get_auth_context
+
+        yield test_app
 
 
 @pytest.fixture(scope="module")

@@ -77,7 +77,7 @@ class TestBusinessHolderProperties:
         business._dna_holder = task
         assert business.dna_holder is task
 
-        assert business.reconciliations_holder is None
+        assert business.reconciliation_holder is None
         assert business.asset_edit_holder is None
         assert business.videography_holder is None
 

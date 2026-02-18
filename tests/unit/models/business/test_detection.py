@@ -13,7 +13,6 @@ Test cases:
 7. Unified: short-circuit behavior
 8. Unified: falls through to Tier 5
 9. Performance: Tier 1 < 1ms
-10. Backward compatibility: detect_by_name deprecation
 """
 
 from __future__ import annotations
@@ -34,7 +33,6 @@ from autom8_asana.models.business.detection import (
     DetectionResult,
     EntityType,
     _detect_tier1_project_membership_async,
-    detect_by_name,
     detect_by_parent,
     detect_by_project,
     detect_by_structure_async,
@@ -649,36 +647,6 @@ class TestDetectEntityTypeAsync:
         # Falls through to UNKNOWN
         assert result.entity_type == EntityType.UNKNOWN
         assert result.tier_used == 5
-
-
-# --- Test: Backward Compatibility ---
-
-
-class TestBackwardCompatibility:
-    """Tests for backward compatibility with legacy detect_by_name."""
-
-    def test_detect_by_name_emits_deprecation_warning(self) -> None:
-        """detect_by_name() emits DeprecationWarning."""
-        with pytest.warns(DeprecationWarning) as warning_list:
-            detect_by_name("Contacts")
-
-        assert len(warning_list) == 1
-        assert "deprecated" in str(warning_list[0].message).lower()
-        assert "detect_entity_type" in str(warning_list[0].message)
-
-    def test_detect_by_name_still_works(self) -> None:
-        """detect_by_name() still returns correct results."""
-        with pytest.warns(DeprecationWarning):
-            result = detect_by_name("Contacts")
-
-        assert result == EntityType.CONTACT_HOLDER
-
-    def test_detect_by_name_returns_none_for_unknown(self) -> None:
-        """detect_by_name() returns None for unknown names."""
-        with pytest.warns(DeprecationWarning):
-            result = detect_by_name("Random Name")
-
-        assert result is None
 
 
 # --- Test: Edge Cases ---

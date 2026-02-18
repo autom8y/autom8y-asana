@@ -11,7 +11,6 @@ Entry points:
 from autom8_asana.lifecycle.completion import (
     CompletionResult,
     CompletionService,
-    PipelineAutoCompletionService,
 )
 from autom8_asana.lifecycle.config import (
     AssigneeConfig,
@@ -83,7 +82,6 @@ __all__ = [
     # Services
     "EntityCreationService",
     "CascadingSectionService",
-    "PipelineAutoCompletionService",
     "CompletionService",
     "DependencyWiringService",
     "ReopenService",

@@ -21,10 +21,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import polars as pl
 import pytest
 
+from autom8_asana.api.dependencies import AuthContext, AuthContextDep, get_auth_context
 from autom8_asana.api.main import create_app
 from autom8_asana.api.routes.health import set_cache_ready
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
 from autom8_asana.auth.bot_pat import clear_bot_pat_cache
+from autom8_asana.auth.dual_mode import AuthMode
 from autom8_asana.auth.jwt_validator import reset_auth_client
 from autom8_asana.services.dynamic_index import DynamicIndex
 from autom8_asana.services.resolution_result import ResolutionResult
@@ -209,11 +211,21 @@ class TestEntityResolverE2E:
             # Create app with mocked components
             app = create_app()
 
-            # Override the auth dependency using FastAPI's dependency override system
+            # Override both auth dependencies using FastAPI's dependency override system.
+            # require_service_claims: used by resolver route for S2S JWT validation.
+            # get_auth_context: used by AuthContextDep to get the PAT for Asana calls.
             async def mock_require_claims():
                 return mock_service_claims
 
+            async def mock_get_auth_context():
+                return AuthContext(
+                    mode=AuthMode.JWT,
+                    asana_pat="test_bot_pat",
+                    caller_service="test_service",
+                )
+
             app.dependency_overrides[require_service_claims] = mock_require_claims
+            app.dependency_overrides[get_auth_context] = mock_get_auth_context
 
             try:
                 # Use TestClient which properly manages lifespan
@@ -300,7 +312,15 @@ class TestEntityResolverE2E:
             async def mock_require_claims():
                 return mock_service_claims
 
+            async def mock_get_auth_context():
+                return AuthContext(
+                    mode=AuthMode.JWT,
+                    asana_pat="test_bot_pat",
+                    caller_service="test_service",
+                )
+
             app.dependency_overrides[require_service_claims] = mock_require_claims
+            app.dependency_overrides[get_auth_context] = mock_get_auth_context
 
             try:
                 with TestClient(app) as client:
@@ -378,7 +398,15 @@ class TestEntityResolverE2E:
             async def mock_require_claims():
                 return mock_service_claims
 
+            async def mock_get_auth_context():
+                return AuthContext(
+                    mode=AuthMode.JWT,
+                    asana_pat="test_bot_pat",
+                    caller_service="test_service",
+                )
+
             app.dependency_overrides[require_service_claims] = mock_require_claims
+            app.dependency_overrides[get_auth_context] = mock_get_auth_context
 
             try:
                 with TestClient(app) as client:

@@ -16,9 +16,7 @@ from autom8_asana.exceptions import HydrationError
 from autom8_asana.models.business.business import Business
 from autom8_asana.models.business.contact import Contact, ContactHolder
 from autom8_asana.models.business.detection import (
-    HOLDER_NAME_MAP,
     EntityType,
-    detect_by_name,
     detect_entity_type_async,
 )
 from autom8_asana.models.business.hydration import (
@@ -63,82 +61,6 @@ class TestEntityType:
         assert EntityType.BUSINESS.value == "business"
         assert EntityType.CONTACT_HOLDER.value == "contact_holder"
         assert EntityType.UNKNOWN.value == "unknown"
-
-
-class TestHolderNameMap:
-    """Tests for HOLDER_NAME_MAP constant."""
-
-    def test_all_holders_mapped(self) -> None:
-        """HOLDER_NAME_MAP includes all holder types."""
-        expected_types = {
-            EntityType.CONTACT_HOLDER,
-            EntityType.UNIT_HOLDER,
-            EntityType.OFFER_HOLDER,
-            EntityType.PROCESS_HOLDER,
-            EntityType.LOCATION_HOLDER,
-            EntityType.DNA_HOLDER,
-            EntityType.RECONCILIATIONS_HOLDER,
-            EntityType.ASSET_EDIT_HOLDER,
-            EntityType.VIDEOGRAPHY_HOLDER,
-        }
-        assert set(HOLDER_NAME_MAP.values()) == expected_types
-
-    def test_holder_names_are_lowercase(self) -> None:
-        """HOLDER_NAME_MAP keys are lowercase."""
-        for key in HOLDER_NAME_MAP:
-            assert key == key.lower()
-
-
-@pytest.mark.filterwarnings("ignore::DeprecationWarning")
-class TestDetectByName:
-    """Tests for detect_by_name function (deprecated).
-
-    Per TDD-DETECTION: detect_by_name is deprecated in favor of detect_entity_type.
-    Tests use filterwarnings to suppress expected DeprecationWarning.
-    """
-
-    @pytest.mark.parametrize(
-        "name,expected",
-        [
-            ("contacts", EntityType.CONTACT_HOLDER),
-            ("Contacts", EntityType.CONTACT_HOLDER),
-            ("CONTACTS", EntityType.CONTACT_HOLDER),
-            ("units", EntityType.UNIT_HOLDER),
-            ("offers", EntityType.OFFER_HOLDER),
-            ("processes", EntityType.PROCESS_HOLDER),
-            ("location", EntityType.LOCATION_HOLDER),
-            ("dna", EntityType.DNA_HOLDER),
-            ("reconciliations", EntityType.RECONCILIATIONS_HOLDER),
-            ("asset edit", EntityType.ASSET_EDIT_HOLDER),
-            ("videography", EntityType.VIDEOGRAPHY_HOLDER),
-        ],
-    )
-    def test_detect_holders_by_name(self, name: str, expected: EntityType) -> None:
-        """detect_by_name detects all holder types."""
-        result = detect_by_name(name)
-        assert result == expected
-
-    def test_detect_by_name_with_whitespace(self) -> None:
-        """detect_by_name handles leading/trailing whitespace."""
-        assert detect_by_name("  contacts  ") == EntityType.CONTACT_HOLDER
-
-    def test_detect_by_name_returns_none_for_business(self) -> None:
-        """detect_by_name returns None for business names (variable)."""
-        assert detect_by_name("Acme Corp") is None
-        assert detect_by_name("My Business Name") is None
-
-    def test_detect_by_name_returns_none_for_unit(self) -> None:
-        """detect_by_name returns None for unit names (variable)."""
-        assert detect_by_name("Premium Package") is None
-        assert detect_by_name("Basic Service") is None
-
-    def test_detect_by_name_handles_none(self) -> None:
-        """detect_by_name returns None for None input."""
-        assert detect_by_name(None) is None
-
-    def test_detect_by_name_handles_empty_string(self) -> None:
-        """detect_by_name returns None for empty string."""
-        assert detect_by_name("") is None
 
 
 @pytest.mark.asyncio

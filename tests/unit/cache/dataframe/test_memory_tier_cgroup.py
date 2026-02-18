@@ -24,9 +24,21 @@ class TestGetContainerMemoryBytes:
         assert result == 2048 * 1024 * 1024
 
     def test_env_var_invalid_ignored(self) -> None:
-        """Non-numeric CONTAINER_MEMORY_MB falls through to cgroup/fallback."""
+        """When container_memory_mb is None (not set), falls through to cgroup/fallback.
+
+        Per D-011: Settings reads CONTAINER_MEMORY_MB at construction time with
+        strict integer validation. An invalid non-numeric value raises a pydantic
+        ValidationError at Settings init time, before _get_container_memory_bytes()
+        is called. This test verifies the fallback when settings returns None
+        (i.e., CONTAINER_MEMORY_MB is not set).
+        """
+        from unittest.mock import MagicMock
+
+        mock_settings = MagicMock()
+        mock_settings.runtime.container_memory_mb = None  # Not set -> fallback
+
         with (
-            patch.dict("os.environ", {"CONTAINER_MEMORY_MB": "not-a-number"}),
+            patch("autom8_asana.settings.get_settings", return_value=mock_settings),
             patch("builtins.open", side_effect=FileNotFoundError),
         ):
             result = _get_container_memory_bytes()

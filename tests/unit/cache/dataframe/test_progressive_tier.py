@@ -15,7 +15,7 @@ import polars as pl
 import pytest
 
 from autom8_asana.cache.dataframe.tiers.progressive import ProgressiveTier
-from autom8_asana.cache.integration.dataframe_cache import CacheEntry
+from autom8_asana.cache.integration.dataframe_cache import DataFrameCacheEntry as CacheEntry
 
 
 def make_entry(project_gid: str = "proj-1") -> CacheEntry:

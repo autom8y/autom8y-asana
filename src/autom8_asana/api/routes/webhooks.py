@@ -12,10 +12,12 @@ import hmac
 from typing import Any, Protocol, runtime_checkable
 
 from autom8y_log import get_logger
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from autom8_asana.api.dependencies import get_request_id
+from autom8_asana.api.errors import raise_api_error
 from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 from autom8_asana.models.task import Task
@@ -114,6 +116,7 @@ def get_dispatcher() -> WebhookDispatcher:
 
 
 def verify_webhook_token(
+    request_id: str = Depends(get_request_id),
     token: str | None = Query(default=None),
 ) -> str:
     """Verify the inbound webhook URL token.
@@ -122,26 +125,26 @@ def verify_webhook_token(
     configured environment variable.
 
     Args:
+        request_id: Request ID for error correlation (via get_request_id dependency).
         token: Token from ?token= query parameter.
 
     Returns:
         The verified token (unused by caller, but confirms auth).
 
     Raises:
-        HTTPException: 401 if token is missing, empty, or incorrect.
-        HTTPException: 503 if webhook token is not configured.
+        HTTPException: 401 with request_id if token is missing, empty, or incorrect.
+        HTTPException: 503 with request_id if webhook token is not configured.
     """
     settings = get_settings()
 
     expected_token = settings.webhook.inbound_token
     if not expected_token:
         logger.error("webhook_token_not_configured")
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "WEBHOOK_NOT_CONFIGURED",
-                "message": "Webhook endpoint is not configured",
-            },
+        raise_api_error(
+            request_id,
+            503,
+            "WEBHOOK_NOT_CONFIGURED",
+            "Webhook endpoint is not configured",
         )
 
     if not token:
@@ -149,12 +152,11 @@ def verify_webhook_token(
             "webhook_token_missing",
             extra={"reason": "no token query parameter"},
         )
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "MISSING_TOKEN",
-                "message": "Authentication required",
-            },
+        raise_api_error(
+            request_id,
+            401,
+            "MISSING_TOKEN",
+            "Authentication required",
         )
 
     if not hmac.compare_digest(token, expected_token):
@@ -162,12 +164,11 @@ def verify_webhook_token(
             "webhook_token_invalid",
             extra={"reason": "token mismatch"},
         )
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "INVALID_TOKEN",
-                "message": "Authentication failed",
-            },
+        raise_api_error(
+            request_id,
+            401,
+            "INVALID_TOKEN",
+            "Authentication failed",
         )
 
     return token

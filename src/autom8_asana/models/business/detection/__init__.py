@@ -29,7 +29,6 @@ from __future__ import annotations
 # Layer 1: Configuration (depends on types only)
 from autom8_asana.models.business.detection.config import (
     ENTITY_TYPE_INFO,
-    HOLDER_NAME_MAP,
     NAME_PATTERNS,
     PARENT_CHILD_MAP,
     entity_type_to_holder_attr,
@@ -39,7 +38,6 @@ from autom8_asana.models.business.detection.config import (
 # Layer 3: Facade - orchestration functions
 from autom8_asana.models.business.detection.facade import (
     _matches_holder_pattern,
-    detect_by_name,
     detect_by_parent,
     detect_by_project,
     detect_by_structure_async,
@@ -89,7 +87,6 @@ __all__ = [
     "DetectionResult",
     # Constants
     "ENTITY_TYPE_INFO",
-    "HOLDER_NAME_MAP",
     "NAME_PATTERNS",
     "PARENT_CHILD_MAP",
     "CONFIDENCE_TIER_1",
@@ -115,8 +112,7 @@ __all__ = [
     "detect_by_parent_inference",
     # Tier 4: Structure inspection
     "detect_by_structure_inspection",
-    # Facade: Orchestration (backward compatibility)
-    "detect_by_name",
+    # Facade: Orchestration
     "detect_by_project",
     "detect_by_parent",
     "detect_by_structure_async",

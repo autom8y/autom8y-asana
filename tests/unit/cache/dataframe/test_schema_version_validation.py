@@ -17,8 +17,8 @@ from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker
 from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
 from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
 from autom8_asana.cache.integration.dataframe_cache import (
-    CacheEntry,
     DataFrameCache,
+    DataFrameCacheEntry as CacheEntry,
     _get_schema_version_for_entity,
 )
 from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA

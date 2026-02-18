@@ -20,7 +20,7 @@ Design Decision:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from autom8y_log import get_logger
 
@@ -94,43 +94,3 @@ class CompletionService:
             )
 
         return result
-
-
-# Backward compatibility alias for engine.py which imports
-# PipelineAutoCompletionService. This alias will be removed
-# when engine.py is rewritten to use CompletionService directly.
-class PipelineAutoCompletionService:
-    """Deprecated: Use CompletionService instead.
-
-    Backward-compatible wrapper that preserves the old API signature
-    used by engine.py. The auto_complete_async method delegates to
-    CompletionService.complete_source_async, ignoring the stage
-    number parameter (which is no longer used for auto-completion
-    decisions per FR-COMPLETE-001).
-    """
-
-    def __init__(self, client: AsanaClient) -> None:
-        self._service = CompletionService(client)
-        self._client = client
-
-    async def auto_complete_async(
-        self,
-        source_process: Process,
-        new_pipeline_stage: int,
-        ctx: Any = None,
-    ) -> CompletionResult:
-        """Backward-compatible auto-completion.
-
-        Delegates to CompletionService.complete_source_async.
-        The new_pipeline_stage and ctx parameters are ignored
-        (retained only for API compatibility with engine.py).
-
-        Args:
-            source_process: Process being transitioned.
-            new_pipeline_stage: Ignored (legacy parameter).
-            ctx: Ignored (legacy parameter).
-
-        Returns:
-            CompletionResult with completed process GIDs.
-        """
-        return await self._service.complete_source_async(source_process)

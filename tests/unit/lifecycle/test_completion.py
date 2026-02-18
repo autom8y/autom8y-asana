@@ -1,4 +1,4 @@
-"""Tests for CompletionService and backward-compatible PipelineAutoCompletionService.
+"""Tests for CompletionService.
 
 Covers:
 - Auto-complete when auto_complete_prior=true: marks source process complete
@@ -6,7 +6,6 @@ Covers:
 - Already-completed process -> idempotent, returns empty result
 - API failure -> warning logged, empty result (fail-forward)
 - Does NOT use pipeline_stage numbers (no hardcoded mapping)
-- Backward compatibility: PipelineAutoCompletionService delegates to CompletionService
 
 Design notes:
 - The engine checks transition.auto_complete_prior BEFORE calling this service
@@ -21,7 +20,6 @@ import pytest
 from autom8_asana.lifecycle.completion import (
     CompletionResult,
     CompletionService,
-    PipelineAutoCompletionService,
 )
 from autom8_asana.models.business.process import ProcessType
 
@@ -166,69 +164,3 @@ def test_no_stage_map_attribute():
     attrs = [a for a in dir(service) if "stage" in a.lower()]
     assert len(attrs) == 0, f"Unexpected stage-related attributes: {attrs}"
 
-
-# --- Backward Compatibility: PipelineAutoCompletionService ---
-
-
-@pytest.mark.asyncio
-async def test_legacy_service_delegates_to_completion_service(mock_client):
-    """PipelineAutoCompletionService.auto_complete_async delegates to
-    CompletionService.complete_source_async (backward compat for engine.py)."""
-    process = _make_process(gid="proc1", completed=False)
-    mock_client.tasks.update_async = AsyncMock()
-
-    legacy_service = PipelineAutoCompletionService(mock_client)
-    result = await legacy_service.auto_complete_async(
-        process, new_pipeline_stage=4, ctx=None
-    )
-
-    assert len(result.completed) == 1
-    assert result.completed[0] == "proc1"
-    mock_client.tasks.update_async.assert_awaited_once_with("proc1", completed=True)
-
-
-@pytest.mark.asyncio
-async def test_legacy_service_ignores_stage_number(mock_client):
-    """PipelineAutoCompletionService ignores the new_pipeline_stage parameter.
-    It only completes the source process regardless of stage ordering."""
-    process = _make_process(gid="proc1", completed=False)
-    mock_client.tasks.update_async = AsyncMock()
-
-    legacy_service = PipelineAutoCompletionService(mock_client)
-
-    # Pass stage 1 (lower than source) - should still complete
-    result = await legacy_service.auto_complete_async(
-        process, new_pipeline_stage=1, ctx=None
-    )
-
-    assert len(result.completed) == 1
-    assert result.completed[0] == "proc1"
-
-
-@pytest.mark.asyncio
-async def test_legacy_service_already_completed(mock_client):
-    """PipelineAutoCompletionService handles already-completed processes."""
-    process = _make_process(gid="proc1", completed=True)
-    mock_client.tasks.update_async = AsyncMock()
-
-    legacy_service = PipelineAutoCompletionService(mock_client)
-    result = await legacy_service.auto_complete_async(
-        process, new_pipeline_stage=4, ctx=None
-    )
-
-    assert len(result.completed) == 0
-    mock_client.tasks.update_async.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_legacy_service_api_failure(mock_client):
-    """PipelineAutoCompletionService handles API failures gracefully."""
-    process = _make_process(gid="proc1", completed=False)
-    mock_client.tasks.update_async = AsyncMock(side_effect=ConnectionError("API error"))
-
-    legacy_service = PipelineAutoCompletionService(mock_client)
-    result = await legacy_service.auto_complete_async(
-        process, new_pipeline_stage=4, ctx=None
-    )
-
-    assert len(result.completed) == 0

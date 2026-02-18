@@ -22,11 +22,6 @@ from autom8_asana.settings import get_settings
 
 logger = get_logger(__name__)
 
-# Cache TTL for section data (30 minutes)
-# Configurable via ASANA_CACHE_TTL_SECTION environment variable
-SECTION_CACHE_TTL = get_settings().cache.ttl_section
-
-
 class SectionsClient(BaseClient):
     """Client for Asana Section operations.
 
@@ -127,7 +122,8 @@ class SectionsClient(BaseClient):
         data = await self._http.get(f"/sections/{section_gid}", params=params)
 
         # Step 5: Store in cache (30 min TTL, no modified_at available)
-        self._cache_set(section_gid, data, EntryType.SECTION, ttl=SECTION_CACHE_TTL)
+        cache_ttl = get_settings().cache.ttl_section
+        self._cache_set(section_gid, data, EntryType.SECTION, ttl=cache_ttl)
 
         # Step 6: Return model or raw dict
         if raw:
@@ -354,6 +350,7 @@ class SectionsClient(BaseClient):
                 try:
                     entries: dict[str, CacheEntry] = {}
                     now = datetime.now(UTC)
+                    cache_ttl = get_settings().cache.ttl_section
                     for section_data in data:
                         gid = section_data.get("gid")
                         if gid:
@@ -362,7 +359,7 @@ class SectionsClient(BaseClient):
                                 data=section_data,
                                 entry_type=EntryType.SECTION,
                                 version=now,  # No modified_at for sections
-                                ttl=SECTION_CACHE_TTL,
+                                ttl=cache_ttl,
                             )
                             entries[gid] = entry
                     if entries:

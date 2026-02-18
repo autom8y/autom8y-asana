@@ -83,7 +83,7 @@ def _build_error_response(
 
 
 def raise_api_error(
-    request_or_id: Request | str,
+    request_id: str,
     status_code: int,
     code: str,
     message: str,
@@ -102,8 +102,7 @@ def raise_api_error(
     Tier 3 (route-specific validation/precondition checks).
 
     Args:
-        request_or_id: FastAPI Request (for request_id extraction) or
-            a raw request_id string (for routes using RequestId dependency).
+        request_id: Request ID string (from RequestId dependency).
         status_code: HTTP status code.
         code: Machine-readable error code (e.g., "INVALID_ENTITY_TYPE").
         message: Human-readable error description.
@@ -113,10 +112,6 @@ def raise_api_error(
     Raises:
         HTTPException: Always raised, never returns.
     """
-    if isinstance(request_or_id, str):
-        request_id = request_or_id
-    else:
-        request_id = getattr(request_or_id.state, "request_id", "unknown")
     detail: dict[str, Any] = {
         "error": code,
         "message": message,
@@ -132,7 +127,7 @@ def raise_api_error(
 
 
 def raise_service_error(
-    request_or_id: Request | str,
+    request_id: str,
     error: ServiceError,
     *,
     headers: dict[str, str] | None = None,
@@ -147,7 +142,7 @@ def raise_service_error(
     service layer raising domain exceptions.
 
     Args:
-        request_or_id: FastAPI Request or raw request_id string.
+        request_id: Request ID string (from RequestId dependency).
         error: ServiceError instance with error_code, message, and to_dict().
         headers: Additional HTTP headers.
 
@@ -156,10 +151,6 @@ def raise_service_error(
     """
     from autom8_asana.services.errors import get_status_for_error
 
-    if isinstance(request_or_id, str):
-        request_id = request_or_id
-    else:
-        request_id = getattr(request_or_id.state, "request_id", "unknown")
     detail = error.to_dict()
     detail["request_id"] = request_id
     raise HTTPException(

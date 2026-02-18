@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from autom8y_log import get_logger
 
 if TYPE_CHECKING:
-    from autom8_asana.cache.integration.dataframe_cache import CacheEntry
+    from autom8_asana.cache.integration.dataframe_cache import DataFrameCacheEntry as CacheEntry
 
 logger = get_logger(__name__)
 
@@ -23,20 +23,17 @@ def _get_container_memory_bytes() -> int:
     """Detect actual container memory limit via cgroup, env var, or fallback.
 
     Priority:
-    1. CONTAINER_MEMORY_MB env var (explicit override)
+    1. CONTAINER_MEMORY_MB env var (explicit override via settings)
     2. cgroup v2: /sys/fs/cgroup/memory.max
     3. cgroup v1: /sys/fs/cgroup/memory/memory.limit_in_bytes
     4. Fallback: 1GB (conservative default for unknown environments)
     """
-    import os
+    from autom8_asana.settings import get_settings
 
-    # 1. Explicit env var override
-    env_mb = os.environ.get("CONTAINER_MEMORY_MB")
-    if env_mb:
-        try:
-            return int(env_mb) * 1024 * 1024
-        except ValueError:
-            pass
+    # 1. Explicit env var override (via settings.runtime.container_memory_mb)
+    env_mb = get_settings().runtime.container_memory_mb
+    if env_mb is not None:
+        return env_mb * 1024 * 1024
 
     # 2. cgroup v2
     # 3. cgroup v1

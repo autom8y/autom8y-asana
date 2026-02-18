@@ -20,12 +20,6 @@ from autom8_asana.observability import error_handler
 from autom8_asana.patterns import async_method
 from autom8_asana.settings import get_settings
 
-# Cache TTL for custom field metadata (30 minutes)
-# Custom fields change infrequently (structure/enum options rarely modified)
-# Configurable via ASANA_CACHE_TTL_CUSTOM_FIELD environment variable
-CUSTOM_FIELD_CACHE_TTL = get_settings().cache.ttl_custom_field
-
-
 class CustomFieldsClient(BaseClient):
     """Client for Asana Custom Field operations.
 
@@ -123,8 +117,9 @@ class CustomFieldsClient(BaseClient):
         data = await self._http.get(f"/custom_fields/{custom_field_gid}", params=params)
 
         # Step 5: Store in cache
+        cache_ttl = get_settings().cache.ttl_custom_field
         self._cache_set(
-            custom_field_gid, data, EntryType.CUSTOM_FIELD, ttl=CUSTOM_FIELD_CACHE_TTL
+            custom_field_gid, data, EntryType.CUSTOM_FIELD, ttl=cache_ttl
         )
 
         # Step 6: Return model or raw dict

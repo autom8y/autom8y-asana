@@ -279,6 +279,7 @@ def _register_entity_with_registry(cls: type) -> None:
 
     # Get project GID (env var override, then class default)
     env_var = f"ASANA_PROJECT_{entity_type.name}"
+    # ENV-DIRECT: dynamic key names derived from EntityType enum values; cannot be pre-declared in Settings
     env_value = os.environ.get(env_var, "")
     class_value = getattr(cls, "PRIMARY_PROJECT_GID", None)
 
