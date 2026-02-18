@@ -10,19 +10,27 @@ from fastapi import FastAPI
 logger = get_logger(__name__)
 
 
-def _initialize_dataframe_cache() -> None:
-    """Initialize the DataFrameCache singleton for resolution strategies.
+def _initialize_dataframe_cache(app: FastAPI) -> None:
+    """Initialize the DataFrameCache and store on app.state.
 
     Per TDD-DATAFRAME-CACHE-001 Phase 2:
     - Initializes DataFrameCache with Memory + S3 tiering
+    - Stores instance on app.state.dataframe_cache for FastAPI DI
     - Used by @dataframe_cache decorator on Offer/Contact strategies
     - Graceful degradation if S3 not configured (logs warning, cache disabled)
+
+    Per ADR-0067: Aligns DataFrameCache lifecycle with CacheProvider pattern,
+    storing on app.state rather than using a module-level singleton.
+
+    Args:
+        app: FastAPI application instance.
 
     This is called during application startup, after entity project discovery.
     """
     from autom8_asana.cache.dataframe.factory import initialize_dataframe_cache
 
     cache = initialize_dataframe_cache()
+    app.state.dataframe_cache = cache
 
     if cache is not None:
         logger.info(
@@ -70,9 +78,6 @@ def _initialize_mutation_invalidator(app: FastAPI) -> None:
     Args:
         app: FastAPI application instance.
     """
-    from autom8_asana.cache.dataframe.factory import (
-        get_dataframe_cache as get_df_cache,
-    )
     from autom8_asana.cache.integration.factory import CacheProviderFactory
     from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator
     from autom8_asana.config import CacheConfig
@@ -80,7 +85,8 @@ def _initialize_mutation_invalidator(app: FastAPI) -> None:
     try:
         # Get or create a cache provider for invalidation
         cache_provider = CacheProviderFactory.create(config=CacheConfig(enabled=True))
-        dataframe_cache = get_df_cache()
+        # Read DataFrameCache from app.state (populated by _initialize_dataframe_cache)
+        dataframe_cache = getattr(app.state, "dataframe_cache", None)
 
         app.state.mutation_invalidator = MutationInvalidator(
             cache_provider=cache_provider,

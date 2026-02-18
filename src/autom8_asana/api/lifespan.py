@@ -142,7 +142,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Initialize DataFrameCache for Offer/Contact resolution strategies
     # Per TDD-DATAFRAME-CACHE-001: Provides tiered caching (Memory + S3)
-    _initialize_dataframe_cache()
+    # Stores instance on app.state.dataframe_cache per ADR-0067.
+    _initialize_dataframe_cache(app)
 
     # Register schema providers with SDK for cache compatibility checks
     # Per SDK Phase 1: Bridges satellite SchemaRegistry to SDK registry

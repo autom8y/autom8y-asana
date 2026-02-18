@@ -32,6 +32,10 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# Module-level singleton for Lambda and non-FastAPI contexts.
+# FastAPI routes use app.state.dataframe_cache via get_dataframe_cache() dependency.
+_dataframe_cache: DataFrameCache | None = None
+
 
 async def _swr_build_callback(
     cache: DataFrameCache,
@@ -114,25 +118,20 @@ def initialize_dataframe_cache() -> DataFrameCache | None:
         >>> # Later in resolution strategies
         >>> cache = get_dataframe_cache()
     """
+    global _dataframe_cache
+
     from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker
     from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
     from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
     from autom8_asana.cache.dataframe.tiers.progressive import ProgressiveTier
-    from autom8_asana.cache.integration.dataframe_cache import (
-        DataFrameCache,
-        set_dataframe_cache,
-    )
-    from autom8_asana.cache.integration.dataframe_cache import (
-        get_dataframe_cache as _get_cache,
-    )
+    from autom8_asana.cache.integration.dataframe_cache import DataFrameCache
     from autom8_asana.dataframes.section_persistence import create_section_persistence
     from autom8_asana.settings import get_settings
 
     # Check if already initialized
-    existing = _get_cache()
-    if existing is not None:
+    if _dataframe_cache is not None:
         logger.debug("dataframe_cache_already_initialized")
-        return existing
+        return _dataframe_cache
 
     settings = get_settings()
 
@@ -191,8 +190,8 @@ def initialize_dataframe_cache() -> DataFrameCache | None:
 
     cache.set_build_callback(partial(_swr_build_callback, cache))
 
-    # Set as singleton
-    set_dataframe_cache(cache)
+    # Store in module-level singleton (Lambda and non-FastAPI contexts)
+    _dataframe_cache = cache
 
     logger.info(
         "dataframe_cache_initialized",
@@ -225,25 +224,32 @@ def get_dataframe_cache_provider() -> DataFrameCache | None:
         ... class OfferResolutionStrategy:
         ...     ...
     """
-    from autom8_asana.cache.integration.dataframe_cache import (
-        get_dataframe_cache as _get_cache,
-    )
-
-    return _get_cache()
+    return _dataframe_cache
 
 
-# Re-export for convenience
 def get_dataframe_cache() -> DataFrameCache | None:
     """Get the singleton DataFrameCache instance.
+
+    Used by Lambda handlers and non-FastAPI contexts. FastAPI routes should
+    use the get_dataframe_cache() dependency from api.dependencies instead.
 
     Returns:
         DataFrameCache if initialized, None otherwise.
     """
-    from autom8_asana.cache.integration.dataframe_cache import (
-        get_dataframe_cache as _get_cache,
-    )
+    return _dataframe_cache
 
-    return _get_cache()
+
+def set_dataframe_cache(cache: DataFrameCache) -> None:
+    """Set the singleton DataFrameCache instance.
+
+    Intended for testing and Lambda warm-up scenarios where the cache
+    must be injected without calling initialize_dataframe_cache().
+
+    Args:
+        cache: DataFrameCache instance to store as singleton.
+    """
+    global _dataframe_cache
+    _dataframe_cache = cache
 
 
 def reset_dataframe_cache() -> None:
@@ -251,9 +257,6 @@ def reset_dataframe_cache() -> None:
 
     Clears the singleton instance so next initialization creates fresh cache.
     """
-    from autom8_asana.cache.integration.dataframe_cache import (
-        reset_dataframe_cache as _reset,
-    )
-
-    _reset()
+    global _dataframe_cache
+    _dataframe_cache = None
     logger.debug("dataframe_cache_reset")
