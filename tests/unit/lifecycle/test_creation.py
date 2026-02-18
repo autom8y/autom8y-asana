@@ -28,7 +28,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from autom8_asana.core.creation import generate_entity_name
+from autom8_asana.core.creation import generate_entity_name, place_in_section_async
 from autom8_asana.lifecycle.config import (
     AssigneeConfig,
     SeedingConfig,
@@ -1053,10 +1053,8 @@ async def test_merged_due_date_and_assignee_single_call():
 
 @pytest.mark.asyncio
 async def test_section_placement_case_insensitive():
-    """Section found by case-insensitive name match."""
+    """Section found by case-insensitive name match via shared helper."""
     client = _make_mock_client()
-    config = MagicMock()
-    service = EntityCreationService(client, config)
 
     # Sections available in project
     section_obj = MagicMock()
@@ -1067,7 +1065,8 @@ async def test_section_placement_case_insensitive():
     sections_iter.collect = AsyncMock(return_value=[section_obj])
     client.sections.list_for_project_async.return_value = sections_iter
 
-    result = await service._move_to_section_async(
+    result = await place_in_section_async(
+        client,
         "task_gid",
         "proj_gid",
         "OPPORTUNITY",  # uppercase
@@ -1082,16 +1081,15 @@ async def test_section_placement_case_insensitive():
 
 @pytest.mark.asyncio
 async def test_section_placement_not_found():
-    """Returns False when section not found."""
+    """Returns False when section not found via shared helper."""
     client = _make_mock_client()
-    config = MagicMock()
-    service = EntityCreationService(client, config)
 
     sections_iter = MagicMock()
     sections_iter.collect = AsyncMock(return_value=[])
     client.sections.list_for_project_async.return_value = sections_iter
 
-    result = await service._move_to_section_async(
+    result = await place_in_section_async(
+        client,
         "task_gid",
         "proj_gid",
         "NONEXISTENT",

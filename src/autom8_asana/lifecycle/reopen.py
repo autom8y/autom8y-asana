@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
+from autom8_asana.core.creation import place_in_section_async
+
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
     from autom8_asana.lifecycle.config import StageConfig
@@ -133,7 +135,8 @@ class ReopenService:
 
             # 6. Move to target section
             if target_stage.project_gid:
-                await self._move_to_section_async(
+                await place_in_section_async(
+                    self._client,
                     target_process.gid,
                     target_stage.project_gid,
                     target_stage.target_section or "OPPORTUNITY",
@@ -157,36 +160,6 @@ class ReopenService:
                 error=str(e),
             )
             return ReopenResult(success=False, error=str(e))
-
-    async def _move_to_section_async(
-        self,
-        task_gid: str,
-        project_gid: str,
-        section_name: str,
-    ) -> None:
-        """Move a task to a named section in the target project.
-
-        Looks up sections by name (case-insensitive). If the target
-        section is not found, this is a no-op (graceful degradation).
-
-        Args:
-            task_gid: GID of the task to move.
-            project_gid: GID of the project containing the section.
-            section_name: Name of the target section (e.g., "OPPORTUNITY").
-        """
-        sections_result = self._client.sections.list_for_project_async(
-            project_gid,
-        )
-        sections = await sections_result.collect()
-        target = next(
-            (s for s in sections if s.name and s.name.lower() == section_name.lower()),
-            None,
-        )
-        if target:
-            await self._client.sections.add_task_async(  # type: ignore[attr-defined]
-                target.gid,
-                task=task_gid,
-            )
 
     @staticmethod
     def _matches_process_type(task: Any, stage_name: str) -> bool:

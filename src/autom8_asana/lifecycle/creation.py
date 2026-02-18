@@ -35,6 +35,7 @@ from autom8_asana.core.creation import (
     discover_template_async,
     duplicate_from_template_async,
     generate_entity_name,
+    place_in_section_async,
     wait_for_subtasks_async,
 )
 from autom8_asana.lifecycle.config import AssigneeConfig, LifecycleConfig, StageConfig
@@ -380,7 +381,8 @@ class EntityCreationService:
 
         # a. Section placement
         if stage_config.target_section and stage_config.project_gid:
-            section_ok = await self._move_to_section_async(
+            section_ok = await place_in_section_async(
+                self._client,
                 new_task.gid,
                 stage_config.project_gid,
                 stage_config.target_section,
@@ -539,54 +541,6 @@ class EntityCreationService:
             )
 
         return None
-
-    # ------------------------------------------------------------------
-    # Section Placement
-    # ------------------------------------------------------------------
-
-    async def _move_to_section_async(
-        self,
-        task_gid: str,
-        project_gid: str,
-        section_name: str,
-    ) -> bool:
-        """Move task to named section (case-insensitive).
-
-        Returns True if section found and task moved, False otherwise.
-        """
-        try:
-            sections = await self._client.sections.list_for_project_async(
-                project_gid,
-            ).collect()
-            target = next(
-                (
-                    s
-                    for s in sections
-                    if s.name and s.name.lower() == section_name.lower()
-                ),
-                None,
-            )
-            if target:
-                await self._client.sections.add_task_async(  # type: ignore[attr-defined]
-                    target.gid,
-                    task=task_gid,
-                )
-                return True
-            else:
-                logger.warning(
-                    "lifecycle_section_not_found",
-                    section=section_name,
-                    project_gid=project_gid,
-                )
-                return False
-        except Exception as e:  # BROAD-CATCH: non-fatal config step
-            logger.warning(
-                "lifecycle_section_placement_failed",
-                task_gid=task_gid,
-                section=section_name,
-                error=str(e),
-            )
-            return False
 
     # ------------------------------------------------------------------
     # Hierarchy Placement

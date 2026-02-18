@@ -620,8 +620,13 @@ class TestErrorHandling:
         assert "update failed" in result.error
 
     @pytest.mark.asyncio
-    async def test_section_api_error_caught(self) -> None:
-        """If sections API raises, error is caught in boundary guard."""
+    async def test_section_api_error_gracefully_degraded(self) -> None:
+        """Section API error is caught by shared helper; reopen still succeeds.
+
+        Section placement is non-fatal — the process is reopened (marked
+        incomplete) regardless of section placement outcome. The shared
+        place_in_section_async catches the error and returns False.
+        """
         client = _make_mock_client()
         stage = _make_stage_config()
         holder = _make_holder()
@@ -647,8 +652,9 @@ class TestErrorHandling:
 
         result = await service.reopen_async(stage, ctx, source_process)
 
-        assert result.success is False
-        assert "sections unavailable" in result.error
+        # Reopen succeeds — section placement is non-fatal
+        assert result.success is True
+        assert result.entity_gid == "task_sec_fail"
 
 
 # ------------------------------------------------------------------
