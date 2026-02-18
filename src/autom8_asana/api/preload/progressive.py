@@ -248,16 +248,21 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
         )
 
         if not persistence.is_available:
+            # ADR-011: Metric counter for degraded-mode fallback monitoring.
+            # Structured logging is the metrics pattern in this codebase.
             logger.warning(
-                "progressive_preload_s3_unavailable",
+                "preload_legacy_fallback_activated",
                 extra={
-                    "detail": "S3 not available, falling back to legacy preload",
+                    "reason": "s3_unavailable",
+                    "fallback": "legacy_preload",
+                    "progressive_available": False,
                 },
             )
-            # ARCHITECTURE NOTE: Legacy preload is the degraded-mode fallback when S3
-            # is unavailable (persistence.is_available == False). This path exercises
-            # the full in-memory preload from Asana API. Do not remove without
-            # replacing degraded-mode strategy. See REFACTORING-PLAN-WS567.md DC-001.
+            # ARCHITECTURE NOTE (ADR-011): Legacy preload is the degraded-mode
+            # fallback when S3 is unavailable (persistence.is_available == False).
+            # This path exercises the full in-memory preload from Asana API.
+            # Do not remove without replacing degraded-mode strategy.
+            # Retirement criteria: S3 >= 99.9% for 90 days, this event unfired 90 days.
             from .legacy import _preload_dataframe_cache
 
             await _preload_dataframe_cache(app)
