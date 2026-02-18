@@ -381,6 +381,25 @@ def get_entity_write_registry(request: Request) -> "EntityWriteRegistry | None":
     return getattr(request.app.state, "entity_write_registry", None)
 
 
+def get_dataframe_cache(request: Request) -> "DataFrameCache | None":
+    """Get the shared DataFrameCache from app state.
+
+    Per ADR-0067: DataFrameCache is created once during app startup and stored
+    on app.state.dataframe_cache. This dependency provides access to it for
+    FastAPI route handlers, following the same pattern as get_mutation_invalidator.
+
+    Lambda handlers and non-FastAPI code use
+    autom8_asana.cache.dataframe.factory.get_dataframe_cache() instead.
+
+    Args:
+        request: FastAPI request (for app state access).
+
+    Returns:
+        DataFrameCache instance if configured, or None if S3 is not configured.
+    """
+    return getattr(request.app.state, "dataframe_cache", None)
+
+
 # Type aliases for cleaner route signatures
 AsanaClientDualMode = Annotated[AsanaClient, Depends(get_asana_client_from_context)]
 AuthContextDep = Annotated[AuthContext, Depends(get_auth_context)]
@@ -482,6 +501,7 @@ def get_dataframe_service() -> DataFrameService:
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from autom8_asana.cache.integration.dataframe_cache import DataFrameCache
     from autom8_asana.resolution.write_registry import EntityWriteRegistry
     from autom8_asana.services.dataframe_service import DataFrameService
     from autom8_asana.services.entity_service import EntityService
@@ -492,6 +512,7 @@ EntityServiceDep = Annotated["EntityService", Depends(get_entity_service)]
 TaskServiceDep = Annotated["TaskService", Depends(get_task_service)]
 SectionServiceDep = Annotated["SectionService", Depends(get_section_service)]
 DataFrameServiceDep = Annotated["DataFrameService", Depends(get_dataframe_service)]
+DataFrameCacheDep = Annotated["DataFrameCache | None", Depends(get_dataframe_cache)]
 
 
 __all__ = [
@@ -502,6 +523,9 @@ __all__ = [
     # Cache invalidation
     "get_mutation_invalidator",
     "MutationInvalidatorDep",
+    # DataFrame cache DI
+    "get_dataframe_cache",
+    "DataFrameCacheDep",
     # Service factories (I2)
     "get_entity_service",
     "get_task_service",

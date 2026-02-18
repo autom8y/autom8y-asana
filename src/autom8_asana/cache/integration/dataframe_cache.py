@@ -958,30 +958,3 @@ class DataFrameCache:
             )
 
 
-# Module-level singleton for easy access
-_dataframe_cache: DataFrameCache | None = None
-
-
-def get_dataframe_cache() -> DataFrameCache | None:
-    """Get the singleton DataFrameCache instance.
-
-    Returns:
-        DataFrameCache if initialized, None otherwise.
-    """
-    return _dataframe_cache
-
-
-def set_dataframe_cache(cache: DataFrameCache) -> None:
-    """Set the singleton DataFrameCache instance.
-
-    Args:
-        cache: DataFrameCache instance to set as singleton.
-    """
-    global _dataframe_cache
-    _dataframe_cache = cache
-
-
-def reset_dataframe_cache() -> None:
-    """Reset the singleton DataFrameCache (for testing)."""
-    global _dataframe_cache
-    _dataframe_cache = None
