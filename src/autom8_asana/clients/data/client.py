@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import re
-import time
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import date
@@ -31,15 +30,13 @@ from autom8y_http import (
     CircuitBreakerConfig as SdkCircuitBreakerConfig,
 )
 from autom8y_http import (
-    CircuitBreakerOpenError as SdkCircuitBreakerOpenError,
-)
-from autom8y_http import (
     RetryConfig as SdkRetryConfig,
 )
 from autom8y_log import get_logger
 
 from autom8_asana.clients.data import _cache as _cache_mod
 from autom8_asana.clients.data import _metrics as _metrics_mod
+from autom8_asana.clients.data import _normalize as _normalize_mod
 from autom8_asana.clients.data import _response as _response_mod
 from autom8_asana.clients.data.config import DataServiceConfig
 from autom8_asana.clients.data.models import (
@@ -50,8 +47,6 @@ from autom8_asana.clients.data.models import (
     InsightsResponse,
 )
 from autom8_asana.exceptions import (
-    ExportError,
-    InsightsError,
     InsightsServiceError,
     InsightsValidationError,
     SyncInAsyncContextError,
@@ -1097,271 +1092,13 @@ class DataServiceClient:
     ) -> dict[str, BatchInsightsResult]:
         """Execute a single batched HTTP POST with multiple PVPs.
 
-        Per IMP-20: Sends all PVPs in one HTTP request to autom8_data's
-        POST /api/v1/data-service/insights endpoint.
-
-        autom8_data returns:
-        - HTTP 200: All PVPs succeeded. Response body has ``data`` list
-          with per-entity results containing ``office_phone`` and ``vertical``.
-        - HTTP 207: Partial success. Response body has both ``data`` (successes)
-          and ``errors`` (per-PVP error details).
-        - HTTP 4xx/5xx: Total failure for the entire chunk.
-
-        Args:
-            pvp_list: PVPs to include in this request (max 1000).
-            factory: Validated, normalized factory name.
-            period: Period preset (e.g., "lifetime").
-            refresh: Whether to force cache refresh.
-            request_id: Batch request correlation ID.
-
-        Returns:
-            Dict mapping canonical_key to BatchInsightsResult for each PVP.
+        Delegates to _endpoints.batch.execute_batch_request.
         """
-        # Build PVP lookup: canonical_key -> PhoneVerticalPair
-        pvp_by_key: dict[str, PhoneVerticalPair] = {
-            pvp.canonical_key: pvp for pvp in pvp_list
-        }
-        results: dict[str, BatchInsightsResult] = {}
+        from autom8_asana.clients.data._endpoints import batch as _batch_ep
 
-        # --- Circuit Breaker Check (Story 2.3) ---
-        try:
-            await self._circuit_breaker.check()
-        except SdkCircuitBreakerOpenError as e:
-            # Mark all PVPs as failed due to circuit breaker
-            error_msg = (
-                f"Circuit breaker open. Service appears degraded. "
-                f"Retry in {e.time_remaining:.1f}s."
-            )
-            for pvp in pvp_list:
-                results[pvp.canonical_key] = BatchInsightsResult(
-                    pvp=pvp,
-                    error=error_msg,
-                )
-            return results
-
-        client = await self._get_client()
-        path = "/api/v1/data-service/insights"
-
-        # Map factory to frame_type
-        frame_type = self.FACTORY_TO_FRAME_TYPE[factory]
-
-        # Normalize period to autom8_data format
-        normalized_period = self._normalize_period(period)
-
-        # Build request body with all PVPs (IMP-20: multi-PVP batch)
-        request_body: dict[str, Any] = {
-            "frame_type": frame_type,
-            "phone_vertical_pairs": [
-                {"phone": pvp.office_phone, "vertical": pvp.vertical}
-                for pvp in pvp_list
-            ],
-            "period": normalized_period,
-        }
-
-        if refresh:
-            request_body["refresh"] = refresh
-
-        # Start timing for latency metrics (Story 1.9)
-        start_time = time.monotonic()
-
-        # --- Retry Callbacks ---
-
-        async def _on_retry(
-            attempt: int, status_code: int, retry_after: int | None
-        ) -> None:
-            if self._log:
-                extra: dict[str, Any] = {
-                    "request_id": request_id,
-                    "attempt": attempt + 1,
-                    "max_retries": self._config.retry.max_retries,
-                    "batch_size": len(pvp_list),
-                }
-                if status_code:
-                    extra["status_code"] = status_code
-                    extra["retry_after"] = retry_after
-                else:
-                    extra["error_type"] = "TimeoutException"
-                    extra["reason"] = "timeout"
-                self._log.warning("insights_batch_request_retry", extra=extra)
-
-        async def _on_timeout_exhausted(
-            e: httpx.TimeoutException, attempt: int
-        ) -> None:
-            elapsed_ms = (time.monotonic() - start_time) * 1000
-            if self._log:
-                self._log.error(
-                    "insights_batch_request_failed",
-                    extra={
-                        "request_id": request_id,
-                        "error_type": "TimeoutException",
-                        "reason": "timeout",
-                        "duration_ms": elapsed_ms,
-                        "attempt": attempt + 1,
-                        "batch_size": len(pvp_list),
-                    },
-                )
-            await self._circuit_breaker.record_failure(e)
-            raise InsightsServiceError(
-                "Batch request to autom8_data timed out",
-                request_id=request_id,
-                reason="timeout",
-            ) from e
-
-        async def _on_http_error(e: httpx.HTTPError, attempt: int) -> None:
-            elapsed_ms = (time.monotonic() - start_time) * 1000
-            if self._log:
-                self._log.error(
-                    "insights_batch_request_failed",
-                    extra={
-                        "request_id": request_id,
-                        "error_type": e.__class__.__name__,
-                        "reason": "http_error",
-                        "duration_ms": elapsed_ms,
-                        "attempt": attempt + 1,
-                        "batch_size": len(pvp_list),
-                    },
-                )
-            await self._circuit_breaker.record_failure(e)
-            raise InsightsServiceError(
-                f"HTTP error communicating with autom8_data: {e}",
-                request_id=request_id,
-                reason="http_error",
-            ) from e
-
-        # --- Execute HTTP request with retry ---
-        # Note: W3C traceparent is auto-injected by HTTPXClientInstrumentor.
-        # X-Request-Id is kept for backwards compatibility with autom8y-data's
-        # RequestIDMiddleware, which uses it for non-OTEL correlation.
-        try:
-            response, _attempt = await self._execute_with_retry(
-                lambda: client.post(
-                    path,
-                    json=request_body,
-                    headers={"X-Request-Id": request_id},
-                ),
-                on_retry=_on_retry,
-                on_timeout_exhausted=_on_timeout_exhausted,
-                on_http_error=_on_http_error,
-            )
-        except (InsightsServiceError, InsightsError) as e:
-            # Total failure for entire chunk -- mark all PVPs as errored
-            for pvp in pvp_list:
-                results[pvp.canonical_key] = BatchInsightsResult(
-                    pvp=pvp,
-                    error=str(e),
-                )
-            return results
-
-        elapsed_ms = (time.monotonic() - start_time) * 1000
-
-        # --- Handle total failure (4xx/5xx with no partial data) ---
-        if response.status_code >= 400 and response.status_code != 207:
-            error_msg = f"autom8_data API error (HTTP {response.status_code})"
-            try:
-                body = response.json()
-                if "error" in body:
-                    error_msg = body["error"]
-                elif "detail" in body:
-                    error_msg = body["detail"]
-            except (ValueError, KeyError):
-                pass
-
-            if response.status_code >= 500:
-                error = InsightsServiceError(
-                    error_msg,
-                    request_id=request_id,
-                    status_code=response.status_code,
-                    reason="server_error",
-                )
-                await self._circuit_breaker.record_failure(error)
-
-            for pvp in pvp_list:
-                results[pvp.canonical_key] = BatchInsightsResult(
-                    pvp=pvp,
-                    error=error_msg,
-                )
-            return results
-
-        # --- Parse successful / partial response ---
-        await self._circuit_breaker.record_success()
-
-        try:
-            body = response.json()
-        except (ValueError, Exception) as e:
-            error_msg = f"Failed to parse response JSON: {e}"
-            for pvp in pvp_list:
-                results[pvp.canonical_key] = BatchInsightsResult(
-                    pvp=pvp,
-                    error=error_msg,
-                )
-            return results
-
-        # Parse successful entity data from response
-        data_list: list[dict[str, Any]] = body.get("data", [])
-        response_metadata = body.get("metadata", {})
-        warnings = body.get("warnings", [])
-
-        # Group data rows by canonical key (supports multiple rows per PVP)
-        # Each row in data has office_phone and vertical fields
-        rows_by_key: dict[str, list[dict[str, Any]]] = {}
-        for row in data_list:
-            row_phone = row.get("office_phone", "")
-            row_vertical = row.get("vertical", "")
-            canonical_key = f"pv1:{row_phone}:{row_vertical.lower()}"
-
-            if canonical_key not in pvp_by_key:
-                # Response contained a PVP we didn't request -- skip
-                continue
-
-            rows_by_key.setdefault(canonical_key, []).append(row)
-
-        # Build per-PVP InsightsResponse from grouped rows
-        for canonical_key, rows in rows_by_key.items():
-            pvp = pvp_by_key[canonical_key]
-            entity_response = self._build_entity_response(
-                rows, response_metadata, request_id, warnings
-            )
-            results[canonical_key] = BatchInsightsResult(
-                pvp=pvp,
-                response=entity_response,
-            )
-
-        # Parse per-entity errors from response (HTTP 207 partial failures)
-        errors_list: list[dict[str, Any]] = body.get("errors", [])
-        for error_entry in errors_list:
-            error_phone = error_entry.get("office_phone", "")
-            error_vertical = error_entry.get("vertical", "")
-            error_msg = error_entry.get("error", "Unknown error")
-            canonical_key = f"pv1:{error_phone}:{error_vertical.lower()}"
-
-            error_pvp = pvp_by_key.get(canonical_key)
-            if error_pvp is not None and canonical_key not in results:
-                results[canonical_key] = BatchInsightsResult(
-                    pvp=error_pvp,
-                    error=error_msg,
-                )
-
-        # Mark any remaining PVPs (not in data or errors) as failed
-        for pvp in pvp_list:
-            if pvp.canonical_key not in results:
-                results[pvp.canonical_key] = BatchInsightsResult(
-                    pvp=pvp,
-                    error="No data returned for this PVP",
-                )
-
-        if self._log:
-            self._log.info(
-                "insights_batch_request_completed",
-                extra={
-                    "request_id": request_id,
-                    "batch_size": len(pvp_list),
-                    "data_count": len(data_list),
-                    "error_count": len(errors_list),
-                    "duration_ms": elapsed_ms,
-                },
-            )
-
-        return results
+        return await _batch_ep.execute_batch_request(
+            self, pvp_list, factory, period, refresh, request_id
+        )
 
     @staticmethod
     def _build_entity_response(
@@ -1372,93 +1109,20 @@ class DataServiceClient:
     ) -> InsightsResponse:
         """Build an InsightsResponse for a single PVP from batch response data.
 
-        Groups all data rows belonging to one PVP into a single response.
-        The metadata is shared across the batch but adapted per entity.
-
-        Args:
-            rows: List of data row dicts for this PVP.
-            response_metadata: Shared metadata from the batch response.
-            request_id: Request correlation ID.
-            warnings: Shared warnings from the batch response.
-
-        Returns:
-            InsightsResponse for the single PVP.
+        Delegates to _endpoints.batch.build_entity_response.
         """
-        from autom8_asana.clients.data.models import (
-            ColumnInfo,
-            InsightsMetadata,
-        )
+        from autom8_asana.clients.data._endpoints import batch as _batch_ep
 
-        columns = [ColumnInfo(**col) for col in response_metadata.get("columns", [])]
-
-        metadata = InsightsMetadata(
-            factory=response_metadata.get("factory", "unknown"),
-            frame_type=response_metadata.get("frame_type"),
-            insights_period=response_metadata.get("insights_period"),
-            row_count=len(rows),
-            column_count=len(columns) if columns else (len(rows[0]) if rows else 0),
-            columns=columns,
-            cache_hit=response_metadata.get("cache_hit", False),
-            duration_ms=response_metadata.get("duration_ms", 0.0),
-            sort_history=response_metadata.get("sort_history"),
-            is_stale=response_metadata.get("is_stale", False),
-            cached_at=response_metadata.get("cached_at"),
-        )
-
-        return InsightsResponse(
-            data=rows,
-            metadata=metadata,
-            request_id=request_id,
-            warnings=warnings,
+        return _batch_ep.build_entity_response(
+            rows, response_metadata, request_id, warnings
         )
 
     def _normalize_period(self, insights_period: str | None) -> str:
         """Normalize insights_period to autom8_data's period format.
 
-        Maps autom8_asana's period values to autom8_data's expected format:
-        - "lifetime" -> "LIFETIME"
-        - "t7", "l7" -> "T7"
-        - "t14", "l14" -> "T14"
-        - "t30", "l30" -> "T30"
-        - "quarter" -> "QUARTER"
-        - "month" -> "MONTH"
-        - "week" -> "WEEK"
-
-        Args:
-            insights_period: Period value from InsightsRequest.
-
-        Returns:
-            Normalized period string for autom8_data API.
-
-        Note:
-            autom8_data supports T7, T14, T30, LIFETIME, QUARTER, MONTH, WEEK.
-            Other period values default to T30 for backward compatibility.
+        Delegates to _normalize.normalize_period.
         """
-        if insights_period is None:
-            return "LIFETIME"
-
-        period_lower = insights_period.lower()
-
-        # Handle lifetime case-insensitively
-        if period_lower == "lifetime":
-            return "LIFETIME"
-
-        # Map trailing/last day periods to autom8_data format
-        if period_lower in ("t7", "l7"):
-            return "T7"
-        elif period_lower in ("t14", "l14"):
-            return "T14"
-        elif period_lower in ("t30", "l30"):
-            return "T30"
-        elif period_lower == "quarter":
-            return "QUARTER"
-        elif period_lower == "month":
-            return "MONTH"
-        elif period_lower == "week":
-            return "WEEK"
-
-        # Default to T30 for other values (backward compatibility)
-        return "T30"
+        return _normalize_mod.normalize_period(insights_period)
 
     async def _execute_insights_request(
         self,
@@ -1469,280 +1133,13 @@ class DataServiceClient:
     ) -> InsightsResponse:
         """Execute HTTP POST to insights factory endpoint with cache support.
 
-        Per TDD-INSIGHTS-001 Section 5.1: HTTP execution with error mapping.
-        Per Story 1.8: Cache successful responses and fall back to stale cache
-        on service errors.
-        Per Story 1.9: Full observability with structured logging and metrics.
-        Per Story 2.2: Retry with exponential backoff on transient failures.
-        Per Story 2.3: Circuit breaker integration for cascade failure prevention.
-
-        Cache Flow:
-        1. Check circuit breaker (fast-fail if open)
-        2. Try HTTP request to autom8_data with retry on transient failures
-        3. On success: record success, store in cache, return fresh response
-        4. On InsightsServiceError: record failure, try stale cache fallback
-        5. If stale entry exists: return with is_stale=True
-        6. If no stale entry: re-raise original error
-
-        Retry Flow (Story 2.2):
-        - Retries on status codes: 429, 502, 503, 504
-        - Retries on timeout errors
-        - Maximum 2 retries with exponential backoff (1s, 2s)
-        - Respects Retry-After header for 429 responses
-        - Does NOT retry 4xx client errors (except 429)
-
-        Args:
-            factory: Validated factory name.
-            request: InsightsRequest with validated parameters.
-            request_id: UUID for request tracing.
-            cache_key: Pre-built cache key for storage and fallback.
-
-        Returns:
-            InsightsResponse parsed from successful response, or stale cache fallback.
-
-        Raises:
-            InsightsValidationError: 400-level errors (no cache fallback).
-            InsightsNotFoundError: 404 errors (no cache fallback).
-            InsightsServiceError: 500-level errors if no stale cache available,
-                or circuit breaker is open (reason="circuit_breaker").
+        Delegates to _endpoints.insights.execute_insights_request.
         """
-        # --- Circuit Breaker Check (Story 2.3) ---
-        # Fast-fail if circuit is open to prevent cascade failures
-        try:
-            await self._circuit_breaker.check()
-        except SdkCircuitBreakerOpenError as e:
-            # Convert SDK error to domain error (autom8y-http >= 0.3.0)
-            raise InsightsServiceError(
-                f"Circuit breaker open. Service appears degraded. "
-                f"Retry in {e.time_remaining:.1f}s.",
-                request_id=request_id,
-                reason="circuit_breaker",
-            ) from e
+        from autom8_asana.clients.data._endpoints import insights as _insights_ep
 
-        client = await self._get_client()
-        path = "/api/v1/data-service/insights"
-
-        # Build PII-safe canonical key for logging (Story 1.9)
-        pvp_canonical_key = f"pv1:{request.office_phone}:{request.vertical}"
-        masked_pvp_key = _mask_canonical_key(pvp_canonical_key)
-
-        # Map factory to frame_type
-        frame_type = self.FACTORY_TO_FRAME_TYPE[factory]
-
-        # Normalize period to autom8_data format
-        period = self._normalize_period(request.insights_period)
-
-        # Transform request body to autom8_data format
-        request_body: dict[str, Any] = {
-            "frame_type": frame_type,
-            "phone_vertical_pairs": [
-                {
-                    "phone": request.office_phone,
-                    "vertical": request.vertical,
-                }
-            ],
-            "period": period,
-        }
-
-        # Add optional parameters if present
-        if request.start_date is not None:
-            request_body["start_date"] = request.start_date.isoformat()
-        if request.end_date is not None:
-            request_body["end_date"] = request.end_date.isoformat()
-        if request.metrics is not None:
-            request_body["metrics"] = request.metrics
-        if request.dimensions is not None:
-            request_body["dimensions"] = request.dimensions
-        if request.groups is not None:
-            request_body["groups"] = request.groups
-        if request.break_down is not None:
-            request_body["break_down"] = request.break_down
-        if request.refresh:
-            request_body["refresh"] = request.refresh
-        if request.filters:
-            request_body["filters"] = request.filters
-
-        # Start timing for latency metrics (Story 1.9)
-        start_time = time.monotonic()
-
-        # --- Request Logging (Story 1.9) ---
-        if self._log:
-            self._log.info(
-                "insights_request_started",
-                extra={
-                    "factory": factory,
-                    "frame_type": frame_type,
-                    "period": period,
-                    "pvp_canonical_key": masked_pvp_key,
-                    "request_id": request_id,
-                },
-            )
-
-        # --- Retry Callbacks ---
-
-        async def _on_retry(
-            attempt: int, status_code: int, retry_after: int | None
-        ) -> None:
-            """Log retry attempts for insights requests."""
-            if self._log:
-                extra: dict[str, Any] = {
-                    "request_id": request_id,
-                    "attempt": attempt + 1,
-                    "max_retries": self._config.retry.max_retries,
-                }
-                if status_code:
-                    extra["status_code"] = status_code
-                    extra["retry_after"] = retry_after
-                else:
-                    extra["error_type"] = "TimeoutException"
-                    extra["reason"] = "timeout"
-                self._log.warning("insights_request_retry", extra=extra)
-
-        async def _on_timeout_exhausted(
-            e: httpx.TimeoutException, attempt: int
-        ) -> None:
-            """Handle exhausted timeout retries for insights."""
-            elapsed_ms = (time.monotonic() - start_time) * 1000
-
-            # --- Error Logging (Story 1.9) ---
-            if self._log:
-                self._log.error(
-                    "insights_request_failed",
-                    extra={
-                        "request_id": request_id,
-                        "error_type": "TimeoutException",
-                        "reason": "timeout",
-                        "duration_ms": elapsed_ms,
-                        "attempt": attempt + 1,
-                    },
-                )
-
-            # --- Error Metrics (Story 1.9) ---
-            self._emit_metric(
-                "insights_request_error_total",
-                1,
-                {"factory": factory, "error_type": "timeout"},
-            )
-            self._emit_metric(
-                "insights_request_latency_ms",
-                elapsed_ms,
-                {"factory": factory, "status": "error"},
-            )
-
-            # --- Circuit Breaker Record Failure (Story 2.3) ---
-            await self._circuit_breaker.record_failure(e)
-
-            raise InsightsServiceError(
-                "Request to autom8_data timed out",
-                request_id=request_id,
-                reason="timeout",
-            ) from e
-
-        async def _on_http_error(e: httpx.HTTPError, attempt: int) -> None:
-            """Handle non-retryable HTTP errors for insights."""
-            elapsed_ms = (time.monotonic() - start_time) * 1000
-
-            # --- Error Logging (Story 1.9) ---
-            if self._log:
-                self._log.error(
-                    "insights_request_failed",
-                    extra={
-                        "request_id": request_id,
-                        "error_type": e.__class__.__name__,
-                        "reason": "http_error",
-                        "duration_ms": elapsed_ms,
-                        "attempt": attempt + 1,
-                    },
-                )
-
-            # --- Error Metrics (Story 1.9) ---
-            self._emit_metric(
-                "insights_request_error_total",
-                1,
-                {"factory": factory, "error_type": "http_error"},
-            )
-            self._emit_metric(
-                "insights_request_latency_ms",
-                elapsed_ms,
-                {"factory": factory, "status": "error"},
-            )
-
-            # --- Circuit Breaker Record Failure (Story 2.3) ---
-            await self._circuit_breaker.record_failure(e)
-
-            raise InsightsServiceError(
-                f"HTTP error communicating with autom8_data: {e}",
-                request_id=request_id,
-                reason="http_error",
-            ) from e
-
-        # --- Retry Loop with Stale Fallback (Story 2.2, Story 1.8) ---
-        # Note: W3C traceparent is auto-injected by HTTPXClientInstrumentor.
-        # X-Request-Id is kept for backwards compatibility with autom8y-data's
-        # RequestIDMiddleware, which uses it for non-OTEL correlation.
-        try:
-            response, attempt = await self._execute_with_retry(
-                lambda: client.post(
-                    path,
-                    json=request_body,
-                    headers={"X-Request-Id": request_id},
-                ),
-                on_retry=_on_retry,
-                on_timeout_exhausted=_on_timeout_exhausted,
-                on_http_error=_on_http_error,
-            )
-        except InsightsServiceError:
-            # Try stale cache fallback on service errors (Story 1.8)
-            stale_response = self._get_stale_response(cache_key, request_id)
-            if stale_response is not None:
-                return stale_response
-            raise
-
-        # Calculate elapsed time
-        elapsed_ms = (time.monotonic() - start_time) * 1000
-
-        # Handle error responses (if we got here after retries exhausted or non-retryable error)
-        if response is not None and response.status_code >= 400:
-            return await self._handle_error_response(
-                response, request_id, cache_key, factory, elapsed_ms
-            )
-
-        # Parse successful response
-        insights_response = self._parse_success_response(response, request_id)
-
-        # --- Response Logging (Story 1.9) ---
-        if self._log:
-            self._log.info(
-                "insights_request_completed",
-                extra={
-                    "request_id": request_id,
-                    "row_count": insights_response.metadata.row_count,
-                    "cache_hit": insights_response.metadata.cache_hit,
-                    "is_stale": insights_response.metadata.is_stale,
-                    "duration_ms": elapsed_ms,
-                    "attempt": attempt + 1,
-                },
-            )
-
-        # --- Success Metrics (Story 1.9) ---
-        self._emit_metric(
-            "insights_request_total",
-            1,
-            {"factory": factory, "status": "success"},
+        return await _insights_ep.execute_insights_request(
+            self, factory, request, request_id, cache_key
         )
-        self._emit_metric(
-            "insights_request_latency_ms",
-            elapsed_ms,
-            {"factory": factory, "status": "success"},
-        )
-
-        # --- Circuit Breaker Record Success (Story 2.3) ---
-        await self._circuit_breaker.record_success()
-
-        # Cache successful response (Story 1.8)
-        self._cache_response(cache_key, insights_response)
-
-        return insights_response
 
     # --- Response Parsing and Error Handling ---
     # Delegated to clients/data/_response.py module-level functions.
@@ -1818,123 +1215,10 @@ class DataServiceClient:
         Raises:
             ExportError: On HTTP errors, circuit breaker open, or timeout.
         """
-        # Check circuit breaker
-        try:
-            await self._circuit_breaker.check()
-        except SdkCircuitBreakerOpenError as e:
-            raise ExportError(
-                f"Circuit breaker open for autom8_data. "
-                f"Retry in {e.time_remaining:.1f}s.",
-                office_phone=office_phone,
-                reason="circuit_breaker",
-            ) from e
+        from autom8_asana.clients.data._endpoints import export as _export_ep
 
-        client = await self._get_client()
-        path = "/api/v1/messages/export"
-
-        # Build query parameters
-        params: dict[str, str] = {"office_phone": office_phone}
-        if start_date is not None:
-            params["start_date"] = start_date.isoformat()
-        if end_date is not None:
-            params["end_date"] = end_date.isoformat()
-
-        # PII-safe logging
-        masked_phone = mask_phone_number(office_phone)
-
-        if self._log:
-            self._log.info(
-                "export_request_started",
-                extra={
-                    "office_phone": masked_phone,
-                    "path": path,
-                },
-            )
-
-        start_time = time.monotonic()
-
-        async def _on_export_timeout(e: httpx.TimeoutException, attempt: int) -> None:
-            """Handle exhausted timeout retries for export."""
-            await self._circuit_breaker.record_failure(e)
-            raise ExportError(
-                "Export request timed out",
-                office_phone=office_phone,
-                reason="timeout",
-            ) from e
-
-        async def _on_export_http_error(e: httpx.HTTPError, attempt: int) -> None:
-            """Handle non-retryable HTTP errors for export."""
-            await self._circuit_breaker.record_failure(e)
-            raise ExportError(
-                f"HTTP error during export: {e}",
-                office_phone=office_phone,
-                reason="http_error",
-            ) from e
-
-        response, _attempt = await self._execute_with_retry(
-            lambda: client.get(
-                path,
-                params=params,
-                headers={"Accept": "text/csv"},
-            ),
-            on_timeout_exhausted=_on_export_timeout,
-            on_http_error=_on_export_http_error,
-        )
-
-        elapsed_ms = (time.monotonic() - start_time) * 1000
-
-        # Handle error responses
-        if response.status_code >= 400:
-            if response.status_code >= 500:
-                error = ExportError(
-                    f"autom8_data export error (HTTP {response.status_code})",
-                    office_phone=office_phone,
-                    reason="server_error",
-                )
-                await self._circuit_breaker.record_failure(error)
-                raise error
-            raise ExportError(
-                f"autom8_data export error (HTTP {response.status_code})",
-                office_phone=office_phone,
-                reason="client_error",
-            )
-
-        # Record success with circuit breaker
-        await self._circuit_breaker.record_success()
-
-        # Parse response headers
-        row_count = int(response.headers.get("X-Export-Row-Count", "0"))
-        truncated = (
-            response.headers.get("X-Export-Truncated", "false").lower() == "true"
-        )
-
-        # Extract filename from Content-Disposition header
-        content_disp = response.headers.get("Content-Disposition", "")
-        filename = _parse_content_disposition_filename(content_disp)
-        if not filename:
-            # Fallback: generate filename
-            phone_stripped = office_phone.lstrip("+")
-            today_str = date.today().isoformat().replace("-", "")
-            filename = f"conversations_{phone_stripped}_{today_str}.csv"
-
-        if self._log:
-            self._log.info(
-                "export_request_completed",
-                extra={
-                    "office_phone": masked_phone,
-                    "row_count": row_count,
-                    "truncated": truncated,
-                    "duration_ms": elapsed_ms,
-                    "filename": filename,
-                },
-            )
-
-        return ExportResult(
-            csv_content=response.content,
-            row_count=row_count,
-            truncated=truncated,
-            office_phone=office_phone,
-            filename=filename,
+        return await _export_ep.get_export_csv(
+            self, office_phone, start_date=start_date, end_date=end_date
         )
 
     # --- Appointments & Leads API (TDD-EXPORT-001 W04) ---
@@ -1964,87 +1248,11 @@ class DataServiceClient:
             InsightsServiceError: Upstream service failure.
             InsightsNotFoundError: No data found.
         """
-        self._check_feature_enabled()
+        from autom8_asana.clients.data._endpoints import simple as _simple_ep
 
-        request_id = str(uuid.uuid4())
-        masked_phone = mask_phone_number(office_phone)
-
-        logger.info(
-            "appointments_request_started",
-            office_phone=masked_phone,
-            days=days,
-            limit=limit,
-            request_id=request_id,
+        return await _simple_ep.get_appointments(
+            self, office_phone, days=days, limit=limit
         )
-
-        # Circuit breaker check
-        try:
-            await self._circuit_breaker.check()
-        except SdkCircuitBreakerOpenError as e:
-            raise InsightsServiceError(
-                f"Circuit breaker open. Retry in {e.time_remaining:.1f}s.",
-                request_id=request_id,
-                reason="circuit_breaker",
-            ) from e
-
-        client = await self._get_client()
-        path = "/api/v1/appointments"
-        params = {
-            "office_phone": office_phone,
-            "days": str(days),
-            "limit": str(limit),
-        }
-
-        start_time = time.monotonic()
-
-        async def _on_timeout(e: httpx.TimeoutException, attempt: int) -> None:
-            await self._circuit_breaker.record_failure(e)
-            raise InsightsServiceError(
-                "Appointments request timed out",
-                request_id=request_id,
-                reason="timeout",
-            ) from e
-
-        async def _on_http_error(e: httpx.HTTPError, attempt: int) -> None:
-            await self._circuit_breaker.record_failure(e)
-            raise InsightsServiceError(
-                f"HTTP error during appointments fetch: {e}",
-                request_id=request_id,
-                reason="http_error",
-            ) from e
-
-        # Note: W3C traceparent is auto-injected by HTTPXClientInstrumentor.
-        # X-Request-Id is kept for backwards compatibility.
-        response, _attempt = await self._execute_with_retry(
-            lambda: client.get(
-                path,
-                params=params,
-                headers={"X-Request-Id": request_id},
-            ),
-            on_timeout_exhausted=_on_timeout,
-            on_http_error=_on_http_error,
-        )
-
-        elapsed_ms = (time.monotonic() - start_time) * 1000
-
-        if response.status_code >= 400:
-            cache_key = f"appointments:{office_phone}"
-            return await self._handle_error_response(
-                response, request_id, cache_key, "appointments", elapsed_ms
-            )
-
-        insights_response = self._parse_success_response(response, request_id)
-        await self._circuit_breaker.record_success()
-
-        logger.info(
-            "appointments_request_completed",
-            office_phone=masked_phone,
-            row_count=insights_response.metadata.row_count,
-            duration_ms=elapsed_ms,
-            request_id=request_id,
-        )
-
-        return insights_response
 
     async def get_leads_async(
         self,
@@ -2073,90 +1281,11 @@ class DataServiceClient:
             InsightsServiceError: Upstream service failure.
             InsightsNotFoundError: No data found.
         """
-        self._check_feature_enabled()
+        from autom8_asana.clients.data._endpoints import simple as _simple_ep
 
-        request_id = str(uuid.uuid4())
-        masked_phone = mask_phone_number(office_phone)
-
-        logger.info(
-            "leads_request_started",
-            office_phone=masked_phone,
-            days=days,
-            exclude_appointments=exclude_appointments,
-            limit=limit,
-            request_id=request_id,
+        return await _simple_ep.get_leads(
+            self, office_phone, days=days, exclude_appointments=exclude_appointments, limit=limit
         )
-
-        # Circuit breaker check
-        try:
-            await self._circuit_breaker.check()
-        except SdkCircuitBreakerOpenError as e:
-            raise InsightsServiceError(
-                f"Circuit breaker open. Retry in {e.time_remaining:.1f}s.",
-                request_id=request_id,
-                reason="circuit_breaker",
-            ) from e
-
-        client = await self._get_client()
-        path = "/api/v1/leads"
-        params: dict[str, str] = {
-            "office_phone": office_phone,
-            "days": str(days),
-            "limit": str(limit),
-        }
-        if exclude_appointments:
-            params["exclude_appointments"] = "true"
-
-        start_time = time.monotonic()
-
-        async def _on_timeout(e: httpx.TimeoutException, attempt: int) -> None:
-            await self._circuit_breaker.record_failure(e)
-            raise InsightsServiceError(
-                "Leads request timed out",
-                request_id=request_id,
-                reason="timeout",
-            ) from e
-
-        async def _on_http_error(e: httpx.HTTPError, attempt: int) -> None:
-            await self._circuit_breaker.record_failure(e)
-            raise InsightsServiceError(
-                f"HTTP error during leads fetch: {e}",
-                request_id=request_id,
-                reason="http_error",
-            ) from e
-
-        # Note: W3C traceparent is auto-injected by HTTPXClientInstrumentor.
-        # X-Request-Id is kept for backwards compatibility.
-        response, _attempt = await self._execute_with_retry(
-            lambda: client.get(
-                path,
-                params=params,
-                headers={"X-Request-Id": request_id},
-            ),
-            on_timeout_exhausted=_on_timeout,
-            on_http_error=_on_http_error,
-        )
-
-        elapsed_ms = (time.monotonic() - start_time) * 1000
-
-        if response.status_code >= 400:
-            cache_key = f"leads:{office_phone}"
-            return await self._handle_error_response(
-                response, request_id, cache_key, "leads", elapsed_ms
-            )
-
-        insights_response = self._parse_success_response(response, request_id)
-        await self._circuit_breaker.record_success()
-
-        logger.info(
-            "leads_request_completed",
-            office_phone=masked_phone,
-            row_count=insights_response.metadata.row_count,
-            duration_ms=elapsed_ms,
-            request_id=request_id,
-        )
-
-        return insights_response
 
 
 def _parse_content_disposition_filename(header: str) -> str | None:
