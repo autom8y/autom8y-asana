@@ -22,7 +22,7 @@ from autom8_asana.dataframes.extractors.base import BaseExtractor
 from autom8_asana.dataframes.models.task_row import TaskRow
 
 if TYPE_CHECKING:
-    from autom8_asana.dataframes.models.schema import DataFrameSchema
+    pass
 
 
 # Module-level cache: schema task_type -> dynamically created model class

@@ -20,7 +20,6 @@ from .conftest import (
     make_insights_response,
 )
 
-
 # --- Story 2.4: Batch Insights Tests ---
 
 

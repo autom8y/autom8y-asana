@@ -68,17 +68,15 @@ __all__ = ["DataServiceClient", "mask_phone_number"]
 # Primitives live in _pii.py to avoid circular imports with submodules.
 # Re-exported here for backward compatibility.
 
-from autom8_asana.clients.data._pii import (  # noqa: E402
-    _PHONE_PATTERN,
-    mask_canonical_key as _mask_canonical_key,
-    mask_phone_number,
-    mask_pii_in_string as _mask_pii_in_string,
-)
-
-
 # --- Metrics Hook Type (Story 1.9) ---
 # Re-exported from _metrics module for backward compatibility.
 from autom8_asana.clients.data._metrics import MetricsHook  # noqa: E402
+from autom8_asana.clients.data._pii import (  # noqa: E402
+    mask_phone_number,
+)
+from autom8_asana.clients.data._pii import (  # noqa: E402
+    mask_pii_in_string as _mask_pii_in_string,
+)
 
 
 class DataServiceClient:

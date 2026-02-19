@@ -9,17 +9,17 @@ from __future__ import annotations
 
 import pytest
 
-from tests.unit.dataframes.conftest import make_mock_task
 from autom8_asana.dataframes.extractors.schema import (
+    _MODEL_CACHE,
     DTYPE_MAP,
     SchemaExtractor,
-    _MODEL_CACHE,
 )
 from autom8_asana.dataframes.schemas.asset_edit import ASSET_EDIT_SCHEMA
 from autom8_asana.dataframes.schemas.asset_edit_holder import ASSET_EDIT_HOLDER_SCHEMA
 from autom8_asana.dataframes.schemas.base import BASE_SCHEMA
 from autom8_asana.dataframes.schemas.business import BUSINESS_SCHEMA
 from autom8_asana.dataframes.schemas.offer import OFFER_SCHEMA
+from tests.unit.dataframes.conftest import make_mock_task
 
 
 class TestSchemaExtractor:

@@ -14,10 +14,10 @@ import pytest
 
 from autom8_asana.dataframes.extractors.default import DefaultExtractor
 from autom8_asana.dataframes.extractors.schema import (
-    DTYPE_MAP,
-    SchemaExtractor,
     _MODEL_CACHE,
     _MODEL_CACHE_LOCK,
+    DTYPE_MAP,
+    SchemaExtractor,
 )
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.dataframes.models.task_row import TaskRow
@@ -331,12 +331,12 @@ class TestConcurrentExtraction:
 
     def test_concurrent_extraction_from_multiple_schemas(self) -> None:
         """Multiple threads extracting from different schemas simultaneously."""
-        from autom8_asana.dataframes.schemas.offer import OFFER_SCHEMA
         from autom8_asana.dataframes.schemas.asset_edit import ASSET_EDIT_SCHEMA
-        from autom8_asana.dataframes.schemas.business import BUSINESS_SCHEMA
         from autom8_asana.dataframes.schemas.asset_edit_holder import (
             ASSET_EDIT_HOLDER_SCHEMA,
         )
+        from autom8_asana.dataframes.schemas.business import BUSINESS_SCHEMA
+        from autom8_asana.dataframes.schemas.offer import OFFER_SCHEMA
 
         schemas = [
             OFFER_SCHEMA,
@@ -403,8 +403,8 @@ class TestDynamicModelProperties:
 
     def test_dynamic_model_name_format(self) -> None:
         """Dynamic model names should follow {TaskType}SchemaRow pattern."""
-        from autom8_asana.dataframes.schemas.offer import OFFER_SCHEMA
         from autom8_asana.dataframes.schemas.asset_edit import ASSET_EDIT_SCHEMA
+        from autom8_asana.dataframes.schemas.offer import OFFER_SCHEMA
 
         _MODEL_CACHE.pop("Offer", None)
         _MODEL_CACHE.pop("AssetEdit", None)

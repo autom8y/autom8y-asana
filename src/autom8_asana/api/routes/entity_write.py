@@ -21,9 +21,9 @@ from pydantic import BaseModel, model_validator
 
 from autom8_asana.api.dependencies import (
     AuthContextDep,
+    EntityWriteRegistryDep,
     MutationInvalidatorDep,
     RequestId,
-    EntityWriteRegistryDep,
 )
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.routes.internal import (

@@ -112,23 +112,6 @@ class Offer(
 
     # business property inherited from UnitNavigableEntityMixin (DRY-006)
 
-    @property
-    def account_activity(self) -> AccountActivity | None:
-        """Classify this offer's activity based on section membership.
-
-        Returns:
-            AccountActivity or None if section unknown/missing.
-        """
-        from autom8_asana.models.business.activity import (
-            OFFER_CLASSIFIER,
-            extract_section_name,
-        )
-
-        section_name = extract_section_name(self, self.PRIMARY_PROJECT_GID)
-        if section_name is None:
-            return None
-        return OFFER_CLASSIFIER.classify(section_name)
-
     def _invalidate_refs(self, _exclude_attr: str | None = None) -> None:
         """Invalidate cached references on hierarchy change.
 

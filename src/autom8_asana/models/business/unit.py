@@ -106,23 +106,6 @@ class Unit(
     offer_holder = HolderRef["OfferHolder"]()
     process_holder = HolderRef["ProcessHolder"]()
 
-    @property
-    def account_activity(self) -> AccountActivity | None:
-        """Classify this unit's activity based on section membership.
-
-        Returns:
-            AccountActivity or None if section unknown/missing.
-        """
-        from autom8_asana.models.business.activity import (
-            UNIT_CLASSIFIER,
-            extract_section_name,
-        )
-
-        section_name = extract_section_name(self, self.PRIMARY_PROJECT_GID)
-        if section_name is None:
-            return None
-        return UNIT_CLASSIFIER.classify(section_name)
-
     # _invalidate_refs() inherited from BusinessEntity (ADR-0076)
 
     # --- Custom Field Descriptors (ADR-0081, TDD-PATTERNS-A) ---

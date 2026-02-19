@@ -16,6 +16,8 @@ from autom8_asana.cache.dataframe.decorator import dataframe_cache
 from autom8_asana.cache.dataframe.factory import reset_dataframe_cache
 from autom8_asana.cache.integration.dataframe_cache import (
     DataFrameCache,
+)
+from autom8_asana.cache.integration.dataframe_cache import (
     DataFrameCacheEntry as CacheEntry,
 )
 

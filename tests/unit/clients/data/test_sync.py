@@ -15,7 +15,6 @@ import pytest
 from autom8_asana.clients.data.client import DataServiceClient
 from autom8_asana.clients.data.config import DataServiceConfig
 
-
 # --- Story 2.6: Sync Wrapper Tests ---
 
 

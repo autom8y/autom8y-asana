@@ -365,7 +365,7 @@ def get_request_id(request: Request) -> str:
     return getattr(request.state, "request_id", "unknown")
 
 
-def get_entity_write_registry(request: Request) -> "EntityWriteRegistry | None":
+def get_entity_write_registry(request: Request) -> EntityWriteRegistry | None:
     """Get EntityWriteRegistry from app state (populated during lifespan startup).
 
     Per TDD-ENTITY-WRITE-API Section 8.1: The registry is built once at startup
@@ -381,7 +381,7 @@ def get_entity_write_registry(request: Request) -> "EntityWriteRegistry | None":
     return getattr(request.app.state, "entity_write_registry", None)
 
 
-def get_dataframe_cache(request: Request) -> "DataFrameCache | None":
+def get_dataframe_cache(request: Request) -> DataFrameCache | None:
     """Get the shared DataFrameCache from app state.
 
     Per ADR-0067: DataFrameCache is created once during app startup and stored
