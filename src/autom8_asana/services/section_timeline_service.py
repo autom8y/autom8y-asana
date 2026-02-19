@@ -149,7 +149,9 @@ def _build_intervals_from_stories(
     story_count = len(stories)
 
     for story in stories:
-        section_name = (story.new_section.name if story.new_section else None) or "UNKNOWN"
+        section_name = (
+            story.new_section.name if story.new_section else None
+        ) or "UNKNOWN"
         classification = OFFER_CLASSIFIER.classify(section_name)
 
         if classification is None:
