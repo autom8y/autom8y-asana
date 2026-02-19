@@ -14,6 +14,7 @@ import time
 from typing import TYPE_CHECKING
 
 from autom8y_http import CircuitBreakerOpenError as SdkCircuitBreakerOpenError
+
 from autom8_asana.clients.data import _retry as _retry_mod
 from autom8_asana.clients.data.models import InsightsResponse
 from autom8_asana.exceptions import InsightsServiceError
@@ -46,8 +47,9 @@ async def get_appointments(
         InsightsServiceError: Upstream service failure.
         InsightsNotFoundError: No data found.
     """
-    import autom8_asana.clients.data.client as _client_mod
     import uuid
+
+    import autom8_asana.clients.data.client as _client_mod
 
     client._check_feature_enabled()
 
@@ -150,8 +152,9 @@ async def get_leads(
         InsightsServiceError: Upstream service failure.
         InsightsNotFoundError: No data found.
     """
-    import autom8_asana.clients.data.client as _client_mod
     import uuid
+
+    import autom8_asana.clients.data.client as _client_mod
 
     client._check_feature_enabled()
 

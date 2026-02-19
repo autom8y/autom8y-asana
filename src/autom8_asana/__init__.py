@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """autom8_asana - Async-first Asana API client.
 
 Example:

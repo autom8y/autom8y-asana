@@ -16,7 +16,6 @@ import pytest
 from autom8_asana.clients.data.client import DataServiceClient
 from autom8_asana.clients.data.config import DataServiceConfig
 
-
 # --- Story 1.6: get_insights_async Tests ---
 
 
