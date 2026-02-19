@@ -17,7 +17,6 @@ Public API:
     - ParallelSectionFetcher: Coordinates parallel task fetching across sections
     - FetchResult: Result container for parallel fetch operations
     - ParallelFetchError: Error raised when parallel fetch fails
-    - create_dataframe_builder: Factory function for creating DataFrame builder
 
 Example:
     >>> from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
@@ -37,8 +36,6 @@ Example:
 """
 
 from __future__ import annotations
-
-from typing import TYPE_CHECKING
 
 from autom8_asana.dataframes.builders.base import (
     LAZY_THRESHOLD,
@@ -63,51 +60,6 @@ from autom8_asana.dataframes.builders.progressive import (
 )
 from autom8_asana.dataframes.builders.section import SectionDataFrameBuilder
 
-if TYPE_CHECKING:
-    from autom8_asana.cache.providers.unified import UnifiedTaskStore
-    from autom8_asana.clients.tasks import TasksClient
-
-
-def create_dataframe_builder(
-    tasks_client: TasksClient,
-    unified_store: UnifiedTaskStore,
-    *,
-    enable_persistence: bool = True,
-) -> ProgressiveProjectBuilder:
-    """Factory function for creating DataFrame builder.
-
-    Per TDD-DATAFRAME-BUILDER-WATERMARK-001: Creates a ProgressiveProjectBuilder
-    with appropriate configuration for the given parameters.
-
-    This factory simplifies builder creation by automatically configuring
-    persistence from environment settings when enable_persistence=True.
-
-    Args:
-        tasks_client: TasksClient for API calls.
-        unified_store: UnifiedTaskStore for cache integration.
-        enable_persistence: If True, configure S3 persistence from environment.
-            Defaults to True.
-
-    Returns:
-        Configured ProgressiveProjectBuilder instance.
-
-    Example:
-        >>> from autom8_asana.dataframes.builders import create_dataframe_builder
-        >>> builder = create_dataframe_builder(
-        ...     tasks_client=client.tasks,
-        ...     unified_store=store,
-        ... )
-        >>> # Builder is ready for use with build_progressive_async()
-    """
-    # Note: This factory requires an AsanaClient to be constructed properly.
-    # For now, we raise an error since we can't construct a full client from just tasks_client.
-    # The caller should use ProgressiveProjectBuilder directly with full configuration.
-    raise NotImplementedError(
-        "create_dataframe_builder requires full AsanaClient. "
-        "Use ProgressiveProjectBuilder directly instead."
-    )
-
-
 __all__ = [
     # Constants
     "LAZY_THRESHOLD",
@@ -129,6 +81,4 @@ __all__ = [
     "FetchResult",
     "ParallelFetchError",
     "ParallelSectionFetcher",
-    # Factory
-    "create_dataframe_builder",
 ]

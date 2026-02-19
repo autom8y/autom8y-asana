@@ -131,7 +131,7 @@ class TestMaskPiiInString:
 
     def test_masks_phone_in_cache_key(self) -> None:
         """Masks phone number inside an insights cache key."""
-        from autom8_asana.clients.data.client import _mask_pii_in_string
+        from autom8_asana.clients.data._pii import mask_pii_in_string as _mask_pii_in_string
 
         result = _mask_pii_in_string("insights:account:pv1:+17705753103:chiropractic")
 
@@ -140,7 +140,7 @@ class TestMaskPiiInString:
 
     def test_masks_phone_in_simple_cache_key(self) -> None:
         """Masks phone in appointments/leads cache key format."""
-        from autom8_asana.clients.data.client import _mask_pii_in_string
+        from autom8_asana.clients.data._pii import mask_pii_in_string as _mask_pii_in_string
 
         result = _mask_pii_in_string("appointments:+17705753103")
 
@@ -149,7 +149,7 @@ class TestMaskPiiInString:
 
     def test_masks_multiple_phones(self) -> None:
         """Masks all phone numbers when multiple are present."""
-        from autom8_asana.clients.data.client import _mask_pii_in_string
+        from autom8_asana.clients.data._pii import mask_pii_in_string as _mask_pii_in_string
 
         result = _mask_pii_in_string("batch error: +17705753103 and +14155551234")
 
@@ -160,7 +160,7 @@ class TestMaskPiiInString:
 
     def test_returns_string_without_phone_unchanged(self) -> None:
         """Strings without phone numbers are returned unchanged."""
-        from autom8_asana.clients.data.client import _mask_pii_in_string
+        from autom8_asana.clients.data._pii import mask_pii_in_string as _mask_pii_in_string
 
         result = _mask_pii_in_string("no phone here")
 
@@ -168,7 +168,7 @@ class TestMaskPiiInString:
 
     def test_empty_string(self) -> None:
         """Empty string returns empty."""
-        from autom8_asana.clients.data.client import _mask_pii_in_string
+        from autom8_asana.clients.data._pii import mask_pii_in_string as _mask_pii_in_string
 
         assert _mask_pii_in_string("") == ""
 
