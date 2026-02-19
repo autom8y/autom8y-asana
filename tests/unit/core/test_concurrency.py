@@ -183,7 +183,23 @@ class TestStructuredLogging:
 
     @pytest.mark.asyncio
     async def test_label_in_log(self) -> None:
-        """Label appears in structured log output."""
+        """Label appears in structured log output.
+
+        When autom8y_log configures structlog with cache_logger_on_first_use=True,
+        the module-level logger in concurrency.py caches its bound logger on first
+        use. If earlier tests trigger that caching, structlog.testing.capture_logs()
+        cannot intercept subsequent calls because the cached logger bypasses the
+        reconfigured processor chain. Clearing the instance-level ``bind`` attribute
+        forces the proxy to re-resolve from current config on next access.
+        """
+        from autom8_asana.core import concurrency as _conc_mod
+
+        # Clear structlog BoundLoggerLazyProxy cache so capture_logs() works
+        # even when earlier tests triggered cache_logger_on_first_use binding.
+        proxy = _conc_mod.logger
+        if "bind" in getattr(proxy, "__dict__", {}):
+            del proxy.__dict__["bind"]
+
         with structlog.testing.capture_logs() as captured:
             await gather_with_semaphore(
                 [_succeed(1), _succeed(2)],

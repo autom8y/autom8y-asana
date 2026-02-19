@@ -171,8 +171,16 @@ def _resolve_patches(mock_df: pl.DataFrame = MOCK_UNIT_DF):
         "autom8_asana.auth.jwt_validator.validate_service_token",
         _mock_jwt_validation(),
     )
+    # Patch get_bot_pat at both the canonical source AND the dependencies module
+    # where it is imported at module level. Without the dependencies patch, the
+    # reference held by dependencies.py's namespace points to the real function,
+    # which fails in CI where ASANA_PAT is not set.
     pat_patch = patch(
         "autom8_asana.auth.bot_pat.get_bot_pat",
+        return_value="test_bot_pat",
+    )
+    pat_patch_deps = patch(
+        "autom8_asana.api.dependencies.get_bot_pat",
         return_value="test_bot_pat",
     )
     client_patch = patch("autom8_asana.AsanaClient")
@@ -180,7 +188,14 @@ def _resolve_patches(mock_df: pl.DataFrame = MOCK_UNIT_DF):
         "autom8_asana.services.universal_strategy.UniversalResolutionStrategy.resolve",
         mock_resolve,
     )
-    return jwt_patch, jwt_patch_canonical, pat_patch, client_patch, strategy_patch
+    return (
+        jwt_patch,
+        jwt_patch_canonical,
+        pat_patch,
+        pat_patch_deps,
+        client_patch,
+        strategy_patch,
+    )
 
 
 def _make_async_client_mock(mock_client_class: MagicMock) -> None:
@@ -204,9 +219,9 @@ class TestGidLookupHappyPath:
 
     def test_ct001_single_criterion_returns_gid(self, client: TestClient) -> None:
         """CT-001: Single phone/vertical criterion resolves to a GID."""
-        jwt_p, jwt_cp, pat_p, cli_p, strat_p = _resolve_patches()
+        jwt_p, jwt_cp, pat_p, pat_dp, cli_p, strat_p = _resolve_patches()
 
-        with jwt_p, jwt_cp, pat_p, cli_p as mock_cli, strat_p:
+        with jwt_p, jwt_cp, pat_p, pat_dp, cli_p as mock_cli, strat_p:
             _make_async_client_mock(mock_cli)
 
             response = client.post(
@@ -231,9 +246,9 @@ class TestGidLookupHappyPath:
 
     def test_ct002_batch_preserves_order(self, client: TestClient) -> None:
         """CT-002: Batch of 3 criteria returns 3 results preserving positional order."""
-        jwt_p, jwt_cp, pat_p, cli_p, strat_p = _resolve_patches()
+        jwt_p, jwt_cp, pat_p, pat_dp, cli_p, strat_p = _resolve_patches()
 
-        with jwt_p, jwt_cp, pat_p, cli_p as mock_cli, strat_p:
+        with jwt_p, jwt_cp, pat_p, pat_dp, cli_p as mock_cli, strat_p:
             _make_async_client_mock(mock_cli)
 
             response = client.post(
@@ -264,9 +279,9 @@ class TestGidLookupHappyPath:
         self, client: TestClient
     ) -> None:
         """CT-003: Criterion that matches nothing returns gid=null, error=NOT_FOUND."""
-        jwt_p, jwt_cp, pat_p, cli_p, strat_p = _resolve_patches()
+        jwt_p, jwt_cp, pat_p, pat_dp, cli_p, strat_p = _resolve_patches()
 
-        with jwt_p, jwt_cp, pat_p, cli_p as mock_cli, strat_p:
+        with jwt_p, jwt_cp, pat_p, pat_dp, cli_p as mock_cli, strat_p:
             _make_async_client_mock(mock_cli)
 
             response = client.post(
@@ -289,9 +304,9 @@ class TestGidLookupHappyPath:
 
     def test_ct004_mixed_batch_meta_counts(self, client: TestClient) -> None:
         """CT-004: Batch with 2 found + 1 not-found has correct meta counts."""
-        jwt_p, jwt_cp, pat_p, cli_p, strat_p = _resolve_patches()
+        jwt_p, jwt_cp, pat_p, pat_dp, cli_p, strat_p = _resolve_patches()
 
-        with jwt_p, jwt_cp, pat_p, cli_p as mock_cli, strat_p:
+        with jwt_p, jwt_cp, pat_p, pat_dp, cli_p as mock_cli, strat_p:
             _make_async_client_mock(mock_cli)
 
             response = client.post(
@@ -320,9 +335,9 @@ class TestGidLookupResponseShape:
 
     def test_ct005_result_has_required_fields(self, client: TestClient) -> None:
         """CT-005: Each result has gid, match_count, error, gids, data fields."""
-        jwt_p, jwt_cp, pat_p, cli_p, strat_p = _resolve_patches()
+        jwt_p, jwt_cp, pat_p, pat_dp, cli_p, strat_p = _resolve_patches()
 
-        with jwt_p, jwt_cp, pat_p, cli_p as mock_cli, strat_p:
+        with jwt_p, jwt_cp, pat_p, pat_dp, cli_p as mock_cli, strat_p:
             _make_async_client_mock(mock_cli)
 
             response = client.post(
@@ -348,9 +363,9 @@ class TestGidLookupResponseShape:
 
     def test_ct006_meta_has_required_fields(self, client: TestClient) -> None:
         """CT-006: Meta object has all required fields with correct types."""
-        jwt_p, jwt_cp, pat_p, cli_p, strat_p = _resolve_patches()
+        jwt_p, jwt_cp, pat_p, pat_dp, cli_p, strat_p = _resolve_patches()
 
-        with jwt_p, jwt_cp, pat_p, cli_p as mock_cli, strat_p:
+        with jwt_p, jwt_cp, pat_p, pat_dp, cli_p as mock_cli, strat_p:
             _make_async_client_mock(mock_cli)
 
             response = client.post(
@@ -463,6 +478,14 @@ class TestGidLookupValidation:
                 "autom8_asana.auth.jwt_validator.validate_service_token",
                 _mock_jwt_validation(),
             ),
+            patch(
+                "autom8_asana.auth.bot_pat.get_bot_pat",
+                return_value="test_bot_pat",
+            ),
+            patch(
+                "autom8_asana.api.dependencies.get_bot_pat",
+                return_value="test_bot_pat",
+            ),
         ):
             response = client.post(
                 "/v1/resolve/unit",
@@ -491,6 +514,14 @@ class TestGidLookupValidation:
                 "autom8_asana.auth.jwt_validator.validate_service_token",
                 _mock_jwt_validation(),
             ),
+            patch(
+                "autom8_asana.auth.bot_pat.get_bot_pat",
+                return_value="test_bot_pat",
+            ),
+            patch(
+                "autom8_asana.api.dependencies.get_bot_pat",
+                return_value="test_bot_pat",
+            ),
         ):
             response = client.post(
                 "/v1/resolve/unit",
@@ -506,9 +537,9 @@ class TestGidLookupEdgeCases:
 
     def test_ct012_empty_criteria_returns_200(self, client: TestClient) -> None:
         """CT-012: Empty criteria list returns 200 with empty results and zero counts."""
-        jwt_p, jwt_cp, pat_p, cli_p, strat_p = _resolve_patches()
+        jwt_p, jwt_cp, pat_p, pat_dp, cli_p, strat_p = _resolve_patches()
 
-        with jwt_p, jwt_cp, pat_p, cli_p as mock_cli, strat_p:
+        with jwt_p, jwt_cp, pat_p, pat_dp, cli_p as mock_cli, strat_p:
             _make_async_client_mock(mock_cli)
 
             response = client.post(
@@ -540,13 +571,13 @@ class TestGidLookupEdgeCases:
             }
         )
 
-        jwt_p, jwt_cp, pat_p, cli_p, strat_p = _resolve_patches(mock_df=big_df)
+        jwt_p, jwt_cp, pat_p, pat_dp, cli_p, strat_p = _resolve_patches(mock_df=big_df)
 
         criteria = [
             {"phone": f"+1555{i:07d}", "vertical": "dental"} for i in range(1000)
         ]
 
-        with jwt_p, jwt_cp, pat_p, cli_p as mock_cli, strat_p:
+        with jwt_p, jwt_cp, pat_p, pat_dp, cli_p as mock_cli, strat_p:
             _make_async_client_mock(mock_cli)
 
             response = client.post(
@@ -576,6 +607,10 @@ class TestGidLookupRouting:
             ),
             patch(
                 "autom8_asana.auth.bot_pat.get_bot_pat",
+                return_value="test_bot_pat",
+            ),
+            patch(
+                "autom8_asana.api.dependencies.get_bot_pat",
                 return_value="test_bot_pat",
             ),
         ):
@@ -631,6 +666,10 @@ class TestGidLookupAvailability:
                         "autom8_asana.auth.bot_pat.get_bot_pat",
                         return_value="test_bot_pat",
                     ),
+                    patch(
+                        "autom8_asana.api.dependencies.get_bot_pat",
+                        return_value="test_bot_pat",
+                    ),
                 ):
                     response = test_client.post(
                         "/v1/resolve/unit",
@@ -652,7 +691,7 @@ class TestGidLookupInvariants:
 
     def test_ct016_meta_count_invariant(self, client: TestClient) -> None:
         """CT-016: resolved_count + unresolved_count == len(criteria) for any batch."""
-        jwt_p, jwt_cp, pat_p, cli_p, strat_p = _resolve_patches()
+        jwt_p, jwt_cp, pat_p, pat_dp, cli_p, strat_p = _resolve_patches()
 
         criteria = [
             {"phone": "+11111111111", "vertical": "alpha"},  # found
@@ -662,7 +701,7 @@ class TestGidLookupInvariants:
             {"phone": "+13333333333", "vertical": "charlie"},  # found
         ]
 
-        with jwt_p, jwt_cp, pat_p, cli_p as mock_cli, strat_p:
+        with jwt_p, jwt_cp, pat_p, pat_dp, cli_p as mock_cli, strat_p:
             _make_async_client_mock(mock_cli)
 
             response = client.post(
