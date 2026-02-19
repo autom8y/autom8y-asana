@@ -301,6 +301,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         from autom8_asana.services.section_timeline_service import (
             _WARM_TIMEOUT_SECONDS,
+            build_all_timelines,
             warm_story_caches,
         )
 
@@ -326,22 +327,43 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 cache_provider=app.state.cache_provider,
             )
 
-            def on_progress(warmed: int, total: int) -> None:
+            # DEF-008 fix: on_progress fires incrementally per offer,
+            # enabling the 50% readiness gate (AC-7.4) mid-warm-up.
+            def on_warm_progress(warmed: int, total: int) -> None:
                 app.state.timeline_warm_count = warmed
                 app.state.timeline_total = total
 
-            # Wrap with timeout. asyncio.wait_for raises TimeoutError on expiry.
+            # Phase 1: Warm story caches (I/O-heavy, rate-limited)
             warmed, total = await asyncio.wait_for(
-                warm_story_caches(client=warm_client, on_progress=on_progress),
+                warm_story_caches(client=warm_client, on_progress=on_warm_progress),
                 timeout=_WARM_TIMEOUT_SECONDS,
             )
             logger.info(
                 "timeline_story_warm_complete",
                 extra={"warmed": warmed, "total": total},
             )
+
+            # Phase 2: Build all timelines from cached stories (DEF-006 fix).
+            # This enumerates tasks and builds SectionTimeline objects.
+            # All story fetches are cache hits (just warmed), so this is fast.
+            # Result stored on app.state for zero-I/O request serving.
+            def on_build_progress(built: int, total: int) -> None:
+                app.state.timeline_build_count = built
+                app.state.timeline_build_total = total
+
+            app.state.offer_timelines = await asyncio.wait_for(
+                build_all_timelines(client=warm_client, on_progress=on_build_progress),
+                timeout=600,  # 10 min — all cache hits, should be <60s
+            )
+            logger.info(
+                "timeline_build_complete",
+                extra={
+                    "offer_count": len(app.state.offer_timelines),
+                },
+            )
         except TimeoutError:
             logger.error(
-                "timeline_story_warm_timed_out",
+                "timeline_warm_timed_out",
                 extra={"timeout_seconds": _WARM_TIMEOUT_SECONDS},
             )
             app.state.timeline_warm_failed = True
@@ -349,7 +371,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("timeline_story_warm_cancelled")
             raise
         except Exception:
-            logger.exception("timeline_story_warm_exception")
+            logger.exception("timeline_warm_exception")
             app.state.timeline_warm_failed = True
 
     timeline_warm_task = asyncio.create_task(

@@ -25,8 +25,9 @@ from autom8_asana.services.section_timeline_service import (
     _extract_office_phone,
     _is_cross_project_noise,
     _parse_datetime,
+    build_all_timelines,
     build_timeline_for_offer,
-    get_section_timelines,
+    compute_timeline_entries,
     warm_story_caches,
 )
 
@@ -342,38 +343,136 @@ class TestBuildTimelineForOffer:
 # ---------------------------------------------------------------------------
 
 
-class TestGetSectionTimelines:
+class TestComputeTimelineEntries:
+    """Tests for compute_timeline_entries() — pure CPU day counting."""
+
+    def test_basic_day_counting(self) -> None:
+        """FR-4: Computes active and billable days from pre-built timelines."""
+        from autom8_asana.models.business.section_timeline import SectionTimeline
+
+        timeline = SectionTimeline(
+            offer_gid="offer1",
+            office_phone="555-0100",
+            intervals=(
+                SectionInterval(
+                    section_name="ACTIVE",
+                    classification=AccountActivity.ACTIVE,
+                    entered_at=_utc(2025, 1, 1),
+                    exited_at=None,
+                ),
+            ),
+            task_created_at=_utc(2025, 1, 1),
+            story_count=0,
+        )
+        offer_timelines = [("offer1", "555-0100", timeline)]
+
+        entries = compute_timeline_entries(
+            offer_timelines, date(2025, 1, 1), date(2025, 1, 10)
+        )
+
+        assert len(entries) == 1
+        assert entries[0].offer_gid == "offer1"
+        assert entries[0].active_section_days == 10
+        assert entries[0].billable_section_days == 10
+
+    def test_inactive_offer(self) -> None:
+        """INACTIVE offers have 0 active days but may have billable days."""
+        from autom8_asana.models.business.section_timeline import SectionTimeline
+
+        timeline = SectionTimeline(
+            offer_gid="offer2",
+            office_phone=None,
+            intervals=(
+                SectionInterval(
+                    section_name="INACTIVE",
+                    classification=AccountActivity.INACTIVE,
+                    entered_at=_utc(2025, 1, 1),
+                    exited_at=None,
+                ),
+            ),
+            task_created_at=_utc(2025, 1, 1),
+            story_count=0,
+        )
+        offer_timelines = [("offer2", None, timeline)]
+
+        entries = compute_timeline_entries(
+            offer_timelines, date(2025, 1, 1), date(2025, 1, 10)
+        )
+
+        assert entries[0].active_section_days == 0
+        assert entries[0].billable_section_days == 0
+
+    def test_multiple_offers(self) -> None:
+        """Multiple offers computed correctly."""
+        from autom8_asana.models.business.section_timeline import SectionTimeline
+
+        t1 = SectionTimeline(
+            offer_gid="a",
+            office_phone=None,
+            intervals=(
+                SectionInterval(
+                    section_name="ACTIVE",
+                    classification=AccountActivity.ACTIVE,
+                    entered_at=_utc(2025, 1, 1),
+                    exited_at=None,
+                ),
+            ),
+            task_created_at=_utc(2025, 1, 1),
+            story_count=0,
+        )
+        t2 = SectionTimeline(
+            offer_gid="b",
+            office_phone=None,
+            intervals=(
+                SectionInterval(
+                    section_name="INACTIVE",
+                    classification=AccountActivity.INACTIVE,
+                    entered_at=_utc(2025, 1, 1),
+                    exited_at=None,
+                ),
+            ),
+            task_created_at=_utc(2025, 1, 1),
+            story_count=0,
+        )
+        offer_timelines = [("a", None, t1), ("b", None, t2)]
+
+        entries = compute_timeline_entries(
+            offer_timelines, date(2025, 1, 1), date(2025, 1, 10)
+        )
+
+        assert len(entries) == 2
+        assert entries[0].active_section_days == 10
+        assert entries[1].active_section_days == 0
+
+    def test_empty_timelines(self) -> None:
+        """Empty pre-computed list -> empty result."""
+        entries = compute_timeline_entries([], date(2025, 1, 1), date(2025, 1, 10))
+        assert entries == []
+
+
+class TestBuildAllTimelines:
+    """Tests for build_all_timelines() — warm-up phase pre-computation."""
+
     @pytest.mark.asyncio()
-    async def test_full(self) -> None:
-        """FR-4, FR-5: Full pipeline with mocked offers."""
+    async def test_full_pipeline(self) -> None:
+        """FR-5: Enumerates tasks and builds SectionTimeline for each."""
         task1 = _make_task_mock(
             "offer1", section_name="ACTIVE", office_phone="555-0100"
         )
         task2 = _make_task_mock("offer2", section_name="INACTIVE")
 
         client = MagicMock()
-        # Mock tasks.list_async().collect() -> returns tasks
         collect_mock = AsyncMock(return_value=[task1, task2])
         list_mock = MagicMock()
         list_mock.collect = collect_mock
         client.tasks.list_async.return_value = list_mock
-
-        # Mock stories for both offers
         client.stories.list_for_task_cached_async = AsyncMock(return_value=[])
 
-        entries = await get_section_timelines(
-            client=client,
-            period_start=date(2025, 1, 1),
-            period_end=date(2025, 1, 10),
-        )
+        timelines = await build_all_timelines(client=client)
 
-        assert len(entries) == 2
-        assert all(isinstance(e, OfferTimelineEntry) for e in entries)
-        # offer1 is ACTIVE, so active days > 0; offer2 is INACTIVE, so 0
-        offer1_entry = next(e for e in entries if e.offer_gid == "offer1")
-        offer2_entry = next(e for e in entries if e.offer_gid == "offer2")
-        assert offer1_entry.active_section_days == 10
-        assert offer2_entry.active_section_days == 0
+        assert len(timelines) == 2
+        gids = {t[0] for t in timelines}
+        assert gids == {"offer1", "offer2"}
 
     @pytest.mark.asyncio()
     async def test_individual_failure(self) -> None:
@@ -387,32 +486,47 @@ class TestGetSectionTimelines:
         list_mock.collect = collect_mock
         client.tasks.list_async.return_value = list_mock
 
-        # First offer's stories fail, second succeeds
-        call_count = 0
-
-        async def _mock_stories(gid, **kwargs):
-            nonlocal call_count
-            call_count += 1
+        async def _mock_stories(gid: str, **kwargs: object) -> list[Story]:
             if gid == "offer1":
                 raise RuntimeError("API failure")
             return []
 
         client.stories.list_for_task_cached_async = _mock_stories
 
-        entries = await get_section_timelines(
-            client=client,
-            period_start=date(2025, 1, 1),
-            period_end=date(2025, 1, 10),
-        )
+        timelines = await build_all_timelines(client=client)
 
-        # Only offer2 should succeed
-        assert len(entries) == 1
-        assert entries[0].offer_gid == "offer2"
+        assert len(timelines) == 1
+        assert timelines[0][0] == "offer2"
+
+    @pytest.mark.asyncio()
+    async def test_progress_callback(self) -> None:
+        """DEF-008: on_progress fires incrementally per offer."""
+        tasks = [_make_task_mock(f"offer{i}", section_name="ACTIVE") for i in range(5)]
+
+        client = MagicMock()
+        collect_mock = AsyncMock(return_value=tasks)
+        list_mock = MagicMock()
+        list_mock.collect = collect_mock
+        client.tasks.list_async.return_value = list_mock
+        client.stories.list_for_task_cached_async = AsyncMock(return_value=[])
+
+        progress_calls: list[tuple[int, int]] = []
+
+        def on_progress(built: int, total: int) -> None:
+            progress_calls.append((built, total))
+
+        await build_all_timelines(client=client, on_progress=on_progress)
+
+        # Should have been called 5 times (once per offer)
+        assert len(progress_calls) == 5
+        # All calls should have total=5
+        assert all(t == 5 for _, t in progress_calls)
+        # Final call should show all built
+        assert progress_calls[-1][0] == 5
 
     @pytest.mark.asyncio()
     async def test_parallel_concurrency(self) -> None:
-        """Bounded parallelism: all offers processed with semaphore concurrency."""
-        # Create 25 tasks to exceed _REQUEST_CONCURRENCY (10)
+        """Bounded parallelism: 25 offers processed with semaphore."""
         tasks = [_make_task_mock(f"offer{i}", section_name="ACTIVE") for i in range(25)]
 
         client = MagicMock()
@@ -422,45 +536,9 @@ class TestGetSectionTimelines:
         client.tasks.list_async.return_value = list_mock
         client.stories.list_for_task_cached_async = AsyncMock(return_value=[])
 
-        entries = await get_section_timelines(
-            client=client,
-            period_start=date(2025, 1, 1),
-            period_end=date(2025, 1, 10),
-        )
+        timelines = await build_all_timelines(client=client)
 
-        assert len(entries) == 25
-        assert all(isinstance(e, OfferTimelineEntry) for e in entries)
-
-    @pytest.mark.asyncio()
-    async def test_parallel_partial_failure(self) -> None:
-        """Bounded parallelism: failures in concurrent batch don't block others."""
-        tasks = [_make_task_mock(f"offer{i}", section_name="ACTIVE") for i in range(10)]
-
-        client = MagicMock()
-        collect_mock = AsyncMock(return_value=tasks)
-        list_mock = MagicMock()
-        list_mock.collect = collect_mock
-        client.tasks.list_async.return_value = list_mock
-
-        # Every other offer fails
-        async def _mock_stories(gid: str, **kwargs: object) -> list[Story]:
-            idx = int(gid.replace("offer", ""))
-            if idx % 2 == 0:
-                raise RuntimeError("Simulated failure")
-            return []
-
-        client.stories.list_for_task_cached_async = _mock_stories
-
-        entries = await get_section_timelines(
-            client=client,
-            period_start=date(2025, 1, 1),
-            period_end=date(2025, 1, 10),
-        )
-
-        # 5 succeed (odd indices: 1,3,5,7,9), 5 fail (even indices: 0,2,4,6,8)
-        assert len(entries) == 5
-        successful_gids = {e.offer_gid for e in entries}
-        assert successful_gids == {"offer1", "offer3", "offer5", "offer7", "offer9"}
+        assert len(timelines) == 25
 
 
 # ---------------------------------------------------------------------------
@@ -493,9 +571,11 @@ class TestWarmStoryCaches:
 
         assert warmed == 2
         assert total == 2
-        # Callback called exactly once
-        assert len(progress_calls) == 1
-        assert progress_calls[0] == (2, 2)
+        # DEF-008: Callback fires incrementally per offer (2 offers = 2 calls)
+        assert len(progress_calls) == 2
+        # All calls have total=2; final shows all warmed
+        assert all(t == 2 for _, t in progress_calls)
+        assert progress_calls[-1][0] == 2
 
     @pytest.mark.asyncio()
     async def test_individual_failure(self) -> None:
