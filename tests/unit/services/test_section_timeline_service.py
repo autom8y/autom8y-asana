@@ -73,10 +73,12 @@ def _make_task_mock(
     task.created_at = created_at
     memberships = []
     if section_name:
-        memberships.append({
-            "section": {"name": section_name},
-            "project": {"gid": project_gid},
-        })
+        memberships.append(
+            {
+                "section": {"name": section_name},
+                "project": {"gid": project_gid},
+            }
+        )
     task.memberships = memberships
 
     custom_fields = []
@@ -156,7 +158,9 @@ class TestBuildIntervalsFromStories:
     def test_chronological(self) -> None:
         """AC-2.5: Stories sorted and intervals built correctly."""
         stories = [
-            _make_story("s1", "2025-01-01T00:00:00.000Z", new_section_name="ACTIVATING"),
+            _make_story(
+                "s1", "2025-01-01T00:00:00.000Z", new_section_name="ACTIVATING"
+            ),
             _make_story("s2", "2025-01-05T00:00:00.000Z", new_section_name="ACTIVE"),
         ]
         intervals, count = _build_intervals_from_stories(stories)
@@ -168,7 +172,9 @@ class TestBuildIntervalsFromStories:
     def test_closes_previous(self) -> None:
         """AC-2.5: Previous interval exited_at set to current entered_at."""
         stories = [
-            _make_story("s1", "2025-01-01T00:00:00.000Z", new_section_name="ACTIVATING"),
+            _make_story(
+                "s1", "2025-01-01T00:00:00.000Z", new_section_name="ACTIVATING"
+            ),
             _make_story("s2", "2025-01-05T00:00:00.000Z", new_section_name="ACTIVE"),
         ]
         intervals, _ = _build_intervals_from_stories(stories)
@@ -186,7 +192,9 @@ class TestBuildIntervalsFromStories:
     def test_unknown_section_warning(self) -> None:
         """AC-2.3: WARNING logged for unknown sections."""
         stories = [
-            _make_story("s1", "2025-01-01T00:00:00.000Z", new_section_name="ZZZZ_UNKNOWN"),
+            _make_story(
+                "s1", "2025-01-01T00:00:00.000Z", new_section_name="ZZZZ_UNKNOWN"
+            ),
         ]
         with patch(
             "autom8_asana.services.section_timeline_service.logger"
@@ -213,9 +221,7 @@ class TestBuildImputedInterval:
     def test_active(self) -> None:
         """AC-3.1, AC-3.4: Imputed ACTIVE interval from task created_at."""
         created = _utc(2025, 1, 1)
-        intervals = _build_imputed_interval(
-            created, AccountActivity.ACTIVE, "ACTIVE"
-        )
+        intervals = _build_imputed_interval(created, AccountActivity.ACTIVE, "ACTIVE")
         assert len(intervals) == 1
         assert intervals[0].classification == AccountActivity.ACTIVE
         assert intervals[0].entered_at == created
@@ -269,8 +275,18 @@ class TestBuildTimelineForOffer:
         client = MagicMock()
         client.stories.list_for_task_cached_async = AsyncMock(
             return_value=[
-                _make_story("s1", "2025-01-01T00:00:00.000Z", new_section_name="ACTIVATING", old_section_name="Sales Process"),
-                _make_story("s2", "2025-01-05T00:00:00.000Z", new_section_name="ACTIVE", old_section_name="ACTIVATING"),
+                _make_story(
+                    "s1",
+                    "2025-01-01T00:00:00.000Z",
+                    new_section_name="ACTIVATING",
+                    old_section_name="Sales Process",
+                ),
+                _make_story(
+                    "s2",
+                    "2025-01-05T00:00:00.000Z",
+                    new_section_name="ACTIVE",
+                    old_section_name="ACTIVATING",
+                ),
             ]
         )
 
@@ -298,7 +314,11 @@ class TestBuildTimelineForOffer:
         # Return a comment story (not section_changed)
         client.stories.list_for_task_cached_async = AsyncMock(
             return_value=[
-                Story(gid="s1", resource_subtype="comment_added", created_at="2025-01-01T00:00:00.000Z"),
+                Story(
+                    gid="s1",
+                    resource_subtype="comment_added",
+                    created_at="2025-01-01T00:00:00.000Z",
+                ),
             ]
         )
 
@@ -327,7 +347,9 @@ class TestGetSectionTimelines:
     @pytest.mark.asyncio()
     async def test_full(self) -> None:
         """FR-4, FR-5: Full pipeline with mocked offers."""
-        task1 = _make_task_mock("offer1", section_name="ACTIVE", office_phone="555-0100")
+        task1 = _make_task_mock(
+            "offer1", section_name="ACTIVE", office_phone="555-0100"
+        )
         task2 = _make_task_mock("offer2", section_name="INACTIVE")
 
         client = MagicMock()
@@ -415,9 +437,7 @@ class TestWarmStoryCaches:
         def on_progress(warmed: int, total: int) -> None:
             progress_calls.append((warmed, total))
 
-        warmed, total = await warm_story_caches(
-            client=client, on_progress=on_progress
-        )
+        warmed, total = await warm_story_caches(client=client, on_progress=on_progress)
 
         assert warmed == 2
         assert total == 2
