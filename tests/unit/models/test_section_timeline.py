@@ -8,7 +8,7 @@ no mocking required.
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime, timezone
 
 import pytest
 
@@ -19,7 +19,6 @@ from autom8_asana.models.business.section_timeline import (
     SectionTimeline,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -27,7 +26,7 @@ from autom8_asana.models.business.section_timeline import (
 
 def _utc(year: int, month: int, day: int, hour: int = 0) -> datetime:
     """Create a UTC datetime for test data."""
-    return datetime(year, month, day, hour, tzinfo=timezone.utc)
+    return datetime(year, month, day, hour, tzinfo=UTC)
 
 
 def _timeline(

@@ -17,7 +17,6 @@ from autom8_asana.api.routes.section_timelines import router
 from autom8_asana.exceptions import AsanaError
 from autom8_asana.models.business.section_timeline import OfferTimelineEntry
 
-
 # ---------------------------------------------------------------------------
 # Test Application Factory
 # ---------------------------------------------------------------------------
