@@ -51,10 +51,12 @@ from .routes import (
     projects_router,
     query_router,
     resolver_router,
+    section_timelines_router,
     sections_router,
     tasks_router,
     users_router,
     webhooks_router,
+    workflows_router,
     workspaces_router,
 )
 
@@ -181,7 +183,9 @@ def create_app() -> FastAPI:
     app.include_router(query_router)
     app.include_router(admin_router)
     app.include_router(webhooks_router)
+    app.include_router(workflows_router)
     app.include_router(entity_write_router)
+    app.include_router(section_timelines_router)
 
     # --- Exception Handlers ---
     register_exception_handlers(app)

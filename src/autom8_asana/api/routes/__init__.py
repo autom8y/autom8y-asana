@@ -29,10 +29,12 @@ from .internal import router as internal_router
 from .projects import router as projects_router
 from .query import router as query_router
 from .resolver import router as resolver_router
+from .section_timelines import router as section_timelines_router
 from .sections import router as sections_router
 from .tasks import router as tasks_router
 from .users import router as users_router
 from .webhooks import router as webhooks_router
+from .workflows import router as workflows_router
 from .workspaces import router as workspaces_router
 
 __all__ = [
@@ -44,9 +46,11 @@ __all__ = [
     "projects_router",
     "query_router",
     "resolver_router",
+    "section_timelines_router",
     "sections_router",
     "tasks_router",
     "users_router",
     "webhooks_router",
+    "workflows_router",
     "workspaces_router",
 ]
