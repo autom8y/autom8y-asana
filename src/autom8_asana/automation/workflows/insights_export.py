@@ -168,10 +168,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             List of offer dicts with {gid, name} shape.
         """
         if scope.has_entity_ids:
-            offers = [
-                {"gid": gid, "name": None}
-                for gid in scope.entity_ids
-            ]
+            offers = [{"gid": gid, "name": None} for gid in scope.entity_ids]
             logger.info(
                 "insights_export_targeted",
                 entity_ids=scope.entity_ids,
@@ -244,9 +241,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 )
                 results.append(outcome)
 
-        await asyncio.gather(
-            *[process_one(o["gid"], o.get("name")) for o in offers]
-        )
+        await asyncio.gather(*[process_one(o["gid"], o.get("name")) for o in offers])
 
         # Log Business cache summary for observability (per AT3-001)
         logger.info(
