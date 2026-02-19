@@ -37,6 +37,7 @@ async def load_stories_incremental(
     cache: CacheProvider,
     fetcher: Callable[[str, str | None], Awaitable[list[dict[str, Any]]]],
     current_modified_at: str | None = None,
+    max_cache_age_seconds: int | None = None,
 ) -> tuple[list[dict[str, Any]], CacheEntry | None, bool]:
     """Load stories with incremental fetching (since parameter).
 
@@ -46,12 +47,20 @@ async def load_stories_incremental(
     - Merge new stories with cached (dedupe by story GID)
     - Update cache with merged result
 
+    When ``max_cache_age_seconds`` is set, the API call is skipped entirely
+    if the cached entry is younger than the threshold.  This eliminates
+    per-offer API round-trips on the request-time path when stories were
+    recently warmed.
+
     Args:
         task_gid: The task GID.
         cache: Cache provider.
         fetcher: Async function(task_gid, since) -> list[story_dicts].
             since is ISO timestamp or None for full fetch.
         current_modified_at: Current task modified_at for cache versioning.
+        max_cache_age_seconds: If set, return cached stories without an API
+            call when the cache entry is fresher than this many seconds.
+            ``None`` (default) preserves the existing always-fetch behavior.
 
     Returns:
         Tuple of (merged_stories, cache_entry, was_incremental_fetch).
@@ -77,6 +86,13 @@ async def load_stories_incremental(
         entry = _create_stories_entry(task_gid, stories, current_modified_at)
         cache.set_versioned(task_gid, entry)
         return stories, entry, False
+
+    # Short-circuit: if cache is fresh enough, skip the API call entirely.
+    if max_cache_age_seconds is not None and cached_entry.cached_at is not None:
+        cache_age = (datetime.now(UTC) - cached_entry.cached_at).total_seconds()
+        if cache_age <= max_cache_age_seconds:
+            cached_stories = _extract_stories_list(cached_entry.data)
+            return cached_stories, cached_entry, True
 
     # Incremental fetch - get only stories since last_fetched
     new_stories = await fetcher(task_gid, last_fetched)
