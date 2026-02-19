@@ -238,9 +238,7 @@ class DataServiceConfig:
         ... )
     """
 
-    base_url: str = field(
-        default_factory=lambda: get_settings().data_service.url
-    )
+    base_url: str = field(default_factory=lambda: get_settings().data_service.url)
     token_key: str = "AUTOM8_DATA_API_KEY"
 
     timeout: TimeoutConfig = field(default_factory=TimeoutConfig)

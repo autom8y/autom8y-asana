@@ -40,14 +40,16 @@ def reset_registry():
 class TestSchemaRegistryAutoWire:
     """Verify SchemaRegistry._ensure_initialized() discovers schemas from descriptors."""
 
-    EXPECTED_TASK_TYPES = sorted([
-        "Unit",
-        "Contact",
-        "Business",
-        "Offer",
-        "AssetEdit",
-        "AssetEditHolder",
-    ])
+    EXPECTED_TASK_TYPES = sorted(
+        [
+            "Unit",
+            "Contact",
+            "Business",
+            "Offer",
+            "AssetEdit",
+            "AssetEditHolder",
+        ]
+    )
 
     def test_auto_discovered_task_types_match_expected(self) -> None:
         """SchemaRegistry must discover the exact set of schema-bearing entity types."""

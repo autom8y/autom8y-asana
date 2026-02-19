@@ -139,7 +139,10 @@ class BaseExtractor(ABC):
             data: Mutable dict of column_name -> extracted value (modified in-place)
         """
         for col in self._schema.columns:
-            if col.dtype in ("List[Utf8]", "List[String]") and data.get(col.name) is None:
+            if (
+                col.dtype in ("List[Utf8]", "List[String]")
+                and data.get(col.name) is None
+            ):
                 data[col.name] = []
 
     def extract(self, task: Task, project_gid: str | None = None) -> TaskRow:

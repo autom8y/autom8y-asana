@@ -73,9 +73,24 @@ class TestSchemaAllNullableColumns:
     def test_all_nullable_schema_extracts_without_crash(self) -> None:
         """All-nullable columns should extract cleanly with None values."""
         extra_cols = [
-            ColumnDef(name="nullable_str", dtype="Utf8", nullable=True, source="cf:Nullable Str"),
-            ColumnDef(name="nullable_int", dtype="Int64", nullable=True, source="cf:Nullable Int"),
-            ColumnDef(name="nullable_bool", dtype="Boolean", nullable=True, source="cf:Nullable Bool"),
+            ColumnDef(
+                name="nullable_str",
+                dtype="Utf8",
+                nullable=True,
+                source="cf:Nullable Str",
+            ),
+            ColumnDef(
+                name="nullable_int",
+                dtype="Int64",
+                nullable=True,
+                source="cf:Nullable Int",
+            ),
+            ColumnDef(
+                name="nullable_bool",
+                dtype="Boolean",
+                nullable=True,
+                source="cf:Nullable Bool",
+            ),
         ]
         schema = _make_schema("all_nullable", "AllNullable", extra_cols)
         extractor = SchemaExtractor(schema)
@@ -104,8 +119,18 @@ class TestSchemaAllNonNullableColumns:
         column construction, not a Pydantic validation constraint.
         """
         extra_cols = [
-            ColumnDef(name="required_str", dtype="Utf8", nullable=False, source="cf:Required Str"),
-            ColumnDef(name="required_int", dtype="Int64", nullable=False, source="cf:Required Int"),
+            ColumnDef(
+                name="required_str",
+                dtype="Utf8",
+                nullable=False,
+                source="cf:Required Str",
+            ),
+            ColumnDef(
+                name="required_int",
+                dtype="Int64",
+                nullable=False,
+                source="cf:Required Int",
+            ),
         ]
         schema = _make_schema("all_required", "AllRequired", extra_cols)
         extractor = SchemaExtractor(schema)
@@ -272,7 +297,9 @@ class TestConcurrentExtraction:
         _MODEL_CACHE.pop(test_type, None)
 
         extra_cols = [
-            ColumnDef(name="concurrent_field", dtype="Utf8", nullable=True, source="cf:CF1"),
+            ColumnDef(
+                name="concurrent_field", dtype="Utf8", nullable=True, source="cf:CF1"
+            ),
         ]
         schema = _make_schema("concurrent", test_type, extra_cols)
 
@@ -298,7 +325,9 @@ class TestConcurrentExtraction:
         # All should be the same cached model
         first = models[0]
         for m in models[1:]:
-            assert m is first, "Concurrent model building produced different model instances"
+            assert m is first, (
+                "Concurrent model building produced different model instances"
+            )
 
     def test_concurrent_extraction_from_multiple_schemas(self) -> None:
         """Multiple threads extracting from different schemas simultaneously."""
@@ -309,7 +338,12 @@ class TestConcurrentExtraction:
             ASSET_EDIT_HOLDER_SCHEMA,
         )
 
-        schemas = [OFFER_SCHEMA, ASSET_EDIT_SCHEMA, BUSINESS_SCHEMA, ASSET_EDIT_HOLDER_SCHEMA]
+        schemas = [
+            OFFER_SCHEMA,
+            ASSET_EDIT_SCHEMA,
+            BUSINESS_SCHEMA,
+            ASSET_EDIT_HOLDER_SCHEMA,
+        ]
         results: list[tuple[str, bool]] = []
         errors: list[tuple[str, Exception]] = []
 
@@ -409,7 +443,9 @@ class TestSchemaExtractorWithSyntheticSchema:
     def test_schema_with_single_extra_column(self) -> None:
         """Schema with exactly 1 extra column beyond base 12."""
         _MODEL_CACHE.pop("SingleExtra", None)
-        extra = [ColumnDef(name="one_extra", dtype="Utf8", nullable=True, source="cf:One")]
+        extra = [
+            ColumnDef(name="one_extra", dtype="Utf8", nullable=True, source="cf:One")
+        ]
         schema = _make_schema("single_extra", "SingleExtra", extra)
         ext = SchemaExtractor(schema)
         task = make_mock_task()
@@ -422,7 +458,9 @@ class TestSchemaExtractorWithSyntheticSchema:
         """Schema with 50 extra columns (stress test)."""
         _MODEL_CACHE.pop("ManyExtra", None)
         extra = [
-            ColumnDef(name=f"field_{i}", dtype="Utf8", nullable=True, source=f"cf:Field {i}")
+            ColumnDef(
+                name=f"field_{i}", dtype="Utf8", nullable=True, source=f"cf:Field {i}"
+            )
             for i in range(50)
         ]
         schema = _make_schema("many_extra", "ManyExtra", extra)
@@ -454,7 +492,12 @@ class TestSchemaExtractorWithSyntheticSchema:
         """Column name that matches a MagicMock attribute should not cause issues."""
         _MODEL_CACHE.pop("NameCollision", None)
         extra = [
-            ColumnDef(name="assert_called", dtype="Utf8", nullable=True, source="cf:Assert Called"),
+            ColumnDef(
+                name="assert_called",
+                dtype="Utf8",
+                nullable=True,
+                source="cf:Assert Called",
+            ),
         ]
         schema = _make_schema("name_collision", "NameCollision", extra)
         ext = SchemaExtractor(schema)

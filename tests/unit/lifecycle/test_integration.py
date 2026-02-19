@@ -277,7 +277,9 @@ def _integration_patches():
         "template_discovery": patch(
             "autom8_asana.lifecycle.creation.discover_template_async"
         ),
-        "subtask_waiter": patch("autom8_asana.lifecycle.creation.wait_for_subtasks_async"),
+        "subtask_waiter": patch(
+            "autom8_asana.lifecycle.creation.wait_for_subtasks_async"
+        ),
         "auto_cascade_seeder": patch(
             "autom8_asana.lifecycle.creation.AutoCascadeSeeder"
         ),

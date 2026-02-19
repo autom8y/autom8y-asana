@@ -527,9 +527,7 @@ class DataFrameBuilder(ABC):
         """
         # Wildcard type always uses DefaultExtractor
         if task_type == "*":
-            return DefaultExtractor(
-                self._schema, self._resolver, client=self._client
-            )
+            return DefaultExtractor(self._schema, self._resolver, client=self._client)
 
         # Deferred import to avoid circular dependency:
         # dataframes/ must not import core.entity_registry at module scope
@@ -557,12 +555,8 @@ class DataFrameBuilder(ABC):
         has_extra_columns = bool(schema_col_names - base_col_names)
 
         if has_extra_columns:
-            return SchemaExtractor(
-                self._schema, self._resolver, client=self._client
-            )
-        return DefaultExtractor(
-            self._schema, self._resolver, client=self._client
-        )
+            return SchemaExtractor(self._schema, self._resolver, client=self._client)
+        return DefaultExtractor(self._schema, self._resolver, client=self._client)
 
     # =========================================================================
     # Cache Integration Methods

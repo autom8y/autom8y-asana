@@ -20,6 +20,7 @@ from autom8_asana.observability import error_handler
 from autom8_asana.patterns import async_method
 from autom8_asana.settings import get_settings
 
+
 class CustomFieldsClient(BaseClient):
     """Client for Asana Custom Field operations.
 
@@ -118,9 +119,7 @@ class CustomFieldsClient(BaseClient):
 
         # Step 5: Store in cache
         cache_ttl = get_settings().cache.ttl_custom_field
-        self._cache_set(
-            custom_field_gid, data, EntryType.CUSTOM_FIELD, ttl=cache_ttl
-        )
+        self._cache_set(custom_field_gid, data, EntryType.CUSTOM_FIELD, ttl=cache_ttl)
 
         # Step 6: Return model or raw dict
         if raw:

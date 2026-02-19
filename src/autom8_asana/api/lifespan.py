@@ -128,7 +128,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # GID mismatches are logged as errors but do not block startup, since
     # EntityProjectRegistry is populated from live workspace discovery and
     # may legitimately diverge from static EntityDescriptor GIDs.
-    from autom8_asana.core.registry_validation import validate_cross_registry_consistency
+    from autom8_asana.core.registry_validation import (
+        validate_cross_registry_consistency,
+    )
 
     validation = validate_cross_registry_consistency(
         check_project_type_registry=False,

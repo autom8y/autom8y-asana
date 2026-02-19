@@ -22,6 +22,7 @@ from autom8_asana.settings import get_settings
 
 logger = get_logger(__name__)
 
+
 class SectionsClient(BaseClient):
     """Client for Asana Section operations.
 

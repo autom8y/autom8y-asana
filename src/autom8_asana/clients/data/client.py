@@ -1241,7 +1241,11 @@ class DataServiceClient:
         from autom8_asana.clients.data._endpoints import simple as _simple_ep
 
         return await _simple_ep.get_leads(
-            self, office_phone, days=days, exclude_appointments=exclude_appointments, limit=limit
+            self,
+            office_phone,
+            days=days,
+            exclude_appointments=exclude_appointments,
+            limit=limit,
         )
 
 

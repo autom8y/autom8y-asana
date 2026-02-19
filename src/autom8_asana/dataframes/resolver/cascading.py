@@ -569,4 +569,3 @@ class CascadingFieldResolver:
         if task.parent is None:
             return None
         return task.parent.gid
-

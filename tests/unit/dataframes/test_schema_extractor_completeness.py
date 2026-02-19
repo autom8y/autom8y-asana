@@ -77,8 +77,7 @@ class TestSchemaExtractorCompleteness:
             row_dict = row.to_dict()
             for col_name in schema.column_names():
                 assert col_name in row_dict, (
-                    f"{task_type}: column {col_name!r} missing from "
-                    f"extracted row"
+                    f"{task_type}: column {col_name!r} missing from extracted row"
                 )
 
 
@@ -110,12 +109,11 @@ class TestImportTimeValidation:
 
         # Should have warnings for Offer, Business, AssetEdit, AssetEditHolder
         generic_warnings = [
-            w for w in warnings_emitted
+            w
+            for w in warnings_emitted
             if w["event"] == "schema_using_generic_extractor"
         ]
-        warned_entities = {
-            w["extra"]["entity"] for w in generic_warnings
-        }
+        warned_entities = {w["extra"]["entity"] for w in generic_warnings}
         expected_warned = {"Offer", "Business", "AssetEdit", "AssetEditHolder"}
         assert warned_entities == expected_warned, (
             f"Expected warnings for {expected_warned}, got {warned_entities}"
@@ -144,7 +142,8 @@ class TestImportTimeValidation:
 
         # No warnings should mention Unit or Contact
         generic_warnings = [
-            w for w in warnings_emitted
+            w
+            for w in warnings_emitted
             if w["event"] == "schema_using_generic_extractor"
         ]
         for w in generic_warnings:
@@ -195,9 +194,7 @@ class TestSchemaAudit:
             f"Missing: {expected - task_types}"
         )
 
-    def test_wildcard_base_schema_exists(
-        self, schema_registry: SchemaRegistry
-    ) -> None:
+    def test_wildcard_base_schema_exists(self, schema_registry: SchemaRegistry) -> None:
         """The '*' base schema must always be registered."""
         schema = schema_registry.get_schema("*")
         assert schema.task_type == "*"
