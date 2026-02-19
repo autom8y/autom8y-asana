@@ -755,10 +755,17 @@ class TestDataFrameLayerPopulation:
     def test_non_schema_entities_have_none_defaults(self) -> None:
         """Entities without schemas keep None/False defaults."""
         non_schema_entities = [
-            "process", "location", "hours",
-            "contact_holder", "unit_holder", "location_holder",
-            "dna_holder", "reconciliation_holder", "videography_holder",
-            "offer_holder", "process_holder",
+            "process",
+            "location",
+            "hours",
+            "contact_holder",
+            "unit_holder",
+            "location_holder",
+            "dna_holder",
+            "reconciliation_holder",
+            "videography_holder",
+            "offer_holder",
+            "process_holder",
         ]
         registry = get_registry()
         for name in non_schema_entities:
@@ -774,9 +781,7 @@ class TestDataFrameLayerPopulation:
         """Only business and unit have cascading_field_provider=True."""
         registry = get_registry()
         providers = [
-            d.name
-            for d in registry.all_descriptors()
-            if d.cascading_field_provider
+            d.name for d in registry.all_descriptors() if d.cascading_field_provider
         ]
         assert sorted(providers) == ["business", "unit"]
 
@@ -791,9 +796,7 @@ class TestResolveDottedPath:
 
     def test_resolves_class(self) -> None:
         """Resolves a dotted path to a class."""
-        cls = _resolve_dotted_path(
-            "autom8_asana.core.entity_registry.EntityRegistry"
-        )
+        cls = _resolve_dotted_path("autom8_asana.core.entity_registry.EntityRegistry")
         assert cls is EntityRegistry
 
     def test_resolves_constant(self) -> None:
@@ -818,9 +821,7 @@ class TestResolveDottedPath:
     def test_raises_attribute_error_for_bad_attr(self) -> None:
         """Raises AttributeError when attribute does not exist on module."""
         with pytest.raises(AttributeError):
-            _resolve_dotted_path(
-                "autom8_asana.core.entity_registry.NonexistentClass"
-            )
+            _resolve_dotted_path("autom8_asana.core.entity_registry.NonexistentClass")
 
     def test_raises_import_error_for_no_module(self) -> None:
         """Raises ImportError for path with no module part."""
@@ -857,9 +858,7 @@ class TestDataFramePathResolution:
         for desc in get_registry().all_descriptors():
             if desc.schema_module_path:
                 result = _resolve_dotted_path(desc.schema_module_path)
-                assert result is not None, (
-                    f"{desc.name}: schema path did not resolve"
-                )
+                assert result is not None, f"{desc.name}: schema path did not resolve"
 
     def test_all_extractor_paths_resolve(self) -> None:
         """Every populated extractor_class_path resolves to a class."""
@@ -899,7 +898,9 @@ class TestTriadValidation:
             ),
         )
         registry = EntityRegistry(descriptors)
-        with pytest.raises(ValueError, match="schema_module_path.*not a valid dotted path"):
+        with pytest.raises(
+            ValueError, match="schema_module_path.*not a valid dotted path"
+        ):
             _validate_registry_integrity(registry)
 
     def test_check_6b_bad_extractor_path_syntax(self) -> None:
@@ -914,7 +915,9 @@ class TestTriadValidation:
             ),
         )
         registry = EntityRegistry(descriptors)
-        with pytest.raises(ValueError, match="extractor_class_path.*not a valid dotted path"):
+        with pytest.raises(
+            ValueError, match="extractor_class_path.*not a valid dotted path"
+        ):
             _validate_registry_integrity(registry)
 
     def test_check_6c_bad_row_model_path_syntax(self) -> None:
@@ -929,7 +932,9 @@ class TestTriadValidation:
             ),
         )
         registry = EntityRegistry(descriptors)
-        with pytest.raises(ValueError, match="row_model_class_path.*not a valid dotted path"):
+        with pytest.raises(
+            ValueError, match="row_model_class_path.*not a valid dotted path"
+        ):
             _validate_registry_integrity(registry)
 
     def test_check_6d_schema_without_extractor_does_not_raise(self) -> None:
@@ -972,7 +977,9 @@ class TestTriadValidation:
             ),
         )
         registry = EntityRegistry(descriptors)
-        with pytest.raises(ValueError, match="has extractor_class_path but no schema_module_path"):
+        with pytest.raises(
+            ValueError, match="has extractor_class_path but no schema_module_path"
+        ):
             _validate_registry_integrity(registry)
 
     def test_check_7_cascading_provider_without_model_raises(self) -> None:
@@ -986,7 +993,9 @@ class TestTriadValidation:
             ),
         )
         registry = EntityRegistry(descriptors)
-        with pytest.raises(ValueError, match="cascading_field_provider=True but no model_class_path"):
+        with pytest.raises(
+            ValueError, match="cascading_field_provider=True but no model_class_path"
+        ):
             _validate_registry_integrity(registry)
 
     def test_check_7_cascading_provider_with_model_passes(self) -> None:

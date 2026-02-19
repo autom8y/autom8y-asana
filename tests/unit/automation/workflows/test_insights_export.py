@@ -401,7 +401,10 @@ class TestActivityFiltering:
             "o1", "Active Offer", parent_gid="biz1", section_name="ACTIVE"
         )
         unknown = _make_task(
-            "o2", "Unknown Section", parent_gid="biz2", section_name="SomeUnknownSection"
+            "o2",
+            "Unknown Section",
+            parent_gid="biz2",
+            section_name="SomeUnknownSection",
         )
         wf, _, _, _ = _make_workflow(offers=[active, unknown])
 
@@ -447,9 +450,7 @@ class TestActivityFiltering:
     @pytest.mark.asyncio
     async def test_activating_section_excluded(self) -> None:
         """Offers in ACTIVATING sections are excluded (only ACTIVE passes)."""
-        active = _make_task(
-            "o1", "Active", parent_gid="biz1", section_name="ACTIVE"
-        )
+        active = _make_task("o1", "Active", parent_gid="biz1", section_name="ACTIVE")
         activating = _make_task(
             "o2", "Activating", parent_gid="biz2", section_name="ACTIVATING"
         )

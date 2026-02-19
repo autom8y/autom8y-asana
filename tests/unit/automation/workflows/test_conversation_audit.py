@@ -201,7 +201,6 @@ def _make_workflow(
         if h.parent:
             workflow._activity_map[h.parent.gid] = AccountActivity.ACTIVE
 
-
     return workflow, mock_asana, mock_data_client, mock_attachments
 
 
@@ -672,7 +671,6 @@ class TestExecuteAsyncDateRange:
         assert call_kwargs["end_date"] == expected_end
 
 
-
 class TestPreResolveBusinessActivities:
     """Tests for bulk activity pre-resolution and pre-filtering."""
 
@@ -919,7 +917,9 @@ class TestResolveBusinessActivity:
     patch at the conversation_audit module's import site.
     """
 
-    _HYDRATE_PATH = "autom8_asana.automation.workflows.conversation_audit.hydrate_from_gid_async"
+    _HYDRATE_PATH = (
+        "autom8_asana.automation.workflows.conversation_audit.hydrate_from_gid_async"
+    )
 
     def _make_clean_workflow(self):
         """Create workflow without pre-populated activity_map."""
@@ -969,7 +969,9 @@ class TestResolveBusinessActivity:
         """Resolution failure caches and returns None."""
         wf, _, _, _ = self._make_clean_workflow()
 
-        with patch(self._HYDRATE_PATH, new=AsyncMock(side_effect=Exception("API error"))):
+        with patch(
+            self._HYDRATE_PATH, new=AsyncMock(side_effect=Exception("API error"))
+        ):
             result = await wf._resolve_business_activity("biz-bad")
 
         assert result is None

@@ -9,7 +9,9 @@ from datetime import UTC, datetime, timedelta
 import polars as pl
 
 from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
-from autom8_asana.cache.integration.dataframe_cache import DataFrameCacheEntry as CacheEntry
+from autom8_asana.cache.integration.dataframe_cache import (
+    DataFrameCacheEntry as CacheEntry,
+)
 
 
 def make_entry(project_gid: str, rows: int = 10) -> CacheEntry:

@@ -163,4 +163,3 @@ def test_no_stage_map_attribute():
     # Check that there are no stage-mapping related attributes
     attrs = [a for a in dir(service) if "stage" in a.lower()]
     assert len(attrs) == 0, f"Unexpected stage-related attributes: {attrs}"
-

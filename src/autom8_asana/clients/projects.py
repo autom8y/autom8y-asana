@@ -17,6 +17,7 @@ from autom8_asana.observability import error_handler
 from autom8_asana.patterns import async_method
 from autom8_asana.settings import get_settings
 
+
 class ProjectsClient(BaseClient):
     """Client for Asana Project operations.
 

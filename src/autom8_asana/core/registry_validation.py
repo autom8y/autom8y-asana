@@ -101,7 +101,9 @@ def _check_project_type_registry(
     Every descriptor with both primary_project_gid and entity_type should
     have a matching entry in ProjectTypeRegistry.
     """
-    from autom8_asana.models.business.registry import get_registry as get_project_type_registry
+    from autom8_asana.models.business.registry import (
+        get_registry as get_project_type_registry,
+    )
 
     pt_registry = get_project_type_registry()
 
@@ -140,8 +142,7 @@ def _check_entity_project_registry(
 
     if not ep_registry.is_ready():
         result.warnings.append(
-            "EntityProjectRegistry is not yet initialized; "
-            "skipping cross-validation"
+            "EntityProjectRegistry is not yet initialized; skipping cross-validation"
         )
         return
 

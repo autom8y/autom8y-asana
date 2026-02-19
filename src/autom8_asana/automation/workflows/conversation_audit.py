@@ -352,7 +352,6 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
         self._activity_map[business_gid] = activity
         return activity
 
-
     async def _process_holder(
         self,
         holder_gid: str,

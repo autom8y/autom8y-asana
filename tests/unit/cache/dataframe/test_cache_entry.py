@@ -8,7 +8,9 @@ from datetime import UTC, datetime, timedelta
 
 import polars as pl
 
-from autom8_asana.cache.integration.dataframe_cache import DataFrameCacheEntry as CacheEntry
+from autom8_asana.cache.integration.dataframe_cache import (
+    DataFrameCacheEntry as CacheEntry,
+)
 
 
 class TestCacheEntry:

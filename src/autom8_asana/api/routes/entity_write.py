@@ -108,7 +108,11 @@ class EntityWriteResponse(BaseModel):
 
 _WRITE_ERROR_STATUS: dict[type[Exception], tuple[int, str, str]] = {
     TaskNotFoundError: (404, "TASK_NOT_FOUND", "Task not found."),
-    NoValidFieldsError: (422, "NO_VALID_FIELDS", "All fields failed resolution -- nothing to write."),
+    NoValidFieldsError: (
+        422,
+        "NO_VALID_FIELDS",
+        "All fields failed resolution -- nothing to write.",
+    ),
 }
 
 
@@ -270,7 +274,12 @@ async def write_entity_fields(
         )
     except HTTPException:
         raise
-    except (TaskNotFoundError, NoValidFieldsError, AsanaTimeoutError, ServerError) as exc:
+    except (
+        TaskNotFoundError,
+        NoValidFieldsError,
+        AsanaTimeoutError,
+        ServerError,
+    ) as exc:
         _raise_write_error(request_id, gid, exc)
     except Exception as exc:  # BROAD-CATCH: boundary
         logger.exception(

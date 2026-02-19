@@ -27,7 +27,9 @@ from autom8y_log import get_logger
 from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
 
 if TYPE_CHECKING:
-    from autom8_asana.cache.integration.dataframe_cache import DataFrameCacheEntry as CacheEntry
+    from autom8_asana.cache.integration.dataframe_cache import (
+        DataFrameCacheEntry as CacheEntry,
+    )
     from autom8_asana.dataframes.section_persistence import SectionPersistence
 
 __all__ = ["ProgressiveTier"]
@@ -117,7 +119,9 @@ class ProgressiveTier:
             3. Construct CacheEntry with metadata
             4. Return None on any error (graceful degradation)
         """
-        from autom8_asana.cache.integration.dataframe_cache import DataFrameCacheEntry as CacheEntry
+        from autom8_asana.cache.integration.dataframe_cache import (
+            DataFrameCacheEntry as CacheEntry,
+        )
 
         try:
             entity_type, project_gid = self._parse_key(key)

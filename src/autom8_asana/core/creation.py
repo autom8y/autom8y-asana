@@ -181,11 +181,7 @@ async def place_in_section_async(
         ).collect()
         section_name_lower = section_name.lower()
         target = next(
-            (
-                s
-                for s in sections
-                if s.name and s.name.lower() == section_name_lower
-            ),
+            (s for s in sections if s.name and s.name.lower() == section_name_lower),
             None,
         )
         if target:

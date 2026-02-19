@@ -699,7 +699,9 @@ class PipelineConversionRule:
             True if assignee was set successfully, False otherwise.
         """
         config = assignee_config if assignee_config is not None else AssigneeConfig()
-        assignee_gid = self._resolve_assignee_gid(source_process, unit, business, config)
+        assignee_gid = self._resolve_assignee_gid(
+            source_process, unit, business, config
+        )
 
         # FR-ASSIGN-005: No rep found, log warning
         if assignee_gid is None:

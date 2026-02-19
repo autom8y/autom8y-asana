@@ -14,7 +14,11 @@ import pytest
 from autom8_asana.clients.data.client import DataServiceClient
 from autom8_asana.clients.data.config import DataServiceConfig
 
-from .conftest import _make_disabled_settings_mock, make_batch_insights_response, make_insights_response
+from .conftest import (
+    _make_disabled_settings_mock,
+    make_batch_insights_response,
+    make_insights_response,
+)
 
 
 # --- Story 2.4: Batch Insights Tests ---

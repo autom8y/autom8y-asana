@@ -310,8 +310,7 @@ def _build_cascading_field_registry() -> dict[str, CascadingFieldEntry]:
             import logging
 
             logging.getLogger(__name__).warning(
-                "cascading_provider_missing_inner_class: "
-                "entity=%s model=%s",
+                "cascading_provider_missing_inner_class: entity=%s model=%s",
                 desc.name,
                 desc.model_class_path,
             )

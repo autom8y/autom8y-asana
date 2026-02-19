@@ -193,7 +193,6 @@ class TestConversationAuditE2E:
         for gid in parent_tasks:
             workflow._activity_map[gid] = AccountActivity.ACTIVE
 
-
         # Execute
         result = await workflow.execute_async(
             {

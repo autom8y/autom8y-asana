@@ -31,21 +31,41 @@ from autom8_asana.config import (
 # Dataframe Layer (TDD-0009) -- lazy-loaded to avoid pulling in polars
 # for consumers that only need the core API client.
 _DATAFRAME_EXPORTS = {
-    "BASE_SCHEMA", "CONTACT_SCHEMA", "LAZY_THRESHOLD", "UNIT_SCHEMA",
-    "BaseExtractor", "CachedRow", "ColumnDef", "ContactExtractor",
-    "ContactRow", "CustomFieldResolver", "DataFrameBuilder",
-    "DataFrameCacheIntegration", "DataFrameError", "DataFrameSchema",
-    "DefaultCustomFieldResolver", "ExtractionError", "FailingResolver",
-    "MockCustomFieldResolver", "NameNormalizer", "ProgressiveProjectBuilder",
-    "SchemaNotFoundError", "SchemaRegistry", "SchemaVersionError",
-    "SectionDataFrameBuilder", "TaskRow", "TypeCoercionError",
-    "UnitExtractor", "UnitRow",
+    "BASE_SCHEMA",
+    "CONTACT_SCHEMA",
+    "LAZY_THRESHOLD",
+    "UNIT_SCHEMA",
+    "BaseExtractor",
+    "CachedRow",
+    "ColumnDef",
+    "ContactExtractor",
+    "ContactRow",
+    "CustomFieldResolver",
+    "DataFrameBuilder",
+    "DataFrameCacheIntegration",
+    "DataFrameError",
+    "DataFrameSchema",
+    "DefaultCustomFieldResolver",
+    "ExtractionError",
+    "FailingResolver",
+    "MockCustomFieldResolver",
+    "NameNormalizer",
+    "ProgressiveProjectBuilder",
+    "SchemaNotFoundError",
+    "SchemaRegistry",
+    "SchemaVersionError",
+    "SectionDataFrameBuilder",
+    "TaskRow",
+    "TypeCoercionError",
+    "UnitExtractor",
+    "UnitRow",
 }
 
 
 def __getattr__(name: str) -> object:
     if name in _DATAFRAME_EXPORTS:
         import autom8_asana.dataframes as _df
+
         return getattr(_df, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

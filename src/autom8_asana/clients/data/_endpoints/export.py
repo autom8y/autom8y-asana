@@ -74,8 +74,7 @@ async def get_export_csv(
         await client._circuit_breaker.check()
     except SdkCircuitBreakerOpenError as e:
         raise ExportError(
-            f"Circuit breaker open for autom8_data. "
-            f"Retry in {e.time_remaining:.1f}s.",
+            f"Circuit breaker open for autom8_data. Retry in {e.time_remaining:.1f}s.",
             office_phone=masked_phone,
             reason="circuit_breaker",
         ) from e
@@ -142,9 +141,7 @@ async def get_export_csv(
 
     # Parse response headers
     row_count = int(response.headers.get("X-Export-Row-Count", "0"))
-    truncated = (
-        response.headers.get("X-Export-Truncated", "false").lower() == "true"
-    )
+    truncated = response.headers.get("X-Export-Truncated", "false").lower() == "true"
 
     # Extract filename from Content-Disposition header
     content_disp = response.headers.get("Content-Disposition", "")

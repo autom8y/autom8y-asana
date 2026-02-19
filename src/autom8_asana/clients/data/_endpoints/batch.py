@@ -94,8 +94,7 @@ async def execute_batch_request(
     request_body: dict[str, Any] = {
         "frame_type": frame_type,
         "phone_vertical_pairs": [
-            {"phone": pvp.office_phone, "vertical": pvp.vertical}
-            for pvp in pvp_list
+            {"phone": pvp.office_phone, "vertical": pvp.vertical} for pvp in pvp_list
         ],
         "period": normalized_period,
     }

@@ -956,5 +956,3 @@ class DataFrameCache:
             await self.release_build_lock_async(
                 project_gid, entity_type, success=success
             )
-
-
