@@ -413,3 +413,56 @@ class TestPushGidMappingsToDataService:
         call_args = mock_client.post.call_args
         url = call_args.args[0]
         assert "//" not in url.replace("http://", "")
+
+
+class TestPiiMaskingInLogs:
+    """Verify that PII masking is applied to log fields in gid_push."""
+
+    @pytest.mark.asyncio
+    async def test_http_error_response_text_is_masked(self) -> None:
+        """Phone numbers in HTTP error response body are masked in warning log."""
+        phone_in_body = "error: +15551234567 not found"
+        mock_response = httpx.Response(
+            status_code=500,
+            text=phone_in_body,
+        )
+
+        logged_extra: dict | None = None
+
+        def capture_warning(
+            event: str, extra: dict | None = None, **kwargs: object
+        ) -> None:
+            nonlocal logged_extra
+            if event == "gid_push_failed":
+                logged_extra = extra or {}
+
+        index = GidLookupIndex(
+            lookup_dict={"pv1:+15551234567:dental": "1111111111111111"},
+            created_at=__import__("datetime").datetime(
+                2026, 2, 16, 12, 0, 0, tzinfo=__import__("datetime").timezone.utc
+            ),
+        )
+
+        with patch(
+            "autom8_asana.services.gid_push.httpx.AsyncClient"
+        ) as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.post.return_value = mock_response
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client_cls.return_value = mock_client
+
+            with patch("autom8_asana.services.gid_push.logger") as mock_logger:
+                mock_logger.warning.side_effect = capture_warning
+                await push_gid_mappings_to_data_service(
+                    project_gid="test-gid",
+                    index=index,
+                    data_service_url="http://localhost:8000",
+                    auth_token="test-token",
+                )
+
+        assert logged_extra is not None
+        response_text = logged_extra.get("response_text", "")
+        assert "+15551234567" not in response_text, (
+            "Phone number should be masked in gid_push_failed log"
+        )
