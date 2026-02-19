@@ -31,6 +31,7 @@ from autom8_asana.clients.data.client import DataServiceClient, mask_phone_numbe
 from autom8_asana.exceptions import ExportError
 from autom8_asana.models.business.activity import AccountActivity
 from autom8_asana.models.business.contact import ContactHolder
+from autom8_asana.models.business.hydration import hydrate_from_gid_async
 from autom8_asana.resolution.context import ResolutionContext
 
 logger = get_logger(__name__)
@@ -169,7 +170,7 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
                         _HolderOutcome(
                             holder_gid=h["gid"],
                             status="skipped",
-                            reason="inactive_business",
+                            reason="business_not_active",
                         )
                     )
                     continue
@@ -332,8 +333,6 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
             return self._activity_map[business_gid]
 
         try:
-            from autom8_asana.models.business.hydration import hydrate_from_gid_async
-
             result = await hydrate_from_gid_async(
                 self._asana_client,
                 business_gid,
