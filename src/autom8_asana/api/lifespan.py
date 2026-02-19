@@ -99,10 +99,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         },
     )
 
+    # DEF-005: Create a shared SDK CacheProvider once so warm-up tasks and
+    # request-handler clients can share the same cache backend instance.
+    # Without this, each AsanaClient auto-detects its own provider, which
+    # creates isolated InMemoryCacheProvider instances in non-Redis
+    # environments -- warm-up data becomes invisible to request handlers.
+    from autom8_asana.cache.integration.factory import create_cache_provider
+    from autom8_asana.config import AsanaConfig
+
+    _sdk_config = AsanaConfig()
+    app.state.cache_provider = create_cache_provider(_sdk_config.cache)
+    logger.info(
+        "shared_cache_provider_initialized",
+        extra={"provider_type": type(app.state.cache_provider).__name__},
+    )
+
     # Initialize token-keyed client pool for S2S resilience (IMP-19)
     # Allows rate limiters, circuit breakers, and AIMD semaphores to
     # accumulate state across requests sharing the same token.
-    app.state.client_pool = ClientPool()
+    # DEF-005: pass shared cache_provider so pooled clients share the same
+    # cache backend as the timeline warm-up task.
+    app.state.client_pool = ClientPool(
+        cache_provider=app.state.cache_provider,
+    )
     logger.info("client_pool_initialized")
 
     # Entity resolver startup discovery (FR-004, FR-005)
@@ -299,7 +318,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 app.state.timeline_warm_failed = True
                 return
 
-            warm_client = AsanaClient(token=bot_pat)
+            # DEF-005 fix: use the shared cache provider created during
+            # lifespan startup so story warm-up writes are visible to
+            # request-handler clients via the same backend instance.
+            warm_client = AsanaClient(
+                token=bot_pat,
+                cache_provider=app.state.cache_provider,
+            )
 
             def on_progress(warmed: int, total: int) -> None:
                 app.state.timeline_warm_count = warmed

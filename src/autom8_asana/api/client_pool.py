@@ -21,12 +21,15 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
 from autom8_asana.client import AsanaClient
 from autom8_asana.config import AsanaConfig, CircuitBreakerConfig
+
+if TYPE_CHECKING:
+    from autom8_asana.protocols.cache import CacheProvider
 
 logger = get_logger(__name__)
 
@@ -93,6 +96,7 @@ class ClientPool:
         max_size: int = 100,
         s2s_ttl: float = 3600.0,
         pat_ttl: float = 300.0,
+        cache_provider: CacheProvider | None = None,
     ) -> None:
         # Pool: token_hash -> (client, last_access_time, created_at_time, is_s2s)
         self._pool: dict[str, tuple[AsanaClient, float, float, bool]] = {}
@@ -100,6 +104,7 @@ class ClientPool:
         self._max_size = max_size
         self._s2s_ttl = s2s_ttl
         self._pat_ttl = pat_ttl
+        self._cache_provider = cache_provider
         self._stats: dict[str, int] = {
             "hits": 0,
             "misses": 0,
@@ -193,8 +198,14 @@ class ClientPool:
                 del self._pool[key]
 
             # Cache miss: create new client
+            # DEF-005: inject shared cache_provider so pooled clients share
+            # the same cache backend as warm-up tasks.
             config = self._make_pool_config()
-            client = AsanaClient(token=token, config=config)
+            client = AsanaClient(
+                token=token,
+                config=config,
+                cache_provider=self._cache_provider,
+            )
             self._pool[key] = (client, now, now, is_s2s)
             self._stats["misses"] += 1
 
