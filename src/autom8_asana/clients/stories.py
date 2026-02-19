@@ -345,6 +345,7 @@ class StoriesClient(BaseClient):
         *,
         task_modified_at: str | None = None,
         opt_fields: list[str] | None = None,
+        max_cache_age_seconds: int | None = None,
     ) -> list[Story]:
         """List stories for a task with incremental caching.
 
@@ -362,6 +363,10 @@ class StoriesClient(BaseClient):
             task_modified_at: Optional task modified_at timestamp for cache
                 versioning. If provided, used as cache entry version.
             opt_fields: Fields to include in API response.
+            max_cache_age_seconds: If set, return cached stories without an
+                API call when the cache entry is fresher than this many
+                seconds. ``None`` (default) preserves the existing
+                always-fetch behavior.
 
         Returns:
             list[Story] - All stories for the task, sorted by created_at.
@@ -411,6 +416,7 @@ class StoriesClient(BaseClient):
                 cache=self._cache,
                 fetcher=fetcher,
                 current_modified_at=task_modified_at,  # FR-CACHE-005
+                max_cache_age_seconds=max_cache_age_seconds,
             )
 
             duration_ms = (time.perf_counter() - start_time) * 1000
