@@ -79,18 +79,20 @@ def generate_entity_name(
     # Entire [placeholder] is replaced with the value (no leftover brackets)
     if business_name:
         # Replace [Business Name] variants
+        # Use lambda to avoid backreference interpretation in replacement string
         result = re.sub(
             r"\[business\s*name\]",
-            business_name,
+            lambda m: business_name,
             result,
             flags=re.IGNORECASE,
         )
 
     if unit_name:
         # Replace [Unit Name] or [Business Unit Name] variants
+        # Use lambda to avoid backreference interpretation in replacement string
         result = re.sub(
             r"\[(business\s*)?unit\s*name\]",
-            unit_name,
+            lambda m: unit_name,
             result,
             flags=re.IGNORECASE,
         )

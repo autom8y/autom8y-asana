@@ -17,6 +17,7 @@ import httpx
 from autom8y_config.lambda_extension import resolve_secret_from_env
 from autom8y_log import get_logger
 
+from autom8_asana.clients.data._pii import mask_pii_in_string
 from autom8_asana.services.gid_lookup import GidLookupIndex
 
 logger = get_logger(__name__)
@@ -229,7 +230,7 @@ async def push_gid_mappings_to_data_service(
             extra={
                 "project_gid": project_gid,
                 "status_code": response.status_code,
-                "response_text": response.text[:500],
+                "response_text": mask_pii_in_string(response.text[:500]),
             },
         )
         return False
@@ -239,7 +240,7 @@ async def push_gid_mappings_to_data_service(
             "gid_push_timeout",
             extra={
                 "project_gid": project_gid,
-                "error": str(e),
+                "error": mask_pii_in_string(str(e)),
             },
         )
         return False
@@ -251,7 +252,7 @@ async def push_gid_mappings_to_data_service(
             "gid_push_error",
             extra={
                 "project_gid": project_gid,
-                "error": str(e),
+                "error": mask_pii_in_string(str(e)),
                 "error_type": type(e).__name__,
             },
         )
