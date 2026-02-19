@@ -171,9 +171,7 @@ class OfferTimelineEntry(BaseModel):
     office_phone: str | None = Field(
         default=None, description="Office phone custom field"
     )
-    active_section_days: int = Field(
-        ..., ge=0, description="Days in ACTIVE sections"
-    )
+    active_section_days: int = Field(..., ge=0, description="Days in ACTIVE sections")
     billable_section_days: int = Field(
         ..., ge=0, description="Days in ACTIVE or ACTIVATING sections"
     )

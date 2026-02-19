@@ -250,20 +250,18 @@ async def build_timeline_for_offer(
     )
 
     # AC-1.2: Filter to section_changed only
-    section_stories = [
-        s for s in stories if s.resource_subtype == "section_changed"
-    ]
+    section_stories = [s for s in stories if s.resource_subtype == "section_changed"]
 
     # AC-1.3, AC-1.4: Filter cross-project noise
-    filtered_stories = [
-        s for s in section_stories if not _is_cross_project_noise(s)
-    ]
+    filtered_stories = [s for s in section_stories if not _is_cross_project_noise(s)]
 
     # Sort by created_at ascending (AC-2.5)
     filtered_stories.sort(key=lambda s: s.created_at or "")
 
     # FR-2: Build intervals from filtered stories
-    intervals, story_count = _build_intervals_from_stories(filtered_stories, offer_gid=offer_gid)
+    intervals, story_count = _build_intervals_from_stories(
+        filtered_stories, offer_gid=offer_gid
+    )
 
     # FR-3: Handle never-moved task
     if not intervals:
