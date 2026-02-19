@@ -9,7 +9,3 @@ instantiates Metric objects and calls MetricRegistry().register().
 """
 
 from autom8_asana.metrics.definitions import offer  # noqa: F401
-
-# Future definition modules:
-# from autom8_asana.metrics.definitions import unit  # noqa: F401
-# from autom8_asana.metrics.definitions import business  # noqa: F401

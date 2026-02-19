@@ -55,7 +55,7 @@ _bootstrap_initialized = False
 def _ensure_bootstrap() -> None:
     """Lazy bootstrap initialization for Lambda cold starts.
 
-    HOTFIX: Moved from module-level import to avoid import chain failures
+    Moved from module-level import to avoid import chain failures
     when autom8y_cache has missing modules. The bootstrap populates
     ProjectTypeRegistry for Tier 1 detection.
     """
@@ -240,7 +240,7 @@ async def _push_gid_mappings_for_completed_entities(
 ) -> None:
     """Push GID mappings to autom8_data for each successfully warmed entity.
 
-    Per SPIKE-BREAK-CIRCULAR-DEP Phase 3: After cache warming, iterate over
+    After cache warming, iterate over
     completed entities, build a transient GidLookupIndex from each cached
     DataFrame, and push mappings to autom8_data's sync endpoint.
 
@@ -709,7 +709,7 @@ async def _warm_cache_async(
         checkpoint_cleared = await checkpoint_mgr.clear_async()
 
         # ----------------------------------------------------------------
-        # GID mapping push (Phase 3: SPIKE-BREAK-CIRCULAR-DEP)
+        # GID mapping push
         # After warming completes, push GID mappings to autom8_data for
         # each successfully warmed entity type. Non-blocking: failures are
         # logged but do not affect the cache warmer's success status.
@@ -826,7 +826,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         ENVIRONMENT: Deployment environment for metrics (optional)
         CLOUDWATCH_NAMESPACE: CloudWatch namespace (optional)
     """
-    # HOTFIX: Lazy bootstrap to avoid import chain failures
+    # Lazy bootstrap to avoid import chain failures
     _ensure_bootstrap()
 
     # Extract invocation ID for logging correlation
@@ -899,7 +899,7 @@ async def handler_async(
     Returns:
         Same format as handler().
     """
-    # HOTFIX: Lazy bootstrap to avoid import chain failures
+    # Lazy bootstrap to avoid import chain failures
     _ensure_bootstrap()
 
     invocation_id = getattr(context, "aws_request_id", None)
