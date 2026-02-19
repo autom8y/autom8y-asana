@@ -232,6 +232,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # --- Section Timeline Story Cache Pre-Warm (FR-7) ---
     # Per TDD-SECTION-TIMELINE-001: Background story cache warming
     # for section timeline endpoint readiness gating.
+    #
+    # IMPORTANT: The timeline warm must start AFTER cache_warming completes
+    # to avoid Asana API rate limit saturation. Both tasks use bounded
+    # concurrency (Semaphore(20)) independently; running them concurrently
+    # yields ~40 parallel API slots, triggering 429s that cause the timeline
+    # warm to timeout at 600s. Sequential staggering ensures only one warm
+    # task makes API calls at a time.
 
     # Initialize progress counters and failure flag on app.state
     app.state.timeline_warm_count = 0
@@ -249,7 +256,28 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         the endpoint returns TIMELINE_WARM_FAILED (permanent 503) instead of
         TIMELINE_NOT_READY (retry-able 503). This distinguishes 'still starting'
         from 'broken and needs operator attention'.
+
+        Waits for cache_warming_task to complete before starting story warm
+        to avoid concurrent Asana API rate limit contention.
         """
+        # Stagger: wait for DataFrame cache warming to finish first.
+        # This prevents concurrent API call storms that saturate Asana's
+        # rate limit (observed: 659 rate_limit_429_received events).
+        try:
+            await background_task  # cache_warming_task
+            logger.info("timeline_warm_cache_warming_complete_proceeding")
+        except asyncio.CancelledError:
+            logger.info("timeline_warm_cache_warming_cancelled_proceeding")
+            # Cache warming was cancelled (shutdown) -- don't proceed
+            raise
+        except Exception:
+            # Cache warming failed, but timeline warm can still attempt
+            # since it uses a separate Asana client and different API calls.
+            logger.warning(
+                "timeline_warm_cache_warming_failed_proceeding",
+                extra={"impact": "Timeline warm will proceed despite cache warming failure"},
+            )
+
         from autom8_asana.services.section_timeline_service import (
             _WARM_TIMEOUT_SECONDS,
             warm_story_caches,
