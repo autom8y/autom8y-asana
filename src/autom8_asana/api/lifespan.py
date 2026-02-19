@@ -15,6 +15,7 @@ from autom8y_log import get_logger
 from autom8y_log.processors import add_otel_trace_ids
 from fastapi import FastAPI
 
+from autom8_asana.client import AsanaClient
 from autom8_asana.core.logging import configure as configure_logging
 
 from .client_pool import ClientPool
@@ -178,6 +179,33 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             },
         )
 
+    # Register workflow configs for API invocation
+    # Per TDD-ENTITY-SCOPE-001 Section 2.7.4: Reuse WorkflowHandlerConfig
+    # from Lambda handlers for the API invoke endpoint.
+    try:
+        from autom8_asana.api.routes.workflows import register_workflow_config
+        from autom8_asana.lambda_handlers.conversation_audit import (
+            _config as audit_config,
+        )
+        from autom8_asana.lambda_handlers.insights_export import (
+            _config as insights_config,
+        )
+
+        register_workflow_config(insights_config)
+        register_workflow_config(audit_config)
+        logger.info(
+            "workflow_configs_registered",
+            extra={"workflow_ids": ["insights-export", "conversation-audit"]},
+        )
+    except Exception as e:  # BROAD-CATCH: degrade
+        logger.warning(
+            "workflow_configs_registration_failed",
+            extra={
+                "error": str(e),
+                "impact": "Workflow invoke endpoint will return 404 for all workflows",
+            },
+        )
+
     # DataFrame cache preload (FR-003 per sprint-materialization-002)
     # Runs after entity discovery so we know which projects exist
     # Per progressive cache warming architecture: use progressive preload with
@@ -201,6 +229,88 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         extra={"task_name": "cache_warming"},
     )
 
+    # --- Section Timeline Story Cache Pre-Warm (FR-7) ---
+    # Per TDD-SECTION-TIMELINE-001: Background story cache warming
+    # for section timeline endpoint readiness gating.
+
+    # Initialize progress counters and failure flag on app.state
+    app.state.timeline_warm_count = 0
+    app.state.timeline_total = 0
+    app.state.timeline_warm_failed = False  # Set True on timeout or exception
+
+    async def _warm_section_timeline_stories() -> None:
+        """Background task: warm story caches for section timelines.
+
+        Per SPIKE-SECTION-TIMELINE-CACHE: warm_story_caches() uses bounded-parallel
+        concurrency (Semaphore(20)) so S3 promotion is fast (~5s for 500 offers).
+
+        Per interview 2026-02-19: If warm-up exceeds _WARM_TIMEOUT_SECONDS or
+        fails catastrophically, set app.state.timeline_warm_failed = True so
+        the endpoint returns TIMELINE_WARM_FAILED (permanent 503) instead of
+        TIMELINE_NOT_READY (retry-able 503). This distinguishes 'still starting'
+        from 'broken and needs operator attention'.
+        """
+        from autom8_asana.services.section_timeline_service import (
+            _WARM_TIMEOUT_SECONDS,
+            warm_story_caches,
+        )
+
+        try:
+            from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
+
+            try:
+                bot_pat = get_bot_pat()
+            except BotPATError:
+                logger.warning(
+                    "timeline_warm_skipped_no_bot_pat",
+                    extra={"reason": "ASANA_PAT not configured"},
+                )
+                # No bot PAT -> treat as permanent failure (operator must configure)
+                app.state.timeline_warm_failed = True
+                return
+
+            warm_client = AsanaClient(token=bot_pat)
+
+            def on_progress(warmed: int, total: int) -> None:
+                app.state.timeline_warm_count = warmed
+                app.state.timeline_total = total
+
+            # Wrap with timeout. asyncio.wait_for raises TimeoutError on expiry.
+            warmed, total = await asyncio.wait_for(
+                warm_story_caches(client=warm_client, on_progress=on_progress),
+                timeout=_WARM_TIMEOUT_SECONDS,
+            )
+            logger.info(
+                "timeline_story_warm_complete",
+                extra={"warmed": warmed, "total": total},
+            )
+        except TimeoutError:
+            logger.error(
+                "timeline_story_warm_timed_out",
+                extra={"timeout_seconds": _WARM_TIMEOUT_SECONDS},
+            )
+            app.state.timeline_warm_failed = True
+        except asyncio.CancelledError:
+            logger.info("timeline_story_warm_cancelled")
+            raise
+        except Exception:
+            logger.error(
+                "timeline_story_warm_exception",
+                exc_info=True,
+            )
+            app.state.timeline_warm_failed = True
+
+    timeline_warm_task = asyncio.create_task(
+        _warm_section_timeline_stories(),
+        name="timeline_story_warm",
+    )
+    app.state.timeline_warm_task = timeline_warm_task
+
+    logger.info(
+        "timeline_story_warm_started_background",
+        extra={"task_name": "timeline_story_warm"},
+    )
+
     yield
 
     # Cancel background cache warming if still running
@@ -216,6 +326,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             except Exception as e:  # BROAD-CATCH: degrade
                 logger.warning(
                     "cache_warming_cancel_error",
+                    extra={"error": str(e)},
+                )
+
+    # Cancel timeline story warm task if still running
+    if hasattr(app.state, "timeline_warm_task"):
+        task = app.state.timeline_warm_task
+        if not task.done():
+            logger.info("timeline_story_warm_cancelling")
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                logger.info("timeline_story_warm_cancelled")
+            except Exception as e:
+                logger.warning(
+                    "timeline_story_warm_cancel_error",
                     extra={"error": str(e)},
                 )
 
