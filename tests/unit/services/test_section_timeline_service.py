@@ -409,6 +409,59 @@ class TestGetSectionTimelines:
         assert len(entries) == 1
         assert entries[0].offer_gid == "offer2"
 
+    @pytest.mark.asyncio()
+    async def test_parallel_concurrency(self) -> None:
+        """Bounded parallelism: all offers processed with semaphore concurrency."""
+        # Create 25 tasks to exceed _REQUEST_CONCURRENCY (10)
+        tasks = [_make_task_mock(f"offer{i}", section_name="ACTIVE") for i in range(25)]
+
+        client = MagicMock()
+        collect_mock = AsyncMock(return_value=tasks)
+        list_mock = MagicMock()
+        list_mock.collect = collect_mock
+        client.tasks.list_async.return_value = list_mock
+        client.stories.list_for_task_cached_async = AsyncMock(return_value=[])
+
+        entries = await get_section_timelines(
+            client=client,
+            period_start=date(2025, 1, 1),
+            period_end=date(2025, 1, 10),
+        )
+
+        assert len(entries) == 25
+        assert all(isinstance(e, OfferTimelineEntry) for e in entries)
+
+    @pytest.mark.asyncio()
+    async def test_parallel_partial_failure(self) -> None:
+        """Bounded parallelism: failures in concurrent batch don't block others."""
+        tasks = [_make_task_mock(f"offer{i}", section_name="ACTIVE") for i in range(10)]
+
+        client = MagicMock()
+        collect_mock = AsyncMock(return_value=tasks)
+        list_mock = MagicMock()
+        list_mock.collect = collect_mock
+        client.tasks.list_async.return_value = list_mock
+
+        # Every other offer fails
+        async def _mock_stories(gid: str, **kwargs: object) -> list[Story]:
+            idx = int(gid.replace("offer", ""))
+            if idx % 2 == 0:
+                raise RuntimeError("Simulated failure")
+            return []
+
+        client.stories.list_for_task_cached_async = _mock_stories
+
+        entries = await get_section_timelines(
+            client=client,
+            period_start=date(2025, 1, 1),
+            period_end=date(2025, 1, 10),
+        )
+
+        # 5 succeed (odd indices: 1,3,5,7,9), 5 fail (even indices: 0,2,4,6,8)
+        assert len(entries) == 5
+        successful_gids = {e.offer_gid for e in entries}
+        assert successful_gids == {"offer1", "offer3", "offer5", "offer7", "offer9"}
+
 
 # ---------------------------------------------------------------------------
 # warm_story_caches

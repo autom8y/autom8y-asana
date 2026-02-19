@@ -36,6 +36,14 @@ logger = get_logger(__name__)
 # Semaphore(20) with 3,771 offers (DEF-004 postmortem 2026-02-19).
 _WARM_CONCURRENCY = 5
 
+# Bounded concurrency for per-request offer processing in get_section_timelines().
+# With ~3,800 offers, sequential processing causes 504 Gateway Timeouts when any
+# cache misses trigger rate-limited Asana API calls (~181 rate_limit_429 events,
+# ~10 min processing). Semaphore(10) balances throughput vs. rate limit pressure:
+# - Cache hits (~5ms each): 3,800 / 10 * 5ms = ~1.9s
+# - Cache misses (~100ms each): 3,800 / 10 * 100ms = ~38s (within ALB 60s timeout)
+_REQUEST_CONCURRENCY = 10
+
 # Wall-clock timeout for the pre-warm task. Sized for ~3,800 offers at
 # Semaphore(5): ~760 batches × ~100ms S3 promotion = ~76s (S3-warm path);
 # API-cold path is slower but tolerated up to 30 minutes on first-ever deploy.
@@ -297,6 +305,10 @@ async def get_section_timelines(
     Per FR-5: Enumerates ALL tasks in project GID 1143843662099250.
     Per FR-4: Computes active_section_days and billable_section_days.
 
+    Uses bounded parallelism (Semaphore) to process offers concurrently,
+    avoiding sequential per-offer API calls that cause 504 Gateway Timeouts
+    when cache misses trigger rate-limited Asana API fetches.
+
     Args:
         client: AsanaClient for Asana API calls.
         period_start: Query period start (inclusive).
@@ -320,50 +332,62 @@ async def get_section_timelines(
         },
     )
 
-    entries: list[OfferTimelineEntry] = []
+    # Bounded parallelism: process offers concurrently with a semaphore to
+    # avoid saturating Asana API rate limits on cache misses. With cache hits
+    # at ~5ms each, 3,773 offers / 10 concurrency completes in ~2-3s. With
+    # cache misses at ~100ms each, worst case is ~38s (within ALB 60s timeout).
+    sem = asyncio.Semaphore(_REQUEST_CONCURRENCY)
 
-    for task in tasks:
-        try:
-            # Extract fields from task
-            task_created_at = _parse_datetime(task.created_at)
-            section_name = extract_section_name(
-                task, project_gid=BUSINESS_OFFERS_PROJECT_GID
-            )
-            account_activity = (
-                OFFER_CLASSIFIER.classify(section_name) if section_name else None
-            )
+    async def _process_one(task: Any) -> OfferTimelineEntry | None:
+        async with sem:
+            try:
+                # Extract fields from task
+                task_created_at = _parse_datetime(task.created_at)
+                section_name = extract_section_name(
+                    task, project_gid=BUSINESS_OFFERS_PROJECT_GID
+                )
+                account_activity = (
+                    OFFER_CLASSIFIER.classify(section_name) if section_name else None
+                )
 
-            # Extract office_phone from custom_fields
-            # Task model custom_fields are list[dict] when using opt_fields
-            office_phone = _extract_office_phone(task.model_dump())
+                # Extract office_phone from custom_fields
+                # Task model custom_fields are list[dict] when using opt_fields
+                office_phone = _extract_office_phone(task.model_dump())
 
-            timeline = await build_timeline_for_offer(
-                client=client,
-                offer_gid=task.gid,
-                office_phone=office_phone,
-                task_created_at=task_created_at,
-                current_section_name=section_name,
-                current_account_activity=account_activity,
-            )
+                timeline = await build_timeline_for_offer(
+                    client=client,
+                    offer_gid=task.gid,
+                    office_phone=office_phone,
+                    task_created_at=task_created_at,
+                    current_section_name=section_name,
+                    current_account_activity=account_activity,
+                )
 
-            active_days = timeline.active_days_in_period(period_start, period_end)
-            billable_days = timeline.billable_days_in_period(period_start, period_end)
+                active_days = timeline.active_days_in_period(period_start, period_end)
+                billable_days = timeline.billable_days_in_period(
+                    period_start, period_end
+                )
 
-            entries.append(
-                OfferTimelineEntry(
+                return OfferTimelineEntry(
                     offer_gid=task.gid,
                     office_phone=office_phone,
                     active_section_days=active_days,
                     billable_section_days=billable_days,
                 )
-            )
-        except Exception:
-            logger.warning(
-                "section_timeline_offer_failed",
-                extra={"offer_gid": task.gid},
-                exc_info=True,
-            )
-            continue
+            except Exception:
+                logger.warning(
+                    "section_timeline_offer_failed",
+                    extra={"offer_gid": task.gid},
+                    exc_info=True,
+                )
+                return None
+
+    results = await asyncio.gather(
+        *[_process_one(task) for task in tasks],
+        return_exceptions=True,
+    )
+
+    entries = [r for r in results if isinstance(r, OfferTimelineEntry)]
 
     logger.info(
         "section_timeline_computation_complete",
