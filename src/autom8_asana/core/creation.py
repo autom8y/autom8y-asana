@@ -18,7 +18,7 @@ from autom8y_log import get_logger
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
-    from autom8_asana.models.core import Task
+    from autom8_asana.models.task import Task
 
 logger = get_logger(__name__)
 

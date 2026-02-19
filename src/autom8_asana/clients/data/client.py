@@ -12,7 +12,6 @@ Per Story 1.9: Full observability with structured logging, PII redaction, and me
 from __future__ import annotations
 
 import asyncio
-import re
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import date
@@ -1245,17 +1244,3 @@ class DataServiceClient:
             exclude_appointments=exclude_appointments,
             limit=limit,
         )
-
-
-def _parse_content_disposition_filename(header: str) -> str | None:
-    """Extract filename from Content-Disposition header.
-
-    Args:
-        header: Content-Disposition header value.
-
-    Returns:
-        Filename string or None if not parseable.
-    """
-    # Pattern: attachment; filename="conversations_17705753103_20260210.csv"
-    match = re.search(r'filename="?([^";\s]+)"?', header)
-    return match.group(1) if match else None

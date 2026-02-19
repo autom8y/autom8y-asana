@@ -12,7 +12,10 @@ from autom8_asana.clients.data.config import (
     TimeoutConfig,
 )
 from autom8_asana.clients.data.models import (
+    BatchInsightsResponse,
+    BatchInsightsResult,
     ColumnInfo,
+    ExportResult,
     InsightsMetadata,
     InsightsRequest,
     InsightsResponse,
@@ -28,7 +31,10 @@ __all__ = [
     "RetryConfig",
     "TimeoutConfig",
     # Model classes
+    "BatchInsightsResponse",
+    "BatchInsightsResult",
     "ColumnInfo",
+    "ExportResult",
     "InsightsMetadata",
     "InsightsRequest",
     "InsightsResponse",

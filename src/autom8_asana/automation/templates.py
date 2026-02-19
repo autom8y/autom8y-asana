@@ -14,7 +14,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
-    from autom8_asana.models.core import Section, Task
+    from autom8_asana.models.section import Section
+    from autom8_asana.models.task import Task
 
 
 class TemplateDiscovery:

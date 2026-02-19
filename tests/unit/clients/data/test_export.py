@@ -12,10 +12,10 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 
-from autom8_asana.clients.data.client import (
-    DataServiceClient,
+from autom8_asana.clients.data._endpoints.export import (
     _parse_content_disposition_filename,
 )
+from autom8_asana.clients.data.client import DataServiceClient
 from autom8_asana.clients.data.config import DataServiceConfig
 from autom8_asana.clients.data.models import ExportResult
 from autom8_asana.exceptions import ExportError
