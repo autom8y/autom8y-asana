@@ -275,7 +275,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             # since it uses a separate Asana client and different API calls.
             logger.warning(
                 "timeline_warm_cache_warming_failed_proceeding",
-                extra={"impact": "Timeline warm will proceed despite cache warming failure"},
+                extra={
+                    "impact": "Timeline warm will proceed despite cache warming failure"
+                },
             )
 
         from autom8_asana.services.section_timeline_service import (
