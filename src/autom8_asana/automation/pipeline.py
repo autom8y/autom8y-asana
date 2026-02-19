@@ -564,7 +564,7 @@ class PipelineConversionRule:
                 trigger_entity=source_process,
                 business_gid=business_gid,
             )
-            process_holder = await ctx.resolve_holder_async(ProcessHolder)
+            process_holder = await ctx.resolve_holder_async(ProcessHolder)  # type: ignore[type-var]
 
         # FR-HIER-003: Graceful degradation - no ProcessHolder available
         if process_holder is None:

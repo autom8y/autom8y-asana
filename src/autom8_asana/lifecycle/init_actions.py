@@ -248,7 +248,7 @@ class PlayCreationHandler(InitActionHandler):
             assert action_config.project_gid is not None  # validated at config load
             template_discovery = TemplateDiscovery(self._client)
             template = await template_discovery.find_template_task_async(
-                action_config.project_gid  # type: ignore[arg-type]  # project_gid validated non-None by action_config
+                action_config.project_gid
             )
 
             if not template:
@@ -276,7 +276,7 @@ class PlayCreationHandler(InitActionHandler):
             # Add to project
             await self._client.tasks.add_to_project_async(
                 new_play.gid,
-                action_config.project_gid,  # type: ignore[arg-type]  # project_gid validated non-None by action_config
+                action_config.project_gid,
             )
 
             # Wire as dependency
@@ -416,7 +416,7 @@ class EntityCreationHandler(InitActionHandler):
                 )
 
             result = await creation_service.create_entity_async(
-                project_gid=project_gid,  # type: ignore[arg-type]  # project_gid validated non-None by stage_config
+                project_gid=project_gid,
                 template_section=template_section,
                 holder_type=holder_type,
                 ctx=ctx,

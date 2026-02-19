@@ -185,7 +185,7 @@ async def place_in_section_async(
             None,
         )
         if target:
-            await client.sections.add_task_async(
+            await client.sections.add_task_async(  # type: ignore[attr-defined]
                 target.gid,
                 task=task_gid,
             )

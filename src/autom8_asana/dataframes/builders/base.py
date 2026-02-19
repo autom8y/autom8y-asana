@@ -540,7 +540,7 @@ class DataFrameBuilder(ABC):
         for desc in get_registry().all_descriptors():
             if desc.pascal_name == task_type and desc.extractor_class_path:
                 cls = _resolve_dotted_path(desc.extractor_class_path)
-                return cls(self._schema, self._resolver, client=self._client)
+                return cls(self._schema, self._resolver, client=self._client)  # type: ignore[no-any-return]
 
         # Fallback for task types without a dedicated extractor:
         # Per TDD-ENTITY-EXT-001: For entity types with schemas that have

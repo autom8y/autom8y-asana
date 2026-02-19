@@ -88,7 +88,7 @@ class DependencyWiringService:
         for dep_config in pipeline_rules.dependents:
             entity_type: str = dep_config.get("entity_type", "")
             try:
-                dependent_gid = await self._resolve_dependent_gid(entity_type, ctx)  # type: ignore[arg-type]  # entity_type is str at runtime from config dict
+                dependent_gid = await self._resolve_dependent_gid(entity_type, ctx)
                 if dependent_gid:
                     await self._client.tasks.add_dependent_async(  # type: ignore[attr-defined]
                         entity_gid, dependent_gid

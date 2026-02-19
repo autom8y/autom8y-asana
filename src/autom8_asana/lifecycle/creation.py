@@ -215,7 +215,7 @@ class EntityCreationService:
             )
             warnings.extend(configure_warnings)
 
-            ctx.cache_entity(new_task)  # type: ignore[arg-type]  # Task conforms to BusinessEntity protocol at runtime
+            ctx.cache_entity(new_task)
 
             return CreationResult(
                 success=True,
