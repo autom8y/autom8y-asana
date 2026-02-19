@@ -55,6 +55,7 @@ from autom8_asana.automation.polling.structured_logger import StructuredLogger
 from autom8_asana.automation.polling.trigger_evaluator import TriggerEvaluator
 from autom8_asana.automation.workflows.base import WorkflowAction
 from autom8_asana.automation.workflows.registry import WorkflowRegistry
+from autom8_asana.core.scope import EntityScope
 from autom8_asana.exceptions import ConfigurationError
 
 if TYPE_CHECKING:
@@ -545,9 +546,11 @@ class PollingScheduler:
             )
             return
 
-        # Execute workflow
+        # Enumerate entities then execute workflow
         try:
-            result = await workflow.execute_async(rule.action.params)
+            scope = EntityScope.from_event(rule.action.params)
+            entities = await workflow.enumerate_async(scope)
+            result = await workflow.execute_async(entities, rule.action.params)
             structured_log.info(
                 "workflow_completed",
                 rule_id=rule.rule_id,
