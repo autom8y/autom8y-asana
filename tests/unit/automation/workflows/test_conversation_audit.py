@@ -914,13 +914,12 @@ class TestResolveBusinessActivity:
     Per TDD-section-activity-classifier Phase 3: Business-level activity
     checking with caching and error handling.
 
-    Note: Business is imported inside _resolve_business_activity via
-    ``from autom8_asana.models.business.business import Business``, so
-    we patch at the source module, not the conversation_audit module.
+    Note: _resolve_business_activity calls hydrate_from_gid_async imported
+    inside the function from autom8_asana.models.business.hydration, so we
+    patch at the conversation_audit module's import site.
     """
 
-    _BUSINESS_PATH = "autom8_asana.models.business.business.Business"
-    _CTX_PATH = "autom8_asana.automation.workflows.conversation_audit.ResolutionContext"
+    _HYDRATE_PATH = "autom8_asana.automation.workflows.conversation_audit.hydrate_from_gid_async"
 
     def _make_clean_workflow(self):
         """Create workflow without pre-populated activity_map."""
@@ -928,25 +927,23 @@ class TestResolveBusinessActivity:
         wf._activity_map.clear()
         return wf, mock_asana, mock_data, mock_att
 
+    def _make_hydration_result(self, activity: AccountActivity | None) -> MagicMock:
+        """Build a mock HydrationResult whose business.max_unit_activity is set."""
+        mock_result = MagicMock()
+        mock_business = MagicMock()
+        mock_business.max_unit_activity = activity
+        mock_result.business = mock_business
+        return mock_result
+
     @pytest.mark.asyncio
     async def test_returns_active_for_active_business(self) -> None:
         """Active business returns AccountActivity.ACTIVE."""
         wf, _, _, _ = self._make_clean_workflow()
 
-        mock_business = MagicMock()
-        mock_business.max_unit_activity = AccountActivity.ACTIVE
+        mock_result = self._make_hydration_result(AccountActivity.ACTIVE)
 
-        with patch(self._BUSINESS_PATH) as MockBusiness:
-            MockBusiness.from_gid_async = AsyncMock(return_value=mock_business)
-            with patch(self._CTX_PATH) as MockCtx:
-                mock_ctx_instance = AsyncMock()
-                mock_ctx_instance.hydrate_branch_async = AsyncMock()
-                MockCtx.return_value.__aenter__ = AsyncMock(
-                    return_value=mock_ctx_instance
-                )
-                MockCtx.return_value.__aexit__ = AsyncMock(return_value=False)
-
-                result = await wf._resolve_business_activity("biz1")
+        with patch(self._HYDRATE_PATH, new=AsyncMock(return_value=mock_result)):
+            result = await wf._resolve_business_activity("biz1")
 
         assert result == AccountActivity.ACTIVE
 
@@ -955,37 +952,24 @@ class TestResolveBusinessActivity:
         """Second call for same business_gid returns cached result."""
         wf, _, _, _ = self._make_clean_workflow()
 
-        mock_business = MagicMock()
-        mock_business.max_unit_activity = AccountActivity.ACTIVE
+        mock_result = self._make_hydration_result(AccountActivity.ACTIVE)
+        mock_hydrate = AsyncMock(return_value=mock_result)
 
-        with patch(self._BUSINESS_PATH) as MockBusiness:
-            MockBusiness.from_gid_async = AsyncMock(return_value=mock_business)
-            with patch(self._CTX_PATH) as MockCtx:
-                mock_ctx_instance = AsyncMock()
-                mock_ctx_instance.hydrate_branch_async = AsyncMock()
-                MockCtx.return_value.__aenter__ = AsyncMock(
-                    return_value=mock_ctx_instance
-                )
-                MockCtx.return_value.__aexit__ = AsyncMock(return_value=False)
-
-                result1 = await wf._resolve_business_activity("biz1")
-                result2 = await wf._resolve_business_activity("biz1")
+        with patch(self._HYDRATE_PATH, new=mock_hydrate):
+            result1 = await wf._resolve_business_activity("biz1")
+            result2 = await wf._resolve_business_activity("biz1")
 
         assert result1 == AccountActivity.ACTIVE
         assert result2 == AccountActivity.ACTIVE
-        # Business.from_gid_async should only be called once (cached)
-        assert MockBusiness.from_gid_async.call_count == 1
+        # hydrate_from_gid_async should only be called once (cached)
+        assert mock_hydrate.call_count == 1
 
     @pytest.mark.asyncio
     async def test_returns_none_on_resolution_failure(self) -> None:
         """Resolution failure caches and returns None."""
         wf, _, _, _ = self._make_clean_workflow()
 
-        with patch(self._BUSINESS_PATH) as MockBusiness:
-            MockBusiness.from_gid_async = AsyncMock(
-                side_effect=Exception("API error")
-            )
-
+        with patch(self._HYDRATE_PATH, new=AsyncMock(side_effect=Exception("API error"))):
             result = await wf._resolve_business_activity("biz-bad")
 
         assert result is None
@@ -998,18 +982,16 @@ class TestResolveBusinessActivity:
         """Failed resolution is cached so subsequent calls do not retry."""
         wf, _, _, _ = self._make_clean_workflow()
 
-        with patch(self._BUSINESS_PATH) as MockBusiness:
-            MockBusiness.from_gid_async = AsyncMock(
-                side_effect=Exception("API error")
-            )
+        mock_hydrate = AsyncMock(side_effect=Exception("API error"))
 
+        with patch(self._HYDRATE_PATH, new=mock_hydrate):
             result1 = await wf._resolve_business_activity("biz-bad")
             result2 = await wf._resolve_business_activity("biz-bad")
 
         assert result1 is None
         assert result2 is None
         # Only called once; second call hits cache
-        assert MockBusiness.from_gid_async.call_count == 1
+        assert mock_hydrate.call_count == 1
 
 
 class TestActivityFiltering:
