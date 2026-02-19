@@ -86,7 +86,9 @@ class TestMaskCanonicalKey:
 
     def test_masks_phone_in_canonical_key(self) -> None:
         """Phone number in canonical key is masked."""
-        from autom8_asana.clients.data.client import _mask_canonical_key
+        from autom8_asana.clients.data._pii import (
+            mask_canonical_key as _mask_canonical_key,
+        )
 
         result = _mask_canonical_key("pv1:+17705753103:chiropractic")
 
@@ -94,7 +96,9 @@ class TestMaskCanonicalKey:
 
     def test_preserves_version_and_vertical(self) -> None:
         """Version prefix and vertical are preserved."""
-        from autom8_asana.clients.data.client import _mask_canonical_key
+        from autom8_asana.clients.data._pii import (
+            mask_canonical_key as _mask_canonical_key,
+        )
 
         result = _mask_canonical_key("pv1:+14155551234:dental")
 
@@ -103,7 +107,9 @@ class TestMaskCanonicalKey:
 
     def test_returns_non_pv1_unchanged(self) -> None:
         """Non-pv1 keys are returned unchanged."""
-        from autom8_asana.clients.data.client import _mask_canonical_key
+        from autom8_asana.clients.data._pii import (
+            mask_canonical_key as _mask_canonical_key,
+        )
 
         result = _mask_canonical_key("other:+17705753103:vertical")
 
@@ -111,7 +117,9 @@ class TestMaskCanonicalKey:
 
     def test_returns_malformed_key_unchanged(self) -> None:
         """Malformed keys are returned unchanged."""
-        from autom8_asana.clients.data.client import _mask_canonical_key
+        from autom8_asana.clients.data._pii import (
+            mask_canonical_key as _mask_canonical_key,
+        )
 
         result = _mask_canonical_key("notakey")
 
