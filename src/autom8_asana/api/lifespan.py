@@ -294,10 +294,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("timeline_story_warm_cancelled")
             raise
         except Exception:
-            logger.error(
-                "timeline_story_warm_exception",
-                exc_info=True,
-            )
+            logger.exception("timeline_story_warm_exception")
             app.state.timeline_warm_failed = True
 
     timeline_warm_task = asyncio.create_task(

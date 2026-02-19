@@ -7,7 +7,7 @@ functions with mocked AsanaClient dependencies.
 from __future__ import annotations
 
 import asyncio
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -30,7 +30,6 @@ from autom8_asana.services.section_timeline_service import (
     warm_story_caches,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -38,7 +37,7 @@ from autom8_asana.services.section_timeline_service import (
 
 def _utc(year: int, month: int, day: int, hour: int = 0) -> datetime:
     """Create a UTC datetime for test data."""
-    return datetime(year, month, day, hour, tzinfo=timezone.utc)
+    return datetime(year, month, day, hour, tzinfo=UTC)
 
 
 def _make_story(
