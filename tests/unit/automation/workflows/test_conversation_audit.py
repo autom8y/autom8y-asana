@@ -21,6 +21,7 @@ from autom8_asana.automation.workflows.conversation_audit import (
     ConversationAuditWorkflow,
 )
 from autom8_asana.clients.data.models import ExportResult
+from autom8_asana.core.scope import EntityScope
 from autom8_asana.exceptions import ExportError
 from autom8_asana.models.business.activity import AccountActivity
 from autom8_asana.models.task import Task
@@ -204,6 +205,27 @@ def _make_workflow(
     return workflow, mock_asana, mock_data_client, mock_attachments
 
 
+def _default_scope() -> EntityScope:
+    """Default scope for full enumeration."""
+    return EntityScope()
+
+
+async def _enumerate_and_execute(
+    wf: ConversationAuditWorkflow,
+    params: dict[str, Any] | None = None,
+    scope: EntityScope | None = None,
+) -> Any:
+    """Helper: call enumerate_async then execute_async.
+
+    Per TDD-ENTITY-SCOPE-001: The handler factory orchestrates
+    enumerate -> execute. This helper simulates that for tests.
+    """
+    s = scope or _default_scope()
+    p = params or {"workflow_id": "conversation-audit"}
+    entities = await wf.enumerate_async(s)
+    return await wf.execute_async(entities, p)
+
+
 # --- Tests ---
 
 
@@ -289,7 +311,7 @@ class TestExecuteAsyncHappyPath:
             parent_tasks=parent_tasks,
         )
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        result = await _enumerate_and_execute(wf)
 
         assert result.total == 3
         assert result.succeeded == 3
@@ -320,7 +342,7 @@ class TestExecuteAsyncSkipNoPhone:
             parent_tasks=parent_tasks,
         )
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        result = await _enumerate_and_execute(wf)
 
         assert result.total == 3
         assert result.succeeded == 2
@@ -333,7 +355,7 @@ class TestExecuteAsyncSkipNoPhone:
 
         wf, _, _, _ = _make_workflow(holders=[h1])
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        result = await _enumerate_and_execute(wf)
 
         assert result.total == 1
         assert result.skipped == 1
@@ -357,7 +379,7 @@ class TestExecuteAsyncSkipZeroRows:
             export_results=export_results,
         )
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        result = await _enumerate_and_execute(wf)
 
         assert result.total == 1
         assert result.skipped == 1
@@ -388,7 +410,7 @@ class TestExecuteAsyncExportFailure:
             export_errors=export_errors,
         )
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        result = await _enumerate_and_execute(wf)
 
         assert result.total == 1
         assert result.failed == 1
@@ -415,7 +437,7 @@ class TestExecuteAsyncExportFailure:
             export_errors=export_errors,
         )
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        result = await _enumerate_and_execute(wf)
 
         assert result.errors[0].recoverable is False
 
@@ -448,7 +470,7 @@ class TestExecuteAsyncCircuitBreakerOpen:
             export_errors=export_errors,
         )
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        result = await _enumerate_and_execute(wf)
 
         assert result.total == 3
         assert result.failed == 3
@@ -476,7 +498,7 @@ class TestExecuteAsyncUploadFirstOrdering:
             existing_attachments={"h1": [old_att]},
         )
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        result = await _enumerate_and_execute(wf)
 
         assert result.succeeded == 1
         # Upload must happen before delete
@@ -513,7 +535,7 @@ class TestExecuteAsyncTruncated:
             export_results=export_results,
         )
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        result = await _enumerate_and_execute(wf)
 
         assert result.succeeded == 2
         assert result.metadata["truncated_count"] == 1
@@ -541,7 +563,7 @@ class TestExecuteAsyncDeleteFailureTolerance:
         # Make delete fail
         mock_att.delete_async = AsyncMock(side_effect=Exception("Asana API error"))
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        result = await _enumerate_and_execute(wf)
 
         # Still succeeded because upload worked; delete failure is non-fatal
         assert result.succeeded == 1
@@ -572,7 +594,7 @@ class TestExecuteAsyncConcurrency:
             "max_concurrency": 2,
         }
 
-        result = await wf.execute_async(params)
+        result = await _enumerate_and_execute(wf, params=params)
 
         # All should succeed even with low concurrency
         assert result.total == 10
@@ -604,7 +626,7 @@ class TestExecuteAsyncEmptyProject:
         """Empty project -> total=0, all zeros."""
         wf, _, _, _ = _make_workflow(holders=[])
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        result = await _enumerate_and_execute(wf)
 
         assert result.total == 0
         assert result.succeeded == 0
@@ -637,7 +659,7 @@ class TestExecuteAsyncDateRange:
             "date_range_days": 14,
         }
 
-        await wf.execute_async(params)
+        await _enumerate_and_execute(wf, params=params)
 
         # Verify get_export_csv_async was called with start_date and end_date
         call_kwargs = mock_data.get_export_csv_async.call_args[1]
@@ -662,7 +684,7 @@ class TestExecuteAsyncDateRange:
         # No date_range_days in params
         params = {"workflow_id": "conversation-audit"}
 
-        await wf.execute_async(params)
+        await _enumerate_and_execute(wf, params=params)
 
         call_kwargs = mock_data.get_export_csv_async.call_args[1]
         expected_end = date.today()
@@ -672,11 +694,16 @@ class TestExecuteAsyncDateRange:
 
 
 class TestPreResolveBusinessActivities:
-    """Tests for bulk activity pre-resolution and pre-filtering."""
+    """Tests for bulk activity pre-resolution and pre-filtering.
+
+    Per TDD-ENTITY-SCOPE-001: Activity pre-filtering now happens in
+    enumerate_async, not execute_async. Tests verify enumerate_async
+    filters inactive holders before they reach execute_async.
+    """
 
     @pytest.mark.asyncio
     async def test_prefilter_skips_inactive_holders(self) -> None:
-        """Holders with INACTIVE parent Business are pre-filtered before processing."""
+        """Holders with INACTIVE parent Business are pre-filtered by enumerate_async."""
         h_active = _make_task("h1", "Active Holder", parent_gid="biz-active")
         h_inactive = _make_task("h2", "Inactive Holder", parent_gid="biz-inactive")
         parent_tasks = {
@@ -691,18 +718,23 @@ class TestPreResolveBusinessActivities:
         # Override: mark one Business as INACTIVE
         wf._activity_map["biz-inactive"] = AccountActivity.INACTIVE
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        # enumerate_async filters out inactive holders
+        scope = _default_scope()
+        entities = await wf.enumerate_async(scope)
+        assert len(entities) == 1
+        assert entities[0]["gid"] == "h1"
 
-        assert result.total == 2
+        # execute_async only processes the active holder
+        result = await wf.execute_async(entities, {"workflow_id": "conversation-audit"})
+        assert result.total == 1
         assert result.succeeded == 1
-        assert result.skipped == 1
         # Only the active holder should trigger CSV export
         assert mock_data.get_export_csv_async.call_count == 1
         assert mock_att.upload_async.call_count == 1
 
     @pytest.mark.asyncio
     async def test_prefilter_skips_none_activity(self) -> None:
-        """Holders with None activity (hydration failed) are pre-filtered."""
+        """Holders with None activity (hydration failed) are pre-filtered by enumerate_async."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz-unknown")
         parent_tasks = {
             "biz-unknown": _make_parent_task("+17705753101", gid="biz-unknown"),
@@ -715,11 +747,14 @@ class TestPreResolveBusinessActivities:
         # Override: simulate failed hydration (None activity)
         wf._activity_map["biz-unknown"] = None
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        # enumerate_async filters out holders with None activity
+        scope = _default_scope()
+        entities = await wf.enumerate_async(scope)
+        assert len(entities) == 0
 
-        assert result.total == 1
-        assert result.skipped == 1
-        assert result.succeeded == 0
+        # execute_async with empty entities
+        result = await wf.execute_async(entities, {"workflow_id": "conversation-audit"})
+        assert result.total == 0
         mock_data.get_export_csv_async.assert_not_called()
 
     @pytest.mark.asyncio
@@ -729,7 +764,7 @@ class TestPreResolveBusinessActivities:
 
         wf, _, _, _ = _make_workflow(holders=[h_orphan])
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        result = await _enumerate_and_execute(wf)
 
         # Orphan passes pre-filter, then skipped at phone resolution
         assert result.total == 1
@@ -764,7 +799,7 @@ class TestPreResolveBusinessActivities:
 
         wf._resolve_business_activity = tracking_resolve  # type: ignore[assignment]
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        result = await _enumerate_and_execute(wf)
 
         # Hydration (expensive depth=2 call) should happen exactly once
         assert hydration_calls.count("shared-biz") == 1
@@ -773,7 +808,7 @@ class TestPreResolveBusinessActivities:
 
     @pytest.mark.asyncio
     async def test_preresolution_handles_hydration_failure(self) -> None:
-        """If hydration fails for a Business, its holders are pre-filtered."""
+        """If hydration fails for a Business, its holders are filtered out by enumerate_async."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz-fail")
         parent_tasks = {
             "biz-fail": _make_parent_task("+17705753101", gid="biz-fail"),
@@ -792,15 +827,22 @@ class TestPreResolveBusinessActivities:
 
         wf._resolve_business_activity = failing_resolve  # type: ignore[assignment]
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        # enumerate_async filters out holders with None activity
+        scope = _default_scope()
+        entities = await wf.enumerate_async(scope)
+        assert len(entities) == 0
 
-        assert result.total == 1
-        assert result.skipped == 1
+        result = await wf.execute_async(entities, {"workflow_id": "conversation-audit"})
+        assert result.total == 0
         mock_data.get_export_csv_async.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_prefilter_mixed_activities(self) -> None:
-        """Mix of ACTIVE, INACTIVE, ACTIVATING parents: only ACTIVE processed."""
+        """Mix of ACTIVE, INACTIVE, ACTIVATING parents: only ACTIVE processed.
+
+        Per TDD-ENTITY-SCOPE-001: Inactive holders are filtered out during
+        enumerate_async, so execute_async only sees the 2 active holders.
+        """
         h_active = _make_task("h1", "Active", parent_gid="biz-a")
         h_inactive = _make_task("h2", "Inactive", parent_gid="biz-i")
         h_activating = _make_task("h3", "Activating", parent_gid="biz-g")
@@ -820,11 +862,12 @@ class TestPreResolveBusinessActivities:
         wf._activity_map["biz-i"] = AccountActivity.INACTIVE
         wf._activity_map["biz-g"] = AccountActivity.ACTIVATING
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        result = await _enumerate_and_execute(wf)
 
-        assert result.total == 4
-        assert result.succeeded == 2  # h1 and h4 (both biz-a)
-        assert result.skipped == 2  # h2 (inactive) and h3 (activating)
+        # enumerate_async filters out inactive/activating holders
+        # Only h1 and h4 (both biz-a ACTIVE) reach execute_async
+        assert result.total == 2
+        assert result.succeeded == 2
         assert mock_data.get_export_csv_async.call_count == 2
 
 
@@ -846,7 +889,7 @@ class TestResolveOfficePhonePassthrough:
             parent_tasks=parent_tasks,
         )
 
-        await wf.execute_async({"workflow_id": "conversation-audit"})
+        await _enumerate_and_execute(wf)
 
         # get_async should NOT have been called with "h1" (the holder GID)
         # because parent_gid="biz1" was passed through from enumeration.
@@ -861,7 +904,7 @@ class TestResolveOfficePhonePassthrough:
 
         wf, mock_asana, _, _ = _make_workflow(holders=[h1])
 
-        await wf.execute_async({"workflow_id": "conversation-audit"})
+        await _enumerate_and_execute(wf)
 
         # get_async SHOULD be called with "h1" since parent_gid is None
         call_gids = [call.args[0] for call in mock_asana.tasks.get_async.call_args_list]
@@ -997,15 +1040,16 @@ class TestResolveBusinessActivity:
 
 
 class TestActivityFiltering:
-    """Tests for business activity filtering in execute_async.
+    """Tests for business activity filtering in enumerate_async.
 
-    Per TDD-section-activity-classifier Phase 3: Holders whose parent
-    Business is not ACTIVE should be skipped.
+    Per TDD-ENTITY-SCOPE-001: Activity filtering moved from execute_async
+    to enumerate_async. Holders whose parent Business is not ACTIVE are
+    filtered out during enumeration and never reach execute_async.
     """
 
     @pytest.mark.asyncio
-    async def test_process_holder_skips_inactive_business(self) -> None:
-        """Holder with INACTIVE parent business is skipped."""
+    async def test_enumerate_filters_inactive_business(self) -> None:
+        """enumerate_async excludes holder with INACTIVE parent."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
         parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
 
@@ -1015,18 +1059,13 @@ class TestActivityFiltering:
         )
         wf._activity_map["biz1"] = AccountActivity.INACTIVE
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
-
-        assert result.total == 1
-        assert result.skipped == 1
-        assert result.succeeded == 0
-        assert result.metadata["activity_skipped_count"] == 1
-        # Export should NOT be called for inactive business
+        entities = await wf.enumerate_async(_default_scope())
+        assert len(entities) == 0
         mock_data.get_export_csv_async.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_process_holder_skips_activating_business(self) -> None:
-        """Holder with ACTIVATING parent business is skipped."""
+    async def test_enumerate_filters_activating_business(self) -> None:
+        """enumerate_async excludes holder with ACTIVATING parent."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
         parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
 
@@ -1036,16 +1075,13 @@ class TestActivityFiltering:
         )
         wf._activity_map["biz1"] = AccountActivity.ACTIVATING
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
-
-        assert result.total == 1
-        assert result.skipped == 1
-        assert result.metadata["activity_skipped_count"] == 1
+        entities = await wf.enumerate_async(_default_scope())
+        assert len(entities) == 0
         mock_data.get_export_csv_async.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_process_holder_skips_unknown_activity(self) -> None:
-        """Holder with unknown activity (None) is skipped."""
+    async def test_enumerate_filters_unknown_activity(self) -> None:
+        """enumerate_async excludes holder with None (unknown) activity."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
         parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
 
@@ -1055,16 +1091,13 @@ class TestActivityFiltering:
         )
         wf._activity_map["biz1"] = None
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
-
-        assert result.total == 1
-        assert result.skipped == 1
-        assert result.metadata["activity_skipped_count"] == 1
+        entities = await wf.enumerate_async(_default_scope())
+        assert len(entities) == 0
         mock_data.get_export_csv_async.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_process_holder_processes_active_business(self) -> None:
-        """Holder with ACTIVE parent business is processed normally."""
+    async def test_enumerate_passes_active_business(self) -> None:
+        """enumerate_async includes holder with ACTIVE parent."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
         parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
 
@@ -1073,8 +1106,10 @@ class TestActivityFiltering:
             parent_tasks=parent_tasks,
         )
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        entities = await wf.enumerate_async(_default_scope())
+        assert len(entities) == 1
 
+        result = await wf.execute_async(entities, {"workflow_id": "conversation-audit"})
         assert result.total == 1
         assert result.succeeded == 1
         assert result.metadata["activity_skipped_count"] == 0
@@ -1082,23 +1117,24 @@ class TestActivityFiltering:
         mock_att.upload_async.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_activity_check_skipped_for_orphan_holder(self) -> None:
-        """Holder with no parent_gid skips activity check (goes to phone resolution)."""
+    async def test_enumerate_passes_orphan_holder(self) -> None:
+        """Holder with no parent_gid passes through enumerate_async."""
         h1 = _make_task("h1", "Orphan Holder")  # No parent_gid
 
         wf, _, _, _ = _make_workflow(holders=[h1])
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        entities = await wf.enumerate_async(_default_scope())
+        assert len(entities) == 1
 
+        result = await wf.execute_async(entities, {"workflow_id": "conversation-audit"})
         # Should be skipped due to no phone (not activity check)
         assert result.total == 1
         assert result.skipped == 1
-        # Activity check is not invoked for orphan holders
         assert result.metadata["activity_skipped_count"] == 0
 
     @pytest.mark.asyncio
-    async def test_mixed_activity_outcomes(self) -> None:
-        """Batch with mixed activity: 1 active, 1 inactive, 1 unknown."""
+    async def test_enumerate_mixed_activity_outcomes(self) -> None:
+        """enumerate_async with mixed activities: only ACTIVE passes through."""
         h1 = _make_task("h1", "Active Holder", parent_gid="biz1")
         h2 = _make_task("h2", "Inactive Holder", parent_gid="biz2")
         h3 = _make_task("h3", "Unknown Holder", parent_gid="biz3")
@@ -1109,7 +1145,7 @@ class TestActivityFiltering:
             "biz3": _make_parent_task("+17705753103", gid="biz3"),
         }
 
-        wf, _, mock_data, _ = _make_workflow(
+        wf, _, _, _ = _make_workflow(
             holders=[h1, h2, h3],
             parent_tasks=parent_tasks,
         )
@@ -1118,12 +1154,13 @@ class TestActivityFiltering:
         wf._activity_map["biz2"] = AccountActivity.INACTIVE
         wf._activity_map["biz3"] = None
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        entities = await wf.enumerate_async(_default_scope())
+        assert len(entities) == 1
+        assert entities[0]["gid"] == "h1"
 
-        assert result.total == 3
-        assert result.succeeded == 1  # biz1 only
-        assert result.skipped == 2  # biz2 (inactive), biz3 (unknown)
-        assert result.metadata["activity_skipped_count"] == 2
+        result = await wf.execute_async(entities, {"workflow_id": "conversation-audit"})
+        assert result.total == 1
+        assert result.succeeded == 1
 
     @pytest.mark.asyncio
     async def test_activity_map_deduplication(self) -> None:
@@ -1141,8 +1178,9 @@ class TestActivityFiltering:
             parent_tasks=parent_tasks,
         )
 
-        result = await wf.execute_async(
-            {"workflow_id": "conversation-audit", "max_concurrency": 1}
+        result = await _enumerate_and_execute(
+            wf,
+            params={"workflow_id": "conversation-audit", "max_concurrency": 1},
         )
 
         assert result.total == 3
@@ -1153,7 +1191,7 @@ class TestActivityFiltering:
         """WorkflowResult metadata always includes activity_skipped_count."""
         wf, _, _, _ = _make_workflow(holders=[])
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        result = await _enumerate_and_execute(wf)
 
         assert "activity_skipped_count" in result.metadata
         assert result.metadata["activity_skipped_count"] == 0
@@ -1173,7 +1211,7 @@ class TestResolveOfficePhone:
             parent_tasks=parent_tasks,
         )
 
-        result = await wf.execute_async({"workflow_id": "conversation-audit"})
+        result = await _enumerate_and_execute(wf)
 
         assert result.succeeded == 1
         # tasks.get_async should NOT be called for the holder task itself
@@ -1183,3 +1221,162 @@ class TestResolveOfficePhone:
         get_calls = mock_asana.tasks.get_async.call_args_list
         holder_get_calls = [c for c in get_calls if c[0][0] == "h1"]
         assert len(holder_get_calls) == 0
+
+
+# --- enumerate_async Tests (TDD-ENTITY-SCOPE-001 Section 8.3) ---
+
+
+class TestEnumerateAsyncConversationAudit:
+    """Tests for enumerate_async scope handling.
+
+    Per TDD-ENTITY-SCOPE-001 Section 8.3: Verify that targeted scope
+    skips pre-resolution and full scope triggers pre-resolution + filtering.
+    """
+
+    @pytest.mark.asyncio
+    async def test_enumerate_with_entity_ids_skips_pre_resolution(self) -> None:
+        """Targeted scope returns synthetic dicts without pre-resolution."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
+
+        wf, mock_asana, _, _ = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+        )
+
+        # Targeted scope: entity_ids provided
+        scope = EntityScope(entity_ids=("12345", "67890"))
+        entities = await wf.enumerate_async(scope)
+
+        # Should return synthetic dicts without enumerating the project
+        assert len(entities) == 2
+        assert entities[0]["gid"] == "12345"
+        assert entities[1]["gid"] == "67890"
+        # parent_gid should be None (not pre-resolved)
+        assert entities[0]["parent_gid"] is None
+        # Should NOT have called list_async (no project enumeration)
+        mock_asana.tasks.list_async.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_enumerate_without_entity_ids_calls_pre_resolution(self) -> None:
+        """Full scope triggers project enumeration and pre-resolution."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
+
+        wf, mock_asana, _, _ = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+        )
+
+        # Full scope: no entity_ids
+        scope = EntityScope()
+        entities = await wf.enumerate_async(scope)
+
+        # Should have called list_async for project enumeration
+        mock_asana.tasks.list_async.assert_called_once()
+        # Should return the holder from enumeration
+        assert len(entities) == 1
+        assert entities[0]["gid"] == "h1"
+        assert entities[0]["parent_gid"] == "biz1"
+
+    @pytest.mark.asyncio
+    async def test_enumerate_filters_inactive_businesses(self) -> None:
+        """Full enumeration filters out holders with non-ACTIVE parents."""
+        h_active = _make_task("h1", "Active", parent_gid="biz-a")
+        h_inactive = _make_task("h2", "Inactive", parent_gid="biz-i")
+        h_unknown = _make_task("h3", "Unknown", parent_gid="biz-u")
+        parent_tasks = {
+            "biz-a": _make_parent_task("+17705753101", gid="biz-a"),
+            "biz-i": _make_parent_task("+17705753102", gid="biz-i"),
+            "biz-u": _make_parent_task("+17705753103", gid="biz-u"),
+        }
+
+        wf, _, _, _ = _make_workflow(
+            holders=[h_active, h_inactive, h_unknown],
+            parent_tasks=parent_tasks,
+        )
+        wf._activity_map["biz-a"] = AccountActivity.ACTIVE
+        wf._activity_map["biz-i"] = AccountActivity.INACTIVE
+        wf._activity_map["biz-u"] = None
+
+        entities = await wf.enumerate_async(EntityScope())
+
+        # Only active holder passes
+        assert len(entities) == 1
+        assert entities[0]["gid"] == "h1"
+
+
+# --- Dry-Run Tests (TDD-ENTITY-SCOPE-001 Section 8.6) ---
+
+
+class TestDryRunConversationAudit:
+    """Tests for dry_run behavior in conversation audit workflow.
+
+    Per TDD-ENTITY-SCOPE-001 Section 8.6: Verify that dry_run=True
+    skips CSV upload and includes metadata.
+    """
+
+    @pytest.mark.asyncio
+    async def test_dry_run_skips_csv_upload(self) -> None:
+        """When dry_run=True, upload_async is NOT called."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
+
+        wf, _, _, mock_att = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+        )
+
+        scope = EntityScope(dry_run=True)
+        entities = await wf.enumerate_async(scope)
+        result = await wf.execute_async(
+            entities,
+            {"workflow_id": "conversation-audit", "dry_run": True},
+        )
+
+        # Upload should NOT be called in dry-run mode
+        mock_att.upload_async.assert_not_called()
+        # Delete should also NOT be called
+        mock_att.delete_async.assert_not_called()
+        # Result should still report success (dry-run succeeds without writes)
+        assert result.total == 1
+        assert result.succeeded == 1
+        assert result.metadata.get("dry_run") is True
+
+    @pytest.mark.asyncio
+    async def test_dry_run_metadata_flag(self) -> None:
+        """When dry_run=True, metadata includes dry_run=True."""
+        wf, _, _, _ = _make_workflow(holders=[])
+
+        scope = EntityScope(dry_run=True)
+        entities = await wf.enumerate_async(scope)
+        result = await wf.execute_async(
+            entities,
+            {"workflow_id": "conversation-audit", "dry_run": True},
+        )
+
+        assert result.metadata.get("dry_run") is True
+
+    @pytest.mark.asyncio
+    async def test_dry_run_metadata_csv_row_count(self) -> None:
+        """DEF-002: metadata['csv_row_count'] present in dry-run."""
+        h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
+        parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
+
+        wf, _, _, _ = _make_workflow(
+            holders=[h1],
+            parent_tasks=parent_tasks,
+        )
+
+        scope = EntityScope(dry_run=True)
+        entities = await wf.enumerate_async(scope)
+        result = await wf.execute_async(
+            entities,
+            {"workflow_id": "conversation-audit", "dry_run": True},
+        )
+
+        row_counts = result.metadata.get("csv_row_count")
+        assert row_counts is not None
+        assert isinstance(row_counts, dict)
+        assert "h1" in row_counts
+        assert row_counts["h1"] == 42  # default from _make_export_result

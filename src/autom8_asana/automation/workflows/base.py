@@ -2,6 +2,9 @@
 
 Per TDD-CONV-AUDIT-001 Section 3.1: WorkflowAction protocol, WorkflowResult,
 and WorkflowItemError dataclasses for generalized batch workflow dispatch.
+
+Per TDD-ENTITY-SCOPE-001 Section 2.2: WorkflowAction ABC extended with
+enumerate_async(scope) and updated execute_async(entities, params) signature.
 """
 
 from __future__ import annotations
@@ -10,6 +13,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+
+from autom8_asana.core.scope import EntityScope
 
 
 @dataclass
@@ -100,14 +105,15 @@ class WorkflowAction(ABC):
     """Protocol for batch automation workflows.
 
     Each workflow owns its full lifecycle:
-    1. Enumerate targets (from Asana project, API, etc.)
-    2. Process each target (fetch data, transform, act)
+    1. Enumerate targets via enumerate_async(scope)
+    2. Process the entity list via execute_async(entities, params)
     3. Report results (structured WorkflowResult)
 
     Implementations must be idempotent: re-running the same workflow
     should produce the same end state.
 
     Per PRD Section 4.1: WorkflowAction is the generalized batch primitive.
+    Per TDD-ENTITY-SCOPE-001 Section 2.2: Protocol-level enumeration.
     """
 
     @property
@@ -121,15 +127,44 @@ class WorkflowAction(ABC):
         ...
 
     @abstractmethod
-    async def execute_async(
+    async def enumerate_async(
         self,
-        params: dict[str, Any],
-    ) -> WorkflowResult:
-        """Execute the full workflow cycle.
+        scope: EntityScope,
+    ) -> list[dict[str, Any]]:
+        """Enumerate entities to process based on the given scope.
+
+        When scope.has_entity_ids is True, return synthetic entity dicts
+        for the targeted GIDs (skip full project enumeration).
+
+        When scope.has_entity_ids is False, perform full enumeration
+        (existing behavior).
+
+        The returned list shape is workflow-specific:
+        - InsightsExport: [{gid, name, parent_gid}, ...]
+        - ConversationAudit: [{gid, name, parent_gid, parent}, ...]
+        - PipelineTransition: [{gid, name, project_gid, outcome}, ...]
 
         Args:
-            params: YAML-configured parameters for this workflow instance
-                (e.g., date_range_days, attachment_pattern, max_concurrency).
+            scope: EntityScope controlling targeting, filtering, and limits.
+
+        Returns:
+            List of entity dicts ready for execute_async processing.
+        """
+        ...
+
+    @abstractmethod
+    async def execute_async(
+        self,
+        entities: list[dict[str, Any]],
+        params: dict[str, Any],
+    ) -> WorkflowResult:
+        """Execute the workflow for the given entity list.
+
+        Args:
+            entities: Entity dicts from enumerate_async. Shape is
+                workflow-specific.
+            params: Configuration parameters (max_concurrency,
+                attachment_pattern, dry_run, etc.)
 
         Returns:
             WorkflowResult with per-item success/failure tracking.

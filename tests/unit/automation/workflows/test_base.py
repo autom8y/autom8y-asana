@@ -31,7 +31,17 @@ class _StubWorkflow(WorkflowAction):
     def workflow_id(self) -> str:
         return self._wid
 
-    async def execute_async(self, params: dict[str, Any]) -> WorkflowResult:
+    async def enumerate_async(
+        self,
+        scope: Any,
+    ) -> list[dict[str, Any]]:
+        return []
+
+    async def execute_async(
+        self,
+        entities: list[dict[str, Any]],
+        params: dict[str, Any],
+    ) -> WorkflowResult:
         return WorkflowResult(
             workflow_id=self._wid,
             started_at=datetime.now(UTC),

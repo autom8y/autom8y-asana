@@ -31,6 +31,7 @@ from autom8_asana.automation.workflows.insights_formatter import (
 from autom8_asana.automation.workflows.mixins import AttachmentReplacementMixin
 from autom8_asana.clients.attachments import AttachmentsClient
 from autom8_asana.clients.data.client import DataServiceClient, mask_phone_number
+from autom8_asana.core.scope import EntityScope
 from autom8_asana.models.business.activity import (
     OFFER_CLASSIFIER,
     AccountActivity,
@@ -109,10 +110,8 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         self._asana_client = asana_client
         self._data_client = data_client
         self._attachments_client = attachments_client
-        # Dedup cache: parent_gid -> (office_phone, vertical, business_name)
-        # Per AT3-001: eliminates redundant Business fetches across offers
-        # sharing the same parent Business. Same pattern as
-        # conversation_audit.py._activity_map.
+        # Dedup cache: offer_gid -> (office_phone, vertical, business_name)
+        # Per AT3-001: eliminates redundant Business fetches across offers.
         self._business_cache: dict[str, tuple[str, str, str | None] | None] = {}
 
     @property
@@ -152,17 +151,58 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
 
         return errors
 
-    async def execute_async(
+    async def enumerate_async(
         self,
-        params: dict[str, Any],
-    ) -> WorkflowResult:
-        """Execute the full insights export cycle.
+        scope: EntityScope,
+    ) -> list[dict[str, Any]]:
+        """Enumerate Offer entities based on scope.
+
+        Per TDD-ENTITY-SCOPE-001 Section 2.4.1:
+        When scope.has_entity_ids: return synthetic offer dicts for each GID.
+        When scope is empty: perform full section-targeted enumeration.
 
         Args:
-            params: Configurable parameters:
+            scope: EntityScope controlling targeting, filtering, and limits.
+
+        Returns:
+            List of offer dicts with {gid, name} shape.
+        """
+        if scope.has_entity_ids:
+            offers = [
+                {"gid": gid, "name": None}
+                for gid in scope.entity_ids
+            ]
+            logger.info(
+                "insights_export_targeted",
+                entity_ids=scope.entity_ids,
+                dry_run=scope.dry_run,
+            )
+            return offers
+
+        # Full enumeration (existing _enumerate_offers logic)
+        offers = await self._enumerate_offers()
+
+        # Apply limit if provided
+        if scope.limit is not None and len(offers) > scope.limit:
+            offers = offers[: scope.limit]
+
+        return offers
+
+    async def execute_async(
+        self,
+        entities: list[dict[str, Any]],
+        params: dict[str, Any],
+    ) -> WorkflowResult:
+        """Execute the insights export for the given entities.
+
+        Args:
+            entities: Offer dicts from enumerate_async.
+                Shape: [{gid, name}, ...]
+            params: Configuration parameters:
                 - max_concurrency (int): Parallel offer limit, default 5
                 - row_limits (dict): Per-table row limits override
                 - attachment_pattern (str): Glob for old attachment cleanup
+                - dry_run (bool): Skip write operations
 
         Returns:
             WorkflowResult with total/succeeded/failed/skipped counts
@@ -175,37 +215,37 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             "attachment_pattern", DEFAULT_ATTACHMENT_PATTERN
         )
         row_limits = params.get("row_limits", DEFAULT_ROW_LIMITS)
+        dry_run = params.get("dry_run", False)
 
-        # Step 1: Enumerate active Offers
-        offers = await self._enumerate_offers()
+        offers = entities  # Named alias for clarity
 
         logger.info(
             "insights_export_started",
             total_offers=len(offers),
             max_concurrency=max_concurrency,
+            dry_run=dry_run,
         )
 
-        # Step 2: Process each offer with concurrency control
+        # Process each offer with concurrency control
         semaphore = asyncio.Semaphore(max_concurrency)
         results: list[_OfferOutcome] = []
 
         async def process_one(
             offer_gid: str,
             offer_name: str | None,
-            parent_gid: str | None,
         ) -> None:
             async with semaphore:
                 outcome = await self._process_offer(
                     offer_gid=offer_gid,
                     offer_name=offer_name,
-                    parent_gid=parent_gid,
                     attachment_pattern=attachment_pattern,
                     row_limits=row_limits,
+                    dry_run=dry_run,
                 )
                 results.append(outcome)
 
         await asyncio.gather(
-            *[process_one(o["gid"], o.get("name"), o.get("parent_gid")) for o in offers]
+            *[process_one(o["gid"], o.get("name")) for o in offers]
         )
 
         # Log Business cache summary for observability (per AT3-001)
@@ -240,6 +280,21 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
 
         completed_at = datetime.now(UTC)
 
+        metadata: dict[str, Any] = {
+            "per_offer_table_counts": per_offer_table_counts,
+            "total_tables_succeeded": total_tables_succeeded,
+            "total_tables_failed": total_tables_failed,
+        }
+        if dry_run:
+            metadata["dry_run"] = True
+            previews = {
+                r.offer_gid: r.report_preview
+                for r in results
+                if r.report_preview is not None
+            }
+            if previews:
+                metadata["report_preview"] = previews
+
         workflow_result = WorkflowResult(
             workflow_id=self.workflow_id,
             started_at=started_at,
@@ -249,11 +304,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             failed=failed,
             skipped=skipped,
             errors=errors,
-            metadata={
-                "per_offer_table_counts": per_offer_table_counts,
-                "total_tables_succeeded": total_tables_succeeded,
-                "total_tables_failed": total_tables_failed,
-            },
+            metadata=metadata,
         )
 
         logger.info(
@@ -348,7 +399,6 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                     {
                         "gid": t.gid,
                         "name": t.name,
-                        "parent_gid": t.parent.gid if t.parent else None,
                     }
                 )
 
@@ -396,7 +446,6 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 {
                     "gid": t.gid,
                     "name": t.name,
-                    "parent_gid": t.parent.gid if t.parent else None,
                 }
             )
 
@@ -415,18 +464,18 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         self,
         offer_gid: str,
         offer_name: str | None,
-        parent_gid: str | None,
         attachment_pattern: str,
         row_limits: dict[str, int],
+        dry_run: bool = False,
     ) -> _OfferOutcome:
         """Process a single Offer: resolve, fetch tables, compose, upload.
 
         Args:
             offer_gid: Offer task GID.
             offer_name: Offer task name (for logging / filename).
-            parent_gid: Parent (Business) GID if known from enumeration.
             attachment_pattern: Glob for old attachment cleanup.
             row_limits: Per-table row limits.
+            dry_run: If True, skip upload and delete operations.
 
         Returns:
             _OfferOutcome with status and per-table tracking.
@@ -435,7 +484,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
 
         try:
             # Step A: Resolve office_phone + vertical via parent Business
-            resolution = await self._resolve_offer(offer_gid, parent_gid)
+            resolution = await self._resolve_offer(offer_gid)
             if resolution is None:
                 logger.warning(
                     "insights_export_offer_skipped",
@@ -509,24 +558,30 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             date_str = datetime.now(UTC).strftime("%Y%m%d")
             filename = f"insights_export_{sanitized_name}_{date_str}.md"
 
-            await self._attachments_client.upload_async(
-                parent=offer_gid,
-                file=markdown_content.encode("utf-8"),
-                name=filename,
-                content_type="text/markdown",
-            )
+            if not dry_run:
+                await self._attachments_client.upload_async(
+                    parent=offer_gid,
+                    file=markdown_content.encode("utf-8"),
+                    name=filename,
+                    content_type="text/markdown",
+                )
 
-            logger.info(
-                "insights_export_upload_succeeded",
-                offer_gid=offer_gid,
-                filename=filename,
-                size_bytes=len(markdown_content.encode("utf-8")),
-            )
+                logger.info(
+                    "insights_export_upload_succeeded",
+                    offer_gid=offer_gid,
+                    filename=filename,
+                    size_bytes=len(markdown_content.encode("utf-8")),
+                )
 
-            # Step F: Delete old matching attachments
-            await self._delete_old_attachments(
-                offer_gid, attachment_pattern, exclude_name=filename
-            )
+                # Step F: Delete old matching attachments
+                await self._delete_old_attachments(
+                    offer_gid, attachment_pattern, exclude_name=filename
+                )
+            else:
+                logger.info(
+                    "insights_export_dry_run_skip_write",
+                    offer_gid=offer_gid,
+                )
 
             elapsed_ms = (time.monotonic() - offer_start) * 1000
             logger.info(
@@ -535,6 +590,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 tables_succeeded=tables_succeeded,
                 tables_failed=tables_failed,
                 duration_ms=elapsed_ms,
+                dry_run=dry_run,
             )
 
             return _OfferOutcome(
@@ -542,6 +598,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 status="succeeded",
                 tables_succeeded=tables_succeeded,
                 tables_failed=tables_failed,
+                report_preview=markdown_content[:2000] if dry_run else None,
             )
 
         except Exception as exc:  # BROAD-CATCH: boundary -- offer processing failure returns failed outcome
@@ -565,48 +622,50 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
     async def _resolve_offer(
         self,
         offer_gid: str,
-        parent_gid: str | None,
     ) -> tuple[str, str, str | None] | None:
         """Resolve Offer -> parent Business -> office_phone + vertical.
 
-        The resolution path is:
-        1. Offer task -> parent reference (from enumeration or task fetch)
-        2. Parent Business -> office_phone descriptor + vertical descriptor
+        Traverses the full entity hierarchy via ResolutionContext:
+            Offer -> OfferHolder -> Unit -> UnitHolder -> Business
+
+        Note: Offer.parent is OfferHolder (NOT Business). The resolution
+        chain handles the multi-level traversal correctly.
 
         Args:
             offer_gid: Offer task GID.
-            parent_gid: Parent Business GID if known from enumeration.
 
         Returns:
             Tuple of (office_phone, vertical, business_name) or None.
         """
-        # If parent_gid not available from enumeration, fetch the task
-        if not parent_gid:
-            offer_task = await self._asana_client.tasks.get_async(
-                offer_gid,
-                opt_fields=["parent", "parent.gid"],
-            )
-            if not offer_task.parent or not offer_task.parent.gid:
-                return None
-            parent_gid = offer_task.parent.gid
-
         # Check dedup cache first (per AT3-001: same pattern as
-        # conversation_audit._activity_map)
-        if parent_gid in self._business_cache:
-            cached = self._business_cache[parent_gid]
+        # conversation_audit._activity_map). Keyed by offer_gid.
+        if offer_gid in self._business_cache:
             logger.debug(
                 "insights_business_cache_hit",
-                extra={
-                    "offer_gid": offer_gid,
-                    "parent_gid": parent_gid,
-                },
+                offer_gid=offer_gid,
             )
-            return cached
+            return self._business_cache[offer_gid]
 
-        # Cache miss -- resolve via ResolutionContext
+        # Fetch offer task with parent reference for traversal
+        offer_task = await self._asana_client.tasks.get_async(
+            offer_gid,
+            opt_fields=["parent", "parent.gid"],
+        )
+        if not offer_task.parent or not offer_task.parent.gid:
+            self._business_cache[offer_gid] = None
+            return None
+
+        # Use trigger_entity so HierarchyTraversalStrategy walks the
+        # full parent chain (Offer -> OfferHolder -> Unit -> UnitHolder -> Business).
+        # Do NOT use business_gid= fast-path: Offer.parent is OfferHolder, not Business.
+        from autom8_asana.models.business.base import BusinessEntity
+
+        offer_entity = BusinessEntity(gid=offer_gid)
+        offer_entity.parent = offer_task.parent
+
         async with ResolutionContext(
             self._asana_client,
-            business_gid=parent_gid,
+            trigger_entity=offer_entity,
         ) as ctx:
             business = await ctx.business_async()
             office_phone = business.office_phone
@@ -618,8 +677,8 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         else:
             result = (office_phone, vertical, business_name)
 
-        # Populate dedup cache
-        self._business_cache[parent_gid] = result
+        # Populate dedup cache keyed by offer_gid
+        self._business_cache[offer_gid] = result
 
         return result
 
@@ -894,3 +953,4 @@ class _OfferOutcome:
     error: WorkflowItemError | None = None
     tables_succeeded: int | None = None
     tables_failed: int | None = None
+    report_preview: str | None = None

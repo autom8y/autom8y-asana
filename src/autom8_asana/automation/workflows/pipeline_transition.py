@@ -42,6 +42,7 @@ from autom8_asana.automation.workflows.base import (
 )
 from autom8_asana.automation.workflows.section_resolution import resolve_section_gids
 from autom8_asana.core.project_registry import all_pipeline_project_gids
+from autom8_asana.core.scope import EntityScope
 from autom8_asana.models.business.process import Process
 
 if TYPE_CHECKING:
@@ -109,18 +110,73 @@ class PipelineTransitionWorkflow(WorkflowAction):
 
         return errors
 
-    async def execute_async(
+    async def enumerate_async(
         self,
-        params: dict[str, Any],
-    ) -> WorkflowResult:
-        """Execute the full workflow cycle.
+        scope: EntityScope,
+    ) -> list[dict[str, Any]]:
+        """Enumerate pipeline process tasks based on scope.
+
+        Per TDD-ENTITY-SCOPE-001 Section 2.6:
+        When scope.has_entity_ids: return synthetic process dicts.
+        When scope is empty: scan terminal sections across pipeline projects.
+
+        Note: PipelineTransition API wiring is deferred. This method
+        satisfies the ABC contract only.
 
         Args:
+            scope: EntityScope controlling targeting, filtering, and limits.
+
+        Returns:
+            List of process dicts with {gid, name, project_gid, outcome} shape.
+        """
+        if scope.has_entity_ids:
+            return [
+                {"gid": gid, "name": None, "project_gid": None, "outcome": None}
+                for gid in scope.entity_ids
+            ]
+
+        # Full enumeration: delegate to existing _enumerate_processes_async
+        # and convert (Process, outcome) tuples to dicts
+        processes_to_transition = await self._enumerate_processes_async(
+            self._default_project_gids,
+            DEFAULT_CONVERTED_SECTION,
+            DEFAULT_DNC_SECTION,
+        )
+
+        entities = [
+            {
+                "gid": process.gid,
+                "name": getattr(process, "name", None),
+                "project_gid": None,
+                "outcome": outcome,
+                "_process": process,  # Carry Process object for execute_async
+            }
+            for process, outcome in processes_to_transition
+        ]
+
+        # Apply limit if provided
+        if scope.limit is not None and len(entities) > scope.limit:
+            entities = entities[: scope.limit]
+
+        return entities
+
+    @property
+    def _default_project_gids(self) -> list[str]:
+        """Default project GIDs from central registry."""
+        return DEFAULT_PIPELINE_PROJECTS
+
+    async def execute_async(
+        self,
+        entities: list[dict[str, Any]],
+        params: dict[str, Any],
+    ) -> WorkflowResult:
+        """Execute pipeline transitions for the given process entities.
+
+        Args:
+            entities: Process dicts from enumerate_async.
+                Shape: [{gid, name, project_gid, outcome, _process?}, ...]
             params: Configuration parameters:
-                - pipeline_project_gids: List of project GIDs to scan
                 - max_concurrency: Concurrent processing limit
-                - converted_section: Section name for CONVERTED
-                - dnc_section: Section name for DID NOT CONVERT
 
         Returns:
             WorkflowResult with per-item success/failure tracking.
@@ -139,10 +195,19 @@ class PipelineTransitionWorkflow(WorkflowAction):
 
         self._engine = LifecycleEngine(self._client, self._config)
 
-        # Phase 1: Enumerate processes in terminal sections
-        processes_to_transition = await self._enumerate_processes_async(
-            project_gids, converted_section, dnc_section
-        )
+        # Convert entity dicts to (Process, outcome) tuples
+        processes_to_transition: list[tuple[Process, str]] = []
+        for entity in entities:
+            if "_process" in entity:
+                # Came from enumerate_async full enumeration
+                processes_to_transition.append((entity["_process"], entity["outcome"]))
+            else:
+                # Came from targeted invocation -- build Process from GID
+                process = Process.model_validate(
+                    {"gid": entity["gid"], "name": entity.get("name")}
+                )
+                outcome = entity.get("outcome", "converted")
+                processes_to_transition.append((process, outcome))
 
         total = len(processes_to_transition)
         logger.info(

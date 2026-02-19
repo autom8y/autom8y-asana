@@ -193,13 +193,17 @@ class TestConversationAuditE2E:
         for gid in parent_tasks:
             workflow._activity_map[gid] = AccountActivity.ACTIVE
 
-        # Execute
+        # Execute via enumerate -> execute
+        from autom8_asana.core.scope import EntityScope
+
+        entities = await workflow.enumerate_async(EntityScope())
         result = await workflow.execute_async(
+            entities,
             {
                 "workflow_id": "conversation-audit",
                 "max_concurrency": 5,
                 "attachment_pattern": "conversations_*.csv",
-            }
+            },
         )
 
         # Verify aggregate counts
@@ -251,6 +255,11 @@ class TestConversationAuditE2E:
             errors = await workflow.validate_async()
         assert errors == []
 
-        # Execute
-        result = await workflow.execute_async({"workflow_id": "conversation-audit"})
+        # Execute via enumerate -> execute
+        from autom8_asana.core.scope import EntityScope
+
+        entities = await workflow.enumerate_async(EntityScope())
+        result = await workflow.execute_async(
+            entities, {"workflow_id": "conversation-audit"}
+        )
         assert result.total == 0  # Empty project

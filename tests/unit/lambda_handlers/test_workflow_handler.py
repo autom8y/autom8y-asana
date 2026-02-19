@@ -58,9 +58,13 @@ def _make_config(**overrides) -> WorkflowHandlerConfig:
 def _mock_workflow(
     validation_errors: list[str] | None = None,
     result: WorkflowResult | None = None,
+    entities: list[dict] | None = None,
 ) -> MagicMock:
     wf = MagicMock()
     wf.validate_async = AsyncMock(return_value=validation_errors or [])
+    wf.enumerate_async = AsyncMock(
+        return_value=entities if entities is not None else [{"gid": "123"}]
+    )
     wf.execute_async = AsyncMock(return_value=result or _make_workflow_result())
     return wf
 
@@ -137,7 +141,8 @@ class TestCreateWorkflowHandler:
         handler = create_workflow_handler(config)
         handler({"max_concurrency": 3}, MagicMock())
 
-        call_params = wf.execute_async.call_args[0][0]
+        # execute_async receives (entities, params) -- params is second positional arg
+        call_params = wf.execute_async.call_args[0][1]
         assert call_params["max_concurrency"] == 3
         assert call_params["attachment_pattern"] == "*.csv"
 
@@ -346,3 +351,137 @@ class TestCreateWorkflowHandler:
         ]
         assert len(skip_calls) == 1
         assert skip_calls[0][1]["dimensions"] == {"workflow_id": "skip-wf"}
+
+
+class TestHandlerEnumerateExecuteOrchestration:
+    """Tests for the enumerate -> execute orchestration pattern.
+
+    Per TDD-ENTITY-SCOPE-001 Section 8.4: Verify that the handler factory
+    calls enumerate_async with EntityScope, then passes entities to execute_async.
+    """
+
+    @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
+    @patch("autom8_asana.client.AsanaClient")
+    @patch("autom8_asana.clients.data.client.DataServiceClient")
+    def test_handler_calls_enumerate_then_execute(
+        self,
+        mock_ds_class: MagicMock,
+        mock_asana_class: MagicMock,
+        mock_emit: MagicMock,
+    ) -> None:
+        """enumerate_async is called before execute_async."""
+        mock_asana = MagicMock()
+        mock_asana_class.return_value = mock_asana
+
+        mock_ds = AsyncMock()
+        mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
+        mock_ds.__aexit__ = AsyncMock(return_value=False)
+        mock_ds_class.return_value = mock_ds
+
+        entities = [{"gid": "111"}, {"gid": "222"}]
+        wf = _mock_workflow(entities=entities)
+        factory = MagicMock(return_value=wf)
+        config = _make_config(workflow_factory=factory)
+
+        handler = create_workflow_handler(config)
+        handler({}, MagicMock())
+
+        # enumerate_async was called
+        wf.enumerate_async.assert_called_once()
+        # execute_async was called with the entities from enumerate_async
+        wf.execute_async.assert_called_once()
+        call_entities = wf.execute_async.call_args[0][0]
+        assert call_entities == entities
+
+    @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
+    @patch("autom8_asana.client.AsanaClient")
+    @patch("autom8_asana.clients.data.client.DataServiceClient")
+    def test_handler_passes_scope_to_enumerate(
+        self,
+        mock_ds_class: MagicMock,
+        mock_asana_class: MagicMock,
+        mock_emit: MagicMock,
+    ) -> None:
+        """EntityScope fields match event."""
+        from autom8_asana.core.scope import EntityScope
+
+        mock_asana = MagicMock()
+        mock_asana_class.return_value = mock_asana
+
+        mock_ds = AsyncMock()
+        mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
+        mock_ds.__aexit__ = AsyncMock(return_value=False)
+        mock_ds_class.return_value = mock_ds
+
+        wf = _mock_workflow()
+        factory = MagicMock(return_value=wf)
+        config = _make_config(workflow_factory=factory)
+
+        handler = create_workflow_handler(config)
+        handler({"entity_ids": ["999"], "dry_run": True}, MagicMock())
+
+        scope_arg = wf.enumerate_async.call_args[0][0]
+        assert isinstance(scope_arg, EntityScope)
+        assert scope_arg.entity_ids == ("999",)
+        assert scope_arg.dry_run is True
+
+    @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
+    @patch("autom8_asana.client.AsanaClient")
+    @patch("autom8_asana.clients.data.client.DataServiceClient")
+    def test_handler_dry_run_in_params(
+        self,
+        mock_ds_class: MagicMock,
+        mock_asana_class: MagicMock,
+        mock_emit: MagicMock,
+    ) -> None:
+        """dry_run=True in event propagates to params."""
+        mock_asana = MagicMock()
+        mock_asana_class.return_value = mock_asana
+
+        mock_ds = AsyncMock()
+        mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
+        mock_ds.__aexit__ = AsyncMock(return_value=False)
+        mock_ds_class.return_value = mock_ds
+
+        wf = _mock_workflow()
+        factory = MagicMock(return_value=wf)
+        config = _make_config(workflow_factory=factory)
+
+        handler = create_workflow_handler(config)
+        handler({"dry_run": True}, MagicMock())
+
+        call_params = wf.execute_async.call_args[0][1]
+        assert call_params["dry_run"] is True
+
+    @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
+    @patch("autom8_asana.client.AsanaClient")
+    @patch("autom8_asana.clients.data.client.DataServiceClient")
+    def test_handler_empty_event_default_scope(
+        self,
+        mock_ds_class: MagicMock,
+        mock_asana_class: MagicMock,
+        mock_emit: MagicMock,
+    ) -> None:
+        """Empty event produces default EntityScope (full enumeration)."""
+        from autom8_asana.core.scope import EntityScope
+
+        mock_asana = MagicMock()
+        mock_asana_class.return_value = mock_asana
+
+        mock_ds = AsyncMock()
+        mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
+        mock_ds.__aexit__ = AsyncMock(return_value=False)
+        mock_ds_class.return_value = mock_ds
+
+        wf = _mock_workflow()
+        factory = MagicMock(return_value=wf)
+        config = _make_config(workflow_factory=factory)
+
+        handler = create_workflow_handler(config)
+        handler({}, MagicMock())
+
+        scope_arg = wf.enumerate_async.call_args[0][0]
+        assert isinstance(scope_arg, EntityScope)
+        assert scope_arg.entity_ids == ()
+        assert scope_arg.dry_run is False
+        assert scope_arg.limit is None
