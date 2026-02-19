@@ -30,15 +30,17 @@ from autom8_asana.models.story import Story
 logger = get_logger(__name__)
 
 # Bounded concurrency for S3-backed warm-up (per SPIKE-SECTION-TIMELINE-CACHE).
-# Avoids overwhelming Redis/S3 while parallelizing promotion from cold tier.
-# Sequential fetching is only necessary for Asana API calls; S3 reads are safe
-# to parallelize. Semaphore(20) balances speed vs. resource pressure.
-_WARM_CONCURRENCY = 20
+# Production has ~3,800 offers. Semaphore(5) avoids Asana API rate limits while
+# still parallelizing S3 → Redis promotions (safe to parallelize).
+# Reduced from 20 after production confirmed 291 rate_limit_429 events at
+# Semaphore(20) with 3,771 offers (DEF-004 postmortem 2026-02-19).
+_WARM_CONCURRENCY = 5
 
-# Wall-clock timeout for the pre-warm task. If warming takes longer than this,
-# assume Asana API is unavailable or partially degraded and surface a distinct
-# TIMELINE_WARM_FAILED error (per interview decision 2026-02-19).
-_WARM_TIMEOUT_SECONDS = 600  # 10 minutes
+# Wall-clock timeout for the pre-warm task. Sized for ~3,800 offers at
+# Semaphore(5): ~760 batches × ~100ms S3 promotion = ~76s (S3-warm path);
+# API-cold path is slower but tolerated up to 30 minutes on first-ever deploy.
+# Increased from 600s after production confirmed timeout at 3,771 offers.
+_WARM_TIMEOUT_SECONDS = 1800  # 30 minutes
 
 # Business Offers project GID (matches Offer.PRIMARY_PROJECT_GID)
 BUSINESS_OFFERS_PROJECT_GID = "1143843662099250"
