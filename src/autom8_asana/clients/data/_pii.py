@@ -4,7 +4,7 @@ Private module holding phone-number masking functions used across
 the clients/data package. Extracted to break circular imports between
 client.py and submodules (_cache.py, _retry.py, etc.).
 
-Per Story 1.9 and XR-003: PII redaction contract.
+PII redaction contract (XR-003).
 
 These functions are NOT part of the public API — they are re-exported
 from client.py for backward compatibility.
@@ -21,7 +21,7 @@ _PHONE_PATTERN = re.compile(r"\+\d{10,15}")
 def mask_phone_number(phone: str) -> str:
     """Mask middle digits of phone number for PII protection.
 
-    Per Story 1.9: Redact phone numbers in logs.
+    Redact phone numbers in logs.
     Pattern: +17705753103 -> +1770***3103 (keep first 5 + last 4 digits)
 
     Args:

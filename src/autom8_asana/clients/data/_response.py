@@ -70,10 +70,8 @@ async def handle_error_response(
 ) -> InsightsResponse:
     """Map HTTP error response to appropriate exception.
 
-    Per TDD-INSIGHTS-001 Section 11.1: Error response mapping.
-    Per Story 1.8: Try stale cache fallback for 5xx server errors.
-    Per Story 1.9: Full observability with structured logging and metrics.
-    Per Story 2.3: Circuit breaker failure recording for 5xx errors.
+    Error response mapping with stale cache fallback for 5xx errors,
+    structured logging, and circuit breaker failure recording.
 
     Args:
         response: HTTP response with status >= 400.
