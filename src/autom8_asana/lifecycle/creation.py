@@ -215,7 +215,7 @@ class EntityCreationService:
             )
             warnings.extend(configure_warnings)
 
-            ctx.cache_entity(new_task)
+            ctx.cache_entity(new_task)  # type: ignore[arg-type]  # Task satisfies BusinessEntity at runtime; created task has gid
 
             return CreationResult(
                 success=True,
