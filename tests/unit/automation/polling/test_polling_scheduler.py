@@ -990,13 +990,18 @@ class TestPollingSchedulerExecuteWorkflowAsync:
             errors=[],
         )
 
+        mock_entities = [{"gid": "1"}, {"gid": "2"}]
         mock_workflow = MagicMock()
         mock_workflow.validate_async = AsyncMock(return_value=[])
+        mock_workflow.enumerate_async = AsyncMock(return_value=mock_entities)
         mock_workflow.execute_async = AsyncMock(return_value=mock_result)
 
         await scheduler._execute_workflow_async(mock_workflow, mock_rule, mock_log)
 
-        mock_workflow.execute_async.assert_awaited_once_with(mock_rule.action.params)
+        mock_workflow.enumerate_async.assert_awaited_once()
+        mock_workflow.execute_async.assert_awaited_once_with(
+            mock_entities, mock_rule.action.params
+        )
         mock_log.info.assert_called_once()
         call_kwargs = mock_log.info.call_args[1]
         assert call_kwargs["total"] == 5
@@ -1012,6 +1017,7 @@ class TestPollingSchedulerExecuteWorkflowAsync:
 
         mock_workflow = MagicMock()
         mock_workflow.validate_async = AsyncMock(return_value=[])
+        mock_workflow.enumerate_async = AsyncMock(return_value=[{"gid": "1"}])
         mock_workflow.execute_async = AsyncMock(
             side_effect=RuntimeError("Asana API failed")
         )
@@ -1067,6 +1073,7 @@ class TestPollingSchedulerWorkflowDispatch:
         mock_workflow = MagicMock()
         mock_workflow.workflow_id = "conversation-audit"
         mock_workflow.validate_async = AsyncMock(return_value=[])
+        mock_workflow.enumerate_async = AsyncMock(return_value=[{"gid": "1"}])
         mock_workflow.execute_async = AsyncMock(
             return_value=MagicMock(
                 total=3, succeeded=3, failed=0, skipped=0, duration_seconds=1.5
