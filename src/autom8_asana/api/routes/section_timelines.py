@@ -2,6 +2,10 @@
 
 Per TDD-SECTION-TIMELINE-001 / FR-6: Exposes timeline data for all
 offers in the Business Offers project.
+
+Architecture (DEF-006 fix): The endpoint reads pre-computed SectionTimeline
+objects from app.state.offer_timelines (populated at warm-up time by
+build_all_timelines). Request handling is pure CPU day-counting — no I/O.
 """
 
 from __future__ import annotations
@@ -14,12 +18,14 @@ from autom8y_log import get_logger
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
 
-from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
+from autom8_asana.api.dependencies import RequestId
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.models import SuccessResponse, build_success_response
-from autom8_asana.exceptions import AsanaError
-from autom8_asana.models.business.section_timeline import OfferTimelineEntry
-from autom8_asana.services.section_timeline_service import get_section_timelines
+from autom8_asana.models.business.section_timeline import (
+    OfferTimelineEntry,
+    SectionTimeline,
+)
+from autom8_asana.services.section_timeline_service import compute_timeline_entries
 
 logger = get_logger(__name__)
 
@@ -88,7 +94,6 @@ def _check_readiness(request: Request) -> str:
 )
 async def get_offer_section_timelines(
     request: Request,
-    client: AsanaClientDualMode,
     request_id: RequestId,
     period_start: Annotated[
         date,
@@ -104,9 +109,11 @@ async def get_offer_section_timelines(
     Computes active_section_days and billable_section_days for each offer
     based on their Asana section history within the specified date range.
 
+    Per DEF-006 fix: Reads pre-computed SectionTimeline objects from
+    app.state.offer_timelines (built at warm-up). No I/O at request time.
+
     Args:
         request: FastAPI request.
-        client: Asana API client (from DI).
         request_id: Request correlation ID.
         period_start: Start date for day counting (inclusive).
         period_end: End date for day counting (inclusive).
@@ -116,8 +123,7 @@ async def get_offer_section_timelines(
 
     Raises:
         HTTPException: 422 if period_start > period_end.
-        HTTPException: 502 if Asana API fails.
-        HTTPException: 503 if story caches are not warmed.
+        HTTPException: 503 if timelines are not built yet.
     """
     start_time = time.perf_counter()
 
@@ -149,21 +155,14 @@ async def get_offer_section_timelines(
             headers={"Retry-After": str(_RETRY_AFTER_SECONDS)},
         )
 
-    # FR-4, FR-5: Compute timelines
-    try:
-        entries = await get_section_timelines(
-            client=client,
-            period_start=period_start,
-            period_end=period_end,
-        )
-    except AsanaError:
-        # AC-6.6: Asana API failure -> 502
-        raise_api_error(
-            request_id,
-            502,
-            "UPSTREAM_ERROR",
-            "Asana API is currently unavailable",
-        )
+    # DEF-006 fix: Read pre-computed timelines from app.state (no I/O).
+    # build_all_timelines() populates this during warm-up.
+    offer_timelines: list[tuple[str, str | None, SectionTimeline]] = getattr(
+        request.app.state, "offer_timelines", []
+    )
+
+    # FR-4: Pure-CPU day counting against pre-computed timeline data.
+    entries = compute_timeline_entries(offer_timelines, period_start, period_end)
 
     duration_ms = (time.perf_counter() - start_time) * 1000
 

@@ -3,6 +3,12 @@
 Per TDD-SECTION-TIMELINE-001: Orchestrates story fetching, filtering,
 timeline construction, and day counting for all offers in the Business
 Offers project.
+
+Architecture (DEF-006 fix): All I/O (task enumeration + story fetching)
+happens at warm-up time via build_all_timelines(). The pre-computed
+SectionTimeline objects are stored on app.state.offer_timelines.
+At request time, compute_timeline_entries() reads from this pre-computed
+cache and performs pure-CPU day counting — no I/O, no API calls.
 """
 
 from __future__ import annotations
@@ -36,13 +42,9 @@ logger = get_logger(__name__)
 # Semaphore(20) with 3,771 offers (DEF-004 postmortem 2026-02-19).
 _WARM_CONCURRENCY = 5
 
-# Bounded concurrency for per-request offer processing in get_section_timelines().
-# With ~3,800 offers, sequential processing causes 504 Gateway Timeouts when any
-# cache misses trigger rate-limited Asana API calls (~181 rate_limit_429 events,
-# ~10 min processing). Semaphore(10) balances throughput vs. rate limit pressure:
-# - Cache hits (~5ms each): 3,800 / 10 * 5ms = ~1.9s
-# - Cache misses (~100ms each): 3,800 / 10 * 100ms = ~38s (within ALB 60s timeout)
-_REQUEST_CONCURRENCY = 10
+# Bounded concurrency for timeline building during warm-up.
+# After story caches are warm, building timelines is fast (cache hits only).
+_BUILD_CONCURRENCY = 20
 
 # Wall-clock timeout for the pre-warm task. Sized for ~3,800 offers at
 # Semaphore(5): ~760 batches × ~100ms S3 promotion = ~76s (S3-warm path);
@@ -300,53 +302,80 @@ async def build_timeline_for_offer(
     )
 
 
-async def get_section_timelines(
-    client: AsanaClient,
+def compute_timeline_entries(
+    offer_timelines: list[tuple[str, str | None, SectionTimeline]],
     period_start: date,
     period_end: date,
 ) -> list[OfferTimelineEntry]:
-    """Compute section timelines for all offers in the Business Offers project.
+    """Compute day-count entries from pre-built timelines. Pure CPU, no I/O.
 
-    Per FR-5: Enumerates ALL tasks in project GID 1143843662099250.
-    Per FR-4: Computes active_section_days and billable_section_days.
-
-    Uses bounded parallelism (Semaphore) to process offers concurrently,
-    avoiding sequential per-offer API calls that cause 504 Gateway Timeouts
-    when cache misses trigger rate-limited Asana API fetches.
+    Per DEF-006 fix: All I/O (task enumeration, story fetching) is done at
+    warm-up time by build_all_timelines(). This function is called at request
+    time and only does set-based day counting — ~3,800 offers complete in <100ms.
 
     Args:
-        client: AsanaClient for Asana API calls.
+        offer_timelines: Pre-computed (offer_gid, office_phone, SectionTimeline)
+            tuples from build_all_timelines(), stored on app.state.
         period_start: Query period start (inclusive).
         period_end: Query period end (inclusive).
 
     Returns:
-        List of OfferTimelineEntry for all offers.
+        List of OfferTimelineEntry with day counts for the requested period.
     """
-    # FR-5/AC-5.1: Enumerate all tasks in Business Offers project
+    entries: list[OfferTimelineEntry] = []
+    for offer_gid, office_phone, timeline in offer_timelines:
+        active_days = timeline.active_days_in_period(period_start, period_end)
+        billable_days = timeline.billable_days_in_period(period_start, period_end)
+        entries.append(
+            OfferTimelineEntry(
+                offer_gid=offer_gid,
+                office_phone=office_phone,
+                active_section_days=active_days,
+                billable_section_days=billable_days,
+            )
+        )
+    return entries
+
+
+async def build_all_timelines(
+    client: AsanaClient,
+    on_progress: Callable[[int, int], Any] | None = None,
+) -> list[tuple[str, str | None, SectionTimeline]]:
+    """Enumerate all offers and build SectionTimeline for each. Run at warm-up.
+
+    Per DEF-006 fix: Moves ALL I/O to warm-up time. Enumerates tasks from the
+    Asana API, then builds a SectionTimeline for each offer using cached stories.
+    The result is stored on app.state.offer_timelines and served at request time
+    via compute_timeline_entries() (pure CPU).
+
+    Args:
+        client: AsanaClient for Asana API calls (with shared cache_provider).
+        on_progress: Optional callback(built, total) for progress tracking.
+
+    Returns:
+        List of (offer_gid, office_phone, SectionTimeline) tuples.
+    """
+    # Enumerate all tasks in Business Offers project
     tasks = await client.tasks.list_async(
         project=BUSINESS_OFFERS_PROJECT_GID,
         opt_fields=_TASK_OPT_FIELDS,
     ).collect()
 
+    total = len(tasks)
+    sem = asyncio.Semaphore(_BUILD_CONCURRENCY)
+    built_count = 0
+
     logger.info(
-        "section_timeline_enumeration_complete",
-        extra={
-            "offer_count": len(tasks),
-            "period_start": str(period_start),
-            "period_end": str(period_end),
-        },
+        "timeline_build_started",
+        extra={"total_offers": total, "concurrency": _BUILD_CONCURRENCY},
     )
 
-    # Bounded parallelism: process offers concurrently with a semaphore to
-    # avoid saturating Asana API rate limits on cache misses. With cache hits
-    # at ~5ms each, 3,773 offers / 10 concurrency completes in ~2-3s. With
-    # cache misses at ~100ms each, worst case is ~38s (within ALB 60s timeout).
-    sem = asyncio.Semaphore(_REQUEST_CONCURRENCY)
-
-    async def _process_one(task: Any) -> OfferTimelineEntry | None:
+    async def _build_one(
+        task: Any,
+    ) -> tuple[str, str | None, SectionTimeline] | None:
+        nonlocal built_count
         async with sem:
             try:
-                # Extract fields from task
                 task_created_at = _parse_datetime(task.created_at)
                 section_name = extract_section_name(
                     task, project_gid=BUSINESS_OFFERS_PROJECT_GID
@@ -354,9 +383,6 @@ async def get_section_timelines(
                 account_activity = (
                     OFFER_CLASSIFIER.classify(section_name) if section_name else None
                 )
-
-                # Extract office_phone from custom_fields
-                # Task model custom_fields are list[dict] when using opt_fields
                 office_phone = _extract_office_phone(task.model_dump())
 
                 timeline = await build_timeline_for_offer(
@@ -368,43 +394,32 @@ async def get_section_timelines(
                     current_account_activity=account_activity,
                 )
 
-                active_days = timeline.active_days_in_period(period_start, period_end)
-                billable_days = timeline.billable_days_in_period(
-                    period_start, period_end
-                )
+                built_count += 1
+                if on_progress is not None:
+                    on_progress(built_count, total)
 
-                return OfferTimelineEntry(
-                    offer_gid=task.gid,
-                    office_phone=office_phone,
-                    active_section_days=active_days,
-                    billable_section_days=billable_days,
-                )
+                return (task.gid, office_phone, timeline)
             except Exception:
                 logger.warning(
-                    "section_timeline_offer_failed",
+                    "timeline_build_offer_failed",
                     extra={"offer_gid": task.gid},
                     exc_info=True,
                 )
                 return None
 
     results = await asyncio.gather(
-        *[_process_one(task) for task in tasks],
+        *[_build_one(task) for task in tasks],
         return_exceptions=True,
     )
 
-    entries = [r for r in results if isinstance(r, OfferTimelineEntry)]
+    timelines = [r for r in results if isinstance(r, tuple)]
 
     logger.info(
-        "section_timeline_computation_complete",
-        extra={
-            "total_offers": len(tasks),
-            "successful_entries": len(entries),
-            "period_start": str(period_start),
-            "period_end": str(period_end),
-        },
+        "timeline_build_complete",
+        extra={"total_offers": total, "built": len(timelines)},
     )
 
-    return entries
+    return timelines
 
 
 async def warm_story_caches(
@@ -447,14 +462,22 @@ async def warm_story_caches(
         extra={"total_offers": total, "concurrency": _WARM_CONCURRENCY},
     )
 
+    # DEF-008 fix: track progress incrementally via shared counter so the
+    # 50% readiness gate (AC-7.4) can fire mid-warm-up, not only at 100%.
+    warmed_count = 0
+
     async def _warm_one(gid: str) -> bool:
         """Warm a single offer's story cache. Returns True on success."""
+        nonlocal warmed_count
         async with sem:
             try:
                 await client.stories.list_for_task_cached_async(  # type: ignore[attr-defined]  # generated by @async_method
                     gid,
                     opt_fields=_STORY_OPT_FIELDS,
                 )
+                warmed_count += 1
+                if on_progress is not None:
+                    on_progress(warmed_count, total)
                 return True
             except Exception:
                 logger.warning(
@@ -472,9 +495,6 @@ async def warm_story_caches(
     )
 
     warmed = sum(1 for r in results if r is True)
-
-    if on_progress is not None:
-        on_progress(warmed, total)
 
     logger.info(
         "story_cache_warm_complete",
