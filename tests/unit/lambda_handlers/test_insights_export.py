@@ -52,7 +52,9 @@ def _setup_mocks():
     """Create standard mock objects for handler tests."""
     mock_workflow = MagicMock()
     mock_workflow.validate_async = AsyncMock(return_value=[])
-    mock_workflow.enumerate_async = AsyncMock(return_value=[{"gid": "o1", "name": "Offer 1"}])
+    mock_workflow.enumerate_async = AsyncMock(
+        return_value=[{"gid": "o1", "name": "Offer 1"}]
+    )
     mock_workflow.execute_async = AsyncMock(return_value=_make_workflow_result())
 
     mock_asana_client = MagicMock()
