@@ -184,7 +184,7 @@ async def execute_batch_request(
 
     try:
         body = response.json()
-    except (ValueError, Exception) as e:
+    except ValueError as e:
         error_msg = _mask_pii_in_string(f"Failed to parse response JSON: {e}")
         for pvp in pvp_list:
             results[pvp.canonical_key] = BatchInsightsResult(

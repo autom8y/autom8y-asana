@@ -208,7 +208,7 @@ async def push_gid_mappings_to_data_service(
         if response.status_code < 300:
             try:
                 body = response.json()
-            except (ValueError, Exception):
+            except ValueError:
                 body = {}
 
             logger.info(
