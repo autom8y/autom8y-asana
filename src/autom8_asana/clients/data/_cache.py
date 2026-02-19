@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 def build_cache_key(factory: str, pvp: PhoneVerticalPair) -> str:
     """Build cache key for insights response.
 
-    Per Story 1.8: Cache key format is insights:{factory}:{canonical_key}.
+    Cache key format is insights:{factory}:{canonical_key}.
 
     Args:
         factory: Normalized factory name (e.g., "account").
@@ -51,7 +51,7 @@ def cache_response(
 ) -> None:
     """Cache successful insights response.
 
-    Per Story 1.8: Stores response in cache with configured TTL.
+    Stores response in cache with configured TTL.
     Cache failures are logged but don't break requests (graceful degradation).
 
     Args:
@@ -106,7 +106,7 @@ def get_stale_response(
 ) -> InsightsResponse | None:
     """Retrieve stale response from cache for fallback.
 
-    Per Story 1.8: On service failure, returns stale cache entry
+    On service failure, returns stale cache entry
     with is_stale=True and cached_at populated.
 
     Args:

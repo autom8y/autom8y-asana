@@ -30,7 +30,7 @@ def emit_metric(
 ) -> None:
     """Emit a metric via the configured metrics hook.
 
-    Per Story 1.9: Generic function for emitting metrics.
+    Generic function for emitting metrics.
     Failures are logged but don't break requests (graceful degradation).
 
     Args:

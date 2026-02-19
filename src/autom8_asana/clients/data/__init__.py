@@ -1,6 +1,6 @@
 """Data service client package for autom8_data integration.
 
-Per TDD-INSIGHTS-001: Client and models for fetching analytics insights.
+Client and models for fetching analytics insights from autom8_data.
 """
 
 from autom8_asana.clients.data.client import DataServiceClient
@@ -22,9 +22,9 @@ from autom8_asana.clients.data.models import (
 )
 
 __all__ = [
-    # Client class (per Story 1.5)
+    # Client class
     "DataServiceClient",
-    # Config classes (per Story 1.3)
+    # Config classes
     "CircuitBreakerConfig",
     "ConnectionPoolConfig",
     "DataServiceConfig",

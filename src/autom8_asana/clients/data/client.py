@@ -1,12 +1,7 @@
 """Client for autom8_data insights API.
 
-Per TDD-INSIGHTS-001 Section 5.1: DataServiceClient implementation.
-Per FR-001: DataServiceClient in autom8_asana.clients module.
-Per FR-001.5: Implements async context manager protocol.
-Per ADR-INS-004: Optional cache_provider for client-side cache fallback.
-Per ADR-INS-005: Composed with existing transport infrastructure (Story 1.6).
-Per Story 1.8: Cache integration for resilience and stale fallback.
-Per Story 1.9: Full observability with structured logging, PII redaction, and metrics.
+DataServiceClient with async context manager protocol, optional cache
+fallback (ADR-INS-004), resilience, and full observability.
 """
 
 from __future__ import annotations
@@ -121,9 +116,7 @@ class DataServiceClient:
     ) -> None:
         """Initialize DataServiceClient.
 
-        Per TDD-INSIGHTS-001 Section 5.1: Constructor parameters.
-        Per ADR-INS-004: Optional cache_provider for client-side cache fallback.
-        Per Story 1.9: Optional metrics_hook for observability.
+        Constructor with optional cache fallback (ADR-INS-004) and metrics.
 
         Args:
             config: Service configuration. Defaults to DataServiceConfig.from_env().
@@ -136,7 +129,7 @@ class DataServiceClient:
             staleness_settings: Optional staleness check settings for cache
                 TTL extension. Only used when cache_provider is provided.
             metrics_hook: Optional callback for emitting metrics.
-                Per Story 1.9: Called with (name, value, tags) for each metric.
+                Called with (name, value, tags) for each metric.
                 Enables integration with Prometheus, DataDog, CloudWatch, etc.
         """
         self._config = config or DataServiceConfig.from_env()
@@ -200,12 +193,12 @@ class DataServiceClient:
         """
         await self.close()
 
-    # --- Sync Context Manager Protocol (Story 2.6) ---
+    # --- Sync Context Manager Protocol ---
 
     def __enter__(self) -> DataServiceClient:
         """Sync context manager entry.
 
-        Per Story 2.6: Returns self for use in sync with block.
+        Returns self for use in sync with block.
 
         Returns:
             This client instance.
@@ -280,7 +273,7 @@ class DataServiceClient:
     ) -> tuple[httpx.Response, int]:
         """Execute an HTTP request with retry on transient failures.
 
-        Per Story 2.2: Retry with exponential backoff on transient failures.
+        Retry with exponential backoff on transient failures.
         Handles retryable HTTP status codes, Retry-After header for 429,
         timeout retries, and circuit breaker failure recording.
 
@@ -472,9 +465,8 @@ class DataServiceClient:
     def _check_feature_enabled(self) -> None:
         """Check if the insights integration is enabled (emergency kill switch).
 
-        Per Story 1.7: Feature flag control for insights integration.
-        Per Story 2.7: Feature is now enabled by default.
-        Per Story 3.6: Retained as emergency kill switch (not for A/B testing).
+        Feature is enabled by default. Retained as emergency kill switch
+        (not for A/B testing).
 
         This check exists solely as an emergency disable mechanism, allowing
         the integration to be turned off without code deployment if service
@@ -540,7 +532,7 @@ class DataServiceClient:
     def has_metrics(self) -> bool:
         """Check if metrics emission is enabled.
 
-        Per Story 1.9: Returns True if metrics_hook was provided.
+        Returns True if metrics_hook was provided.
 
         Returns:
             True if metrics_hook is configured.
@@ -551,7 +543,7 @@ class DataServiceClient:
     def circuit_breaker(self) -> CircuitBreaker:
         """Expose circuit breaker for monitoring.
 
-        Per Story 2.3: Allows monitoring of circuit breaker state
+        Allows monitoring of circuit breaker state
         (CLOSED, OPEN, HALF_OPEN) and failure counts.
 
         Returns:
@@ -788,8 +780,7 @@ class DataServiceClient:
     ) -> InsightsResponse:
         """Synchronous wrapper for get_insights_async.
 
-        Per ADR-0002: Runs the async method in a thread pool from sync context.
-        Per Story 2.6: Provides sync interface for non-async callers.
+        Runs the async method in a thread pool from sync context (ADR-0002).
 
         This method has identical parameters and return type as get_insights_async.
         See get_insights_async for full documentation.

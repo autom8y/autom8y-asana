@@ -33,12 +33,8 @@ async def execute_insights_request(
 ) -> InsightsResponse:
     """Execute HTTP POST to insights factory endpoint with cache support.
 
-    Per TDD-INSIGHTS-001 Section 5.1: HTTP execution with error mapping.
-    Per Story 1.8: Cache successful responses and fall back to stale cache
-    on service errors.
-    Per Story 1.9: Full observability with structured logging and metrics.
-    Per Story 2.2: Retry with exponential backoff on transient failures.
-    Per Story 2.3: Circuit breaker integration for cascade failure prevention.
+    HTTP execution with error mapping, cache support, observability,
+    retry with exponential backoff, and circuit breaker integration.
 
     Cache Flow:
     1. Check circuit breaker (fast-fail if open)
