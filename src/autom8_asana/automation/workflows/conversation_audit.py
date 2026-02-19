@@ -28,6 +28,7 @@ from autom8_asana.automation.workflows.base import (
 from autom8_asana.automation.workflows.mixins import AttachmentReplacementMixin
 from autom8_asana.clients.attachments import AttachmentsClient
 from autom8_asana.clients.data.client import DataServiceClient, mask_phone_number
+from autom8_asana.core.scope import EntityScope
 from autom8_asana.exceptions import ExportError
 from autom8_asana.models.business.activity import AccountActivity
 from autom8_asana.models.business.contact import ContactHolder
@@ -122,18 +123,80 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
 
         return errors
 
-    async def execute_async(
+    async def enumerate_async(
         self,
-        params: dict[str, Any],
-    ) -> WorkflowResult:
-        """Execute the full conversation audit cycle.
+        scope: EntityScope,
+    ) -> list[dict[str, Any]]:
+        """Enumerate ContactHolder entities based on scope.
+
+        Per TDD-ENTITY-SCOPE-001 Section 2.5.1:
+        When scope.has_entity_ids: return synthetic holder dicts for each GID.
+            Skips bulk pre-resolution (single entity does not benefit).
+        When scope is empty: perform full enumeration + bulk pre-resolution
+            + pre-filter by business activity.
 
         Args:
-            params: YAML-configured parameters:
-                - workflow_id (str): "conversation-audit"
+            scope: EntityScope controlling targeting, filtering, and limits.
+
+        Returns:
+            List of holder dicts with {gid, name, parent_gid, parent} shape.
+        """
+        if scope.has_entity_ids:
+            holders = [
+                {"gid": gid, "name": None, "parent_gid": None, "parent": None}
+                for gid in scope.entity_ids
+            ]
+            logger.info(
+                "conversation_audit_targeted",
+                entity_ids=scope.entity_ids,
+                dry_run=scope.dry_run,
+            )
+            return holders
+
+        # Full enumeration
+        holders = await self._enumerate_contact_holders()
+
+        # Bulk pre-resolve Business activities
+        await self._pre_resolve_business_activities(holders)
+
+        # Pre-filter holders with inactive parent Businesses
+        active_holders: list[dict[str, Any]] = []
+        for h in holders:
+            parent_gid = h.get("parent_gid")
+            if parent_gid:
+                activity = self._activity_map.get(parent_gid)
+                if activity != AccountActivity.ACTIVE:
+                    continue
+            active_holders.append(h)
+
+        logger.info(
+            "conversation_audit_enumerated",
+            total_holders=len(holders),
+            active_holders=len(active_holders),
+            skipped_inactive=len(holders) - len(active_holders),
+        )
+
+        # Apply limit if provided
+        if scope.limit is not None and len(active_holders) > scope.limit:
+            active_holders = active_holders[: scope.limit]
+
+        return active_holders
+
+    async def execute_async(
+        self,
+        entities: list[dict[str, Any]],
+        params: dict[str, Any],
+    ) -> WorkflowResult:
+        """Execute the conversation audit for the given entities.
+
+        Args:
+            entities: Holder dicts from enumerate_async.
+                Shape: [{gid, name, parent_gid, parent}, ...]
+            params: Configuration parameters:
                 - date_range_days (int): Export window, default 30
                 - attachment_pattern (str): Glob for old attachment cleanup
                 - max_concurrency (int): Parallel processing limit, default 5
+                - dry_run (bool): Skip write operations
 
         Returns:
             WorkflowResult with total/succeeded/failed/skipped counts.
@@ -145,48 +208,24 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
             "attachment_pattern", DEFAULT_ATTACHMENT_PATTERN
         )
         date_range_days = params.get("date_range_days", DEFAULT_DATE_RANGE_DAYS)
+        dry_run = params.get("dry_run", False)
 
         # Compute export date window from date_range_days
         end_date = date.today()
         start_date = end_date - timedelta(days=date_range_days)
 
-        # Step 1: Enumerate active ContactHolders
-        holders = await self._enumerate_contact_holders()
-
-        # Step 1.5: Bulk pre-resolve Business activities
-        await self._pre_resolve_business_activities(holders)
-
-        # Step 1.6: Pre-filter holders with inactive parent Businesses
-        from autom8_asana.models.business.activity import AccountActivity
-
-        active_holders: list[dict[str, Any]] = []
-        prefiltered: list[_HolderOutcome] = []
-        for h in holders:
-            parent_gid = h.get("parent_gid")
-            if parent_gid:
-                activity = self._activity_map.get(parent_gid)
-                if activity != AccountActivity.ACTIVE:
-                    prefiltered.append(
-                        _HolderOutcome(
-                            holder_gid=h["gid"],
-                            status="skipped",
-                            reason="business_not_active",
-                        )
-                    )
-                    continue
-            active_holders.append(h)
+        holders = entities  # Named alias
 
         logger.info(
             "conversation_audit_started",
             total_holders=len(holders),
-            active_holders=len(active_holders),
-            skipped_inactive=len(prefiltered),
             max_concurrency=max_concurrency,
+            dry_run=dry_run,
         )
 
-        # Step 2: Process each ACTIVE holder with concurrency control
+        # Process each holder with concurrency control
         semaphore = asyncio.Semaphore(max_concurrency)
-        results: list[_HolderOutcome] = list(prefiltered)
+        results: list[_HolderOutcome] = []
 
         async def process_one(
             holder_gid: str,
@@ -201,17 +240,18 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
                     attachment_pattern=attachment_pattern,
                     start_date=start_date,
                     end_date=end_date,
+                    dry_run=dry_run,
                 )
                 results.append(outcome)
 
         await asyncio.gather(
             *[
                 process_one(h["gid"], h.get("name"), h.get("parent_gid"))
-                for h in active_holders
+                for h in holders
             ]
         )
 
-        # Step 3: Aggregate results
+        # Aggregate results
         succeeded = sum(1 for r in results if r.status == "succeeded")
         failed = sum(1 for r in results if r.status == "failed")
         skipped = sum(1 for r in results if r.status == "skipped")
@@ -226,6 +266,20 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
 
         completed_at = datetime.now(UTC)
 
+        metadata: dict[str, Any] = {
+            "truncated_count": truncated_count,
+            "activity_skipped_count": activity_skipped,
+        }
+        if dry_run:
+            metadata["dry_run"] = True
+            row_counts = {
+                r.holder_gid: r.csv_row_count
+                for r in results
+                if r.csv_row_count is not None
+            }
+            if row_counts:
+                metadata["csv_row_count"] = row_counts
+
         workflow_result = WorkflowResult(
             workflow_id=self.workflow_id,
             started_at=started_at,
@@ -235,10 +289,7 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
             failed=failed,
             skipped=skipped,
             errors=errors,
-            metadata={
-                "truncated_count": truncated_count,
-                "activity_skipped_count": activity_skipped,
-            },
+            metadata=metadata,
         )
 
         logger.info(
@@ -360,6 +411,7 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
         attachment_pattern: str = DEFAULT_ATTACHMENT_PATTERN,
         start_date: date | None = None,
         end_date: date | None = None,
+        dry_run: bool = False,
     ) -> _HolderOutcome:
         """Process a single ContactHolder: resolve phone, fetch CSV, replace attachment.
 
@@ -372,6 +424,7 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
             attachment_pattern: Glob pattern for old attachment cleanup.
             start_date: Export date range start.
             end_date: Export date range end.
+            dry_run: If True, skip upload and delete operations.
 
         Returns:
             _HolderOutcome with status and optional error.
@@ -456,18 +509,24 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 )
 
             # Step D: Upload-first attachment replacement (REQ-F04)
-            csv_file = io.BytesIO(export.csv_content)
-            await self._attachments_client.upload_async(
-                parent=holder_gid,
-                file=csv_file,
-                name=export.filename,
-                content_type="text/csv",
-            )
+            if not dry_run:
+                csv_file = io.BytesIO(export.csv_content)
+                await self._attachments_client.upload_async(
+                    parent=holder_gid,
+                    file=csv_file,
+                    name=export.filename,
+                    content_type="text/csv",
+                )
 
-            # Step E: Delete old matching attachments
-            await self._delete_old_attachments(
-                holder_gid, attachment_pattern, exclude_name=export.filename
-            )
+                # Step E: Delete old matching attachments
+                await self._delete_old_attachments(
+                    holder_gid, attachment_pattern, exclude_name=export.filename
+                )
+            else:
+                logger.info(
+                    "conversation_audit_dry_run_skip_write",
+                    holder_gid=holder_gid,
+                )
 
             logger.info(
                 "holder_succeeded",
@@ -475,12 +534,14 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 office_phone=masked,
                 row_count=export.row_count,
                 truncated=export.truncated,
+                dry_run=dry_run,
             )
 
             return _HolderOutcome(
                 holder_gid=holder_gid,
                 status="succeeded",
                 truncated=export.truncated,
+                csv_row_count=export.row_count,
             )
 
         except Exception as exc:  # BROAD-CATCH: boundary -- holder processing failure returns failed outcome
@@ -555,3 +616,4 @@ class _HolderOutcome:
     reason: str | None = None
     error: WorkflowItemError | None = None
     truncated: bool = False
+    csv_row_count: int | None = None

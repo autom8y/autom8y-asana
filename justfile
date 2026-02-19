@@ -231,3 +231,9 @@ check-env:
     echo "ENV_FILE: $ENV_FILE"
     echo ""
     echo "Environment OK"
+
+# === Workflow Invocation ===
+
+# Invoke a workflow (direct mode)
+invoke workflow_id *args:
+    uv run python scripts/invoke_workflow.py {{workflow_id}} {{args}}

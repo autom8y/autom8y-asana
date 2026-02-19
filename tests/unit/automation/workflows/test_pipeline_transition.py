@@ -1,12 +1,19 @@
-"""Tests for PipelineTransitionWorkflow."""
+"""Tests for PipelineTransitionWorkflow.
 
-from unittest.mock import AsyncMock, MagicMock, patch
+Per TDD-ENTITY-SCOPE-001: Tests migrated to enumerate_async + execute_async
+pattern. Uses _enumerate_and_execute helper to simulate handler factory
+orchestration.
+"""
+
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
 
 from autom8_asana.automation.workflows.pipeline_transition import (
     PipelineTransitionWorkflow,
 )
+from autom8_asana.core.scope import EntityScope
 from autom8_asana.persistence.models import AutomationResult
 
 
@@ -110,6 +117,52 @@ def _setup_section_targeted_mocks(
     mock_client.tasks.list_async.side_effect = side_effect_list_async
 
 
+# --- Helpers ---
+
+
+def _default_scope() -> EntityScope:
+    """Default scope for full enumeration."""
+    return EntityScope()
+
+
+async def _enumerate_and_execute(
+    wf: PipelineTransitionWorkflow,
+    params: dict[str, Any] | None = None,
+    scope: EntityScope | None = None,
+    project_gids: list[str] | None = None,
+) -> Any:
+    """Helper: call enumerate_async then execute_async.
+
+    Per TDD-ENTITY-SCOPE-001: The handler factory orchestrates
+    enumerate -> execute. This helper simulates that for tests.
+
+    Args:
+        wf: The workflow instance.
+        params: Execution params (passed to execute_async).
+        scope: EntityScope (default: full enumeration).
+        project_gids: Project GIDs to use for enumeration.
+            Patches _default_project_gids when provided.
+    """
+    s = scope or _default_scope()
+    p = params or {"pipeline_project_gids": ["1200944186565610"]}
+
+    if project_gids is not None:
+        with patch.object(
+            type(wf),
+            "_default_project_gids",
+            new_callable=PropertyMock,
+            return_value=project_gids,
+        ):
+            entities = await wf.enumerate_async(s)
+    else:
+        entities = await wf.enumerate_async(s)
+
+    return await wf.execute_async(entities, p)
+
+
+# --- Tests ---
+
+
 @pytest.mark.asyncio
 async def test_workflow_id(lifecycle_config, mock_client):
     """Test workflow_id property."""
@@ -146,9 +199,11 @@ async def test_execute_async_no_processes(lifecycle_config, mock_client):
     # Mock section-targeted fetch with empty sections
     _setup_section_targeted_mocks(mock_client)
 
-    # Execute
-    result = await workflow.execute_async(
-        {"pipeline_project_gids": ["1200944186565610"]}
+    # Execute via enumerate -> execute
+    result = await _enumerate_and_execute(
+        workflow,
+        params={"pipeline_project_gids": ["1200944186565610"]},
+        project_gids=["1200944186565610"],
     )
 
     # Verify
@@ -190,9 +245,14 @@ async def test_execute_async_converted_processes(lifecycle_config, mock_client):
         mock_engine = MockEngine.return_value
         mock_engine.handle_transition_async = AsyncMock(return_value=mock_result)
 
-        # Execute
-        result = await workflow.execute_async(
-            {"pipeline_project_gids": ["1200944186565610"], "max_concurrency": 2}
+        # Execute via enumerate -> execute
+        result = await _enumerate_and_execute(
+            workflow,
+            params={
+                "pipeline_project_gids": ["1200944186565610"],
+                "max_concurrency": 2,
+            },
+            project_gids=["1200944186565610"],
         )
 
         # Verify
@@ -232,9 +292,11 @@ async def test_execute_async_did_not_convert_processes(lifecycle_config, mock_cl
         mock_engine = MockEngine.return_value
         mock_engine.handle_transition_async = AsyncMock(return_value=mock_result)
 
-        # Execute
-        result = await workflow.execute_async(
-            {"pipeline_project_gids": ["1200944186565610"]}
+        # Execute via enumerate -> execute
+        result = await _enumerate_and_execute(
+            workflow,
+            params={"pipeline_project_gids": ["1200944186565610"]},
+            project_gids=["1200944186565610"],
         )
 
         # Verify
@@ -281,9 +343,11 @@ async def test_execute_async_mixed_sections(lifecycle_config, mock_client):
         mock_engine = MockEngine.return_value
         mock_engine.handle_transition_async = AsyncMock(return_value=mock_result)
 
-        # Execute
-        result = await workflow.execute_async(
-            {"pipeline_project_gids": ["1200944186565610"]}
+        # Execute via enumerate -> execute
+        result = await _enumerate_and_execute(
+            workflow,
+            params={"pipeline_project_gids": ["1200944186565610"]},
+            project_gids=["1200944186565610"],
         )
 
         # Verify - only task1 and task2 should be processed
@@ -321,9 +385,11 @@ async def test_execute_async_transition_failure(lifecycle_config, mock_client):
         mock_engine = MockEngine.return_value
         mock_engine.handle_transition_async = AsyncMock(return_value=mock_result)
 
-        # Execute
-        result = await workflow.execute_async(
-            {"pipeline_project_gids": ["1200944186565610"]}
+        # Execute via enumerate -> execute
+        result = await _enumerate_and_execute(
+            workflow,
+            params={"pipeline_project_gids": ["1200944186565610"]},
+            project_gids=["1200944186565610"],
         )
 
         # Verify
@@ -355,9 +421,11 @@ async def test_execute_async_transition_exception(lifecycle_config, mock_client)
             side_effect=Exception("Network error")
         )
 
-        # Execute
-        result = await workflow.execute_async(
-            {"pipeline_project_gids": ["1200944186565610"]}
+        # Execute via enumerate -> execute
+        result = await _enumerate_and_execute(
+            workflow,
+            params={"pipeline_project_gids": ["1200944186565610"]},
+            project_gids=["1200944186565610"],
         )
 
         # Verify - exception should be caught and recorded
@@ -418,14 +486,19 @@ async def test_execute_async_multiple_projects(lifecycle_config, mock_client):
         mock_engine = MockEngine.return_value
         mock_engine.handle_transition_async = AsyncMock(return_value=mock_result)
 
-        # Execute
-        result = await workflow.execute_async(
-            {
+        # Execute via enumerate -> execute
+        result = await _enumerate_and_execute(
+            workflow,
+            params={
                 "pipeline_project_gids": [
                     "1200944186565610",
                     "1201319387632570",
-                ]
-            }
+                ],
+            },
+            project_gids=[
+                "1200944186565610",
+                "1201319387632570",
+            ],
         )
 
         # Verify
@@ -488,14 +561,19 @@ async def test_execute_async_enumerate_error(lifecycle_config, mock_client):
         mock_engine = MockEngine.return_value
         mock_engine.handle_transition_async = AsyncMock(return_value=mock_result)
 
-        # Execute - should continue despite first project error
-        result = await workflow.execute_async(
-            {
+        # Execute via enumerate -> execute - should continue despite first project error
+        result = await _enumerate_and_execute(
+            workflow,
+            params={
                 "pipeline_project_gids": [
                     "1200944186565610",
                     "1201319387632570",
-                ]
-            }
+                ],
+            },
+            project_gids=[
+                "1200944186565610",
+                "1201319387632570",
+            ],
         )
 
         # Verify - should process task from second project
@@ -543,7 +621,11 @@ async def test_enumerate_section_targeted_happy_path(lifecycle_config, mock_clie
         mock_engine = MockEngine.return_value
         mock_engine.handle_transition_async = AsyncMock(return_value=mock_result)
 
-        result = await workflow.execute_async({"pipeline_project_gids": ["proj-1"]})
+        result = await _enumerate_and_execute(
+            workflow,
+            params={"pipeline_project_gids": ["proj-1"]},
+            project_gids=["proj-1"],
+        )
 
         assert result.total == 2
         assert result.succeeded == 2
@@ -575,7 +657,11 @@ async def test_enumerate_fallback_on_section_resolution_failure(
     # Clear side_effect so return_value is used
     mock_client.tasks.list_async.side_effect = None
 
-    result = await workflow.execute_async({"pipeline_project_gids": ["proj-1"]})
+    result = await _enumerate_and_execute(
+        workflow,
+        params={"pipeline_project_gids": ["proj-1"]},
+        project_gids=["proj-1"],
+    )
 
     # Verify fallback was used: tasks.list_async called with project= kwarg
     call_kwargs = mock_client.tasks.list_async.call_args.kwargs
@@ -608,7 +694,11 @@ async def test_enumerate_fallback_on_empty_resolution(lifecycle_config, mock_cli
     task1 = _make_task("task1", "Sales Process", "CONVERTED")
     mock_client.tasks.list_async.return_value = _AsyncIterator([task1])
 
-    result = await workflow.execute_async({"pipeline_project_gids": ["proj-1"]})
+    result = await _enumerate_and_execute(
+        workflow,
+        params={"pipeline_project_gids": ["proj-1"]},
+        project_gids=["proj-1"],
+    )
 
     # Verify fallback was used: tasks.list_async called with project= kwarg
     call_kwargs = mock_client.tasks.list_async.call_args.kwargs
@@ -662,7 +752,11 @@ async def test_enumerate_section_targeted_one_section_missing(
         mock_engine = MockEngine.return_value
         mock_engine.handle_transition_async = AsyncMock(return_value=mock_result)
 
-        result = await workflow.execute_async({"pipeline_project_gids": ["proj-1"]})
+        result = await _enumerate_and_execute(
+            workflow,
+            params={"pipeline_project_gids": ["proj-1"]},
+            project_gids=["proj-1"],
+        )
 
         assert result.total == 1
         assert result.succeeded == 1
@@ -727,8 +821,10 @@ async def test_enumerate_per_project_fallback_isolation(lifecycle_config, mock_c
         mock_engine = MockEngine.return_value
         mock_engine.handle_transition_async = AsyncMock(return_value=mock_result)
 
-        result = await workflow.execute_async(
-            {"pipeline_project_gids": ["proj-1", "proj-2"]}
+        result = await _enumerate_and_execute(
+            workflow,
+            params={"pipeline_project_gids": ["proj-1", "proj-2"]},
+            project_gids=["proj-1", "proj-2"],
         )
 
         # Both projects contribute one task each

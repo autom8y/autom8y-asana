@@ -36,6 +36,7 @@ from typing import Any
 from autom8y_log import get_logger
 
 from autom8_asana.automation.workflows.base import WorkflowAction
+from autom8_asana.core.scope import EntityScope
 from autom8_asana.lambda_handlers.cloudwatch import emit_metric
 
 logger = get_logger(__name__)
@@ -117,12 +118,18 @@ def create_workflow_handler(
             dimensions={"workflow_id": config.workflow_id},
         )
 
-        # Merge event overrides onto defaults
+        # Construct EntityScope from event
+        scope = EntityScope.from_event(event)
+
+        # Merge event overrides onto defaults (existing whitelist)
         params: dict[str, Any] = {**config.default_params}
         for key in config.default_params:
             if key in event:
                 params[key] = event[key]
         params["workflow_id"] = config.workflow_id
+
+        # Inject scope-derived params (dry_run)
+        params.update(scope.to_params())
 
         asana_client = AsanaClient()
 
@@ -131,13 +138,14 @@ def create_workflow_handler(
 
             async with DataServiceClient() as data_client:
                 workflow = config.workflow_factory(asana_client, data_client)
-                return await _validate_and_run(workflow, params)
+                return await _validate_enumerate_and_run(workflow, scope, params)
         else:
             workflow = config.workflow_factory(asana_client, None)
-            return await _validate_and_run(workflow, params)
+            return await _validate_enumerate_and_run(workflow, scope, params)
 
-    async def _validate_and_run(
+    async def _validate_enumerate_and_run(
         workflow: WorkflowAction,
+        scope: EntityScope,
         params: dict[str, Any],
     ) -> dict[str, Any]:
         # Pre-flight validation
@@ -163,8 +171,11 @@ def create_workflow_handler(
                 ),
             }
 
-        # Execute workflow
-        result = await workflow.execute_async(params)
+        # Enumerate entities
+        entities = await workflow.enumerate_async(scope)
+
+        # Execute workflow with entity list
+        result = await workflow.execute_async(entities, params)
 
         emit_metric(
             "WorkflowDuration",

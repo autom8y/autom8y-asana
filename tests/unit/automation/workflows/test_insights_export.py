@@ -30,6 +30,7 @@ from autom8_asana.clients.data.models import (
     InsightsMetadata,
     InsightsResponse,
 )
+from autom8_asana.core.scope import EntityScope
 
 # Patch path for resolve_section_gids (lazy import inside _enumerate_offers)
 _RESOLVE_PATCH = (
@@ -242,6 +243,27 @@ def _default_params() -> dict[str, Any]:
     return {"workflow_id": "insights-export"}
 
 
+def _default_scope() -> EntityScope:
+    """Default scope for full enumeration."""
+    return EntityScope()
+
+
+async def _enumerate_and_execute(
+    wf: InsightsExportWorkflow,
+    params: dict[str, Any] | None = None,
+    scope: EntityScope | None = None,
+) -> Any:
+    """Helper: call enumerate_async then execute_async.
+
+    Per TDD-ENTITY-SCOPE-001: The handler factory orchestrates
+    enumerate -> execute. This helper simulates that for tests.
+    """
+    s = scope or _default_scope()
+    p = params or _default_params()
+    entities = await wf.enumerate_async(s)
+    return await wf.execute_async(entities, p)
+
+
 # --- Tests ---
 
 
@@ -340,7 +362,7 @@ class TestEnumeration:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            result = await wf.execute_async(_default_params())
+            result = await _enumerate_and_execute(wf)
 
         # Completed offer is filtered out during enumeration
         # Only 1 active offer processed
@@ -350,7 +372,7 @@ class TestEnumeration:
     async def test_enumeration_calls_correct_project(self) -> None:
         """Enumeration targets the correct project GID."""
         wf, mock_asana, _, _ = _make_workflow(offers=[])
-        await wf.execute_async(_default_params())
+        await _enumerate_and_execute(wf)
 
         mock_asana.tasks.list_async.assert_called_once_with(
             project=OFFER_PROJECT_GID,
@@ -388,7 +410,7 @@ class TestActivityFiltering:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            result = await wf.execute_async(_default_params())
+            result = await _enumerate_and_execute(wf)
 
         # Only the ACTIVE offer should be processed
         assert result.total == 1
@@ -417,7 +439,7 @@ class TestActivityFiltering:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            result = await wf.execute_async(_default_params())
+            result = await _enumerate_and_execute(wf)
 
         assert result.total == 1
         assert result.succeeded == 1
@@ -442,7 +464,7 @@ class TestActivityFiltering:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            result = await wf.execute_async(_default_params())
+            result = await _enumerate_and_execute(wf)
 
         assert result.total == 1
         assert result.succeeded == 1
@@ -465,7 +487,7 @@ class TestActivityFiltering:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            result = await wf.execute_async(_default_params())
+            result = await _enumerate_and_execute(wf)
 
         assert result.total == 1
         assert result.succeeded == 1
@@ -494,7 +516,7 @@ class TestResolution:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            result = await wf.execute_async(_default_params())
+            result = await _enumerate_and_execute(wf)
 
         assert result.succeeded == 1
         assert result.skipped == 0
@@ -516,7 +538,7 @@ class TestResolution:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            result = await wf.execute_async(_default_params())
+            result = await _enumerate_and_execute(wf)
 
         assert result.total == 1
         assert result.skipped == 1
@@ -539,7 +561,7 @@ class TestResolution:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            result = await wf.execute_async(_default_params())
+            result = await _enumerate_and_execute(wf)
 
         assert result.total == 1
         assert result.skipped == 1
@@ -552,7 +574,7 @@ class TestResolution:
 
         # The offer has no parent_gid from enumeration, and get_async
         # returns task with no parent either
-        result = await wf.execute_async(_default_params())
+        result = await _enumerate_and_execute(wf)
 
         assert result.total == 1
         assert result.skipped == 1
@@ -577,7 +599,7 @@ class TestFetchAllTables:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            result = await wf.execute_async(_default_params())
+            result = await _enumerate_and_execute(wf)
 
         # 7 insights calls + 1 appointments + 1 leads = 9 total
         assert mock_data.get_insights_async.call_count == 7
@@ -599,7 +621,7 @@ class TestFetchAllTables:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            await wf.execute_async(_default_params())
+            await _enumerate_and_execute(wf)
 
         # Verify factory params in insights calls
         insights_calls = mock_data.get_insights_async.call_args_list
@@ -713,7 +735,7 @@ class TestUploadAndCleanup:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            await wf.execute_async(_default_params())
+            await _enumerate_and_execute(wf)
 
         assert mock_att.upload_async.call_count == 1
         call_kwargs = mock_att.upload_async.call_args[1]
@@ -744,7 +766,7 @@ class TestUploadAndCleanup:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            await wf.execute_async(_default_params())
+            await _enumerate_and_execute(wf)
 
         assert mock_att.delete_async.call_count == 1
         assert mock_att.delete_async.call_args[0][0] == "old-att-1"
@@ -769,7 +791,7 @@ class TestUploadAndCleanup:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            await wf.execute_async(_default_params())
+            await _enumerate_and_execute(wf)
 
         mock_att.delete_async.assert_not_called()
 
@@ -812,7 +834,7 @@ class TestUploadAndCleanup:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            await wf.execute_async(_default_params())
+            await _enumerate_and_execute(wf)
 
         assert call_order == ["upload", "delete"]
 
@@ -839,7 +861,7 @@ class TestConcurrency:
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
             params = {**_default_params(), "max_concurrency": 2}
-            result = await wf.execute_async(params)
+            result = await _enumerate_and_execute(wf, params=params)
 
         # All should succeed even with low concurrency
         assert result.total == 10
@@ -850,7 +872,7 @@ class TestConcurrency:
         """Default max_concurrency is used when not specified."""
         wf, _, _, _ = _make_workflow(offers=[])
         # Simply verify it doesn't fail with default params
-        result = await wf.execute_async(_default_params())
+        result = await _enumerate_and_execute(wf)
         assert result.total == 0
 
 
@@ -873,7 +895,7 @@ class TestWorkflowResult:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            result = await wf.execute_async(_default_params())
+            result = await _enumerate_and_execute(wf)
 
         assert "per_offer_table_counts" in result.metadata
         assert "total_tables_succeeded" in result.metadata
@@ -900,7 +922,7 @@ class TestWorkflowResult:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            result = await wf.execute_async(_default_params())
+            result = await _enumerate_and_execute(wf)
 
         assert result.total == 3
         assert result.succeeded == 2
@@ -940,7 +962,7 @@ class TestPartialFailure:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            result = await wf.execute_async(_default_params())
+            result = await _enumerate_and_execute(wf)
 
         # Offer still succeeds with partial data
         assert result.succeeded == 1
@@ -974,7 +996,7 @@ class TestTotalFailure:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            result = await wf.execute_async(_default_params())
+            result = await _enumerate_and_execute(wf)
 
         assert result.total == 1
         assert result.failed == 1
@@ -1016,7 +1038,7 @@ class TestDeleteFailureTolerance:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            result = await wf.execute_async(_default_params())
+            result = await _enumerate_and_execute(wf)
 
         # Still succeeded because upload worked; delete failure is non-fatal
         assert result.succeeded == 1
@@ -1032,7 +1054,7 @@ class TestEmptyProject:
         """Empty project -> total=0, all zeros."""
         wf, _, _, _ = _make_workflow(offers=[])
 
-        result = await wf.execute_async(_default_params())
+        result = await _enumerate_and_execute(wf)
 
         assert result.total == 0
         assert result.succeeded == 0
@@ -1157,7 +1179,7 @@ class TestAdversarialUploadFailure:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            result = await wf.execute_async(_default_params())
+            result = await _enumerate_and_execute(wf)
 
         # Offer should be failed
         assert result.failed == 1
@@ -1192,7 +1214,7 @@ class TestAdversarialComposeRaisesPreventsUpload:
             mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
             mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            result = await wf.execute_async(_default_params())
+            result = await _enumerate_and_execute(wf)
 
         assert result.failed == 1
         assert result.succeeded == 0
@@ -1257,7 +1279,6 @@ class TestEnumerateOffersSectionTargeted:
         for o in offers:
             assert "gid" in o
             assert "name" in o
-            assert "parent_gid" in o
 
     @pytest.mark.asyncio
     async def test_section_targeted_skips_completed(self) -> None:
@@ -1278,9 +1299,9 @@ class TestEnumerateOffersSectionTargeted:
         assert offers[0]["gid"] == "t1"
 
     @pytest.mark.asyncio
-    async def test_section_targeted_parent_gid_none(self) -> None:
-        """Tasks without parent produce parent_gid=None in dict."""
-        t1 = _make_section_task("t1", "No Parent")  # parent_gid=None
+    async def test_section_targeted_no_parent_gid_in_dict(self) -> None:
+        """Enumeration dicts do not include parent_gid (resolution handles traversal)."""
+        t1 = _make_section_task("t1", "No Parent")
 
         wf, mock_asana, _, _ = _make_workflow()
         mock_asana.tasks.list_async.side_effect = lambda **kw: _AsyncIterator([t1])
@@ -1292,7 +1313,7 @@ class TestEnumerateOffersSectionTargeted:
             offers = await wf._enumerate_offers()
 
         assert len(offers) == 1
-        assert offers[0]["parent_gid"] is None
+        assert "parent_gid" not in offers[0]
 
     @pytest.mark.asyncio
     async def test_section_targeted_opt_fields(self) -> None:
@@ -1440,3 +1461,159 @@ class TestEnumerateOffersDedup:
         gids = [o["gid"] for o in offers]
         assert gids.count("t1") == 1
         assert gids.count("t2") == 1
+
+
+# --- enumerate_async Tests (TDD-ENTITY-SCOPE-001 Section 8.3) ---
+
+
+class TestEnumerateAsync:
+    """Tests for the enumerate_async protocol method."""
+
+    @pytest.mark.asyncio
+    async def test_enumerate_with_entity_ids_returns_synthetic_dicts(self) -> None:
+        """Targeted scope returns synthetic dicts with gid, name=None."""
+        wf, _, _, _ = _make_workflow()
+        scope = EntityScope(entity_ids=("111", "222"))
+        result = await wf.enumerate_async(scope)
+        assert len(result) == 2
+        assert result[0] == {"gid": "111", "name": None}
+        assert result[1] == {"gid": "222", "name": None}
+
+    @pytest.mark.asyncio
+    @pytest.mark.usefixtures("_force_fallback")
+    async def test_enumerate_without_entity_ids_calls_enumerate_offers(self) -> None:
+        """Full scope triggers _enumerate_offers."""
+        o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
+        wf, _, _, _ = _make_workflow(offers=[o1])
+        scope = EntityScope()
+        result = await wf.enumerate_async(scope)
+        assert len(result) == 1
+        assert result[0]["gid"] == "o1"
+
+    @pytest.mark.asyncio
+    @pytest.mark.usefixtures("_force_fallback")
+    async def test_enumerate_with_limit_truncates(self) -> None:
+        """scope.limit=2 with 5 offers returns 2."""
+        offers = [
+            _make_task(f"o{i}", f"Offer {i}", parent_gid="biz1") for i in range(5)
+        ]
+        wf, _, _, _ = _make_workflow(offers=offers)
+        scope = EntityScope(limit=2)
+        result = await wf.enumerate_async(scope)
+        assert len(result) == 2
+
+    @pytest.mark.asyncio
+    async def test_enumerate_targeted_does_not_call_enumerate_offers(self) -> None:
+        """_enumerate_offers mock NOT called when entity_ids are provided."""
+        wf, mock_asana, _, _ = _make_workflow()
+        scope = EntityScope(entity_ids=("999",))
+        await wf.enumerate_async(scope)
+        # With targeted scope, tasks.list_async should NOT be called
+        mock_asana.tasks.list_async.assert_not_called()
+
+
+# --- Dry-Run Tests (TDD-ENTITY-SCOPE-001 Section 8.6) ---
+
+
+class TestDryRun:
+    """Tests for dry_run gating in _process_offer."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.usefixtures("_force_fallback")
+    async def test_dry_run_skips_upload(self) -> None:
+        """_attachments_client.upload_async NOT called in dry_run mode."""
+        o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
+        wf, _, _, mock_att = _make_workflow(offers=[o1])
+
+        with patch(
+            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
+        ) as mock_rc:
+            mock_ctx = AsyncMock()
+            mock_business = _make_mock_business()
+            mock_ctx.business_async = AsyncMock(return_value=mock_business)
+            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
+            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            scope = EntityScope(dry_run=True)
+            entities = await wf.enumerate_async(scope)
+            params = {**_default_params(), "dry_run": True}
+            await wf.execute_async(entities, params)
+
+        mock_att.upload_async.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.usefixtures("_force_fallback")
+    async def test_dry_run_skips_delete(self) -> None:
+        """_delete_old_attachments NOT called in dry_run mode."""
+        o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
+        existing = [_make_attachment("att1", "insights_export_old.md")]
+        wf, _, _, mock_att = _make_workflow(
+            offers=[o1],
+            existing_attachments={"o1": existing},
+        )
+
+        with patch(
+            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
+        ) as mock_rc:
+            mock_ctx = AsyncMock()
+            mock_business = _make_mock_business()
+            mock_ctx.business_async = AsyncMock(return_value=mock_business)
+            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
+            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            scope = EntityScope(dry_run=True)
+            entities = await wf.enumerate_async(scope)
+            params = {**_default_params(), "dry_run": True}
+            await wf.execute_async(entities, params)
+
+        mock_att.delete_async.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.usefixtures("_force_fallback")
+    async def test_dry_run_metadata_flag(self) -> None:
+        """metadata['dry_run'] is True when dry_run=True."""
+        o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
+        wf, _, _, _ = _make_workflow(offers=[o1])
+
+        with patch(
+            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
+        ) as mock_rc:
+            mock_ctx = AsyncMock()
+            mock_business = _make_mock_business()
+            mock_ctx.business_async = AsyncMock(return_value=mock_business)
+            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
+            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            scope = EntityScope(dry_run=True)
+            entities = await wf.enumerate_async(scope)
+            params = {**_default_params(), "dry_run": True}
+            result = await wf.execute_async(entities, params)
+
+        assert result.metadata.get("dry_run") is True
+
+    @pytest.mark.asyncio()
+    async def test_dry_run_includes_report_preview(self) -> None:
+        """DEF-001: metadata['report_preview'] present in dry-run, max 2000 chars."""
+        o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
+        wf, _, _, _ = _make_workflow(offers=[o1])
+
+        with patch(
+            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
+        ) as mock_rc:
+            mock_ctx = AsyncMock()
+            mock_business = _make_mock_business()
+            mock_ctx.business_async = AsyncMock(return_value=mock_business)
+            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
+            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            scope = EntityScope(dry_run=True)
+            entities = await wf.enumerate_async(scope)
+            params = {**_default_params(), "dry_run": True}
+            result = await wf.execute_async(entities, params)
+
+        preview = result.metadata.get("report_preview")
+        assert preview is not None
+        # report_preview is a dict mapping offer_gid -> preview string
+        assert isinstance(preview, dict)
+        assert "o1" in preview
+        assert len(preview["o1"]) <= 2000

@@ -52,6 +52,7 @@ def _setup_mocks():
     """Create standard mock objects for handler tests."""
     mock_workflow = MagicMock()
     mock_workflow.validate_async = AsyncMock(return_value=[])
+    mock_workflow.enumerate_async = AsyncMock(return_value=[{"gid": "o1", "name": "Offer 1"}])
     mock_workflow.execute_async = AsyncMock(return_value=_make_workflow_result())
 
     mock_asana_client = MagicMock()
@@ -301,7 +302,7 @@ class TestHandlerExecution:
         ):
             handler(event, MagicMock())
 
-        call_params = mock_workflow.execute_async.call_args[0][0]
+        call_params = mock_workflow.execute_async.call_args[0][1]
         assert call_params["max_concurrency"] == 3
         assert call_params["attachment_pattern"] == "custom_*.md"
         assert call_params["row_limits"] == {"APPOINTMENTS": 50}
@@ -332,7 +333,7 @@ class TestHandlerExecution:
         ):
             handler({}, MagicMock())
 
-        call_params = mock_workflow.execute_async.call_args[0][0]
+        call_params = mock_workflow.execute_async.call_args[0][1]
         assert call_params["max_concurrency"] == 5
         assert call_params["attachment_pattern"] == "insights_export_*.md"
         assert call_params["row_limits"] == {"APPOINTMENTS": 100, "LEADS": 100}
