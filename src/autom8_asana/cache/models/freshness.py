@@ -1,9 +1,8 @@
 """Cache freshness modes for controlling validation behavior.
 
-Migration Note (SDK-PRIMITIVES-001):
-    This module now re-exports autom8y_cache.Freshness which includes
-    IMMEDIATE mode in addition to STRICT and EVENTUAL. The local enum
-    is deprecated in favor of the SDK version.
+Re-exports autom8y_cache.Freshness which includes STRICT, EVENTUAL,
+and IMMEDIATE modes. Falls back to a local enum when the SDK import
+is unavailable (Lambda version mismatch scenarios).
 """
 
 from __future__ import annotations

@@ -1,9 +1,8 @@
 """Push GID mappings to autom8_data after index rebuild.
 
-Per SPIKE-BREAK-CIRCULAR-DEP Phase 3: After the cache warmer rebuilds
-GID indexes, push the mapping snapshot to autom8_data's sync endpoint
-so autom8_data can serve GID lookups locally without calling back to
-autom8_asana.
+After the cache warmer rebuilds GID indexes, push the mapping snapshot
+to autom8_data's sync endpoint so autom8_data can serve GID lookups
+locally without calling back to autom8_asana.
 
 The push is best-effort: failure does NOT fail the cache warmer.
 """
