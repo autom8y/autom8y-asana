@@ -65,7 +65,7 @@ async def execute_insights_request(
             or circuit breaker is open (reason="circuit_breaker").
     """
     # Import here to avoid circular import at module level
-    from autom8_asana.clients.data.client import _mask_canonical_key
+    from autom8_asana.clients.data._pii import mask_canonical_key as _mask_canonical_key
 
     # --- Circuit Breaker Check (Story 2.3) ---
     # Fast-fail if circuit is open to prevent cascade failures
