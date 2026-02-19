@@ -107,7 +107,7 @@ def _check_project_type_registry(
 
     pt_registry = get_project_type_registry()
 
-    for desc in entity_registry.all_descriptors():  # type: ignore[union-attr]
+    for desc in entity_registry.all_descriptors():  # type: ignore[attr-defined]
         if desc.primary_project_gid is None or desc.entity_type is None:
             continue
 
@@ -146,7 +146,7 @@ def _check_entity_project_registry(
         )
         return
 
-    for desc in entity_registry.all_descriptors():  # type: ignore[union-attr]
+    for desc in entity_registry.all_descriptors():  # type: ignore[attr-defined]
         if desc.primary_project_gid is None:
             continue
 

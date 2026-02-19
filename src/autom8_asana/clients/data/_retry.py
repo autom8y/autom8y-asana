@@ -94,7 +94,7 @@ def build_retry_callbacks(
 
     if log_event_retry is not None:
 
-        async def on_retry(  # type: ignore[misc]
+        async def on_retry(
             attempt: int, status_code: int, retry_after: int | None
         ) -> None:
             if log:
@@ -144,7 +144,7 @@ def build_retry_callbacks(
             )
 
         await circuit_breaker.record_failure(e)
-        raise error_class(
+        raise error_class(  # type: ignore[call-arg]
             timeout_message,
             **error_kwargs,
             reason="timeout",
@@ -180,7 +180,7 @@ def build_retry_callbacks(
             )
 
         await circuit_breaker.record_failure(e)
-        raise error_class(
+        raise error_class(  # type: ignore[call-arg]
             http_error_template.format(e=e),
             **error_kwargs,
             reason="http_error",
