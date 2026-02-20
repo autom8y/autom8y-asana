@@ -370,6 +370,8 @@ class TestOfferTimelineEntry:
             "office_phone": "555-0100",
             "active_section_days": 7,
             "billable_section_days": 10,
+            "current_section": None,
+            "current_classification": None,
         }
 
     def test_null_phone(self) -> None:
@@ -382,3 +384,54 @@ class TestOfferTimelineEntry:
         )
         data = entry.model_dump()
         assert data["office_phone"] is None
+
+    def test_current_section_fields_populated(self) -> None:
+        """S-3: current_section and current_classification populate correctly."""
+        entry = OfferTimelineEntry(
+            offer_gid="1234567890123456",
+            office_phone=None,
+            active_section_days=5,
+            billable_section_days=5,
+            current_section="ACTIVE",
+            current_classification="active",
+        )
+        data = entry.model_dump()
+        assert data["current_section"] == "ACTIVE"
+        assert data["current_classification"] == "active"
+
+    def test_current_section_fields_default_none(self) -> None:
+        """S-3: current_section and current_classification default to None."""
+        entry = OfferTimelineEntry(
+            offer_gid="1234567890123456",
+            office_phone=None,
+            active_section_days=0,
+            billable_section_days=0,
+        )
+        assert entry.current_section is None
+        assert entry.current_classification is None
+
+    def test_current_classification_is_string_not_enum(self) -> None:
+        """S-3: current_classification stores string value, not enum object."""
+        entry = OfferTimelineEntry(
+            offer_gid="1234567890123456",
+            office_phone=None,
+            active_section_days=5,
+            billable_section_days=5,
+            current_section="ACTIVATING",
+            current_classification="activating",
+        )
+        assert isinstance(entry.current_classification, str)
+        assert entry.current_classification == "activating"
+
+    def test_extra_fields_still_forbidden(self) -> None:
+        """S-3: model_config extra=forbid still enforced with new fields."""
+        import pydantic
+
+        with pytest.raises(pydantic.ValidationError):
+            OfferTimelineEntry(
+                offer_gid="1234567890123456",
+                office_phone=None,
+                active_section_days=0,
+                billable_section_days=0,
+                bogus_field="should fail",  # type: ignore[call-arg]
+            )

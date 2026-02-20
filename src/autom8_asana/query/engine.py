@@ -17,6 +17,7 @@ from autom8_asana.dataframes.models.registry import SchemaRegistry
 from autom8_asana.query.compiler import PredicateCompiler
 from autom8_asana.query.errors import (
     AggregateGroupLimitError,
+    ClassificationError,
     JoinError,
     UnknownFieldError,
     UnknownSectionError,
@@ -101,28 +102,43 @@ class QueryEngine:
             depth = predicate_depth(request.where)
             self.limits.check_depth(depth)
 
-        # 2. Resolve section
+        # 2. Resolve classification to section IN predicate
+        classification_sections = self._resolve_classification(
+            request.classification, entity_type
+        )
+
+        # 3. Resolve section
         section_name_filter = self._resolve_section(
             request.section, entity_type, section_index
         )
 
-        # 3. Load DataFrame
+        # 4. Load DataFrame
         df = await self.query_service.get_dataframe(
             entity_type,
             project_gid,
             client,
         )
 
-        # 4. Get schema for validation
+        # 5. Get schema for validation
         registry = SchemaRegistry.get_instance()
         schema = registry.get_schema(to_pascal_case(entity_type))
 
-        # 5. Build filter expression
+        # 6. Build filter expression
         filter_expr: pl.Expr | None = None
         if request.where is not None:
             filter_expr = self.compiler.compile(request.where, schema)
 
-        # 6. Apply section filter (ANDed with predicate)
+        # 7. Apply classification filter (case-insensitive IN predicate)
+        if classification_sections is not None:
+            classification_expr = pl.col("section").str.to_lowercase().is_in(
+                list(classification_sections)
+            )
+            if filter_expr is not None:
+                filter_expr = classification_expr & filter_expr
+            else:
+                filter_expr = classification_expr
+
+        # 7.5. Apply section filter (ANDed with predicate)
         if section_name_filter is not None:
             section_expr = pl.col("section") == section_name_filter
             if filter_expr is not None:
@@ -396,6 +412,61 @@ class QueryEngine:
                 **freshness_meta,  # type: ignore[arg-type]
             ),
         )
+
+    def _resolve_classification(
+        self,
+        classification: str | None,
+        entity_type: str,
+    ) -> frozenset[str] | None:
+        """Resolve classification parameter to a set of section names.
+
+        Uses SectionClassifier to expand a classification value (e.g., "active")
+        into the set of section names belonging to that classification group.
+
+        Returns:
+            Frozenset of lowercase section names if classification was provided,
+            None otherwise.
+
+        Raises:
+            ClassificationError: If no classifier exists for entity_type or
+                classification is not a valid AccountActivity value.
+        """
+        if classification is None:
+            return None
+
+        from autom8_asana.models.business.activity import (
+            CLASSIFIERS,
+            AccountActivity,
+        )
+
+        classifier = CLASSIFIERS.get(entity_type)
+        if classifier is None:
+            available = sorted(CLASSIFIERS.keys())
+            raise ClassificationError(
+                f"No classifier registered for entity type '{entity_type}'. "
+                f"Classification filtering is available for: {available}"
+            )
+
+        try:
+            activity = AccountActivity(classification.lower())
+        except ValueError:
+            valid_values = [a.value for a in AccountActivity]
+            raise ClassificationError(
+                f"Invalid classification value: '{classification}'. "
+                f"Valid values: {valid_values}"
+            ) from None
+
+        sections = classifier.sections_for(activity)
+        if not sections:
+            logger.warning(
+                "classification_empty_sections",
+                extra={
+                    "entity_type": entity_type,
+                    "classification": classification,
+                },
+            )
+
+        return sections
 
     def _resolve_section(
         self,

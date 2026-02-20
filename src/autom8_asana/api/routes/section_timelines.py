@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.models import SuccessResponse, build_success_response
+from autom8_asana.models.business.activity import AccountActivity
 from autom8_asana.models.business.section_timeline import OfferTimelineEntry
 from autom8_asana.services.section_timeline_service import (
     BUSINESS_OFFERS_PROJECT_GID,
@@ -63,11 +64,20 @@ async def get_offer_section_timelines(
         date,
         Query(description="Period end date (YYYY-MM-DD, inclusive)"),
     ],
+    classification: Annotated[
+        str | None,
+        Query(
+            description="Filter by current classification (active, activating, inactive, ignored)"
+        ),
+    ] = None,
 ) -> SuccessResponse[SectionTimelinesResponse]:
     """Get section timelines for all offers in the Business Offers project.
 
     Computes active_section_days and billable_section_days for each offer
     based on their Asana section history within the specified date range.
+
+    Optionally filter by classification to return only entries whose
+    current section matches the requested category.
 
     Per TDD-SECTION-TIMELINE-REMEDIATION: Reads from derived cache on
     warm path (<2s). On cold cache, computes on demand from cached stories
@@ -78,12 +88,14 @@ async def get_offer_section_timelines(
         request_id: Request correlation ID.
         period_start: Start date for day counting (inclusive).
         period_end: End date for day counting (inclusive).
+        classification: Optional classification filter (e.g., "active").
 
     Returns:
         SuccessResponse containing list of OfferTimelineEntry.
 
     Raises:
         HTTPException: 422 if period_start > period_end.
+        HTTPException: 422 if classification is not a valid AccountActivity value.
         HTTPException: 502 if Asana API fails during task enumeration.
     """
     start_time = time.perf_counter()
@@ -97,6 +109,19 @@ async def get_offer_section_timelines(
             "period_start must be <= period_end",
         )
 
+    # Normalize to lowercase for case-insensitive matching
+    if classification is not None:
+        classification = classification.lower()
+    _VALID_CLASSIFICATIONS = {e.value for e in AccountActivity}
+    if classification is not None and classification not in _VALID_CLASSIFICATIONS:
+        raise_api_error(
+            request_id,
+            422,
+            "VALIDATION_ERROR",
+            f"Invalid classification '{classification}'. "
+            f"Valid values: {', '.join(sorted(_VALID_CLASSIFICATIONS))}",
+        )
+
     try:
         entries = await get_or_compute_timelines(
             client=client,
@@ -104,6 +129,7 @@ async def get_offer_section_timelines(
             classifier_name="offer",
             period_start=period_start,
             period_end=period_end,
+            classification_filter=classification,
         )
     except Exception:
         logger.exception(
@@ -130,6 +156,7 @@ async def get_offer_section_timelines(
             "offer_count": len(entries),
             "period_start": str(period_start),
             "period_end": str(period_end),
+            "classification": classification,
             "duration_ms": round(duration_ms, 1),
         },
     )
