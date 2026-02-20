@@ -657,12 +657,36 @@ class TestUnusedAssetsFilter:
         """UNUSED ASSETS = spend==0 AND imp==0, excluding disabled and generic."""
         asset_data = [
             {"name": "Active Ad", "spend": 100, "imp": 5000},
-            {"name": "Unused Ad 1", "spend": 0, "imp": 0, "disabled": 0, "is_generic": False},
+            {
+                "name": "Unused Ad 1",
+                "spend": 0,
+                "imp": 0,
+                "disabled": 0,
+                "is_generic": False,
+            },
             {"name": "Partial Spend", "spend": 0, "imp": 100},
             {"name": "Partial Imp", "spend": 50, "imp": 0},
-            {"name": "Unused Ad 2", "spend": 0, "imp": 0, "disabled": 0, "is_generic": False},
-            {"name": "Disabled Unused", "spend": 0, "imp": 0, "disabled": 1, "is_generic": False},
-            {"name": "Generic Unused", "spend": 0, "imp": 0, "disabled": 0, "is_generic": True},
+            {
+                "name": "Unused Ad 2",
+                "spend": 0,
+                "imp": 0,
+                "disabled": 0,
+                "is_generic": False,
+            },
+            {
+                "name": "Disabled Unused",
+                "spend": 0,
+                "imp": 0,
+                "disabled": 1,
+                "is_generic": False,
+            },
+            {
+                "name": "Generic Unused",
+                "spend": 0,
+                "imp": 0,
+                "disabled": 0,
+                "is_generic": True,
+            },
         ]
         asset_response = _make_insights_response(data=asset_data)
 
@@ -740,7 +764,14 @@ class TestUnusedAssetsFilter:
     async def test_raw_asset_included_in_unused(self) -> None:
         """Assets with is_raw=True are NOT excluded — raw unused is interesting."""
         asset_data = [
-            {"name": "Raw Unused", "spend": 0, "imp": 0, "is_raw": True, "disabled": 0, "is_generic": False},
+            {
+                "name": "Raw Unused",
+                "spend": 0,
+                "imp": 0,
+                "is_raw": True,
+                "disabled": 0,
+                "is_generic": False,
+            },
         ]
         unused_rows = [
             row
