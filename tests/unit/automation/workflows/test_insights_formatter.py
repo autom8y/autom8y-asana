@@ -31,6 +31,7 @@ from autom8_asana.automation.workflows.insights_formatter import (
     InsightsReportData,
     StructuredDataRenderer,
     TableResult,
+    _FIELD_FORMAT,
     _discover_columns,
     _format_cell_html,
     _reorder_columns,
@@ -1415,3 +1416,147 @@ class TestReconciliationTables:
         data = _make_report_data(table_results=table_results, started_at=100.0)
         report = compose_report(data)
         assert "12/12" in report
+
+
+# ---------------------------------------------------------------------------
+# TestFormatCellHtmlFormatting -- GAP-04 type-aware numeric formatting
+# ---------------------------------------------------------------------------
+
+
+class TestFormatCellHtmlFormatting:
+    """Type-aware cell formatting for currency, rate, percentage, ratio, per-20k."""
+
+    @pytest.mark.parametrize(
+        "value,column,expected",
+        [
+            # Currency fields → $X,XXX.XX
+            (12847.5, "spend", "$12,847.50"),
+            (0, "spend", "$0.00"),
+            (-500.0, "cpl", "$-500.00"),
+            (1500, "offer_cost", "$1,500.00"),
+            (5000.0, "collected", "$5,000.00"),
+            (800.0, "variance", "$800.00"),
+            (4200.0, "budget", "$4,200.00"),
+            (99.99, "cpc", "$99.99"),
+            # Rate fields → X.XX% (stored as decimal, ×100 for display)
+            (0.0342, "ctr", "3.42%"),
+            (0.0, "ns_rate", "0.00%"),
+            (1.0, "conversion_rate", "100.00%"),
+            (0.1567, "lctr", "15.67%"),
+            (0.85, "pacing_ratio", "85.00%"),
+            # Percentage fields → X.XX% (already in percent units)
+            (42.5, "variance_pct", "42.50%"),
+            (0.0, "variance_pct", "0.00%"),
+            (100.0, "variance_pct", "100.00%"),
+            # Ratio fields → X.XXx
+            (3.5, "roas", "3.50x"),
+            (0.0, "roas", "0.00x"),
+            (10.123, "roas", "10.12x"),
+            # Per-20k fields → comma-grouped 2dp (no symbol)
+            (12.5, "lp20m", "12.50"),
+            (0.0, "sp20m", "0.00"),
+            (1234.56, "esp20m", "1,234.56"),
+            # Integer fallback (unknown column) → comma-grouped
+            (45000, "imp", "45,000"),
+            (0, "leads", "0"),
+            (1000000, "contacts", "1,000,000"),
+            # Float fallback (unknown column) → comma-grouped 2dp
+            (123.456, "unknown_field", "123.46"),
+            (0.5, "unknown_float", "0.50"),
+            # None → styled dash
+            (None, "spend", '<span class="null-value">---</span>'),
+            (None, "ctr", '<span class="null-value">---</span>'),
+            (None, "", '<span class="null-value">---</span>'),
+            # Text passthrough → html-escaped string
+            ("hello", "office", "hello"),
+            ("2026-02-20", "first_ran", "2026-02-20"),
+            # Backward compat: no column → fallback formatting
+            (42, "", "42"),
+            (3.14, "", "3.14"),
+        ],
+        ids=[
+            "currency-spend",
+            "currency-zero",
+            "currency-negative",
+            "currency-offer_cost",
+            "currency-collected",
+            "currency-variance",
+            "currency-budget",
+            "currency-cpc",
+            "rate-ctr",
+            "rate-zero",
+            "rate-full",
+            "rate-lctr",
+            "rate-pacing_ratio",
+            "pct-normal",
+            "pct-zero",
+            "pct-full",
+            "ratio-roas",
+            "ratio-zero",
+            "ratio-rounded",
+            "per20k-lp20m",
+            "per20k-zero",
+            "per20k-large",
+            "int-imp",
+            "int-zero",
+            "int-million",
+            "float-unknown",
+            "float-small",
+            "none-currency",
+            "none-rate",
+            "none-empty",
+            "text-office",
+            "text-date",
+            "compat-int",
+            "compat-float",
+        ],
+    )
+    def test_format_cell_html_typed(self, value, column, expected):
+        assert _format_cell_html(value, column) == expected
+
+    def test_all_currency_fields_format_correctly(self):
+        """Every field mapped as 'currency' produces $ prefix."""
+        currency_fields = [k for k, v in _FIELD_FORMAT.items() if v == "currency"]
+        assert len(currency_fields) == 16
+        for field in currency_fields:
+            result = _format_cell_html(1234.5, field)
+            assert result.startswith("$"), f"{field} should produce $ prefix"
+            assert "," in result, f"{field} should have comma grouping"
+
+    def test_all_rate_fields_format_correctly(self):
+        """Every field mapped as 'rate' produces % suffix with ×100."""
+        rate_fields = [k for k, v in _FIELD_FORMAT.items() if v == "rate"]
+        assert len(rate_fields) == 10
+        for field in rate_fields:
+            result = _format_cell_html(0.05, field)
+            assert result.endswith("%"), f"{field} should produce % suffix"
+            assert "5.00%" == result, f"{field}: 0.05 should display as 5.00%"
+
+    def test_xss_safety_preserved(self):
+        """Formatted output still goes through html.escape."""
+        # Currency with a value that might look odd but is safe
+        result = _format_cell_html(1000.0, "spend")
+        assert "&" not in result or "&amp;" in result  # no raw ampersands
+
+    def test_integration_table_with_mixed_types(self):
+        """Full table render with currency, rate, int, and text columns."""
+        rows = [
+            {
+                "office": "Acme Dental",
+                "spend": 12847.5,
+                "ctr": 0.0342,
+                "imp": 45000,
+                "roas": 3.5,
+                "variance_pct": 42.5,
+                "lp20m": 8.75,
+            },
+        ]
+        result = _render_section("TEST", rows=rows, row_count=1)
+
+        assert "Acme Dental" in result
+        assert "$12,847.50" in result
+        assert "3.42%" in result
+        assert "45,000" in result
+        assert "3.50x" in result
+        assert "42.50%" in result
+        assert "8.75" in result

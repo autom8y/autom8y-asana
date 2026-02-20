@@ -285,7 +285,7 @@ class HtmlRenderer:
         for row in rows:
             cells = "".join(
                 f'<td class="{_column_align_class(rows, col)}">'
-                f"{_format_cell_html(row.get(col))}</td>"
+                f"{_format_cell_html(row.get(col), col)}</td>"
                 for col in columns
             )
             body_rows.append(f"<tr>{cells}</tr>")
@@ -475,20 +475,80 @@ def _to_title_case(column_name: str) -> str:
     return column_name.replace("_", " ").title()
 
 
-def _format_cell_html(value: Any) -> str:
+# ---------------------------------------------------------------------------
+# Field format categories for type-aware cell rendering.
+# Maps column names to display format: currency ($12,847.50), rate (3.42%),
+# percentage (42.50%), ratio (3.50x), per20k (12.50).
+# Fields not listed fall through to comma-grouped int/float defaults.
+# Source of truth: autom8y-data InsightsService._PRECISION_RULES + EntityMetrics.
+# ---------------------------------------------------------------------------
+_FIELD_FORMAT: dict[str, str] = {
+    # CURRENCY — $12,847.50
+    "spend": "currency", "cpl": "currency", "cps": "currency",
+    "ecps": "currency", "cpc": "currency", "ltv": "currency",
+    "avg_conv": "currency", "collected": "currency",
+    "variance": "currency", "expected_collection": "currency",
+    "expected_variance": "currency", "offer_cost": "currency",
+    "budget": "currency", "expected_spend": "currency",
+    "projected_spend": "currency", "budget_variance": "currency",
+    # RATE — stored as decimal, display as ×100 percent (0.0342 → 3.42%)
+    "ctr": "rate", "lctr": "rate", "conversion_rate": "rate",
+    "booking_rate": "rate", "ns_rate": "rate", "nc_rate": "rate",
+    "conv_rate": "rate", "nsr_ncr": "rate", "sched_rate": "rate",
+    "pacing_ratio": "rate",
+    # PERCENTAGE — already in percent units (42.5 → 42.50%)
+    "variance_pct": "percentage",
+    # RATIO — multiplier notation (3.5 → 3.50x)
+    "roas": "ratio",
+    # PER_20K — comma-grouped decimal, no symbol
+    "lp20m": "per20k", "sp20m": "per20k",
+    "esp20m": "per20k", "ltv20m": "per20k",
+}
+
+
+def _format_cell_html(value: Any, column: str = "") -> str:
     """Format a single cell value for HTML table display.
 
+    Applies type-aware formatting based on column name:
+    - Currency fields: $12,847.50
+    - Rate fields (stored as decimal): 3.42%
+    - Percentage fields (already in %): 42.50%
+    - Ratio fields: 3.50x
+    - Per-20k fields: 12.50
+    - Other integers: comma-grouped (45,000)
+    - Other floats: comma-grouped 2dp (123.46)
+
     None values render as a styled dash indicator.
-    All string values are HTML-escaped to prevent XSS.
+    All output is HTML-escaped to prevent XSS.
 
     Args:
         value: Cell value (may be None).
+        column: Column name for format lookup (default "" for backward compat).
 
     Returns:
         HTML-safe string for table cell content.
     """
     if value is None:
         return '<span class="null-value">---</span>'
+
+    fmt = _FIELD_FORMAT.get(column, "")
+
+    if isinstance(value, (int, float)):
+        if fmt == "currency":
+            return html.escape(f"${value:,.2f}")
+        if fmt == "rate":
+            return html.escape(f"{value * 100:.2f}%")
+        if fmt == "percentage":
+            return html.escape(f"{value:.2f}%")
+        if fmt == "ratio":
+            return html.escape(f"{value:.2f}x")
+        if fmt == "per20k":
+            return html.escape(f"{value:,.2f}")
+        # Fallback: comma-grouped int or 2dp float
+        if isinstance(value, int):
+            return html.escape(f"{value:,}")
+        return html.escape(f"{value:,.2f}")
+
     return html.escape(str(value))
 
 
