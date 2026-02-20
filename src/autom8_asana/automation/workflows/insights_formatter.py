@@ -687,9 +687,9 @@ class HtmlRenderer:
         parts.append("</section>")
         return "\n".join(parts)
 
-    def _render_empty_section(self, section: DataSection) -> str:
+    def _render_section_with_body(self, section: DataSection, body_content: str) -> str:
+        """Render a section scaffold with the given body_content string."""
         sid = _slugify(section.name)
-        message = section.empty_message or "No data available"
         is_expanded = section.name in _DEFAULT_EXPANDED_SECTIONS
         collapsed_class = "" if is_expanded else " collapsed"
         subtitle = _SECTION_SUBTITLES.get(section.name, "")
@@ -708,36 +708,20 @@ class HtmlRenderer:
             "</div>\n"
             f'<div class="section-body{collapsed_class}" id="body-{sid}">\n'
             f"{subtitle_html}\n"
-            f'<p class="empty">{html.escape(message)}</p>\n'
+            f"{body_content}\n"
             "</div>\n"
             "</section>"
         )
 
+    def _render_empty_section(self, section: DataSection) -> str:
+        message = section.empty_message or "No data available"
+        body = f'<p class="empty">{html.escape(message)}</p>'
+        return self._render_section_with_body(section, body)
+
     def _render_error_section(self, section: DataSection) -> str:
-        sid = _slugify(section.name)
         error_text = section.error or "Unknown error"
-        is_expanded = section.name in _DEFAULT_EXPANDED_SECTIONS
-        collapsed_class = "" if is_expanded else " collapsed"
-        subtitle = _SECTION_SUBTITLES.get(section.name, "")
-        subtitle_html = (
-            f'<div class="section-subtitle">{html.escape(subtitle)}</div>'
-            if subtitle
-            else ""
-        )
-        return (
-            f'<section id="{sid}" class="table-section">\n'
-            f'<div class="section-header" onclick="toggleSection(\'{sid}\')">\n'
-            f"<h2>{html.escape(section.name)}</h2>\n"
-            f'<div class="section-controls">'
-            f'<span class="toggle-icon{collapsed_class}" id="toggle-{sid}">\u25bc</span>'
-            f"</div>\n"
-            "</div>\n"
-            f'<div class="section-body{collapsed_class}" id="body-{sid}">\n'
-            f"{subtitle_html}\n"
-            f'<div class="error-box">{html.escape(error_text)}</div>\n'
-            "</div>\n"
-            "</section>"
-        )
+        body = f'<div class="error-box">{html.escape(error_text)}</div>'
+        return self._render_section_with_body(section, body)
 
     def _render_footer(self, footer: dict[str, str]) -> str:
         items = " &nbsp;&bull;&nbsp; ".join(
