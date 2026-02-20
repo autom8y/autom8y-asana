@@ -418,6 +418,21 @@ def compose_report(data: InsightsReportData) -> str:
                 )
             )
         else:
+            # Reconciliation tables: show pending message when payment
+            # data is unavailable (Stripe REC-8 not shipped)
+            if (
+                table_name in _RECONCILIATION_TABLES
+                and _is_payment_data_pending(result.data)
+            ):
+                sections.append(
+                    DataSection(
+                        name=table_name,
+                        rows=[],
+                        empty_message=_RECONCILIATION_PENDING_MESSAGE,
+                    )
+                )
+                continue
+
             row_limit = data.row_limits.get(table_name)
             total_rows = len(result.data)
             display_rows = result.data[:row_limit] if row_limit else result.data
@@ -459,6 +474,43 @@ def compose_report(data: InsightsReportData) -> str:
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
+# Payment indicator columns for reconciliation tables.
+# When ALL of these are null across all rows, payment data is pending.
+_PAYMENT_INDICATOR_COLUMNS = frozenset({
+    "collected",
+    "num_invoices",
+    "variance",
+    "expected_collection",
+    "expected_variance",
+})
+
+# Reconciliation table names that should show pending message
+_RECONCILIATION_TABLES = frozenset({
+    "LIFETIME RECONCILIATIONS",
+    "T14 RECONCILIATIONS",
+})
+
+_RECONCILIATION_PENDING_MESSAGE = (
+    "Payment reconciliation data is pending Stripe integration. "
+    "Spend and budget data is available below."
+)
+
+
+def _is_payment_data_pending(rows: list[dict[str, Any]]) -> bool:
+    """Check if all payment indicator columns are null across all rows.
+
+    Returns True when every value for every payment indicator column
+    is None (or the column is absent) in every row. This signals that
+    Stripe REC-8 has not shipped and payment data is unavailable.
+    """
+    if not rows:
+        return False
+    for row in rows:
+        for col in _PAYMENT_INDICATOR_COLUMNS:
+            if row.get(col) is not None:
+                return False
+    return True
 
 
 def _to_title_case(column_name: str) -> str:
