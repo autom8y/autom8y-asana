@@ -29,11 +29,13 @@ from typing import Any, Protocol
 
 from autom8_asana.clients.data.client import mask_phone_number
 
-# Section order (per PRD FR-W01.6)
+# Section order (per PRD FR-W01.6, extended per TDD-WS5)
 TABLE_ORDER: list[str] = [
     "SUMMARY",
     "APPOINTMENTS",
     "LEADS",
+    "LIFETIME RECONCILIATIONS",
+    "T14 RECONCILIATIONS",
     "BY QUARTER",
     "BY MONTH",
     "BY WEEK",
@@ -43,12 +45,33 @@ TABLE_ORDER: list[str] = [
     "UNUSED ASSETS",
 ]
 
-# Preferred leading columns for period-based tables (WS-2 column ordering fix).
+# Preferred leading columns for period-based and reconciliation tables.
 # Keys must match TABLE_ORDER names exactly.
 COLUMN_ORDER: dict[str, list[str]] = {
     "BY QUARTER": ["period_label", "period_start", "period_end"],
     "BY MONTH": ["period_label", "period_start", "period_end"],
     "BY WEEK": ["period_label", "period_start", "period_end"],
+    "LIFETIME RECONCILIATIONS": [
+        "office_phone",
+        "vertical",
+        "num_invoices",
+        "collected",
+        "spend",
+        "variance",
+        "variance_pct",
+    ],
+    "T14 RECONCILIATIONS": [
+        "period",
+        "period_label",
+        "period_start",
+        "period_end",
+        "period_len",
+        "num_invoices",
+        "collected",
+        "spend",
+        "variance",
+        "variance_pct",
+    ],
 }
 
 
