@@ -96,7 +96,7 @@ No `app.state` keys for timeline data: `offer_timelines`, `timeline_warm_count`,
 
 1. **Elimination over optimization**: The warm-up pipeline has been the source of 13 production incidents. The correct fix is not to optimize the pipeline but to eliminate the need for it. Cache primitives (pure-read, batch reads, derived entries) provide the same functionality without startup-time infrastructure.
 
-2. **Compute-on-read amortization**: A 2-4 second computation every 5 minutes is negligible compared to a 12-15 minute warm-up on every restart. The Lambda warmer ensures story caches are populated, so the derived computation is always fast (batch-reading from Redis, not fetching from Asana API).
+2. **Compute-on-read amortization**: A 2-4 second computation every 5 minutes is negligible compared to a 12-15 minute warm-up on every restart. Story caches are populated by a dedicated warming phase that piggybacks on the Lambda DataFrame warmer (added post-remediation). When story caches are warm, the derived computation is fast (batch-reading from Redis, not fetching from Asana API). A bounded self-healing mechanism handles small gaps.
 
 3. **Graceful degradation over readiness gates**: A 503 response provides no value to the caller -- they must retry later. A 200 with partial results (or empty) provides what data is available immediately. The caller can decide whether to retry based on the response content.
 
@@ -123,6 +123,6 @@ No `app.state` keys for timeline data: `offer_timelines`, `timeline_warm_count`,
 
 ### Neutral
 
-- The Lambda warmer continues to run on its existing schedule, populating story caches. This is unchanged.
+- The Lambda warmer now includes a story warming phase added post-remediation. This phase iterates task GIDs from warmed DataFrames and populates story caches with bounded concurrency. The DataFrame warming schedule is unchanged.
 - The `max_cache_age_seconds` parameter on `load_stories_incremental()` can be removed as a follow-up (FR-7, SHOULD priority) since `build_timeline_for_offer()` no longer passes it.
 - Task enumeration (`tasks.list_async(project=...)`) still hits the Asana API on every cold computation. This is Gap 2 (project membership caching), which is deferred.

@@ -437,6 +437,53 @@ async def get_or_compute_timelines(
         # Step 4: Batch-read cached stories (pure-read, no API calls)
         stories_by_gid = read_stories_batch(task_gids, cache)
 
+        # Step 4a: Bounded self-healing for story cache gaps
+        # If a small number of tasks have no cached stories, fetch inline
+        # to avoid partial results. Large gaps are logged but not fetched
+        # inline (would blow ALB timeout).
+        MAX_INLINE_STORY_FETCHES = 50
+        misses = [gid for gid in task_gids if stories_by_gid.get(gid) is None]
+
+        if 0 < len(misses) <= MAX_INLINE_STORY_FETCHES:
+            sem = asyncio.Semaphore(5)
+
+            async def _fetch_story(gid: str) -> None:
+                async with sem:
+                    try:
+                        await client.stories.list_for_task_cached_async(gid)  # type: ignore[attr-defined]
+                    except Exception:
+                        logger.warning(
+                            "inline_story_fetch_failed",
+                            extra={"task_gid": gid},
+                        )
+
+            await asyncio.gather(*[_fetch_story(gid) for gid in misses])
+
+            # Re-read batch after population
+            stories_by_gid = read_stories_batch(task_gids, cache)
+
+            fetched_count = sum(
+                1 for gid in misses if stories_by_gid.get(gid) is not None
+            )
+            logger.info(
+                "inline_story_fetch_complete",
+                extra={
+                    "project_gid": project_gid,
+                    "miss_count": len(misses),
+                    "fetched_count": fetched_count,
+                },
+            )
+        elif len(misses) > MAX_INLINE_STORY_FETCHES:
+            logger.warning(
+                "story_cache_gap_above_threshold",
+                extra={
+                    "project_gid": project_gid,
+                    "classifier_name": classifier_name,
+                    "miss_count": len(misses),
+                    "threshold": MAX_INLINE_STORY_FETCHES,
+                },
+            )
+
         # Step 5: Build timelines from cached stories
         timelines: list[SectionTimeline] = []
         cache_hits = 0
