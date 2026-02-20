@@ -482,6 +482,44 @@ class ProgressiveProjectBuilder:
         total_rows = len(merged_df)
         watermark = datetime.now(UTC)
 
+        # Step 5.5: Post-build cascade validation pass
+        # Per TDD-CASCADE-FAILURE-FIXES-001 Fix 3: Detect and correct stale
+        # cascade fields after section merge, before final artifact write.
+        if total_rows > 0 and self._store is not None:
+            from autom8_asana.settings import get_settings
+
+            if get_settings().runtime.section_cascade_validation != "0":
+                from autom8_asana.dataframes.builders.cascade_validator import (
+                    validate_cascade_fields_async,
+                )
+
+                cascade_plugin = (
+                    self._dataframe_view.cascade_plugin
+                    if self._dataframe_view is not None
+                    else None
+                )
+                if cascade_plugin is not None:
+                    try:
+                        merged_df, _cascade_result = (
+                            await validate_cascade_fields_async(
+                                merged_df=merged_df,
+                                store=self._store,
+                                cascade_plugin=cascade_plugin,
+                                project_gid=self._project_gid,
+                                entity_type=self._entity_type,
+                            )
+                        )
+                        total_rows = len(merged_df)
+                    except Exception as e:  # BROAD-CATCH: validation is additive
+                        logger.warning(
+                            "cascade_validation_failed",
+                            extra={
+                                "project_gid": self._project_gid,
+                                "error": str(e),
+                                "error_type": type(e).__name__,
+                            },
+                        )
+
         # Step 6: Write final artifacts
         if total_rows > 0:
             index_data = self._build_index_data(merged_df)

@@ -3,6 +3,10 @@
 Per TDD-DETECTION-FIX: Provides mechanism to clear stale cached task data
 that may be missing required fields (like memberships for Tier 1 detection).
 
+Per TDD-CASCADE-FAILURE-FIXES-001 Fix 1: Extended with targeted project
+manifest invalidation via ``invalidate_project`` parameter to force-rebuild
+specific project section parquets on the next warm-up cycle.
+
 This module provides:
 - handler: AWS Lambda entry point for cache invalidation
 - handler_async: Async Lambda entry point for direct async invocation
@@ -14,8 +18,9 @@ Usage:
 
     Invoke with optional event parameters:
     {
-        "clear_tasks": true,      // Clear task cache (default: true)
-        "clear_dataframes": false // Clear dataframe cache (default: false)
+        "clear_tasks": true,           // Clear task cache (default: true)
+        "clear_dataframes": false,     // Clear dataframe cache (default: false)
+        "invalidate_project": "12345"  // Targeted project manifest invalidation (default: null)
     }
 
 Environment Variables Required:
@@ -49,6 +54,7 @@ class InvalidateResponse:
         message: Human-readable summary.
         tasks_cleared: Dict with Redis/S3 task counts cleared.
         dataframes_cleared: Count of dataframe entries cleared.
+        projects_invalidated: Count of projects whose manifests were invalidated.
         duration_ms: Total execution time in milliseconds.
         timestamp: ISO timestamp of completion.
         invocation_id: Lambda request ID for correlation.
@@ -58,6 +64,7 @@ class InvalidateResponse:
     message: str
     tasks_cleared: dict[str, int] = field(default_factory=dict)
     dataframes_cleared: int = 0
+    projects_invalidated: int = 0
     duration_ms: float = 0.0
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     invocation_id: str | None = None
@@ -69,6 +76,7 @@ class InvalidateResponse:
             "message": self.message,
             "tasks_cleared": self.tasks_cleared,
             "dataframes_cleared": self.dataframes_cleared,
+            "projects_invalidated": self.projects_invalidated,
             "duration_ms": self.duration_ms,
             "timestamp": self.timestamp,
             "invocation_id": self.invocation_id,
@@ -78,6 +86,7 @@ class InvalidateResponse:
 async def _invalidate_cache_async(
     clear_tasks: bool = True,
     clear_dataframes: bool = False,
+    invalidate_project: str | None = None,
     context: Any = None,
 ) -> InvalidateResponse:
     """Async implementation of cache invalidation.
@@ -85,6 +94,9 @@ async def _invalidate_cache_async(
     Args:
         clear_tasks: If True, clear all task cache entries.
         clear_dataframes: If True, clear dataframe cache entries.
+        invalidate_project: If set, delete S3 manifest and section parquets
+            for this specific project GID. Does not clear task cache or
+            dataframe memory cache. Triggers full rebuild on next warm-up.
         context: Lambda context for correlation ID.
 
     Returns:
@@ -97,6 +109,7 @@ async def _invalidate_cache_async(
 
     tasks_cleared: dict[str, int] = {"redis": 0, "s3": 0}
     dataframes_cleared = 0
+    projects_invalidated = 0
 
     try:
         if clear_tasks:
@@ -111,6 +124,7 @@ async def _invalidate_cache_async(
                 extra={
                     "clear_tasks": clear_tasks,
                     "clear_dataframes": clear_dataframes,
+                    "invalidate_project": invalidate_project,
                     "invocation_id": invocation_id,
                 },
             )
@@ -151,6 +165,35 @@ async def _invalidate_cache_async(
                     dimensions={"type": "dataframes"},
                 )
 
+        # Per TDD-CASCADE-FAILURE-FIXES-001 Fix 1: Targeted project manifest
+        # invalidation. Deletes section parquets and manifest for a specific
+        # project, triggering full rebuild on next warm-up cycle.
+        if invalidate_project:
+            from autom8_asana.dataframes.section_persistence import (
+                create_section_persistence,
+            )
+
+            persistence = create_section_persistence()
+
+            # Delete section files first, then manifest
+            await persistence.delete_section_files_async(invalidate_project)
+            await persistence.delete_manifest_async(invalidate_project)
+            projects_invalidated = 1
+
+            logger.info(
+                "project_manifest_invalidated",
+                extra={
+                    "project_gid": invalidate_project,
+                    "invocation_id": invocation_id,
+                },
+            )
+
+            emit_metric(
+                "ProjectManifestInvalidated",
+                1,
+                dimensions={"project_gid": invalidate_project},
+            )
+
         duration_ms = (time.monotonic() - start_time) * 1000
 
         # Emit total invalidation duration
@@ -161,12 +204,15 @@ async def _invalidate_cache_async(
         )
 
         message = f"Cache invalidation complete: {tasks_cleared['redis']} Redis keys, {tasks_cleared['s3']} S3 objects cleared"
+        if projects_invalidated:
+            message += f", {projects_invalidated} project manifest(s) invalidated"
 
         logger.info(
             "cache_invalidate_complete",
             extra={
                 "tasks_cleared": tasks_cleared,
                 "dataframes_cleared": dataframes_cleared,
+                "projects_invalidated": projects_invalidated,
                 "duration_ms": duration_ms,
                 "invocation_id": invocation_id,
             },
@@ -177,6 +223,7 @@ async def _invalidate_cache_async(
             message=message,
             tasks_cleared=tasks_cleared,
             dataframes_cleared=dataframes_cleared,
+            projects_invalidated=projects_invalidated,
             duration_ms=duration_ms,
             invocation_id=invocation_id,
         )
@@ -200,6 +247,7 @@ async def _invalidate_cache_async(
             message=f"Cache invalidation failed: {e}",
             tasks_cleared=tasks_cleared,
             dataframes_cleared=dataframes_cleared,
+            projects_invalidated=projects_invalidated,
             duration_ms=duration_ms,
             invocation_id=invocation_id,
         )
@@ -215,6 +263,8 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         event: Lambda event with optional configuration:
             - clear_tasks (bool): If True, clear task cache. Default True.
             - clear_dataframes (bool): If True, clear dataframe cache. Default False.
+            - invalidate_project (str | None): Project GID for targeted manifest
+              invalidation. Default None.
         context: Lambda context with aws_request_id.
 
     Returns:
@@ -225,7 +275,8 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     Example Event:
         {
             "clear_tasks": true,
-            "clear_dataframes": false
+            "clear_dataframes": false,
+            "invalidate_project": "1234567890"
         }
 
     Example Response:
@@ -236,6 +287,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 "message": "Cache invalidation complete: 500 Redis keys, 1200 S3 objects cleared",
                 "tasks_cleared": {"redis": 500, "s3": 1200},
                 "dataframes_cleared": 0,
+                "projects_invalidated": 0,
                 "duration_ms": 2500.5,
                 "timestamp": "2026-01-07T18:00:00+00:00",
                 "invocation_id": "abc-123-def-456"
@@ -256,6 +308,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # Parse event parameters
     clear_tasks = event.get("clear_tasks", True)
     clear_dataframes = event.get("clear_dataframes", False)
+    invalidate_project = event.get("invalidate_project")
 
     # Run async invalidation
     try:
@@ -263,6 +316,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             _invalidate_cache_async(
                 clear_tasks=clear_tasks,
                 clear_dataframes=clear_dataframes,
+                invalidate_project=invalidate_project,
                 context=context,
             )
         )
@@ -317,10 +371,12 @@ async def handler_async(
 
     clear_tasks = event.get("clear_tasks", True)
     clear_dataframes = event.get("clear_dataframes", False)
+    invalidate_project = event.get("invalidate_project")
 
     response = await _invalidate_cache_async(
         clear_tasks=clear_tasks,
         clear_dataframes=clear_dataframes,
+        invalidate_project=invalidate_project,
         context=context,
     )
 

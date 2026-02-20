@@ -613,6 +613,7 @@ class RuntimeSettings(Autom8yBaseSettings):
         DATAFRAME_CACHE_BYPASS: Bypass DataFrame cache (default: false)
         CONTAINER_MEMORY_MB: Override container memory limit in MB (default: None)
         SECTION_FRESHNESS_PROBE: Enable section freshness probing (default: 1)
+        SECTION_CASCADE_VALIDATION: Enable post-build cascade validation (default: 1)
         API_HOST: ECS uvicorn bind host (default: 0.0.0.0)
         API_PORT: ECS uvicorn bind port (default: 8000)
 
@@ -620,6 +621,7 @@ class RuntimeSettings(Autom8yBaseSettings):
         dataframe_cache_bypass: If true, skip DataFrame cache lookup.
         container_memory_mb: Explicit container memory cap in MB (None = auto-detect).
         section_freshness_probe: Enabled when "1" (any non-"0" value).
+        section_cascade_validation: Enabled when not "0" (default "1").
         api_host: Host for ECS uvicorn server.
         api_port: Port for ECS uvicorn server.
     """
@@ -641,6 +643,10 @@ class RuntimeSettings(Autom8yBaseSettings):
     section_freshness_probe: str = Field(
         default="1",
         description="Enable section freshness probing (set to '0' to disable)",
+    )
+    section_cascade_validation: str = Field(
+        default="1",
+        description="Enable post-build cascade validation (set to '0' to disable)",
     )
     api_host: str = Field(
         default="0.0.0.0",

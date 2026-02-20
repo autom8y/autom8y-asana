@@ -353,16 +353,16 @@ class CascadeViewPlugin:
                 # Note: upgrade_count is tracked in UnifiedTaskStore, but we
                 # also track locally for visibility
             else:
-                # Stop at first missing/failed - can't continue chain
-                logger.debug(
-                    "parent_chain_incomplete_with_upgrade",
+                # Per TDD-CASCADE-FAILURE-FIXES-001 Fix 2: Skip gaps, continue chain
+                logger.info(
+                    "parent_chain_gap_skipped_with_upgrade",
                     extra={
                         "gid": gid,
                         "missing_gid": ancestor_gid,
                         "found_count": len(chain),
                     },
                 )
-                break
+                continue  # Try remaining ancestors
 
         return chain
 
