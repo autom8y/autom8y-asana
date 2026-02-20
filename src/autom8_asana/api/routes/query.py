@@ -27,6 +27,7 @@ from autom8_asana.client import AsanaClient
 from autom8_asana.query.engine import QueryEngine
 from autom8_asana.query.errors import (
     AggregateGroupLimitError,
+    ClassificationError,
     QueryEngineError,
     QueryTooComplexError,
 )
@@ -65,6 +66,7 @@ router = APIRouter(prefix="/v1/query", tags=["query"], include_in_schema=False)
 _ERROR_STATUS: dict[type[QueryEngineError], int] = {
     QueryTooComplexError: 400,
     AggregateGroupLimitError: 400,
+    ClassificationError: 400,
 }
 _DEFAULT_ERROR_STATUS = 422
 
@@ -195,6 +197,7 @@ async def query_rows(
                 predicate_depth(request_body.where) if request_body.where else 0
             ),
             "section": request_body.section,
+            "classification": request_body.classification,
         },
     )
 
