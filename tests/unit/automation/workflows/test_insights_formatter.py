@@ -19,6 +19,7 @@ Covers TDD Section 9.2 test scenarios adapted for HTML output:
 
 from __future__ import annotations
 
+import json
 import re
 import time
 from unittest.mock import patch
@@ -2226,7 +2227,6 @@ class TestPhase6QA:
 
     def test_script_json_blocks_contain_valid_json(self):
         """<script type="application/json"> blocks contain parseable JSON."""
-        import json as json_mod
 
         rows = [{"name": "test", "value": 42, "empty": None}]
         section = DataSection(name="T", rows=rows, row_count=1, full_rows=rows)
@@ -2239,7 +2239,7 @@ class TestPhase6QA:
         json_start = start + len(marker)
         json_end = result.find("</script>", json_start)
         json_str = result[json_start:json_end]
-        parsed = json_mod.loads(json_str)
+        parsed = json.loads(json_str)
         assert isinstance(parsed, list)
         assert len(parsed) == 1
         assert parsed[0]["name"] == "test"
@@ -2342,7 +2342,6 @@ class TestPhase6QA:
         the <script type="application/json"> block prematurely, enabling
         script injection. json.dumps does NOT escape '</script>' sequences.
         """
-        import json as json_mod
 
         rows = [{"name": '</script><script>alert("xss")</script>'}]
         section = DataSection(name="T", rows=rows, row_count=1, full_rows=rows)
@@ -2368,10 +2367,10 @@ class TestPhase6QA:
         # and the parse will fail or return truncated data.
         # This test documents the behavior.
         try:
-            parsed = json_mod.loads(json_str)
+            parsed = json.loads(json_str)
             # If it parses, verify it contains the full data
             assert parsed[0]["name"] == '</script><script>alert("xss")</script>'
-        except json_mod.JSONDecodeError:
+        except json.JSONDecodeError:
             # KNOWN LIMITATION: </script> in cell data breaks JSON embed.
             # The HTML parser closes the script tag at the first </script>
             # it encounters, truncating the JSON. This is a LOW severity
@@ -2809,7 +2808,6 @@ class TestPhase6QA:
     @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
     def test_asset_table_excluded_columns_in_full_rows(self, mock_monotonic):
         """ASSET TABLE: excluded columns present in full_rows (for Copy TSV)."""
-        import json as json_mod
 
         mock_monotonic.return_value = 101.0
         asset_data = [
@@ -2837,7 +2835,7 @@ class TestPhase6QA:
         json_start = start + len(marker)
         json_end = report.find("</script>", json_start)
         json_str = report[json_start:json_end]
-        parsed = json_mod.loads(json_str)
+        parsed = json.loads(json_str)
 
         # full_rows should contain the original data with all columns
         assert len(parsed) == 1
@@ -2960,7 +2958,6 @@ class TestPhase6QA:
     @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
     def test_period_table_full_rows_contain_all_columns(self, mock_monotonic):
         """Period table full_rows (for Copy TSV) contain ALL original columns."""
-        import json as json_mod
 
         mock_monotonic.return_value = 101.0
         week_data = [
@@ -2988,7 +2985,7 @@ class TestPhase6QA:
         json_start = start + len(marker)
         json_end = report.find("</script>", json_start)
         json_str = report[json_start:json_end]
-        parsed = json_mod.loads(json_str)
+        parsed = json.loads(json_str)
 
         # full_rows should contain ALL original columns
         assert "extra_hidden" in parsed[0]
@@ -3030,7 +3027,6 @@ class TestPhase6QA:
 
     def test_json_embed_null_values_serialize_correctly(self):
         """Null values in JSON embed serialize as null (not 'None')."""
-        import json as json_mod
 
         rows = [{"name": "test", "value": None, "count": 0}]
         section = DataSection(name="T", rows=rows, row_count=1, full_rows=rows)
@@ -3042,14 +3038,13 @@ class TestPhase6QA:
         json_start = start + len(marker)
         json_end = result.find("</script>", json_start)
         json_str = result[json_start:json_end]
-        parsed = json_mod.loads(json_str)
+        parsed = json.loads(json_str)
 
         assert parsed[0]["value"] is None  # Not "None" string
         assert parsed[0]["count"] == 0
 
     def test_json_embed_uses_full_rows_when_available(self):
         """JSON embed uses full_rows (not display rows) when set."""
-        import json as json_mod
 
         display_rows = [{"a": 1}]
         full = [{"a": 1, "b": 2, "c": 3}]
@@ -3062,7 +3057,7 @@ class TestPhase6QA:
         json_start = start + len(marker)
         json_end = result.find("</script>", json_start)
         json_str = result[json_start:json_end]
-        parsed = json_mod.loads(json_str)
+        parsed = json.loads(json_str)
 
         # Should contain full_rows data, not display_rows
         assert "b" in parsed[0]
@@ -3070,7 +3065,6 @@ class TestPhase6QA:
 
     def test_json_embed_falls_back_to_rows_when_full_rows_none(self):
         """JSON embed uses section.rows when full_rows is None."""
-        import json as json_mod
 
         rows = [{"a": 1}]
         section = DataSection(name="T", rows=rows, row_count=1)  # full_rows=None
@@ -3082,7 +3076,7 @@ class TestPhase6QA:
         json_start = start + len(marker)
         json_end = result.find("</script>", json_start)
         json_str = result[json_start:json_end]
-        parsed = json_mod.loads(json_str)
+        parsed = json.loads(json_str)
 
         assert parsed == [{"a": 1}]
 
