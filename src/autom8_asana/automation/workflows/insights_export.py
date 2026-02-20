@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import pathlib
 import re
 import time
 from dataclasses import dataclass as _dataclass
@@ -24,6 +25,7 @@ from autom8_asana.automation.workflows.base import (
     WorkflowResult,
 )
 from autom8_asana.automation.workflows.insights_formatter import (
+    TABLE_ORDER,
     InsightsReportData,
     TableResult,
     compose_report,
@@ -59,27 +61,18 @@ LEGACY_ATTACHMENT_PATTERN = "insights_export_*.md"
 # Workflow version identifier (for footer)
 WORKFLOW_VERSION = "insights-export-v1.0"
 
-# Default row limits per table type
+# Default row limits per table type.
+# APPOINTMENTS/LEADS: API max is 100 (autom8y-data validation constraint).
+# ASSET TABLE: capped at 150, sorted by spend desc (per WS-G spec).
 DEFAULT_ROW_LIMITS: dict[str, int] = {
-    "APPOINTMENTS": 250,
-    "LEADS": 250,
+    "APPOINTMENTS": 100,
+    "LEADS": 100,
+    "ASSET TABLE": 150,
 }
 
-# Table names in section order (per PRD FR-W01.6, extended per TDD-WS5)
-TABLE_NAMES: list[str] = [
-    "SUMMARY",
-    "APPOINTMENTS",
-    "LEADS",
-    "LIFETIME RECONCILIATIONS",
-    "T14 RECONCILIATIONS",
-    "BY QUARTER",
-    "BY MONTH",
-    "BY WEEK",
-    "AD QUESTIONS",
-    "ASSET TABLE",
-    "OFFER TABLE",
-    "UNUSED ASSETS",
-]
+# Table names in section order -- public alias; formatter owns the vocabulary.
+# (per PRD FR-W01.6, extended per TDD-WS5)
+TABLE_NAMES = TABLE_ORDER
 
 TOTAL_TABLE_COUNT = len(TABLE_NAMES)  # 12
 
@@ -287,13 +280,13 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         }
         if dry_run:
             metadata["dry_run"] = True
-            previews = {
-                r.offer_gid: r.report_preview
+            preview_paths = {
+                r.offer_gid: r.preview_path
                 for r in results
-                if r.report_preview is not None
+                if r.preview_path is not None
             }
-            if previews:
-                metadata["report_preview"] = previews
+            if preview_paths:
+                metadata["preview_paths"] = preview_paths
 
         workflow_result = WorkflowResult(
             workflow_id=self.workflow_id,
@@ -548,6 +541,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 started_at=offer_start,
                 version=WORKFLOW_VERSION,
                 row_limits=row_limits,
+                offer_gid=offer_gid,
             )
             report_content = compose_report(report_data)
 
@@ -557,6 +551,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             )
             date_str = datetime.now(UTC).strftime("%Y%m%d")
             filename = f"insights_export_{sanitized_name}_{date_str}.html"
+            preview_path: str | None = None
 
             if not dry_run:
                 await self._attachments_client.upload_async(
@@ -583,9 +578,18 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                         offer_gid, LEGACY_ATTACHMENT_PATTERN, exclude_name=filename
                     )
             else:
+                # Write full HTML to local preview file for validation
+                preview_dir = pathlib.Path(".wip")
+                preview_dir.mkdir(exist_ok=True)
+                local_path = preview_dir / filename
+                local_path.write_text(report_content, encoding="utf-8")
+                preview_path = str(local_path)
+
                 logger.info(
-                    "insights_export_dry_run_skip_write",
+                    "insights_export_dry_run_preview",
                     offer_gid=offer_gid,
+                    preview_path=str(preview_path),
+                    size_bytes=len(report_content.encode("utf-8")),
                 )
 
             elapsed_ms = (time.monotonic() - offer_start) * 1000
@@ -603,7 +607,8 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 status="succeeded",
                 tables_succeeded=tables_succeeded,
                 tables_failed=tables_failed,
-                report_preview=report_content[:2000] if dry_run else None,
+                report_preview=report_content if dry_run else None,
+                preview_path=str(preview_path) if dry_run else None,
             )
 
         except Exception as exc:  # BROAD-CATCH: boundary -- offer processing failure returns failed outcome
@@ -987,3 +992,4 @@ class _OfferOutcome:
     tables_succeeded: int | None = None
     tables_failed: int | None = None
     report_preview: str | None = None
+    preview_path: str | None = None
