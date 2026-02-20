@@ -50,6 +50,10 @@ class EntryType(str, Enum):
     # Per ADR-INS-004: autom8_data insights caching
     INSIGHTS = "insights"  # TTL: 300s (default, configurable via AUTOM8_DATA_CACHE_TTL)
 
+    # Per TDD-SECTION-TIMELINE-REMEDIATION: Derived/computed cache entries
+    # materialized from other cached data (e.g., timelines derived from stories)
+    DERIVED_TIMELINE = "derived_timeline"  # TTL: 300s (5 min)
+
 
 @dataclass(frozen=True)
 class CacheEntry:
@@ -576,4 +580,61 @@ class DetectionCacheEntry(
             metadata=base.metadata,
             freshness_stamp=base.freshness_stamp,
             detection_type=data.get("detection_type"),
+        )
+
+
+@dataclass(frozen=True)
+class DerivedTimelineCacheEntry(
+    CacheEntry,
+    entry_types=(EntryType.DERIVED_TIMELINE,),
+):
+    """Cache entry for derived timeline computations.
+
+    Per TDD-SECTION-TIMELINE-REMEDIATION: Stores pre-computed
+    SectionTimeline data for a (project, classifier) pair. The data
+    field contains JSON-serialized timeline data.
+
+    Attributes:
+        classifier_name: Name of the SectionClassifier used (e.g., "offer", "unit").
+        source_entity_count: Number of entities included in this computation.
+        source_cache_hits: Number of entities whose stories were found in cache.
+        source_cache_misses: Number of entities with no cached stories (excluded).
+        computation_duration_ms: Time to compute the derived entry.
+    """
+
+    classifier_name: str = ""
+    source_entity_count: int = 0
+    source_cache_hits: int = 0
+    source_cache_misses: int = 0
+    computation_duration_ms: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize with subclass-specific fields."""
+        result = super().to_dict()
+        result["classifier_name"] = self.classifier_name
+        result["source_entity_count"] = self.source_entity_count
+        result["source_cache_hits"] = self.source_cache_hits
+        result["source_cache_misses"] = self.source_cache_misses
+        result["computation_duration_ms"] = self.computation_duration_ms
+        return result
+
+    @classmethod
+    def _from_dict_impl(cls, data: dict[str, Any]) -> DerivedTimelineCacheEntry:
+        """Construct DerivedTimelineCacheEntry from dict."""
+        base = _deserialize_base(data)
+        return cls(
+            key=base.key,
+            data=base.data,
+            entry_type=base.entry_type,
+            version=base.version,
+            cached_at=base.cached_at,
+            ttl=base.ttl,
+            project_gid=base.project_gid,
+            metadata=base.metadata,
+            freshness_stamp=base.freshness_stamp,
+            classifier_name=data.get("classifier_name", ""),
+            source_entity_count=data.get("source_entity_count", 0),
+            source_cache_hits=data.get("source_cache_hits", 0),
+            source_cache_misses=data.get("source_cache_misses", 0),
+            computation_duration_ms=data.get("computation_duration_ms", 0.0),
         )

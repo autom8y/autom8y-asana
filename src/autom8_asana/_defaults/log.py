@@ -13,6 +13,18 @@ if TYPE_CHECKING:
     from autom8_asana.protocols.log import CacheEventType
 
 
+_STDLIB_LOG_KWARGS = frozenset({"exc_info", "stack_info", "stacklevel"})
+"""Keyword arguments accepted by ``logging.Logger._log()``."""
+
+_LOGRECORD_RESERVED = frozenset({
+    "name", "msg", "args", "created", "relativeCreated", "exc_info",
+    "exc_text", "stack_info", "lineno", "funcName", "sinfo", "pathname",
+    "filename", "module", "levelno", "levelname", "message", "msecs",
+    "process", "processName", "thread", "threadName", "taskName",
+})
+"""LogRecord attributes that cannot appear as ``extra`` keys."""
+
+
 class DefaultLogProvider:
     """Default logging provider using Python's logging module.
 
@@ -57,6 +69,27 @@ class DefaultLogProvider:
         self._logger.setLevel(level)
         self._enable_cache_logging = enable_cache_logging
 
+    @staticmethod
+    def _sanitize_kwargs(
+        extra: dict[str, Any] | None, kwargs: dict[str, Any]
+    ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+        """Move non-stdlib kwargs into ``extra`` so they don't break ``_log()``.
+
+        External callers (e.g. ``autom8y_http``) may pass arbitrary keyword
+        arguments like ``message=`` that stdlib ``Logger._log()`` rejects.
+        This helper intercepts them and folds them into the ``extra`` dict,
+        prefixing any keys that collide with reserved ``LogRecord`` attributes.
+        """
+        non_stdlib = {k: v for k, v in kwargs.items() if k not in _STDLIB_LOG_KWARGS}
+        if not non_stdlib:
+            return extra, kwargs
+        clean_kwargs = {k: v for k, v in kwargs.items() if k in _STDLIB_LOG_KWARGS}
+        merged_extra = dict(extra) if extra else {}
+        for k, v in non_stdlib.items():
+            safe_key = f"log_{k}" if k in _LOGRECORD_RESERVED else k
+            merged_extra[safe_key] = v
+        return merged_extra, clean_kwargs
+
     def debug(
         self, msg: str, *args: Any, extra: dict[str, Any] | None = None, **kwargs: Any
     ) -> None:
@@ -71,6 +104,7 @@ class DefaultLogProvider:
             extra: Structured context dict (e.g., from LogContext.to_dict()).
             **kwargs: Additional keyword arguments for logger.
         """
+        extra, kwargs = self._sanitize_kwargs(extra, kwargs)
         self._logger.debug(msg, *args, extra=extra, **kwargs)
 
     def info(
@@ -87,6 +121,7 @@ class DefaultLogProvider:
             extra: Structured context dict (e.g., from LogContext.to_dict()).
             **kwargs: Additional keyword arguments for logger.
         """
+        extra, kwargs = self._sanitize_kwargs(extra, kwargs)
         self._logger.info(msg, *args, extra=extra, **kwargs)
 
     def warning(
@@ -103,6 +138,7 @@ class DefaultLogProvider:
             extra: Structured context dict (e.g., from LogContext.to_dict()).
             **kwargs: Additional keyword arguments for logger.
         """
+        extra, kwargs = self._sanitize_kwargs(extra, kwargs)
         self._logger.warning(msg, *args, extra=extra, **kwargs)
 
     def error(
@@ -119,6 +155,7 @@ class DefaultLogProvider:
             extra: Structured context dict (e.g., from LogContext.to_dict()).
             **kwargs: Additional keyword arguments for logger.
         """
+        extra, kwargs = self._sanitize_kwargs(extra, kwargs)
         self._logger.error(msg, *args, extra=extra, **kwargs)
 
     def exception(
@@ -134,6 +171,7 @@ class DefaultLogProvider:
             extra: Structured context dict (e.g., from LogContext.to_dict()).
             **kwargs: Additional keyword arguments for logger.
         """
+        extra, kwargs = self._sanitize_kwargs(extra, kwargs)
         self._logger.exception(msg, *args, extra=extra, **kwargs)
 
     def isEnabledFor(self, level: int) -> bool:

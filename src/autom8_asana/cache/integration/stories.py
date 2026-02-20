@@ -32,6 +32,73 @@ DEFAULT_STORY_TYPES = [
 ]
 
 
+def read_cached_stories(
+    task_gid: str,
+    cache: CacheProvider,
+) -> list[dict[str, Any]] | None:
+    """Read stories from cache without any API call.
+
+    Returns the cached story list if present and not expired,
+    or None on cache miss. Does NOT modify the cache. Does NOT
+    call the Asana API. This is a pure read-only operation.
+
+    Per TDD-SECTION-TIMELINE-REMEDIATION: Gap 1 primitive. Enables
+    derived timeline computations from existing cached data without
+    warm-up infrastructure or network I/O.
+
+    Args:
+        task_gid: The task GID to read stories for.
+        cache: Cache provider instance.
+
+    Returns:
+        List of story dicts if cached, None if cache miss or expired.
+    """
+    cached_entry = cache.get_versioned(task_gid, EntryType.STORIES)
+    if cached_entry is None:
+        return None
+    return _extract_stories_list(cached_entry.data)
+
+
+def read_stories_batch(
+    task_gids: list[str],
+    cache: CacheProvider,
+    *,
+    chunk_size: int = 500,
+) -> dict[str, list[dict[str, Any]] | None]:
+    """Read cached stories for multiple tasks in batched operations.
+
+    Uses CacheProvider.get_batch() for efficient bulk reads.
+    Chunks the request into groups of chunk_size to avoid
+    oversized Redis MGET operations.
+
+    Per TDD-SECTION-TIMELINE-REMEDIATION: Gap 4 primitive. Enables
+    reading all ~3,800 story entries in chunked Redis pipeline batches
+    for derived timeline computation.
+
+    Args:
+        task_gids: List of task GIDs to read stories for.
+        cache: Cache provider instance.
+        chunk_size: Maximum keys per batch operation (default 500).
+
+    Returns:
+        Dict mapping task_gid -> list of story dicts, or None for cache misses.
+    """
+    result: dict[str, list[dict[str, Any]] | None] = {}
+
+    # Chunk to avoid oversized MGET (AMB-5 resolution)
+    for i in range(0, len(task_gids), chunk_size):
+        chunk = task_gids[i : i + chunk_size]
+        batch_result = cache.get_batch(chunk, EntryType.STORIES)
+
+        for gid, entry in batch_result.items():
+            if entry is not None:
+                result[gid] = _extract_stories_list(entry.data)
+            else:
+                result[gid] = None
+
+    return result
+
+
 async def load_stories_incremental(
     task_gid: str,
     cache: CacheProvider,
