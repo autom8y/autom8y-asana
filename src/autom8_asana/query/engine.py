@@ -130,8 +130,10 @@ class QueryEngine:
 
         # 7. Apply classification filter (case-insensitive IN predicate)
         if classification_sections is not None:
-            classification_expr = pl.col("section").str.to_lowercase().is_in(
-                list(classification_sections)
+            classification_expr = (
+                pl.col("section")
+                .str.to_lowercase()
+                .is_in(list(classification_sections))
             )
             if filter_expr is not None:
                 filter_expr = classification_expr & filter_expr

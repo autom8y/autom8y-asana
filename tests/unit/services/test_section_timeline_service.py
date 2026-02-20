@@ -394,7 +394,9 @@ class TestComputeDayCountsCurrentFields:
             ),
         )
         entries = _compute_day_counts(
-            [tl], date(2025, 1, 1), date(2025, 1, 10),
+            [tl],
+            date(2025, 1, 1),
+            date(2025, 1, 10),
             classifier=OFFER_CLASSIFIER,
         )
         assert len(entries) == 1
@@ -414,7 +416,9 @@ class TestComputeDayCountsCurrentFields:
             ),
         )
         entries = _compute_day_counts(
-            [tl], date(2025, 1, 1), date(2025, 1, 10),
+            [tl],
+            date(2025, 1, 1),
+            date(2025, 1, 10),
             classifier=OFFER_CLASSIFIER,
         )
         assert entries[0].current_classification == "activating"
@@ -423,7 +427,9 @@ class TestComputeDayCountsCurrentFields:
         """Empty intervals produce None for both current_* fields."""
         tl = _build_timeline("offer1", intervals=())
         entries = _compute_day_counts(
-            [tl], date(2025, 1, 1), date(2025, 1, 10),
+            [tl],
+            date(2025, 1, 1),
+            date(2025, 1, 10),
             classifier=OFFER_CLASSIFIER,
         )
         assert len(entries) == 1
@@ -444,7 +450,9 @@ class TestComputeDayCountsCurrentFields:
             ),
         )
         entries = _compute_day_counts(
-            [tl], date(2025, 1, 1), date(2025, 1, 10),
+            [tl],
+            date(2025, 1, 1),
+            date(2025, 1, 10),
             classifier=OFFER_CLASSIFIER,
         )
         assert entries[0].current_section == "TOTALLY_UNKNOWN_SECTION"
@@ -464,7 +472,9 @@ class TestComputeDayCountsCurrentFields:
             ),
         )
         entries = _compute_day_counts(
-            [tl], date(2025, 1, 1), date(2025, 1, 10),
+            [tl],
+            date(2025, 1, 1),
+            date(2025, 1, 10),
             classifier=OFFER_CLASSIFIER,
         )
         assert isinstance(entries[0].current_classification, str)
@@ -484,7 +494,9 @@ class TestComputeDayCountsCurrentFields:
             ),
         )
         entries = _compute_day_counts(
-            [tl], date(2025, 1, 1), date(2025, 1, 10),
+            [tl],
+            date(2025, 1, 1),
+            date(2025, 1, 10),
             classifier=None,
         )
         assert entries[0].current_section == "ACTIVE"
@@ -547,7 +559,9 @@ class TestComputeDayCountsClassificationFilter:
         """classification=active returns only ACTIVE entries."""
         timelines = self._build_mixed_timelines()
         entries = _compute_day_counts(
-            timelines, date(2025, 1, 1), date(2025, 1, 10),
+            timelines,
+            date(2025, 1, 1),
+            date(2025, 1, 10),
             classifier=OFFER_CLASSIFIER,
             classification_filter="active",
         )
@@ -559,7 +573,9 @@ class TestComputeDayCountsClassificationFilter:
         """classification=inactive returns only INACTIVE entries."""
         timelines = self._build_mixed_timelines()
         entries = _compute_day_counts(
-            timelines, date(2025, 1, 1), date(2025, 1, 10),
+            timelines,
+            date(2025, 1, 1),
+            date(2025, 1, 10),
             classifier=OFFER_CLASSIFIER,
             classification_filter="inactive",
         )
@@ -571,7 +587,9 @@ class TestComputeDayCountsClassificationFilter:
         """classification=activating returns only ACTIVATING entries."""
         timelines = self._build_mixed_timelines()
         entries = _compute_day_counts(
-            timelines, date(2025, 1, 1), date(2025, 1, 10),
+            timelines,
+            date(2025, 1, 1),
+            date(2025, 1, 10),
             classifier=OFFER_CLASSIFIER,
             classification_filter="activating",
         )
@@ -582,7 +600,9 @@ class TestComputeDayCountsClassificationFilter:
         """No classification_filter returns all entries."""
         timelines = self._build_mixed_timelines()
         entries = _compute_day_counts(
-            timelines, date(2025, 1, 1), date(2025, 1, 10),
+            timelines,
+            date(2025, 1, 1),
+            date(2025, 1, 10),
             classifier=OFFER_CLASSIFIER,
             classification_filter=None,
         )
@@ -592,7 +612,9 @@ class TestComputeDayCountsClassificationFilter:
         """Filter value that matches nothing returns empty list."""
         timelines = self._build_mixed_timelines()
         entries = _compute_day_counts(
-            timelines, date(2025, 1, 1), date(2025, 1, 10),
+            timelines,
+            date(2025, 1, 1),
+            date(2025, 1, 10),
             classifier=OFFER_CLASSIFIER,
             classification_filter="ignored",
         )
@@ -602,12 +624,16 @@ class TestComputeDayCountsClassificationFilter:
         """Filtered result count is strictly less than total for mixed data."""
         timelines = self._build_mixed_timelines()
         all_entries = _compute_day_counts(
-            timelines, date(2025, 1, 1), date(2025, 1, 10),
+            timelines,
+            date(2025, 1, 1),
+            date(2025, 1, 10),
             classifier=OFFER_CLASSIFIER,
             classification_filter=None,
         )
         active_entries = _compute_day_counts(
-            timelines, date(2025, 1, 1), date(2025, 1, 10),
+            timelines,
+            date(2025, 1, 1),
+            date(2025, 1, 10),
             classifier=OFFER_CLASSIFIER,
             classification_filter="active",
         )

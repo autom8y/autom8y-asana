@@ -1,20 +1,20 @@
 """Tests for health check endpoints.
 
 Tests cover:
-- GET /health returns 200 always (liveness probe for ALB)
-- GET /health/ready returns 503 during warmup, 200 when ready (readiness probe)
-- GET /health/s2s returns S2S connectivity status
+- GET /satellite/health returns 200 always (liveness probe for ALB)
+- GET /satellite/health/ready returns 503 during warmup, 200 when ready (readiness probe)
+- GET /satellite/health/s2s returns S2S connectivity status
 - No authentication required
 - Response format matches expected structure
-- Cache readiness affects /health/ready status (FR-004)
+- Cache readiness affects /satellite/health/ready status (FR-004)
 
 Per PRD-S2S-001 NFR-OPS-002: Health check includes S2S connectivity status.
 Per sprint-materialization-002 FR-004: Readiness returns 503 during cache warmup.
 
 Health Check Architecture:
-- /health: Liveness probe - always 200 if app is running (for ALB)
-- /health/ready: Readiness probe - 503 during warmup, 200 when ready
-- /health/s2s: S2S connectivity check
+- /satellite/health: Liveness probe - always 200 if app is running (for ALB)
+- /satellite/health/ready: Readiness probe - 503 during warmup, 200 when ready
+- /satellite/health/s2s: S2S connectivity check
 """
 
 import os
@@ -45,16 +45,16 @@ def reset_cache_ready():
 
 
 class TestHealthEndpoint:
-    """Tests for the /health endpoint."""
+    """Tests for the /satellite/health endpoint."""
 
     def test_health_returns_200(self, client: TestClient) -> None:
         """Health check returns 200 OK."""
-        response = client.get("/health")
+        response = client.get("/satellite/health")
         assert response.status_code == 200
 
     def test_health_response_structure(self, client: TestClient) -> None:
         """Health check returns expected JSON structure."""
-        response = client.get("/health")
+        response = client.get("/satellite/health")
         data = response.json()
 
         assert "status" in data
@@ -63,7 +63,7 @@ class TestHealthEndpoint:
 
     def test_health_version_format(self, client: TestClient) -> None:
         """Health check version follows semver format."""
-        response = client.get("/health")
+        response = client.get("/satellite/health")
         data = response.json()
 
         version = data["version"]
@@ -80,29 +80,29 @@ class TestHealthEndpoint:
         Per FR-API-HEALTH-002: This endpoint does NOT require authentication.
         """
         # No Authorization header
-        response = client.get("/health")
+        response = client.get("/satellite/health")
         assert response.status_code == 200
 
         # Even with invalid header, should still work
-        response = client.get("/health", headers={"Authorization": "invalid"})
+        response = client.get("/satellite/health", headers={"Authorization": "invalid"})
         assert response.status_code == 200
 
     def test_health_content_type(self, client: TestClient) -> None:
         """Health check returns JSON content type."""
-        response = client.get("/health")
+        response = client.get("/satellite/health")
         assert response.headers["content-type"] == "application/json"
 
 
 @pytest.mark.slow
 class TestS2SHealthEndpoint:
-    """Tests for the /health/s2s endpoint.
+    """Tests for the /satellite/health/s2s endpoint.
 
     Per PRD-S2S-001 NFR-OPS-002: S2S health check verifies JWKS and bot PAT.
     """
 
     def test_s2s_health_returns_expected_fields(self, client: TestClient) -> None:
         """S2S health check returns expected JSON structure."""
-        response = client.get("/health/s2s")
+        response = client.get("/satellite/health/s2s")
         data = response.json()
 
         # Required fields
@@ -116,7 +116,7 @@ class TestS2SHealthEndpoint:
     def test_s2s_health_no_auth_required(self, client: TestClient) -> None:
         """S2S health check does not require authentication."""
         # No Authorization header
-        response = client.get("/health/s2s")
+        response = client.get("/satellite/health/s2s")
         # Should not return 401
         assert response.status_code in (200, 503)
 
@@ -126,7 +126,7 @@ class TestS2SHealthEndpoint:
         """S2S health reports when bot PAT is not configured."""
         # Clear ASANA_PAT if set
         with patch.dict(os.environ, {"ASANA_PAT": ""}, clear=False):
-            response = client.get("/health/s2s")
+            response = client.get("/satellite/health/s2s")
             data = response.json()
 
             assert data["bot_pat_configured"] is False
@@ -137,7 +137,7 @@ class TestS2SHealthEndpoint:
         with patch.dict(
             os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False
         ):
-            response = client.get("/health/s2s")
+            response = client.get("/satellite/health/s2s")
             data = response.json()
 
             assert data["bot_pat_configured"] is True
@@ -158,7 +158,7 @@ class TestS2SHealthEndpoint:
         ):
             with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
                 mock_get.return_value = mock_response
-                response = client.get("/health/s2s")
+                response = client.get("/satellite/health/s2s")
                 data = response.json()
 
                 assert response.status_code == 200
@@ -174,7 +174,7 @@ class TestS2SHealthEndpoint:
         ):
             with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
                 mock_get.side_effect = httpx.TimeoutException("timeout")
-                response = client.get("/health/s2s")
+                response = client.get("/satellite/health/s2s")
                 data = response.json()
 
                 assert response.status_code == 503
@@ -196,7 +196,7 @@ class TestS2SHealthEndpoint:
         with patch.dict(os.environ, {"ASANA_PAT": ""}, clear=False):
             with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
                 mock_get.return_value = mock_response
-                response = client.get("/health/s2s")
+                response = client.get("/satellite/health/s2s")
                 data = response.json()
 
                 assert response.status_code == 503
@@ -213,7 +213,7 @@ class TestS2SHealthEndpoint:
         ):
             with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
                 mock_get.return_value = mock_response
-                response = client.get("/health/s2s")
+                response = client.get("/satellite/health/s2s")
                 data = response.json()
 
                 assert data["jwks_reachable"] is False
@@ -226,7 +226,7 @@ class TestS2SHealthEndpoint:
         ):
             with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
                 mock_get.side_effect = httpx.ConnectError("connection failed")
-                response = client.get("/health/s2s")
+                response = client.get("/satellite/health/s2s")
                 data = response.json()
 
                 assert data["jwks_reachable"] is False
@@ -237,13 +237,13 @@ class TestCacheReadiness:
     """Tests for cache readiness affecting health status.
 
     Per sprint-materialization-002 FR-004:
-    - GET /health/ready returns 503 "warming" status during cache preload
-    - GET /health/ready returns 200 "ready" status after cache is ready
-    - GET /health always returns 200 (liveness probe for ALB)
+    - GET /satellite/health/ready returns 503 "warming" status during cache preload
+    - GET /satellite/health/ready returns 200 "ready" status after cache is ready
+    - GET /satellite/health always returns 200 (liveness probe for ALB)
 
     Architecture:
-    - /health is the liveness probe - always 200 if app is running
-    - /health/ready is the readiness probe - 503 during warmup
+    - /satellite/health is the liveness probe - always 200 if app is running
+    - /satellite/health/ready is the readiness probe - 503 during warmup
     """
 
     def test_health_returns_200_always_even_when_cache_not_ready(
@@ -251,12 +251,12 @@ class TestCacheReadiness:
     ) -> None:
         """Health (liveness) always returns 200, even during warmup.
 
-        The /health endpoint is used by ALB health checks and must return
+        The /satellite/health endpoint is used by ALB health checks and must return
         200 to prevent container termination during cache warming.
         """
         set_cache_ready(False)
 
-        response = client.get("/health")
+        response = client.get("/satellite/health")
 
         # Liveness probe always returns 200
         assert response.status_code == 200
@@ -268,11 +268,11 @@ class TestCacheReadiness:
     def test_health_includes_cache_ready_flag(self, client: TestClient) -> None:
         """Health check includes cache_ready flag for observability."""
         set_cache_ready(True)
-        response = client.get("/health")
+        response = client.get("/satellite/health")
         assert response.json()["cache_ready"] is True
 
         set_cache_ready(False)
-        response = client.get("/health")
+        response = client.get("/satellite/health")
         assert response.json()["cache_ready"] is False
 
     def test_readiness_returns_503_when_cache_not_ready(
@@ -285,7 +285,7 @@ class TestCacheReadiness:
         """
         set_cache_ready(False)
 
-        response = client.get("/health/ready")
+        response = client.get("/satellite/health/ready")
 
         assert response.status_code == 503
         data = response.json()
@@ -301,7 +301,7 @@ class TestCacheReadiness:
         """
         set_cache_ready(True)
 
-        response = client.get("/health/ready")
+        response = client.get("/satellite/health/ready")
 
         assert response.status_code == 200
         data = response.json()
@@ -332,14 +332,14 @@ class TestCacheReadiness:
     def test_health_always_includes_version(self, client: TestClient) -> None:
         """Health check always includes version regardless of cache state."""
         set_cache_ready(False)
-        response = client.get("/health")
+        response = client.get("/satellite/health")
         data = response.json()
         version = data["version"]
         parts = version.split(".")
         assert len(parts) == 3
 
         set_cache_ready(True)
-        response = client.get("/health")
+        response = client.get("/satellite/health")
         data = response.json()
         version = data["version"]
         parts = version.split(".")
@@ -349,7 +349,7 @@ class TestCacheReadiness:
         """Readiness check in warming state still includes version."""
         set_cache_ready(False)
 
-        response = client.get("/health/ready")
+        response = client.get("/satellite/health/ready")
         data = response.json()
 
         version = data["version"]
@@ -363,54 +363,56 @@ class TestCacheReadiness:
         """
         set_cache_ready(False)
 
-        # /health - No Authorization header, should return 200
-        response = client.get("/health")
+        # /satellite/health - No Authorization header, should return 200
+        response = client.get("/satellite/health")
         assert response.status_code == 200
 
         # Even with invalid header, should still work
-        response = client.get("/health", headers={"Authorization": "invalid"})
+        response = client.get("/satellite/health", headers={"Authorization": "invalid"})
         assert response.status_code == 200
 
-        # /health/ready - should return 503, not 401
-        response = client.get("/health/ready")
+        # /satellite/health/ready - should return 503, not 401
+        response = client.get("/satellite/health/ready")
         assert response.status_code == 503
 
-        response = client.get("/health/ready", headers={"Authorization": "invalid"})
+        response = client.get(
+            "/satellite/health/ready", headers={"Authorization": "invalid"}
+        )
         assert response.status_code == 503
 
     def test_readiness_state_transition(self, client: TestClient) -> None:
         """Readiness status changes as cache state transitions."""
         # Initially not ready
         set_cache_ready(False)
-        response = client.get("/health/ready")
+        response = client.get("/satellite/health/ready")
         assert response.status_code == 503
         assert response.json()["status"] == "warming"
 
         # Transition to ready
         set_cache_ready(True)
-        response = client.get("/health/ready")
+        response = client.get("/satellite/health/ready")
         assert response.status_code == 200
         assert response.json()["status"] == "ready"
 
         # Transition back to not ready (edge case)
         set_cache_ready(False)
-        response = client.get("/health/ready")
+        response = client.get("/satellite/health/ready")
         assert response.status_code == 503
         assert response.json()["status"] == "warming"
 
     def test_liveness_stable_during_state_transitions(self, client: TestClient) -> None:
-        """Liveness probe (/health) always returns 200 during transitions."""
+        """Liveness probe (/satellite/health) always returns 200 during transitions."""
         # Initially not ready
         set_cache_ready(False)
-        response = client.get("/health")
+        response = client.get("/satellite/health")
         assert response.status_code == 200
 
         # Transition to ready
         set_cache_ready(True)
-        response = client.get("/health")
+        response = client.get("/satellite/health")
         assert response.status_code == 200
 
         # Transition back
         set_cache_ready(False)
-        response = client.get("/health")
+        response = client.get("/satellite/health")
         assert response.status_code == 200
