@@ -98,7 +98,7 @@ class TestHandlerModule:
         from autom8_asana.lambda_handlers.insights_export import _config
 
         assert _config.default_params["max_concurrency"] == 5
-        assert _config.default_params["attachment_pattern"] == "insights_export_*.md"
+        assert _config.default_params["attachment_pattern"] == "insights_export_*.html"
         assert _config.default_params["row_limits"] == {
             "APPOINTMENTS": 100,
             "LEADS": 100,
@@ -337,7 +337,7 @@ class TestHandlerExecution:
 
         call_params = mock_workflow.execute_async.call_args[0][1]
         assert call_params["max_concurrency"] == 5
-        assert call_params["attachment_pattern"] == "insights_export_*.md"
+        assert call_params["attachment_pattern"] == "insights_export_*.html"
         assert call_params["row_limits"] == {"APPOINTMENTS": 100, "LEADS": 100}
         assert call_params["workflow_id"] == "insights-export"
 

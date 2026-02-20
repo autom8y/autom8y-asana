@@ -39,7 +39,7 @@ _config = WorkflowHandlerConfig(
     log_prefix="lambda_insights_export",
     default_params={
         "max_concurrency": 5,
-        "attachment_pattern": "insights_export_*.md",
+        "attachment_pattern": "insights_export_*.html",
         "row_limits": {"APPOINTMENTS": 100, "LEADS": 100},
     },
     response_metadata_keys=("total_tables_succeeded", "total_tables_failed"),

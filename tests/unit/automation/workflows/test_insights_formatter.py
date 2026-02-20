@@ -1,17 +1,19 @@
-"""Tests for insights_formatter.py -- pure-function markdown formatter.
+"""Tests for insights_formatter.py -- HTML report formatter.
 
-Covers TDD Section 9.2 test scenarios:
-- TestPipeTable: Valid markdown pipe table output (AC-W03.1, AC-W03.3, AC-W03.6)
+Covers TDD Section 9.2 test scenarios adapted for HTML output:
+- TestHtmlTable: Valid HTML table output (AC-W03.1, AC-W03.3, AC-W03.6)
 - TestHeader: Masked phone, business name, vertical, timestamp (AC-W03.2)
 - TestColumnNames: snake_case -> Title Case conversion (AC-W03.4)
-- TestNullHandling: Null values render as "---" (AC-W03.5)
+- TestNullHandling: Null values render as styled "---" (AC-W03.5)
 - TestNullColumns: Always-null columns present with "---" markers (AC-W03.5)
 - TestEmptyTable: Zero rows -> "No data available" (AC-W03.7)
 - TestUnusedAssetsEmpty: Zero matching -> "No unused assets found" (AC-W03.7)
 - TestFooter: Duration, table count, error count, version (AC-W03.8)
 - TestRowLimit: Truncation note when limit reached (AC-W03.10)
-- TestErrorMarker: Error marker format (AC-W02.2, AC-W02.5)
+- TestErrorMarker: Error section format (AC-W02.2, AC-W02.5)
 - TestComposeReport: Full report composition with mixed results (AC-W03.1)
+- TestProtocol: StructuredDataRenderer protocol conformance
+- TestHtmlEscaping: XSS prevention via html.escape()
 """
 
 from __future__ import annotations
@@ -23,14 +25,14 @@ import pytest
 
 from autom8_asana.automation.workflows.insights_formatter import (
     TABLE_ORDER,
+    DataSection,
+    HtmlRenderer,
     InsightsReportData,
+    StructuredDataRenderer,
     TableResult,
-    _format_cell,
-    _format_empty_section,
-    _format_error_section,
-    _format_footer,
-    _format_header,
-    _format_table_section,
+    _discover_columns,
+    _format_cell_html,
+    _slugify,
     _to_title_case,
     compose_report,
 )
@@ -79,28 +81,92 @@ def _make_table_result(
     )
 
 
+def _render_section(
+    name: str,
+    rows: list[dict] | None = None,
+    row_count: int = 0,
+    truncated: bool = False,
+    total_rows: int | None = None,
+    error: str | None = None,
+    empty_message: str | None = None,
+) -> str:
+    """Render a single DataSection via HtmlRenderer for testing."""
+    renderer = HtmlRenderer()
+    section = DataSection(
+        name=name,
+        rows=rows,
+        row_count=row_count,
+        truncated=truncated,
+        total_rows=total_rows,
+        error=error,
+        empty_message=empty_message,
+    )
+    return renderer.render_document(
+        title="Test",
+        metadata={},
+        sections=[section],
+    )
+
+
 # ---------------------------------------------------------------------------
-# TestPipeTable -- AC-W03.1, AC-W03.3, AC-W03.6
+# TestProtocol -- StructuredDataRenderer conformance
 # ---------------------------------------------------------------------------
 
 
-class TestPipeTable:
-    """Valid markdown pipe table output from _format_table_section."""
+class TestProtocol:
+    """StructuredDataRenderer protocol conformance for HtmlRenderer."""
+
+    def test_html_renderer_satisfies_protocol(self):
+        """HtmlRenderer is a structural subtype of StructuredDataRenderer."""
+        renderer: StructuredDataRenderer = HtmlRenderer()
+        assert renderer.content_type == "text/html"
+        assert renderer.file_extension == "html"
+
+    def test_render_document_returns_string(self):
+        renderer = HtmlRenderer()
+        result = renderer.render_document(
+            title="Test",
+            metadata={"Key": "Value"},
+            sections=[],
+        )
+        assert isinstance(result, str)
+        assert result.startswith("<!DOCTYPE html>")
+
+    def test_render_document_with_footer(self):
+        renderer = HtmlRenderer()
+        result = renderer.render_document(
+            title="Test",
+            metadata={},
+            sections=[],
+            footer={"Duration": "1.00s"},
+        )
+        assert "Duration" in result
+        assert "1.00s" in result
+
+
+# ---------------------------------------------------------------------------
+# TestHtmlTable -- AC-W03.1, AC-W03.3, AC-W03.6
+# ---------------------------------------------------------------------------
+
+
+class TestHtmlTable:
+    """Valid HTML table output from HtmlRenderer."""
 
     def test_single_row_table(self):
         rows = [{"offer_cost": 1500, "impressions": 45000, "clicks": 1200}]
-        result = _format_table_section("SUMMARY", rows)
+        result = _render_section("SUMMARY", rows=rows, row_count=1)
 
-        lines = result.split("\n")
-        assert lines[0] == "## SUMMARY"
-        assert lines[1] == ""
-        # Header row
-        assert lines[2] == "| Offer Cost | Impressions | Clicks |"
-        # Alignment row
-        assert lines[3] == "| --- | --- | --- |"
-        # Data row
-        assert lines[4] == "| 1500 | 45000 | 1200 |"
-        assert len(lines) == 5
+        assert "<table>" in result
+        assert "<thead>" in result
+        assert "<tbody>" in result
+        assert "<th" in result
+        assert "Offer Cost" in result
+        assert "Impressions" in result
+        assert "Clicks" in result
+        assert "<td" in result
+        assert "1500" in result
+        assert "45000" in result
+        assert "1200" in result
 
     def test_multiple_rows(self):
         rows = [
@@ -108,18 +174,16 @@ class TestPipeTable:
             {"date": "2026-02-11", "name": "Jane", "status": "pending"},
             {"date": "2026-02-12", "name": "Bob", "status": "cancelled"},
         ]
-        result = _format_table_section("APPOINTMENTS", rows)
+        result = _render_section("APPOINTMENTS", rows=rows, row_count=3)
 
-        lines = result.split("\n")
-        assert lines[0] == "## APPOINTMENTS"
-        assert lines[1] == ""
-        assert lines[2] == "| Date | Name | Status |"
-        assert lines[3] == "| --- | --- | --- |"
-        # 3 data rows
-        assert lines[4] == "| 2026-02-10 | John | confirmed |"
-        assert lines[5] == "| 2026-02-11 | Jane | pending |"
-        assert lines[6] == "| 2026-02-12 | Bob | cancelled |"
-        assert len(lines) == 7
+        assert "Date" in result
+        assert "Name" in result
+        assert "Status" in result
+        assert "John" in result
+        assert "Jane" in result
+        assert "Bob" in result
+        # Three <tr> in tbody
+        assert result.count("<tr>") >= 4  # 1 thead + 3 tbody
 
     def test_columns_union_preserves_order(self):
         """Columns are a union of all row keys, preserving first-seen order."""
@@ -127,19 +191,32 @@ class TestPipeTable:
             {"a": 1, "b": 2},
             {"b": 3, "c": 4},
         ]
-        result = _format_table_section("TEST", rows)
+        result = _render_section("TEST", rows=rows, row_count=2)
 
-        lines = result.split("\n")
-        # Headers: a, b, c (first-seen order across all rows)
-        assert lines[2] == "| A | B | C |"
-        # Second row missing 'a' -> gets None -> "---"
-        assert "| --- | 3 | 4 |" in lines[5]
+        # Headers should be A, B, C in first-seen order
+        a_pos = result.find(">A<")
+        b_pos = result.find(">B<")
+        c_pos = result.find(">C<")
+        assert a_pos < b_pos < c_pos
+        # Second row missing 'a' -> gets None -> styled "---"
+        assert "---" in result
 
     def test_empty_rows_list_returns_no_data(self):
         """Empty dict rows (no keys) produce 'No data available'."""
         rows = [{}]
-        result = _format_table_section("TEST", rows)
-        assert "> No data available" in result
+        result = _render_section("TEST", rows=rows, row_count=1)
+        assert "No data available" in result
+
+    def test_table_has_section_id(self):
+        """Table sections have id attributes for navigation."""
+        result = _render_section("BY QUARTER", rows=[{"a": 1}], row_count=1)
+        assert 'id="by-quarter"' in result
+
+    def test_table_has_row_count_badge(self):
+        """Table sections display row count badge."""
+        rows = [{"a": 1}, {"a": 2}, {"a": 3}]
+        result = _render_section("TEST", rows=rows, row_count=3)
+        assert '<span class="badge">3</span>' in result
 
 
 # ---------------------------------------------------------------------------
@@ -148,49 +225,41 @@ class TestPipeTable:
 
 
 class TestHeader:
-    """_format_header includes masked phone, business name, vertical, ISO timestamp."""
+    """Header includes masked phone, business name, vertical, ISO timestamp."""
 
     def test_header_contains_business_name(self):
         data = _make_report_data(business_name="Smith Chiropractic")
-        result = _format_header(data)
-        assert "# Insights Export: Smith Chiropractic" in result
+        result = compose_report(data)
+        assert "Insights Export: Smith Chiropractic" in result
 
     def test_header_contains_masked_phone(self):
         data = _make_report_data(office_phone="+17705753103")
-        result = _format_header(data)
+        result = compose_report(data)
         assert "+1770***3103" in result
         assert "+17705753103" not in result
 
     def test_header_contains_vertical(self):
         data = _make_report_data(vertical="chiropractic")
-        result = _format_header(data)
-        assert "**Vertical**: chiropractic" in result
+        result = compose_report(data)
+        assert "chiropractic" in result
 
     def test_header_contains_iso_timestamp(self):
         data = _make_report_data()
-        result = _format_header(data)
+        result = compose_report(data)
         # ISO timestamp includes T separator and timezone info
-        assert "**Generated**:" in result
-        # Should contain date-like pattern
+        assert "Generated" in result
         assert "202" in result  # Year prefix
 
     def test_header_contains_period(self):
         data = _make_report_data()
-        result = _format_header(data)
-        assert "**Period**: Daily insights report" in result
+        result = compose_report(data)
+        assert "Daily insights report" in result
 
-    def test_header_trailing_spaces_for_linebreaks(self):
-        """Markdown trailing double-space for line breaks."""
+    def test_header_is_in_header_element(self):
         data = _make_report_data()
-        result = _format_header(data)
-        lines = result.split("\n")
-        # Phone, Vertical, Generated lines end with "  " for markdown linebreaks
-        phone_line = [ln for ln in lines if "**Phone**" in ln][0]
-        vertical_line = [ln for ln in lines if "**Vertical**" in ln][0]
-        generated_line = [ln for ln in lines if "**Generated**" in ln][0]
-        assert phone_line.endswith("  ")
-        assert vertical_line.endswith("  ")
-        assert generated_line.endswith("  ")
+        result = compose_report(data)
+        assert '<header class="report-header">' in result
+        assert '<h1 class="report-title">' in result
 
 
 # ---------------------------------------------------------------------------
@@ -223,33 +292,38 @@ class TestColumnNames:
 
 
 class TestNullHandling:
-    """Null values render as '---' in pipe table cells."""
+    """Null values render as styled '---' in HTML table cells."""
 
     def test_format_cell_none(self):
-        assert _format_cell(None) == "---"
+        result = _format_cell_html(None)
+        assert "---" in result
+        assert "null-value" in result
 
     def test_format_cell_string(self):
-        assert _format_cell("hello") == "hello"
+        assert _format_cell_html("hello") == "hello"
 
     def test_format_cell_integer(self):
-        assert _format_cell(42) == "42"
+        assert _format_cell_html(42) == "42"
 
     def test_format_cell_float(self):
-        assert _format_cell(3.14) == "3.14"
+        assert _format_cell_html(3.14) == "3.14"
 
     def test_format_cell_zero(self):
-        assert _format_cell(0) == "0"
+        assert _format_cell_html(0) == "0"
 
     def test_format_cell_empty_string(self):
-        assert _format_cell("") == ""
+        assert _format_cell_html("") == ""
 
-    def test_null_values_in_pipe_table(self):
-        """Rows with None values in pipe table show '---'."""
+    def test_null_values_in_html_table(self):
+        """Rows with None values in table show styled '---'."""
         rows = [
             {"date": "2026-02-10", "name": "John", "status": None},
         ]
-        result = _format_table_section("TEST", rows)
-        assert "| 2026-02-10 | John | --- |" in result
+        result = _render_section("TEST", rows=rows, row_count=1)
+        assert "2026-02-10" in result
+        assert "John" in result
+        assert "---" in result
+        assert "null-value" in result
 
 
 # ---------------------------------------------------------------------------
@@ -272,16 +346,14 @@ class TestNullColumns:
                 "time_on_call": None,
             },
         ]
-        result = _format_table_section("APPOINTMENTS", rows)
+        result = _render_section("APPOINTMENTS", rows=rows, row_count=1)
 
         # Column headers present
         assert "Out Calls" in result
         assert "In Calls" in result
         assert "Time On Call" in result
-
-        # Data row has --- for null columns
-        data_line = result.split("\n")[4]
-        assert "| 2026-02-10 | John Doe | confirmed | --- | --- | --- |" == data_line
+        # Data has --- for null columns
+        assert result.count("---") == 3
 
     def test_leads_null_columns(self):
         """LEADS: follow_up, convo, lead_call_time always null."""
@@ -295,14 +367,12 @@ class TestNullColumns:
                 "lead_call_time": None,
             },
         ]
-        result = _format_table_section("LEADS", rows)
+        result = _render_section("LEADS", rows=rows, row_count=1)
 
         assert "Follow Up" in result
         assert "Convo" in result
         assert "Lead Call Time" in result
-
-        data_line = result.split("\n")[4]
-        assert "| 2026-02-08 | Jane Smith | web | --- | --- | --- |" == data_line
+        assert result.count("---") == 3
 
 
 # ---------------------------------------------------------------------------
@@ -314,16 +384,21 @@ class TestEmptyTable:
     """Zero rows -> 'No data available'."""
 
     def test_empty_summary(self):
-        result = _format_empty_section("SUMMARY")
-        assert result == "## SUMMARY\n\n> No data available"
+        result = _render_section("SUMMARY", rows=[], empty_message="No data available")
+        assert "No data available" in result
+        assert "empty-message" in result
 
     def test_empty_appointments(self):
-        result = _format_empty_section("APPOINTMENTS")
-        assert result == "## APPOINTMENTS\n\n> No data available"
+        result = _render_section(
+            "APPOINTMENTS", rows=[], empty_message="No data available"
+        )
+        assert "No data available" in result
 
     def test_empty_generic_table(self):
-        result = _format_empty_section("BY QUARTER")
-        assert result == "## BY QUARTER\n\n> No data available"
+        result = _render_section(
+            "BY QUARTER", rows=[], empty_message="No data available"
+        )
+        assert "No data available" in result
 
 
 # ---------------------------------------------------------------------------
@@ -335,16 +410,21 @@ class TestUnusedAssetsEmpty:
     """UNUSED ASSETS empty shows special message."""
 
     def test_unused_assets_empty(self):
-        result = _format_empty_section("UNUSED ASSETS")
-        assert result == "## UNUSED ASSETS\n\n> No unused assets found"
+        result = _render_section(
+            "UNUSED ASSETS", rows=[], empty_message="No unused assets found"
+        )
+        assert "No unused assets found" in result
 
     def test_unused_assets_distinct_from_other_tables(self):
         """Verify UNUSED ASSETS message differs from other empty tables."""
-        unused = _format_empty_section("UNUSED ASSETS")
-        summary = _format_empty_section("SUMMARY")
+        unused = _render_section(
+            "UNUSED ASSETS", rows=[], empty_message="No unused assets found"
+        )
+        summary = _render_section(
+            "SUMMARY", rows=[], empty_message="No data available"
+        )
         assert "No unused assets found" in unused
         assert "No data available" in summary
-        assert unused != summary
 
 
 # ---------------------------------------------------------------------------
@@ -353,39 +433,73 @@ class TestUnusedAssetsEmpty:
 
 
 class TestFooter:
-    """_format_footer includes duration, table count, error count, version."""
+    """Footer includes duration, table count, error count, version."""
 
     def test_footer_basic(self):
-        result = _format_footer(3.456, 10, 0, "insights-export-v1.0")
-        assert "**Duration**: 3.46s" in result
-        assert "**Tables**: 10/10" in result
-        assert "**Version**: insights-export-v1.0" in result
+        renderer = HtmlRenderer()
+        result = renderer.render_document(
+            title="Test",
+            metadata={},
+            sections=[],
+            footer={
+                "Duration": "3.46s",
+                "Tables": "10/10",
+                "Version": "insights-export-v1.0",
+            },
+        )
+        assert "Duration" in result
+        assert "3.46s" in result
+        assert "Tables" in result
+        assert "10/10" in result
+        assert "Version" in result
+        assert "insights-export-v1.0" in result
 
     def test_footer_no_errors_omits_error_line(self):
-        result = _format_footer(1.0, 10, 0, "v1")
-        assert "**Errors**" not in result
+        renderer = HtmlRenderer()
+        result = renderer.render_document(
+            title="Test",
+            metadata={},
+            sections=[],
+            footer={"Duration": "1.00s", "Tables": "10/10", "Version": "v1"},
+        )
+        assert "Errors" not in result
 
     def test_footer_with_errors(self):
-        result = _format_footer(2.5, 8, 2, "v1")
-        assert "**Tables**: 8/10" in result
-        assert "**Errors**: 2" in result
+        renderer = HtmlRenderer()
+        result = renderer.render_document(
+            title="Test",
+            metadata={},
+            sections=[],
+            footer={
+                "Duration": "2.50s",
+                "Tables": "8/10",
+                "Errors": "2",
+                "Version": "v1",
+            },
+        )
+        assert "8/10" in result
+        assert "Errors" in result
+        assert " 2</span>" in result
 
-    def test_footer_duration_two_decimal_places(self):
-        result = _format_footer(0.1, 10, 0, "v1")
-        assert "**Duration**: 0.10s" in result
+    def test_footer_has_footer_element(self):
+        renderer = HtmlRenderer()
+        result = renderer.render_document(
+            title="Test",
+            metadata={},
+            sections=[],
+            footer={"Version": "v1"},
+        )
+        assert '<footer class="report-footer">' in result
 
-    def test_footer_duration_rounding(self):
-        result = _format_footer(3.999, 10, 0, "v1")
-        assert "**Duration**: 4.00s" in result
-
-    def test_footer_starts_with_horizontal_rule(self):
-        result = _format_footer(1.0, 10, 0, "v1")
-        assert result.startswith("---")
-
-    def test_footer_version_is_last_line(self):
-        result = _format_footer(1.0, 10, 0, "insights-export-v1.0")
-        lines = result.strip().split("\n")
-        assert lines[-1] == "**Version**: insights-export-v1.0"
+    def test_footer_version_present(self):
+        renderer = HtmlRenderer()
+        result = renderer.render_document(
+            title="Test",
+            metadata={},
+            sections=[],
+            footer={"Version": "insights-export-v1.0"},
+        )
+        assert "insights-export-v1.0" in result
 
 
 # ---------------------------------------------------------------------------
@@ -397,39 +511,33 @@ class TestRowLimit:
     """Truncation note when row limit is reached."""
 
     def test_truncation_note(self):
-        rows = [{"id": i, "value": f"row_{i}"} for i in range(150)]
-        result = _format_table_section("APPOINTMENTS", rows, row_limit=100)
-
-        lines = result.split("\n")
-        # Should have heading + blank + header + alignment + 100 data rows + blank + truncation
-        data_rows = [
-            ln
-            for ln in lines
-            if ln.startswith("| ") and "---" not in ln and "Id" not in ln
-        ]
-        assert len(data_rows) == 100
-        assert "> Showing first 100 of 150 rows" in result
+        rows = [{"id": i, "value": f"row_{i}"} for i in range(100)]
+        result = _render_section(
+            "APPOINTMENTS",
+            rows=rows,
+            row_count=100,
+            truncated=True,
+            total_rows=150,
+        )
+        assert "Showing 100 of 150 rows" in result
+        assert "truncation-note" in result
 
     def test_no_truncation_when_under_limit(self):
         rows = [{"id": i} for i in range(50)]
-        result = _format_table_section("LEADS", rows, row_limit=100)
-        assert "> Showing first" not in result
+        result = _render_section("LEADS", rows=rows, row_count=50)
+        assert "Showing" not in result
 
     def test_no_truncation_when_at_limit(self):
         rows = [{"id": i} for i in range(100)]
-        result = _format_table_section("LEADS", rows, row_limit=100)
-        assert "> Showing first" not in result
+        result = _render_section("LEADS", rows=rows, row_count=100)
+        assert "Showing" not in result
 
     def test_no_truncation_when_no_limit(self):
         rows = [{"id": i} for i in range(200)]
-        result = _format_table_section("BY MONTH", rows, row_limit=None)
-        assert "> Showing first" not in result
-        data_rows = [
-            ln
-            for ln in result.split("\n")
-            if ln.startswith("| ") and "---" not in ln and "Id" not in ln
-        ]
-        assert len(data_rows) == 200
+        result = _render_section("BY MONTH", rows=rows, row_count=200)
+        assert "Showing" not in result
+        # All 200 rows should be in the output
+        assert result.count("<tr>") >= 201  # 1 thead + 200 tbody
 
 
 # ---------------------------------------------------------------------------
@@ -438,32 +546,31 @@ class TestRowLimit:
 
 
 class TestErrorMarker:
-    """Error marker format: > [ERROR] type: message."""
+    """Error section format: styled error box."""
 
     def test_basic_error_marker(self):
-        result = _format_error_section(
-            "APPOINTMENTS", "InsightsServiceError", "Request timed out"
+        result = _render_section(
+            "APPOINTMENTS",
+            error="[ERROR] InsightsServiceError: Request timed out",
         )
-        expected = (
-            "## APPOINTMENTS\n\n> [ERROR] InsightsServiceError: Request timed out"
-        )
-        assert result == expected
+        assert "error-box" in result
+        assert "[ERROR] InsightsServiceError: Request timed out" in result
 
-    def test_error_marker_is_blockquote(self):
-        result = _format_error_section("SUMMARY", "timeout", "Server unavailable")
-        # Blockquote starts with >
-        lines = result.split("\n")
-        error_line = [ln for ln in lines if "[ERROR]" in ln][0]
-        assert error_line.startswith(">")
+    def test_error_section_has_section_id(self):
+        result = _render_section("SUMMARY", error="[ERROR] timeout: Server unavailable")
+        assert 'id="summary"' in result
 
-    def test_error_marker_includes_heading(self):
-        result = _format_error_section("BY QUARTER", "api_error", "500")
-        assert result.startswith("## BY QUARTER")
+    def test_error_section_has_heading(self):
+        result = _render_section("BY QUARTER", error="[ERROR] api_error: 500")
+        assert "BY QUARTER" in result
 
     def test_missing_table_error_marker(self):
         """When a table result is None, compose_report generates a 'missing' error."""
-        result = _format_error_section("LEADS", "missing", "Table result not available")
-        assert "> [ERROR] missing: Table result not available" in result
+        result = _render_section(
+            "LEADS",
+            error="[ERROR] missing: Table result not available",
+        )
+        assert "[ERROR] missing: Table result not available" in result
 
 
 # ---------------------------------------------------------------------------
@@ -546,21 +653,31 @@ class TestComposeReport:
         )
 
     @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    def test_compose_report_is_valid_html(self, mock_monotonic):
+        """Output is a valid HTML document."""
+        mock_monotonic.return_value = 103.45
+        data = self._build_mixed_report_data(100.0)
+        report = compose_report(data)
+
+        assert report.startswith("<!DOCTYPE html>")
+        assert "</html>" in report
+        assert "<head>" in report
+        assert "<body>" in report
+
+    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
     def test_compose_report_sections_in_order(self, mock_monotonic):
         """Section ordering matches TABLE_ORDER."""
-        mock_monotonic.return_value = 103.45  # elapsed = 103.45 - 100.0 = 3.45
+        mock_monotonic.return_value = 103.45
         started_at = 100.0
 
         data = self._build_mixed_report_data(started_at)
         report = compose_report(data)
 
-        # Verify header is first
-        assert report.startswith("# Insights Export:")
-
-        # Verify table section ordering
+        # Verify all table sections are present and in order
         section_positions = {}
         for table_name in TABLE_ORDER:
-            pos = report.find(f"## {table_name}")
+            section_id = table_name.lower().replace(" ", "-")
+            pos = report.find(f'id="{section_id}"')
             assert pos > 0, f"Missing section: {table_name}"
             section_positions[table_name] = pos
 
@@ -572,14 +689,23 @@ class TestComposeReport:
         mock_monotonic.return_value = 103.45
         data = self._build_mixed_report_data(100.0)
         report = compose_report(data)
-        assert report.startswith("# Insights Export: Test Dental")
+        assert "Insights Export: Test Dental" in report
+        # Header comes before first section
+        header_pos = report.find("report-header")
+        first_section_pos = report.find("table-section")
+        assert header_pos < first_section_pos
 
     @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
     def test_compose_report_footer_at_bottom(self, mock_monotonic):
         mock_monotonic.return_value = 103.45
         data = self._build_mixed_report_data(100.0)
         report = compose_report(data)
-        assert report.strip().endswith("**Version**: insights-export-v1.0")
+        assert "report-footer" in report
+        assert "insights-export-v1.0" in report
+        # Footer element (in body, not CSS) after all section elements
+        footer_tag_pos = report.find('<footer class="report-footer">')
+        last_section_close_pos = report.rfind('</section>')
+        assert footer_tag_pos > last_section_close_pos
 
     @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
     def test_compose_report_ends_with_newline(self, mock_monotonic):
@@ -593,7 +719,8 @@ class TestComposeReport:
         mock_monotonic.return_value = 103.45
         data = self._build_mixed_report_data(100.0)
         report = compose_report(data)
-        assert "> [ERROR] InsightsServiceError: Request timed out" in report
+        assert "[ERROR] InsightsServiceError: Request timed out" in report
+        assert "error-box" in report
 
     @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
     def test_compose_report_empty_section_present(self, mock_monotonic):
@@ -601,14 +728,14 @@ class TestComposeReport:
         data = self._build_mixed_report_data(100.0)
         report = compose_report(data)
         # BY QUARTER is empty
-        assert "## BY QUARTER\n\n> No data available" in report
+        assert "No data available" in report
 
     @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
     def test_compose_report_unused_assets_empty(self, mock_monotonic):
         mock_monotonic.return_value = 103.45
         data = self._build_mixed_report_data(100.0)
         report = compose_report(data)
-        assert "## UNUSED ASSETS\n\n> No unused assets found" in report
+        assert "No unused assets found" in report
 
     @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
     def test_compose_report_missing_table_gets_error(self, mock_monotonic):
@@ -623,9 +750,9 @@ class TestComposeReport:
             started_at=100.0,
         )
         report = compose_report(data)
-        assert "> [ERROR] missing: Table result not available" in report
-        # APPOINTMENTS is missing
-        assert "## APPOINTMENTS" in report
+        assert "[ERROR] missing: Table result not available" in report
+        # APPOINTMENTS is missing -- check its section exists
+        assert 'id="appointments"' in report
 
     @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
     def test_compose_report_footer_counts(self, mock_monotonic):
@@ -633,20 +760,56 @@ class TestComposeReport:
         mock_monotonic.return_value = 103.45
         data = self._build_mixed_report_data(100.0)
         report = compose_report(data)
-        # 9 successful results (APPOINTMENTS failed), but tables_failed = 10 - 9 = 1
-        # (APPOINTMENTS is not success)
-        # table_results has 10 entries, 9 with success=True, 1 with success=False
-        assert "**Tables**: 9/10" in report
-        assert "**Errors**: 1" in report
+        # 9 successful results (APPOINTMENTS failed)
+        assert "9/10" in report
+        assert "Errors" in report
 
     @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
-    def test_compose_report_sections_joined_with_double_newline(self, mock_monotonic):
+    def test_compose_report_contains_inline_css(self, mock_monotonic):
         mock_monotonic.return_value = 103.45
         data = self._build_mixed_report_data(100.0)
         report = compose_report(data)
-        # Sections separated by "\n\n"
-        # After header, before first table section
-        assert "Daily insights report\n\n## SUMMARY" in report
+        assert "<style>" in report
+        assert "table" in report
+        assert "font-family" in report
+        # CSS is inline, no external stylesheet references
+        assert 'rel="stylesheet"' not in report
+        assert "link href=" not in report
+
+
+# ---------------------------------------------------------------------------
+# TestHtmlEscaping -- XSS prevention
+# ---------------------------------------------------------------------------
+
+
+class TestHtmlEscaping:
+    """All user-supplied values are HTML-escaped."""
+
+    def test_cell_value_with_html_tags(self):
+        """HTML tags in cell values are escaped."""
+        result = _format_cell_html("<script>alert('xss')</script>")
+        assert "<script>" not in result
+        assert "&lt;script&gt;" in result
+
+    def test_cell_value_with_ampersand(self):
+        result = _format_cell_html("A & B")
+        assert "&amp;" in result
+
+    def test_cell_value_with_quotes(self):
+        result = _format_cell_html('He said "hello"')
+        assert "&quot;" in result
+
+    def test_business_name_escaped_in_header(self):
+        data = _make_report_data(business_name='<script>alert("xss")</script>')
+        result = compose_report(data)
+        assert "<script>" not in result
+        assert "&lt;script&gt;" in result
+
+    def test_cell_value_with_angle_brackets(self):
+        rows = [{"name": "<b>Bold</b>", "value": 42}]
+        result = _render_section("TEST", rows=rows, row_count=1)
+        assert "<b>Bold</b>" not in result
+        assert "&lt;b&gt;" in result
 
 
 # ---------------------------------------------------------------------------
@@ -654,45 +817,25 @@ class TestComposeReport:
 # ---------------------------------------------------------------------------
 
 
-class TestAdversarialPipeInjection:
-    """QA-ADVERSARY: Cell values containing pipe chars must not break tables."""
+class TestAdversarialSpecialCharsInCells:
+    """QA-ADVERSARY: Cell values with special characters must be safe."""
 
     def test_cell_value_with_pipe_char(self):
-        """A cell value containing '|' must be escaped to prevent table corruption."""
+        """Pipe chars are harmless in HTML (no table corruption like markdown)."""
         rows = [{"name": "Foo | Bar", "spend": 100}]
-        result = _format_table_section("TEST", rows)
-        lines = result.split("\n")
-        data_line = lines[4]
-        # The pipe character inside the value must be escaped as \|
-        # so it does not act as a column delimiter.
-        assert "Foo \\| Bar" in data_line, (
-            f"Pipe in cell value not escaped. Got: {data_line}"
-        )
-        # Structural check: count unescaped pipes (column delimiters).
-        # Remove escaped pipes first, then count remaining.
-        import re
-
-        header_unescaped = len(re.findall(r"(?<!\\)\|", lines[2]))
-        data_unescaped = len(re.findall(r"(?<!\\)\|", data_line))
-        assert data_unescaped == header_unescaped, (
-            f"Structural mismatch: header has {header_unescaped} delimiters "
-            f"but data has {data_unescaped} delimiters."
-        )
+        result = _render_section("TEST", rows=rows, row_count=1)
+        assert "Foo | Bar" in result
 
     def test_cell_value_with_backtick(self):
-        """Backticks in cell values should not break markdown formatting."""
         rows = [{"name": "`code`", "value": 42}]
-        result = _format_table_section("TEST", rows)
+        result = _render_section("TEST", rows=rows, row_count=1)
         assert "`code`" in result
 
     def test_cell_value_with_hash(self):
-        """Hash chars in cell values should not create false headings."""
+        """Hash chars are harmless in HTML (no heading creation)."""
         rows = [{"name": "# Not a heading", "value": 1}]
-        result = _format_table_section("TEST", rows)
-        # The # should be inside a table cell, not starting a line
-        lines = result.split("\n")
-        data_line = lines[4]
-        assert data_line.startswith("|")
+        result = _render_section("TEST", rows=rows, row_count=1)
+        assert "# Not a heading" in result
 
 
 class TestAdversarialSanitizeBusinessName:
@@ -714,7 +857,6 @@ class TestAdversarialSanitizeBusinessName:
         )
 
         result = _sanitize_business_name("Cafe\u0301 Dental")
-        # The accent character should be stripped but base chars preserved
         assert "Caf" in result
         assert "Dental" in result
 
@@ -736,8 +878,6 @@ class TestAdversarialUnusedAssetsNoneSpend:
     @pytest.mark.asyncio
     async def test_none_spend_excluded_from_unused(self):
         """Rows with spend=None are NOT matched by spend==0 filter."""
-
-        # Simulate the filter logic directly
         asset_data = [
             {"name": "Normal", "spend": 100, "imp": 5000},
             {"name": "None Spend", "spend": None, "imp": 0},
@@ -774,19 +914,18 @@ class TestAdversarialUnusedAssetsNoneSpend:
 
 
 class TestAdversarialRowLimitEdgeCases:
-    """QA-ADVERSARY: row_limit edge cases for _format_table_section."""
+    """QA-ADVERSARY: row_limit edge cases."""
 
     def test_row_limit_one(self):
         """row_limit=1 shows exactly 1 row with truncation note."""
         rows = [{"id": 1}, {"id": 2}, {"id": 3}]
-        result = _format_table_section("TEST", rows, row_limit=1)
-        assert "> Showing first 1 of 3 rows" in result
-        data_rows = [
-            ln
-            for ln in result.split("\n")
-            if ln.startswith("| ") and "---" not in ln and "Id" not in ln
-        ]
-        assert len(data_rows) == 1
+        result = _render_section(
+            "TEST", rows=rows[:1], row_count=1, truncated=True, total_rows=3
+        )
+        assert "Showing 1 of 3 rows" in result
+        # Count data rows (tr in tbody, not thead)
+        # The single row should be present
+        assert ">1<" in result
 
 
 class TestAdversarialRowLimitZero:
@@ -794,20 +933,113 @@ class TestAdversarialRowLimitZero:
 
     DEFECT-003 (LOW): row_limit=0 is falsy so the code path
     `rows[:row_limit] if row_limit else rows` takes the else branch
-    and displays ALL rows, then says 'Showing first 0 of N rows'.
-    This is cosmetically wrong but row_limit=0 is not a realistic
-    configuration. DEFAULT_ROW_LIMITS only sets 100 for APPOINTMENTS
-    and LEADS. Documenting as known edge case.
+    and displays ALL rows. This is cosmetically wrong but row_limit=0
+    is not a realistic configuration.
     """
 
     def test_row_limit_zero_displays_all_rows(self):
         """row_limit=0 is falsy -- displays all rows (known edge case)."""
-        rows = [{"id": 1}, {"id": 2}]
-        result = _format_table_section("TEST", rows, row_limit=0)
+        # compose_report handles row_limit=0 at the adapter layer
+        data = _make_report_data(
+            table_results={
+                "SUMMARY": _make_table_result("SUMMARY", data=[{"id": 1}, {"id": 2}]),
+            },
+            started_at=time.monotonic(),
+            row_limits={"SUMMARY": 0},
+        )
+        report = compose_report(data)
         # Due to `if row_limit` being falsy for 0, all rows are displayed
-        data_rows = [
-            ln
-            for ln in result.split("\n")
-            if ln.startswith("| ") and "---" not in ln and "Id" not in ln
-        ]
-        assert len(data_rows) == 2
+        assert ">1<" in report
+        assert ">2<" in report
+
+
+# ---------------------------------------------------------------------------
+# TestDiscoverColumns
+# ---------------------------------------------------------------------------
+
+
+class TestDiscoverColumns:
+    """Column discovery helper tests."""
+
+    def test_empty_rows(self):
+        assert _discover_columns([]) == []
+
+    def test_single_row(self):
+        cols = _discover_columns([{"a": 1, "b": 2}])
+        assert cols == ["a", "b"]
+
+    def test_heterogeneous_rows(self):
+        cols = _discover_columns([{"a": 1}, {"b": 2}, {"a": 3, "c": 4}])
+        assert cols == ["a", "b", "c"]
+
+
+# ---------------------------------------------------------------------------
+# TestSlugify
+# ---------------------------------------------------------------------------
+
+
+class TestSlugify:
+    """Slugify helper tests."""
+
+    def test_simple_name(self):
+        assert _slugify("SUMMARY") == "summary"
+
+    def test_multi_word(self):
+        assert _slugify("BY QUARTER") == "by-quarter"
+
+    def test_asset_table(self):
+        assert _slugify("ASSET TABLE") == "asset-table"
+
+
+# ---------------------------------------------------------------------------
+# TestNumericAlignment
+# ---------------------------------------------------------------------------
+
+
+class TestNumericAlignment:
+    """Numeric columns get right-alignment class."""
+
+    def test_numeric_column_has_num_class(self):
+        rows = [{"name": "test", "spend": 100}]
+        result = _render_section("TEST", rows=rows, row_count=1)
+        # The spend column should have num class for right-alignment
+        assert 'class="num"' in result
+
+    def test_string_column_has_no_num_class(self):
+        rows = [{"name": "test"}]
+        result = _render_section("TEST", rows=rows, row_count=1)
+        # Name column should not have num class
+        # Check that the th for Name does not have num class
+        assert 'class=""' in result or 'class="num"' not in result.split("Name")[0]
+
+
+# ---------------------------------------------------------------------------
+# TestSelfContainedHtml
+# ---------------------------------------------------------------------------
+
+
+class TestSelfContainedHtml:
+    """The HTML document is fully self-contained."""
+
+    def test_no_external_resources(self):
+        """HTML has no links to external CSS, JS, or images."""
+        renderer = HtmlRenderer()
+        result = renderer.render_document(
+            title="Test",
+            metadata={"Key": "Value"},
+            sections=[DataSection(name="T", rows=[{"a": 1}], row_count=1)],
+            footer={"Version": "v1"},
+        )
+        assert 'href="http' not in result
+        assert 'src="http' not in result
+        assert 'rel="stylesheet"' not in result
+        assert "<link" not in result
+
+    def test_inline_css_present(self):
+        """CSS is inlined in a <style> tag."""
+        renderer = HtmlRenderer()
+        result = renderer.render_document(
+            title="Test", metadata={}, sections=[]
+        )
+        assert "<style>" in result
+        assert "</style>" in result
