@@ -43,6 +43,14 @@ TABLE_ORDER: list[str] = [
     "UNUSED ASSETS",
 ]
 
+# Preferred leading columns for period-based tables (WS-2 column ordering fix).
+# Keys must match TABLE_ORDER names exactly.
+COLUMN_ORDER: dict[str, list[str]] = {
+    "BY QUARTER": ["period_label", "period_start", "period_end"],
+    "BY MONTH": ["period_label", "period_start", "period_end"],
+    "BY WEEK": ["period_label", "period_start", "period_end"],
+}
+
 
 # ---------------------------------------------------------------------------
 # Domain data classes (unchanged public API)
@@ -238,6 +246,7 @@ class HtmlRenderer:
     def _render_table_section(self, section: DataSection) -> str:
         rows = section.rows or []
         columns = _discover_columns(rows)
+        columns = _reorder_columns(columns, COLUMN_ORDER.get(section.name))
 
         if not columns:
             return self._render_empty_section(section)
@@ -474,6 +483,29 @@ def _discover_columns(rows: list[dict[str, Any]]) -> list[str]:
                 columns.append(key)
                 seen.add(key)
     return columns
+
+
+def _reorder_columns(
+    columns: list[str],
+    preferred_leading: list[str] | None = None,
+) -> list[str]:
+    """Reorder *columns* so that *preferred_leading* entries come first.
+
+    Preferred columns that do not appear in *columns* are silently
+    skipped.  The relative order of remaining columns is preserved.
+
+    Args:
+        columns: Column names in their current order.
+        preferred_leading: Columns to move to the front (if present).
+
+    Returns:
+        New list with leading columns first, then the rest.
+    """
+    if not preferred_leading:
+        return columns
+    leading = [c for c in preferred_leading if c in columns]
+    remaining = [c for c in columns if c not in preferred_leading]
+    return leading + remaining
 
 
 def _slugify(name: str) -> str:

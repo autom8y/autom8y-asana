@@ -24,6 +24,7 @@ from unittest.mock import patch
 import pytest
 
 from autom8_asana.automation.workflows.insights_formatter import (
+    COLUMN_ORDER,
     TABLE_ORDER,
     DataSection,
     HtmlRenderer,
@@ -32,6 +33,7 @@ from autom8_asana.automation.workflows.insights_formatter import (
     TableResult,
     _discover_columns,
     _format_cell_html,
+    _reorder_columns,
     _slugify,
     _to_title_case,
     compose_report,
@@ -1039,3 +1041,96 @@ class TestSelfContainedHtml:
         result = renderer.render_document(title="Test", metadata={}, sections=[])
         assert "<style>" in result
         assert "</style>" in result
+
+
+# ---------------------------------------------------------------------------
+# TestColumnOrdering -- WS-2 period column ordering fix
+# ---------------------------------------------------------------------------
+
+
+class TestColumnOrdering:
+    """Period columns render as leftmost columns in period-based tables."""
+
+    def test_by_quarter_period_label_is_first_column(self):
+        """BY QUARTER table renders period_label as the first column."""
+        rows = [
+            {"spend": 500, "impressions": 10000, "period_label": "Q1 2026",
+             "period_start": "2026-01-01", "period_end": "2026-03-31"},
+        ]
+        result = _render_section("BY QUARTER", rows=rows, row_count=1)
+
+        # Extract <th> positions -- period_label should appear before spend
+        period_label_pos = result.find("Period Label")
+        spend_pos = result.find("Spend")
+        impressions_pos = result.find("Impressions")
+        assert period_label_pos < spend_pos, (
+            "period_label must appear before spend in BY QUARTER"
+        )
+        assert period_label_pos < impressions_pos, (
+            "period_label must appear before impressions in BY QUARTER"
+        )
+
+    def test_by_month_period_columns_before_metrics(self):
+        """BY MONTH table renders all three period columns before metrics."""
+        rows = [
+            {"clicks": 120, "period_end": "2026-01-31",
+             "period_start": "2026-01-01", "period_label": "January 2026",
+             "impressions": 5000},
+        ]
+        result = _render_section("BY MONTH", rows=rows, row_count=1)
+
+        period_label_pos = result.find("Period Label")
+        period_start_pos = result.find("Period Start")
+        period_end_pos = result.find("Period End")
+        clicks_pos = result.find("Clicks")
+        impressions_pos = result.find("Impressions")
+
+        # All three period columns must precede metric columns
+        assert period_label_pos < clicks_pos
+        assert period_start_pos < clicks_pos
+        assert period_end_pos < clicks_pos
+        assert period_label_pos < impressions_pos
+
+        # Period columns should be in the COLUMN_ORDER sequence
+        assert period_label_pos < period_start_pos < period_end_pos
+
+    def test_summary_table_keeps_natural_column_order(self):
+        """SUMMARY table (no COLUMN_ORDER entry) preserves dict key order."""
+        rows = [
+            {"offer_cost": 1500, "impressions": 45000, "clicks": 1200},
+        ]
+        result = _render_section("SUMMARY", rows=rows, row_count=1)
+
+        offer_cost_pos = result.find("Offer Cost")
+        impressions_pos = result.find("Impressions")
+        clicks_pos = result.find("Clicks")
+
+        # Natural dict insertion order: offer_cost, impressions, clicks
+        assert offer_cost_pos < impressions_pos < clicks_pos
+
+    def test_preferred_columns_missing_from_data_silently_skipped(self):
+        """Preferred columns not present in data are silently skipped."""
+        # Data has period_label but NOT period_start or period_end
+        rows = [
+            {"period_label": "Q1 2026", "spend": 500, "clicks": 100},
+        ]
+        result = _render_section("BY QUARTER", rows=rows, row_count=1)
+
+        # period_label should still be first
+        period_label_pos = result.find("Period Label")
+        spend_pos = result.find("Spend")
+        assert period_label_pos < spend_pos
+
+        # Missing columns should not appear at all
+        assert "Period Start" not in result
+        assert "Period End" not in result
+
+    def test_reorder_columns_with_none_returns_original(self):
+        """_reorder_columns(columns, None) returns the original list unchanged."""
+        columns = ["spend", "clicks", "impressions"]
+        result = _reorder_columns(columns, None)
+        assert result == ["spend", "clicks", "impressions"]
+
+        # Also verify empty list preferred_leading
+        result_empty = _reorder_columns(columns, [])
+        assert result_empty == ["spend", "clicks", "impressions"]
