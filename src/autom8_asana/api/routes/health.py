@@ -4,7 +4,7 @@ This module provides health check endpoints for container orchestration
 and deployment monitoring.
 
 Per TDD-ASANA-SATELLITE (FR-API-HEALTH-001, FR-API-HEALTH-002):
-- GET /health returns service status
+- GET /satellite/health returns service status
 - Health check does NOT require authentication
 
 Per PRD-ASANA-SATELLITE:
@@ -12,7 +12,7 @@ Per PRD-ASANA-SATELLITE:
 - Used for ALB health checks and ECS task health
 
 Per PRD-S2S-001 (NFR-OPS-002):
-- GET /health/s2s returns S2S connectivity status
+- GET /satellite/health/s2s returns S2S connectivity status
 - Checks JWKS endpoint reachability for JWT validation
 
 Per sprint-materialization-002 FR-004:
@@ -20,12 +20,15 @@ Per sprint-materialization-002 FR-004:
 - Returns 200 "healthy" status after cache is ready
 
 Health Check Architecture (ECS/ALB):
-- GET /health: Liveness probe - returns 200 if app is running (for ALB health checks)
-- GET /health/ready: Readiness probe - returns 503 during cache warming, 200 when ready
-- GET /health/s2s: S2S connectivity check - verifies JWKS and PAT configuration
+- GET /satellite/health: Liveness probe - returns 200 if app is running (for ALB health checks)
+- GET /satellite/health/ready: Readiness probe - returns 503 during cache warming, 200 when ready
+- GET /satellite/health/s2s: S2S connectivity check - verifies JWKS and PAT configuration
 
-The /health endpoint always returns 200 to satisfy ALB health checks during startup.
-Use /health/ready for traffic gating decisions that require warm cache.
+The /satellite/health endpoint always returns 200 to satisfy ALB health checks during startup.
+Use /satellite/health/ready for traffic gating decisions that require warm cache.
+
+Note: The /satellite prefix avoids path collision with the Handler API's /health endpoint
+when both services share the same domain. See ADR-0068.
 """
 
 from __future__ import annotations
@@ -44,7 +47,7 @@ API_VERSION = "0.1.0"
 
 logger = get_logger("autom8_asana.health")
 
-router = APIRouter(tags=["health"])
+router = APIRouter(prefix="/satellite", tags=["health"])
 
 # --- Cache Readiness State (FR-004) ---
 # Module-level flag for cache warm-up state
@@ -111,7 +114,7 @@ async def health_check() -> JSONResponse:
     application process is running and can accept connections. It always
     returns 200 to ensure containers are not killed during cache warming.
 
-    For cache readiness checks, use GET /health/ready instead.
+    For cache readiness checks, use GET /satellite/health/ready instead.
 
     Returns:
         JSON response with status and current version.
@@ -137,7 +140,7 @@ async def readiness_check() -> JSONResponse:
     - Returns 200 with {"status": "ready"} after cache is ready
 
     Use this endpoint for traffic gating decisions that require warm cache.
-    The ALB should use /health for liveness, not this endpoint.
+    The ALB should use /satellite/health for liveness, not this endpoint.
 
     Returns:
         JSON response with status and current version.
