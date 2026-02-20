@@ -2674,14 +2674,18 @@ class TestPhase6QA:
         mock_monotonic.return_value = 101.0
         # Use unique letter-based names to avoid substring matching issues
         items = [
-            ("Alpha", 100), ("Bravo", 500), ("Charlie", 300),
-            ("Delta", 200), ("Echo", 800), ("Foxtrot", 50),
-            ("Golf", 700), ("Hotel", 400), ("India", 600), ("Juliet", 150),
+            ("Alpha", 100),
+            ("Bravo", 500),
+            ("Charlie", 300),
+            ("Delta", 200),
+            ("Echo", 800),
+            ("Foxtrot", 50),
+            ("Golf", 700),
+            ("Hotel", 400),
+            ("India", 600),
+            ("Juliet", 150),
         ]
-        asset_data = [
-            {"name": n, "spend": s, "imp": 1000}
-            for n, s in items
-        ]
+        asset_data = [{"name": n, "spend": s, "imp": 1000} for n, s in items]
         table_results = {}
         for name in TABLE_ORDER:
             if name == "ASSET TABLE":
@@ -2700,8 +2704,16 @@ class TestPhase6QA:
         # Bravo(500), Hotel(400), Charlie(300), Delta(200), Juliet(150),
         # Alpha(100), Foxtrot(50)
         expected_order = [
-            "Echo", "Golf", "India", "Bravo", "Hotel",
-            "Charlie", "Delta", "Juliet", "Alpha", "Foxtrot",
+            "Echo",
+            "Golf",
+            "India",
+            "Bravo",
+            "Hotel",
+            "Charlie",
+            "Delta",
+            "Juliet",
+            "Alpha",
+            "Foxtrot",
         ]
         positions = []
         for asset_name in expected_order:
@@ -3110,27 +3122,31 @@ class TestPhase6QA:
             if name == "T14 RECONCILIATIONS":
                 table_results[name] = _make_table_result(
                     name,
-                    data=[{
-                        "period": 0,
-                        "period_label": "P0",
-                        "collected": 1200.0,
-                        "num_invoices": 4,
-                        "spend": 980.5,
-                        "variance": 219.5,
-                    }],
+                    data=[
+                        {
+                            "period": 0,
+                            "period_label": "P0",
+                            "collected": 1200.0,
+                            "num_invoices": 4,
+                            "spend": 980.5,
+                            "variance": 219.5,
+                        }
+                    ],
                 )
             elif name == "LIFETIME RECONCILIATIONS":
                 # Must also provide payment data for LIFETIME to avoid
                 # triggering pending message for LIFETIME RECONCILIATIONS
                 table_results[name] = _make_table_result(
                     name,
-                    data=[{
-                        "office_phone": "+19259998806",
-                        "collected": 5000.0,
-                        "num_invoices": 25,
-                        "spend": 4200.0,
-                        "variance": 800.0,
-                    }],
+                    data=[
+                        {
+                            "office_phone": "+19259998806",
+                            "collected": 5000.0,
+                            "num_invoices": 25,
+                            "spend": 4200.0,
+                            "variance": 800.0,
+                        }
+                    ],
                 )
             else:
                 table_results[name] = _make_table_result(name, data=[{"a": 1}])
