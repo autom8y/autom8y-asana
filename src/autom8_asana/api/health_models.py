@@ -99,4 +99,6 @@ def readiness_response(
 
 # /health/deps (dependency probe) -- same signature as readiness_response
 # with more granular checks.
+# Alias: deps_response is identical to readiness_response. Both endpoints
+# share the same response factory. See api/routes/health.py for mount points.
 deps_response = readiness_response

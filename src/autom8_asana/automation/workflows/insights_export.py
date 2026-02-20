@@ -78,7 +78,7 @@ TOTAL_TABLE_COUNT = len(TABLE_NAMES)  # 12
 
 
 class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
-    """Daily insights export markdown report for Offer tasks.
+    """Daily insights export HTML report for Offer tasks.
 
     Per PRD-EXPORT-001: Second WorkflowAction implementation.
 
@@ -88,7 +88,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
     3. For each Offer (with concurrency limit):
        a. Resolve parent Business -> office_phone + vertical
        b. Fetch 10 tables concurrently from DataServiceClient
-       c. Compose markdown report via insights_formatter
+       c. Compose HTML report via insights_formatter
        d. Upload new .html attachment (upload-first)
        e. Delete old matching .html/.md attachments
     4. Return WorkflowResult with per-item and per-table tracking
