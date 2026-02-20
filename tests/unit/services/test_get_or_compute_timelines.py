@@ -36,7 +36,6 @@ from autom8_asana.services.section_timeline_service import (
     get_or_compute_timelines,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -175,12 +174,15 @@ class TestCacheHitPath:
         """Derived cache hit: returns OfferTimelineEntry list without enumeration."""
         derived_entry = _make_derived_entry()
 
-        with patch(
-            _PATCH_GET_CACHED,
-            return_value=derived_entry,
-        ), patch(
-            _PATCH_BATCH,
-        ) as mock_batch:
+        with (
+            patch(
+                _PATCH_GET_CACHED,
+                return_value=derived_entry,
+            ),
+            patch(
+                _PATCH_BATCH,
+            ) as mock_batch,
+        ):
             client = _make_client_with_cache(cache_provider=MagicMock())
 
             result = await get_or_compute_timelines(
@@ -238,9 +240,7 @@ class TestCacheMissPath:
     @pytest.mark.asyncio
     async def test_enumerates_tasks_on_miss(self) -> None:
         """Cache miss: enumerates tasks, reads stories, builds timelines."""
-        task = _make_task_mock(
-            "t1", section_name="ACTIVE", project_gid="proj1"
-        )
+        task = _make_task_mock("t1", section_name="ACTIVE", project_gid="proj1")
         cache = MagicMock()
         cache.get_versioned.return_value = None
         cache.set_versioned.return_value = None
@@ -257,18 +257,20 @@ class TestCacheMissPath:
             ]
         }
 
-        with patch(
-            _PATCH_GET_CACHED,
-            return_value=None,
-        ), patch(
-            _PATCH_BATCH,
-            return_value=stories_batch,
-        ), patch(
-            _PATCH_STORE,
-        ) as mock_store:
-            client = _make_client_with_cache(
-                cache_provider=cache, tasks=[task]
-            )
+        with (
+            patch(
+                _PATCH_GET_CACHED,
+                return_value=None,
+            ),
+            patch(
+                _PATCH_BATCH,
+                return_value=stories_batch,
+            ),
+            patch(
+                _PATCH_STORE,
+            ) as mock_store,
+        ):
+            client = _make_client_with_cache(cache_provider=cache, tasks=[task])
 
             result = await get_or_compute_timelines(
                 client=client,
@@ -302,18 +304,20 @@ class TestCacheMissPath:
         # All stories are cache misses
         stories_batch = {"t1": None}
 
-        with patch(
-            _PATCH_GET_CACHED,
-            return_value=None,
-        ), patch(
-            _PATCH_BATCH,
-            return_value=stories_batch,
-        ), patch(
-            _PATCH_STORE,
+        with (
+            patch(
+                _PATCH_GET_CACHED,
+                return_value=None,
+            ),
+            patch(
+                _PATCH_BATCH,
+                return_value=stories_batch,
+            ),
+            patch(
+                _PATCH_STORE,
+            ),
         ):
-            client = _make_client_with_cache(
-                cache_provider=cache, tasks=[task]
-            )
+            client = _make_client_with_cache(cache_provider=cache, tasks=[task])
 
             result = await get_or_compute_timelines(
                 client=client,
@@ -354,18 +358,20 @@ class TestLockRecheck:
         cache.get_versioned.return_value = None
         cache.set_versioned.return_value = None
 
-        with patch(
-            _PATCH_GET_CACHED,
-            side_effect=side_effect_get_cached,
-        ), patch(
-            _PATCH_BATCH,
-            return_value={},
-        ), patch(
-            _PATCH_STORE,
-        ) as mock_store:
-            client = _make_client_with_cache(
-                cache_provider=cache, tasks=[task]
-            )
+        with (
+            patch(
+                _PATCH_GET_CACHED,
+                side_effect=side_effect_get_cached,
+            ),
+            patch(
+                _PATCH_BATCH,
+                return_value={},
+            ),
+            patch(
+                _PATCH_STORE,
+            ) as mock_store,
+        ):
+            client = _make_client_with_cache(cache_provider=cache, tasks=[task])
 
             result = await get_or_compute_timelines(
                 client=client,
@@ -431,19 +437,21 @@ class TestErrorCases:
 
         stories_batch = {"t1": None}
 
-        with patch(
-            _PATCH_GET_CACHED,
-            return_value=None,
-        ), patch(
-            _PATCH_BATCH,
-            return_value=stories_batch,
-        ), patch(
-            _PATCH_STORE,
-            side_effect=RuntimeError("Redis connection failed"),
+        with (
+            patch(
+                _PATCH_GET_CACHED,
+                return_value=None,
+            ),
+            patch(
+                _PATCH_BATCH,
+                return_value=stories_batch,
+            ),
+            patch(
+                _PATCH_STORE,
+                side_effect=RuntimeError("Redis connection failed"),
+            ),
         ):
-            client = _make_client_with_cache(
-                cache_provider=cache, tasks=[task]
-            )
+            client = _make_client_with_cache(cache_provider=cache, tasks=[task])
 
             # Should not raise -- store failure is logged, results still returned
             result = await get_or_compute_timelines(
@@ -556,9 +564,7 @@ class TestSelfHealingInlineFetch:
     @pytest.mark.asyncio
     async def test_zero_misses_no_inline_fetch(self) -> None:
         """When all stories are cached, no inline fetch occurs."""
-        task = _make_task_mock(
-            "t1", section_name="ACTIVE", project_gid="proj1"
-        )
+        task = _make_task_mock("t1", section_name="ACTIVE", project_gid="proj1")
         cache = MagicMock()
         cache.get_versioned.return_value = None
         cache.set_versioned.return_value = None
@@ -576,18 +582,20 @@ class TestSelfHealingInlineFetch:
             ]
         }
 
-        with patch(
-            _PATCH_GET_CACHED,
-            return_value=None,
-        ), patch(
-            _PATCH_BATCH,
-            return_value=stories_batch,
-        ), patch(
-            _PATCH_STORE,
+        with (
+            patch(
+                _PATCH_GET_CACHED,
+                return_value=None,
+            ),
+            patch(
+                _PATCH_BATCH,
+                return_value=stories_batch,
+            ),
+            patch(
+                _PATCH_STORE,
+            ),
         ):
-            client = _make_client_with_cache(
-                cache_provider=cache, tasks=[task]
-            )
+            client = _make_client_with_cache(cache_provider=cache, tasks=[task])
             # Add mock for stories client (should NOT be called)
             client.stories = MagicMock()
             client.stories.list_for_task_cached_async = AsyncMock()
@@ -607,12 +615,8 @@ class TestSelfHealingInlineFetch:
     @pytest.mark.asyncio
     async def test_misses_below_threshold_triggers_inline_fetch(self) -> None:
         """Misses <= 50 triggers inline fetch and re-read."""
-        task1 = _make_task_mock(
-            "t1", section_name="ACTIVE", project_gid="proj1"
-        )
-        task2 = _make_task_mock(
-            "t2", section_name="ACTIVE", project_gid="proj1"
-        )
+        task1 = _make_task_mock("t1", section_name="ACTIVE", project_gid="proj1")
+        task2 = _make_task_mock("t2", section_name="ACTIVE", project_gid="proj1")
         cache = MagicMock()
         cache.get_versioned.return_value = None
         cache.set_versioned.return_value = None
@@ -625,23 +629,55 @@ class TestSelfHealingInlineFetch:
             batch_call_count += 1
             if batch_call_count == 1:
                 # First call: t2 is a miss
-                return {"t1": [{"gid": "s1", "resource_subtype": "section_changed", "created_at": "2025-01-01T00:00:00.000Z", "new_section": {"gid": "sec1", "name": "ACTIVE"}, "old_section": None}], "t2": None}
+                return {
+                    "t1": [
+                        {
+                            "gid": "s1",
+                            "resource_subtype": "section_changed",
+                            "created_at": "2025-01-01T00:00:00.000Z",
+                            "new_section": {"gid": "sec1", "name": "ACTIVE"},
+                            "old_section": None,
+                        }
+                    ],
+                    "t2": None,
+                }
             else:
                 # Second call (after inline fetch): t2 now has data
-                return {"t1": [{"gid": "s1", "resource_subtype": "section_changed", "created_at": "2025-01-01T00:00:00.000Z", "new_section": {"gid": "sec1", "name": "ACTIVE"}, "old_section": None}], "t2": [{"gid": "s2", "resource_subtype": "section_changed", "created_at": "2025-01-10T00:00:00.000Z", "new_section": {"gid": "sec1", "name": "ACTIVE"}, "old_section": None}]}
+                return {
+                    "t1": [
+                        {
+                            "gid": "s1",
+                            "resource_subtype": "section_changed",
+                            "created_at": "2025-01-01T00:00:00.000Z",
+                            "new_section": {"gid": "sec1", "name": "ACTIVE"},
+                            "old_section": None,
+                        }
+                    ],
+                    "t2": [
+                        {
+                            "gid": "s2",
+                            "resource_subtype": "section_changed",
+                            "created_at": "2025-01-10T00:00:00.000Z",
+                            "new_section": {"gid": "sec1", "name": "ACTIVE"},
+                            "old_section": None,
+                        }
+                    ],
+                }
 
-        with patch(
-            _PATCH_GET_CACHED,
-            return_value=None,
-        ), patch(
-            _PATCH_BATCH,
-            side_effect=mock_batch,
-        ), patch(
-            _PATCH_STORE,
+        with (
+            patch(
+                _PATCH_GET_CACHED,
+                return_value=None,
+            ),
+            patch(
+                _PATCH_BATCH,
+                side_effect=mock_batch,
+            ),
+            patch(
+                _PATCH_STORE,
+            ),
         ):
-            client = _make_client_with_cache(
-                cache_provider=cache, tasks=[task1, task2]
-            )
+            client = _make_client_with_cache(cache_provider=cache, tasks=[task1, task2])
             client.stories = MagicMock()
             client.stories.list_for_task_cached_async = AsyncMock(return_value=[])
 
@@ -682,18 +718,20 @@ class TestSelfHealingInlineFetch:
         # All 60 tasks are cache misses
         stories_batch = {f"t{i}": None for i in range(60)}
 
-        with patch(
-            _PATCH_GET_CACHED,
-            return_value=None,
-        ), patch(
-            _PATCH_BATCH,
-            return_value=stories_batch,
-        ) as mock_batch, patch(
-            _PATCH_STORE,
+        with (
+            patch(
+                _PATCH_GET_CACHED,
+                return_value=None,
+            ),
+            patch(
+                _PATCH_BATCH,
+                return_value=stories_batch,
+            ) as mock_batch,
+            patch(
+                _PATCH_STORE,
+            ),
         ):
-            client = _make_client_with_cache(
-                cache_provider=cache, tasks=tasks
-            )
+            client = _make_client_with_cache(cache_provider=cache, tasks=tasks)
             client.stories = MagicMock()
             client.stories.list_for_task_cached_async = AsyncMock()
 
@@ -717,9 +755,7 @@ class TestSelfHealingInlineFetch:
     @pytest.mark.asyncio
     async def test_inline_fetch_failure_is_caught_per_task(self) -> None:
         """Individual inline fetch failures are caught, not propagated."""
-        task1 = _make_task_mock(
-            "t1", section_name="ACTIVE", project_gid="proj1"
-        )
+        task1 = _make_task_mock("t1", section_name="ACTIVE", project_gid="proj1")
         cache = MagicMock()
         cache.get_versioned.return_value = None
         cache.set_versioned.return_value = None
@@ -732,18 +768,20 @@ class TestSelfHealingInlineFetch:
             # t1 is always a miss (fetch fails)
             return {"t1": None}
 
-        with patch(
-            _PATCH_GET_CACHED,
-            return_value=None,
-        ), patch(
-            _PATCH_BATCH,
-            side_effect=mock_batch,
-        ), patch(
-            _PATCH_STORE,
+        with (
+            patch(
+                _PATCH_GET_CACHED,
+                return_value=None,
+            ),
+            patch(
+                _PATCH_BATCH,
+                side_effect=mock_batch,
+            ),
+            patch(
+                _PATCH_STORE,
+            ),
         ):
-            client = _make_client_with_cache(
-                cache_provider=cache, tasks=[task1]
-            )
+            client = _make_client_with_cache(cache_provider=cache, tasks=[task1])
             client.stories = MagicMock()
             client.stories.list_for_task_cached_async = AsyncMock(
                 side_effect=RuntimeError("API error"),

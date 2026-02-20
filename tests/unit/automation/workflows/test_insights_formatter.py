@@ -420,9 +420,7 @@ class TestUnusedAssetsEmpty:
         unused = _render_section(
             "UNUSED ASSETS", rows=[], empty_message="No unused assets found"
         )
-        summary = _render_section(
-            "SUMMARY", rows=[], empty_message="No data available"
-        )
+        summary = _render_section("SUMMARY", rows=[], empty_message="No data available")
         assert "No unused assets found" in unused
         assert "No data available" in summary
 
@@ -704,7 +702,7 @@ class TestComposeReport:
         assert "insights-export-v1.0" in report
         # Footer element (in body, not CSS) after all section elements
         footer_tag_pos = report.find('<footer class="report-footer">')
-        last_section_close_pos = report.rfind('</section>')
+        last_section_close_pos = report.rfind("</section>")
         assert footer_tag_pos > last_section_close_pos
 
     @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
@@ -1038,8 +1036,6 @@ class TestSelfContainedHtml:
     def test_inline_css_present(self):
         """CSS is inlined in a <style> tag."""
         renderer = HtmlRenderer()
-        result = renderer.render_document(
-            title="Test", metadata={}, sections=[]
-        )
+        result = renderer.render_document(title="Test", metadata={}, sections=[])
         assert "<style>" in result
         assert "</style>" in result

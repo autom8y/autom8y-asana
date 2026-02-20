@@ -34,7 +34,6 @@ from autom8_asana.models.business.section_timeline import (
     SectionTimeline,
 )
 
-
 # ---------------------------------------------------------------------------
 # Mock Cache Provider with EntryType composite keys
 # ---------------------------------------------------------------------------
@@ -329,9 +328,7 @@ class TestStoreDerivedTimelines:
         assert stored.ttl == _DERIVED_TIMELINE_TTL
         assert stored.project_gid == "proj1"
 
-    def test_stores_timeline_data_in_data_dict(
-        self, cache: MockCacheProvider
-    ) -> None:
+    def test_stores_timeline_data_in_data_dict(self, cache: MockCacheProvider) -> None:
         """Data field wraps timelines under 'timelines' key."""
         timeline_data = [{"offer_gid": "o1"}]
         store_derived_timelines(

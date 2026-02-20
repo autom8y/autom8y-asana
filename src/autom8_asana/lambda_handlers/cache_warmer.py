@@ -296,7 +296,7 @@ async def _warm_story_caches_for_completed_entities(
                 task_gids = df["gid"].to_list()
                 stats["total_tasks"] += len(task_gids)
 
-                async def _warm_story(task_gid: str) -> bool:
+                async def _warm_story(task_gid: str, _et: str = entity_type) -> bool:
                     """Warm story cache for a single task. Returns True on success."""
                     try:
                         async with sem:
@@ -310,7 +310,7 @@ async def _warm_story_caches_for_completed_entities(
                             "story_warm_task_failed",
                             extra={
                                 "task_gid": task_gid,
-                                "entity_type": entity_type,
+                                "entity_type": _et,
                                 "error": str(e),
                                 "invocation_id": invocation_id,
                             },
