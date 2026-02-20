@@ -541,3 +541,225 @@ class TestGenericParameterization:
         unit_entry = _make_derived_entry(classifier_name="unit")
 
         assert offer_entry.key != unit_entry.key
+
+
+# ---------------------------------------------------------------------------
+# Self-Healing (inline story fetch for cache gaps)
+# ---------------------------------------------------------------------------
+
+_PATCH_CLIENT_STORIES = "autom8_asana.services.section_timeline_service.asyncio"
+
+
+class TestSelfHealingInlineFetch:
+    """Tests for bounded self-healing when story cache has gaps."""
+
+    @pytest.mark.asyncio
+    async def test_zero_misses_no_inline_fetch(self) -> None:
+        """When all stories are cached, no inline fetch occurs."""
+        task = _make_task_mock(
+            "t1", section_name="ACTIVE", project_gid="proj1"
+        )
+        cache = MagicMock()
+        cache.get_versioned.return_value = None
+        cache.set_versioned.return_value = None
+
+        # All stories found in cache (no misses)
+        stories_batch = {
+            "t1": [
+                {
+                    "gid": "s1",
+                    "resource_subtype": "section_changed",
+                    "created_at": "2025-01-01T00:00:00.000Z",
+                    "new_section": {"gid": "sec1", "name": "ACTIVE"},
+                    "old_section": {"gid": "sec2", "name": "ACTIVATING"},
+                }
+            ]
+        }
+
+        with patch(
+            _PATCH_GET_CACHED,
+            return_value=None,
+        ), patch(
+            _PATCH_BATCH,
+            return_value=stories_batch,
+        ), patch(
+            _PATCH_STORE,
+        ):
+            client = _make_client_with_cache(
+                cache_provider=cache, tasks=[task]
+            )
+            # Add mock for stories client (should NOT be called)
+            client.stories = MagicMock()
+            client.stories.list_for_task_cached_async = AsyncMock()
+
+            result = await get_or_compute_timelines(
+                client=client,
+                project_gid="proj1",
+                classifier_name="offer",
+                period_start=date(2025, 1, 1),
+                period_end=date(2025, 1, 31),
+            )
+
+            # No inline fetch should happen
+            client.stories.list_for_task_cached_async.assert_not_called()
+            assert len(result) >= 1
+
+    @pytest.mark.asyncio
+    async def test_misses_below_threshold_triggers_inline_fetch(self) -> None:
+        """Misses <= 50 triggers inline fetch and re-read."""
+        task1 = _make_task_mock(
+            "t1", section_name="ACTIVE", project_gid="proj1"
+        )
+        task2 = _make_task_mock(
+            "t2", section_name="ACTIVE", project_gid="proj1"
+        )
+        cache = MagicMock()
+        cache.get_versioned.return_value = None
+        cache.set_versioned.return_value = None
+
+        # First batch read: t1 cached, t2 is a miss
+        batch_call_count = 0
+
+        def mock_batch(task_gids: Any, cache_obj: Any, **kwargs: Any) -> dict[str, Any]:
+            nonlocal batch_call_count
+            batch_call_count += 1
+            if batch_call_count == 1:
+                # First call: t2 is a miss
+                return {"t1": [{"gid": "s1", "resource_subtype": "section_changed", "created_at": "2025-01-01T00:00:00.000Z", "new_section": {"gid": "sec1", "name": "ACTIVE"}, "old_section": None}], "t2": None}
+            else:
+                # Second call (after inline fetch): t2 now has data
+                return {"t1": [{"gid": "s1", "resource_subtype": "section_changed", "created_at": "2025-01-01T00:00:00.000Z", "new_section": {"gid": "sec1", "name": "ACTIVE"}, "old_section": None}], "t2": [{"gid": "s2", "resource_subtype": "section_changed", "created_at": "2025-01-10T00:00:00.000Z", "new_section": {"gid": "sec1", "name": "ACTIVE"}, "old_section": None}]}
+
+        with patch(
+            _PATCH_GET_CACHED,
+            return_value=None,
+        ), patch(
+            _PATCH_BATCH,
+            side_effect=mock_batch,
+        ), patch(
+            _PATCH_STORE,
+        ):
+            client = _make_client_with_cache(
+                cache_provider=cache, tasks=[task1, task2]
+            )
+            client.stories = MagicMock()
+            client.stories.list_for_task_cached_async = AsyncMock(return_value=[])
+
+            result = await get_or_compute_timelines(
+                client=client,
+                project_gid="proj1",
+                classifier_name="offer",
+                period_start=date(2025, 1, 1),
+                period_end=date(2025, 1, 31),
+            )
+
+            # Inline fetch should be called for t2 only
+            client.stories.list_for_task_cached_async.assert_called_once_with("t2")
+
+            # Batch read should be called twice (initial + re-read)
+            assert batch_call_count == 2
+
+            # Both tasks should produce results
+            assert len(result) == 2
+
+    @pytest.mark.asyncio
+    async def test_misses_above_threshold_logs_warning_no_fetch(self) -> None:
+        """Misses > 50 logs WARNING but does NOT trigger inline fetch."""
+        # Create 60 tasks, all cache misses
+        tasks = [
+            _make_task_mock(
+                f"t{i}",
+                created_at="2025-01-01T00:00:00.000Z",
+                section_name="ACTIVE",
+                project_gid="proj1",
+            )
+            for i in range(60)
+        ]
+        cache = MagicMock()
+        cache.get_versioned.return_value = None
+        cache.set_versioned.return_value = None
+
+        # All 60 tasks are cache misses
+        stories_batch = {f"t{i}": None for i in range(60)}
+
+        with patch(
+            _PATCH_GET_CACHED,
+            return_value=None,
+        ), patch(
+            _PATCH_BATCH,
+            return_value=stories_batch,
+        ) as mock_batch, patch(
+            _PATCH_STORE,
+        ):
+            client = _make_client_with_cache(
+                cache_provider=cache, tasks=tasks
+            )
+            client.stories = MagicMock()
+            client.stories.list_for_task_cached_async = AsyncMock()
+
+            result = await get_or_compute_timelines(
+                client=client,
+                project_gid="proj1",
+                classifier_name="offer",
+                period_start=date(2025, 1, 1),
+                period_end=date(2025, 1, 31),
+            )
+
+            # Should NOT call inline fetch
+            client.stories.list_for_task_cached_async.assert_not_called()
+
+            # Batch read should be called only once (no re-read)
+            mock_batch.assert_called_once()
+
+            # Results should still be returned (via imputation)
+            assert isinstance(result, list)
+
+    @pytest.mark.asyncio
+    async def test_inline_fetch_failure_is_caught_per_task(self) -> None:
+        """Individual inline fetch failures are caught, not propagated."""
+        task1 = _make_task_mock(
+            "t1", section_name="ACTIVE", project_gid="proj1"
+        )
+        cache = MagicMock()
+        cache.get_versioned.return_value = None
+        cache.set_versioned.return_value = None
+
+        batch_call_count = 0
+
+        def mock_batch(task_gids: Any, cache_obj: Any, **kwargs: Any) -> dict[str, Any]:
+            nonlocal batch_call_count
+            batch_call_count += 1
+            # t1 is always a miss (fetch fails)
+            return {"t1": None}
+
+        with patch(
+            _PATCH_GET_CACHED,
+            return_value=None,
+        ), patch(
+            _PATCH_BATCH,
+            side_effect=mock_batch,
+        ), patch(
+            _PATCH_STORE,
+        ):
+            client = _make_client_with_cache(
+                cache_provider=cache, tasks=[task1]
+            )
+            client.stories = MagicMock()
+            client.stories.list_for_task_cached_async = AsyncMock(
+                side_effect=RuntimeError("API error"),
+            )
+
+            # Should NOT raise -- inline fetch failure is caught
+            result = await get_or_compute_timelines(
+                client=client,
+                project_gid="proj1",
+                classifier_name="offer",
+                period_start=date(2025, 1, 1),
+                period_end=date(2025, 1, 31),
+            )
+
+            # Inline fetch was attempted
+            client.stories.list_for_task_cached_async.assert_called_once_with("t1")
+
+            # Result still returned (via imputation since story still missing)
+            assert isinstance(result, list)
