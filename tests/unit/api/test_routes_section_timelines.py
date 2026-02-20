@@ -1,94 +1,61 @@
 """Route handler tests for section timeline endpoint.
 
-Per TDD-SECTION-TIMELINE-001 Section 13.3: Tests for the
-GET /api/v1/offers/section-timelines endpoint using FastAPI TestClient.
+Per TDD-SECTION-TIMELINE-REMEDIATION: Tests for the remediated
+GET /api/v1/offers/section-timelines endpoint.
 
-Architecture (DEF-006 fix): The endpoint reads pre-computed SectionTimeline
-objects from app.state.offer_timelines. No mock client needed — tests set
-app.state.offer_timelines with pre-built test data.
+- 200 success (mock get_or_compute_timelines)
+- 422 validation (period_start > period_end)
+- 502 upstream error (task enumeration failure)
 """
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import date
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
 from autom8_asana.api.routes.section_timelines import router
-from autom8_asana.models.business.activity import AccountActivity
-from autom8_asana.models.business.section_timeline import (
-    SectionInterval,
-    SectionTimeline,
-)
+from autom8_asana.client import AsanaClient
+from autom8_asana.models.business.section_timeline import OfferTimelineEntry
+
 
 # ---------------------------------------------------------------------------
-# Test Fixtures
+# App fixture with DI overrides
 # ---------------------------------------------------------------------------
 
 
-def _make_timeline(
-    offer_gid: str = "offer1",
-    office_phone: str | None = "555-0100",
-    section_name: str = "ACTIVE",
-    classification: AccountActivity | None = AccountActivity.ACTIVE,
-    entered_at: datetime | None = None,
-    exited_at: datetime | None = None,
-) -> tuple[str, str | None, SectionTimeline]:
-    """Build a pre-computed (offer_gid, office_phone, SectionTimeline) tuple."""
-    if entered_at is None:
-        entered_at = datetime(2025, 1, 1, tzinfo=UTC)
-    interval = SectionInterval(
-        section_name=section_name,
-        classification=classification,
-        entered_at=entered_at,
-        exited_at=exited_at,
-    )
-    timeline = SectionTimeline(
-        offer_gid=offer_gid,
-        office_phone=office_phone,
-        intervals=(interval,),
-        task_created_at=entered_at,
-        story_count=1,
-    )
-    return (offer_gid, office_phone, timeline)
-
-
-def _create_test_app(
-    *,
-    timeline_warm_count: int = 100,
-    timeline_total: int = 100,
-    timeline_warm_failed: bool = False,
-    offer_timelines: list[tuple[str, str | None, SectionTimeline]] | None = None,
-) -> FastAPI:
-    """Create a minimal FastAPI app with the section_timelines router.
-
-    Configures app.state for readiness gate testing.
-    """
-    from autom8_asana.api.dependencies import get_request_id
-
+def _create_test_app() -> FastAPI:
+    """Create a minimal FastAPI app with DI overrides for testing."""
     app = FastAPI()
+
+    # Override DI dependencies to avoid auth/client setup
+    mock_client = MagicMock(spec=AsanaClient)
+
+    async def override_client() -> AsanaClient:
+        return mock_client
+
+    async def override_request_id() -> str:
+        return "test-request-id"
+
+    app.dependency_overrides[AsanaClientDualMode.__metadata__[0].dependency] = override_client  # type: ignore[index]
+    app.dependency_overrides[RequestId.__metadata__[0].dependency] = override_request_id  # type: ignore[index]
+
     app.include_router(router)
-
-    # Set readiness state
-    app.state.timeline_warm_count = timeline_warm_count
-    app.state.timeline_total = timeline_total
-    app.state.timeline_warm_failed = timeline_warm_failed
-
-    # Set pre-computed timelines (DEF-006 architecture)
-    if offer_timelines is not None:
-        app.state.offer_timelines = offer_timelines
-    else:
-        app.state.offer_timelines = []
-
-    # Override request_id dependency
-    async def _mock_request_id() -> str:
-        return "test-request-id-123"
-
-    app.dependency_overrides[get_request_id] = _mock_request_id
-
     return app
+
+
+@pytest.fixture
+def app() -> FastAPI:
+    return _create_test_app()
+
+
+@pytest.fixture
+def test_client(app: FastAPI) -> TestClient:
+    return TestClient(app)
 
 
 # ---------------------------------------------------------------------------
@@ -97,13 +64,23 @@ def _create_test_app(
 
 
 class TestSuccessResponse:
-    def test_200_success_response(self) -> None:
-        """FR-6, SC-4: Valid request returns SuccessResponse."""
-        timelines = [_make_timeline()]
-        app = _create_test_app(offer_timelines=timelines)
+    def test_200_returns_timelines(self, test_client: TestClient) -> None:
+        """GET with valid params returns 200 with timeline data."""
+        mock_entries = [
+            OfferTimelineEntry(
+                offer_gid="offer1",
+                office_phone="555-0100",
+                active_section_days=15,
+                billable_section_days=20,
+            )
+        ]
 
-        with TestClient(app) as client:
-            response = client.get(
+        with patch(
+            "autom8_asana.api.routes.section_timelines.get_or_compute_timelines",
+            new_callable=AsyncMock,
+            return_value=mock_entries,
+        ):
+            response = test_client.get(
                 "/api/v1/offers/section-timelines",
                 params={
                     "period_start": "2025-01-01",
@@ -113,22 +90,24 @@ class TestSuccessResponse:
 
         assert response.status_code == 200
         body = response.json()
-        assert "data" in body
+        # SuccessResponse envelope: {"data": {...}, "meta": {...}}
+        timelines = body["data"]["timelines"]
+        assert len(timelines) == 1
+        assert timelines[0]["offer_gid"] == "offer1"
+        assert timelines[0]["active_section_days"] == 15
+        assert timelines[0]["billable_section_days"] == 20
+        # Meta should include request_id
         assert "meta" in body
-        result = body["data"]["timelines"]
-        assert len(result) == 1
-        assert result[0]["offer_gid"] == "offer1"
-        # Entire Jan 2025 in ACTIVE section -> 31 active days
-        assert result[0]["active_section_days"] == 31
-        assert result[0]["billable_section_days"] == 31
+        assert body["meta"]["request_id"] == "test-request-id"
 
-    def test_response_includes_null_phone(self) -> None:
-        """EC-5, AC-5.4: office_phone: null in response."""
-        timelines = [_make_timeline(office_phone=None)]
-        app = _create_test_app(offer_timelines=timelines)
-
-        with TestClient(app) as client:
-            response = client.get(
+    def test_200_empty_timelines(self, test_client: TestClient) -> None:
+        """EC-2: Both caches cold returns 200 with empty timelines list."""
+        with patch(
+            "autom8_asana.api.routes.section_timelines.get_or_compute_timelines",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
+            response = test_client.get(
                 "/api/v1/offers/section-timelines",
                 params={
                     "period_start": "2025-01-01",
@@ -137,38 +116,25 @@ class TestSuccessResponse:
             )
 
         assert response.status_code == 200
-        result = response.json()["data"]["timelines"]
-        assert result[0]["office_phone"] is None
+        body = response.json()
+        assert body["data"]["timelines"] == []
 
 
 # ---------------------------------------------------------------------------
-# 422 Validation Errors
+# 422 Validation
 # ---------------------------------------------------------------------------
 
 
 class TestValidationErrors:
-    def test_200_period_start_equals_end(self) -> None:
-        """D-002: period_start == period_end is valid (strict > check, not >=)."""
-        timelines = [_make_timeline()]
-        app = _create_test_app(offer_timelines=timelines)
-
-        with TestClient(app) as client:
-            response = client.get(
-                "/api/v1/offers/section-timelines",
-                params={
-                    "period_start": "2025-01-05",
-                    "period_end": "2025-01-05",
-                },
-            )
-
-        assert response.status_code == 200
-
-    def test_422_period_start_after_end(self) -> None:
-        """AC-6.5, EC-8: Returns VALIDATION_ERROR."""
-        app = _create_test_app()
-
-        with TestClient(app) as client:
-            response = client.get(
+    def test_422_period_start_after_end(
+        self, test_client: TestClient
+    ) -> None:
+        """period_start > period_end returns 422 VALIDATION_ERROR."""
+        with patch(
+            "autom8_asana.api.routes.section_timelines.get_or_compute_timelines",
+            new_callable=AsyncMock,
+        ):
+            response = test_client.get(
                 "/api/v1/offers/section-timelines",
                 params={
                     "period_start": "2025-02-01",
@@ -177,41 +143,53 @@ class TestValidationErrors:
             )
 
         assert response.status_code == 422
-        detail = response.json()["detail"]
-        assert detail["error"] == "VALIDATION_ERROR"
-        assert "period_start" in detail["message"]
+        body = response.json()
+        assert body["detail"]["error"] == "VALIDATION_ERROR"
 
-    def test_422_invalid_date_format(self) -> None:
-        """AC-6.4: FastAPI auto-validates date format."""
-        app = _create_test_app()
+    def test_422_missing_period_start(self, test_client: TestClient) -> None:
+        """Missing period_start returns 422."""
+        response = test_client.get(
+            "/api/v1/offers/section-timelines",
+            params={"period_end": "2025-01-31"},
+        )
+        assert response.status_code == 422
 
-        with TestClient(app) as client:
-            response = client.get(
-                "/api/v1/offers/section-timelines",
-                params={
-                    "period_start": "not-a-date",
-                    "period_end": "2025-01-31",
-                },
-            )
+    def test_422_missing_period_end(self, test_client: TestClient) -> None:
+        """Missing period_end returns 422."""
+        response = test_client.get(
+            "/api/v1/offers/section-timelines",
+            params={"period_start": "2025-01-01"},
+        )
+        assert response.status_code == 422
 
+    def test_422_invalid_date_format(self, test_client: TestClient) -> None:
+        """Invalid date format returns 422."""
+        response = test_client.get(
+            "/api/v1/offers/section-timelines",
+            params={
+                "period_start": "not-a-date",
+                "period_end": "2025-01-31",
+            },
+        )
         assert response.status_code == 422
 
 
 # ---------------------------------------------------------------------------
-# 503 Readiness Gate
+# 502 Upstream Error
 # ---------------------------------------------------------------------------
 
 
-class TestReadinessGate:
-    def test_503_timeline_not_ready(self) -> None:
-        """AC-6.7, SC-3: Returns TIMELINE_NOT_READY + Retry-After header."""
-        app = _create_test_app(
-            timeline_warm_count=10,
-            timeline_total=100,
-        )
-
-        with TestClient(app) as client:
-            response = client.get(
+class TestUpstreamErrors:
+    def test_502_on_computation_failure(
+        self, test_client: TestClient
+    ) -> None:
+        """Asana API failure during computation returns 502."""
+        with patch(
+            "autom8_asana.api.routes.section_timelines.get_or_compute_timelines",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("Asana API connection failed"),
+        ):
+            response = test_client.get(
                 "/api/v1/offers/section-timelines",
                 params={
                     "period_start": "2025-01-01",
@@ -219,125 +197,6 @@ class TestReadinessGate:
                 },
             )
 
-        assert response.status_code == 503
-        detail = response.json()["detail"]
-        assert detail["error"] == "TIMELINE_NOT_READY"
-
-    def test_503_retry_after_header(self) -> None:
-        """AC-6.7: Retry-After: 30 header present."""
-        app = _create_test_app(
-            timeline_warm_count=10,
-            timeline_total=100,
-        )
-
-        with TestClient(app) as client:
-            response = client.get(
-                "/api/v1/offers/section-timelines",
-                params={
-                    "period_start": "2025-01-01",
-                    "period_end": "2025-01-31",
-                },
-            )
-
-        assert response.status_code == 503
-        assert response.headers.get("retry-after") == "30"
-
-    def test_503_timeline_warm_failed(self) -> None:
-        """Interview: timeline_warm_failed=True -> TIMELINE_WARM_FAILED, no Retry-After."""
-        app = _create_test_app(timeline_warm_failed=True)
-
-        with TestClient(app) as client:
-            response = client.get(
-                "/api/v1/offers/section-timelines",
-                params={
-                    "period_start": "2025-01-01",
-                    "period_end": "2025-01-31",
-                },
-            )
-
-        assert response.status_code == 503
-        detail = response.json()["detail"]
-        assert detail["error"] == "TIMELINE_WARM_FAILED"
-        # WARM_FAILED should NOT have Retry-After (permanent failure)
-        assert "retry-after" not in response.headers
-
-    def test_readiness_gate_below_threshold(self) -> None:
-        """AC-7.4: < 50% -> NOT_READY -> 503."""
-        app = _create_test_app(
-            timeline_warm_count=49,
-            timeline_total=100,
-        )
-
-        with TestClient(app) as client:
-            response = client.get(
-                "/api/v1/offers/section-timelines",
-                params={
-                    "period_start": "2025-01-01",
-                    "period_end": "2025-01-31",
-                },
-            )
-
-        assert response.status_code == 503
-        detail = response.json()["detail"]
-        assert detail["error"] == "TIMELINE_NOT_READY"
-
-    def test_readiness_gate_above_threshold(self) -> None:
-        """AC-7.4: >= 50% -> READY -> proceeds."""
-        timelines = [_make_timeline()]
-        app = _create_test_app(
-            timeline_warm_count=50,
-            timeline_total=100,
-            offer_timelines=timelines,
-        )
-
-        with TestClient(app) as client:
-            response = client.get(
-                "/api/v1/offers/section-timelines",
-                params={
-                    "period_start": "2025-01-01",
-                    "period_end": "2025-01-31",
-                },
-            )
-
-        assert response.status_code == 200
-
-    def test_readiness_gate_zero_total(self) -> None:
-        """Edge case: total=0 -> NOT_READY."""
-        app = _create_test_app(
-            timeline_warm_count=0,
-            timeline_total=0,
-        )
-
-        with TestClient(app) as client:
-            response = client.get(
-                "/api/v1/offers/section-timelines",
-                params={
-                    "period_start": "2025-01-01",
-                    "period_end": "2025-01-31",
-                },
-            )
-
-        assert response.status_code == 503
-        detail = response.json()["detail"]
-        assert detail["error"] == "TIMELINE_NOT_READY"
-
-    def test_readiness_gate_failed_state_priority(self) -> None:
-        """Interview: timeline_warm_failed takes priority over threshold check."""
-        app = _create_test_app(
-            timeline_warm_count=100,
-            timeline_total=100,
-            timeline_warm_failed=True,
-        )
-
-        with TestClient(app) as client:
-            response = client.get(
-                "/api/v1/offers/section-timelines",
-                params={
-                    "period_start": "2025-01-01",
-                    "period_end": "2025-01-31",
-                },
-            )
-
-        assert response.status_code == 503
-        detail = response.json()["detail"]
-        assert detail["error"] == "TIMELINE_WARM_FAILED"
+        assert response.status_code == 502
+        body = response.json()
+        assert body["detail"]["error"] == "UPSTREAM_ERROR"

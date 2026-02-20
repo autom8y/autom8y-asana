@@ -95,6 +95,11 @@ from autom8_asana.cache.integration.dataframes import (
     make_dataframe_key,
     parse_dataframe_key,
 )
+from autom8_asana.cache.integration.derived import (
+    get_cached_timelines,
+    make_derived_timeline_key,
+    store_derived_timelines,
+)
 
 # --- Re-exports ---
 # CacheProviderFactory and MutationInvalidator are public API surface of the cache package.
@@ -111,6 +116,8 @@ from autom8_asana.cache.integration.stories import (
     filter_relevant_stories,
     get_latest_story_timestamp,
     load_stories_incremental,
+    read_cached_stories,
+    read_stories_batch,
 )
 from autom8_asana.cache.integration.upgrader import AsanaTaskUpgrader
 
@@ -211,9 +218,15 @@ __all__ = [
     "DEFAULT_MODIFICATION_CHECK_TTL",
     # Incremental story loading (ADR-0020)
     "load_stories_incremental",
+    "read_cached_stories",
+    "read_stories_batch",
     "filter_relevant_stories",
     "get_latest_story_timestamp",
     "DEFAULT_STORY_TYPES",
+    # Derived timeline cache (TDD-SECTION-TIMELINE-REMEDIATION)
+    "make_derived_timeline_key",
+    "get_cached_timelines",
+    "store_derived_timelines",
     # Dataframe caching (ADR-0021)
     "make_dataframe_key",
     "parse_dataframe_key",

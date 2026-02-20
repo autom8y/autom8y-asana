@@ -416,11 +416,20 @@ class AsanaHttpClient:
 
                     # Use raw escape hatch for multipart
                     async with platform_client.raw() as raw_client:
-                        response = await raw_client.post(
-                            path,
-                            files=files,
-                            data=data,
-                        )
+                        # Remove default Content-Type so httpx auto-generates
+                        # the correct multipart/form-data boundary header.
+                        content_type_backup = raw_client.headers.get("content-type")
+                        if content_type_backup:
+                            del raw_client.headers["content-type"]
+                        try:
+                            response = await raw_client.post(
+                                path,
+                                files=files,
+                                data=data,
+                            )
+                        finally:
+                            if content_type_backup:
+                                raw_client.headers["content-type"] = content_type_backup
 
                     # Check for errors and retry if needed
                     if response.status_code >= 400:

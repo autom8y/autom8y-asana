@@ -586,7 +586,7 @@ class TestRoundTrip:
 
 
 class TestEntryTypeEnum:
-    def test_all_15_members_present(self) -> None:
+    def test_all_16_members_present(self) -> None:
         expected = {
             "task",
             "subtasks",
@@ -603,12 +603,13 @@ class TestEntryTypeEnum:
             "project_sections",
             "gid_enumeration",
             "insights",
+            "derived_timeline",
         }
         actual = {et.value for et in EntryType}
         assert actual == expected
 
     def test_member_count(self) -> None:
-        assert len(EntryType) == 15
+        assert len(EntryType) == 16
 
 
 # ---------------------------------------------------------------------------

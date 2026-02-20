@@ -173,6 +173,20 @@ class DependencyShortcutStrategy(ResolutionStrategy):
 
     def _try_cast(self, task: Any, target_type: type[T]) -> T | None:
         """Try to cast task to target type."""
+        from autom8_asana.models.business.business import Business
+
+        # Guard against permissive model_validate for Business type
+        if target_type is Business:
+            from autom8_asana.models.business.detection import detect_entity_type
+            from autom8_asana.models.business.detection.types import EntityType
+
+            detection_result = detect_entity_type(task)
+            if (
+                not detection_result
+                or detection_result.entity_type != EntityType.BUSINESS
+            ):
+                return None
+
         try:
             return target_type.model_validate(task.model_dump())
         except (ValueError, ValidationError):
@@ -279,13 +293,21 @@ class HierarchyTraversalStrategy(ResolutionStrategy):
             parent = await context.client.tasks.get_async(parent_gid)
             budget.consume(1)
 
-            # Try to cast parent to Business
-            try:
-                business = Business.model_validate(parent.model_dump())
-                context.cache_entity(business)
-                return business
-            except (ValueError, ValidationError):
-                pass
+            # Use entity type detection to verify parent is actually a Business.
+            # Business.model_validate() is too permissive (any Task validates as Business),
+            # so we gate it behind detect_entity_type() which uses ProjectTypeRegistry
+            # for O(1) project membership lookup on already-fetched data.
+            from autom8_asana.models.business.detection import detect_entity_type
+            from autom8_asana.models.business.detection.types import EntityType
+
+            detection_result = detect_entity_type(parent)
+            if detection_result and detection_result.entity_type == EntityType.BUSINESS:
+                try:
+                    business = Business.model_validate(parent.model_dump())
+                    context.cache_entity(business)
+                    return business
+                except (ValueError, ValidationError):
+                    pass
 
             current = parent
             depth += 1
