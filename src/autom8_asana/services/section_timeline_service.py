@@ -338,6 +338,7 @@ async def get_or_compute_timelines(
     classifier_name: str,
     period_start: date,
     period_end: date,
+    classification_filter: str | None = None,
 ) -> list[OfferTimelineEntry]:
     """Get timeline entries, computing from cache if needed.
 
@@ -355,12 +356,17 @@ async def get_or_compute_timelines(
     Uses asyncio.Lock per (project_gid, classifier_name) to prevent
     thundering herd on cold cache (AMB-3).
 
+    Classification filtering is applied post-cache as O(n) filtering --
+    the derived cache always stores all timelines regardless of filter.
+
     Args:
         client: AsanaClient (for task enumeration on cache miss).
         project_gid: Asana project GID.
         classifier_name: Classifier name ("offer", "unit").
         period_start: Query period start (inclusive).
         period_end: Query period end (inclusive).
+        classification_filter: If provided, only include entries whose
+            current_classification matches this value (e.g., "active").
 
     Returns:
         List of OfferTimelineEntry with day counts.
@@ -401,7 +407,11 @@ async def get_or_compute_timelines(
     if cached_entry is not None:
         timelines_data = cached_entry.data.get("timelines", [])
         timelines = [_deserialize_timeline(d) for d in timelines_data]
-        return _compute_day_counts(timelines, period_start, period_end)
+        return _compute_day_counts(
+            timelines, period_start, period_end,
+            classifier=classifier,
+            classification_filter=classification_filter,
+        )
 
     # Step 2: Acquire computation lock (AMB-3: thundering herd prevention)
     lock = _get_computation_lock(project_gid, classifier_name)
@@ -411,7 +421,11 @@ async def get_or_compute_timelines(
         if cached_entry is not None:
             timelines_data = cached_entry.data.get("timelines", [])
             timelines = [_deserialize_timeline(d) for d in timelines_data]
-            return _compute_day_counts(timelines, period_start, period_end)
+            return _compute_day_counts(
+                timelines, period_start, period_end,
+                classifier=classifier,
+                classification_filter=classification_filter,
+            )
 
         compute_start = time_module.perf_counter()
 
@@ -607,29 +621,64 @@ async def get_or_compute_timelines(
         )
 
         # Step 7: Compute day counts and return
-        return _compute_day_counts(timelines, period_start, period_end)
+        return _compute_day_counts(
+            timelines, period_start, period_end,
+            classifier=classifier,
+            classification_filter=classification_filter,
+        )
 
 
 def _compute_day_counts(
     timelines: list[SectionTimeline],
     period_start: date,
     period_end: date,
+    classifier: SectionClassifier | None = None,
+    classification_filter: str | None = None,
 ) -> list[OfferTimelineEntry]:
     """Compute day-count entries from deserialized timelines. Pure CPU, no I/O.
 
     Per TDD-SECTION-TIMELINE-REMEDIATION: Shared helper for computing
     OfferTimelineEntry results from a list of SectionTimeline objects.
 
+    Derives current_section and current_classification from each timeline's
+    last interval. When classification_filter is provided, only entries whose
+    current_classification matches the filter value are included (O(n)
+    post-cache filtering).
+
     Args:
         timelines: List of SectionTimeline domain objects.
         period_start: Query period start (inclusive).
         period_end: Query period end (inclusive).
+        classifier: SectionClassifier for deriving current_classification.
+            If None, current_classification is derived from the last
+            interval's stored classification.
+        classification_filter: If provided, only include entries whose
+            current_classification matches this value (e.g., "active").
 
     Returns:
         List of OfferTimelineEntry with day counts for the requested period.
     """
     entries: list[OfferTimelineEntry] = []
     for timeline in timelines:
+        # Derive current_section and current_classification from last interval
+        current_section: str | None = None
+        current_classification: str | None = None
+
+        if timeline.intervals:
+            last_interval = timeline.intervals[-1]
+            current_section = last_interval.section_name
+
+            if classifier is not None:
+                cls = classifier.classify(current_section)
+                current_classification = cls.value if cls is not None else None
+            elif last_interval.classification is not None:
+                current_classification = last_interval.classification.value
+
+        # Apply classification filter (O(n) post-cache filtering)
+        if classification_filter is not None:
+            if current_classification != classification_filter:
+                continue
+
         active_days = timeline.active_days_in_period(period_start, period_end)
         billable_days = timeline.billable_days_in_period(period_start, period_end)
         entries.append(
@@ -638,6 +687,8 @@ def _compute_day_counts(
                 office_phone=timeline.office_phone,
                 active_section_days=active_days,
                 billable_section_days=billable_days,
+                current_section=current_section,
+                current_classification=current_classification,
             )
         )
     return entries

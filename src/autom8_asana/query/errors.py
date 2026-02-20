@@ -9,6 +9,7 @@ Error codes:
 - INVALID_OPERATOR: Operator incompatible with field dtype.
 - COERCION_FAILED: Value cannot be coerced to field dtype.
 - UNKNOWN_SECTION: Section name cannot be resolved.
+- INVALID_CLASSIFICATION: Classification value or entity type is invalid.
 """
 
 from __future__ import annotations
@@ -148,6 +149,19 @@ class AggregateGroupLimitError(QueryEngineError):
             ),
             "group_count": self.group_count,
             "max_groups": self.max_groups,
+        }
+
+
+@dataclass
+class ClassificationError(QueryEngineError):
+    """Classification value or entity type is invalid for classification filtering."""
+
+    message: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "error": "INVALID_CLASSIFICATION",
+            "message": self.message,
         }
 
 

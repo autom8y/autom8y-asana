@@ -11,7 +11,15 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Discriminator,
+    Field,
+    Tag,
+    field_validator,
+    model_validator,
+)
 
 from autom8_asana.query.join import JoinSpec
 
@@ -202,6 +210,7 @@ class RowsRequest(BaseModel):
 
     where: PredicateNode | None = None
     section: str | None = None
+    classification: str | None = None
     select: list[str] | None = None
     limit: int = Field(default=100, ge=1, le=1000)
     offset: int = Field(default=0, ge=0)
@@ -214,6 +223,13 @@ class RowsRequest(BaseModel):
     def wrap_flat_array(cls, v: Any) -> Any:
         """Auto-wrap bare list to AND group (FR-001 sugar)."""
         return _wrap_flat_array_to_and_group(v)
+
+    @model_validator(mode="after")
+    def section_classification_exclusive(self) -> RowsRequest:
+        """Ensure section and classification are mutually exclusive."""
+        if self.section is not None and self.classification is not None:
+            raise ValueError("section and classification are mutually exclusive")
+        return self
 
 
 class RowsMeta(BaseModel):

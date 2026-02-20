@@ -175,5 +175,13 @@ class OfferTimelineEntry(BaseModel):
     billable_section_days: int = Field(
         ..., ge=0, description="Days in ACTIVE or ACTIVATING sections"
     )
+    current_section: str | None = Field(
+        default=None,
+        description="Current Asana section name (from last interval)",
+    )
+    current_classification: str | None = Field(
+        default=None,
+        description="Classification of current section (e.g., active, activating)",
+    )
 
     model_config = {"extra": "forbid"}

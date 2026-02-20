@@ -344,3 +344,271 @@ class TestBuildTimelineForOffer:
 # removed per TDD-SECTION-TIMELINE-REMEDIATION: these functions were replaced
 # by get_or_compute_timelines() and the compute-on-read-then-cache architecture.
 # New tests for the remediated architecture will be added in the QA phase.
+
+
+# ---------------------------------------------------------------------------
+# _compute_day_counts: S-3 (current_section/classification) + S-1 (filter)
+# ---------------------------------------------------------------------------
+
+
+from autom8_asana.models.business.activity import OFFER_CLASSIFIER, SectionClassifier
+from autom8_asana.models.business.section_timeline import SectionTimeline
+from autom8_asana.services.section_timeline_service import _compute_day_counts
+
+
+def _build_timeline(
+    offer_gid: str,
+    intervals: tuple[SectionInterval, ...],
+    office_phone: str | None = None,
+) -> SectionTimeline:
+    """Helper to build SectionTimeline for _compute_day_counts tests."""
+    return SectionTimeline(
+        offer_gid=offer_gid,
+        office_phone=office_phone,
+        intervals=intervals,
+        task_created_at=_utc(2025, 1, 1),
+        story_count=len(intervals),
+    )
+
+
+class TestComputeDayCountsCurrentFields:
+    """S-3: _compute_day_counts populates current_section and current_classification."""
+
+    def test_derives_current_section_from_last_interval(self) -> None:
+        """current_section is the section_name of the last interval."""
+        tl = _build_timeline(
+            "offer1",
+            intervals=(
+                SectionInterval(
+                    section_name="ACTIVATING",
+                    classification=AccountActivity.ACTIVATING,
+                    entered_at=_utc(2025, 1, 1),
+                    exited_at=_utc(2025, 1, 5),
+                ),
+                SectionInterval(
+                    section_name="ACTIVE",
+                    classification=AccountActivity.ACTIVE,
+                    entered_at=_utc(2025, 1, 5),
+                    exited_at=None,
+                ),
+            ),
+        )
+        entries = _compute_day_counts(
+            [tl], date(2025, 1, 1), date(2025, 1, 10),
+            classifier=OFFER_CLASSIFIER,
+        )
+        assert len(entries) == 1
+        assert entries[0].current_section == "ACTIVE"
+
+    def test_derives_current_classification_via_classifier(self) -> None:
+        """current_classification is the string value from classifier."""
+        tl = _build_timeline(
+            "offer1",
+            intervals=(
+                SectionInterval(
+                    section_name="ACTIVATING",
+                    classification=AccountActivity.ACTIVATING,
+                    entered_at=_utc(2025, 1, 1),
+                    exited_at=None,
+                ),
+            ),
+        )
+        entries = _compute_day_counts(
+            [tl], date(2025, 1, 1), date(2025, 1, 10),
+            classifier=OFFER_CLASSIFIER,
+        )
+        assert entries[0].current_classification == "activating"
+
+    def test_empty_intervals_yields_none(self) -> None:
+        """Empty intervals produce None for both current_* fields."""
+        tl = _build_timeline("offer1", intervals=())
+        entries = _compute_day_counts(
+            [tl], date(2025, 1, 1), date(2025, 1, 10),
+            classifier=OFFER_CLASSIFIER,
+        )
+        assert len(entries) == 1
+        assert entries[0].current_section is None
+        assert entries[0].current_classification is None
+
+    def test_unknown_section_yields_none_classification(self) -> None:
+        """A section unknown to the classifier yields None classification."""
+        tl = _build_timeline(
+            "offer1",
+            intervals=(
+                SectionInterval(
+                    section_name="TOTALLY_UNKNOWN_SECTION",
+                    classification=None,
+                    entered_at=_utc(2025, 1, 1),
+                    exited_at=None,
+                ),
+            ),
+        )
+        entries = _compute_day_counts(
+            [tl], date(2025, 1, 1), date(2025, 1, 10),
+            classifier=OFFER_CLASSIFIER,
+        )
+        assert entries[0].current_section == "TOTALLY_UNKNOWN_SECTION"
+        assert entries[0].current_classification is None
+
+    def test_classification_is_string_value(self) -> None:
+        """current_classification is a plain string, not an enum object."""
+        tl = _build_timeline(
+            "offer1",
+            intervals=(
+                SectionInterval(
+                    section_name="INACTIVE",
+                    classification=AccountActivity.INACTIVE,
+                    entered_at=_utc(2025, 1, 1),
+                    exited_at=None,
+                ),
+            ),
+        )
+        entries = _compute_day_counts(
+            [tl], date(2025, 1, 1), date(2025, 1, 10),
+            classifier=OFFER_CLASSIFIER,
+        )
+        assert isinstance(entries[0].current_classification, str)
+        assert entries[0].current_classification == "inactive"
+
+    def test_no_classifier_falls_back_to_interval_classification(self) -> None:
+        """Without a classifier, use the interval's stored classification."""
+        tl = _build_timeline(
+            "offer1",
+            intervals=(
+                SectionInterval(
+                    section_name="ACTIVE",
+                    classification=AccountActivity.ACTIVE,
+                    entered_at=_utc(2025, 1, 1),
+                    exited_at=None,
+                ),
+            ),
+        )
+        entries = _compute_day_counts(
+            [tl], date(2025, 1, 1), date(2025, 1, 10),
+            classifier=None,
+        )
+        assert entries[0].current_section == "ACTIVE"
+        assert entries[0].current_classification == "active"
+
+
+class TestComputeDayCountsClassificationFilter:
+    """S-1: _compute_day_counts filters by classification_filter."""
+
+    def _build_mixed_timelines(self) -> list[SectionTimeline]:
+        """Build a list with ACTIVE, ACTIVATING, INACTIVE, and unknown entries."""
+        return [
+            _build_timeline(
+                "active_offer",
+                intervals=(
+                    SectionInterval(
+                        section_name="ACTIVE",
+                        classification=AccountActivity.ACTIVE,
+                        entered_at=_utc(2025, 1, 1),
+                        exited_at=None,
+                    ),
+                ),
+            ),
+            _build_timeline(
+                "activating_offer",
+                intervals=(
+                    SectionInterval(
+                        section_name="ACTIVATING",
+                        classification=AccountActivity.ACTIVATING,
+                        entered_at=_utc(2025, 1, 1),
+                        exited_at=None,
+                    ),
+                ),
+            ),
+            _build_timeline(
+                "inactive_offer",
+                intervals=(
+                    SectionInterval(
+                        section_name="INACTIVE",
+                        classification=AccountActivity.INACTIVE,
+                        entered_at=_utc(2025, 1, 1),
+                        exited_at=None,
+                    ),
+                ),
+            ),
+            _build_timeline(
+                "unknown_offer",
+                intervals=(
+                    SectionInterval(
+                        section_name="UNKNOWN_SECTION",
+                        classification=None,
+                        entered_at=_utc(2025, 1, 1),
+                        exited_at=None,
+                    ),
+                ),
+            ),
+        ]
+
+    def test_filter_active_only(self) -> None:
+        """classification=active returns only ACTIVE entries."""
+        timelines = self._build_mixed_timelines()
+        entries = _compute_day_counts(
+            timelines, date(2025, 1, 1), date(2025, 1, 10),
+            classifier=OFFER_CLASSIFIER,
+            classification_filter="active",
+        )
+        assert len(entries) == 1
+        assert entries[0].offer_gid == "active_offer"
+        assert entries[0].current_classification == "active"
+
+    def test_filter_inactive_only(self) -> None:
+        """classification=inactive returns only INACTIVE entries."""
+        timelines = self._build_mixed_timelines()
+        entries = _compute_day_counts(
+            timelines, date(2025, 1, 1), date(2025, 1, 10),
+            classifier=OFFER_CLASSIFIER,
+            classification_filter="inactive",
+        )
+        assert len(entries) == 1
+        assert entries[0].offer_gid == "inactive_offer"
+        assert entries[0].current_classification == "inactive"
+
+    def test_filter_activating_only(self) -> None:
+        """classification=activating returns only ACTIVATING entries."""
+        timelines = self._build_mixed_timelines()
+        entries = _compute_day_counts(
+            timelines, date(2025, 1, 1), date(2025, 1, 10),
+            classifier=OFFER_CLASSIFIER,
+            classification_filter="activating",
+        )
+        assert len(entries) == 1
+        assert entries[0].offer_gid == "activating_offer"
+
+    def test_no_filter_returns_all(self) -> None:
+        """No classification_filter returns all entries."""
+        timelines = self._build_mixed_timelines()
+        entries = _compute_day_counts(
+            timelines, date(2025, 1, 1), date(2025, 1, 10),
+            classifier=OFFER_CLASSIFIER,
+            classification_filter=None,
+        )
+        assert len(entries) == 4
+
+    def test_filter_with_no_matches_returns_empty(self) -> None:
+        """Filter value that matches nothing returns empty list."""
+        timelines = self._build_mixed_timelines()
+        entries = _compute_day_counts(
+            timelines, date(2025, 1, 1), date(2025, 1, 10),
+            classifier=OFFER_CLASSIFIER,
+            classification_filter="ignored",
+        )
+        assert len(entries) == 0
+
+    def test_filtered_count_less_than_total(self) -> None:
+        """Filtered result count is strictly less than total for mixed data."""
+        timelines = self._build_mixed_timelines()
+        all_entries = _compute_day_counts(
+            timelines, date(2025, 1, 1), date(2025, 1, 10),
+            classifier=OFFER_CLASSIFIER,
+            classification_filter=None,
+        )
+        active_entries = _compute_day_counts(
+            timelines, date(2025, 1, 1), date(2025, 1, 10),
+            classifier=OFFER_CLASSIFIER,
+            classification_filter="active",
+        )
+        assert len(active_entries) < len(all_entries)
