@@ -22,6 +22,7 @@ from autom8_asana.models.story import Story
 from autom8_asana.services.section_timeline_service import (
     _build_imputed_interval,
     _build_intervals_from_stories,
+    _extract_offer_id,
     _extract_office_phone,
     _is_cross_project_noise,
     _parse_datetime,
@@ -63,6 +64,7 @@ def _make_task_mock(
     section_name: str | None = "ACTIVE",
     project_gid: str = "1143843662099250",
     office_phone: str | None = None,
+    offer_id: str | None = None,
 ) -> MagicMock:
     """Build a mock Task object suitable for get_section_timelines."""
     task = MagicMock()
@@ -81,6 +83,8 @@ def _make_task_mock(
     custom_fields = []
     if office_phone:
         custom_fields.append({"name": "Office Phone", "text_value": office_phone})
+    if offer_id is not None:
+        custom_fields.append({"name": "Offer ID", "text_value": offer_id})
     task.model_dump.return_value = {
         "custom_fields": custom_fields,
         "memberships": memberships,
@@ -261,6 +265,42 @@ class TestExtractOfficePhone:
 
 
 # ---------------------------------------------------------------------------
+# _extract_offer_id
+# ---------------------------------------------------------------------------
+
+
+class TestExtractOfferId:
+    def test_found(self) -> None:
+        """Offer ID found in custom_fields."""
+        data = {"custom_fields": [{"name": "Offer ID", "text_value": "OFR-1234"}]}
+        assert _extract_offer_id(data) == "OFR-1234"
+
+    def test_not_found(self) -> None:
+        """Offer ID not present."""
+        data = {"custom_fields": [{"name": "Other Field", "text_value": "x"}]}
+        assert _extract_offer_id(data) is None
+
+    def test_empty_custom_fields(self) -> None:
+        """No custom_fields key."""
+        assert _extract_offer_id({}) is None
+
+    def test_empty_string_normalized_to_none(self) -> None:
+        """DD-1: Empty string text_value normalized to None."""
+        data = {"custom_fields": [{"name": "Offer ID", "text_value": ""}]}
+        assert _extract_offer_id(data) is None
+
+    def test_none_text_value_returns_none(self) -> None:
+        """EC-3: text_value=None returns None."""
+        data = {"custom_fields": [{"name": "Offer ID", "text_value": None}]}
+        assert _extract_offer_id(data) is None
+
+    def test_non_dict_entries_skipped(self) -> None:
+        """EC-8: Non-dict entries in custom_fields are skipped."""
+        data = {"custom_fields": ["not_a_dict", 42, None]}
+        assert _extract_offer_id(data) is None
+
+
+# ---------------------------------------------------------------------------
 # build_timeline_for_offer
 # ---------------------------------------------------------------------------
 
@@ -291,6 +331,7 @@ class TestBuildTimelineForOffer:
             client=client,
             offer_gid="offer1",
             office_phone="555-0100",
+            offer_id="OFR-TEST",
             task_created_at=_utc(2024, 12, 1),
             current_section_name="ACTIVE",
             current_account_activity=AccountActivity.ACTIVE,
@@ -298,6 +339,7 @@ class TestBuildTimelineForOffer:
 
         assert timeline.offer_gid == "offer1"
         assert timeline.office_phone == "555-0100"
+        assert timeline.offer_id == "OFR-TEST"
         assert timeline.story_count == 2
         assert len(timeline.intervals) == 2
         assert timeline.intervals[0].section_name == "ACTIVATING"
@@ -323,11 +365,13 @@ class TestBuildTimelineForOffer:
             client=client,
             offer_gid="offer1",
             office_phone=None,
+            offer_id=None,
             task_created_at=_utc(2024, 6, 1),
             current_section_name="ACTIVE",
             current_account_activity=AccountActivity.ACTIVE,
         )
 
+        assert timeline.offer_id is None
         assert timeline.story_count == 0
         assert len(timeline.intervals) == 1
         assert timeline.intervals[0].section_name == "ACTIVE"
@@ -360,11 +404,13 @@ def _build_timeline(
     offer_gid: str,
     intervals: tuple[SectionInterval, ...],
     office_phone: str | None = None,
+    offer_id: str | None = None,
 ) -> SectionTimeline:
     """Helper to build SectionTimeline for _compute_day_counts tests."""
     return SectionTimeline(
         offer_gid=offer_gid,
         office_phone=office_phone,
+        offer_id=offer_id,
         intervals=intervals,
         task_created_at=_utc(2025, 1, 1),
         story_count=len(intervals),
@@ -479,6 +525,50 @@ class TestComputeDayCountsCurrentFields:
         )
         assert isinstance(entries[0].current_classification, str)
         assert entries[0].current_classification == "inactive"
+
+    def test_offer_id_passthrough(self) -> None:
+        """offer_id from SectionTimeline is passed through to OfferTimelineEntry."""
+        tl = _build_timeline(
+            "offer1",
+            intervals=(
+                SectionInterval(
+                    section_name="ACTIVE",
+                    classification=AccountActivity.ACTIVE,
+                    entered_at=_utc(2025, 1, 1),
+                    exited_at=None,
+                ),
+            ),
+            offer_id="OFR-1234",
+        )
+        entries = _compute_day_counts(
+            [tl],
+            date(2025, 1, 1),
+            date(2025, 1, 10),
+            classifier=OFFER_CLASSIFIER,
+        )
+        assert entries[0].offer_id == "OFR-1234"
+
+    def test_offer_id_none_passthrough(self) -> None:
+        """offer_id=None from SectionTimeline is passed through as None."""
+        tl = _build_timeline(
+            "offer1",
+            intervals=(
+                SectionInterval(
+                    section_name="ACTIVE",
+                    classification=AccountActivity.ACTIVE,
+                    entered_at=_utc(2025, 1, 1),
+                    exited_at=None,
+                ),
+            ),
+            offer_id=None,
+        )
+        entries = _compute_day_counts(
+            [tl],
+            date(2025, 1, 1),
+            date(2025, 1, 10),
+            classifier=OFFER_CLASSIFIER,
+        )
+        assert entries[0].offer_id is None
 
     def test_no_classifier_falls_back_to_interval_classification(self) -> None:
         """Without a classifier, use the interval's stored classification."""

@@ -48,6 +48,7 @@ def _utc(year: int, month: int, day: int, hour: int = 0) -> datetime:
 def _make_serialized_timeline(
     offer_gid: str = "offer1",
     office_phone: str | None = "555-0100",
+    offer_id: str | None = None,
     entered_at: str = "2025-01-01T00:00:00+00:00",
     exited_at: str | None = None,
     section_name: str = "ACTIVE",
@@ -59,6 +60,7 @@ def _make_serialized_timeline(
     return {
         "offer_gid": offer_gid,
         "office_phone": office_phone,
+        "offer_id": offer_id,
         "intervals": [
             {
                 "section_name": section_name,
@@ -105,6 +107,7 @@ def _make_task_mock(
     section_name: str | None = "ACTIVE",
     project_gid: str = "proj1",
     office_phone: str | None = None,
+    offer_id: str | None = None,
 ) -> MagicMock:
     """Build a mock Task object."""
     task = MagicMock()
@@ -123,6 +126,8 @@ def _make_task_mock(
     custom_fields = []
     if office_phone:
         custom_fields.append({"name": "Office Phone", "text_value": office_phone})
+    if offer_id is not None:
+        custom_fields.append({"name": "Offer ID", "text_value": offer_id})
     task.model_dump.return_value = {
         "custom_fields": custom_fields,
         "memberships": memberships,

@@ -155,6 +155,26 @@ def _extract_office_phone(task_data: dict[str, Any]) -> str | None:
     return None
 
 
+def _extract_offer_id(task_data: dict[str, Any]) -> str | None:
+    """Extract offer_id custom field from raw task data.
+
+    Walks custom_fields array looking for the "Offer ID" field.
+    Normalizes empty strings to None (DD-1: empty offer_id is
+    semantically meaningless for join-key purposes).
+
+    Args:
+        task_data: Raw task dict from Asana API.
+
+    Returns:
+        Offer ID string or None.
+    """
+    custom_fields = task_data.get("custom_fields") or []
+    for cf in custom_fields:
+        if isinstance(cf, dict) and cf.get("name") == "Offer ID":
+            return cf.get("text_value") or None
+    return None
+
+
 def _build_intervals_from_stories(
     stories: list[Story],
     classifier: SectionClassifier | None = None,
@@ -267,6 +287,7 @@ async def build_timeline_for_offer(
     client: AsanaClient,
     offer_gid: str,
     office_phone: str | None,
+    offer_id: str | None,
     task_created_at: datetime | None,
     current_section_name: str | None,
     current_account_activity: AccountActivity | None,
@@ -281,6 +302,7 @@ async def build_timeline_for_offer(
         client: AsanaClient for story fetching.
         offer_gid: Offer task GID.
         office_phone: Office phone custom field value.
+        offer_id: Internal business offer ID (Offer ID custom field).
         task_created_at: Task creation timestamp.
         current_section_name: Current section name (for imputation).
         current_account_activity: Current classification (for imputation).
@@ -326,6 +348,7 @@ async def build_timeline_for_offer(
     return SectionTimeline(
         offer_gid=offer_gid,
         office_phone=office_phone,
+        offer_id=offer_id,
         intervals=tuple(intervals),
         task_created_at=task_created_at,
         story_count=story_count,
@@ -517,6 +540,7 @@ async def get_or_compute_timelines(
                 classifier.classify(section_name) if section_name else None
             )
             office_phone = _extract_office_phone(task.model_dump())
+            offer_id = _extract_offer_id(task.model_dump())
 
             if raw_stories is not None:
                 cache_hits += 1
@@ -558,6 +582,7 @@ async def get_or_compute_timelines(
                     SectionTimeline(
                         offer_gid=task_gid,
                         office_phone=office_phone,
+                        offer_id=offer_id,
                         intervals=tuple(intervals),
                         task_created_at=task_created_at,
                         story_count=story_count,
@@ -578,6 +603,7 @@ async def get_or_compute_timelines(
                             SectionTimeline(
                                 offer_gid=task_gid,
                                 office_phone=office_phone,
+                                offer_id=offer_id,
                                 intervals=tuple(intervals),
                                 task_created_at=task_created_at,
                                 story_count=0,
@@ -691,6 +717,7 @@ def _compute_day_counts(
             OfferTimelineEntry(
                 offer_gid=timeline.offer_gid,
                 office_phone=timeline.office_phone,
+                offer_id=timeline.offer_id,
                 active_section_days=active_days,
                 billable_section_days=billable_days,
                 current_section=current_section,
