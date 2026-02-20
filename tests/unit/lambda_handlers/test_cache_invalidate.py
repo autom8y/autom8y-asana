@@ -7,6 +7,7 @@ composability with existing cache-clearing modes, and correct response shape.
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -46,6 +47,12 @@ class TestInvalidateProjectAsync:
     parquet files, is idempotent, composable with clear_tasks, and produces
     the expected response shape.
     """
+
+    @pytest.fixture(autouse=True)
+    def _mock_emit_metric(self) -> Generator[None, None, None]:
+        """Suppress CloudWatch client initialization (requires AWS region)."""
+        with patch("autom8_asana.lambda_handlers.cache_invalidate.emit_metric"):
+            yield
 
     @pytest.fixture
     def mock_persistence(self) -> MagicMock:
@@ -209,6 +216,12 @@ class TestInvalidateProjectAsync:
 
 class TestHandlerAsyncInvalidateProject:
     """Tests for handler_async threading of invalidate_project."""
+
+    @pytest.fixture(autouse=True)
+    def _mock_emit_metric(self) -> Generator[None, None, None]:
+        """Suppress CloudWatch client initialization (requires AWS region)."""
+        with patch("autom8_asana.lambda_handlers.cache_invalidate.emit_metric"):
+            yield
 
     @pytest.mark.asyncio
     async def test_handler_async_passes_invalidate_project(self) -> None:
