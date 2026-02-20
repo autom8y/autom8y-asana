@@ -19,6 +19,7 @@ from autom8_asana.automation.workflows.insights_export import (
     DEFAULT_MAX_CONCURRENCY,
     DEFAULT_ROW_LIMITS,
     EXPORT_ENABLED_ENV_VAR,
+    LEGACY_ATTACHMENT_PATTERN,
     OFFER_PROJECT_GID,
     TABLE_NAMES,
     TOTAL_TABLE_COUNT,
@@ -740,9 +741,9 @@ class TestUploadAndCleanup:
         assert mock_att.upload_async.call_count == 1
         call_kwargs = mock_att.upload_async.call_args[1]
         assert call_kwargs["parent"] == "o1"
-        assert call_kwargs["content_type"] == "text/markdown"
+        assert call_kwargs["content_type"] == "text/html"
         assert call_kwargs["name"].startswith("insights_export_")
-        assert call_kwargs["name"].endswith(".md")
+        assert call_kwargs["name"].endswith(".html")
 
     @pytest.mark.asyncio
     async def test_old_attachments_deleted(self) -> None:
@@ -1106,7 +1107,10 @@ class TestConstants:
         assert DEFAULT_MAX_CONCURRENCY == 5
 
     def test_default_attachment_pattern(self) -> None:
-        assert DEFAULT_ATTACHMENT_PATTERN == "insights_export_*.md"
+        assert DEFAULT_ATTACHMENT_PATTERN == "insights_export_*.html"
+
+    def test_legacy_attachment_pattern(self) -> None:
+        assert LEGACY_ATTACHMENT_PATTERN == "insights_export_*.md"
 
 
 # --- QA-ADVERSARY: Additional Edge Case Tests ---

@@ -1,8 +1,8 @@
-"""Insights export workflow -- daily markdown report for Offer tasks.
+"""Insights export workflow -- daily HTML report for Offer tasks.
 
 Per TDD-EXPORT-001: Second WorkflowAction implementation.
 Enumerates active Offers, resolves each to office_phone + vertical,
-fetches 10 tables from autom8_data, composes markdown report,
+fetches 10 tables from autom8_data, composes HTML report,
 and uploads as attachment to each Offer task.
 """
 
@@ -50,8 +50,11 @@ OFFER_PROJECT_GID = "1143843662099250"
 # Default concurrency for parallel offer processing
 DEFAULT_MAX_CONCURRENCY = 5
 
-# Default attachment pattern for cleanup
-DEFAULT_ATTACHMENT_PATTERN = "insights_export_*.md"
+# Default attachment patterns for cleanup
+# Primary pattern matches current HTML format; legacy pattern cleans up
+# old .md files from pre-migration deployments (transitional, one cycle).
+DEFAULT_ATTACHMENT_PATTERN = "insights_export_*.html"
+LEGACY_ATTACHMENT_PATTERN = "insights_export_*.md"
 
 # Workflow version identifier (for footer)
 WORKFLOW_VERSION = "insights-export-v1.0"
@@ -91,8 +94,8 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
        a. Resolve parent Business -> office_phone + vertical
        b. Fetch 10 tables concurrently from DataServiceClient
        c. Compose markdown report via insights_formatter
-       d. Upload new .md attachment (upload-first)
-       e. Delete old matching .md attachments
+       d. Upload new .html attachment (upload-first)
+       e. Delete old matching .html/.md attachments
     4. Return WorkflowResult with per-item and per-table tracking
 
     Args:
@@ -534,7 +537,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                     ),
                 )
 
-            # Step D: Compose markdown report
+            # Step D: Compose HTML report
             report_data = InsightsReportData(
                 business_name=business_name or offer_name or "Unknown",
                 office_phone=office_phone,
@@ -544,34 +547,39 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 version=WORKFLOW_VERSION,
                 row_limits=row_limits,
             )
-            markdown_content = compose_report(report_data)
+            report_content = compose_report(report_data)
 
             # Step E: Upload-first attachment replacement
             sanitized_name = _sanitize_business_name(
                 business_name or offer_name or "Unknown"
             )
             date_str = datetime.now(UTC).strftime("%Y%m%d")
-            filename = f"insights_export_{sanitized_name}_{date_str}.md"
+            filename = f"insights_export_{sanitized_name}_{date_str}.html"
 
             if not dry_run:
                 await self._attachments_client.upload_async(
                     parent=offer_gid,
-                    file=markdown_content.encode("utf-8"),
+                    file=report_content.encode("utf-8"),
                     name=filename,
-                    content_type="text/markdown",
+                    content_type="text/html",
                 )
 
                 logger.info(
                     "insights_export_upload_succeeded",
                     offer_gid=offer_gid,
                     filename=filename,
-                    size_bytes=len(markdown_content.encode("utf-8")),
+                    size_bytes=len(report_content.encode("utf-8")),
                 )
 
-                # Step F: Delete old matching attachments
+                # Step F: Delete old matching attachments (current + legacy patterns)
                 await self._delete_old_attachments(
                     offer_gid, attachment_pattern, exclude_name=filename
                 )
+                # Transitional: clean up legacy .md files from pre-migration
+                if attachment_pattern != LEGACY_ATTACHMENT_PATTERN:
+                    await self._delete_old_attachments(
+                        offer_gid, LEGACY_ATTACHMENT_PATTERN, exclude_name=filename
+                    )
             else:
                 logger.info(
                     "insights_export_dry_run_skip_write",
@@ -593,7 +601,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 status="succeeded",
                 tables_succeeded=tables_succeeded,
                 tables_failed=tables_failed,
-                report_preview=markdown_content[:2000] if dry_run else None,
+                report_preview=report_content[:2000] if dry_run else None,
             )
 
         except Exception as exc:  # BROAD-CATCH: boundary -- offer processing failure returns failed outcome

@@ -1,16 +1,31 @@
-"""Markdown report formatter for insights export.
+"""HTML report formatter for insights export.
 
-Per TDD-EXPORT-001: Produces pipe-table markdown from table data dicts.
-Pure functions with no external dependencies. All formatting logic
-is concentrated here for testability.
+Implements the StructuredDataRenderer protocol (Option A+ from
+SPIKE-FORMATTER-PROTOCOL-MOONSHOT) with an HtmlRenderer that produces
+self-contained HTML documents with inline CSS.
+
+Public API:
+    compose_report(data: InsightsReportData) -> str
+        Unchanged signature -- adapts InsightsReportData into DataSection
+        list and delegates to HtmlRenderer.render_document().
+
+    StructuredDataRenderer (Protocol)
+        Reusable protocol for any surface that renders list[dict] data.
+
+    DataSection (frozen dataclass)
+        Universal input shape for a single data table/section.
+
+    HtmlRenderer
+        The sole StructuredDataRenderer implementation (v1).
 """
 
 from __future__ import annotations
 
+import html
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Protocol
 
 from autom8_asana.clients.data.client import mask_phone_number
 
@@ -27,6 +42,11 @@ TABLE_ORDER: list[str] = [
     "OFFER TABLE",
     "UNUSED ASSETS",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Domain data classes (unchanged public API)
+# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -52,7 +72,7 @@ class TableResult:
 
 @dataclass
 class InsightsReportData:
-    """Input data for composing a full markdown report.
+    """Input data for composing a full report.
 
     Attributes:
         business_name: Name of the Business (for header).
@@ -73,171 +93,336 @@ class InsightsReportData:
     row_limits: dict[str, int] = field(default_factory=dict)
 
 
-def compose_report(data: InsightsReportData) -> str:
-    """Compose a full markdown report from table results.
+# ---------------------------------------------------------------------------
+# StructuredDataRenderer protocol + DataSection
+# ---------------------------------------------------------------------------
 
-    Section order: Header -> 10 tables -> Footer
+
+@dataclass(frozen=True)
+class DataSection:
+    """A named section containing tabular data or a status message.
+
+    Universal input shape for StructuredDataRenderer -- not coupled to
+    any specific workflow or data source.
+    """
+
+    name: str
+    rows: list[dict[str, Any]] | None
+    row_count: int = 0
+    truncated: bool = False
+    total_rows: int | None = None
+    error: str | None = None
+    empty_message: str | None = None
+
+
+class StructuredDataRenderer(Protocol):
+    """Renders tabular data sections into a formatted document.
+
+    Protocol class (~15 lines) for any surface that needs to present
+    list[dict[str, Any]] data as a human-readable document.
+    """
+
+    @property
+    def content_type(self) -> str:
+        """MIME type of the rendered output (e.g., 'text/html')."""
+        ...
+
+    @property
+    def file_extension(self) -> str:
+        """File extension without dot (e.g., 'html')."""
+        ...
+
+    def render_document(
+        self,
+        *,
+        title: str,
+        metadata: dict[str, str],
+        sections: list[DataSection],
+        footer: dict[str, str] | None = None,
+    ) -> str:
+        """Render a complete document with header, data sections, and footer."""
+        ...
+
+
+# ---------------------------------------------------------------------------
+# HtmlRenderer -- sole StructuredDataRenderer implementation (v1)
+# ---------------------------------------------------------------------------
+
+
+class HtmlRenderer:
+    """Renders DataSection list into a self-contained HTML document.
+
+    All CSS is inlined. No external resources. Zero dependencies beyond
+    the Python standard library.
+    """
+
+    @property
+    def content_type(self) -> str:
+        return "text/html"
+
+    @property
+    def file_extension(self) -> str:
+        return "html"
+
+    def render_document(
+        self,
+        *,
+        title: str,
+        metadata: dict[str, str],
+        sections: list[DataSection],
+        footer: dict[str, str] | None = None,
+    ) -> str:
+        """Render a complete self-contained HTML document.
+
+        Args:
+            title: Document title (displayed in header and <title>).
+            metadata: Key-value pairs for the header info block.
+            sections: Ordered list of DataSection objects.
+            footer: Key-value pairs for the footer block. None omits footer.
+
+        Returns:
+            Complete HTML string.
+        """
+        parts: list[str] = []
+        parts.append(self._render_doctype_and_head(title))
+        parts.append('<body>')
+        parts.append('<div class="container">')
+        parts.append(self._render_header(title, metadata))
+
+        for section in sections:
+            if section.error is not None:
+                parts.append(self._render_error_section(section))
+            elif section.rows is None or (not section.rows and section.empty_message):
+                parts.append(self._render_empty_section(section))
+            elif not section.rows:
+                parts.append(self._render_empty_section(section))
+            else:
+                parts.append(self._render_table_section(section))
+
+        if footer is not None:
+            parts.append(self._render_footer(footer))
+
+        parts.append('</div>')
+        parts.append('</body>')
+        parts.append('</html>')
+        return '\n'.join(parts) + '\n'
+
+    # --- Private rendering methods ---
+
+    def _render_doctype_and_head(self, title: str) -> str:
+        escaped_title = html.escape(title)
+        return (
+            '<!DOCTYPE html>\n'
+            '<html lang="en">\n'
+            '<head>\n'
+            '<meta charset="UTF-8">\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
+            f'<title>{escaped_title}</title>\n'
+            f'<style>\n{_CSS}\n</style>\n'
+            '</head>'
+        )
+
+    def _render_header(self, title: str, metadata: dict[str, str]) -> str:
+        escaped_title = html.escape(title)
+        meta_items = '\n'.join(
+            f'<span class="meta-item"><strong>{html.escape(k)}:</strong> {html.escape(v)}</span>'
+            for k, v in metadata.items()
+        )
+        return (
+            '<header class="report-header">\n'
+            f'<h1 class="report-title">{escaped_title}</h1>\n'
+            f'<div class="report-meta">{meta_items}</div>\n'
+            '</header>'
+        )
+
+    def _render_table_section(self, section: DataSection) -> str:
+        rows = section.rows or []
+        columns = _discover_columns(rows)
+
+        if not columns:
+            return self._render_empty_section(section)
+
+        section_id = _slugify(section.name)
+        header_cells = ''.join(
+            f'<th class="{_column_align_class(rows, col)}">'
+            f'{html.escape(_to_title_case(col))}</th>'
+            for col in columns
+        )
+
+        body_rows: list[str] = []
+        for row in rows:
+            cells = ''.join(
+                f'<td class="{_column_align_class(rows, col)}">'
+                f'{_format_cell_html(row.get(col))}</td>'
+                for col in columns
+            )
+            body_rows.append(f'<tr>{cells}</tr>')
+
+        parts = [
+            f'<section id="{section_id}" class="table-section">',
+            f'<div class="section-header">',
+            f'<h2>{html.escape(section.name)} '
+            f'<span class="badge">{section.row_count}</span></h2>',
+            '</div>',
+            '<div class="section-body">',
+            '<div class="table-scroll">',
+            '<table>',
+            f'<thead><tr>{header_cells}</tr></thead>',
+            '<tbody>',
+            '\n'.join(body_rows),
+            '</tbody>',
+            '</table>',
+            '</div>',
+        ]
+
+        if section.truncated and section.total_rows is not None:
+            parts.append(
+                f'<p class="truncation-note">Showing {section.row_count} '
+                f'of {section.total_rows} rows</p>'
+            )
+
+        parts.append('</div>')
+        parts.append('</section>')
+        return '\n'.join(parts)
+
+    def _render_empty_section(self, section: DataSection) -> str:
+        section_id = _slugify(section.name)
+        message = section.empty_message or "No data available"
+        return (
+            f'<section id="{section_id}" class="table-section">\n'
+            f'<div class="section-header">\n'
+            f'<h2>{html.escape(section.name)}</h2>\n'
+            '</div>\n'
+            '<div class="section-body">\n'
+            f'<p class="empty-message">{html.escape(message)}</p>\n'
+            '</div>\n'
+            '</section>'
+        )
+
+    def _render_error_section(self, section: DataSection) -> str:
+        section_id = _slugify(section.name)
+        error_text = section.error or "Unknown error"
+        return (
+            f'<section id="{section_id}" class="table-section">\n'
+            f'<div class="section-header">\n'
+            f'<h2>{html.escape(section.name)}</h2>\n'
+            '</div>\n'
+            '<div class="section-body">\n'
+            f'<div class="error-box">{html.escape(error_text)}</div>\n'
+            '</div>\n'
+            '</section>'
+        )
+
+    def _render_footer(self, footer: dict[str, str]) -> str:
+        items = '\n'.join(
+            f'<span class="footer-item"><strong>{html.escape(k)}:</strong> {html.escape(v)}</span>'
+            for k, v in footer.items()
+        )
+        return (
+            '<footer class="report-footer">\n'
+            f'{items}\n'
+            '</footer>'
+        )
+
+
+# ---------------------------------------------------------------------------
+# compose_report -- public API (unchanged signature)
+# ---------------------------------------------------------------------------
+
+_renderer = HtmlRenderer()
+
+
+def compose_report(data: InsightsReportData) -> str:
+    """Compose a full HTML report from table results.
+
+    Thin adapter: unpacks InsightsReportData into DataSection list
+    and delegates to HtmlRenderer.render_document().
 
     Args:
         data: InsightsReportData with all table results.
 
     Returns:
-        Complete markdown string.
+        Complete HTML string.
     """
-    sections: list[str] = []
+    # Build metadata
+    masked = mask_phone_number(data.office_phone)
+    timestamp = datetime.now(UTC).isoformat()
+    metadata: dict[str, str] = {
+        "Phone": masked,
+        "Vertical": data.vertical,
+        "Generated": timestamp,
+        "Period": "Daily insights report",
+    }
 
-    # Header
-    sections.append(_format_header(data))
-
-    # Tables in fixed order
+    # Build sections in fixed order
+    sections: list[DataSection] = []
     for table_name in TABLE_ORDER:
         result = data.table_results.get(table_name)
         if result is None:
-            sections.append(
-                _format_error_section(
-                    table_name, "missing", "Table result not available"
-                )
-            )
+            sections.append(DataSection(
+                name=table_name,
+                rows=None,
+                error=f"[ERROR] missing: Table result not available",
+            ))
         elif not result.success:
-            sections.append(
-                _format_error_section(
-                    table_name,
-                    result.error_type or "unknown",
-                    result.error_message or "Unknown error",
-                )
-            )
+            error_type = result.error_type or "unknown"
+            error_msg = result.error_message or "Unknown error"
+            sections.append(DataSection(
+                name=table_name,
+                rows=None,
+                error=f"[ERROR] {error_type}: {error_msg}",
+            ))
         elif not result.data:
-            sections.append(_format_empty_section(table_name))
+            empty_msg = (
+                "No unused assets found"
+                if table_name == "UNUSED ASSETS"
+                else "No data available"
+            )
+            sections.append(DataSection(
+                name=table_name,
+                rows=[],
+                empty_message=empty_msg,
+            ))
         else:
             row_limit = data.row_limits.get(table_name)
-            sections.append(_format_table_section(table_name, result.data, row_limit))
+            total_rows = len(result.data)
+            display_rows = result.data[:row_limit] if row_limit else result.data
+            truncated = row_limit is not None and total_rows > row_limit
+            sections.append(DataSection(
+                name=table_name,
+                rows=display_rows,
+                row_count=len(display_rows),
+                truncated=truncated,
+                total_rows=total_rows if truncated else None,
+            ))
 
-    # Footer
+    # Build footer
     elapsed = time.monotonic() - data.started_at
     tables_succeeded = sum(1 for r in data.table_results.values() if r.success)
     tables_failed = len(TABLE_ORDER) - tables_succeeded
-    sections.append(
-        _format_footer(elapsed, tables_succeeded, tables_failed, data.version)
-    )
+    total_tables = tables_succeeded + tables_failed
 
-    return "\n\n".join(sections) + "\n"
-
-
-def _format_header(data: InsightsReportData) -> str:
-    """Format the report header section.
-
-    Includes: business name, masked phone, vertical, timestamp.
-    """
-    masked = mask_phone_number(data.office_phone)
-    timestamp = datetime.now(UTC).isoformat()
-    return (
-        f"# Insights Export: {data.business_name}\n\n"
-        f"**Phone**: {masked}  \n"
-        f"**Vertical**: {data.vertical}  \n"
-        f"**Generated**: {timestamp}  \n"
-        f"**Period**: Daily insights report"
-    )
-
-
-def _format_table_section(
-    table_name: str,
-    rows: list[dict[str, Any]],
-    row_limit: int | None = None,
-) -> str:
-    """Format a table section with pipe-table markdown.
-
-    Args:
-        table_name: Table heading name.
-        rows: List of row dicts.
-        row_limit: Maximum rows to display. None = no limit.
-
-    Returns:
-        Markdown string with heading, pipe table, and optional truncation note.
-    """
-    total_rows = len(rows)
-    display_rows = rows[:row_limit] if row_limit else rows
-    truncated = row_limit is not None and total_rows > row_limit
-
-    # Collect all column names (union of all rows, preserving first-seen order)
-    columns: list[str] = []
-    seen: set[str] = set()
-    for row in display_rows:
-        for key in row:
-            if key not in seen:
-                columns.append(key)
-                seen.add(key)
-
-    if not columns:
-        return f"## {table_name}\n\n> No data available"
-
-    # Header row (Title Case)
-    header_cells = [_to_title_case(col) for col in columns]
-    header_line = "| " + " | ".join(header_cells) + " |"
-
-    # Alignment row
-    align_line = "| " + " | ".join("---" for _ in columns) + " |"
-
-    # Data rows
-    data_lines: list[str] = []
-    for row in display_rows:
-        cells = [_format_cell(row.get(col)) for col in columns]
-        data_lines.append("| " + " | ".join(cells) + " |")
-
-    parts = [f"## {table_name}", "", header_line, align_line] + data_lines
-
-    if truncated:
-        parts.append("")
-        parts.append(f"> Showing first {row_limit} of {total_rows} rows")
-
-    return "\n".join(parts)
-
-
-def _format_empty_section(table_name: str) -> str:
-    """Format an empty table section.
-
-    Per PRD FR-W03.3: Zero rows -> "No data available" note.
-    Special case for UNUSED ASSETS: "No unused assets found".
-    """
-    if table_name == "UNUSED ASSETS":
-        return f"## {table_name}\n\n> No unused assets found"
-    return f"## {table_name}\n\n> No data available"
-
-
-def _format_error_section(
-    table_name: str,
-    error_type: str,
-    message: str,
-) -> str:
-    """Format an error marker section.
-
-    Per PRD FR-W02.2:
-    ## TABLE_NAME
-    > [ERROR] {error_type}: {message}
-    """
-    return f"## {table_name}\n\n> [ERROR] {error_type}: {message}"
-
-
-def _format_footer(
-    duration_seconds: float,
-    tables_succeeded: int,
-    tables_failed: int,
-    version: str,
-) -> str:
-    """Format the report footer section.
-
-    Per PRD FR-W03.7: Duration, table count, error count, version.
-    """
-    total = tables_succeeded + tables_failed
-    parts = [
-        "---",
-        "",
-        f"**Duration**: {duration_seconds:.2f}s  ",
-        f"**Tables**: {tables_succeeded}/{total}  ",
-    ]
+    footer: dict[str, str] = {
+        "Duration": f"{elapsed:.2f}s",
+        "Tables": f"{tables_succeeded}/{total_tables}",
+    }
     if tables_failed > 0:
-        parts.append(f"**Errors**: {tables_failed}  ")
-    parts.append(f"**Version**: {version}")
-    return "\n".join(parts)
+        footer["Errors"] = str(tables_failed)
+    footer["Version"] = data.version
+
+    title = f"Insights Export: {data.business_name}"
+
+    return _renderer.render_document(
+        title=title,
+        metadata=metadata,
+        sections=sections,
+        footer=footer,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
 
 
 def _to_title_case(column_name: str) -> str:
@@ -254,20 +439,241 @@ def _to_title_case(column_name: str) -> str:
     return column_name.replace("_", " ").title()
 
 
-def _format_cell(value: Any) -> str:
-    """Format a single cell value for pipe table display.
+def _format_cell_html(value: Any) -> str:
+    """Format a single cell value for HTML table display.
 
-    Per PRD FR-W03.5: Null values rendered as `---`.
-    Pipe characters in values are escaped to prevent markdown table corruption.
+    None values render as a styled dash indicator.
+    All string values are HTML-escaped to prevent XSS.
 
     Args:
         value: Cell value (may be None).
 
     Returns:
-        String representation for the pipe table cell.
+        HTML-safe string for table cell content.
     """
     if value is None:
-        return "---"
-    text = str(value)
-    # Escape pipe characters to prevent corrupting pipe-table column structure
-    return text.replace("|", "\\|")
+        return '<span class="null-value">---</span>'
+    return html.escape(str(value))
+
+
+def _discover_columns(rows: list[dict[str, Any]]) -> list[str]:
+    """Discover all column names from rows, preserving first-seen order.
+
+    Handles heterogeneous rows where different rows may have different
+    key sets. Returns the union of all keys.
+    """
+    columns: list[str] = []
+    seen: set[str] = set()
+    for row in rows:
+        for key in row:
+            if key not in seen:
+                columns.append(key)
+                seen.add(key)
+    return columns
+
+
+def _slugify(name: str) -> str:
+    """Convert a section name to a URL-safe ID slug.
+
+    E.g., "BY QUARTER" -> "by-quarter", "ASSET TABLE" -> "asset-table"
+    """
+    return name.lower().replace(" ", "-")
+
+
+def _column_align_class(rows: list[dict[str, Any]], column: str) -> str:
+    """Determine CSS alignment class for a column based on value types.
+
+    Numeric columns (int/float) get right alignment; text columns get left.
+    Checks the first non-None value in the column to determine type.
+    """
+    for row in rows:
+        val = row.get(column)
+        if val is not None:
+            if isinstance(val, (int, float)):
+                return "num"
+            return ""
+    return ""
+
+
+# ---------------------------------------------------------------------------
+# Inline CSS (self-contained, no external resources)
+# ---------------------------------------------------------------------------
+
+_CSS = """\
+/* Reset & Base */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: #fafafa;
+  color: #1a1a1a;
+  line-height: 1.5;
+  padding: 0;
+  margin: 0;
+}
+
+/* Container */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+/* Header */
+.report-header {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e0e0e0;
+}
+.report-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #1a1a1a;
+}
+.report-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 13px;
+  color: #666;
+}
+.meta-item strong {
+  color: #333;
+}
+
+/* Table Sections */
+.table-section {
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.section-header {
+  padding: 10px 16px;
+  background: #f5f5f5;
+  border-bottom: 1px solid #e0e0e0;
+}
+.section-header h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a1a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.badge {
+  font-size: 11px;
+  background: #e0e0e0;
+  color: #666;
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-weight: 500;
+}
+.section-body {
+  overflow: hidden;
+}
+
+/* Tables */
+.table-scroll {
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+thead tr {
+  background: #f9f9f9;
+  border-bottom: 2px solid #e0e0e0;
+}
+th {
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+}
+th.num {
+  text-align: right;
+}
+td {
+  padding: 6px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  color: #1a1a1a;
+}
+td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+tbody tr:nth-child(even) {
+  background: #f9f9f9;
+}
+tbody tr:hover {
+  background: #f0f4ff;
+}
+
+/* Null value indicator */
+.null-value {
+  color: #bbb;
+}
+
+/* Empty message */
+.empty-message {
+  padding: 20px 16px;
+  color: #888;
+  font-style: italic;
+  text-align: center;
+}
+
+/* Error box */
+.error-box {
+  padding: 12px 16px;
+  margin: 12px 16px;
+  background: #fdeaea;
+  border: 1px solid #f5c6c6;
+  border-radius: 4px;
+  color: #9a1f1f;
+  font-size: 13px;
+}
+
+/* Truncation note */
+.truncation-note {
+  padding: 8px 16px;
+  font-size: 12px;
+  color: #888;
+  font-style: italic;
+  border-top: 1px solid #f0f0f0;
+}
+
+/* Footer */
+.report-footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 2px solid #e0e0e0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  font-size: 13px;
+  color: #666;
+}
+.footer-item strong {
+  color: #333;
+}
+
+/* Print styles */
+@media print {
+  body { background: #fff; }
+  .container { max-width: none; padding: 0; }
+  .table-section { box-shadow: none; break-inside: avoid; }
+  .report-footer { break-before: avoid; }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .container { padding: 12px; }
+  table { font-size: 12px; }
+  th, td { padding: 4px 8px; }
+}"""
