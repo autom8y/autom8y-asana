@@ -185,7 +185,7 @@ class HtmlRenderer:
         """
         parts: list[str] = []
         parts.append(self._render_doctype_and_head(title))
-        parts.append('<body>')
+        parts.append("<body>")
         parts.append('<div class="container">')
         parts.append(self._render_header(title, metadata))
 
@@ -202,29 +202,29 @@ class HtmlRenderer:
         if footer is not None:
             parts.append(self._render_footer(footer))
 
-        parts.append('</div>')
-        parts.append('</body>')
-        parts.append('</html>')
-        return '\n'.join(parts) + '\n'
+        parts.append("</div>")
+        parts.append("</body>")
+        parts.append("</html>")
+        return "\n".join(parts) + "\n"
 
     # --- Private rendering methods ---
 
     def _render_doctype_and_head(self, title: str) -> str:
         escaped_title = html.escape(title)
         return (
-            '<!DOCTYPE html>\n'
+            "<!DOCTYPE html>\n"
             '<html lang="en">\n'
-            '<head>\n'
+            "<head>\n"
             '<meta charset="UTF-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
-            f'<title>{escaped_title}</title>\n'
-            f'<style>\n{_CSS}\n</style>\n'
-            '</head>'
+            f"<title>{escaped_title}</title>\n"
+            f"<style>\n{_CSS}\n</style>\n"
+            "</head>"
         )
 
     def _render_header(self, title: str, metadata: dict[str, str]) -> str:
         escaped_title = html.escape(title)
-        meta_items = '\n'.join(
+        meta_items = "\n".join(
             f'<span class="meta-item"><strong>{html.escape(k)}:</strong> {html.escape(v)}</span>'
             for k, v in metadata.items()
         )
@@ -232,7 +232,7 @@ class HtmlRenderer:
             '<header class="report-header">\n'
             f'<h1 class="report-title">{escaped_title}</h1>\n'
             f'<div class="report-meta">{meta_items}</div>\n'
-            '</header>'
+            "</header>"
         )
 
     def _render_table_section(self, section: DataSection) -> str:
@@ -243,47 +243,47 @@ class HtmlRenderer:
             return self._render_empty_section(section)
 
         section_id = _slugify(section.name)
-        header_cells = ''.join(
+        header_cells = "".join(
             f'<th class="{_column_align_class(rows, col)}">'
-            f'{html.escape(_to_title_case(col))}</th>'
+            f"{html.escape(_to_title_case(col))}</th>"
             for col in columns
         )
 
         body_rows: list[str] = []
         for row in rows:
-            cells = ''.join(
+            cells = "".join(
                 f'<td class="{_column_align_class(rows, col)}">'
-                f'{_format_cell_html(row.get(col))}</td>'
+                f"{_format_cell_html(row.get(col))}</td>"
                 for col in columns
             )
-            body_rows.append(f'<tr>{cells}</tr>')
+            body_rows.append(f"<tr>{cells}</tr>")
 
         parts = [
             f'<section id="{section_id}" class="table-section">',
-            f'<div class="section-header">',
-            f'<h2>{html.escape(section.name)} '
+            '<div class="section-header">',
+            f"<h2>{html.escape(section.name)} "
             f'<span class="badge">{section.row_count}</span></h2>',
-            '</div>',
+            "</div>",
             '<div class="section-body">',
             '<div class="table-scroll">',
-            '<table>',
-            f'<thead><tr>{header_cells}</tr></thead>',
-            '<tbody>',
-            '\n'.join(body_rows),
-            '</tbody>',
-            '</table>',
-            '</div>',
+            "<table>",
+            f"<thead><tr>{header_cells}</tr></thead>",
+            "<tbody>",
+            "\n".join(body_rows),
+            "</tbody>",
+            "</table>",
+            "</div>",
         ]
 
         if section.truncated and section.total_rows is not None:
             parts.append(
                 f'<p class="truncation-note">Showing {section.row_count} '
-                f'of {section.total_rows} rows</p>'
+                f"of {section.total_rows} rows</p>"
             )
 
-        parts.append('</div>')
-        parts.append('</section>')
-        return '\n'.join(parts)
+        parts.append("</div>")
+        parts.append("</section>")
+        return "\n".join(parts)
 
     def _render_empty_section(self, section: DataSection) -> str:
         section_id = _slugify(section.name)
@@ -291,12 +291,12 @@ class HtmlRenderer:
         return (
             f'<section id="{section_id}" class="table-section">\n'
             f'<div class="section-header">\n'
-            f'<h2>{html.escape(section.name)}</h2>\n'
-            '</div>\n'
+            f"<h2>{html.escape(section.name)}</h2>\n"
+            "</div>\n"
             '<div class="section-body">\n'
             f'<p class="empty-message">{html.escape(message)}</p>\n'
-            '</div>\n'
-            '</section>'
+            "</div>\n"
+            "</section>"
         )
 
     def _render_error_section(self, section: DataSection) -> str:
@@ -305,24 +305,20 @@ class HtmlRenderer:
         return (
             f'<section id="{section_id}" class="table-section">\n'
             f'<div class="section-header">\n'
-            f'<h2>{html.escape(section.name)}</h2>\n'
-            '</div>\n'
+            f"<h2>{html.escape(section.name)}</h2>\n"
+            "</div>\n"
             '<div class="section-body">\n'
             f'<div class="error-box">{html.escape(error_text)}</div>\n'
-            '</div>\n'
-            '</section>'
+            "</div>\n"
+            "</section>"
         )
 
     def _render_footer(self, footer: dict[str, str]) -> str:
-        items = '\n'.join(
+        items = "\n".join(
             f'<span class="footer-item"><strong>{html.escape(k)}:</strong> {html.escape(v)}</span>'
             for k, v in footer.items()
         )
-        return (
-            '<footer class="report-footer">\n'
-            f'{items}\n'
-            '</footer>'
-        )
+        return f'<footer class="report-footer">\n{items}\n</footer>'
 
 
 # ---------------------------------------------------------------------------
@@ -359,42 +355,50 @@ def compose_report(data: InsightsReportData) -> str:
     for table_name in TABLE_ORDER:
         result = data.table_results.get(table_name)
         if result is None:
-            sections.append(DataSection(
-                name=table_name,
-                rows=None,
-                error=f"[ERROR] missing: Table result not available",
-            ))
+            sections.append(
+                DataSection(
+                    name=table_name,
+                    rows=None,
+                    error="[ERROR] missing: Table result not available",
+                )
+            )
         elif not result.success:
             error_type = result.error_type or "unknown"
             error_msg = result.error_message or "Unknown error"
-            sections.append(DataSection(
-                name=table_name,
-                rows=None,
-                error=f"[ERROR] {error_type}: {error_msg}",
-            ))
+            sections.append(
+                DataSection(
+                    name=table_name,
+                    rows=None,
+                    error=f"[ERROR] {error_type}: {error_msg}",
+                )
+            )
         elif not result.data:
             empty_msg = (
                 "No unused assets found"
                 if table_name == "UNUSED ASSETS"
                 else "No data available"
             )
-            sections.append(DataSection(
-                name=table_name,
-                rows=[],
-                empty_message=empty_msg,
-            ))
+            sections.append(
+                DataSection(
+                    name=table_name,
+                    rows=[],
+                    empty_message=empty_msg,
+                )
+            )
         else:
             row_limit = data.row_limits.get(table_name)
             total_rows = len(result.data)
             display_rows = result.data[:row_limit] if row_limit else result.data
             truncated = row_limit is not None and total_rows > row_limit
-            sections.append(DataSection(
-                name=table_name,
-                rows=display_rows,
-                row_count=len(display_rows),
-                truncated=truncated,
-                total_rows=total_rows if truncated else None,
-            ))
+            sections.append(
+                DataSection(
+                    name=table_name,
+                    rows=display_rows,
+                    row_count=len(display_rows),
+                    truncated=truncated,
+                    total_rows=total_rows if truncated else None,
+                )
+            )
 
     # Build footer
     elapsed = time.monotonic() - data.started_at

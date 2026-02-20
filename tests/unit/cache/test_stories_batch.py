@@ -21,7 +21,6 @@ from autom8_asana.cache.integration.stories import (
 )
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 
-
 # ---------------------------------------------------------------------------
 # Mock Cache Provider with get_batch support
 # ---------------------------------------------------------------------------
@@ -64,9 +63,7 @@ class MockCacheProvider(_SDKMockCacheProvider):
         entry_type: EntryType,
     ) -> dict[str, CacheEntry | None]:
         """Batch get using individual lookups."""
-        self.calls.append(
-            ("get_batch", {"keys": keys, "entry_type": entry_type})
-        )
+        self.calls.append(("get_batch", {"keys": keys, "entry_type": entry_type}))
         result: dict[str, CacheEntry | None] = {}
         for key in keys:
             cache_key = f"{entry_type.value}:{key}"
@@ -143,9 +140,7 @@ class TestReadCachedStories:
         call_types = [call[0] for call in cache.calls]
         assert "set_versioned" not in call_types
 
-    def test_empty_stories_list_returns_empty(
-        self, cache: MockCacheProvider
-    ) -> None:
+    def test_empty_stories_list_returns_empty(self, cache: MockCacheProvider) -> None:
         """Cached entry with empty stories list returns empty list (not None)."""
         _populate_cache(cache, "task1", [])
         result = read_cached_stories("task1", cache)
@@ -209,9 +204,7 @@ class TestReadStoriesBatch:
         batch_calls = [c for c in cache.calls if c[0] == "get_batch"]
         assert len(batch_calls) == 1
 
-    def test_chunking_splits_large_batch(
-        self, cache: MockCacheProvider
-    ) -> None:
+    def test_chunking_splits_large_batch(self, cache: MockCacheProvider) -> None:
         """Batch larger than chunk_size is split into multiple get_batch calls."""
         # Create 7 tasks with chunk_size=3 -> should be 3 chunks (3+3+1)
         gids = [f"t{i}" for i in range(7)]
@@ -261,9 +254,7 @@ class TestReadStoriesBatch:
         batch_calls = [c for c in cache.calls if c[0] == "get_batch"]
         assert len(batch_calls) == 2
 
-    def test_returns_all_keys_from_input(
-        self, cache: MockCacheProvider
-    ) -> None:
+    def test_returns_all_keys_from_input(self, cache: MockCacheProvider) -> None:
         """Every key in the input appears in the output (hit or miss)."""
         gids = ["a", "b", "c"]
         _populate_cache(cache, "b", [{"gid": "s_b"}])

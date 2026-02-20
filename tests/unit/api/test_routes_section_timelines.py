@@ -22,7 +22,6 @@ from autom8_asana.api.routes.section_timelines import router
 from autom8_asana.client import AsanaClient
 from autom8_asana.models.business.section_timeline import OfferTimelineEntry
 
-
 # ---------------------------------------------------------------------------
 # App fixture with DI overrides
 # ---------------------------------------------------------------------------
@@ -41,7 +40,9 @@ def _create_test_app() -> FastAPI:
     async def override_request_id() -> str:
         return "test-request-id"
 
-    app.dependency_overrides[AsanaClientDualMode.__metadata__[0].dependency] = override_client  # type: ignore[index]
+    app.dependency_overrides[AsanaClientDualMode.__metadata__[0].dependency] = (
+        override_client  # type: ignore[index]
+    )
     app.dependency_overrides[RequestId.__metadata__[0].dependency] = override_request_id  # type: ignore[index]
 
     app.include_router(router)
@@ -126,9 +127,7 @@ class TestSuccessResponse:
 
 
 class TestValidationErrors:
-    def test_422_period_start_after_end(
-        self, test_client: TestClient
-    ) -> None:
+    def test_422_period_start_after_end(self, test_client: TestClient) -> None:
         """period_start > period_end returns 422 VALIDATION_ERROR."""
         with patch(
             "autom8_asana.api.routes.section_timelines.get_or_compute_timelines",
@@ -180,9 +179,7 @@ class TestValidationErrors:
 
 
 class TestUpstreamErrors:
-    def test_502_on_computation_failure(
-        self, test_client: TestClient
-    ) -> None:
+    def test_502_on_computation_failure(self, test_client: TestClient) -> None:
         """Asana API failure during computation returns 502."""
         with patch(
             "autom8_asana.api.routes.section_timelines.get_or_compute_timelines",

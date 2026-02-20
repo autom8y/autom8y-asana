@@ -16,12 +16,33 @@ if TYPE_CHECKING:
 _STDLIB_LOG_KWARGS = frozenset({"exc_info", "stack_info", "stacklevel"})
 """Keyword arguments accepted by ``logging.Logger._log()``."""
 
-_LOGRECORD_RESERVED = frozenset({
-    "name", "msg", "args", "created", "relativeCreated", "exc_info",
-    "exc_text", "stack_info", "lineno", "funcName", "sinfo", "pathname",
-    "filename", "module", "levelno", "levelname", "message", "msecs",
-    "process", "processName", "thread", "threadName", "taskName",
-})
+_LOGRECORD_RESERVED = frozenset(
+    {
+        "name",
+        "msg",
+        "args",
+        "created",
+        "relativeCreated",
+        "exc_info",
+        "exc_text",
+        "stack_info",
+        "lineno",
+        "funcName",
+        "sinfo",
+        "pathname",
+        "filename",
+        "module",
+        "levelno",
+        "levelname",
+        "message",
+        "msecs",
+        "process",
+        "processName",
+        "thread",
+        "threadName",
+        "taskName",
+    }
+)
 """LogRecord attributes that cannot appear as ``extra`` keys."""
 
 

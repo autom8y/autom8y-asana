@@ -485,7 +485,7 @@ async def get_or_compute_timelines(
             )
 
         # Step 5: Build timelines from cached stories
-        timelines: list[SectionTimeline] = []
+        timelines: list[SectionTimeline] = []  # type: ignore[no-redef]
         cache_hits = 0
         cache_misses = 0
 
