@@ -152,6 +152,18 @@ class MutationInvalidator:
         # Step 1: Entity cache invalidation
         self._invalidate_entity_entries(gid, event)
 
+        # Story cache cleanup: hard-delete story entries only for task deletions.
+        # UPDATE/MOVE mutations preserve story entries so load_stories_incremental()
+        # can use the 'since' cursor for cheap incremental fetches (ADR-0020).
+        if event.mutation_type == MutationType.DELETE:
+            try:
+                self._cache.invalidate(gid, [EntryType.STORIES])
+            except CACHE_TRANSIENT_ERRORS as exc:
+                logger.warning(
+                    "story_cache_invalidation_failed",
+                    extra={"gid": gid, "error": str(exc)},
+                )
+
         # Step 2: Per-task DataFrame invalidation (task_gid:project_gid keys)
         if event.project_gids:
             self._invalidate_per_task_dataframes(gid, event.project_gids)

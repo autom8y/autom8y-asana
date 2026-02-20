@@ -154,8 +154,12 @@ async def load_stories_incremental(
         cache.set_versioned(task_gid, entry)
         return stories, entry, False
 
-    # Short-circuit: if cache is fresh enough, skip the API call entirely.
-    if max_cache_age_seconds is not None and cached_entry.cached_at is not None:
+    # Freshness probe: if the task was modified since stories were cached,
+    # bypass the max_cache_age_seconds short-circuit and do incremental fetch.
+    # This preserves the 'since' cursor while ensuring mutations are picked up.
+    if current_modified_at is not None and cached_entry.is_stale(current_modified_at):
+        pass  # Fall through to incremental fetch below
+    elif max_cache_age_seconds is not None and cached_entry.cached_at is not None:
         cache_age = (datetime.now(UTC) - cached_entry.cached_at).total_seconds()
         if cache_age <= max_cache_age_seconds:
             cached_stories = _extract_stories_list(cached_entry.data)
