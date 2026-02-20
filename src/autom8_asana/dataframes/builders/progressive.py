@@ -500,14 +500,15 @@ class ProgressiveProjectBuilder:
                 )
                 if cascade_plugin is not None:
                     try:
-                        merged_df, _cascade_result = (
-                            await validate_cascade_fields_async(
-                                merged_df=merged_df,
-                                store=self._store,
-                                cascade_plugin=cascade_plugin,
-                                project_gid=self._project_gid,
-                                entity_type=self._entity_type,
-                            )
+                        (
+                            merged_df,
+                            _cascade_result,
+                        ) = await validate_cascade_fields_async(
+                            merged_df=merged_df,
+                            store=self._store,
+                            cascade_plugin=cascade_plugin,
+                            project_gid=self._project_gid,
+                            entity_type=self._entity_type,
                         )
                         total_rows = len(merged_df)
                     except Exception as e:  # BROAD-CATCH: validation is additive
