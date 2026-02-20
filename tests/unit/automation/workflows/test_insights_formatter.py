@@ -19,6 +19,7 @@ Covers TDD Section 9.2 test scenarios adapted for HTML output:
 
 from __future__ import annotations
 
+import re
 import time
 from unittest.mock import patch
 
@@ -75,6 +76,17 @@ def _make_report_data(
         version=version,
         row_limits=row_limits or {},
     )
+
+
+def _extract_row_names(tbody_html: str) -> list[str]:
+    """Extract first-column text from each <tr> in tbody HTML."""
+    rows = re.findall(r"<tr[^>]*>(.*?)</tr>", tbody_html, re.DOTALL)
+    names = []
+    for row in rows:
+        cells = re.findall(r"<td[^>]*>(.*?)</td>", row, re.DOTALL)
+        if cells:
+            names.append(cells[0].strip())
+    return names
 
 
 def _make_table_result(
@@ -2028,10 +2040,8 @@ class TestPhase1Constants:
         # In the ASSET TABLE section body, High should appear before Mid, Mid before Low
         asset_section = report.split('id="asset-table"')[1].split("</section>")[0]
         asset_tbody = asset_section.split("<tbody>")[1].split("</tbody>")[0]
-        high_pos = asset_tbody.find("High")
-        mid_pos = asset_tbody.find("Mid")
-        low_pos = asset_tbody.find("Low")
-        assert high_pos < mid_pos < low_pos
+        row_names = _extract_row_names(asset_tbody)
+        assert row_names.index("High") < row_names.index("Mid") < row_names.index("Low")
 
     @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
     def test_compose_report_asset_table_excludes_metadata_columns(self, mock_monotonic):
@@ -2747,10 +2757,12 @@ class TestPhase6QA:
         asset_section = report.split('id="asset-table"')[1].split("</section>")[0]
         tbody = asset_section.split("<tbody>")[1].split("</tbody>")[0]
 
-        high_pos = tbody.find("HighSpend")
-        low_pos = tbody.find("LowSpend")
-        no_pos = tbody.find("NoSpend")
-        assert high_pos < low_pos < no_pos, "Null spend should sort to bottom"
+        row_names = _extract_row_names(tbody)
+        assert (
+            row_names.index("HighSpend")
+            < row_names.index("LowSpend")
+            < row_names.index("NoSpend")
+        ), "Null spend should sort to bottom"
 
     @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
     def test_asset_table_excluded_columns_not_in_display(self, mock_monotonic):
