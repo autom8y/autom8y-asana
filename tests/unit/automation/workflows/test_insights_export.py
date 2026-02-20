@@ -359,7 +359,9 @@ class TestEnumeration:
 
         wf, _, _, _ = _make_workflow(offers=[active_offer, completed_offer])
 
-        # Patch to use ResolutionContext
+        # NOTE: ResolutionContext patch boilerplate is repeated across ~31 test methods.
+        # Consolidation via a shared fixture is deferred (SM-008) to a dedicated test
+        # architecture initiative. The pattern is consistent and functional as-is.
         with patch(
             "autom8_asana.automation.workflows.insights_export.ResolutionContext"
         ) as mock_rc:
@@ -1230,7 +1232,11 @@ class TestConstants:
         assert OFFER_PROJECT_GID == "1143843662099250"
 
     def test_default_row_limits(self) -> None:
-        assert DEFAULT_ROW_LIMITS == {"APPOINTMENTS": 250, "LEADS": 250}
+        assert DEFAULT_ROW_LIMITS == {
+            "APPOINTMENTS": 100,
+            "LEADS": 100,
+            "ASSET TABLE": 150,
+        }
 
     def test_default_max_concurrency(self) -> None:
         assert DEFAULT_MAX_CONCURRENCY == 5
@@ -1725,8 +1731,8 @@ class TestDryRun:
         assert result.metadata.get("dry_run") is True
 
     @pytest.mark.asyncio()
-    async def test_dry_run_includes_report_preview(self) -> None:
-        """DEF-001: metadata['report_preview'] present in dry-run, max 2000 chars."""
+    async def test_dry_run_writes_preview_files(self) -> None:
+        """Dry-run writes full HTML to .wip/ and reports paths in metadata."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         wf, _, _, _ = _make_workflow(offers=[o1])
 
@@ -1744,9 +1750,17 @@ class TestDryRun:
             params = {**_default_params(), "dry_run": True}
             result = await wf.execute_async(entities, params)
 
-        preview = result.metadata.get("report_preview")
-        assert preview is not None
-        # report_preview is a dict mapping offer_gid -> preview string
-        assert isinstance(preview, dict)
-        assert "o1" in preview
-        assert len(preview["o1"]) <= 2000
+        paths = result.metadata.get("preview_paths")
+        assert paths is not None
+        assert isinstance(paths, dict)
+        assert "o1" in paths
+        # Verify the file was actually written
+        import pathlib
+
+        preview_file = pathlib.Path(paths["o1"])
+        assert preview_file.exists()
+        content = preview_file.read_text(encoding="utf-8")
+        assert "<!DOCTYPE html>" in content
+        assert "Test Business" in content
+        # Cleanup
+        preview_file.unlink(missing_ok=True)
