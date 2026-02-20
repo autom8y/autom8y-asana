@@ -500,7 +500,7 @@ class TestHealthEndpoint:
     """Test health endpoint to verify service is operational."""
 
     def test_health_endpoint_returns_ok(self) -> None:
-        """Test /satellite/health returns 200 when service is ready."""
+        """Test /health returns 200 with contract envelope when service is running."""
         from fastapi.testclient import TestClient
 
         async def mock_discovery(app):
@@ -532,11 +532,12 @@ class TestHealthEndpoint:
             app = create_app()
 
             with TestClient(app) as client:
-                response = client.get("/satellite/health")
+                response = client.get("/health")
 
             assert response.status_code == 200
             data = response.json()
-            assert data["status"] == "healthy"
+            assert data["status"] == "ok"
+            assert data["service"] == "asana"
 
 
 class TestAuthenticationEnforcement:
