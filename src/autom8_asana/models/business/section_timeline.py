@@ -47,6 +47,7 @@ class SectionTimeline:
     Attributes:
         offer_gid: Asana task GID of the offer.
         office_phone: Office phone custom field value (may be None).
+        offer_id: Internal business offer ID (Offer ID custom field), or None.
         intervals: Chronologically ordered tuple of SectionInterval values.
         task_created_at: Task creation timestamp (used for imputation).
         story_count: Number of section_changed stories after filtering.
@@ -54,6 +55,7 @@ class SectionTimeline:
 
     offer_gid: str
     office_phone: str | None
+    offer_id: str | None
     intervals: tuple[SectionInterval, ...]
     task_created_at: datetime | None
     story_count: int
@@ -162,6 +164,7 @@ class OfferTimelineEntry(BaseModel):
     Attributes:
         offer_gid: Asana task GID of the offer.
         office_phone: Office phone custom field value (null if not set).
+        offer_id: Internal business offer ID (null if not set).
         active_section_days: Calendar days in ACTIVE sections during period.
         billable_section_days: Calendar days in ACTIVE or ACTIVATING
             sections during period.
@@ -170,6 +173,10 @@ class OfferTimelineEntry(BaseModel):
     offer_gid: str = Field(..., description="Asana task GID")
     office_phone: str | None = Field(
         default=None, description="Office phone custom field"
+    )
+    offer_id: str | None = Field(
+        default=None,
+        description="Internal business offer ID (Offer ID custom field)",
     )
     active_section_days: int = Field(..., ge=0, description="Days in ACTIVE sections")
     billable_section_days: int = Field(

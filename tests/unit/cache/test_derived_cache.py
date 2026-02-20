@@ -83,6 +83,7 @@ def _utc(year: int, month: int, day: int, hour: int = 0) -> datetime:
 def _make_timeline(
     offer_gid: str = "offer1",
     office_phone: str | None = "555-0100",
+    offer_id: str | None = None,
     intervals: tuple[SectionInterval, ...] | None = None,
     task_created_at: datetime | None = None,
     story_count: int = 2,
@@ -107,6 +108,7 @@ def _make_timeline(
     return SectionTimeline(
         offer_gid=offer_gid,
         office_phone=office_phone,
+        offer_id=offer_id,
         intervals=intervals,
         task_created_at=task_created_at,
         story_count=story_count,
@@ -177,6 +179,7 @@ class TestSerializationRoundTrip:
         original = SectionTimeline(
             offer_gid="offer1",
             office_phone=None,
+            offer_id=None,
             intervals=(),
             task_created_at=None,
             story_count=0,
@@ -210,6 +213,7 @@ class TestSerializationRoundTrip:
         original = SectionTimeline(
             offer_gid="offer1",
             office_phone=None,
+            offer_id=None,
             intervals=(),
             task_created_at=_utc(2025, 1, 1),
             story_count=0,
@@ -224,6 +228,40 @@ class TestSerializationRoundTrip:
         serialized = _serialize_timeline(original)
         restored = _deserialize_timeline(serialized)
         assert restored.story_count == 0
+
+    def test_offer_id_round_trip(self) -> None:
+        """SC-8, SC-10: offer_id survives serialize-then-deserialize."""
+        original = _make_timeline(offer_id="OFR-1234")
+        serialized = _serialize_timeline(original)
+        restored = _deserialize_timeline(serialized)
+        assert restored.offer_id == "OFR-1234"
+
+    def test_offer_id_none_round_trip(self) -> None:
+        """SC-8, SC-10: offer_id=None survives serialize-then-deserialize."""
+        original = _make_timeline(offer_id=None)
+        serialized = _serialize_timeline(original)
+        restored = _deserialize_timeline(serialized)
+        assert restored.offer_id is None
+
+    def test_backward_compat_missing_offer_id(self) -> None:
+        """SC-9: Deserialize dict without offer_id key, expect offer_id=None."""
+        data = {
+            "offer_gid": "offer1",
+            "office_phone": "555-0100",
+            "intervals": [],
+            "task_created_at": "2025-01-01T00:00:00+00:00",
+            "story_count": 0,
+        }
+        # Note: no "offer_id" key in data
+        restored = _deserialize_timeline(data)
+        assert restored.offer_id is None
+
+    def test_serialized_includes_offer_id_key(self) -> None:
+        """SC-8: Serialized dict always contains offer_id key, even when None."""
+        original = _make_timeline(offer_id=None)
+        serialized = _serialize_timeline(original)
+        assert "offer_id" in serialized
+        assert serialized["offer_id"] is None
 
     def test_serialized_format_is_json_compatible(self) -> None:
         """Serialized dict contains only JSON-safe types."""

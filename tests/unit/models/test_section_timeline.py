@@ -33,6 +33,7 @@ def _timeline(
     intervals: tuple[SectionInterval, ...],
     offer_gid: str = "1234",
     office_phone: str | None = None,
+    offer_id: str | None = None,
     task_created_at: datetime | None = None,
     story_count: int = 0,
 ) -> SectionTimeline:
@@ -40,6 +41,7 @@ def _timeline(
     return SectionTimeline(
         offer_gid=offer_gid,
         office_phone=office_phone,
+        offer_id=offer_id,
         intervals=intervals,
         task_created_at=task_created_at,
         story_count=story_count,
@@ -70,6 +72,22 @@ class TestSectionTimelineFrozen:
         tl = _timeline(intervals=())
         with pytest.raises(FrozenInstanceError):
             tl.offer_gid = "9999"  # type: ignore[misc]
+
+    def test_offer_id_accessible(self) -> None:
+        """SC-4: offer_id field is accessible on SectionTimeline."""
+        tl = _timeline(intervals=(), offer_id="OFR-1234")
+        assert tl.offer_id == "OFR-1234"
+
+    def test_offer_id_none(self) -> None:
+        """SC-4: offer_id=None is valid."""
+        tl = _timeline(intervals=(), offer_id=None)
+        assert tl.offer_id is None
+
+    def test_offer_id_frozen(self) -> None:
+        """SC-4: offer_id is immutable (frozen dataclass)."""
+        tl = _timeline(intervals=(), offer_id="OFR-1234")
+        with pytest.raises(FrozenInstanceError):
+            tl.offer_id = "OFR-9999"  # type: ignore[misc]
 
 
 # ---------------------------------------------------------------------------
@@ -368,6 +386,7 @@ class TestOfferTimelineEntry:
         assert data == {
             "offer_gid": "1205925604226368",
             "office_phone": "555-0100",
+            "offer_id": None,
             "active_section_days": 7,
             "billable_section_days": 10,
             "current_section": None,
@@ -422,6 +441,39 @@ class TestOfferTimelineEntry:
         )
         assert isinstance(entry.current_classification, str)
         assert entry.current_classification == "activating"
+
+    def test_offer_id_in_serialization(self) -> None:
+        """SC-5: offer_id appears in model_dump() output."""
+        entry = OfferTimelineEntry(
+            offer_gid="1234567890123456",
+            office_phone=None,
+            offer_id="OFR-1234",
+            active_section_days=5,
+            billable_section_days=5,
+        )
+        data = entry.model_dump()
+        assert data["offer_id"] == "OFR-1234"
+
+    def test_offer_id_null_in_serialization(self) -> None:
+        """SC-5: offer_id=None serializes as None."""
+        entry = OfferTimelineEntry(
+            offer_gid="1234567890123456",
+            office_phone=None,
+            active_section_days=0,
+            billable_section_days=0,
+        )
+        data = entry.model_dump()
+        assert data["offer_id"] is None
+
+    def test_offer_id_default_none(self) -> None:
+        """SC-5: offer_id defaults to None when not passed."""
+        entry = OfferTimelineEntry(
+            offer_gid="1234567890123456",
+            office_phone=None,
+            active_section_days=0,
+            billable_section_days=0,
+        )
+        assert entry.offer_id is None
 
     def test_extra_fields_still_forbidden(self) -> None:
         """S-3: model_config extra=forbid still enforced with new fields."""

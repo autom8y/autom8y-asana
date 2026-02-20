@@ -139,6 +139,7 @@ def _serialize_timeline(timeline: SectionTimeline) -> dict[str, Any]:
     return {
         "offer_gid": timeline.offer_gid,
         "office_phone": timeline.office_phone,
+        "offer_id": timeline.offer_id,
         "intervals": [
             {
                 "section_name": iv.section_name,
@@ -191,6 +192,7 @@ def _deserialize_timeline(data: dict[str, Any]) -> SectionTimeline:
     return SectionTimeline(
         offer_gid=data["offer_gid"],
         office_phone=data.get("office_phone"),
+        offer_id=data.get("offer_id"),
         intervals=tuple(intervals),
         task_created_at=(
             datetime.fromisoformat(task_created_at) if task_created_at else None
