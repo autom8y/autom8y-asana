@@ -467,6 +467,44 @@ class DataFrameViewPlugin:
             if value is not None:
                 return value
 
+        # Per TDD-CASCADE-FAILURE-FIXES-001 Fix 2: If chain returned parents but
+        # none had the field, the owner entity may be beyond a gap. Try fetching
+        # the grandparent of the last chain entry as a final fallback.
+        if parent_chain:
+            last_parent = parent_chain[-1]
+            last_parent_parent = last_parent.get("parent")
+            if last_parent_parent and isinstance(last_parent_parent, dict):
+                grandparent_gid = last_parent_parent.get("gid")
+                if grandparent_gid:
+                    # Check if grandparent was already in chain
+                    chain_gids = {p.get("gid") for p in parent_chain}
+                    if grandparent_gid not in chain_gids:
+                        from autom8_asana.cache.models.completeness import (
+                            CompletenessLevel,
+                        )
+
+                        grandparent_data = await self._store.get_with_upgrade_async(
+                            grandparent_gid,
+                            required_level=CompletenessLevel.STANDARD,
+                            freshness=FreshnessMode.IMMEDIATE,
+                        )
+                        if grandparent_data and self._cascade_plugin is not None:
+                            value = (
+                                self._cascade_plugin._get_custom_field_value_from_dict(
+                                    grandparent_data, field_name
+                                )
+                            )
+                            if value is not None:
+                                logger.info(
+                                    "cascade_grandparent_fallback_resolved",
+                                    extra={
+                                        "task_gid": task_gid,
+                                        "field_name": field_name,
+                                        "grandparent_gid": grandparent_gid,
+                                    },
+                                )
+                                return value
+
         return None
 
     def _extract_custom_field_value_from_dict(

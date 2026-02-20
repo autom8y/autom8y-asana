@@ -738,23 +738,33 @@ class UnifiedTaskStore:
         # Use IMMEDIATE mode since we want whatever is cached
         entries = self.cache.get_batch(ancestor_gids, EntryType.TASK)
 
-        # Build ordered chain, stopping at first missing
+        # Build ordered chain, skipping gaps for resilience
+        # Per TDD-CASCADE-FAILURE-FIXES-001 Fix 2: Transient hierarchy warming
+        # failures can leave gaps in the ancestor chain. Skipping gaps preserves
+        # the relative ordering of present ancestors, which is sufficient for
+        # cascade resolution (all allow_override=True fields cascade within a
+        # single parent-child level, not across gaps).
         chain: list[dict[str, Any]] = []
+        gaps: list[str] = []
         for ancestor_gid in ancestor_gids:
             entry = entries.get(ancestor_gid)
             if entry is not None:
                 chain.append(entry.data)
             else:
-                # Stop at first missing - can't continue chain
-                logger.debug(
-                    "parent_chain_incomplete",
-                    extra={
-                        "gid": gid,
-                        "missing_gid": ancestor_gid,
-                        "found_count": len(chain),
-                    },
-                )
-                break
+                gaps.append(ancestor_gid)
+
+        if gaps:
+            logger.info(
+                "parent_chain_gaps_skipped",
+                extra={
+                    "gid": gid,
+                    "gap_gids": gaps,
+                    "found_count": len(chain),
+                    "total_ancestors": len(ancestor_gids),
+                },
+            )
+            self._stats.setdefault("parent_chain_gaps", 0)
+            self._stats["parent_chain_gaps"] += len(gaps)
 
         return chain
 
