@@ -209,6 +209,149 @@ class TestLoadStoriesIncremental:
         datetime.fromisoformat(entry.metadata["last_fetched"].replace("Z", "+00:00"))
 
 
+class TestModifiedAtFreshnessProbe:
+    """Tests for the modified_at freshness probe in load_stories_incremental.
+
+    Per R2-revised: when current_modified_at indicates staleness, the
+    max_cache_age_seconds short-circuit is bypassed so that an incremental
+    fetch picks up mutations. The 'since' cursor is always preserved.
+    """
+
+    @pytest.fixture
+    def cache(self) -> MockCacheProvider:
+        return MockCacheProvider()
+
+    @pytest.fixture
+    def fetcher(self) -> AsyncMock:
+        return AsyncMock()
+
+    def _seed_cache(
+        self,
+        cache: MockCacheProvider,
+        *,
+        version: datetime,
+        cached_at: datetime | None = None,
+        last_fetched: str = "2025-06-01T12:00:00+00:00",
+    ) -> None:
+        """Seed a valid story cache entry for task123."""
+        entry = CacheEntry(
+            key="task123",
+            data={"stories": [{"gid": "s1", "created_at": "2025-06-01T10:00:00Z"}]},
+            entry_type=EntryType.STORIES,
+            version=version,
+            cached_at=cached_at or datetime.now(UTC),
+            metadata={"last_fetched": last_fetched},
+        )
+        cache._cache["stories:task123"] = entry
+
+    @pytest.mark.asyncio
+    async def test_modified_at_probe_bypasses_max_age_when_stale(
+        self, cache: MockCacheProvider, fetcher: AsyncMock
+    ) -> None:
+        """Stale entry triggers incremental fetch even when max_cache_age_seconds would skip."""
+        # Cache entry versioned at T=10:00, very recently cached (age < max_age)
+        self._seed_cache(
+            cache,
+            version=datetime(2025, 6, 1, 10, 0, tzinfo=UTC),
+            cached_at=datetime.now(UTC),  # fresh cache
+        )
+
+        fetcher.return_value = [{"gid": "s2", "created_at": "2025-06-01T14:00:00Z"}]
+
+        result, entry, was_incremental = await load_stories_incremental(
+            task_gid="task123",
+            cache=cache,
+            fetcher=fetcher,
+            # Task was modified at T=13:00, newer than cached version T=10:00 -> stale
+            current_modified_at="2025-06-01T13:00:00+00:00",
+            max_cache_age_seconds=3600,  # Would normally skip (cache is fresh)
+        )
+
+        # Should have done incremental fetch despite fresh cache age
+        fetcher.assert_called_once_with("task123", "2025-06-01T12:00:00+00:00")
+        assert was_incremental
+        # Merged result includes both old cached story and new fetched story
+        assert len(result) == 2
+
+    @pytest.mark.asyncio
+    async def test_modified_at_probe_no_change_when_none(
+        self, cache: MockCacheProvider, fetcher: AsyncMock
+    ) -> None:
+        """current_modified_at=None preserves existing max_cache_age_seconds behavior."""
+        self._seed_cache(
+            cache,
+            version=datetime(2025, 6, 1, 10, 0, tzinfo=UTC),
+            cached_at=datetime.now(UTC),  # fresh cache
+        )
+
+        result, entry, was_incremental = await load_stories_incremental(
+            task_gid="task123",
+            cache=cache,
+            fetcher=fetcher,
+            current_modified_at=None,  # No version info -> skip probe
+            max_cache_age_seconds=3600,
+        )
+
+        # Should short-circuit via max_cache_age_seconds (no API call)
+        fetcher.assert_not_called()
+        assert was_incremental  # Returns True because cache hit
+        assert len(result) == 1
+        assert result[0]["gid"] == "s1"
+
+    @pytest.mark.asyncio
+    async def test_modified_at_probe_allows_age_skip_when_current(
+        self, cache: MockCacheProvider, fetcher: AsyncMock
+    ) -> None:
+        """When entry is current (not stale), max_cache_age_seconds skip works normally."""
+        cached_version = datetime(2025, 6, 1, 10, 0, tzinfo=UTC)
+        self._seed_cache(
+            cache,
+            version=cached_version,
+            cached_at=datetime.now(UTC),  # fresh cache
+        )
+
+        result, entry, was_incremental = await load_stories_incremental(
+            task_gid="task123",
+            cache=cache,
+            fetcher=fetcher,
+            # Same version as cached -> not stale
+            current_modified_at="2025-06-01T10:00:00+00:00",
+            max_cache_age_seconds=3600,
+        )
+
+        # Should short-circuit (entry is current + cache is fresh)
+        fetcher.assert_not_called()
+        assert was_incremental
+        assert len(result) == 1
+
+    @pytest.mark.asyncio
+    async def test_incremental_fetch_uses_since_cursor(
+        self, cache: MockCacheProvider, fetcher: AsyncMock
+    ) -> None:
+        """After probe triggers, fetcher is called with since=last_fetched (not None)."""
+        last_fetched_ts = "2025-06-01T12:00:00+00:00"
+        self._seed_cache(
+            cache,
+            version=datetime(2025, 6, 1, 10, 0, tzinfo=UTC),
+            last_fetched=last_fetched_ts,
+            cached_at=datetime.now(UTC),
+        )
+
+        fetcher.return_value = []
+
+        await load_stories_incremental(
+            task_gid="task123",
+            cache=cache,
+            fetcher=fetcher,
+            # Newer version -> stale -> bypasses age check
+            current_modified_at="2025-06-01T15:00:00+00:00",
+            max_cache_age_seconds=3600,
+        )
+
+        # Fetcher called with the since cursor, NOT None (preserves incremental)
+        fetcher.assert_called_once_with("task123", last_fetched_ts)
+
+
 class TestMergeStories:
     """Tests for _merge_stories function."""
 

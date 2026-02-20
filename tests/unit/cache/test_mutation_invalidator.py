@@ -207,6 +207,100 @@ class TestTaskMutationInvalidation:
         mock_df_cache.invalidate_project.assert_called_once_with("proj_old")
 
 
+class TestStoryCacheInvalidation:
+    """Tests for story cache invalidation on task mutations.
+
+    Per R4-revised: only DELETE mutations hard-invalidate EntryType.STORIES.
+    UPDATE, MOVE, CREATE preserve story entries so load_stories_incremental()
+    can use the 'since' cursor for cheap incremental fetches (ADR-0020).
+    """
+
+    @pytest.mark.asyncio
+    async def test_delete_mutation_invalidates_stories(
+        self, invalidator: MutationInvalidator, mock_cache: MagicMock
+    ) -> None:
+        """DELETE event hard-invalidates EntryType.STORIES."""
+        event = MutationEvent(
+            entity_kind=EntityKind.TASK,
+            entity_gid="12345",
+            mutation_type=MutationType.DELETE,
+            project_gids=["proj1"],
+        )
+        await invalidator.invalidate_async(event)
+
+        # Should have two invalidate calls: entity types + stories
+        calls = mock_cache.invalidate.call_args_list
+        entity_call = calls[0]
+        story_call = calls[1]
+
+        assert entity_call.args == (
+            "12345",
+            [EntryType.TASK, EntryType.SUBTASKS, EntryType.DETECTION],
+        )
+        assert story_call.args == ("12345", [EntryType.STORIES])
+
+    @pytest.mark.asyncio
+    async def test_update_mutation_does_not_invalidate_stories(
+        self, invalidator: MutationInvalidator, mock_cache: MagicMock
+    ) -> None:
+        """UPDATE event does NOT invalidate EntryType.STORIES."""
+        event = MutationEvent(
+            entity_kind=EntityKind.TASK,
+            entity_gid="12345",
+            mutation_type=MutationType.UPDATE,
+        )
+        await invalidator.invalidate_async(event)
+
+        # Only the entity types call, no stories
+        mock_cache.invalidate.assert_called_once_with(
+            "12345", [EntryType.TASK, EntryType.SUBTASKS, EntryType.DETECTION]
+        )
+
+    @pytest.mark.asyncio
+    async def test_move_mutation_does_not_invalidate_stories(
+        self, invalidator: MutationInvalidator, mock_cache: MagicMock
+    ) -> None:
+        """MOVE event does NOT invalidate EntryType.STORIES."""
+        event = MutationEvent(
+            entity_kind=EntityKind.TASK,
+            entity_gid="12345",
+            mutation_type=MutationType.MOVE,
+            project_gids=["proj1"],
+            section_gid="sect_dest",
+        )
+        await invalidator.invalidate_async(event)
+
+        # Verify no call includes EntryType.STORIES
+        for call in mock_cache.invalidate.call_args_list:
+            entry_types = call.args[1]
+            assert EntryType.STORIES not in entry_types
+
+    @pytest.mark.asyncio
+    async def test_story_invalidation_failure_does_not_propagate(
+        self, mock_cache: MagicMock
+    ) -> None:
+        """Story cache invalidation failure is caught and logged."""
+        call_count = 0
+
+        def selective_fail(gid: str, entry_types: list) -> None:
+            nonlocal call_count
+            call_count += 1
+            if entry_types == [EntryType.STORIES]:
+                raise ConnectionError("Redis down")
+
+        mock_cache.invalidate.side_effect = selective_fail
+        inv = MutationInvalidator(cache_provider=mock_cache)
+
+        event = MutationEvent(
+            entity_kind=EntityKind.TASK,
+            entity_gid="12345",
+            mutation_type=MutationType.DELETE,
+            project_gids=["proj1"],
+        )
+        # Should not raise despite story invalidation failure
+        await inv.invalidate_async(event)
+
+
 class TestSectionMutationInvalidation:
     """Tests for section mutation handling."""
 
