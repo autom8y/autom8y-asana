@@ -66,13 +66,13 @@ def sample_df() -> pl.DataFrame:
                 "Offer G",
             ],
             "section": [
-                "ACTIVE",       # active classification
-                "STAGING",      # active classification
-                "ACTIVATING",   # activating classification
-                "INACTIVE",     # inactive classification
-                "Complete",     # ignored classification
-                "STAGED",       # active classification
-                "Onboarding",   # activating classification (unit classifier)
+                "ACTIVE",  # active classification
+                "STAGING",  # active classification
+                "ACTIVATING",  # activating classification
+                "INACTIVE",  # inactive classification
+                "Complete",  # ignored classification
+                "STAGED",  # active classification
+                "Onboarding",  # activating classification (unit classifier)
             ],
             "vertical": [
                 "dental",
@@ -187,9 +187,7 @@ class TestResolveClassification:
         assert "staging" in result
         assert "staged" in result
 
-    def test_activating_returns_activating_sections(
-        self, engine: QueryEngine
-    ) -> None:
+    def test_activating_returns_activating_sections(self, engine: QueryEngine) -> None:
         """classification='activating' returns ACTIVATING section set."""
         result = engine._resolve_classification("activating", "offer")
         assert result is not None
@@ -232,18 +230,14 @@ class TestResolveClassification:
         with pytest.raises(ClassificationError, match="No classifier registered"):
             engine._resolve_classification("active", "business")
 
-    def test_unknown_entity_type_lists_available(
-        self, engine: QueryEngine
-    ) -> None:
+    def test_unknown_entity_type_lists_available(self, engine: QueryEngine) -> None:
         """Error message includes available entity types."""
         with pytest.raises(ClassificationError) as exc_info:
             engine._resolve_classification("active", "contact")
         assert "offer" in str(exc_info.value.message)
         assert "unit" in str(exc_info.value.message)
 
-    def test_invalid_classification_value_raises(
-        self, engine: QueryEngine
-    ) -> None:
+    def test_invalid_classification_value_raises(self, engine: QueryEngine) -> None:
         """Invalid classification value raises ClassificationError."""
         with pytest.raises(ClassificationError, match="Invalid classification value"):
             engine._resolve_classification("bogus", "offer")

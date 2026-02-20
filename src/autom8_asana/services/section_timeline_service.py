@@ -408,7 +408,9 @@ async def get_or_compute_timelines(
         timelines_data = cached_entry.data.get("timelines", [])
         timelines = [_deserialize_timeline(d) for d in timelines_data]
         return _compute_day_counts(
-            timelines, period_start, period_end,
+            timelines,
+            period_start,
+            period_end,
             classifier=classifier,
             classification_filter=classification_filter,
         )
@@ -422,7 +424,9 @@ async def get_or_compute_timelines(
             timelines_data = cached_entry.data.get("timelines", [])
             timelines = [_deserialize_timeline(d) for d in timelines_data]
             return _compute_day_counts(
-                timelines, period_start, period_end,
+                timelines,
+                period_start,
+                period_end,
                 classifier=classifier,
                 classification_filter=classification_filter,
             )
@@ -622,7 +626,9 @@ async def get_or_compute_timelines(
 
         # Step 7: Compute day counts and return
         return _compute_day_counts(
-            timelines, period_start, period_end,
+            timelines,
+            period_start,
+            period_end,
             classifier=classifier,
             classification_filter=classification_filter,
         )

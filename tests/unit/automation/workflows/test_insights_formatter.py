@@ -1066,8 +1066,13 @@ class TestColumnOrdering:
     def test_by_quarter_period_label_is_first_column(self):
         """BY QUARTER table renders period_label as the first column."""
         rows = [
-            {"spend": 500, "impressions": 10000, "period_label": "Q1 2026",
-             "period_start": "2026-01-01", "period_end": "2026-03-31"},
+            {
+                "spend": 500,
+                "impressions": 10000,
+                "period_label": "Q1 2026",
+                "period_start": "2026-01-01",
+                "period_end": "2026-03-31",
+            },
         ]
         result = _render_section("BY QUARTER", rows=rows, row_count=1)
 
@@ -1085,9 +1090,13 @@ class TestColumnOrdering:
     def test_by_month_period_columns_before_metrics(self):
         """BY MONTH table renders all three period columns before metrics."""
         rows = [
-            {"clicks": 120, "period_end": "2026-01-31",
-             "period_start": "2026-01-01", "period_label": "January 2026",
-             "impressions": 5000},
+            {
+                "clicks": 120,
+                "period_end": "2026-01-31",
+                "period_start": "2026-01-01",
+                "period_label": "January 2026",
+                "impressions": 5000,
+            },
         ]
         result = _render_section("BY MONTH", rows=rows, row_count=1)
 
@@ -1231,9 +1240,7 @@ class TestReconciliationTables:
                 "days_with_activity": 45,
             },
         ]
-        result = _render_section(
-            "LIFETIME RECONCILIATIONS", rows=rows, row_count=1
-        )
+        result = _render_section("LIFETIME RECONCILIATIONS", rows=rows, row_count=1)
 
         # Preferred columns should appear before non-preferred columns
         office_phone_pos = result.find("Office Phone")
@@ -1280,9 +1287,7 @@ class TestReconciliationTables:
                 "variance_pct": 5.56,
             },
         ]
-        result = _render_section(
-            "T14 RECONCILIATIONS", rows=rows, row_count=2
-        )
+        result = _render_section("T14 RECONCILIATIONS", rows=rows, row_count=2)
 
         # Period columns should come before metric columns
         period_pos = result.find(">Period<")
@@ -1303,17 +1308,13 @@ class TestReconciliationTables:
     def test_lifetime_reconciliations_section_id(self):
         """LIFETIME RECONCILIATIONS section has correct slugified id."""
         rows = [{"office_phone": "+19259998806", "collected": 5000.00}]
-        result = _render_section(
-            "LIFETIME RECONCILIATIONS", rows=rows, row_count=1
-        )
+        result = _render_section("LIFETIME RECONCILIATIONS", rows=rows, row_count=1)
         assert 'id="lifetime-reconciliations"' in result
 
     def test_t14_reconciliations_section_id(self):
         """T14 RECONCILIATIONS section has correct slugified id."""
         rows = [{"period": 0, "period_label": "P0", "collected": 1200.00}]
-        result = _render_section(
-            "T14 RECONCILIATIONS", rows=rows, row_count=1
-        )
+        result = _render_section("T14 RECONCILIATIONS", rows=rows, row_count=1)
         assert 'id="t14-reconciliations"' in result
 
     @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
