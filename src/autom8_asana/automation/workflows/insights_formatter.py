@@ -22,6 +22,7 @@ Public API:
 from __future__ import annotations
 
 import html
+import json
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -310,8 +311,12 @@ class HtmlRenderer:
         parts: list[str] = []
         parts.append(self._render_doctype_and_head(title))
         parts.append("<body>")
-        parts.append('<div class="container">')
+        parts.append('<div class="toast" id="toast">Copied</div>')
+        parts.append('<div class="layout">')
+        parts.append(self._render_sidebar(sections))
+        parts.append('<main class="main-content">')
         parts.append(self._render_header(title, metadata))
+        parts.append(self._render_kpi_cards(sections))
 
         for section in sections:
             if section.error is not None:
@@ -326,7 +331,8 @@ class HtmlRenderer:
         if footer is not None:
             parts.append(self._render_footer(footer))
 
-        parts.append("</div>")
+        parts.append("</main>")
+        parts.append("</div>")  # close layout
         parts.append("</body>")
         parts.append("</html>")
         return "\n".join(parts) + "\n"
@@ -337,26 +343,256 @@ class HtmlRenderer:
         escaped_title = html.escape(title)
         return (
             "<!DOCTYPE html>\n"
-            '<html lang="en">\n'
+            '<html lang="en" data-theme="light">\n'
             "<head>\n"
             '<meta charset="UTF-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
             f"<title>{escaped_title}</title>\n"
             f"<style>\n{_CSS}\n</style>\n"
+            f"<script>\n{_JS}\n</script>\n"
             "</head>"
         )
 
+    def _render_sidebar(self, sections: list[DataSection]) -> str:
+        parts: list[str] = ['<nav class="sidebar">']
+        parts.append('<div class="nav-section-label">Sections</div>')
+        for section in sections:
+            sid = _slugify(section.name)
+            row_count = section.row_count if section.rows else 0
+            parts.append(
+                f'<a href="#{sid}" class="nav-link">'
+                f"{html.escape(section.name)}"
+                f'<span class="badge">{row_count}</span></a>'
+            )
+        parts.append("</nav>")
+        return "\n".join(parts)
+
     def _render_header(self, title: str, metadata: dict[str, str]) -> str:
-        escaped_title = html.escape(title)
-        meta_items = "\n".join(
-            f'<span class="meta-item"><strong>{html.escape(k)}:</strong> {html.escape(v)}</span>'
-            for k, v in metadata.items()
-        )
+        # Extract business name from title by splitting on ": "
+        if ": " in title:
+            business_name = title.split(": ", 1)[1]
+        else:
+            business_name = title
+        escaped_business = html.escape(business_name)
+
+        # Build metadata items
+        meta_parts: list[str] = []
+        for k, v in metadata.items():
+            if k == "Offer":
+                asana_url = f"https://app.asana.com/0/0/{html.escape(v)}"
+                meta_parts.append(
+                    f"<strong>{html.escape(k)}:</strong> "
+                    f'<a href="{asana_url}">View in Asana</a>'
+                )
+            else:
+                meta_parts.append(
+                    f"<strong>{html.escape(k)}:</strong> {html.escape(v)}"
+                )
+        meta_html = " &nbsp;&bull;&nbsp; ".join(meta_parts)
+
+        parts = [
+            '<header class="report-header">',
+            f'<h1 class="report-title">{escaped_business}</h1>',
+            f'<div class="report-meta">{meta_html}</div>',
+            '<div class="header-actions">',
+            '<div class="search-wrap">',
+            '<input type="text" id="global-search" placeholder="Search rows..." '
+            'oninput="onSearch(this.value)">',
+            '<span class="search-clear" id="search-clear" onclick="clearSearch()">&times;</span>',
+            "</div>",
+            '<span class="search-count" id="search-count"></span>',
+            '<button class="btn" onclick="window.print()">Print</button>',
+            '<button class="btn" id="theme-btn" onclick="toggleTheme()">Dark Mode</button>',
+            '<button class="btn" onclick="expandAll()">Expand All</button>',
+            '<button class="btn" onclick="collapseAll()">Collapse All</button>',
+            "</div>",
+            "</header>",
+        ]
+        return "\n".join(parts)
+
+    def _render_kpi_cards(self, sections: list[DataSection]) -> str:
+        summary_section: DataSection | None = None
+        by_week_section: DataSection | None = None
+
+        for s in sections:
+            if s.name == "SUMMARY" and s.rows:
+                summary_section = s
+            elif s.name == "BY WEEK" and s.rows:
+                by_week_section = s
+
+        if summary_section is None and by_week_section is None:
+            return ""
+
+        cards: list[str] = []
+
+        # Extract SUMMARY row
+        summary_row: dict[str, Any] = {}
+        if summary_section and summary_section.rows:
+            summary_row = summary_section.rows[0]
+
+        # Extract BY WEEK rows
+        week_rows: list[dict[str, Any]] = []
+        if by_week_section and by_week_section.rows:
+            week_rows = by_week_section.rows
+
+        # Card 1: CPL
+        cpl_val = summary_row.get("cpl")
+        if cpl_val is not None and isinstance(cpl_val, (int, float)):
+            cards.append(self._kpi_card("CPL", f"${cpl_val:,.2f}", "Cost per lead"))
+        else:
+            cards.append(self._kpi_card("CPL", "n/a", "Awaiting data"))
+
+        # Card 2: Booking Rate (with sparkline)
+        br_val = summary_row.get("booking_rate")
+        sparkline_svg = ""
+        if week_rows:
+            br_values = [
+                r.get("booking_rate")
+                for r in week_rows
+                if r.get("booking_rate") is not None
+                and isinstance(r.get("booking_rate"), (int, float))
+            ]
+            if br_values:
+                sparkline_svg = self._render_sparkline(br_values)  # type: ignore[arg-type]
+
+        if br_val is not None and isinstance(br_val, (int, float)):
+            cards.append(
+                self._kpi_card(
+                    "Booking Rate",
+                    f"{br_val * 100:.2f}%",
+                    "Leads &rarr; scheduled",
+                    sparkline=sparkline_svg,
+                )
+            )
+        else:
+            cards.append(self._kpi_card("Booking Rate", "n/a", "Awaiting data"))
+
+        # Card 3: CPS
+        cps_val = summary_row.get("cps")
+        if cps_val is not None and isinstance(cps_val, (int, float)):
+            cards.append(self._kpi_card("CPS", f"${cps_val:,.2f}", "Cost per show"))
+        else:
+            cards.append(self._kpi_card("CPS", "n/a", "Awaiting data"))
+
+        # Card 4: ROAS
+        roas_val = summary_row.get("roas")
+        if roas_val is not None and isinstance(roas_val, (int, float)):
+            cards.append(
+                self._kpi_card("ROAS", f"{roas_val:.2f}x", "Return on ad spend")
+            )
+        else:
+            cards.append(self._kpi_card("ROAS", "n/a", "Awaiting data"))
+
+        # Card 5: Best Week
+        if week_rows:
+            br_pairs = [
+                (r.get("booking_rate"), r.get("period_label", ""))
+                for r in week_rows
+                if r.get("booking_rate") is not None
+                and isinstance(r.get("booking_rate"), (int, float))
+            ]
+            if br_pairs:
+                best_val, best_label = max(br_pairs, key=lambda p: p[0])  # type: ignore[arg-type,return-value]
+                cards.append(
+                    self._kpi_card(
+                        "Best Week",
+                        f"{best_val * 100:.2f}%",  # type: ignore[operator]
+                        html.escape(str(best_label)),
+                    )
+                )
+            else:
+                cards.append(self._kpi_card("Best Week", "n/a", "Awaiting data"))
+        else:
+            cards.append(self._kpi_card("Best Week", "n/a", "Awaiting data"))
+
+        # Card 6: Spend Trend
+        if week_rows:
+            spend_values = [
+                r.get("spend")
+                for r in week_rows
+                if r.get("spend") is not None
+                and isinstance(r.get("spend"), (int, float))
+            ]
+            if len(spend_values) >= 2:
+                recent = spend_values[-12:] if len(spend_values) > 12 else spend_values
+                prior_start = max(0, len(spend_values) - 24)
+                prior_end = max(0, len(spend_values) - 12)
+                prior = (
+                    spend_values[prior_start:prior_end]
+                    if prior_end > prior_start
+                    else []
+                )
+                recent_sum = sum(recent)  # type: ignore[arg-type]
+                prior_sum = sum(prior) if prior else 0  # type: ignore[arg-type]
+
+                if prior_sum > 0:
+                    pct_change = (recent_sum - prior_sum) / prior_sum
+                    if pct_change > 0.05:
+                        arrow = "&uarr;"
+                        css_class = "trend-up"
+                    elif pct_change < -0.05:
+                        arrow = "&darr;"
+                        css_class = "trend-down"
+                    else:
+                        arrow = "&rarr;"
+                        css_class = ""
+                    cards.append(
+                        self._kpi_card(
+                            "Spend Trend",
+                            f'<span class="{css_class}">{arrow}</span>',
+                            "vs prior 12 weeks",
+                        )
+                    )
+                else:
+                    cards.append(self._kpi_card("Spend Trend", "n/a", "Awaiting data"))
+            else:
+                cards.append(self._kpi_card("Spend Trend", "n/a", "Awaiting data"))
+        else:
+            cards.append(self._kpi_card("Spend Trend", "n/a", "Awaiting data"))
+
+        return '<div class="kpi-grid">\n' + "\n".join(cards) + "\n</div>"
+
+    def _kpi_card(
+        self,
+        label: str,
+        value: str,
+        subtitle: str,
+        sparkline: str = "",
+    ) -> str:
+        parts = [
+            '<div class="kpi-card">',
+            f'<div class="kpi-label">{html.escape(label)}</div>',
+            f'<div class="kpi-value">{value}</div>',
+            f'<div class="kpi-sub">{subtitle}</div>',
+        ]
+        if sparkline:
+            parts.append(f'<div class="kpi-sparkline">{sparkline}</div>')
+        parts.append("</div>")
+        return "\n".join(parts)
+
+    def _render_sparkline(self, values: list[float]) -> str:
+        if not values:
+            return ""
+        width = 140
+        height = 36
+        padding = 2
+        min_val = min(values)
+        max_val = max(values)
+        val_range = max_val - min_val if max_val != min_val else 1.0
+
+        points: list[str] = []
+        n = len(values)
+        for i, v in enumerate(values):
+            x = padding + (i / max(n - 1, 1)) * (width - 2 * padding)
+            y = height - padding - ((v - min_val) / val_range) * (height - 2 * padding)
+            points.append(f"{x:.1f},{y:.1f}")
+
+        polyline_points = " ".join(points)
         return (
-            '<header class="report-header">\n'
-            f'<h1 class="report-title">{escaped_title}</h1>\n'
-            f'<div class="report-meta">{meta_items}</div>\n'
-            "</header>"
+            f'<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}">'
+            f'<polyline points="{polyline_points}" fill="none" '
+            f'stroke="var(--accent)" stroke-width="1.5" />'
+            f"</svg>"
         )
 
     def _render_table_section(self, section: DataSection) -> str:
@@ -367,32 +603,70 @@ class HtmlRenderer:
         if not columns:
             return self._render_empty_section(section)
 
-        section_id = _slugify(section.name)
-        header_cells = "".join(
-            f'<th class="{_column_align_class(rows, col)}">'
-            f"{html.escape(_to_title_case(col))}</th>"
-            for col in columns
-        )
+        sid = _slugify(section.name)
+        is_expanded = section.name in _DEFAULT_EXPANDED_SECTIONS
+        collapsed_class = "" if is_expanded else " collapsed"
 
+        # Build header cells with sort, tooltips, and alignment
+        header_cells: list[str] = []
+        for col_idx, col in enumerate(columns):
+            align_cls = _column_align_class(rows, col)
+            tooltip = _COLUMN_TOOLTIPS.get(col)
+            title_attr = f' title="{html.escape(tooltip)}"' if tooltip else ""
+            display_label = html.escape(_to_title_case(col))
+            cls = align_cls
+            header_cells.append(
+                f"<th onclick=\"sortTable('{sid}',{col_idx})\""
+                f"{title_attr}"
+                f' class="{cls}">'
+                f"{display_label}"
+                f'<span class="sort-icon"></span></th>'
+            )
+
+        # Build body rows with alignment + conditional formatting
         body_rows: list[str] = []
         for row in rows:
-            cells = "".join(
-                f'<td class="{_column_align_class(rows, col)}">'
-                f"{_format_cell_html(row.get(col), col)}</td>"
-                for col in columns
-            )
-            body_rows.append(f"<tr>{cells}</tr>")
+            cells: list[str] = []
+            for col in columns:
+                value = row.get(col)
+                align_cls = _column_align_class(rows, col)
+                cond_cls = _conditional_format_class(value, col)
+                # Date columns
+                date_cls = ""
+                if "period_start" in col or "period_end" in col:
+                    date_cls = " date-cell"
+                td_class = f"{align_cls} {cond_cls}{date_cls}".strip()
+                cell_html = _format_cell_html(value, col)
+                cells.append(f'<td class="{td_class}">{cell_html}</td>')
+            body_rows.append(f"<tr>{''.join(cells)}</tr>")
+
+        # Subtitle
+        subtitle = _SECTION_SUBTITLES.get(section.name, "")
+        subtitle_html = (
+            f'<div class="section-subtitle">{html.escape(subtitle)}</div>'
+            if subtitle
+            else ""
+        )
+
+        # Embedded JSON for Copy TSV
+        json_rows = section.full_rows if section.full_rows is not None else section.rows
+        json_data = json.dumps(json_rows, default=str)
 
         parts = [
-            f'<section id="{section_id}" class="table-section">',
-            '<div class="section-header">',
+            f'<section id="{sid}" class="table-section">',
+            f'<div class="section-header" onclick="toggleSection(\'{sid}\')">',
             f"<h2>{html.escape(section.name)} "
             f'<span class="badge">{section.row_count}</span></h2>',
+            '<div class="section-controls">',
+            f'<button class="copy-btn" onclick="event.stopPropagation();copyTable(\'{sid}\')">Copy TSV</button>',
+            f'<span class="toggle-icon{collapsed_class}" id="toggle-{sid}">\u25bc</span>',
             "</div>",
-            '<div class="section-body">',
+            "</div>",
+            f'<div class="section-body{collapsed_class}" id="body-{sid}">',
+            subtitle_html,
             '<div class="table-scroll">',
-            "<table>",
-            f"<thead><tr>{header_cells}</tr></thead>",
+            f'<table class="data-table" id="tbl-{sid}">',
+            f"<thead><tr>{''.join(header_cells)}</tr></thead>",
             "<tbody>",
             "\n".join(body_rows),
             "</tbody>",
@@ -406,40 +680,68 @@ class HtmlRenderer:
                 f"of {section.total_rows} rows</p>"
             )
 
+        # Embedded JSON data script
+        parts.append(
+            f'<script type="application/json" id="data-{sid}">{json_data}</script>'
+        )
         parts.append("</div>")
         parts.append("</section>")
         return "\n".join(parts)
 
     def _render_empty_section(self, section: DataSection) -> str:
-        section_id = _slugify(section.name)
+        sid = _slugify(section.name)
         message = section.empty_message or "No data available"
+        is_expanded = section.name in _DEFAULT_EXPANDED_SECTIONS
+        collapsed_class = "" if is_expanded else " collapsed"
+        subtitle = _SECTION_SUBTITLES.get(section.name, "")
+        subtitle_html = (
+            f'<div class="section-subtitle">{html.escape(subtitle)}</div>'
+            if subtitle
+            else ""
+        )
         return (
-            f'<section id="{section_id}" class="table-section">\n'
-            f'<div class="section-header">\n'
+            f'<section id="{sid}" class="table-section">\n'
+            f'<div class="section-header" onclick="toggleSection(\'{sid}\')">\n'
             f"<h2>{html.escape(section.name)}</h2>\n"
+            f'<div class="section-controls">'
+            f'<span class="toggle-icon{collapsed_class}" id="toggle-{sid}">\u25bc</span>'
+            f"</div>\n"
             "</div>\n"
-            '<div class="section-body">\n'
-            f'<p class="empty-message">{html.escape(message)}</p>\n'
+            f'<div class="section-body{collapsed_class}" id="body-{sid}">\n'
+            f"{subtitle_html}\n"
+            f'<p class="empty">{html.escape(message)}</p>\n'
             "</div>\n"
             "</section>"
         )
 
     def _render_error_section(self, section: DataSection) -> str:
-        section_id = _slugify(section.name)
+        sid = _slugify(section.name)
         error_text = section.error or "Unknown error"
+        is_expanded = section.name in _DEFAULT_EXPANDED_SECTIONS
+        collapsed_class = "" if is_expanded else " collapsed"
+        subtitle = _SECTION_SUBTITLES.get(section.name, "")
+        subtitle_html = (
+            f'<div class="section-subtitle">{html.escape(subtitle)}</div>'
+            if subtitle
+            else ""
+        )
         return (
-            f'<section id="{section_id}" class="table-section">\n'
-            f'<div class="section-header">\n'
+            f'<section id="{sid}" class="table-section">\n'
+            f'<div class="section-header" onclick="toggleSection(\'{sid}\')">\n'
             f"<h2>{html.escape(section.name)}</h2>\n"
+            f'<div class="section-controls">'
+            f'<span class="toggle-icon{collapsed_class}" id="toggle-{sid}">\u25bc</span>'
+            f"</div>\n"
             "</div>\n"
-            '<div class="section-body">\n'
+            f'<div class="section-body{collapsed_class}" id="body-{sid}">\n'
+            f"{subtitle_html}\n"
             f'<div class="error-box">{html.escape(error_text)}</div>\n'
             "</div>\n"
             "</section>"
         )
 
     def _render_footer(self, footer: dict[str, str]) -> str:
-        items = "\n".join(
+        items = " &nbsp;&bull;&nbsp; ".join(
             f'<span class="footer-item"><strong>{html.escape(k)}:</strong> {html.escape(v)}</span>'
             for k, v in footer.items()
         )
