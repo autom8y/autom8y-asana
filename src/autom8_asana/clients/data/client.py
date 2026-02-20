@@ -1199,6 +1199,42 @@ class DataServiceClient:
             self, office_phone, days=days, limit=limit
         )
 
+    async def get_reconciliation_async(
+        self,
+        office_phone: str,
+        vertical: str,
+        *,
+        period: str | None = None,
+        window_days: int | None = None,
+    ) -> InsightsResponse:
+        """Fetch reconciliation data via POST /insights/reconciliation/execute.
+
+        Per TDD-WS5 Part 2 Section 2.1: Uses the InsightExecutor endpoint,
+        NOT the InsightsService/FrameTypeMapper path.
+
+        Args:
+            office_phone: E.164 formatted phone number.
+            vertical: Business vertical.
+            period: Time period preset. None = LIFETIME (all data).
+            window_days: Window size in days for windowed output. None = flat.
+
+        Returns:
+            InsightsResponse with reconciliation data rows.
+
+        Raises:
+            InsightsServiceError: Upstream service failure.
+            InsightsNotFoundError: No data found.
+        """
+        from autom8_asana.clients.data._endpoints import reconciliation as _recon_ep
+
+        return await _recon_ep.get_reconciliation(
+            self,
+            office_phone,
+            vertical,
+            period=period,
+            window_days=window_days,
+        )
+
     async def get_leads_async(
         self,
         office_phone: str,

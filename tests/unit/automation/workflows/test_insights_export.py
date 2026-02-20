@@ -206,12 +206,18 @@ def _make_workflow(
         mock_data_client.get_insights_async = AsyncMock(side_effect=insights_error)
         mock_data_client.get_appointments_async = AsyncMock(side_effect=insights_error)
         mock_data_client.get_leads_async = AsyncMock(side_effect=insights_error)
+        mock_data_client.get_reconciliation_async = AsyncMock(
+            side_effect=insights_error
+        )
     else:
         mock_data_client.get_insights_async = AsyncMock(return_value=default_response)
         mock_data_client.get_appointments_async = AsyncMock(
             return_value=default_response
         )
         mock_data_client.get_leads_async = AsyncMock(return_value=default_response)
+        mock_data_client.get_reconciliation_async = AsyncMock(
+            return_value=default_response
+        )
 
     mock_data_client._circuit_breaker = MagicMock()
     mock_data_client._circuit_breaker.check = AsyncMock()
@@ -937,7 +943,7 @@ class TestPartialFailure:
 
     @pytest.mark.asyncio
     async def test_one_table_fails_rest_succeed(self) -> None:
-        """1 of 10 tables fails -> 9 succeed, report still uploaded."""
+        """1 of 12 tables fails -> 11 succeed, report still uploaded."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         default_response = _make_insights_response()
 
@@ -981,7 +987,7 @@ class TestTotalFailure:
 
     @pytest.mark.asyncio
     async def test_all_tables_fail_no_upload(self) -> None:
-        """All 10 tables fail -> no upload, offer marked failed."""
+        """All 12 tables fail -> no upload, offer marked failed."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         wf, _, _, mock_att = _make_workflow(
             offers=[o1],
@@ -1088,13 +1094,15 @@ class TestConstants:
     """Tests for module constants."""
 
     def test_table_names_count(self) -> None:
-        assert TOTAL_TABLE_COUNT == 10
-        assert len(TABLE_NAMES) == 10
+        assert TOTAL_TABLE_COUNT == 12
+        assert len(TABLE_NAMES) == 12
 
     def test_table_names_order(self) -> None:
         assert TABLE_NAMES[0] == "SUMMARY"
         assert TABLE_NAMES[1] == "APPOINTMENTS"
         assert TABLE_NAMES[2] == "LEADS"
+        assert TABLE_NAMES[3] == "LIFETIME RECONCILIATIONS"
+        assert TABLE_NAMES[4] == "T14 RECONCILIATIONS"
         assert TABLE_NAMES[-1] == "UNUSED ASSETS"
 
     def test_offer_project_gid(self) -> None:

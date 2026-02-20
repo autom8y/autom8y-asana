@@ -65,11 +65,13 @@ DEFAULT_ROW_LIMITS: dict[str, int] = {
     "LEADS": 100,
 }
 
-# Table names in section order (per PRD FR-W01.6)
+# Table names in section order (per PRD FR-W01.6, extended per TDD-WS5)
 TABLE_NAMES: list[str] = [
     "SUMMARY",
     "APPOINTMENTS",
     "LEADS",
+    "LIFETIME RECONCILIATIONS",
+    "T14 RECONCILIATIONS",
     "BY QUARTER",
     "BY MONTH",
     "BY WEEK",
@@ -79,7 +81,7 @@ TABLE_NAMES: list[str] = [
     "UNUSED ASSETS",
 ]
 
-TOTAL_TABLE_COUNT = len(TABLE_NAMES)  # 10
+TOTAL_TABLE_COUNT = len(TABLE_NAMES)  # 12
 
 
 class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
@@ -692,11 +694,12 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         row_limits: dict[str, int],
         offer_gid: str,
     ) -> dict[str, TableResult]:
-        """Fetch all 10 tables concurrently for a single offer.
+        """Fetch all 12 tables concurrently for a single offer.
 
-        Per PRD FR-W01.5: All 10 calls dispatched concurrently via
+        Per PRD FR-W01.5 + TDD-WS5: All calls dispatched concurrently via
         asyncio.gather(). ASSET TABLE and UNUSED ASSETS share a single
-        API call (ADR-EXPORT-002).
+        API call (ADR-EXPORT-002). Reconciliation tables use the
+        InsightExecutor endpoint via get_reconciliation_async.
 
         Args:
             office_phone: E.164 phone number.
@@ -707,9 +710,9 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         Returns:
             Dict mapping table name to TableResult.
         """
-        # Fetch the 9 independent API calls concurrently
+        # Fetch the 11 independent API calls concurrently
         # Note: UNUSED ASSETS is derived from ASSET TABLE response
-        # so we dispatch 9 API calls and derive the 10th
+        # so we dispatch 11 API calls and derive the 12th
         results = await asyncio.gather(
             self._fetch_table(
                 "SUMMARY",
@@ -737,6 +740,21 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 days=30,
                 exclude_appointments=True,
                 limit=row_limits.get("LEADS", 100),
+            ),
+            self._fetch_table(
+                "LIFETIME RECONCILIATIONS",
+                offer_gid,
+                office_phone,
+                vertical,
+                method="reconciliation",
+            ),
+            self._fetch_table(
+                "T14 RECONCILIATIONS",
+                offer_gid,
+                office_phone,
+                vertical,
+                method="reconciliation",
+                window_days=14,
             ),
             self._fetch_table(
                 "BY QUARTER",
@@ -840,6 +858,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         days: int | None = None,
         limit: int | None = None,
         exclude_appointments: bool = False,
+        window_days: int | None = None,
     ) -> TableResult:
         """Fetch a single table with error isolation.
 
@@ -854,10 +873,11 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             vertical: Business vertical.
             factory: Factory name for get_insights_async.
             period: For POST /insights calls.
-            method: "appointments" or "leads" for detail endpoints.
+            method: "appointments", "leads", or "reconciliation" for detail endpoints.
             days: For appointment/lead detail endpoints.
             limit: Row limit for detail endpoints.
             exclude_appointments: For leads endpoint.
+            window_days: Window size in days for reconciliation windowing.
 
         Returns:
             TableResult with data or error information.
@@ -875,6 +895,13 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                     days=days or 30,
                     exclude_appointments=exclude_appointments,
                     limit=limit or 100,
+                )
+            elif method == "reconciliation":
+                response = await self._data_client.get_reconciliation_async(
+                    office_phone,
+                    vertical,
+                    period=period,
+                    window_days=window_days,
                 )
             else:
                 # Standard POST /insights call with factory parameter

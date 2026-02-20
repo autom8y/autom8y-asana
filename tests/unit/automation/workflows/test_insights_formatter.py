@@ -605,6 +605,18 @@ class TestComposeReport:
             data=[{"date": "2026-02-08", "name": "Jane"}],
         )
 
+        # LIFETIME RECONCILIATIONS: success with data
+        table_results["LIFETIME RECONCILIATIONS"] = _make_table_result(
+            "LIFETIME RECONCILIATIONS",
+            data=[{"office_phone": "+19259998806", "collected": 5000.0}],
+        )
+
+        # T14 RECONCILIATIONS: success with data
+        table_results["T14 RECONCILIATIONS"] = _make_table_result(
+            "T14 RECONCILIATIONS",
+            data=[{"period": 0, "period_label": "P0", "collected": 1200.0}],
+        )
+
         # BY QUARTER: empty
         table_results["BY QUARTER"] = _make_table_result(
             "BY QUARTER",
@@ -760,8 +772,8 @@ class TestComposeReport:
         mock_monotonic.return_value = 103.45
         data = self._build_mixed_report_data(100.0)
         report = compose_report(data)
-        # 9 successful results (APPOINTMENTS failed)
-        assert "9/10" in report
+        # 11 successful results out of 12 (APPOINTMENTS failed)
+        assert "11/12" in report
         assert "Errors" in report
 
     @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
@@ -1134,3 +1146,243 @@ class TestColumnOrdering:
         # Also verify empty list preferred_leading
         result_empty = _reorder_columns(columns, [])
         assert result_empty == ["spend", "clicks", "impressions"]
+
+
+# ---------------------------------------------------------------------------
+# TestReconciliationTables -- TDD-WS5 Part 2 reconciliation consumer tests
+# ---------------------------------------------------------------------------
+
+
+class TestReconciliationTables:
+    """Reconciliation table rendering and configuration tests.
+
+    Per TDD-WS5 Part 2 Section 2.5-2.6: Validates LIFETIME RECONCILIATIONS
+    and T14 RECONCILIATIONS table entries in TABLE_ORDER, COLUMN_ORDER, and
+    rendered HTML output.
+    """
+
+    def test_table_order_has_12_entries(self):
+        """TABLE_ORDER has 12 entries (was 10, +2 reconciliation tables)."""
+        assert len(TABLE_ORDER) == 12
+
+    def test_reconciliation_tables_at_positions_4_5(self):
+        """LIFETIME RECONCILIATIONS at index 3, T14 RECONCILIATIONS at index 4."""
+        assert TABLE_ORDER[3] == "LIFETIME RECONCILIATIONS"
+        assert TABLE_ORDER[4] == "T14 RECONCILIATIONS"
+
+    def test_reconciliation_tables_after_leads(self):
+        """Reconciliation tables follow LEADS in TABLE_ORDER."""
+        leads_idx = TABLE_ORDER.index("LEADS")
+        lifetime_idx = TABLE_ORDER.index("LIFETIME RECONCILIATIONS")
+        t14_idx = TABLE_ORDER.index("T14 RECONCILIATIONS")
+        assert lifetime_idx == leads_idx + 1
+        assert t14_idx == leads_idx + 2
+
+    def test_reconciliation_tables_before_by_quarter(self):
+        """Reconciliation tables precede BY QUARTER in TABLE_ORDER."""
+        t14_idx = TABLE_ORDER.index("T14 RECONCILIATIONS")
+        quarter_idx = TABLE_ORDER.index("BY QUARTER")
+        assert t14_idx < quarter_idx
+
+    def test_lifetime_reconciliations_column_order(self):
+        """LIFETIME RECONCILIATIONS has correct COLUMN_ORDER entry."""
+        assert "LIFETIME RECONCILIATIONS" in COLUMN_ORDER
+        expected = [
+            "office_phone",
+            "vertical",
+            "num_invoices",
+            "collected",
+            "spend",
+            "variance",
+            "variance_pct",
+        ]
+        assert COLUMN_ORDER["LIFETIME RECONCILIATIONS"] == expected
+
+    def test_t14_reconciliations_column_order(self):
+        """T14 RECONCILIATIONS has correct COLUMN_ORDER entry with period columns."""
+        assert "T14 RECONCILIATIONS" in COLUMN_ORDER
+        expected = [
+            "period",
+            "period_label",
+            "period_start",
+            "period_end",
+            "period_len",
+            "num_invoices",
+            "collected",
+            "spend",
+            "variance",
+            "variance_pct",
+        ]
+        assert COLUMN_ORDER["T14 RECONCILIATIONS"] == expected
+
+    def test_lifetime_reconciliations_renders_correct_column_order(self):
+        """LIFETIME RECONCILIATIONS renders office_phone, vertical first."""
+        rows = [
+            {
+                "office_phone": "+19259998806",
+                "vertical": "chiro",
+                "num_invoices": 25,
+                "collected": 5000.00,
+                "spend": 4200.00,
+                "variance": 800.00,
+                "variance_pct": 16.0,
+                "first_payment": "2025-11-01",
+                "latest_payment": "2026-02-19",
+                "days_with_activity": 45,
+            },
+        ]
+        result = _render_section(
+            "LIFETIME RECONCILIATIONS", rows=rows, row_count=1
+        )
+
+        # Preferred columns should appear before non-preferred columns
+        office_phone_pos = result.find("Office Phone")
+        vertical_pos = result.find("Vertical")
+        num_invoices_pos = result.find("Num Invoices")
+        collected_pos = result.find("Collected")
+        first_payment_pos = result.find("First Payment")
+
+        assert office_phone_pos < vertical_pos
+        assert vertical_pos < num_invoices_pos
+        assert num_invoices_pos < collected_pos
+        # Non-preferred columns come after preferred ones
+        assert collected_pos < first_payment_pos
+
+    def test_t14_reconciliations_renders_period_columns_first(self):
+        """T14 RECONCILIATIONS renders period, period_label, period_start, period_end first."""
+        rows = [
+            {
+                "office_phone": "+19259998806",
+                "vertical": "chiro",
+                "period": 0,
+                "period_len": 14,
+                "period_start": "2026-02-07",
+                "period_end": "2026-02-20",
+                "period_label": "P0",
+                "num_invoices": 4,
+                "collected": 1200.00,
+                "spend": 980.50,
+                "variance": 219.50,
+                "variance_pct": 18.29,
+            },
+            {
+                "office_phone": "+19259998806",
+                "vertical": "chiro",
+                "period": 1,
+                "period_len": 12,
+                "period_start": "2026-01-24",
+                "period_end": "2026-02-06",
+                "period_label": "P1",
+                "num_invoices": 3,
+                "collected": 900.00,
+                "spend": 850.00,
+                "variance": 50.00,
+                "variance_pct": 5.56,
+            },
+        ]
+        result = _render_section(
+            "T14 RECONCILIATIONS", rows=rows, row_count=2
+        )
+
+        # Period columns should come before metric columns
+        period_pos = result.find(">Period<")
+        period_label_pos = result.find("Period Label")
+        period_start_pos = result.find("Period Start")
+        period_end_pos = result.find("Period End")
+        num_invoices_pos = result.find("Num Invoices")
+        office_phone_pos = result.find("Office Phone")
+
+        # period/period_label/period_start/period_end before metrics
+        assert period_pos < num_invoices_pos
+        assert period_label_pos < num_invoices_pos
+        assert period_start_pos < num_invoices_pos
+        assert period_end_pos < num_invoices_pos
+        # office_phone is not in preferred leading -- comes after
+        assert office_phone_pos > period_end_pos
+
+    def test_lifetime_reconciliations_section_id(self):
+        """LIFETIME RECONCILIATIONS section has correct slugified id."""
+        rows = [{"office_phone": "+19259998806", "collected": 5000.00}]
+        result = _render_section(
+            "LIFETIME RECONCILIATIONS", rows=rows, row_count=1
+        )
+        assert 'id="lifetime-reconciliations"' in result
+
+    def test_t14_reconciliations_section_id(self):
+        """T14 RECONCILIATIONS section has correct slugified id."""
+        rows = [{"period": 0, "period_label": "P0", "collected": 1200.00}]
+        result = _render_section(
+            "T14 RECONCILIATIONS", rows=rows, row_count=1
+        )
+        assert 'id="t14-reconciliations"' in result
+
+    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    def test_compose_report_includes_reconciliation_sections(self, mock_monotonic):
+        """compose_report includes reconciliation sections in output."""
+        mock_monotonic.return_value = 101.0
+
+        table_results: dict[str, TableResult] = {}
+        # Provide all 12 tables
+        for name in TABLE_ORDER:
+            if name == "LIFETIME RECONCILIATIONS":
+                table_results[name] = _make_table_result(
+                    name,
+                    data=[
+                        {
+                            "office_phone": "+19259998806",
+                            "vertical": "chiro",
+                            "num_invoices": 25,
+                            "collected": 5000.0,
+                            "spend": 4200.0,
+                            "variance": 800.0,
+                            "variance_pct": 16.0,
+                        }
+                    ],
+                )
+            elif name == "T14 RECONCILIATIONS":
+                table_results[name] = _make_table_result(
+                    name,
+                    data=[
+                        {
+                            "period": 0,
+                            "period_label": "P0",
+                            "period_start": "2026-02-07",
+                            "period_end": "2026-02-20",
+                            "num_invoices": 4,
+                            "collected": 1200.0,
+                            "spend": 980.5,
+                            "variance": 219.5,
+                            "variance_pct": 18.29,
+                        }
+                    ],
+                )
+            else:
+                table_results[name] = _make_table_result(name, data=[{"a": 1}])
+
+        data = _make_report_data(table_results=table_results, started_at=100.0)
+        report = compose_report(data)
+
+        # Both reconciliation sections should be present
+        assert 'id="lifetime-reconciliations"' in report
+        assert 'id="t14-reconciliations"' in report
+
+        # Section order: reconciliation after LEADS, before BY QUARTER
+        leads_pos = report.find('id="leads"')
+        lifetime_pos = report.find('id="lifetime-reconciliations"')
+        t14_pos = report.find('id="t14-reconciliations"')
+        quarter_pos = report.find('id="by-quarter"')
+
+        assert leads_pos < lifetime_pos < t14_pos < quarter_pos
+
+    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    def test_compose_report_footer_reflects_12_tables(self, mock_monotonic):
+        """Footer table count reflects 12 tables when all succeed."""
+        mock_monotonic.return_value = 101.0
+
+        table_results = {}
+        for name in TABLE_ORDER:
+            table_results[name] = _make_table_result(name, data=[{"a": 1}])
+
+        data = _make_report_data(table_results=table_results, started_at=100.0)
+        report = compose_report(data)
+        assert "12/12" in report
