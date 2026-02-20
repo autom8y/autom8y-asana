@@ -14,6 +14,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from autom8_asana.automation.workflows.insights_export import (
+    DEFAULT_ATTACHMENT_PATTERN,
+    DEFAULT_MAX_CONCURRENCY,
+    DEFAULT_ROW_LIMITS,
+)
 from autom8_asana.lambda_handlers.workflow_handler import (
     WorkflowHandlerConfig,
     create_workflow_handler,
@@ -38,9 +43,9 @@ _config = WorkflowHandlerConfig(
     workflow_id="insights-export",
     log_prefix="lambda_insights_export",
     default_params={
-        "max_concurrency": 5,
-        "attachment_pattern": "insights_export_*.html",
-        "row_limits": {"APPOINTMENTS": 250, "LEADS": 250},
+        "max_concurrency": DEFAULT_MAX_CONCURRENCY,
+        "attachment_pattern": DEFAULT_ATTACHMENT_PATTERN,
+        "row_limits": DEFAULT_ROW_LIMITS,
     },
     response_metadata_keys=("total_tables_succeeded", "total_tables_failed"),
 )
