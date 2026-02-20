@@ -410,6 +410,15 @@ class HtmlRenderer:
         ]
         return "\n".join(parts)
 
+    @staticmethod
+    def _extract_numeric_values(rows: list[dict[str, Any]], key: str) -> list[float]:
+        """Return float values for *key* from *rows*, skipping None and non-numeric."""
+        return [
+            float(r[key])
+            for r in rows
+            if r.get(key) is not None and isinstance(r.get(key), (int, float))
+        ]
+
     def _render_kpi_cards(self, sections: list[DataSection]) -> str:
         summary_section: DataSection | None = None
         by_week_section: DataSection | None = None
@@ -446,14 +455,9 @@ class HtmlRenderer:
         br_val = summary_row.get("booking_rate")
         sparkline_svg = ""
         if week_rows:
-            br_values = [
-                r.get("booking_rate")
-                for r in week_rows
-                if r.get("booking_rate") is not None
-                and isinstance(r.get("booking_rate"), (int, float))
-            ]
+            br_values = self._extract_numeric_values(week_rows, "booking_rate")
             if br_values:
-                sparkline_svg = self._render_sparkline(br_values)  # type: ignore[arg-type]
+                sparkline_svg = self._render_sparkline(br_values)
 
         if br_val is not None and isinstance(br_val, (int, float)):
             cards.append(
@@ -485,18 +489,18 @@ class HtmlRenderer:
 
         # Card 5: Best Week
         if week_rows:
-            br_pairs = [
-                (r.get("booking_rate"), r.get("period_label", ""))
+            br_pairs: list[tuple[float, str]] = [
+                (float(r["booking_rate"]), str(r.get("period_label", "")))
                 for r in week_rows
                 if r.get("booking_rate") is not None
                 and isinstance(r.get("booking_rate"), (int, float))
             ]
             if br_pairs:
-                best_val, best_label = max(br_pairs, key=lambda p: p[0])  # type: ignore[arg-type,return-value]
+                best_val, best_label = max(br_pairs, key=lambda p: p[0])
                 cards.append(
                     self._kpi_card(
                         "Best Week",
-                        f"{best_val * 100:.2f}%",  # type: ignore[operator]
+                        f"{best_val * 100:.2f}%",
                         html.escape(str(best_label)),
                     )
                 )
@@ -507,12 +511,7 @@ class HtmlRenderer:
 
         # Card 6: Spend Trend
         if week_rows:
-            spend_values = [
-                r.get("spend")
-                for r in week_rows
-                if r.get("spend") is not None
-                and isinstance(r.get("spend"), (int, float))
-            ]
+            spend_values = self._extract_numeric_values(week_rows, "spend")
             if len(spend_values) >= 2:
                 recent = spend_values[-12:] if len(spend_values) > 12 else spend_values
                 prior_start = max(0, len(spend_values) - 24)
@@ -522,8 +521,8 @@ class HtmlRenderer:
                     if prior_end > prior_start
                     else []
                 )
-                recent_sum = sum(recent)  # type: ignore[arg-type]
-                prior_sum = sum(prior) if prior else 0  # type: ignore[arg-type]
+                recent_sum = sum(recent)
+                prior_sum = sum(prior) if prior else 0
 
                 if prior_sum > 0:
                     pct_change = (recent_sum - prior_sum) / prior_sum
