@@ -659,7 +659,7 @@ class DataServiceClient:
         "targeting": "offer",
         "payments": "business",
         "business_offers": "offer",
-        "ad_questions": "offer",
+        "ad_questions": "question",
         "ad_tests": "offer",
         "base": "unit",
     }
