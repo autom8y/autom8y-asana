@@ -1199,7 +1199,7 @@ class TestConstants:
         assert OFFER_PROJECT_GID == "1143843662099250"
 
     def test_default_row_limits(self) -> None:
-        assert DEFAULT_ROW_LIMITS == {"APPOINTMENTS": 100, "LEADS": 100}
+        assert DEFAULT_ROW_LIMITS == {"APPOINTMENTS": 250, "LEADS": 250}
 
     def test_default_max_concurrency(self) -> None:
         assert DEFAULT_MAX_CONCURRENCY == 5

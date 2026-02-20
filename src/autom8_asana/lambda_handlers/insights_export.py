@@ -40,7 +40,7 @@ _config = WorkflowHandlerConfig(
     default_params={
         "max_concurrency": 5,
         "attachment_pattern": "insights_export_*.html",
-        "row_limits": {"APPOINTMENTS": 100, "LEADS": 100},
+        "row_limits": {"APPOINTMENTS": 250, "LEADS": 250},
     },
     response_metadata_keys=("total_tables_succeeded", "total_tables_failed"),
 )

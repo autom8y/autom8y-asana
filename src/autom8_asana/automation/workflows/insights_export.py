@@ -61,8 +61,8 @@ WORKFLOW_VERSION = "insights-export-v1.0"
 
 # Default row limits per table type
 DEFAULT_ROW_LIMITS: dict[str, int] = {
-    "APPOINTMENTS": 100,
-    "LEADS": 100,
+    "APPOINTMENTS": 250,
+    "LEADS": 250,
 }
 
 # Table names in section order (per PRD FR-W01.6, extended per TDD-WS5)

@@ -32,8 +32,10 @@ from autom8_asana.automation.workflows.insights_formatter import (
     StructuredDataRenderer,
     TableResult,
     _FIELD_FORMAT,
+    _RECONCILIATION_PENDING_MESSAGE,
     _discover_columns,
     _format_cell_html,
+    _is_payment_data_pending,
     _reorder_columns,
     _slugify,
     _to_title_case,
@@ -1416,6 +1418,167 @@ class TestReconciliationTables:
         data = _make_report_data(table_results=table_results, started_at=100.0)
         report = compose_report(data)
         assert "12/12" in report
+
+
+# ---------------------------------------------------------------------------
+# TestReconciliationPending -- WS-A payment data pending UX
+# ---------------------------------------------------------------------------
+
+
+class TestReconciliationPending:
+    """Payment data pending detection and display for reconciliation tables."""
+
+    def test_is_payment_data_pending_all_null(self):
+        """All payment indicator columns null -> pending."""
+        rows = [
+            {"office_phone": "+19259998806", "vertical": "chiro", "spend": 4200.0,
+             "collected": None, "num_invoices": None, "variance": None,
+             "expected_collection": None, "expected_variance": None},
+        ]
+        assert _is_payment_data_pending(rows) is True
+
+    def test_is_payment_data_pending_some_data(self):
+        """Any non-null payment column -> not pending."""
+        rows = [
+            {"office_phone": "+19259998806", "vertical": "chiro", "spend": 4200.0,
+             "collected": 5000.0, "num_invoices": None, "variance": None},
+        ]
+        assert _is_payment_data_pending(rows) is False
+
+    def test_is_payment_data_pending_empty_rows(self):
+        """Empty row list -> not pending (no data at all)."""
+        assert _is_payment_data_pending([]) is False
+
+    def test_is_payment_data_pending_columns_absent(self):
+        """Payment columns not present in row dict -> treated as null (pending)."""
+        rows = [{"office_phone": "+19259998806", "vertical": "chiro", "spend": 4200.0}]
+        assert _is_payment_data_pending(rows) is True
+
+    def test_is_payment_data_pending_multiple_rows_all_null(self):
+        """Multiple rows all with null payment columns -> pending."""
+        rows = [
+            {"spend": 1000.0, "collected": None, "num_invoices": None,
+             "variance": None, "expected_collection": None, "expected_variance": None},
+            {"spend": 2000.0, "collected": None, "num_invoices": None,
+             "variance": None, "expected_collection": None, "expected_variance": None},
+        ]
+        assert _is_payment_data_pending(rows) is True
+
+    def test_is_payment_data_pending_one_row_has_data(self):
+        """One row with data among nulls -> not pending."""
+        rows = [
+            {"spend": 1000.0, "collected": None, "num_invoices": None,
+             "variance": None},
+            {"spend": 2000.0, "collected": 500.0, "num_invoices": None,
+             "variance": None},
+        ]
+        assert _is_payment_data_pending(rows) is False
+
+    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    def test_compose_report_recon_pending_shows_info_message(self, mock_monotonic):
+        """Reconciliation tables with all-null payment cols show pending message."""
+        mock_monotonic.return_value = 101.0
+
+        table_results: dict[str, TableResult] = {}
+        for name in TABLE_ORDER:
+            if name in ("LIFETIME RECONCILIATIONS", "T14 RECONCILIATIONS"):
+                table_results[name] = _make_table_result(
+                    name,
+                    data=[{
+                        "office_phone": "+19259998806", "vertical": "chiro",
+                        "spend": 4200.0, "budget": 5000.0,
+                        "collected": None, "num_invoices": None,
+                        "variance": None, "expected_collection": None,
+                        "expected_variance": None,
+                    }],
+                )
+            else:
+                table_results[name] = _make_table_result(name, data=[{"a": 1}])
+
+        data = _make_report_data(table_results=table_results, started_at=100.0)
+        report = compose_report(data)
+
+        # Both sections should show the pending message
+        assert _RECONCILIATION_PENDING_MESSAGE in report
+        # Sections should still exist (not dropped)
+        assert 'id="lifetime-reconciliations"' in report
+        assert 'id="t14-reconciliations"' in report
+
+    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    def test_compose_report_recon_with_data_renders_normally(self, mock_monotonic):
+        """Reconciliation tables with actual payment data render as normal tables."""
+        mock_monotonic.return_value = 101.0
+
+        table_results: dict[str, TableResult] = {}
+        for name in TABLE_ORDER:
+            if name == "LIFETIME RECONCILIATIONS":
+                table_results[name] = _make_table_result(
+                    name,
+                    data=[{
+                        "office_phone": "+19259998806", "vertical": "chiro",
+                        "spend": 4200.0, "collected": 5000.0,
+                        "num_invoices": 25, "variance": 800.0,
+                        "variance_pct": 16.0,
+                    }],
+                )
+            elif name == "T14 RECONCILIATIONS":
+                table_results[name] = _make_table_result(
+                    name,
+                    data=[{
+                        "period": 0, "period_label": "P0",
+                        "spend": 980.5, "collected": 1200.0,
+                        "num_invoices": 4, "variance": 219.5,
+                    }],
+                )
+            else:
+                table_results[name] = _make_table_result(name, data=[{"a": 1}])
+
+        data = _make_report_data(table_results=table_results, started_at=100.0)
+        report = compose_report(data)
+
+        # Should NOT show pending message
+        assert _RECONCILIATION_PENDING_MESSAGE not in report
+        # Should render as normal data tables
+        assert "$5,000.00" in report  # collected value rendered
+        assert "$1,200.00" in report
+
+    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    def test_compose_report_recon_independent_detection(self, mock_monotonic):
+        """Each recon table is checked independently for pending status."""
+        mock_monotonic.return_value = 101.0
+
+        table_results: dict[str, TableResult] = {}
+        for name in TABLE_ORDER:
+            if name == "LIFETIME RECONCILIATIONS":
+                # This one has payment data
+                table_results[name] = _make_table_result(
+                    name,
+                    data=[{
+                        "office_phone": "+19259998806", "vertical": "chiro",
+                        "spend": 4200.0, "collected": 5000.0,
+                        "num_invoices": 25, "variance": 800.0,
+                    }],
+                )
+            elif name == "T14 RECONCILIATIONS":
+                # This one is pending
+                table_results[name] = _make_table_result(
+                    name,
+                    data=[{
+                        "period": 0, "period_label": "P0",
+                        "spend": 980.5, "collected": None,
+                        "num_invoices": None, "variance": None,
+                    }],
+                )
+            else:
+                table_results[name] = _make_table_result(name, data=[{"a": 1}])
+
+        data = _make_report_data(table_results=table_results, started_at=100.0)
+        report = compose_report(data)
+
+        # LIFETIME should render normally (has data)
+        assert "$5,000.00" in report
+        # T14 should show pending
+        assert _RECONCILIATION_PENDING_MESSAGE in report
 
 
 # ---------------------------------------------------------------------------
