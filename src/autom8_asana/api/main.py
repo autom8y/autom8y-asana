@@ -168,7 +168,7 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestIDMiddleware)
 
     # --- Routes ---
-    app.include_router(health_router)
+    app.include_router(health_router)  # /health, /ready, /health/deps
     app.include_router(users_router)
     app.include_router(workspaces_router)
     app.include_router(dataframes_router)

@@ -1,40 +1,29 @@
 """Health check endpoints.
 
-This module provides health check endpoints for container orchestration
-and deployment monitoring.
+Health endpoints follow the platform three-tier contract: /health (liveness),
+/ready (readiness), /health/deps (dependency probe).
 
-Per TDD-ASANA-SATELLITE (FR-API-HEALTH-001, FR-API-HEALTH-002):
-- GET /satellite/health returns service status
-- Health check does NOT require authentication
+Tiers:
+    GET /health      - Pure liveness probe. No I/O, always 200.
+    GET /ready       - Readiness probe. Checks cache warmth, returns 200 or 503.
+    GET /health/deps - Dependency probe. Checks JWKS reachability and PAT config.
 
 Per PRD-ASANA-SATELLITE:
-- Returns {"status": "healthy", "version": "0.1.0"}
-- Used for ALB health checks and ECS task health
-
-Per PRD-S2S-001 (NFR-OPS-002):
-- GET /satellite/health/s2s returns S2S connectivity status
-- Checks JWKS endpoint reachability for JWT validation
+- Health endpoints do NOT require authentication.
+- Used for ALB health checks and ECS task health.
 
 Per sprint-materialization-002 FR-004:
-- Returns 503 "warming" status during cache preload
-- Returns 200 "healthy" status after cache is ready
+- Returns 503 during cache preload (via /ready).
+- Returns 200 after cache is ready (via /ready).
 
-Health Check Architecture (ECS/ALB):
-- GET /satellite/health: Liveness probe - returns 200 if app is running (for ALB health checks)
-- GET /satellite/health/ready: Readiness probe - returns 503 during cache warming, 200 when ready
-- GET /satellite/health/s2s: S2S connectivity check - verifies JWKS and PAT configuration
-
-The /satellite/health endpoint always returns 200 to satisfy ALB health checks during startup.
-Use /satellite/health/ready for traffic gating decisions that require warm cache.
-
-Note: The /satellite prefix avoids path collision with the Handler API's /health endpoint
-when both services share the same domain. See ADR-0068.
+Per PRD-S2S-001 (NFR-OPS-002):
+- Dependency probe checks JWKS endpoint reachability for JWT validation.
 """
 
 from __future__ import annotations
 
 import os
-from typing import TypedDict
+import time
 
 import httpx
 from autom8y_log import get_logger
@@ -44,10 +33,11 @@ from fastapi.responses import JSONResponse
 # Import version directly to avoid circular import
 # (api/__init__.py imports from main.py which imports routes)
 API_VERSION = "0.1.0"
+SERVICE_NAME = "asana"
 
 logger = get_logger("autom8_asana.health")
 
-router = APIRouter(prefix="/satellite", tags=["health"])
+router = APIRouter(tags=["health"])
 
 # --- Cache Readiness State (FR-004) ---
 # Module-level flag for cache warm-up state
@@ -59,7 +49,7 @@ def set_cache_ready(ready: bool) -> None:
     """Set cache readiness state.
 
     Per FR-004: Called by startup preload to signal cache is ready.
-    Health check returns 503 "warming" until this is set to True.
+    Readiness check returns 503 until this is set to True.
 
     Args:
         ready: True when cache preload is complete.
@@ -81,177 +71,172 @@ def is_cache_ready() -> bool:
     return _cache_ready
 
 
-class HealthResponse(TypedDict):
-    """Health check response structure."""
-
-    status: str
-    version: str
-
-
-class S2SHealthResponse(TypedDict, total=False):
-    """S2S health check response structure."""
-
-    status: str
-    version: str
-    s2s_connectivity: bool
-    jwks_reachable: bool
-    bot_pat_configured: bool
-    details: dict[str, str]
-
-
 @router.get("/health")
 async def health_check() -> JSONResponse:
-    """Liveness probe - returns 200 if the application is running.
-
-    Per FR-API-HEALTH-001:
-    - Returns 200 with {"status": "healthy", "version": "0.1.0"}
-
-    Per FR-API-HEALTH-002:
-    - This endpoint does NOT require authentication
-    - No Authorization header needed
+    """Liveness probe -- pure liveness, no I/O, always 200.
 
     This endpoint is used by ALB/ECS health checks to determine if the
-    application process is running and can accept connections. It always
-    returns 200 to ensure containers are not killed during cache warming.
-
-    For cache readiness checks, use GET /satellite/health/ready instead.
+    application process is running and can accept connections. It never
+    performs dependency checks and always returns 200.
 
     Returns:
-        JSON response with status and current version.
+        JSON response with standard health contract envelope.
         - 200: Application is running (always)
     """
-    # Include cache_ready status for observability, but always return 200
+    from autom8_asana.api.health_models import liveness_response
+
+    resp = liveness_response(SERVICE_NAME, API_VERSION)
     return JSONResponse(
-        content={
-            "status": "healthy",
-            "version": API_VERSION,
-            "cache_ready": _cache_ready,
-        },
-        status_code=200,
+        content=resp.model_dump(mode="json"),
+        status_code=resp.http_status_code(),
     )
 
 
-@router.get("/health/ready")
+@router.get("/ready")
 async def readiness_check() -> JSONResponse:
-    """Readiness probe - returns 200 only when cache is warm.
+    """Readiness probe -- checks cache warmth.
 
     Per sprint-materialization-002 FR-004:
-    - Returns 503 with {"status": "warming"} during cache preload
-    - Returns 200 with {"status": "ready"} after cache is ready
+    - Returns 503 (unavailable) during cache preload.
+    - Returns 200 (ok) after cache is ready.
 
     Use this endpoint for traffic gating decisions that require warm cache.
-    The ALB should use /satellite/health for liveness, not this endpoint.
+    The ALB should use /health for liveness, not this endpoint.
 
     Returns:
-        JSON response with status and current version.
-        - 200: Cache is ready, service can handle traffic optimally
-        - 503: Cache is warming, service may have degraded performance
+        JSON response with standard health contract envelope.
+        - 200: Cache is ready, service can handle traffic optimally.
+        - 503: Cache is warming, service cannot serve traffic reliably.
     """
-    if not _cache_ready:
+    from autom8_asana.api.health_models import (
+        CheckResult,
+        HealthStatus,
+        readiness_response,
+    )
+
+    if _cache_ready:
+        cache_check = CheckResult(status=HealthStatus.OK)
+    else:
         logger.debug(
             "readiness_check_warming",
             extra={"cache_ready": False},
         )
-        return JSONResponse(
-            content={
-                "status": "warming",
-                "version": API_VERSION,
-                "message": "Cache preload in progress",
-            },
-            status_code=503,
+        cache_check = CheckResult(
+            status=HealthStatus.UNAVAILABLE,
+            detail={"message": "Cache preload in progress"},
         )
 
+    resp = readiness_response(
+        SERVICE_NAME,
+        API_VERSION,
+        checks={"cache": cache_check},
+    )
     return JSONResponse(
-        content={"status": "ready", "version": API_VERSION},
-        status_code=200,
+        content=resp.model_dump(mode="json"),
+        status_code=resp.http_status_code(),
     )
 
 
-@router.get("/health/s2s")
-async def s2s_health_check() -> JSONResponse:
-    """S2S readiness probe - checks JWT/S2S authentication dependencies.
+@router.get("/health/deps")
+async def deps_check() -> JSONResponse:
+    """Dependency probe -- checks JWKS and PAT configuration.
 
     Per PRD-S2S-001 NFR-OPS-002:
-    - Returns S2S connectivity status
-    - Checks JWKS endpoint reachability
-    - Checks bot PAT configuration
-
-    This endpoint verifies that the service can accept S2S (JWT) requests:
-    1. JWKS endpoint is reachable for signature validation
-    2. Bot PAT is configured for Asana API calls
+    - Returns S2S connectivity status.
+    - Checks JWKS endpoint reachability.
+    - Checks bot PAT configuration.
 
     Does NOT require authentication.
 
     Returns:
-        JSON response with S2S connectivity details.
-        - 200: All dependencies healthy
-        - 503: One or more dependencies unavailable
+        JSON response with standard health contract envelope.
+        - 200: All dependencies healthy (or degraded but non-critical).
+        - 503: Critical dependency unavailable.
     """
-    details: dict[str, str] = {}
-    jwks_reachable = False
-    bot_pat_configured = False
+    from autom8_asana.api.health_models import (
+        CheckResult,
+        HealthStatus,
+        deps_response,
+    )
 
-    # Check JWKS endpoint reachability
+    checks: dict[str, CheckResult] = {}
+
+    # --- JWKS reachability ---
     jwks_url = os.environ.get(
         "AUTH_JWKS_URL",
         "https://auth.api.autom8y.io/.well-known/jwks.json",
     )
 
+    t0 = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(jwks_url)
+            latency = (time.monotonic() - t0) * 1000
             if response.status_code == 200:
-                # Verify it looks like a JWKS response
                 data = response.json()
                 if "keys" in data and isinstance(data["keys"], list):
-                    jwks_reachable = True
-                    details["jwks_status"] = "reachable"
+                    checks["jwks"] = CheckResult(
+                        status=HealthStatus.OK,
+                        latency_ms=round(latency, 1),
+                    )
                 else:
-                    details["jwks_status"] = "invalid_response"
+                    checks["jwks"] = CheckResult(
+                        status=HealthStatus.DEGRADED,
+                        latency_ms=round(latency, 1),
+                        detail={"error": "invalid_response"},
+                    )
             else:
-                details["jwks_status"] = f"http_{response.status_code}"
+                checks["jwks"] = CheckResult(
+                    status=HealthStatus.DEGRADED,
+                    latency_ms=round(latency, 1),
+                    detail={"error": f"http_{response.status_code}"},
+                )
     except httpx.TimeoutException:
-        details["jwks_status"] = "timeout"
+        latency = (time.monotonic() - t0) * 1000
         logger.warning("JWKS health check timed out", extra={"jwks_url": jwks_url})
+        checks["jwks"] = CheckResult(
+            status=HealthStatus.DEGRADED,
+            latency_ms=round(latency, 1),
+            detail={"error": "timeout"},
+        )
     except httpx.RequestError as e:
-        details["jwks_status"] = "connection_error"
+        latency = (time.monotonic() - t0) * 1000
         logger.warning(
             "JWKS health check failed",
             extra={"jwks_url": jwks_url, "error": str(e)},
         )
+        checks["jwks"] = CheckResult(
+            status=HealthStatus.DEGRADED,
+            latency_ms=round(latency, 1),
+            detail={"error": "connection_error"},
+        )
     except Exception:  # BROAD-CATCH: degrade
-        details["jwks_status"] = "error"
+        latency = (time.monotonic() - t0) * 1000
         logger.exception("JWKS health check unexpected error")
+        checks["jwks"] = CheckResult(
+            status=HealthStatus.DEGRADED,
+            latency_ms=round(latency, 1),
+            detail={"error": "unexpected"},
+        )
 
-    # Check bot PAT configuration (presence only, never log value)
+    # --- Bot PAT configuration (presence only, never log value) ---
     bot_pat = os.environ.get("ASANA_PAT", "")
     if bot_pat and len(bot_pat) >= 10:
-        bot_pat_configured = True
-        details["bot_pat_status"] = "configured"
+        checks["bot_pat"] = CheckResult(
+            status=HealthStatus.OK,
+            detail={"configured": True},
+        )
     else:
-        details["bot_pat_status"] = "not_configured"
+        checks["bot_pat"] = CheckResult(
+            status=HealthStatus.DEGRADED,
+            detail={"configured": False},
+        )
 
-    # Overall S2S connectivity
-    s2s_connectivity = jwks_reachable and bot_pat_configured
-
-    # Determine overall status
-    if s2s_connectivity:
-        status = "healthy"
-        http_status = 200
-    else:
-        status = "degraded"
-        http_status = 503
-
-    response_content: S2SHealthResponse = {
-        "status": status,
-        "version": API_VERSION,
-        "s2s_connectivity": s2s_connectivity,
-        "jwks_reachable": jwks_reachable,
-        "bot_pat_configured": bot_pat_configured,
-        "details": details,
-    }
-
-    return JSONResponse(content=response_content, status_code=http_status)
+    resp = deps_response(SERVICE_NAME, API_VERSION, checks=checks)
+    return JSONResponse(
+        content=resp.model_dump(mode="json"),
+        status_code=resp.http_status_code(),
+    )
 
 
 __all__ = ["router", "set_cache_ready", "is_cache_ready"]
