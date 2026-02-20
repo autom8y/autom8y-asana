@@ -654,13 +654,15 @@ class TestUnusedAssetsFilter:
 
     @pytest.mark.asyncio
     async def test_unused_assets_filtered_correctly(self) -> None:
-        """UNUSED ASSETS = rows where spend==0 AND imp==0."""
+        """UNUSED ASSETS = spend==0 AND imp==0, excluding disabled and generic."""
         asset_data = [
             {"name": "Active Ad", "spend": 100, "imp": 5000},
-            {"name": "Unused Ad 1", "spend": 0, "imp": 0},
+            {"name": "Unused Ad 1", "spend": 0, "imp": 0, "disabled": 0, "is_generic": False},
             {"name": "Partial Spend", "spend": 0, "imp": 100},
             {"name": "Partial Imp", "spend": 50, "imp": 0},
-            {"name": "Unused Ad 2", "spend": 0, "imp": 0},
+            {"name": "Unused Ad 2", "spend": 0, "imp": 0, "disabled": 0, "is_generic": False},
+            {"name": "Disabled Unused", "spend": 0, "imp": 0, "disabled": 1, "is_generic": False},
+            {"name": "Generic Unused", "spend": 0, "imp": 0, "disabled": 0, "is_generic": True},
         ]
         asset_response = _make_insights_response(data=asset_data)
 
@@ -693,7 +695,95 @@ class TestUnusedAssetsFilter:
         assert unused_result.success is True
         assert unused_result.row_count == 2
         assert len(unused_result.data) == 2
+        # Only non-disabled, non-generic, zero-spend/imp rows pass
         assert all(r["spend"] == 0 and r["imp"] == 0 for r in unused_result.data)
+        unused_names = {r["name"] for r in unused_result.data}
+        assert unused_names == {"Unused Ad 1", "Unused Ad 2"}
+
+    @pytest.mark.asyncio
+    async def test_disabled_asset_excluded_from_unused(self) -> None:
+        """Assets with disabled=1 are excluded from UNUSED ASSETS."""
+        asset_data = [
+            {"name": "Disabled", "spend": 0, "imp": 0, "disabled": 1},
+            {"name": "Enabled", "spend": 0, "imp": 0, "disabled": 0},
+        ]
+        unused_rows = [
+            row
+            for row in asset_data
+            if row.get("spend", -1) == 0
+            and row.get("imp", -1) == 0
+            and not row.get("disabled")
+            and not row.get("is_generic")
+        ]
+        assert len(unused_rows) == 1
+        assert unused_rows[0]["name"] == "Enabled"
+
+    @pytest.mark.asyncio
+    async def test_generic_asset_excluded_from_unused(self) -> None:
+        """Assets with is_generic=True are excluded from UNUSED ASSETS."""
+        asset_data = [
+            {"name": "Generic", "spend": 0, "imp": 0, "is_generic": True},
+            {"name": "Non-Generic", "spend": 0, "imp": 0, "is_generic": False},
+        ]
+        unused_rows = [
+            row
+            for row in asset_data
+            if row.get("spend", -1) == 0
+            and row.get("imp", -1) == 0
+            and not row.get("disabled")
+            and not row.get("is_generic")
+        ]
+        assert len(unused_rows) == 1
+        assert unused_rows[0]["name"] == "Non-Generic"
+
+    @pytest.mark.asyncio
+    async def test_raw_asset_included_in_unused(self) -> None:
+        """Assets with is_raw=True are NOT excluded — raw unused is interesting."""
+        asset_data = [
+            {"name": "Raw Unused", "spend": 0, "imp": 0, "is_raw": True, "disabled": 0, "is_generic": False},
+        ]
+        unused_rows = [
+            row
+            for row in asset_data
+            if row.get("spend", -1) == 0
+            and row.get("imp", -1) == 0
+            and not row.get("disabled")
+            and not row.get("is_generic")
+        ]
+        assert len(unused_rows) == 1
+        assert unused_rows[0]["name"] == "Raw Unused"
+
+    @pytest.mark.asyncio
+    async def test_disabled_none_treated_as_enabled(self) -> None:
+        """disabled=None (no platform mapping) → treated as enabled (kept)."""
+        asset_data = [
+            {"name": "Null Disabled", "spend": 0, "imp": 0, "disabled": None},
+        ]
+        unused_rows = [
+            row
+            for row in asset_data
+            if row.get("spend", -1) == 0
+            and row.get("imp", -1) == 0
+            and not row.get("disabled")
+            and not row.get("is_generic")
+        ]
+        assert len(unused_rows) == 1
+
+    @pytest.mark.asyncio
+    async def test_generic_none_treated_as_non_generic(self) -> None:
+        """is_generic=None → treated as non-generic (kept)."""
+        asset_data = [
+            {"name": "Null Generic", "spend": 0, "imp": 0, "is_generic": None},
+        ]
+        unused_rows = [
+            row
+            for row in asset_data
+            if row.get("spend", -1) == 0
+            and row.get("imp", -1) == 0
+            and not row.get("disabled")
+            and not row.get("is_generic")
+        ]
+        assert len(unused_rows) == 1
 
     @pytest.mark.asyncio
     async def test_unused_assets_fails_when_asset_table_fails(self) -> None:

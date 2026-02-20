@@ -816,7 +816,10 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             unused_rows = [
                 row
                 for row in (asset_result.data or [])
-                if row.get("spend", -1) == 0 and row.get("imp", -1) == 0
+                if row.get("spend", -1) == 0
+                and row.get("imp", -1) == 0
+                and not row.get("disabled")
+                and not row.get("is_generic")
             ]
             table_map["UNUSED ASSETS"] = TableResult(
                 table_name="UNUSED ASSETS",

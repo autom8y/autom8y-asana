@@ -166,9 +166,11 @@ class TestHtmlTable:
         assert "Impressions" in result
         assert "Clicks" in result
         assert "<td" in result
-        assert "1500" in result
-        assert "45000" in result
-        assert "1200" in result
+        # offer_cost is a currency field → $1,500.00
+        assert "$1,500.00" in result
+        # impressions and clicks are integers → comma-grouped
+        assert "45,000" in result
+        assert "1,200" in result
 
     def test_multiple_rows(self):
         rows = [
@@ -885,7 +887,7 @@ class TestAdversarialSanitizeBusinessName:
 
 
 class TestAdversarialUnusedAssetsNoneSpend:
-    """QA-ADVERSARY: spend=None vs spend=0 in UNUSED ASSETS filter."""
+    """QA-ADVERSARY: spend=None vs spend=0, disabled, is_generic in UNUSED ASSETS filter."""
 
     @pytest.mark.asyncio
     async def test_none_spend_excluded_from_unused(self):
@@ -901,7 +903,10 @@ class TestAdversarialUnusedAssetsNoneSpend:
         unused_rows = [
             row
             for row in asset_data
-            if row.get("spend", -1) == 0 and row.get("imp", -1) == 0
+            if row.get("spend", -1) == 0
+            and row.get("imp", -1) == 0
+            and not row.get("disabled")
+            and not row.get("is_generic")
         ]
 
         assert len(unused_rows) == 1
@@ -919,10 +924,33 @@ class TestAdversarialUnusedAssetsNoneSpend:
         unused_rows = [
             row
             for row in asset_data
-            if row.get("spend", -1) == 0 and row.get("imp", -1) == 0
+            if row.get("spend", -1) == 0
+            and row.get("imp", -1) == 0
+            and not row.get("disabled")
+            and not row.get("is_generic")
         ]
 
         assert len(unused_rows) == 0
+
+    @pytest.mark.asyncio
+    async def test_disabled_asset_excluded_from_unused(self):
+        """Disabled assets (disabled=1) are excluded even with zero spend/imp."""
+        asset_data = [
+            {"name": "Disabled Zero", "spend": 0, "imp": 0, "disabled": 1},
+            {"name": "Enabled Zero", "spend": 0, "imp": 0, "disabled": 0},
+        ]
+
+        unused_rows = [
+            row
+            for row in asset_data
+            if row.get("spend", -1) == 0
+            and row.get("imp", -1) == 0
+            and not row.get("disabled")
+            and not row.get("is_generic")
+        ]
+
+        assert len(unused_rows) == 1
+        assert unused_rows[0]["name"] == "Enabled Zero"
 
 
 class TestAdversarialRowLimitEdgeCases:
