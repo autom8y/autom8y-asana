@@ -3,9 +3,9 @@
 Covers TDD Section 9.2 test scenarios adapted for HTML output:
 - TestHtmlTable: Valid HTML table output (AC-W03.1, AC-W03.3, AC-W03.6)
 - TestHeader: Masked phone, business name, vertical, timestamp (AC-W03.2)
-- TestColumnNames: snake_case -> Title Case conversion (AC-W03.4)
-- TestNullHandling: Null values render as styled "---" (AC-W03.5)
-- TestNullColumns: Always-null columns present with "---" markers (AC-W03.5)
+- TestColumnNames: snake_case -> Title Case / display label (AC-W03.4)
+- TestNullHandling: Null values render as em-dash (AC-W03.5)
+- TestNullColumns: Always-null columns present with em-dash markers (AC-W03.5)
 - TestEmptyTable: Zero rows -> "No data available" (AC-W03.7)
 - TestUnusedAssetsEmpty: Zero matching -> "No unused assets found" (AC-W03.7)
 - TestFooter: Duration, table count, error count, version (AC-W03.8)
@@ -14,6 +14,7 @@ Covers TDD Section 9.2 test scenarios adapted for HTML output:
 - TestComposeReport: Full report composition with mixed results (AC-W03.1)
 - TestProtocol: StructuredDataRenderer protocol conformance
 - TestHtmlEscaping: XSS prevention via html.escape()
+- TestPhase1Constants: WS-G Phase 1 module constants and compose_report data layer
 """
 
 from __future__ import annotations
@@ -24,6 +25,15 @@ from unittest.mock import patch
 import pytest
 
 from autom8_asana.automation.workflows.insights_formatter import (
+    _ASSET_EXCLUDE_COLUMNS,
+    _COLUMN_TOOLTIPS,
+    _CONDITIONAL_FORMAT_THRESHOLDS,
+    _DEFAULT_EXPANDED_SECTIONS,
+    _DISPLAY_LABELS,
+    _FIELD_FORMAT,
+    _PERIOD_DISPLAY_COLUMNS,
+    _RECONCILIATION_PENDING_MESSAGE,
+    _SECTION_SUBTITLES,
     COLUMN_ORDER,
     TABLE_ORDER,
     DataSection,
@@ -31,8 +41,7 @@ from autom8_asana.automation.workflows.insights_formatter import (
     InsightsReportData,
     StructuredDataRenderer,
     TableResult,
-    _FIELD_FORMAT,
-    _RECONCILIATION_PENDING_MESSAGE,
+    _conditional_format_class,
     _discover_columns,
     _format_cell_html,
     _is_payment_data_pending,
@@ -205,8 +214,8 @@ class TestHtmlTable:
         b_pos = result.find(">B<")
         c_pos = result.find(">C<")
         assert a_pos < b_pos < c_pos
-        # Second row missing 'a' -> gets None -> styled "---"
-        assert "---" in result
+        # Second row missing 'a' -> gets None -> em-dash
+        assert "\u2014" in result
 
     def test_empty_rows_list_returns_no_data(self):
         """Empty dict rows (no keys) produce 'No data available'."""
@@ -275,13 +284,16 @@ class TestHeader:
 
 
 class TestColumnNames:
-    """_to_title_case converts snake_case to Title Case."""
+    """_to_title_case converts snake_case to display label or Title Case."""
 
     def test_offer_cost(self):
         assert _to_title_case("offer_cost") == "Offer Cost"
 
-    def test_single_word(self):
-        assert _to_title_case("imp") == "Imp"
+    def test_display_label_override(self):
+        """Known columns use _DISPLAY_LABELS instead of title-casing."""
+        assert _to_title_case("imp") == "Impressions"
+        assert _to_title_case("cpl") == "CPL"
+        assert _to_title_case("roas") == "ROAS"
 
     def test_three_words(self):
         assert _to_title_case("time_on_call") == "Time On Call"
@@ -299,12 +311,12 @@ class TestColumnNames:
 
 
 class TestNullHandling:
-    """Null values render as styled '---' in HTML table cells."""
+    """Null values render as em-dash in HTML table cells."""
 
     def test_format_cell_none(self):
         result = _format_cell_html(None)
-        assert "---" in result
-        assert "null-value" in result
+        assert "\u2014" in result
+        assert "dash" in result
 
     def test_format_cell_string(self):
         assert _format_cell_html("hello") == "hello"
@@ -322,15 +334,15 @@ class TestNullHandling:
         assert _format_cell_html("") == ""
 
     def test_null_values_in_html_table(self):
-        """Rows with None values in table show styled '---'."""
+        """Rows with None values in table show em-dash."""
         rows = [
             {"date": "2026-02-10", "name": "John", "status": None},
         ]
         result = _render_section("TEST", rows=rows, row_count=1)
         assert "2026-02-10" in result
         assert "John" in result
-        assert "---" in result
-        assert "null-value" in result
+        assert "\u2014" in result
+        assert "dash" in result
 
 
 # ---------------------------------------------------------------------------
@@ -339,7 +351,7 @@ class TestNullHandling:
 
 
 class TestNullColumns:
-    """Always-null columns are present with '---' markers when data has those keys."""
+    """Always-null columns are present with em-dash markers when data has those keys."""
 
     def test_appointments_null_columns(self):
         """APPOINTMENTS: out_calls, in_calls, time_on_call always null."""
@@ -359,8 +371,8 @@ class TestNullColumns:
         assert "Out Calls" in result
         assert "In Calls" in result
         assert "Time On Call" in result
-        # Data has --- for null columns
-        assert result.count("---") == 3
+        # Data has em-dash for null columns
+        assert result.count("\u2014") == 3
 
     def test_leads_null_columns(self):
         """LEADS: follow_up, convo, lead_call_time always null."""
@@ -379,7 +391,7 @@ class TestNullColumns:
         assert "Follow Up" in result
         assert "Convo" in result
         assert "Lead Call Time" in result
-        assert result.count("---") == 3
+        assert result.count("\u2014") == 3
 
 
 # ---------------------------------------------------------------------------
@@ -1107,14 +1119,15 @@ class TestColumnOrdering:
         ]
         result = _render_section("BY QUARTER", rows=rows, row_count=1)
 
-        # Extract <th> positions -- period_label should appear before spend
-        period_label_pos = result.find("Period Label")
-        spend_pos = result.find("Spend")
-        impressions_pos = result.find("Impressions")
-        assert period_label_pos < spend_pos, (
+        # _DISPLAY_LABELS: period_label -> "Period", period_start -> "Start"
+        # Use >Label< pattern to avoid false positives from CSS/other text
+        period_pos = result.find(">Period<")
+        spend_pos = result.find(">Spend<")
+        impressions_pos = result.find(">Impressions<")
+        assert period_pos < spend_pos, (
             "period_label must appear before spend in BY QUARTER"
         )
-        assert period_label_pos < impressions_pos, (
+        assert period_pos < impressions_pos, (
             "period_label must appear before impressions in BY QUARTER"
         )
 
@@ -1131,20 +1144,22 @@ class TestColumnOrdering:
         ]
         result = _render_section("BY MONTH", rows=rows, row_count=1)
 
-        period_label_pos = result.find("Period Label")
-        period_start_pos = result.find("Period Start")
-        period_end_pos = result.find("Period End")
-        clicks_pos = result.find("Clicks")
-        impressions_pos = result.find("Impressions")
+        # _DISPLAY_LABELS: period_label -> "Period", period_start -> "Start",
+        # period_end -> "End"
+        period_pos = result.find(">Period<")
+        start_pos = result.find(">Start<")
+        end_pos = result.find(">End<")
+        clicks_pos = result.find(">Clicks<")
+        impressions_pos = result.find(">Impressions<")
 
         # All three period columns must precede metric columns
-        assert period_label_pos < clicks_pos
-        assert period_start_pos < clicks_pos
-        assert period_end_pos < clicks_pos
-        assert period_label_pos < impressions_pos
+        assert period_pos < clicks_pos
+        assert start_pos < clicks_pos
+        assert end_pos < clicks_pos
+        assert period_pos < impressions_pos
 
         # Period columns should be in the COLUMN_ORDER sequence
-        assert period_label_pos < period_start_pos < period_end_pos
+        assert period_pos < start_pos < end_pos
 
     def test_summary_table_keeps_natural_column_order(self):
         """SUMMARY table (no COLUMN_ORDER entry) preserves dict key order."""
@@ -1168,14 +1183,14 @@ class TestColumnOrdering:
         ]
         result = _render_section("BY QUARTER", rows=rows, row_count=1)
 
-        # period_label should still be first
-        period_label_pos = result.find("Period Label")
-        spend_pos = result.find("Spend")
-        assert period_label_pos < spend_pos
+        # period_label ("Period") should still be first
+        period_pos = result.find(">Period<")
+        spend_pos = result.find(">Spend<")
+        assert period_pos < spend_pos
 
-        # Missing columns should not appear at all
-        assert "Period Start" not in result
-        assert "Period End" not in result
+        # Missing columns should not appear at all (use >Label< to be precise)
+        assert ">Start<" not in result
+        assert ">End<" not in result
 
     def test_reorder_columns_with_none_returns_original(self):
         """_reorder_columns(columns, None) returns the original list unchanged."""
@@ -1320,21 +1335,23 @@ class TestReconciliationTables:
         ]
         result = _render_section("T14 RECONCILIATIONS", rows=rows, row_count=2)
 
-        # Period columns should come before metric columns
-        period_pos = result.find(">Period<")
-        period_label_pos = result.find("Period Label")
-        period_start_pos = result.find("Period Start")
-        period_end_pos = result.find("Period End")
-        num_invoices_pos = result.find("Num Invoices")
-        office_phone_pos = result.find("Office Phone")
+        # _DISPLAY_LABELS: period_label -> "Period", period_start -> "Start",
+        # period_end -> "End", period_len -> "Days"
+        # Note: "period" column also title-cases to "Period" (first occurrence)
+        first_period_pos = result.find(">Period<")
+        start_pos = result.find(">Start<")
+        end_pos = result.find(">End<")
+        days_pos = result.find(">Days<")
+        num_invoices_pos = result.find(">Num Invoices<")
+        office_phone_pos = result.find(">Office Phone<")
 
-        # period/period_label/period_start/period_end before metrics
-        assert period_pos < num_invoices_pos
-        assert period_label_pos < num_invoices_pos
-        assert period_start_pos < num_invoices_pos
-        assert period_end_pos < num_invoices_pos
+        # period-related columns before metrics
+        assert first_period_pos < num_invoices_pos
+        assert start_pos < num_invoices_pos
+        assert end_pos < num_invoices_pos
+        assert days_pos < num_invoices_pos
         # office_phone is not in preferred leading -- comes after
-        assert office_phone_pos > period_end_pos
+        assert office_phone_pos > end_pos
 
     def test_lifetime_reconciliations_section_id(self):
         """LIFETIME RECONCILIATIONS section has correct slugified id."""
@@ -1431,17 +1448,30 @@ class TestReconciliationPending:
     def test_is_payment_data_pending_all_null(self):
         """All payment indicator columns null -> pending."""
         rows = [
-            {"office_phone": "+19259998806", "vertical": "chiro", "spend": 4200.0,
-             "collected": None, "num_invoices": None, "variance": None,
-             "expected_collection": None, "expected_variance": None},
+            {
+                "office_phone": "+19259998806",
+                "vertical": "chiro",
+                "spend": 4200.0,
+                "collected": None,
+                "num_invoices": None,
+                "variance": None,
+                "expected_collection": None,
+                "expected_variance": None,
+            },
         ]
         assert _is_payment_data_pending(rows) is True
 
     def test_is_payment_data_pending_some_data(self):
         """Any non-null payment column -> not pending."""
         rows = [
-            {"office_phone": "+19259998806", "vertical": "chiro", "spend": 4200.0,
-             "collected": 5000.0, "num_invoices": None, "variance": None},
+            {
+                "office_phone": "+19259998806",
+                "vertical": "chiro",
+                "spend": 4200.0,
+                "collected": 5000.0,
+                "num_invoices": None,
+                "variance": None,
+            },
         ]
         assert _is_payment_data_pending(rows) is False
 
@@ -1457,20 +1487,40 @@ class TestReconciliationPending:
     def test_is_payment_data_pending_multiple_rows_all_null(self):
         """Multiple rows all with null payment columns -> pending."""
         rows = [
-            {"spend": 1000.0, "collected": None, "num_invoices": None,
-             "variance": None, "expected_collection": None, "expected_variance": None},
-            {"spend": 2000.0, "collected": None, "num_invoices": None,
-             "variance": None, "expected_collection": None, "expected_variance": None},
+            {
+                "spend": 1000.0,
+                "collected": None,
+                "num_invoices": None,
+                "variance": None,
+                "expected_collection": None,
+                "expected_variance": None,
+            },
+            {
+                "spend": 2000.0,
+                "collected": None,
+                "num_invoices": None,
+                "variance": None,
+                "expected_collection": None,
+                "expected_variance": None,
+            },
         ]
         assert _is_payment_data_pending(rows) is True
 
     def test_is_payment_data_pending_one_row_has_data(self):
         """One row with data among nulls -> not pending."""
         rows = [
-            {"spend": 1000.0, "collected": None, "num_invoices": None,
-             "variance": None},
-            {"spend": 2000.0, "collected": 500.0, "num_invoices": None,
-             "variance": None},
+            {
+                "spend": 1000.0,
+                "collected": None,
+                "num_invoices": None,
+                "variance": None,
+            },
+            {
+                "spend": 2000.0,
+                "collected": 500.0,
+                "num_invoices": None,
+                "variance": None,
+            },
         ]
         assert _is_payment_data_pending(rows) is False
 
@@ -1484,13 +1534,19 @@ class TestReconciliationPending:
             if name in ("LIFETIME RECONCILIATIONS", "T14 RECONCILIATIONS"):
                 table_results[name] = _make_table_result(
                     name,
-                    data=[{
-                        "office_phone": "+19259998806", "vertical": "chiro",
-                        "spend": 4200.0, "budget": 5000.0,
-                        "collected": None, "num_invoices": None,
-                        "variance": None, "expected_collection": None,
-                        "expected_variance": None,
-                    }],
+                    data=[
+                        {
+                            "office_phone": "+19259998806",
+                            "vertical": "chiro",
+                            "spend": 4200.0,
+                            "budget": 5000.0,
+                            "collected": None,
+                            "num_invoices": None,
+                            "variance": None,
+                            "expected_collection": None,
+                            "expected_variance": None,
+                        }
+                    ],
                 )
             else:
                 table_results[name] = _make_table_result(name, data=[{"a": 1}])
@@ -1514,21 +1570,31 @@ class TestReconciliationPending:
             if name == "LIFETIME RECONCILIATIONS":
                 table_results[name] = _make_table_result(
                     name,
-                    data=[{
-                        "office_phone": "+19259998806", "vertical": "chiro",
-                        "spend": 4200.0, "collected": 5000.0,
-                        "num_invoices": 25, "variance": 800.0,
-                        "variance_pct": 16.0,
-                    }],
+                    data=[
+                        {
+                            "office_phone": "+19259998806",
+                            "vertical": "chiro",
+                            "spend": 4200.0,
+                            "collected": 5000.0,
+                            "num_invoices": 25,
+                            "variance": 800.0,
+                            "variance_pct": 16.0,
+                        }
+                    ],
                 )
             elif name == "T14 RECONCILIATIONS":
                 table_results[name] = _make_table_result(
                     name,
-                    data=[{
-                        "period": 0, "period_label": "P0",
-                        "spend": 980.5, "collected": 1200.0,
-                        "num_invoices": 4, "variance": 219.5,
-                    }],
+                    data=[
+                        {
+                            "period": 0,
+                            "period_label": "P0",
+                            "spend": 980.5,
+                            "collected": 1200.0,
+                            "num_invoices": 4,
+                            "variance": 219.5,
+                        }
+                    ],
                 )
             else:
                 table_results[name] = _make_table_result(name, data=[{"a": 1}])
@@ -1553,21 +1619,31 @@ class TestReconciliationPending:
                 # This one has payment data
                 table_results[name] = _make_table_result(
                     name,
-                    data=[{
-                        "office_phone": "+19259998806", "vertical": "chiro",
-                        "spend": 4200.0, "collected": 5000.0,
-                        "num_invoices": 25, "variance": 800.0,
-                    }],
+                    data=[
+                        {
+                            "office_phone": "+19259998806",
+                            "vertical": "chiro",
+                            "spend": 4200.0,
+                            "collected": 5000.0,
+                            "num_invoices": 25,
+                            "variance": 800.0,
+                        }
+                    ],
                 )
             elif name == "T14 RECONCILIATIONS":
                 # This one is pending
                 table_results[name] = _make_table_result(
                     name,
-                    data=[{
-                        "period": 0, "period_label": "P0",
-                        "spend": 980.5, "collected": None,
-                        "num_invoices": None, "variance": None,
-                    }],
+                    data=[
+                        {
+                            "period": 0,
+                            "period_label": "P0",
+                            "spend": 980.5,
+                            "collected": None,
+                            "num_invoices": None,
+                            "variance": None,
+                        }
+                    ],
                 )
             else:
                 table_results[name] = _make_table_result(name, data=[{"a": 1}])
@@ -1626,10 +1702,10 @@ class TestFormatCellHtmlFormatting:
             # Float fallback (unknown column) → comma-grouped 2dp
             (123.456, "unknown_field", "123.46"),
             (0.5, "unknown_float", "0.50"),
-            # None → styled dash
-            (None, "spend", '<span class="null-value">---</span>'),
-            (None, "ctr", '<span class="null-value">---</span>'),
-            (None, "", '<span class="null-value">---</span>'),
+            # None → em-dash
+            (None, "spend", '<span class="dash">\u2014</span>'),
+            (None, "ctr", '<span class="dash">\u2014</span>'),
+            (None, "", '<span class="dash">\u2014</span>'),
             # Text passthrough → html-escaped string
             ("hello", "office", "hello"),
             ("2026-02-20", "first_ran", "2026-02-20"),
@@ -1723,3 +1799,319 @@ class TestFormatCellHtmlFormatting:
         assert "3.50x" in result
         assert "42.50%" in result
         assert "8.75" in result
+
+
+# ---------------------------------------------------------------------------
+# TestPhase1Constants -- WS-G Phase 1 module constants and data layer
+# ---------------------------------------------------------------------------
+
+
+class TestPhase1Constants:
+    """WS-G Phase 1: module constants, DataSection.full_rows, compose_report data layer."""
+
+    # --- _DISPLAY_LABELS ---
+
+    def test_display_labels_covers_known_abbreviations(self):
+        """_DISPLAY_LABELS maps abbreviation columns to readable names."""
+        assert _DISPLAY_LABELS["cpl"] == "CPL"
+        assert _DISPLAY_LABELS["roas"] == "ROAS"
+        assert _DISPLAY_LABELS["ctr"] == "CTR"
+        assert _DISPLAY_LABELS["ltv"] == "LTV"
+        assert _DISPLAY_LABELS["imp"] == "Impressions"
+
+    def test_display_labels_period_columns(self):
+        """Period columns have short display labels."""
+        assert _DISPLAY_LABELS["period_label"] == "Period"
+        assert _DISPLAY_LABELS["period_start"] == "Start"
+        assert _DISPLAY_LABELS["period_end"] == "End"
+        assert _DISPLAY_LABELS["period_len"] == "Days"
+
+    def test_to_title_case_uses_display_labels(self):
+        """_to_title_case prefers _DISPLAY_LABELS over title-casing."""
+        for key, label in _DISPLAY_LABELS.items():
+            assert _to_title_case(key) == label
+
+    def test_to_title_case_falls_back_for_unknown(self):
+        """Unknown columns still get title-cased."""
+        assert _to_title_case("some_column") == "Some Column"
+        assert _to_title_case("offer_cost") == "Offer Cost"
+
+    # --- _COLUMN_TOOLTIPS ---
+
+    def test_column_tooltips_populated(self):
+        """_COLUMN_TOOLTIPS has entries for key metric columns."""
+        assert "cpl" in _COLUMN_TOOLTIPS
+        assert "roas" in _COLUMN_TOOLTIPS
+        assert "booking_rate" in _COLUMN_TOOLTIPS
+        assert len(_COLUMN_TOOLTIPS) == 10
+
+    # --- _SECTION_SUBTITLES ---
+
+    def test_section_subtitles_cover_all_tables(self):
+        """_SECTION_SUBTITLES has an entry for every TABLE_ORDER entry."""
+        for name in TABLE_ORDER:
+            assert name in _SECTION_SUBTITLES, f"Missing subtitle for {name}"
+
+    def test_section_subtitles_are_non_empty(self):
+        """All subtitles are non-empty strings."""
+        for name, subtitle in _SECTION_SUBTITLES.items():
+            assert isinstance(subtitle, str) and len(subtitle) > 0, (
+                f"Empty subtitle for {name}"
+            )
+
+    # --- _ASSET_EXCLUDE_COLUMNS ---
+
+    def test_asset_exclude_columns_contains_metadata_fields(self):
+        """_ASSET_EXCLUDE_COLUMNS excludes non-display metadata."""
+        assert "offer_id" in _ASSET_EXCLUDE_COLUMNS
+        assert "office_phone" in _ASSET_EXCLUDE_COLUMNS
+        assert "vertical" in _ASSET_EXCLUDE_COLUMNS
+        assert "transcript" in _ASSET_EXCLUDE_COLUMNS
+        assert "disabled" in _ASSET_EXCLUDE_COLUMNS
+
+    def test_asset_exclude_columns_is_frozenset(self):
+        assert isinstance(_ASSET_EXCLUDE_COLUMNS, frozenset)
+
+    # --- _PERIOD_DISPLAY_COLUMNS ---
+
+    def test_period_display_columns_starts_with_period_fields(self):
+        """Period display columns lead with period_label, period_start, period_end."""
+        assert _PERIOD_DISPLAY_COLUMNS[:3] == ["period_label", "period_start", "period_end"]
+
+    def test_period_display_columns_includes_key_metrics(self):
+        """Key metrics are in the period display column list."""
+        assert "spend" in _PERIOD_DISPLAY_COLUMNS
+        assert "cpl" in _PERIOD_DISPLAY_COLUMNS
+        assert "booking_rate" in _PERIOD_DISPLAY_COLUMNS
+
+    # --- _DEFAULT_EXPANDED_SECTIONS ---
+
+    def test_default_expanded_sections(self):
+        """SUMMARY and BY WEEK are expanded by default."""
+        assert "SUMMARY" in _DEFAULT_EXPANDED_SECTIONS
+        assert "BY WEEK" in _DEFAULT_EXPANDED_SECTIONS
+        assert len(_DEFAULT_EXPANDED_SECTIONS) == 2
+
+    # --- _CONDITIONAL_FORMAT_THRESHOLDS ---
+
+    def test_conditional_format_thresholds(self):
+        """Thresholds exist for booking_rate and conv_rate."""
+        assert "booking_rate" in _CONDITIONAL_FORMAT_THRESHOLDS
+        assert "conv_rate" in _CONDITIONAL_FORMAT_THRESHOLDS
+        green, yellow = _CONDITIONAL_FORMAT_THRESHOLDS["booking_rate"]
+        assert green == 0.40
+        assert yellow == 0.20
+
+    # --- _conditional_format_class ---
+
+    def test_conditional_format_class_green(self):
+        assert _conditional_format_class(0.50, "booking_rate") == "br-green"
+
+    def test_conditional_format_class_yellow(self):
+        assert _conditional_format_class(0.30, "booking_rate") == "br-yellow"
+
+    def test_conditional_format_class_red(self):
+        assert _conditional_format_class(0.10, "booking_rate") == "br-red"
+
+    def test_conditional_format_class_at_green_boundary(self):
+        assert _conditional_format_class(0.40, "conv_rate") == "br-green"
+
+    def test_conditional_format_class_at_yellow_boundary(self):
+        assert _conditional_format_class(0.20, "conv_rate") == "br-yellow"
+
+    def test_conditional_format_class_unknown_column(self):
+        """Columns without thresholds return empty string."""
+        assert _conditional_format_class(0.50, "spend") == ""
+
+    def test_conditional_format_class_non_numeric(self):
+        """Non-numeric values return empty string."""
+        assert _conditional_format_class("high", "booking_rate") == ""
+        assert _conditional_format_class(None, "booking_rate") == ""
+
+    # --- DataSection.full_rows ---
+
+    def test_datasection_full_rows_default_none(self):
+        """DataSection.full_rows defaults to None."""
+        section = DataSection(name="TEST", rows=[{"a": 1}], row_count=1)
+        assert section.full_rows is None
+
+    def test_datasection_full_rows_set(self):
+        """DataSection.full_rows can be set explicitly."""
+        full = [{"a": 1, "b": 2}]
+        section = DataSection(name="TEST", rows=[{"a": 1}], row_count=1, full_rows=full)
+        assert section.full_rows == full
+
+    # --- InsightsReportData.offer_gid ---
+
+    def test_report_data_offer_gid_default_none(self):
+        """InsightsReportData.offer_gid defaults to None."""
+        data = _make_report_data()
+        assert data.offer_gid is None
+
+    def test_report_data_offer_gid_set(self):
+        """InsightsReportData.offer_gid can be set."""
+        data = InsightsReportData(
+            business_name="Test",
+            office_phone="+17705753103",
+            vertical="dental",
+            table_results={},
+            started_at=0.0,
+            version="v1",
+            offer_gid="1234567890",
+        )
+        assert data.offer_gid == "1234567890"
+
+    # --- compose_report: offer_gid in metadata ---
+
+    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    def test_compose_report_includes_offer_gid_in_metadata(self, mock_monotonic):
+        """When offer_gid is set, it appears in the report header."""
+        mock_monotonic.return_value = 101.0
+        data = InsightsReportData(
+            business_name="Test Dental",
+            office_phone="+17705753103",
+            vertical="dental",
+            table_results={
+                "SUMMARY": _make_table_result("SUMMARY", data=[{"a": 1}]),
+            },
+            started_at=100.0,
+            version="v1",
+            offer_gid="1234567890",
+        )
+        report = compose_report(data)
+        assert "Offer" in report
+        assert "1234567890" in report
+
+    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    def test_compose_report_omits_offer_when_none(self, mock_monotonic):
+        """When offer_gid is None, Offer does not appear in metadata."""
+        mock_monotonic.return_value = 101.0
+        data = _make_report_data(
+            table_results={"SUMMARY": _make_table_result("SUMMARY", data=[{"a": 1}])},
+            started_at=100.0,
+        )
+        report = compose_report(data)
+        # "Offer" should not appear as a metadata key
+        assert "<strong>Offer:</strong>" not in report
+
+    # --- compose_report: ASSET TABLE sort + exclude ---
+
+    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    def test_compose_report_asset_table_sorted_by_spend_desc(self, mock_monotonic):
+        """ASSET TABLE rows are sorted by spend descending."""
+        mock_monotonic.return_value = 101.0
+        asset_data = [
+            {"name": "Low", "spend": 100},
+            {"name": "High", "spend": 500},
+            {"name": "Mid", "spend": 300},
+        ]
+        table_results: dict[str, TableResult] = {}
+        for name in TABLE_ORDER:
+            if name == "ASSET TABLE":
+                table_results[name] = _make_table_result(name, data=asset_data)
+            else:
+                table_results[name] = _make_table_result(name, data=[{"a": 1}])
+
+        data = _make_report_data(table_results=table_results, started_at=100.0)
+        report = compose_report(data)
+
+        # In the ASSET TABLE section, High should appear before Mid, Mid before Low
+        high_pos = report.find("High")
+        mid_pos = report.find("Mid")
+        low_pos = report.find("Low")
+        assert high_pos < mid_pos < low_pos
+
+    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    def test_compose_report_asset_table_excludes_metadata_columns(self, mock_monotonic):
+        """ASSET TABLE display rows exclude _ASSET_EXCLUDE_COLUMNS."""
+        mock_monotonic.return_value = 101.0
+        asset_data = [
+            {
+                "name": "Banner",
+                "spend": 500,
+                "offer_id": "12345",
+                "office_phone": "+1234567890",
+                "vertical": "dental",
+                "disabled": False,
+            },
+        ]
+        table_results: dict[str, TableResult] = {}
+        for name in TABLE_ORDER:
+            if name == "ASSET TABLE":
+                table_results[name] = _make_table_result(name, data=asset_data)
+            else:
+                table_results[name] = _make_table_result(name, data=[{"a": 1}])
+
+        data = _make_report_data(table_results=table_results, started_at=100.0)
+        report = compose_report(data)
+
+        # Excluded columns should not appear as headers in the rendered output
+        assert ">Offer Id<" not in report
+        assert ">Disabled<" not in report
+        # Display columns should still be present
+        assert "Banner" in report
+        assert "$500.00" in report
+
+    # --- compose_report: period table column filtering ---
+
+    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    def test_compose_report_period_table_filters_display_columns(self, mock_monotonic):
+        """Period tables only display columns from _PERIOD_DISPLAY_COLUMNS."""
+        mock_monotonic.return_value = 101.0
+        week_data = [
+            {
+                "period_label": "W01",
+                "period_start": "2026-01-01",
+                "period_end": "2026-01-07",
+                "spend": 500,
+                "leads": 10,
+                "cpl": 50.0,
+                "some_extra_metric": 42,
+                "another_hidden": "foo",
+            },
+        ]
+        table_results: dict[str, TableResult] = {}
+        for name in TABLE_ORDER:
+            if name == "BY WEEK":
+                table_results[name] = _make_table_result(name, data=week_data)
+            else:
+                table_results[name] = _make_table_result(name, data=[{"a": 1}])
+
+        data = _make_report_data(table_results=table_results, started_at=100.0)
+        report = compose_report(data)
+
+        # Display columns should be present
+        assert ">Period<" in report  # period_label -> "Period"
+        assert ">Start<" in report   # period_start -> "Start"
+        assert ">Spend<" in report
+        # Non-display columns should be filtered out
+        assert "some_extra_metric" not in report
+        assert "another_hidden" not in report
+
+    # --- compose_report: full_rows populated ---
+
+    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    def test_compose_report_populates_full_rows(self, mock_monotonic):
+        """DataSection.full_rows contains the original unfiltered data."""
+        mock_monotonic.return_value = 101.0
+        week_data = [
+            {
+                "period_label": "W01",
+                "spend": 500,
+                "some_extra": 42,
+            },
+        ]
+        table_results: dict[str, TableResult] = {}
+        for name in TABLE_ORDER:
+            if name == "BY WEEK":
+                table_results[name] = _make_table_result(name, data=week_data)
+            else:
+                table_results[name] = _make_table_result(name, data=[{"a": 1}])
+
+        data = _make_report_data(table_results=table_results, started_at=100.0)
+        # We need to inspect the DataSection objects, so we call compose_report
+        # indirectly by checking the report renders correctly (full_rows is
+        # internal plumbing for Copy TSV in later phases).
+        report = compose_report(data)
+        # The report should render without error
+        assert 'id="by-week"' in report

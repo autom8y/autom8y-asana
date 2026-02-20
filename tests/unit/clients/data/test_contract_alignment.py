@@ -11,7 +11,7 @@ Source of truth: autom8_data Pydantic models at:
 
 Contract invariants enforced:
   1. FACTORY_TO_FRAME_TYPE maps all 14 factories to valid frame_type values
-  2. frame_type must be one of: "offer", "unit", "business", "asset"
+  2. frame_type must be one of: "offer", "unit", "business", "asset", "question"
   3. phone must match E.164 pattern: ^\+[1-9]\d{6,14}$
   4. vertical must be non-empty string, lowercased
   5. period must be one of: "T7", "T14", "T30", "LIFETIME"
@@ -30,7 +30,7 @@ from autom8_asana.clients.data.client import DataServiceClient
 
 # Replicate autom8_data validation rules (cannot import autom8_data directly)
 E164_PHONE_PATTERN = re.compile(r"^\+[1-9]\d{6,14}$")
-VALID_FRAME_TYPES = {"offer", "unit", "business", "asset"}
+VALID_FRAME_TYPES = {"offer", "unit", "business", "asset", "question"}
 VALID_PERIODS = {"T7", "T14", "T30", "LIFETIME"}
 
 
@@ -67,7 +67,7 @@ class TestFactoryToFrameTypeContract:
         """All FACTORY_TO_FRAME_TYPE values must match autom8_data's schema.
 
         Per autom8_data InsightsRequest.frame_type:
-          Literal["offer", "unit", "business", "asset"]
+          Literal["offer", "unit", "business", "asset", "question"]
         """
         client = DataServiceClient()
 
@@ -119,7 +119,7 @@ class TestInsightsRequestContract:
         """Validate HTTP request body has required fields with correct types.
 
         Per autom8_data InsightsRequest schema:
-          - frame_type: Literal["offer", "unit", "business", "asset"]
+          - frame_type: Literal["offer", "unit", "business", "asset", "question"]
           - phone_vertical_pairs: list[PhoneVerticalPair] (1-1000 items)
           - period: Literal["T7", "T14", "T30", "LIFETIME"]
         """
