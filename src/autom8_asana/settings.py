@@ -79,11 +79,15 @@ Example:
 from __future__ import annotations
 
 import os
-from typing import Literal
+from typing import Any, Literal
 
 from autom8y_config import Autom8yBaseSettings
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import SettingsConfigDict
+
+# Environments where production URL defaults are a configuration error.
+_DEV_ENVIRONMENTS = frozenset({"development", "local", "test"})
+_PRODUCTION_DOMAIN = "autom8y.io"
 
 
 class AsanaSettings(Autom8yBaseSettings):
@@ -814,6 +818,43 @@ class Settings(Autom8yBaseSettings):
     def redis_available(self) -> bool:
         """Check if Redis is configured."""
         return self.redis.host is not None and self.redis.host != ""
+
+    def model_post_init(self, __context: Any) -> None:
+        """Reject production URLs when running in a development environment.
+
+        HAZ-1 remediation: fail-fast guard that prevents accidental use of
+        production service URLs in local/dev/test environments. Fires at
+        startup and produces a clear, actionable error message.
+
+        Checks:
+        - data_service.url (AUTOM8_DATA_URL) for production domain
+        - AUTH_JWKS_URL env var for production domain (read from os.environ
+          because it is not part of the Settings model -- it is consumed
+          directly by the autom8y-auth SDK and health routes)
+
+        See TDD-LOCAL-DEV-ENV.md Section 6.3, Section 10 (HAZ-1).
+        """
+        env = self.env.environment
+        if env not in _DEV_ENVIRONMENTS:
+            return
+
+        # Check data_service.url
+        data_url = self.data_service.url
+        if data_url and _PRODUCTION_DOMAIN in str(data_url):
+            raise ValueError(
+                f"FATAL: Production URL detected in {env} environment: "
+                f"AUTOM8_DATA_URL={data_url}. "
+                f"Override in docker-compose.override.yml or .env/local."
+            )
+
+        # Check AUTH_JWKS_URL from environment (not in Settings model)
+        jwks_url = os.environ.get("AUTH_JWKS_URL", "")
+        if jwks_url and _PRODUCTION_DOMAIN in jwks_url:
+            raise ValueError(
+                f"FATAL: Production URL detected in {env} environment: "
+                f"AUTH_JWKS_URL={jwks_url}. "
+                f"Override in docker-compose.override.yml or .env/local."
+            )
 
 
 # Module-level singleton

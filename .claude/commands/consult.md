@@ -62,6 +62,7 @@ Display all rites dynamically (use `rite-discovery` skill):
 | Rite              | Command       | Best For                           |
 |-------------------|---------------|------------------------------------|
 | 10x-dev      | /10x          | Full feature development lifecycle |
+| arch         | /arch         | Multi-repo architecture analysis   |
 | debt-triage  | /debt         | Technical debt prioritization      |
 | docs     | /docs         | Documentation, technical writing   |
 | ecosystem    | /ecosystem    | knossos sync infrastructure        |
@@ -79,7 +80,7 @@ Display all rites dynamically (use `rite-discovery` skill):
 Display all commands by category:
 ```
 Session (5): /start, /park, /continue, /handoff, /wrap
-Rite (10): /rite, /10x, /docs, /hygiene, /debt, /sre, /security, /intelligence, /rnd, /strategy
+Rite (11): /rite, /10x, /arch, /docs, /hygiene, /debt, /sre, /security, /intelligence, /rnd, /strategy
 Workflow (4): /task, /sprint, /hotfix, /spike
 Operations (5): /architect, /build, /qa, /pr, /code-review
 ```

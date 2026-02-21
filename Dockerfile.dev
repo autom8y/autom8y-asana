@@ -1,0 +1,41 @@
+# ~/Code/autom8y-asana/Dockerfile.dev
+# Dev image for asana service. Installs public PyPI deps only.
+# SDKs are provided via volume mount at /app/sdks/.
+# See TDD-LOCAL-DEV-ENV.md Section 4.3
+
+FROM python:3.12-slim
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl gcc && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install public dependencies only (no autom8y-* packages)
+COPY pyproject.toml ./
+RUN uv pip install --system --no-deps $(uv pip compile pyproject.toml \
+    --extra redis --extra api --extra auth \
+    --no-emit-package 'autom8y-config' \
+    --no-emit-package 'autom8y-log' \
+    --no-emit-package 'autom8y-core' \
+    --no-emit-package 'autom8y-http' \
+    --no-emit-package 'autom8y-auth' \
+    --no-emit-package 'autom8y-cache' \
+    --no-emit-package 'autom8y-telemetry' \
+    --no-emit-package 'autom8y-asana' \
+    2>/dev/null)
+
+# Install the service package itself (without its autom8y deps)
+COPY src ./src
+RUN uv pip install --system --no-deps .
+
+# SDK source will be volume-mounted at /app/sdks/
+ENV PYTHONPATH="/app/sdks:/app/src:${PYTHONPATH:-}"
+
+EXPOSE 8000
+
+CMD ["uvicorn", "autom8_asana.api.main:create_app", "--factory", \
+     "--host", "0.0.0.0", "--port", "8000", \
+     "--reload", "--reload-dir", "/app/src", "--reload-dir", "/app/sdks"]

@@ -15,15 +15,15 @@ Use `/go` to start any session. Use `/consult` for mode selection.
 <!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
-This project uses a 5-agent workflow (10x-dev):
+This project uses a 5-agent workflow (hygiene):
 
 | Agent | Role |
 | ----- | ---- |
-| **pythia** | Coordinates development lifecycle phases and routes work to specialists |
-| **requirements-analyst** | Gathers requirements and produces PRD artifacts |
-| **architect** | Creates technical design documents and architecture decisions |
-| **principal-engineer** | Implements code according to design specifications |
-| **qa-adversary** | Validates implementation through adversarial testing |
+| **pythia** | Coordinates code hygiene initiative phases |
+| **code-smeller** | Detects code smells and quality issues across codebase |
+| **architect-enforcer** | Plans refactoring approach and enforces architecture standards |
+| **janitor** | Executes code cleanup and improvements |
+| **audit-lead** | Audits cleanup results and provides quality signoff |
 
 Entry point: `/go`. Agent invocation patterns: `prompting` skill. Routing guidance: `/consult`.
 <!-- KNOSSOS:END quick-start -->
@@ -39,18 +39,27 @@ Every agent defines its authority via **Exousia** (jurisdiction contract):
 - **You Do NOT Decide**: Boundaries the agent must never cross
 
 Without a session, execute directly or use `/task`. Routing guidance: `/consult`.
+
+### Throughline Resume Protocol
+
+The main thread MAY track subagent IDs for throughline agents (Pythia, Moirai) and pass `resume: {agentId}` on subsequent Task calls. This gives the agent full history of its prior consultations within the workflow.
+
+- Agent IDs are valid only within the current CC session
+- Clear stored IDs on rite switch or session wrap
+- If resume fails (invalid ID, session changed), fall back to fresh invocation
+- Resume is opportunistic -- orchestrated workflows function correctly without it
 <!-- KNOSSOS:END agent-routing -->
 
-<!-- KNOSSOS:START agent-configurations regenerate=true source=agents/*.md -->
+<!-- KNOSSOS:START agent-configurations source=agents/*.md regenerate=true -->
 ## Agents
 
 Prompts in `.claude/agents/`:
 
-- `pythia.md` - Coordinates development lifecycle phases and routes work to specialists
-- `requirements-analyst.md` - Gathers requirements and produces PRD artifacts
-- `architect.md` - Creates technical design documents and architecture decisions
-- `principal-engineer.md` - Implements code according to design specifications
-- `qa-adversary.md` - Validates implementation through adversarial testing
+- `pythia.md` - Coordinates code hygiene initiative phases
+- `code-smeller.md` - Detects code smells and quality issues across codebase
+- `architect-enforcer.md` - Plans refactoring approach and enforces architecture standards
+- `janitor.md` - Executes code cleanup and improvements
+- `audit-lead.md` - Audits cleanup results and provides quality signoff
 <!-- KNOSSOS:END agent-configurations -->
 
 <!-- KNOSSOS:START user-content -->
