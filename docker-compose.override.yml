@@ -1,0 +1,69 @@
+# Location: ~/Code/autom8y-asana/docker-compose.override.yml
+# Starts: asana ECS service with SDK hot-reload
+# Dependencies: redis, localstack
+# Recipe: just dev-up asana (requires autom8y-asana cloned)
+# See TDD-LOCAL-DEV-ENV.md Section 3.3.3
+#
+# NOTE: This file is composed via -f flag from the monorepo root.
+# Paths are relative to this file's directory (the satellite repo root).
+
+services:
+  asana:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: autom8y-asana
+    ports:
+      - "5300:8000"
+    environment:
+      ASANA_PAT: ${ASANA_PAT:-}
+      ASANA_WORKSPACE_GID: ${ASANA_WORKSPACE_GID:-}
+      ASANA_ENVIRONMENT: development
+      ASANA_CACHE_ENABLED: "true"
+      ASANA_CACHE_PROVIDER: memory
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ""
+      REDIS_SSL: "false"
+      REDIS_DB: "2"
+      ASANA_CACHE_S3_BUCKET: autom8-s3
+      ASANA_CACHE_S3_ENDPOINT_URL: http://localstack:4566
+      ASANA_CACHE_S3_REGION: us-east-1
+      AUTOM8_DATA_URL: http://data:8000
+      AUTH_JWKS_URL: http://auth:8000/.well-known/jwks.json
+      AUTH_ISSUER: auth.api.autom8y.io
+      AUTH_DEV_MODE: "true"
+      API_HOST: 0.0.0.0
+      API_PORT: "8000"
+      ENVIRONMENT: development
+      WEBHOOK_INBOUND_TOKEN: ""
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://localstack:4566
+    volumes:
+      - ./src:/app/src
+      - ../autom8y/sdks/python/autom8y-config/src/autom8y_config:/app/sdks/autom8y_config
+      - ../autom8y/sdks/python/autom8y-log/src/autom8y_log:/app/sdks/autom8y_log
+      - ../autom8y/sdks/python/autom8y-core/src/autom8y_core:/app/sdks/autom8y_core
+      - ../autom8y/sdks/python/autom8y-http/src/autom8y_http:/app/sdks/autom8y_http
+      - ../autom8y/sdks/python/autom8y-auth/src/autom8y_auth:/app/sdks/autom8y_auth
+      - ../autom8y/sdks/python/autom8y-cache/src/autom8y_cache:/app/sdks/autom8y_cache
+      - ../autom8y/sdks/python/autom8y-telemetry/src/autom8y_telemetry:/app/sdks/autom8y_telemetry
+    depends_on:
+      redis:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    networks:
+      - autom8y-dev
+
+networks:
+  autom8y-dev:
+    external: true
