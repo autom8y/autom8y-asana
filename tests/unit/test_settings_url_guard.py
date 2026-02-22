@@ -105,3 +105,23 @@ class TestProductionUrlGuard:
         settings = Settings()
         assert settings.env.environment == "development"
         assert "autom8y.io" not in settings.data_service.url
+
+    def test_unset_env_with_production_urls_passes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Production URLs with ASANA_ENVIRONMENT *unset* must NOT fire the guard.
+
+        This is the host-based smoke test scenario: sourcing .env/production
+        sets production URLs but does not set ASANA_ENVIRONMENT. The guard
+        only activates on explicit ASANA_ENVIRONMENT=development, not the
+        default value.
+        """
+        monkeypatch.delenv("ASANA_ENVIRONMENT", raising=False)
+        monkeypatch.setenv("AUTOM8_DATA_URL", "https://data.api.autom8y.io")
+        monkeypatch.setenv(
+            "AUTH_JWKS_URL",
+            "https://auth.api.autom8y.io/.well-known/jwks.json",
+        )
+
+        settings = Settings()
+        assert settings.data_service.url == "https://data.api.autom8y.io"
