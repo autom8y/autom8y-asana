@@ -216,15 +216,15 @@ class TestSettings:
         """Test is_production returns True for production/staging."""
         from autom8_asana.settings import Settings
 
-        with patch.dict(os.environ, {"ASANA_ENVIRONMENT": "production"}, clear=True):
+        with patch.dict(os.environ, {"AUTOM8Y_ENV": "production"}, clear=True):
             settings = Settings()
             assert settings.is_production is True
 
-        with patch.dict(os.environ, {"ASANA_ENVIRONMENT": "staging"}, clear=True):
+        with patch.dict(os.environ, {"AUTOM8Y_ENV": "staging"}, clear=True):
             settings = Settings()
             assert settings.is_production is True
 
-        with patch.dict(os.environ, {"ASANA_ENVIRONMENT": "development"}, clear=True):
+        with patch.dict(os.environ, {"AUTOM8Y_ENV": "local"}, clear=True):
             settings = Settings()
             assert settings.is_production is False
 
@@ -535,7 +535,7 @@ class TestIntegration:
         env = {
             "ASANA_PAT": "xoxp-test-token",
             "ASANA_WORKSPACE_GID": "9876543210",
-            "ASANA_ENVIRONMENT": "production",
+            "AUTOM8Y_ENV": "production",
             "ASANA_CACHE_ENABLED": "true",
             "ASANA_CACHE_PROVIDER": "redis",
             "ASANA_CACHE_TTL_DEFAULT": "900",
@@ -554,7 +554,7 @@ class TestIntegration:
         assert settings.asana.pat is not None
         assert settings.asana.pat.get_secret_value() == "xoxp-test-token"
         assert settings.asana.workspace_gid == "9876543210"
-        assert settings.env.environment == "production"
+        assert settings.autom8y_env == "production"
         assert settings.is_production is True
         assert settings.cache.enabled is True
         assert settings.cache.provider == "redis"

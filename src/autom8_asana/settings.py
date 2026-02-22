@@ -563,6 +563,14 @@ class DataServiceSettings(Autom8yBaseSettings):
         case_sensitive=False,
     )
 
+    # Override autom8y_env with explicit alias so AUTOM8Y_ENV is read directly,
+    # bypassing the AUTOM8_DATA_ prefix. Required for the production URL guard
+    # to correctly identify the environment.
+    autom8y_env: Autom8yEnvironment = Field(
+        default=Autom8yEnvironment.LOCAL,
+        validation_alias=AliasChoices("AUTOM8Y_ENV", "ASANA_ENVIRONMENT"),
+    )
+
     url: str = Field(
         default="http://localhost:8000",
         description="Base URL for autom8_data API",

@@ -35,7 +35,7 @@ class TestCacheProviderFactoryCreate:
         """Default config (enabled=True, provider=None) returns InMemory."""
         config = CacheConfig(enabled=True, provider=None)
 
-        with patch.dict(os.environ, {"ASANA_ENVIRONMENT": "development"}, clear=False):
+        with patch.dict(os.environ, {"AUTOM8Y_ENV": "local"}, clear=False):
             provider = CacheProviderFactory.create(config)
 
         assert isinstance(provider, InMemoryCacheProvider)
@@ -123,12 +123,12 @@ class TestCacheProviderFactoryAutoDetect:
     """Tests for CacheProviderFactory._auto_detect()."""
 
     def test_development_env_uses_memory(self) -> None:
-        """Development environment uses InMemoryCacheProvider."""
+        """Local environment uses InMemoryCacheProvider."""
         config = CacheConfig(enabled=True, provider=None)
 
         with patch.dict(
             os.environ,
-            {"ASANA_ENVIRONMENT": "development"},
+            {"AUTOM8Y_ENV": "local"},
             clear=True,
         ):
             provider = CacheProviderFactory.create(config)
@@ -141,7 +141,7 @@ class TestCacheProviderFactoryAutoDetect:
 
         with patch.dict(
             os.environ,
-            {"ASANA_ENVIRONMENT": "test"},
+            {"AUTOM8Y_ENV": "test"},
             clear=True,
         ):
             provider = CacheProviderFactory.create(config)
@@ -163,7 +163,7 @@ class TestCacheProviderFactoryAutoDetect:
 
         with patch.dict(
             os.environ,
-            {"ASANA_ENVIRONMENT": "production"},
+            {"AUTOM8Y_ENV": "production"},
             clear=True,
         ):
             provider = CacheProviderFactory.create(config)
@@ -177,7 +177,7 @@ class TestCacheProviderFactoryAutoDetect:
 
         with patch.dict(
             os.environ,
-            {"ASANA_ENVIRONMENT": "staging"},
+            {"AUTOM8Y_ENV": "staging"},
             clear=True,
         ):
             provider = CacheProviderFactory.create(config)
