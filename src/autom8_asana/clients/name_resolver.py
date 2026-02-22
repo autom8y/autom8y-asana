@@ -72,7 +72,7 @@ class NameResolver:
             return name_or_gid
 
         # Get workspace GID from client
-        workspace_gid = cast(Any, self._client).default_workspace_gid
+        workspace_gid = cast("Any", self._client).default_workspace_gid
 
         # Check cache
         cache_key = f"tag:{workspace_gid}:{name_or_gid.lower()}"

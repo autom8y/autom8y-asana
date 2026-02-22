@@ -17,10 +17,11 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from autom8_asana.cache.models.entry import CacheEntry
     from autom8_asana.cache.models.freshness_stamp import (
         FreshnessClassification,

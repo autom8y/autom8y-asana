@@ -34,7 +34,6 @@ Usage in autom8:
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -50,6 +49,8 @@ from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 from autom8_asana.settings import get_settings
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from autom8_asana.cache.backends.redis import RedisCacheProvider
 
 

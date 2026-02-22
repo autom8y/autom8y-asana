@@ -13,7 +13,7 @@ These tests verify that:
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -25,7 +25,6 @@ from autom8_asana.automation import (
     PipelineConversionRule,
     TriggerCondition,
 )
-from autom8_asana.automation.context import AutomationContext
 from autom8_asana.config import AsanaConfig
 from autom8_asana.models.common import NameGid
 from autom8_asana.persistence.models import (
@@ -35,6 +34,9 @@ from autom8_asana.persistence.models import (
     AutomationResult,
     SaveResult,
 )
+
+if TYPE_CHECKING:
+    from autom8_asana.automation.context import AutomationContext
 
 # --- Mock Classes for Integration Testing ---
 

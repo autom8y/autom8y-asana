@@ -8,6 +8,7 @@ Follows Tier 1 test patterns with mocked HTTP dependencies.
 from __future__ import annotations
 
 from io import BytesIO
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -18,7 +19,6 @@ from autom8_asana.clients.stories import StoriesClient
 from autom8_asana.clients.tags import TagsClient
 from autom8_asana.clients.teams import TeamsClient
 from autom8_asana.clients.webhooks import WebhooksClient
-from autom8_asana.config import AsanaConfig
 from autom8_asana.models import (
     Attachment,
     Goal,
@@ -29,6 +29,9 @@ from autom8_asana.models import (
     Webhook,
 )
 from autom8_asana.models.team import TeamMembership
+
+if TYPE_CHECKING:
+    from autom8_asana.config import AsanaConfig
 
 # =============================================================================
 # WebhooksClient Tests

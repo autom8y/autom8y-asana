@@ -10,14 +10,17 @@ The push is best-effort: failure does NOT fail the cache warmer.
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from autom8y_config.lambda_extension import resolve_secret_from_env
 from autom8y_log import get_logger
+from pydantic import BaseModel, ConfigDict
 
 from autom8_asana.clients.data._pii import mask_pii_in_string
-from autom8_asana.services.gid_lookup import GidLookupIndex
+
+if TYPE_CHECKING:
+    from autom8_asana.services.gid_lookup import GidLookupIndex
 
 logger = get_logger(__name__)
 
@@ -27,6 +30,20 @@ GID_PUSH_ENABLED_ENV_VAR = "GID_PUSH_ENABLED"
 
 # Timeout for the push HTTP request (seconds).
 _PUSH_TIMEOUT = httpx.Timeout(connect=5.0, read=10.0, write=10.0, pool=5.0)
+
+
+class GidPushResponse(BaseModel):
+    """POST /api/v1/gid-mappings/sync response envelope.
+
+    Per ADR-WS1-001: Pydantic BaseModel with extra="ignore".
+    Both fields are optional since the upstream response shape
+    is not formally documented.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    accepted: int | None = None
+    replaced: int | None = None
 
 
 def _is_push_enabled() -> bool:
@@ -207,9 +224,9 @@ async def push_gid_mappings_to_data_service(
 
         if response.status_code < 300:
             try:
-                body = response.json()
-            except ValueError:
-                body = {}
+                parsed = GidPushResponse.model_validate(response.json())
+            except (ValueError, Exception):
+                parsed = GidPushResponse()
 
             logger.info(
                 "gid_push_success",
@@ -217,8 +234,8 @@ async def push_gid_mappings_to_data_service(
                     "project_gid": project_gid,
                     "entry_count": len(mappings),
                     "status_code": response.status_code,
-                    "accepted": body.get("accepted"),
-                    "replaced": body.get("replaced"),
+                    "accepted": parsed.accepted,
+                    "replaced": parsed.replaced,
                 },
             )
             return True

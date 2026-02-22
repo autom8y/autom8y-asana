@@ -5,9 +5,12 @@ Per TDD-CONV-AUDIT-001 Section 3.2: Simple dictionary-based registry.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from autom8y_log import get_logger
 
-from autom8_asana.automation.workflows.base import WorkflowAction
+if TYPE_CHECKING:
+    from autom8_asana.automation.workflows.base import WorkflowAction
 
 logger = get_logger(__name__)
 

@@ -27,7 +27,6 @@ import os
 import tempfile
 import textwrap
 import uuid
-from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
@@ -43,6 +42,8 @@ from autom8_asana.automation.polling import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
     from autom8_asana import AsanaClient
     from autom8_asana.models import Task
 

@@ -12,11 +12,11 @@ from autom8y_log import get_logger
 from pydantic import ValidationError
 
 from autom8_asana.models.business.base import BusinessEntity
-from autom8_asana.resolution.budget import ApiBudget
 from autom8_asana.resolution.result import ResolutionResult
 
 if TYPE_CHECKING:
     from autom8_asana.models.business.business import Business
+    from autom8_asana.resolution.budget import ApiBudget
     from autom8_asana.resolution.context import ResolutionContext
 
 logger = get_logger(__name__)
@@ -125,7 +125,7 @@ class NavigationRefStrategy(ResolutionStrategy):
             for attr_name in entity.__class__._CACHED_REF_ATTRS:
                 ref: Any = getattr(entity, attr_name, None)
                 if ref is not None and isinstance(ref, target_type):
-                    return cast(T, ref)
+                    return cast("T", ref)
 
         return None
 
@@ -221,7 +221,7 @@ class HierarchyTraversalStrategy(ResolutionStrategy):
         # Step 2: If target IS Business, we are done
         if target_type is Business:
             return ResolutionResult.resolved(
-                entity=cast(T, business),
+                entity=cast("T", business),
                 api_calls=budget.used,
                 strategy=self.name,
             )
@@ -361,7 +361,7 @@ class HierarchyTraversalStrategy(ResolutionStrategy):
                 if process_holder:
                     processes = getattr(process_holder, "_processes", []) or []
                     if processes:
-                        return cast(T, processes[0])
+                        return cast("T", processes[0])
             return None
         elif target_type is Offer:
             # Offer is nested under Unit
@@ -370,13 +370,13 @@ class HierarchyTraversalStrategy(ResolutionStrategy):
                 if offer_holder:
                     offers = getattr(offer_holder, "_offers", []) or []
                     if offers:
-                        return cast(T, offers[0])
+                        return cast("T", offers[0])
             return None
 
         if children_attr:
             children = getattr(holder, children_attr, []) or []
             if children:
-                return cast(T, children[0])
+                return cast("T", children[0])
 
         return None
 

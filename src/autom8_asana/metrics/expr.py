@@ -6,10 +6,13 @@ and aggregation function needed to compute one scalar from a DataFrame.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import polars as pl
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # Supported aggregation functions
 SUPPORTED_AGGS: frozenset[str] = frozenset({"sum", "count", "mean", "min", "max"})

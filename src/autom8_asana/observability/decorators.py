@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import functools
 import time
-from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from autom8_asana.observability.correlation import generate_correlation_id
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from autom8_asana.protocols.log import LogProvider
 
 T = TypeVar("T")
@@ -113,4 +114,4 @@ def error_handler(
 
             raise
 
-    return cast(Callable[..., Awaitable[T]], wrapper)
+    return cast("Callable[..., Awaitable[T]]", wrapper)

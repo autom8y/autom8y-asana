@@ -54,7 +54,8 @@ from pydantic import BaseModel, Field
 if TYPE_CHECKING:
     import polars as pl
 
-from autom8_asana.dataframes.storage import DataFrameStorage
+    from autom8_asana.dataframes.storage import DataFrameStorage
+
 
 __all__ = [
     "SectionPersistence",

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Coroutine
 from functools import wraps
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from autom8_asana.exceptions import SyncInAsyncContextError
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
 
 T = TypeVar("T")
 

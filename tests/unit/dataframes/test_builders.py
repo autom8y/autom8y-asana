@@ -8,7 +8,7 @@ lazy/eager evaluation, section filtering, and extractor selection.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 import polars as pl
@@ -18,12 +18,14 @@ from autom8_asana.dataframes.builders import (
     LAZY_THRESHOLD,
     DataFrameBuilder,
 )
-from autom8_asana.dataframes.extractors.base import BaseExtractor
-from autom8_asana.dataframes.models.schema import DataFrameSchema
 from autom8_asana.dataframes.resolver import MockCustomFieldResolver
 from autom8_asana.dataframes.schemas import BASE_SCHEMA, CONTACT_SCHEMA, UNIT_SCHEMA
 from autom8_asana.models.common import NameGid
 from autom8_asana.models.task import Task
+
+if TYPE_CHECKING:
+    from autom8_asana.dataframes.extractors.base import BaseExtractor
+    from autom8_asana.dataframes.models.schema import DataFrameSchema
 
 # =============================================================================
 # Test Fixtures

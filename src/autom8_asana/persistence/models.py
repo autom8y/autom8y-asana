@@ -17,11 +17,11 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
-from autom8_asana.models.common import NameGid
 from autom8_asana.patterns import RetryableErrorMixin
 
 if TYPE_CHECKING:
     from autom8_asana.models.base import AsanaResource
+    from autom8_asana.models.common import NameGid
     from autom8_asana.persistence.cascade import CascadeResult
 
 

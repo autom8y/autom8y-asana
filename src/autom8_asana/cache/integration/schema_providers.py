@@ -20,8 +20,7 @@ Note:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
+from autom8y_cache import CompatibilityMode, SchemaVersion
 from autom8y_log import get_logger
 
 from autom8_asana.dataframes.models.registry import get_schema
@@ -46,8 +45,6 @@ except ImportError:
     SchemaVersion = None  # type: ignore[misc, assignment]
     register_schema_provider = None  # type: ignore[assignment]
 
-if TYPE_CHECKING:
-    from autom8y_cache import CompatibilityMode, SchemaVersion
 
 
 class AsanaSchemaProvider:

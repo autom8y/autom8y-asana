@@ -35,7 +35,6 @@ from autom8_asana.models.business.mixins import (
     SharedCascadingFieldsMixin,
     UpwardTraversalMixin,
 )
-from autom8_asana.models.task import Task
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
@@ -43,6 +42,7 @@ if TYPE_CHECKING:
     from autom8_asana.models.business.business import Business
     from autom8_asana.models.business.offer import Offer, OfferHolder
     from autom8_asana.models.business.process import Process, ProcessHolder
+    from autom8_asana.models.task import Task
 
 
 class Unit(

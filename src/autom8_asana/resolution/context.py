@@ -12,7 +12,6 @@ from autom8y_log import get_logger
 from autom8_asana.models.business.base import BusinessEntity
 from autom8_asana.resolution.budget import ApiBudget
 from autom8_asana.resolution.result import ResolutionResult, ResolutionStatus
-from autom8_asana.resolution.selection import SelectionPredicate
 from autom8_asana.resolution.strategies import (
     BUSINESS_CHAIN,
     DEFAULT_CHAIN,
@@ -26,6 +25,7 @@ if TYPE_CHECKING:
     from autom8_asana.models.business.offer import Offer
     from autom8_asana.models.business.process import Process
     from autom8_asana.models.business.unit import Unit
+    from autom8_asana.resolution.selection import SelectionPredicate
 
 logger = get_logger(__name__)
 
@@ -191,7 +191,7 @@ class ResolutionContext:
         if self._business_gid:
             cached = self._session_cache.get(self._business_gid)
             if cached is not None:
-                return cast(Business, cached)
+                return cast("Business", cached)
 
             business = await Business.from_gid_async(
                 self._client, self._business_gid, hydrate=False

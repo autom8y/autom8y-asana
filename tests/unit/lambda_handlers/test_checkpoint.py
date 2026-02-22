@@ -25,9 +25,6 @@ from autom8_asana.lambda_handlers.checkpoint import (
     CheckpointRecord,
 )
 
-if TYPE_CHECKING:
-    pass
-
 
 class TestCheckpointRecord:
     """Tests for CheckpointRecord dataclass."""

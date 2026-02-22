@@ -12,18 +12,21 @@ from __future__ import annotations
 
 import abc
 import time
-from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.errors import DegradedModeMixin
-from autom8_asana.cache.models.freshness import Freshness
 from autom8_asana.cache.models.metrics import CacheMetrics
 from autom8_asana.cache.models.settings import CacheSettings
 from autom8_asana.cache.models.versioning import format_version, parse_version
-from autom8_asana.protocols.cache import WarmResult
+
+if TYPE_CHECKING:
+    from datetime import datetime
+
+    from autom8_asana.cache.models.entry import CacheEntry, EntryType
+    from autom8_asana.cache.models.freshness import Freshness
+    from autom8_asana.protocols.cache import WarmResult
 
 logger = get_logger(__name__)
 

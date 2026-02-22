@@ -10,15 +10,16 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any
 
-import polars as pl
 from pydantic import Field
 
 from autom8_asana.models.base import AsanaResource
-from autom8_asana.models.common import NameGid
 
 if TYPE_CHECKING:
+    import polars as pl
+
     from autom8_asana.dataframes.cache_integration import DataFrameCacheIntegration
     from autom8_asana.dataframes.resolver.protocol import CustomFieldResolver
+    from autom8_asana.models.common import NameGid
 
 
 class Section(AsanaResource):

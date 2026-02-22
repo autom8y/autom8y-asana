@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
     from autom8_asana.dataframes.storage import S3DataFrameStorage
     from autom8_asana.services.gid_lookup import GidLookupIndex
+    from autom8_asana.services.resolver import EntityProjectRegistry
 
 logger = get_logger(__name__)
 
@@ -66,7 +67,6 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
     )
     from autom8_asana.dataframes.watermark import get_watermark_repo
     from autom8_asana.services.gid_lookup import GidLookupIndex
-    from autom8_asana.services.resolver import EntityProjectRegistry
     from autom8_asana.settings import get_settings as get_app_settings
 
     start_time = time.perf_counter()

@@ -15,7 +15,6 @@ This module provides:
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any
@@ -25,6 +24,8 @@ from autom8y_log import get_logger
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from autom8_asana.cache.integration.dataframe_cache import DataFrameCache
     from autom8_asana.client import AsanaClient
 

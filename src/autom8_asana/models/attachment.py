@@ -6,10 +6,14 @@ Per ADR-0009: Attachment upload/download handled via multipart in AttachmentsCli
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from pydantic import Field
 
 from autom8_asana.models.base import AsanaResource
-from autom8_asana.models.common import NameGid
+
+if TYPE_CHECKING:
+    from autom8_asana.models.common import NameGid
 
 
 class Attachment(AsanaResource):

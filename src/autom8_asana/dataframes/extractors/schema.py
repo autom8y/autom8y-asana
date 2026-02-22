@@ -14,16 +14,12 @@ from __future__ import annotations
 
 import datetime as dt
 import threading
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pydantic import Field, create_model
 
 from autom8_asana.dataframes.extractors.base import BaseExtractor
 from autom8_asana.dataframes.models.task_row import TaskRow
-
-if TYPE_CHECKING:
-    pass
-
 
 # Module-level cache: schema task_type -> dynamically created model class
 _MODEL_CACHE: dict[str, type[TaskRow]] = {}

@@ -7,13 +7,16 @@ preventing 429 bursts from unbounded asyncio.gather().
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
-from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.cache.providers.unified import UnifiedTaskStore
+
+if TYPE_CHECKING:
+    from autom8_asana.cache.models.entry import EntryType
 
 
 def _make_task(

@@ -24,11 +24,11 @@ from autom8_asana.models.business.descriptors import (
     TextField,
 )
 from autom8_asana.models.business.holder_factory import HolderFactory
-from autom8_asana.models.task import Task
 
 if TYPE_CHECKING:
     from autom8_asana.models.business.business import Business
     from autom8_asana.models.business.hours import Hours
+    from autom8_asana.models.task import Task
 
 
 class Location(BusinessEntity):

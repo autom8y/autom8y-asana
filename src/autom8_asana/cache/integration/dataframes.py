@@ -7,7 +7,6 @@ combination because custom field values vary by project context.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -15,6 +14,8 @@ from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.versioning import parse_version
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from autom8_asana.protocols.cache import CacheProvider
 
 

@@ -8,8 +8,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from threading import Lock
-from types import ModuleType
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from autom8y_log import get_logger
 
@@ -17,7 +16,6 @@ from autom8_asana.cache.backends.base import CacheBackendBase
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.errors import is_connection_error, is_s3_not_found_error
 from autom8_asana.cache.models.freshness import Freshness
-from autom8_asana.cache.models.settings import CacheSettings
 from autom8_asana.cache.models.versioning import (
     format_version,
     is_current,
@@ -25,6 +23,11 @@ from autom8_asana.cache.models.versioning import (
 )
 from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS, S3TransportError
 from autom8_asana.protocols.cache import WarmResult
+
+if TYPE_CHECKING:
+    from types import ModuleType
+
+    from autom8_asana.cache.models.settings import CacheSettings
 
 logger = get_logger(__name__)
 
@@ -407,7 +410,7 @@ class S3CacheProvider(CacheBackendBase):
         if is_compressed:
             body = gzip.decompress(body)
 
-        return cast(dict[str, Any], json.loads(body.decode("utf-8")))
+        return cast("dict[str, Any]", json.loads(body.decode("utf-8")))
 
     def _do_set(self, key: str, value: dict[str, Any], ttl: int | None) -> None:
         """S3-specific set: serialize, compress, put object."""

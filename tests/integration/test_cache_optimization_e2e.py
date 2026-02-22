@@ -20,17 +20,19 @@ Performance Targets (NFR-LATENCY):
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pytest_mock import MockerFixture
 
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
 from autom8_asana.config import AsanaConfig
 from autom8_asana.dataframes.builders.task_cache import TaskCacheCoordinator
 from autom8_asana.dataframes.models.schema import DataFrameSchema
 from autom8_asana.models.task import Task
+
+if TYPE_CHECKING:
+    from pytest_mock import MockerFixture
 
 # --- Test Data Factories ---
 

@@ -38,11 +38,15 @@ from autom8_asana.core.creation import (
     place_in_section_async,
     wait_for_subtasks_async,
 )
-from autom8_asana.lifecycle.config import AssigneeConfig, LifecycleConfig, StageConfig
 from autom8_asana.lifecycle.seeding import AutoCascadeSeeder
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
+    from autom8_asana.lifecycle.config import (
+        AssigneeConfig,
+        LifecycleConfig,
+        StageConfig,
+    )
     from autom8_asana.models.business.process import Process
     from autom8_asana.resolution.context import ResolutionContext
 

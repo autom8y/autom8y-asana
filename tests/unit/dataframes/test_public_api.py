@@ -8,11 +8,11 @@ Per TDD-0009 Phase 5: Validates the public API methods:
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import polars as pl
 import pytest
-from pytest_mock import MockerFixture
 
 from autom8_asana.dataframes import (
     SchemaRegistry,
@@ -27,6 +27,9 @@ from autom8_asana.models.common import NameGid
 from autom8_asana.models.project import Project
 from autom8_asana.models.section import Section
 from autom8_asana.models.task import Task
+
+if TYPE_CHECKING:
+    from pytest_mock import MockerFixture
 
 # ============================================================================
 # Test Fixtures

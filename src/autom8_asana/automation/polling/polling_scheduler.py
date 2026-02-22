@@ -53,13 +53,14 @@ from autom8_asana.automation.polling.config_schema import (
 )
 from autom8_asana.automation.polling.structured_logger import StructuredLogger
 from autom8_asana.automation.polling.trigger_evaluator import TriggerEvaluator
-from autom8_asana.automation.workflows.base import WorkflowAction
-from autom8_asana.automation.workflows.registry import WorkflowRegistry
 from autom8_asana.core.scope import EntityScope
 from autom8_asana.exceptions import ConfigurationError
 
 if TYPE_CHECKING:
     from apscheduler.schedulers.blocking import BlockingScheduler
+
+    from autom8_asana.automation.workflows.base import WorkflowAction
+    from autom8_asana.automation.workflows.registry import WorkflowRegistry
 
 __all__ = ["PollingScheduler"]
 

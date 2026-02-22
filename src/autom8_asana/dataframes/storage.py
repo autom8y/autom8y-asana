@@ -25,12 +25,11 @@ import io
 import json
 import threading
 from datetime import UTC, datetime
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import polars as pl
 from autom8y_log import get_logger
 
-from autom8_asana.config import S3LocationConfig
 from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS, S3TransportError
 from autom8_asana.core.retry import (
     BackoffType,
@@ -44,6 +43,9 @@ from autom8_asana.core.retry import (
     RetryPolicyConfig,
     Subsystem,
 )
+
+if TYPE_CHECKING:
+    from autom8_asana.config import S3LocationConfig
 
 __all__ = [
     "DataFrameStorage",

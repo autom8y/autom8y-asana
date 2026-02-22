@@ -11,11 +11,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from autom8_asana.dataframes.builders.base import LAZY_THRESHOLD, DataFrameBuilder
-from autom8_asana.dataframes.extractors.base import BaseExtractor
-from autom8_asana.dataframes.models.schema import DataFrameSchema
 
 if TYPE_CHECKING:
     from autom8_asana.dataframes.cache_integration import DataFrameCacheIntegration
+    from autom8_asana.dataframes.extractors.base import BaseExtractor
+    from autom8_asana.dataframes.models.schema import DataFrameSchema
     from autom8_asana.dataframes.resolver.protocol import CustomFieldResolver
     from autom8_asana.models.task import Task
 

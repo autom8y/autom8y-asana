@@ -8,9 +8,10 @@ Follows the ProjectTypeRegistry pattern (ADR-0093):
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
-from autom8_asana.metrics.metric import Metric
+if TYPE_CHECKING:
+    from autom8_asana.metrics.metric import Metric
 
 
 class MetricRegistry:

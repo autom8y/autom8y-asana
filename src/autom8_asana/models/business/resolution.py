@@ -14,7 +14,6 @@ Per ADR-0073: Batch operations implemented as module-level functions.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Generic, TypeVar
@@ -22,6 +21,8 @@ from typing import TYPE_CHECKING, Generic, TypeVar
 from autom8y_log import get_logger
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from autom8_asana.client import AsanaClient
     from autom8_asana.models.business.asset_edit import AssetEdit
     from autom8_asana.models.business.base import BusinessEntity

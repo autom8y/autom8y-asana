@@ -14,18 +14,20 @@ Models:
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from autom8y_log import get_logger
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict
 
-from autom8_asana.api.dependencies import RequestId
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.routes.internal import (
     ServiceClaims,
     require_service_claims,
 )
+
+if TYPE_CHECKING:
+    from autom8_asana.api.dependencies import RequestId
 
 __all__ = [
     "schema_router",

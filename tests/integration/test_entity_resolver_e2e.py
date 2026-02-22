@@ -15,7 +15,7 @@ Per TDD-custom-field-type-coercion:
 
 from __future__ import annotations
 
-from collections.abc import Generator
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -36,6 +36,9 @@ from autom8_asana.services.resolver import (
 from autom8_asana.services.resolver import (
     _apply_legacy_mapping as resolver_apply_legacy_mapping,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 # --- Helpers ---
 

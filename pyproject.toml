@@ -134,7 +134,7 @@ src = ["src"]
 extend-exclude = ["examples/", "prototypes/", "scripts/", "tmp/", "docs/"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "G", "LOG"]
+select = ["E", "F", "I", "UP", "B", "G", "LOG", "TCH"]
 ignore = [
     "E501", # Line length handled by formatter
     "B904", # raise-without-from-inside-except - common pattern in HTTP handlers
@@ -176,6 +176,17 @@ ignore = [
 "src/autom8_asana/api/dependencies.py" = ["E402"]
 "src/autom8_asana/services/resolver.py" = ["E402"]
 "src/autom8_asana/services/universal_strategy.py" = ["E402"]
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = [
+    "pydantic.BaseModel",
+    "pydantic_settings.BaseSettings",
+]
+runtime-evaluated-decorators = [
+    "pydantic.field_validator",
+    "pydantic.model_validator",
+    "pydantic.validator",
+]
 
 [tool.uv]
 index-strategy = "first-index"

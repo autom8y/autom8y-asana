@@ -13,13 +13,13 @@ No graph logic changes are required.
 from __future__ import annotations
 
 from collections import defaultdict, deque
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from autom8_asana.persistence.models import ActionOperation, ActionType
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     pass
 
 

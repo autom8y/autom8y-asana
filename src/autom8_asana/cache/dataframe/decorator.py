@@ -6,7 +6,6 @@ with cache miss -> 503 response behavior.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from datetime import UTC, datetime
 from functools import wraps
 from typing import TYPE_CHECKING, Any, TypeVar
@@ -15,6 +14,10 @@ from autom8y_log import get_logger
 from fastapi import HTTPException
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    import polars as pl
+
     from autom8_asana.cache.integration.dataframe_cache import DataFrameCache
 
 logger = get_logger(__name__)
@@ -194,7 +197,6 @@ def dataframe_cache(
                         },
                     )
 
-                import polars as pl
 
                 build_result = await build_func(project_gid, client)
 

@@ -8,12 +8,15 @@ Per TDD-S2S-001 Section 12.1:
 
 from __future__ import annotations
 
-from collections.abc import Generator
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
 
 from autom8_asana.auth.bot_pat import BotPATError, clear_bot_pat_cache, get_bot_pat
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 @pytest.fixture(autouse=True)

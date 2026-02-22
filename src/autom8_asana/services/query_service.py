@@ -20,16 +20,16 @@ Components:
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
 from autom8y_log import get_logger
 
-from autom8_asana.cache.integration.dataframe_cache import FreshnessInfo
-
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from autom8_asana.cache.integration.dataframe_cache import FreshnessInfo
     from autom8_asana.client import AsanaClient
     from autom8_asana.metrics.resolve import SectionIndex
     from autom8_asana.query.models import RowsRequest

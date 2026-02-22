@@ -23,6 +23,7 @@ import os
 import tempfile
 from io import BytesIO
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from pydantic import ValidationError
@@ -32,7 +33,6 @@ from autom8_asana.clients.goals import GoalsClient
 from autom8_asana.clients.portfolios import PortfoliosClient
 from autom8_asana.clients.stories import StoriesClient
 from autom8_asana.clients.webhooks import WebhooksClient
-from autom8_asana.config import AsanaConfig
 from autom8_asana.exceptions import AsanaError, SyncInAsyncContextError
 from autom8_asana.models import (
     Attachment,
@@ -48,6 +48,9 @@ from autom8_asana.models.common import NameGid
 from autom8_asana.models.goal import GoalMembership, GoalMetric
 from autom8_asana.models.story import Story
 from autom8_asana.models.webhook import WebhookFilter
+
+if TYPE_CHECKING:
+    from autom8_asana.config import AsanaConfig
 
 
 @pytest.fixture

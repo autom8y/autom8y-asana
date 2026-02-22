@@ -7,7 +7,7 @@ chunking by Asana batch limit, and freshness mode behavior.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -18,6 +18,9 @@ from autom8_asana.cache.integration.freshness_coordinator import (
     FreshnessResult,
 )
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
+
+if TYPE_CHECKING:
+    from unittest.mock import MagicMock
 
 
 @pytest.fixture

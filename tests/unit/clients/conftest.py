@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
-from autom8_asana.cache.models.entry import CacheEntry, EntryType
+if TYPE_CHECKING:
+    from autom8_asana.cache.models.entry import CacheEntry, EntryType
 
 
 class MockCacheProvider(_SDKMockCacheProvider):

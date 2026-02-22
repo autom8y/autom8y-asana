@@ -23,9 +23,9 @@ import random
 import threading
 import time
 from collections import deque
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import (
+    TYPE_CHECKING,
     Protocol,
     TypeVar,
     runtime_checkable,
@@ -34,6 +34,9 @@ from typing import (
 from autom8y_log import get_logger
 
 from autom8_asana.exceptions import CircuitBreakerOpenError
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 # Re-export for downstream consumers (e.g., dataframes.storage)
 __all__ = ["CircuitBreakerOpenError"]

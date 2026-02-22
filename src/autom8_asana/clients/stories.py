@@ -8,8 +8,7 @@ Use raw=True for backward-compatible dict returns.
 from __future__ import annotations
 
 import time
-from collections.abc import Awaitable, Callable
-from typing import Any, Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 from autom8y_log import get_logger
 
@@ -18,6 +17,9 @@ from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 from autom8_asana.models import PageIterator
 from autom8_asana.models.story import Story
 from autom8_asana.patterns import async_method
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 logger = get_logger(__name__)
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -18,9 +19,11 @@ from autom8_asana.cache.integration.hierarchy_warmer import (
     _fetch_parent,
     warm_ancestors_async,
 )
-from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.cache.policies.hierarchy import HierarchyIndex
 from autom8_asana.cache.providers.unified import UnifiedTaskStore
+
+if TYPE_CHECKING:
+    from autom8_asana.cache.models.entry import EntryType
 
 # ---------------------------------------------------------------------------
 # Helpers

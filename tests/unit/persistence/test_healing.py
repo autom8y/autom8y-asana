@@ -26,10 +26,6 @@ from autom8_asana.persistence.healing import (
     heal_entity_async,
 )
 
-if TYPE_CHECKING:
-    pass
-
-
 # --- Fixtures ---
 
 

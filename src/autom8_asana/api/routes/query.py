@@ -13,14 +13,13 @@ Authentication:
 from __future__ import annotations
 
 import time
-from typing import Annotated, Any, Never
+from typing import TYPE_CHECKING, Annotated, Any, Never
 
 from autom8y_log import get_logger
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from autom8_asana.api.dependencies import EntityServiceDep, RequestId
 from autom8_asana.api.errors import raise_api_error, raise_service_error
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
 from autom8_asana.client import AsanaClient
@@ -45,6 +44,9 @@ from autom8_asana.services.query_service import (
     resolve_section_index,
     validate_fields,
 )
+
+if TYPE_CHECKING:
+    from autom8_asana.api.dependencies import EntityServiceDep, RequestId
 
 __all__ = [
     "router",

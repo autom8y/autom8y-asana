@@ -9,7 +9,6 @@ They are tagged for narrowing in I6 (Exception Narrowing).
 """
 
 import asyncio
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from autom8y_log import get_logger
@@ -22,6 +21,8 @@ from .constants import (
 )
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     import polars as pl
 
 logger = get_logger(__name__)

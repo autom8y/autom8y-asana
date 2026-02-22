@@ -24,15 +24,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.freshness import Freshness
 from autom8_asana.cache.models.metrics import CacheMetrics
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
-from autom8_asana.protocols.cache import CacheProvider, WarmResult
+
+if TYPE_CHECKING:
+    from autom8_asana.cache.models.entry import CacheEntry, EntryType
+    from autom8_asana.protocols.cache import CacheProvider, WarmResult
 
 logger = get_logger(__name__)
 

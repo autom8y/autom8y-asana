@@ -7,13 +7,11 @@ with Memory + S3 tiering, request coalescing, and circuit breaker patterns.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
-import polars as pl
 from autom8y_log import get_logger
 
 try:
@@ -32,6 +30,10 @@ except ImportError:
     _HAS_METRICS = False
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    import polars as pl
+
     from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker
     from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
     from autom8_asana.cache.dataframe.tiers.memory import MemoryTier

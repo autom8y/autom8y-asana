@@ -15,7 +15,7 @@ import re
 import time
 from dataclasses import dataclass as _dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
@@ -31,15 +31,17 @@ from autom8_asana.automation.workflows.insights_formatter import (
     compose_report,
 )
 from autom8_asana.automation.workflows.mixins import AttachmentReplacementMixin
-from autom8_asana.clients.attachments import AttachmentsClient
 from autom8_asana.clients.data.client import DataServiceClient, mask_phone_number
-from autom8_asana.core.scope import EntityScope
 from autom8_asana.models.business.activity import (
     OFFER_CLASSIFIER,
     AccountActivity,
     extract_section_name,
 )
 from autom8_asana.resolution.context import ResolutionContext
+
+if TYPE_CHECKING:
+    from autom8_asana.clients.attachments import AttachmentsClient
+    from autom8_asana.core.scope import EntityScope
 
 logger = get_logger(__name__)
 

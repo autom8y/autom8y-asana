@@ -13,11 +13,10 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import httpx
-
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
+    import httpx
     from autom8y_http import CircuitBreaker
 
     from autom8_asana.protocols.log import LogProvider

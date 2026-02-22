@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
-from autom8_asana.automation.events.envelope import EventEnvelope
+if TYPE_CHECKING:
+    from autom8_asana.automation.events.envelope import EventEnvelope
 
 
 class EventTransport(Protocol):

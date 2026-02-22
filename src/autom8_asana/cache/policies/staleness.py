@@ -8,11 +8,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.freshness import Freshness
 from autom8_asana.cache.models.versioning import is_stale
 
 if TYPE_CHECKING:
+    from autom8_asana.cache.models.entry import CacheEntry, EntryType
     from autom8_asana.protocols.cache import CacheProvider
 
 

@@ -6,9 +6,12 @@ and MetricExpr configuration. Returns a DataFrame for caller aggregation.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import polars as pl
 
-from autom8_asana.metrics.metric import Metric
+if TYPE_CHECKING:
+    from autom8_asana.metrics.metric import Metric
 
 
 def compute_metric(

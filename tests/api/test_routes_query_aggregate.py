@@ -5,10 +5,13 @@ Per TDD Section 11.6 (TC-RA001 through TC-RA012).
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
-from fastapi.testclient import TestClient
+
+if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
 
 
 def _mock_jwt_validation(service_name: str = "autom8_data"):

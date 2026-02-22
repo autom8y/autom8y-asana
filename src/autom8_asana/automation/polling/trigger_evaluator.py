@@ -19,17 +19,18 @@ Example:
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.automation.polling.config_schema import (
-    Rule,
-    RuleCondition,
-    TriggerAgeConfig,
-    TriggerDeadlineConfig,
-    TriggerStaleConfig,
-)
+if TYPE_CHECKING:
+    from autom8_asana.automation.polling.config_schema import (
+        Rule,
+        RuleCondition,
+        TriggerAgeConfig,
+        TriggerDeadlineConfig,
+        TriggerStaleConfig,
+    )
 
 __all__ = ["TriggerEvaluator"]
 

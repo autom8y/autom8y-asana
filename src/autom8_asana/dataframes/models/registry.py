@@ -7,10 +7,12 @@ and runtime registration support.
 from __future__ import annotations
 
 import threading
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from autom8_asana.dataframes.exceptions import SchemaNotFoundError, SchemaVersionError
-from autom8_asana.dataframes.models.schema import DataFrameSchema
+
+if TYPE_CHECKING:
+    from autom8_asana.dataframes.models.schema import DataFrameSchema
 
 
 def get_schema(task_type: str) -> DataFrameSchema:

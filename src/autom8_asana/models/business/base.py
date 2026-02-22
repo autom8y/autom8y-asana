@@ -137,7 +137,7 @@ class HolderMixin(Generic[T]):
             if business_ref is not None:
                 setattr(child, business_ref_name, business_ref)
 
-            children.append(cast(T, child))
+            children.append(cast("T", child))
 
         # Store in children list
         setattr(self, children_attr, children)

@@ -13,18 +13,12 @@ Authentication:
 from __future__ import annotations
 
 import time
-from typing import Annotated, Any, Literal, Never, cast
+from typing import TYPE_CHECKING, Annotated, Any, Literal, Never, cast
 
 from autom8y_log import get_logger
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, model_validator
 
-from autom8_asana.api.dependencies import (
-    AuthContextDep,
-    EntityWriteRegistryDep,
-    MutationInvalidatorDep,
-    RequestId,
-)
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.routes.internal import (
     ServiceClaims,
@@ -46,6 +40,14 @@ from autom8_asana.services.field_write_service import (
     FieldWriteService,
     WriteFieldsResult,
 )
+
+if TYPE_CHECKING:
+    from autom8_asana.api.dependencies import (
+        AuthContextDep,
+        EntityWriteRegistryDep,
+        MutationInvalidatorDep,
+        RequestId,
+    )
 
 logger = get_logger(__name__)
 
@@ -303,7 +305,7 @@ async def write_entity_fields(
         FieldWriteResult(
             name=rf.input_name,
             status=cast(
-                Literal["written", "skipped", "error"],
+                "Literal['written', 'skipped', 'error']",
                 "written" if rf.status == "resolved" else rf.status,
             ),
             error=rf.error,

@@ -29,10 +29,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from autom8_asana.automation.polling.config_schema import ActionConfig
 from autom8_asana.automation.polling.structured_logger import StructuredLogger
 
 if TYPE_CHECKING:
+    from autom8_asana.automation.polling.config_schema import ActionConfig
     pass
 
 __all__ = ["ActionExecutor", "ActionResult"]
