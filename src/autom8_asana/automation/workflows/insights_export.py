@@ -62,7 +62,8 @@ LEGACY_ATTACHMENT_PATTERN = "insights_export_*.md"
 WORKFLOW_VERSION = "insights-export-v1.0"
 
 # Default row limits per table type.
-# APPOINTMENTS/LEADS: API max is 100 (autom8y-data validation constraint).
+# APPOINTMENTS/LEADS: upstream API supports up to 500; self-limited to 100
+# for report readability (increase requires UX review).
 # ASSET TABLE: capped at 150, sorted by spend desc (per WS-G spec).
 DEFAULT_ROW_LIMITS: dict[str, int] = {
     "APPOINTMENTS": 100,

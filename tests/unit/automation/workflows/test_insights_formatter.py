@@ -1696,20 +1696,21 @@ class TestFormatCellHtmlFormatting:
             (800.0, "variance", "$800.00"),
             (4200.0, "budget", "$4,200.00"),
             (99.99, "cpc", "$99.99"),
-            # Rate fields → X.XX% (stored as decimal, ×100 for display)
-            (0.0342, "ctr", "3.42%"),
-            (0.0, "ns_rate", "0.00%"),
-            (1.0, "conversion_rate", "100.00%"),
-            (0.1567, "lctr", "15.67%"),
-            (0.85, "pacing_ratio", "85.00%"),
-            # Percentage fields → X.XX% (already in percent units)
+            # Rate fields → X.XX% (stored as decimal 0-1, ×100 for display)
+            (0.0342, "sched_rate", "3.42%"),
+            # Percentage fields → X.XX% (already in percent units, no x100)
+            (3.42, "ctr", "3.42%"),
+            (15.67, "lctr", "15.67%"),
+            (18.36, "ns_rate", "18.36%"),
+            (38.44, "conversion_rate", "38.44%"),
             (42.5, "variance_pct", "42.50%"),
             (0.0, "variance_pct", "0.00%"),
             (100.0, "variance_pct", "100.00%"),
-            # Ratio fields → X.XXx
+            # Ratio fields → X.XXx (unbounded multiplier)
             (3.5, "roas", "3.50x"),
             (0.0, "roas", "0.00x"),
             (10.123, "roas", "10.12x"),
+            (1.05, "pacing_ratio", "1.05x"),
             # Per-20k fields → comma-grouped 2dp (no symbol)
             (12.5, "lp20m", "12.50"),
             (0.0, "sp20m", "0.00"),
@@ -1741,17 +1742,18 @@ class TestFormatCellHtmlFormatting:
             "currency-variance",
             "currency-budget",
             "currency-cpc",
-            "rate-ctr",
-            "rate-zero",
-            "rate-full",
-            "rate-lctr",
-            "rate-pacing_ratio",
+            "rate-sched_rate",
+            "pct-ctr",
+            "pct-lctr",
+            "pct-ns_rate",
+            "pct-conversion_rate",
             "pct-normal",
             "pct-zero",
             "pct-full",
             "ratio-roas",
             "ratio-zero",
             "ratio-rounded",
+            "ratio-pacing_ratio",
             "per20k-lp20m",
             "per20k-zero",
             "per20k-large",
@@ -1782,13 +1784,22 @@ class TestFormatCellHtmlFormatting:
             assert "," in result, f"{field} should have comma grouping"
 
     def test_all_rate_fields_format_correctly(self):
-        """Every field mapped as 'rate' produces % suffix with ×100."""
+        """Every field mapped as 'rate' produces % suffix with x100."""
         rate_fields = [k for k, v in _FIELD_FORMAT.items() if v == "rate"]
-        assert len(rate_fields) == 10
+        assert len(rate_fields) == 2  # booking_rate, sched_rate
         for field in rate_fields:
             result = _format_cell_html(0.05, field)
             assert result.endswith("%"), f"{field} should produce % suffix"
             assert "5.00%" == result, f"{field}: 0.05 should display as 5.00%"
+
+    def test_all_percentage_fields_format_correctly(self):
+        """Every field mapped as 'percentage' displays as-is with % suffix."""
+        pct_fields = [k for k, v in _FIELD_FORMAT.items() if v == "percentage"]
+        assert len(pct_fields) == 8  # conv_rate, ns_rate, nc_rate, etc.
+        for field in pct_fields:
+            result = _format_cell_html(42.5, field)
+            assert result.endswith("%"), f"{field} should produce % suffix"
+            assert "42.50%" == result, f"{field}: 42.5 should display as 42.50%"
 
     def test_xss_safety_preserved(self):
         """Formatted output still goes through html.escape."""
@@ -1802,7 +1813,7 @@ class TestFormatCellHtmlFormatting:
             {
                 "office": "Acme Dental",
                 "spend": 12847.5,
-                "ctr": 0.0342,
+                "ctr": 3.42,
                 "imp": 45000,
                 "roas": 3.5,
                 "variance_pct": 42.5,
@@ -1937,10 +1948,10 @@ class TestPhase1Constants:
         assert _conditional_format_class(0.10, "booking_rate") == "br-red"
 
     def test_conditional_format_class_at_green_boundary(self):
-        assert _conditional_format_class(0.40, "conv_rate") == "br-green"
+        assert _conditional_format_class(40.0, "conv_rate") == "br-green"
 
     def test_conditional_format_class_at_yellow_boundary(self):
-        assert _conditional_format_class(0.20, "conv_rate") == "br-yellow"
+        assert _conditional_format_class(20.0, "conv_rate") == "br-yellow"
 
     def test_conditional_format_class_unknown_column(self):
         """Columns without thresholds return empty string."""
@@ -2579,16 +2590,16 @@ class TestPhase6QA:
         assert _conditional_format_class(0.39999, "booking_rate") == "br-yellow"
 
     def test_conditional_format_conv_rate_exact_green_boundary(self):
-        """conv_rate exactly 0.40 -> br-green."""
-        assert _conditional_format_class(0.40, "conv_rate") == "br-green"
+        """conv_rate exactly 40.0% -> br-green."""
+        assert _conditional_format_class(40.0, "conv_rate") == "br-green"
 
     def test_conditional_format_conv_rate_exact_yellow_boundary(self):
-        """conv_rate exactly 0.20 -> br-yellow."""
-        assert _conditional_format_class(0.20, "conv_rate") == "br-yellow"
+        """conv_rate exactly 20.0% -> br-yellow."""
+        assert _conditional_format_class(20.0, "conv_rate") == "br-yellow"
 
     def test_conditional_format_conv_rate_just_below_yellow(self):
-        """conv_rate 0.19999 -> br-red."""
-        assert _conditional_format_class(0.19999, "conv_rate") == "br-red"
+        """conv_rate 19.999% -> br-red."""
+        assert _conditional_format_class(19.999, "conv_rate") == "br-red"
 
     def test_conditional_format_non_rate_column_no_class(self):
         """Non-rate columns (spend, cpl, etc.) get no conditional formatting."""
@@ -2613,11 +2624,11 @@ class TestPhase6QA:
     def test_conditional_format_renders_in_table(self):
         """Conditional formatting classes appear in rendered table cells."""
         rows = [
-            {"booking_rate": 0.50, "conv_rate": 0.10, "spend": 100},
+            {"booking_rate": 0.50, "conv_rate": 10.0, "spend": 100},
         ]
         result = _render_section("TEST", rows=rows, row_count=1)
         assert "br-green" in result  # booking_rate 0.50 >= 0.40
-        assert "br-red" in result  # conv_rate 0.10 < 0.20
+        assert "br-red" in result  # conv_rate 10.0% < 20.0
 
     # -----------------------------------------------------------------------
     # Collapsed/Expanded State
@@ -2862,8 +2873,8 @@ class TestPhase6QA:
                 "scheds": 5,
                 "booking_rate": 0.50,
                 "cps": 100.0,
-                "conv_rate": 0.30,
-                "ctr": 0.05,
+                "conv_rate": 30.0,
+                "ctr": 5.0,
                 "ltv": 200.0,
                 "extra_col_1": "should_be_hidden",
                 "extra_col_2": 999,
@@ -3271,8 +3282,8 @@ class TestPhase6QA:
                 "booking_rate": 0.30 + i * 0.01,
                 "scheds": 3 + i,
                 "cps": 333.0,
-                "conv_rate": 0.25,
-                "ctr": 0.04,
+                "conv_rate": 25.0,
+                "ctr": 4.0,
                 "ltv": 500.0,
             }
             for i in range(20)
@@ -3454,3 +3465,86 @@ class TestPhase6QA:
         ]
         result = _render_section("TEST", rows=rows, row_count=1)
         assert "date-cell" in result
+
+
+class TestPiiPhoneMasking:
+    """Regression tests for PII phone masking in table cells and JSON embeds."""
+
+    def test_office_phone_masked_in_table_cells(self):
+        """office_phone values are masked in rendered table cells."""
+        result = _format_cell_html("+17705753103", "office_phone")
+        assert "7705753103" not in result
+        assert "***" in result or "\u2022" in result or result.count("*") >= 3
+
+    def test_office_phone_masked_preserves_last_digits(self):
+        """Masked phone retains last 4 digits for identification."""
+        result = _format_cell_html("+17705753103", "office_phone")
+        assert "3103" in result
+
+    def test_phone_column_masked(self):
+        """Generic 'phone' column is also masked."""
+        result = _format_cell_html("+14045551234", "phone")
+        assert "4045551234" not in result
+        assert "1234" in result
+
+    def test_non_phone_column_not_masked(self):
+        """Non-phone string columns are NOT masked."""
+        result = _format_cell_html("+17705753103", "vertical")
+        assert "+17705753103" in result
+
+    def test_none_phone_renders_dash(self):
+        """None value in phone column renders em-dash, not mask error."""
+        result = _format_cell_html(None, "office_phone")
+        assert "\u2014" in result
+
+    def test_phone_masking_in_json_embed(self):
+        """Phone numbers are masked in the JSON data embed (Copy TSV)."""
+        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+
+        rows = [
+            {"office_phone": "+17705753103", "spend": 100.50},
+            {"office_phone": "+14045551234", "spend": 200.00},
+        ]
+        masked = _mask_pii_rows(rows)
+        for row in masked:
+            assert "7705753103" not in row["office_phone"]
+            assert "4045551234" not in row["office_phone"]
+        # Original rows not mutated
+        assert rows[0]["office_phone"] == "+17705753103"
+
+    def test_mask_pii_rows_no_phone_columns(self):
+        """Rows without phone columns pass through unchanged."""
+        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+
+        rows = [{"spend": 100, "leads": 50}]
+        result = _mask_pii_rows(rows)
+        assert result is rows  # Same reference (fast path)
+
+    def test_mask_pii_rows_empty(self):
+        """Empty row list passes through."""
+        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+
+        assert _mask_pii_rows([]) == []
+
+    def test_full_report_masks_phone_in_table(self):
+        """Full compose_report masks office_phone in rendered HTML tables."""
+        data = _make_report_data(
+            table_results={
+                "APPOINTMENTS": TableResult(
+                    table_name="APPOINTMENTS",
+                    success=True,
+                    data=[
+                        {"office_phone": "+17705753103", "date": "2026-01-15"},
+                        {"office_phone": "+17705753103", "date": "2026-01-16"},
+                    ],
+                    row_count=2,
+                ),
+            },
+        )
+        html_output = compose_report(data)
+        # Raw phone digits should not appear unmasked in table cells or JSON
+        assert html_output.count("+17705753103") == 0, (
+            "Raw phone number should be masked everywhere in output"
+        )
+        # Masked form should retain last 4 digits
+        assert "3103" in html_output

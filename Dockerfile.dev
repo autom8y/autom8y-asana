@@ -13,23 +13,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install public dependencies only (no autom8y-* packages)
-COPY pyproject.toml ./
-RUN uv pip install --system --no-deps $(uv pip compile pyproject.toml \
+# Install public dependencies only (no autom8y-* packages).
+# Uses uv export --frozen to read the full transitive dep graph from uv.lock
+# (no index access needed), then filters out private packages.
+# UV_NO_CONFIG=1 prevents uv from reading [tool.uv] CodeArtifact config.
+COPY pyproject.toml uv.lock ./
+RUN uv export --frozen --format requirements-txt --no-hashes \
+    --no-dev --no-emit-project \
     --extra redis --extra api --extra auth \
-    --no-emit-package 'autom8y-config' \
-    --no-emit-package 'autom8y-log' \
-    --no-emit-package 'autom8y-core' \
-    --no-emit-package 'autom8y-http' \
-    --no-emit-package 'autom8y-auth' \
-    --no-emit-package 'autom8y-cache' \
-    --no-emit-package 'autom8y-telemetry' \
-    --no-emit-package 'autom8y-asana' \
-    2>/dev/null)
+    | grep -v '^autom8[y-]' > /tmp/requirements.txt && \
+    UV_NO_CONFIG=1 uv pip install --system -r /tmp/requirements.txt
 
 # Install the service package itself (without its autom8y deps)
 COPY src ./src
-RUN uv pip install --system --no-deps .
+RUN UV_NO_CONFIG=1 uv pip install --system --no-deps .
 
 # SDK source will be volume-mounted at /app/sdks/
 ENV PYTHONPATH="/app/sdks:/app/src:${PYTHONPATH:-}"

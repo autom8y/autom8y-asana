@@ -45,7 +45,9 @@ services:
       AWS_DEFAULT_REGION: us-east-1
       AWS_ENDPOINT_URL: http://localstack:4566
     volumes:
-      - ./src:/app/src
+      # Paths use ${AUTOM8Y_ASANA_DIR} because Docker Compose resolves relative
+      # paths from the project directory (monorepo root), not this file's dir.
+      - ${AUTOM8Y_ASANA_DIR:-.}/src:/app/src
       - ../autom8y/sdks/python/autom8y-config/src/autom8y_config:/app/sdks/autom8y_config
       - ../autom8y/sdks/python/autom8y-log/src/autom8y_log:/app/sdks/autom8y_log
       - ../autom8y/sdks/python/autom8y-core/src/autom8y_core:/app/sdks/autom8y_core
