@@ -19,7 +19,6 @@ services:
       ASANA_PAT: ${ASANA_PAT:-}
       ASANA_WORKSPACE_GID: ${ASANA_WORKSPACE_GID:-}
       AUTOM8Y_ENV: local
-      ASANA_ENVIRONMENT: development
       ASANA_CACHE_ENABLED: "true"
       ASANA_CACHE_PROVIDER: memory
       REDIS_HOST: redis
