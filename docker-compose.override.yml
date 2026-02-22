@@ -5,12 +5,15 @@
 # See TDD-LOCAL-DEV-ENV.md Section 3.3.3
 #
 # NOTE: This file is composed via -f flag from the monorepo root.
-# Paths are relative to this file's directory (the satellite repo root).
+# Build context uses ${AUTOM8Y_ASANA_DIR} exported by dev-preflight.sh
+# because Docker Compose v2+BuildKit resolves `context: .` from the
+# project directory (monorepo root), not this file's directory.
+# Fallback to `.` for standalone use (docker compose -f this-file up).
 
 services:
   asana:
     build:
-      context: .
+      context: ${AUTOM8Y_ASANA_DIR:-.}
       dockerfile: Dockerfile.dev
     container_name: autom8y-asana
     ports:
