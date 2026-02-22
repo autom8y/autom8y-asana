@@ -10,7 +10,6 @@ Per TDD-DEBT-003: Thread-safe state transitions via RLock.
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable, Coroutine, Generator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -40,12 +39,15 @@ from autom8_asana.persistence.tracker import ChangeTracker
 from autom8_asana.transport.sync import sync_wrapper
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine, Generator
+
     from autom8_asana.client import AsanaClient
     from autom8_asana.models.base import AsanaResource
+    from autom8_asana.models.common import NameGid
     from autom8_asana.models.user import User
+    from autom8_asana.persistence.cascade import CascadeResult
     from autom8_asana.persistence.reorder import ReorderPlan
 
-from autom8_asana.models.common import NameGid
 
 T = TypeVar("T", bound="AsanaResource")
 
@@ -929,7 +931,6 @@ class SaveSession:
         Returns:
             List of CascadeResult objects.
         """
-        from autom8_asana.persistence.cascade import CascadeResult
 
         cascade_results: list[CascadeResult] = []
         if pending_cascades:

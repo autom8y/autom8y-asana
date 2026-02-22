@@ -13,15 +13,17 @@ Test Strategy:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
 from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.clients.stories import StoriesClient
-from autom8_asana.config import AsanaConfig
 from autom8_asana.models.story import Story
+
+if TYPE_CHECKING:
+    from autom8_asana.config import AsanaConfig
 
 
 def make_story_data(

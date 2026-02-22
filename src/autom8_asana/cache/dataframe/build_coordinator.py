@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
@@ -24,6 +23,8 @@ from autom8y_log import get_logger
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     import polars as pl
 
 logger = get_logger(__name__)

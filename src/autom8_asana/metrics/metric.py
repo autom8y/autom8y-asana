@@ -7,10 +7,12 @@ Metric combines a MetricExpr with a Scope under a registry-friendly name.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING
 
-import polars as pl
+if TYPE_CHECKING:
+    import polars as pl
 
-from autom8_asana.metrics.expr import MetricExpr
+    from autom8_asana.metrics.expr import MetricExpr
 
 
 @dataclass(frozen=True)

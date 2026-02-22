@@ -13,10 +13,9 @@ from typing import TYPE_CHECKING
 
 from autom8y_log import get_logger
 
-from autom8_asana.automation.events.envelope import EventEnvelope
-
 if TYPE_CHECKING:
     from autom8_asana.automation.events.config import EventRoutingConfig
+    from autom8_asana.automation.events.envelope import EventEnvelope
     from autom8_asana.automation.events.transport import EventTransport
 
 logger = get_logger(__name__)

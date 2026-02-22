@@ -12,7 +12,6 @@ definition time based on configuration in ACTION_REGISTRY.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any, overload
@@ -23,6 +22,8 @@ from autom8_asana.persistence.models import ActionOperation, ActionType
 from autom8_asana.persistence.validation import validate_gid
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from autom8_asana.models.base import AsanaResource
     from autom8_asana.persistence.session import SaveSession
 

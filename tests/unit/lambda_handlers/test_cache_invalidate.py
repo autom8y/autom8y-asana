@@ -7,7 +7,7 @@ composability with existing cache-clearing modes, and correct response shape.
 
 from __future__ import annotations
 
-from collections.abc import Generator
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -17,6 +17,9 @@ from autom8_asana.lambda_handlers.cache_invalidate import (
     _invalidate_cache_async,
     handler_async,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 class TestInvalidateResponse:

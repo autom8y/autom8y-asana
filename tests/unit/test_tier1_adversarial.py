@@ -15,7 +15,7 @@ Test Categories:
 from __future__ import annotations
 
 import threading
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -27,7 +27,6 @@ from autom8_asana.clients.projects import ProjectsClient
 from autom8_asana.clients.sections import SectionsClient
 from autom8_asana.clients.users import UsersClient
 from autom8_asana.clients.workspaces import WorkspacesClient
-from autom8_asana.config import AsanaConfig
 from autom8_asana.exceptions import (
     SyncInAsyncContextError,
 )
@@ -43,6 +42,9 @@ from autom8_asana.models import (
     Workspace,
 )
 from autom8_asana.models.base import AsanaResource
+
+if TYPE_CHECKING:
+    from autom8_asana.config import AsanaConfig
 
 # =============================================================================
 # 1. MODEL VALIDATION TESTS

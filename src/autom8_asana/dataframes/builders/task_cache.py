@@ -18,7 +18,6 @@ Design per ADR-0119:
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -29,6 +28,8 @@ from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from autom8_asana.cache.providers.unified import UnifiedTaskStore
     from autom8_asana.models import Task
     from autom8_asana.protocols.cache import CacheProvider

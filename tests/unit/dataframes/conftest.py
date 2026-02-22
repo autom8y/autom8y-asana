@@ -7,11 +7,14 @@ test_schema_extractor_adversarial.py.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 from autom8_asana.dataframes.builders.base import DataFrameBuilder
-from autom8_asana.dataframes.extractors.base import BaseExtractor
-from autom8_asana.dataframes.models.schema import DataFrameSchema
+
+if TYPE_CHECKING:
+    from autom8_asana.dataframes.extractors.base import BaseExtractor
+    from autom8_asana.dataframes.models.schema import DataFrameSchema
 
 
 def make_mock_task() -> MagicMock:

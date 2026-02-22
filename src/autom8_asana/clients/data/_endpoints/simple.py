@@ -16,11 +16,11 @@ from typing import TYPE_CHECKING
 from autom8y_http import CircuitBreakerOpenError as SdkCircuitBreakerOpenError
 
 from autom8_asana.clients.data import _retry as _retry_mod
-from autom8_asana.clients.data.models import InsightsResponse
 from autom8_asana.exceptions import InsightsServiceError
 
 if TYPE_CHECKING:
     from autom8_asana.clients.data.client import DataServiceClient
+    from autom8_asana.clients.data.models import InsightsResponse
 
 
 async def get_appointments(

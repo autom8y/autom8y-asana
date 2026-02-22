@@ -9,9 +9,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from autom8_asana.models.business.base import BusinessEntity
-
 if TYPE_CHECKING:
+    from autom8_asana.models.business.base import BusinessEntity
     from autom8_asana.models.business.process import Process, ProcessType
 
 

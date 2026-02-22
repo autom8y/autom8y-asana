@@ -6,11 +6,13 @@ S-1 (classification query parameter validation and filtering).
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from fastapi.testclient import TestClient
-
 from autom8_asana.models.business.section_timeline import OfferTimelineEntry
+
+if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
 
 
 def _mock_entries() -> list[OfferTimelineEntry]:

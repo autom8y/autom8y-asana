@@ -21,10 +21,9 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.lifecycle.config import CascadingSectionConfig
-
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
+    from autom8_asana.lifecycle.config import CascadingSectionConfig
     from autom8_asana.resolution.context import ResolutionContext
 
 logger = get_logger(__name__)

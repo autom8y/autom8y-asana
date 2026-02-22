@@ -17,7 +17,6 @@ while the platform client handles generic HTTP concerns.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
@@ -46,6 +45,8 @@ from autom8_asana.transport.config_translator import ConfigTranslator
 from autom8_asana.transport.response_handler import AsanaResponseHandler
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
     from autom8y_http import CircuitBreakerProtocol, RetryPolicyProtocol
 
     from autom8_asana.config import AsanaConfig

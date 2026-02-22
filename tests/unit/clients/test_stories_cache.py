@@ -7,16 +7,18 @@ and fetcher adapter behavior.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.clients.stories import StoriesClient
-from autom8_asana.config import AsanaConfig
 from autom8_asana.core.exceptions import CacheConnectionError
 from autom8_asana.models.story import Story
+
+if TYPE_CHECKING:
+    from autom8_asana.config import AsanaConfig
 
 
 class MockCacheProvider(_SDKMockCacheProvider):

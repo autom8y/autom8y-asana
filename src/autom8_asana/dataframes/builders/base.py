@@ -17,8 +17,6 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
-from collections.abc import Coroutine
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -29,11 +27,14 @@ from autom8_asana.dataframes.extractors import (
     BaseExtractor,
     DefaultExtractor,
 )
-from autom8_asana.dataframes.models.schema import DataFrameSchema
 
 if TYPE_CHECKING:
+    from collections.abc import Coroutine
+    from datetime import datetime
+
     from autom8_asana.client import AsanaClient
     from autom8_asana.dataframes.cache_integration import DataFrameCacheIntegration
+    from autom8_asana.dataframes.models.schema import DataFrameSchema
     from autom8_asana.dataframes.resolver.protocol import CustomFieldResolver
     from autom8_asana.models.task import Task
 

@@ -26,7 +26,6 @@ from __future__ import annotations
 import argparse
 import sys
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
 
 from autom8y_log import get_logger
 
@@ -35,9 +34,6 @@ from autom8_asana.automation.polling.config_schema import AutomationRulesConfig
 from autom8_asana.automation.polling.polling_scheduler import PollingScheduler
 from autom8_asana.automation.polling.structured_logger import StructuredLogger
 from autom8_asana.exceptions import ConfigurationError
-
-if TYPE_CHECKING:
-    pass
 
 __all__ = [
     "validate_command",

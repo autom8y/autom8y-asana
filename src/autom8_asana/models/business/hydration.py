@@ -29,7 +29,6 @@ from typing import TYPE_CHECKING, Literal
 from autom8y_log import get_logger
 
 from autom8_asana.exceptions import HydrationError
-from autom8_asana.models.business.base import BusinessEntity
 from autom8_asana.models.business.detection import (
     EntityType,
     detect_entity_type_async,
@@ -40,6 +39,7 @@ from autom8_asana.models.business.fields import (
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
+    from autom8_asana.models.business.base import BusinessEntity
     from autom8_asana.models.business.business import Business
     from autom8_asana.models.task import Task
 

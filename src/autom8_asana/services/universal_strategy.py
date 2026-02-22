@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.cache.integration.dataframe_cache import FreshnessInfo
 from autom8_asana.services.dynamic_index import DynamicIndex, DynamicIndexCache
 from autom8_asana.services.resolution_result import ResolutionResult
 from autom8_asana.services.resolver import to_pascal_case
@@ -25,6 +24,7 @@ from autom8_asana.services.resolver import to_pascal_case
 if TYPE_CHECKING:
     import polars as pl
 
+    from autom8_asana.cache.integration.dataframe_cache import FreshnessInfo
     from autom8_asana.client import AsanaClient
 
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS

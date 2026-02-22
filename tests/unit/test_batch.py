@@ -6,12 +6,16 @@ Per ADR-0010: Sequential chunk execution for batch operations.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 
 from autom8_asana.batch import BatchClient, BatchRequest, BatchResult, BatchSummary
 from autom8_asana.batch.client import BATCH_SIZE_LIMIT, _chunk_requests, _count_chunks
-from autom8_asana.config import AsanaConfig
 from autom8_asana.exceptions import AsanaError, SyncInAsyncContextError
+
+if TYPE_CHECKING:
+    from autom8_asana.config import AsanaConfig
 
 # --- Test Fixtures ---
 

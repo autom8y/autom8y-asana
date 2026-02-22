@@ -7,7 +7,7 @@ after successful mutation.
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator, Generator
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
@@ -21,6 +21,9 @@ from tests.api.conftest import (
     TEST_TAG_GID,
     TEST_TASK_GID,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator, Generator
 
 AUTH_HEADER = {"Authorization": "Bearer test_pat_token_12345"}
 

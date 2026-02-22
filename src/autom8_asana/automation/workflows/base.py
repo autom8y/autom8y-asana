@@ -11,10 +11,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from autom8_asana.core.scope import EntityScope
+if TYPE_CHECKING:
+    from datetime import datetime
+
+    from autom8_asana.core.scope import EntityScope
 
 
 @dataclass

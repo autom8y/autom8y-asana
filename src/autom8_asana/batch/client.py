@@ -6,14 +6,11 @@ Per ADR-0010: Sequential chunk execution for batch operations.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from autom8_asana.batch.models import BatchRequest, BatchResult, BatchSummary
 from autom8_asana.clients.base import BaseClient
 from autom8_asana.transport.sync import sync_wrapper
-
-if TYPE_CHECKING:
-    pass
 
 # Asana batch API limit
 BATCH_SIZE_LIMIT = 10

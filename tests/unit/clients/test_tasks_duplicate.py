@@ -5,13 +5,15 @@ Per TDD-PIPELINE-AUTOMATION-ENHANCEMENT FR-DUP-*: Tests for task duplication.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from autom8_asana.clients.tasks import TasksClient
-from autom8_asana.config import AsanaConfig
 from autom8_asana.models import Task
+
+if TYPE_CHECKING:
+    from autom8_asana.config import AsanaConfig
 
 
 @pytest.fixture

@@ -8,16 +8,18 @@ Per ADR-0127: Graceful degradation.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.clients.custom_fields import CustomFieldsClient
-from autom8_asana.config import AsanaConfig
 from autom8_asana.core.exceptions import CacheConnectionError
 from autom8_asana.models.custom_field import CustomField
 from autom8_asana.persistence.exceptions import GidValidationError
+
+if TYPE_CHECKING:
+    from autom8_asana.config import AsanaConfig
 
 
 class FailingCacheProvider:

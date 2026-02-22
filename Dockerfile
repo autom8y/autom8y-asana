@@ -27,7 +27,7 @@
 FROM python:3.12-slim AS builder
 
 # Install uv from official image
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY --link --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Accept CodeArtifact index URL as build argument
 ARG EXTRA_INDEX_URL
@@ -41,14 +41,15 @@ ENV UV_COMPILE_BYTECODE=1 \
 WORKDIR /app
 
 # Copy dependency manifests first (layer caching)
-COPY pyproject.toml uv.lock ./
+COPY --link pyproject.toml uv.lock ./
 
 # Copy source code
-COPY src ./src
+COPY --link src ./src
 
 # Install production dependencies with frozen lockfile
 # Includes api (FastAPI/uvicorn), auth (JWT), and lambda (awslambdaric) extras
-RUN uv sync --frozen --no-dev --extra api --extra auth --extra lambda
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --extra api --extra auth --extra lambda
 
 # =============================================================================
 # Stage 2: Runtime
@@ -58,11 +59,11 @@ FROM python:3.12-slim AS runtime
 WORKDIR /app
 
 # Copy virtual environment and source from builder
-COPY --from=builder /app/.venv /app/.venv
-COPY --from=builder /app/src /app/src
+COPY --link --from=builder /app/.venv /app/.venv
+COPY --link --from=builder /app/src /app/src
 
 # Copy entrypoint script
-COPY scripts/entrypoint.sh /app/entrypoint.sh
+COPY --link scripts/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # Set PATH to use venv (replaces PYTHONPATH approach)

@@ -42,9 +42,9 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Coroutine
 from functools import wraps
 from typing import (
+    TYPE_CHECKING,
     Any,
     Generic,
     TypeVar,
@@ -52,6 +52,9 @@ from typing import (
 )
 
 from autom8_asana.exceptions import SyncInAsyncContextError
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
 
 R = TypeVar("R")
 

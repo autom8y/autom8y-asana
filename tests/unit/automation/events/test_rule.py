@@ -6,6 +6,7 @@ Per SC-004: Emission failures do not propagate.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
@@ -14,11 +15,13 @@ from autom8_asana.automation.config import AutomationConfig
 from autom8_asana.automation.context import AutomationContext
 from autom8_asana.automation.events.config import EventRoutingConfig, SubscriptionEntry
 from autom8_asana.automation.events.emitter import EventEmitter
-from autom8_asana.automation.events.envelope import EventEnvelope
 from autom8_asana.automation.events.rule import EventEmissionRule
 from autom8_asana.automation.events.transport import InMemoryTransport
 from autom8_asana.automation.events.types import EventType
 from autom8_asana.persistence.models import SaveResult
+
+if TYPE_CHECKING:
+    from autom8_asana.automation.events.envelope import EventEnvelope
 
 
 class MockEntity:

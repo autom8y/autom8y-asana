@@ -11,11 +11,14 @@ The SDK mocks its own JWKS client internally for testability.
 
 from __future__ import annotations
 
-from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 import pytest
 
 from autom8_asana.auth.jwt_validator import reset_auth_client
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 @pytest.fixture(autouse=True)

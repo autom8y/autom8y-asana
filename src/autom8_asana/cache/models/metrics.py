@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from threading import Lock, local
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = get_logger(__name__)
 

@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from collections.abc import Awaitable, Callable
-from datetime import date
 from typing import TYPE_CHECKING, Any, cast
 
 import httpx
@@ -48,7 +46,11 @@ from autom8_asana.exceptions import (
 from autom8_asana.models.contracts import PhoneVerticalPair
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+    from datetime import date
+
     from autom8_asana.cache.models.staleness_settings import StalenessCheckSettings
+    from autom8_asana.clients.data._metrics import MetricsHook
     from autom8_asana.protocols.auth import AuthProvider
     from autom8_asana.protocols.cache import CacheProvider
     from autom8_asana.protocols.log import LogProvider
@@ -64,7 +66,6 @@ __all__ = ["DataServiceClient", "mask_phone_number"]
 
 # --- Metrics Hook Type (Story 1.9) ---
 # Re-exported from _metrics module for backward compatibility.
-from autom8_asana.clients.data._metrics import MetricsHook  # noqa: E402
 from autom8_asana.clients.data._pii import (  # noqa: E402
     mask_phone_number,
 )
@@ -820,7 +821,7 @@ class DataServiceClient:
             ...     df = response.to_dataframe()
         """
         return cast(
-            InsightsResponse,
+            "InsightsResponse",
             self._run_sync(
                 self.get_insights_async(
                     factory=factory,

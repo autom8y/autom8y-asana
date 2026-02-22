@@ -8,7 +8,7 @@ Per TDD-S2S-001 Section 12.1:
 
 from __future__ import annotations
 
-from collections.abc import Generator
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -22,6 +22,9 @@ from autom8_asana.api.dependencies import (
 from autom8_asana.auth.bot_pat import clear_bot_pat_cache
 from autom8_asana.auth.dual_mode import AuthMode
 from autom8_asana.auth.jwt_validator import reset_auth_client
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 @pytest.fixture(autouse=True)

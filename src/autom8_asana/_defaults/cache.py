@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime
 from threading import Lock
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from autom8_asana.cache.models.entry import CacheEntry, EntryType
     from autom8_asana.cache.models.freshness import Freshness
     from autom8_asana.cache.models.metrics import CacheMetrics

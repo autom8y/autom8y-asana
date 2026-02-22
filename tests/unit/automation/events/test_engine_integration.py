@@ -5,22 +5,24 @@ Per GAP-03: Verify emission rules work within the engine evaluation loop.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 import pytest
 
 from autom8_asana.automation.base import TriggerCondition
 from autom8_asana.automation.config import AutomationConfig
-from autom8_asana.automation.context import AutomationContext
 from autom8_asana.automation.engine import AutomationEngine
 from autom8_asana.automation.events.config import EventRoutingConfig, SubscriptionEntry
 from autom8_asana.automation.events.emitter import EventEmitter
-from autom8_asana.automation.events.envelope import EventEnvelope
 from autom8_asana.automation.events.rule import EventEmissionRule
 from autom8_asana.automation.events.transport import InMemoryTransport
 from autom8_asana.automation.events.types import EventType
 from autom8_asana.persistence.models import AutomationResult, SaveResult
+
+if TYPE_CHECKING:
+    from autom8_asana.automation.context import AutomationContext
+    from autom8_asana.automation.events.envelope import EventEnvelope
 
 
 class MockEntity:

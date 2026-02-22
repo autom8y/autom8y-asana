@@ -6,12 +6,12 @@ from CacheMetrics to LogProvider for observability.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from autom8_asana.cache.models.metrics import CacheEvent
-
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from autom8_asana.cache.models.metrics import CacheEvent
     from autom8_asana.protocols.cache import CacheProvider
     from autom8_asana.protocols.log import CacheEventType, CacheLoggingProvider
 

@@ -5,10 +5,11 @@ Provides set/get/remove methods with automatic name->GID resolution.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from autom8_asana.dataframes.resolver.default import DefaultCustomFieldResolver
 
 

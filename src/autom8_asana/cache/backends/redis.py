@@ -7,8 +7,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from threading import Lock
-from types import ModuleType
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from autom8y_log import get_logger
 
@@ -16,7 +15,6 @@ from autom8_asana.cache.backends.base import CacheBackendBase
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.errors import is_connection_error
 from autom8_asana.cache.models.freshness import Freshness
-from autom8_asana.cache.models.settings import CacheSettings
 from autom8_asana.cache.models.versioning import (
     format_version,
     is_current,
@@ -24,6 +22,11 @@ from autom8_asana.cache.models.versioning import (
 )
 from autom8_asana.core.exceptions import REDIS_TRANSPORT_ERRORS, RedisTransportError
 from autom8_asana.protocols.cache import WarmResult
+
+if TYPE_CHECKING:
+    from types import ModuleType
+
+    from autom8_asana.cache.models.settings import CacheSettings
 
 logger = get_logger(__name__)
 
@@ -352,8 +355,8 @@ class RedisCacheProvider(CacheBackendBase):
                 return None
 
             if isinstance(data, str):
-                return cast(dict[str, Any], json.loads(data))
-            return cast(dict[str, Any], json.loads(data.decode("utf-8")))
+                return cast("dict[str, Any]", json.loads(data))
+            return cast("dict[str, Any]", json.loads(data.decode("utf-8")))
         finally:
             conn.close()
 

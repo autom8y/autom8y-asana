@@ -312,7 +312,7 @@ async def get_asana_client_from_context(
     if pool is not None:
         is_s2s = auth_context.mode == AuthMode.JWT
         return cast(
-            AsanaClient,
+            "AsanaClient",
             await pool.get_or_create(
                 auth_context.asana_pat,
                 is_s2s=is_s2s,

@@ -11,10 +11,8 @@ used by DataServiceClient internally.
 from __future__ import annotations
 
 import json
-from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
-import httpx
 from autom8y_log import get_logger
 
 from autom8_asana.clients.data.models import (
@@ -29,6 +27,10 @@ from autom8_asana.exceptions import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    import httpx
+
     from autom8_asana.protocols.log import LogProvider
 
 logger = get_logger(__name__)

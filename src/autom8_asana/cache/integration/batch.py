@@ -14,9 +14,11 @@ import os
 import socket
 import threading
 import time
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 # Default TTL for modification checks (per ADR-0018)
 DEFAULT_MODIFICATION_CHECK_TTL = 25.0

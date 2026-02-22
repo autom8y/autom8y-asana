@@ -10,14 +10,18 @@ Tests follow established patterns from test_tier2_clients.py.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 
 from autom8_asana.clients.stories import StoriesClient
 from autom8_asana.clients.tags import TagsClient
 from autom8_asana.clients.teams import TeamsClient
-from autom8_asana.config import AsanaConfig
 from autom8_asana.models import PageIterator, Story, Tag, Team, User
 from autom8_asana.models.team import TeamMembership
+
+if TYPE_CHECKING:
+    from autom8_asana.config import AsanaConfig
 
 # =============================================================================
 # TeamsClient Full Coverage Tests

@@ -29,15 +29,18 @@ from __future__ import annotations
 import asyncio
 import json
 import traceback
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.automation.workflows.base import WorkflowAction
 from autom8_asana.core.scope import EntityScope
 from autom8_asana.lambda_handlers.cloudwatch import emit_metric
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from autom8_asana.automation.workflows.base import WorkflowAction
 
 logger = get_logger(__name__)
 

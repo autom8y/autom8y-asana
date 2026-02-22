@@ -42,11 +42,11 @@ from autom8_asana.automation.workflows.base import (
 )
 from autom8_asana.automation.workflows.section_resolution import resolve_section_gids
 from autom8_asana.core.project_registry import all_pipeline_project_gids
-from autom8_asana.core.scope import EntityScope
 from autom8_asana.models.business.process import Process
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
+    from autom8_asana.core.scope import EntityScope
     from autom8_asana.lifecycle.config import LifecycleConfig
     from autom8_asana.lifecycle.engine import LifecycleEngine
 

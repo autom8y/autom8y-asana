@@ -12,13 +12,13 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.automation.base import AutomationRule
-from autom8_asana.automation.config import AutomationConfig
 from autom8_asana.automation.context import AutomationContext
 from autom8_asana.automation.events.types import EventType
 from autom8_asana.persistence.models import AutomationResult
 
 if TYPE_CHECKING:
+    from autom8_asana.automation.base import AutomationRule
+    from autom8_asana.automation.config import AutomationConfig
     from autom8_asana.client import AsanaClient
     from autom8_asana.models.base import AsanaResource
     from autom8_asana.persistence.models import SaveResult

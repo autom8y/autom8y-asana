@@ -14,18 +14,20 @@ from __future__ import annotations
 import asyncio
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from autom8_asana.batch.models import BatchResult
 from autom8_asana.models import Task
 from autom8_asana.persistence import SaveResult, SaveSession
 from autom8_asana.persistence.graph import DependencyGraph
 from autom8_asana.persistence.tracker import ChangeTracker
 
 from .conftest import create_mock_client, create_success_result
+
+if TYPE_CHECKING:
+    from autom8_asana.batch.models import BatchResult
 
 # ---------------------------------------------------------------------------
 # Session Isolation Tests

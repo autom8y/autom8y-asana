@@ -13,7 +13,7 @@ Covers:
 from __future__ import annotations
 
 import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
@@ -24,6 +24,9 @@ from autom8_asana.automation.polling.cli import (
     status_command,
     validate_command,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class TestValidateCommand:

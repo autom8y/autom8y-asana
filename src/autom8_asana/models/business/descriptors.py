@@ -35,7 +35,7 @@ Example (Custom Fields):
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, overload
+from typing import Any, ClassVar, Generic, TypeVar, overload
 
 import arrow
 from autom8y_log import get_logger
@@ -70,8 +70,6 @@ def _register_custom_field(
     _pending_fields[owner_id][descriptor._constant_name] = descriptor.field_name
 
 
-if TYPE_CHECKING:
-    pass  # Arrow imported at runtime for both execution and type hints
 
 # Re-export Arrow type for use in annotations
 Arrow = arrow.Arrow

@@ -38,14 +38,15 @@ from typing import TYPE_CHECKING, Annotated
 if TYPE_CHECKING:
     import polars as pl
 
+    from autom8_asana.api.dependencies import (
+        AsanaClientDualMode,
+        DataFrameServiceDep,
+        RequestId,
+    )
+
 from fastapi import APIRouter, Header, Query
 from fastapi.responses import JSONResponse, Response
 
-from autom8_asana.api.dependencies import (
-    AsanaClientDualMode,
-    DataFrameServiceDep,
-    RequestId,
-)
 from autom8_asana.api.errors import raise_service_error
 from autom8_asana.api.models import (
     PaginationMeta,

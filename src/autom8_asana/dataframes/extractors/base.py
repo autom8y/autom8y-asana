@@ -14,11 +14,11 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
 from autom8_asana.dataframes.exceptions import ExtractionError
-from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
-from autom8_asana.dataframes.models.task_row import TaskRow
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
+    from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
+    from autom8_asana.dataframes.models.task_row import TaskRow
     from autom8_asana.dataframes.resolver.cascading import CascadingFieldResolver
     from autom8_asana.dataframes.resolver.protocol import CustomFieldResolver
     from autom8_asana.models.task import Task

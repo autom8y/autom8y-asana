@@ -26,14 +26,17 @@ Additional edge cases:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from autom8_asana.lifecycle.config import LifecycleConfig
 from autom8_asana.lifecycle.engine import LifecycleEngine
 from autom8_asana.lifecycle.seeding import SeedingResult
 from autom8_asana.models.business.process import Process, ProcessType
+
+if TYPE_CHECKING:
+    from autom8_asana.lifecycle.config import LifecycleConfig
 
 # ---------------------------------------------------------------------------
 # Helpers

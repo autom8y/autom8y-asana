@@ -7,7 +7,7 @@ response parsing, and partial failure handling.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -18,6 +18,9 @@ from autom8_asana.cache.policies.lightweight_checker import (
     LightweightChecker,
     _chunk,
 )
+
+if TYPE_CHECKING:
+    from unittest.mock import MagicMock
 
 
 @pytest.fixture

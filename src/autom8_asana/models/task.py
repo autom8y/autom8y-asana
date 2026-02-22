@@ -15,10 +15,10 @@ from autom8y_log import get_logger
 from pydantic import Field, PrivateAttr, model_validator
 
 from autom8_asana.models.base import AsanaResource
-from autom8_asana.models.common import NameGid
 from autom8_asana.models.custom_field_accessor import CustomFieldAccessor
 
 if TYPE_CHECKING:
+    from autom8_asana.models.common import NameGid
     pass
 
 logger = get_logger(__name__)

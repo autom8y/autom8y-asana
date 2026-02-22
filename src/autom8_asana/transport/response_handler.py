@@ -10,14 +10,15 @@ extracts the actual data and converts error responses to appropriate exceptions.
 from __future__ import annotations
 
 import json
-from typing import Any
-
-import httpx
+from typing import TYPE_CHECKING, Any
 
 from autom8_asana.exceptions import (
     AsanaError,
     RateLimitError,
 )
+
+if TYPE_CHECKING:
+    import httpx
 
 __all__ = ["AsanaResponseHandler"]
 

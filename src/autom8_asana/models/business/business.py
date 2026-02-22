@@ -29,7 +29,6 @@ from autom8_asana.models.business.mixins import (
     FinancialFieldsMixin,
     SharedCascadingFieldsMixin,
 )
-from autom8_asana.models.task import Task
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
@@ -39,6 +38,7 @@ if TYPE_CHECKING:
     from autom8_asana.models.business.hours import Hours
     from autom8_asana.models.business.location import Location, LocationHolder
     from autom8_asana.models.business.unit import Unit, UnitHolder
+    from autom8_asana.models.task import Task
 
 
 # --- Stub Holder Classes (TDD-PATTERNS-C: Migrated to HolderFactory) ---

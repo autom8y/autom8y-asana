@@ -6,6 +6,8 @@ Follows TasksClient test patterns with mocked HTTP dependencies.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 
 from autom8_asana.clients.custom_fields import CustomFieldsClient
@@ -13,7 +15,6 @@ from autom8_asana.clients.projects import ProjectsClient
 from autom8_asana.clients.sections import SectionsClient
 from autom8_asana.clients.users import UsersClient
 from autom8_asana.clients.workspaces import WorkspacesClient
-from autom8_asana.config import AsanaConfig
 from autom8_asana.exceptions import SyncInAsyncContextError
 from autom8_asana.models import (
     CustomField,
@@ -25,6 +26,9 @@ from autom8_asana.models import (
     User,
     Workspace,
 )
+
+if TYPE_CHECKING:
+    from autom8_asana.config import AsanaConfig
 
 # =============================================================================
 # WorkspacesClient Tests

@@ -5,11 +5,15 @@ Per FR-PREREQ-003: Tests for the dependents_async() method following subtasks_as
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 
 from autom8_asana.clients.tasks import TasksClient
-from autom8_asana.config import AsanaConfig
 from autom8_asana.models import PageIterator, Task
+
+if TYPE_CHECKING:
+    from autom8_asana.config import AsanaConfig
 
 
 @pytest.fixture

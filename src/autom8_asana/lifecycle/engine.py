@@ -23,7 +23,6 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from autom8y_log import get_logger
 
 from autom8_asana.core.timing import elapsed_ms
-from autom8_asana.lifecycle.config import LifecycleConfig, StageConfig
 from autom8_asana.persistence.models import AutomationResult
 from autom8_asana.resolution.context import ResolutionContext
 
@@ -32,6 +31,8 @@ if TYPE_CHECKING:
     from autom8_asana.lifecycle.config import (
         CascadingSectionConfig,
         InitActionConfig,
+        LifecycleConfig,
+        StageConfig,
     )
     from autom8_asana.models.business.process import Process
 

@@ -232,7 +232,7 @@ class PipelineConversionRule:
 
             # Cast to Process for type checker - we've verified the type above
             # This also works with MockProcess in tests since we check class name
-            source_process = cast(Process, entity)
+            source_process = cast("Process", entity)
 
             # Pre-transition validation (ADR-0018)
             pre_validation: ValidationResult | None = None

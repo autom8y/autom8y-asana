@@ -9,9 +9,10 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from autom8_asana.automation.events.types import EventType
+if TYPE_CHECKING:
+    from autom8_asana.automation.events.types import EventType
 
 
 @dataclass(frozen=True)
