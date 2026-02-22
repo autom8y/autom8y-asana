@@ -911,6 +911,30 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                     period=period,
                     window_days=window_days,
                 )
+                # Defensive: API may return all businesses for the vertical.
+                # Filter to only rows matching the queried phone when
+                # multiple phones are present in the response.
+                if hasattr(response, "data") and response.data:
+                    phones_in_data = {
+                        r.get("office_phone")
+                        for r in response.data
+                        if r.get("office_phone") is not None
+                    }
+                    if len(phones_in_data) > 1:
+                        pre_filter = len(response.data)
+                        response.data = [
+                            r
+                            for r in response.data
+                            if r.get("office_phone") == office_phone
+                        ]
+                        logger.info(
+                            "insights_export_recon_filtered",
+                            offer_gid=offer_gid,
+                            table_name=table_name,
+                            pre_filter=pre_filter,
+                            post_filter=len(response.data),
+                            unique_phones=len(phones_in_data),
+                        )
             else:
                 # Standard POST /insights call with factory parameter
                 response = await self._data_client.get_insights_async(

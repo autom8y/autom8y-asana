@@ -81,13 +81,9 @@ from __future__ import annotations
 import os
 from typing import Any, Literal
 
-from autom8y_config import Autom8yBaseSettings
-from pydantic import Field, SecretStr, field_validator, model_validator
+from autom8y_config import Autom8yBaseSettings, Autom8yEnvironment
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import SettingsConfigDict
-
-# Environments where production URL defaults are a configuration error.
-_DEV_ENVIRONMENTS = frozenset({"development", "local", "test"})
-_PRODUCTION_DOMAIN = "autom8y.io"
 
 
 class AsanaSettings(Autom8yBaseSettings):
@@ -792,6 +788,13 @@ class Settings(Autom8yBaseSettings):
         case_sensitive=False,
     )
 
+    # SDK-standard environment field. AliasChoices: AUTOM8Y_ENV takes
+    # precedence; ASANA_ENVIRONMENT for backward compat.
+    autom8y_env: Autom8yEnvironment = Field(
+        default=Autom8yEnvironment.LOCAL,
+        validation_alias=AliasChoices("AUTOM8Y_ENV", "ASANA_ENVIRONMENT"),
+    )
+
     # Subsettings - initialized lazily to allow environment override
     asana: AsanaSettings = Field(default_factory=AsanaSettings)
     cache: CacheSettings = Field(default_factory=CacheSettings)
@@ -811,8 +814,11 @@ class Settings(Autom8yBaseSettings):
 
     @property
     def is_production(self) -> bool:
-        """Check if running in production environment."""
-        return self.env.environment in ("production", "staging")
+        """Check if running in production or staging environment."""
+        return self.autom8y_env in (
+            Autom8yEnvironment.PRODUCTION,
+            Autom8yEnvironment.STAGING,
+        )
 
     @property
     def redis_available(self) -> bool:
@@ -820,40 +826,48 @@ class Settings(Autom8yBaseSettings):
         return self.redis.host is not None and self.redis.host != ""
 
     def model_post_init(self, __context: Any) -> None:
-        """Reject production URLs when running in a development environment.
+        """Run SDK production URL guard and check nested URL fields.
 
-        HAZ-1 remediation: fail-fast guard that prevents accidental use of
-        production service URLs in local/dev/test environments. Fires at
-        startup and produces a clear, actionable error message.
+        Calls super() for the SDK's _guard_production_urls() which checks
+        all top-level fields with "url" in the name.  Then performs additional
+        checks on nested URL fields and os.environ-sourced URLs (AUTH_JWKS_URL)
+        that the SDK guard cannot reach.
 
-        Checks:
-        - data_service.url (AUTOM8_DATA_URL) for production domain
-        - AUTH_JWKS_URL env var for production domain (read from os.environ
-          because it is not part of the Settings model -- it is consumed
-          directly by the autom8y-auth SDK and health routes)
+        Uses the explicit-only pattern: only fires when AUTOM8Y_ENV or
+        ASANA_ENVIRONMENT is explicitly set in os.environ.
 
         See TDD-LOCAL-DEV-ENV.md Section 6.3, Section 10 (HAZ-1).
         """
-        env = self.env.environment
-        if env not in _DEV_ENVIRONMENTS:
+        super().model_post_init(__context)
+
+        # Nested URL guard: check fields the SDK guard cannot reach
+        if not self._env_var_explicitly_set():
+            return
+        if self.autom8y_env not in (
+            Autom8yEnvironment.LOCAL, Autom8yEnvironment.TEST,
+        ):
             return
 
-        # Check data_service.url
+        _prod_domain = "autom8y.io"
+        env = self.autom8y_env.value
+
+        # Check data_service.url (nested field)
         data_url = self.data_service.url
-        if data_url and _PRODUCTION_DOMAIN in str(data_url):
+        if data_url and _prod_domain in str(data_url):
             raise ValueError(
                 f"FATAL: Production URL detected in {env} environment: "
                 f"AUTOM8_DATA_URL={data_url}. "
-                f"Override in docker-compose.override.yml or .env/local."
+                f"Override in docker-compose.override.yml or .env."
             )
 
-        # Check AUTH_JWKS_URL from environment (not in Settings model)
+        # Check AUTH_JWKS_URL from environment (not in Settings model --
+        # consumed directly by autom8y-auth SDK and health routes)
         jwks_url = os.environ.get("AUTH_JWKS_URL", "")
-        if jwks_url and _PRODUCTION_DOMAIN in jwks_url:
+        if jwks_url and _prod_domain in jwks_url:
             raise ValueError(
                 f"FATAL: Production URL detected in {env} environment: "
                 f"AUTH_JWKS_URL={jwks_url}. "
-                f"Override in docker-compose.override.yml or .env/local."
+                f"Override in docker-compose.override.yml or .env."
             )
 
 
