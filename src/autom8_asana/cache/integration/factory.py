@@ -29,12 +29,12 @@ class CacheProviderFactory:
         1. Explicit cache_provider parameter (handled in AsanaClient)
         2. CacheConfig.enabled=False -> NullCacheProvider
         3. CacheConfig.provider setting (if not None)
-        4. Environment-based auto-detection (ASANA_ENVIRONMENT)
+        4. Environment-based auto-detection (AUTOM8Y_ENV)
         5. InMemoryCacheProvider fallback
 
     Environment Detection (per FR-DEFAULT-005, FR-DEFAULT-006):
-        - ASANA_ENVIRONMENT=production/staging: Prefer Redis if REDIS_HOST configured
-        - ASANA_ENVIRONMENT=development/test or not set: Use InMemory
+        - AUTOM8Y_ENV=production/staging: Prefer Redis if REDIS_HOST configured
+        - AUTOM8Y_ENV=local/test or not set: Use InMemory
 
     Example:
         >>> from autom8_asana.config import CacheConfig
