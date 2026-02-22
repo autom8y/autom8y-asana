@@ -9,7 +9,6 @@ Environment Variables:
     ASANA_WORKSPACE_GID: Default workspace GID
     ASANA_BASE_URL: API base URL (default: https://app.asana.com/api/1.0)
     ASANA_STRICT_CONFIG: Enable strict validation mode
-    ASANA_ENVIRONMENT: Environment hint (development, production, staging)
     ASANA_CACHE_ENABLED: Master cache enable/disable
     ASANA_CACHE_PROVIDER: Explicit cache provider selection
     ASANA_CACHE_TTL_DEFAULT: Default cache TTL in seconds
@@ -79,7 +78,7 @@ Example:
 from __future__ import annotations
 
 import os
-from typing import Any, Literal
+from typing import Any
 
 from autom8y_config import Autom8yBaseSettings, Autom8yEnvironment
 from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
@@ -332,41 +331,6 @@ class RedisSettings(Autom8yBaseSettings):
         if isinstance(v, str):
             return v.lower() in ("true", "1", "yes")
         return bool(v)
-
-
-class EnvironmentSettings(Autom8yBaseSettings):
-    """Environment detection settings.
-
-    Environment Variables:
-        ASANA_ENVIRONMENT: Environment name (development, production, staging, test)
-
-    Attributes:
-        environment: Current deployment environment
-    """
-
-    model_config = SettingsConfigDict(
-        env_prefix="ASANA_",
-        extra="ignore",
-        case_sensitive=False,
-    )
-
-    environment: Literal["development", "production", "staging", "test"] = Field(
-        default="development", description="Deployment environment"
-    )
-
-    @field_validator("environment", mode="before")
-    @classmethod
-    def normalize_environment(
-        cls, v: str | None
-    ) -> Literal["development", "production", "staging", "test"]:
-        """Normalize environment name to lowercase and validate."""
-        if v is None or v == "":
-            return "development"
-        normalized = v.lower()
-        if normalized not in ("development", "production", "staging", "test"):
-            # Fall back to development for unknown values
-            return "development"
-        return normalized  # type: ignore[return-value]
 
 
 class S3Settings(Autom8yBaseSettings):
@@ -772,7 +736,6 @@ class Settings(Autom8yBaseSettings):
         cache: Cache configuration
         redis: Redis connection settings
         s3: S3 cache backend settings
-        env: Environment detection settings
         pacing: Pacing configuration for large section fetches
         s3_retry: S3 retry and circuit breaker configuration
         webhook: Webhook configuration
@@ -808,7 +771,6 @@ class Settings(Autom8yBaseSettings):
     cache: CacheSettings = Field(default_factory=CacheSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
     s3: S3Settings = Field(default_factory=S3Settings)
-    env: EnvironmentSettings = Field(default_factory=EnvironmentSettings)
     pacing: PacingSettings = Field(default_factory=PacingSettings)
     s3_retry: S3RetrySettings = Field(default_factory=S3RetrySettings)
     webhook: WebhookSettings = Field(default_factory=WebhookSettings)

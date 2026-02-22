@@ -158,45 +158,6 @@ class TestRedisSettings:
                 assert settings.ssl is False, f"Failed for value: {value}"
 
 
-class TestEnvironmentSettings:
-    """Tests for EnvironmentSettings configuration."""
-
-    def test_default_environment(self) -> None:
-        """Test default environment is development."""
-        from autom8_asana.settings import EnvironmentSettings
-
-        with patch.dict(os.environ, {}, clear=True):
-            settings = EnvironmentSettings()
-
-        assert settings.environment == "development"
-
-    def test_valid_environments(self) -> None:
-        """Test valid environment values are accepted."""
-        from autom8_asana.settings import EnvironmentSettings
-
-        for env_value in ["development", "production", "staging", "test"]:
-            with patch.dict(os.environ, {"ASANA_ENVIRONMENT": env_value}, clear=True):
-                settings = EnvironmentSettings()
-                assert settings.environment == env_value
-
-    def test_environment_normalization(self) -> None:
-        """Test environment names are normalized to lowercase."""
-        from autom8_asana.settings import EnvironmentSettings
-
-        for env_value in ["PRODUCTION", "Production", "STAGING", "Test"]:
-            with patch.dict(os.environ, {"ASANA_ENVIRONMENT": env_value}, clear=True):
-                settings = EnvironmentSettings()
-                assert settings.environment == env_value.lower()
-
-    def test_unknown_environment_defaults_to_development(self) -> None:
-        """Test unknown environment values fall back to development."""
-        from autom8_asana.settings import EnvironmentSettings
-
-        with patch.dict(os.environ, {"ASANA_ENVIRONMENT": "unknown"}, clear=True):
-            settings = EnvironmentSettings()
-            assert settings.environment == "development"
-
-
 class TestSettings:
     """Tests for combined Settings container."""
 
@@ -210,7 +171,6 @@ class TestSettings:
         assert hasattr(settings, "asana")
         assert hasattr(settings, "cache")
         assert hasattr(settings, "redis")
-        assert hasattr(settings, "env")
 
     def test_is_production_property(self) -> None:
         """Test is_production returns True for production/staging."""
