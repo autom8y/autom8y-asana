@@ -56,15 +56,21 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # =============================================================================
 FROM python:3.12-slim AS runtime
 
+# Create non-root user (UID/GID 1000 for EFS compatibility)
+RUN groupadd --gid 1000 appuser && \
+    useradd --uid 1000 --gid appuser --shell /bin/bash --create-home appuser
+
 WORKDIR /app
 
 # Copy virtual environment and source from builder
-COPY --link --from=builder /app/.venv /app/.venv
-COPY --link --from=builder /app/src /app/src
+COPY --link --from=builder --chown=appuser:appuser /app/.venv /app/.venv
+COPY --link --from=builder --chown=appuser:appuser /app/src /app/src
 
 # Copy entrypoint script
 COPY --link scripts/entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+
+# Set ownership and permissions
+RUN chown -R appuser:appuser /app && chmod +x /app/entrypoint.sh
 
 # Set PATH to use venv (replaces PYTHONPATH approach)
 ENV PATH="/app/.venv/bin:${PATH}" \
@@ -78,6 +84,9 @@ EXPOSE 8000
 # Per FR-API-HEALTH-001: GET /health returns 200 when healthy
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+
+# Switch to non-root user
+USER appuser
 
 # Dual-mode entrypoint: auto-detects ECS vs Lambda via AWS_LAMBDA_RUNTIME_API
 # - ECS: Starts uvicorn server
