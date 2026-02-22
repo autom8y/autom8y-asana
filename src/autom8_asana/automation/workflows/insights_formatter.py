@@ -174,10 +174,16 @@ _DEFAULT_EXPANDED_SECTIONS: frozenset[str] = frozenset(
     }
 )
 
+# PII columns requiring phone masking in table cells.
+_PII_PHONE_COLUMNS: frozenset[str] = frozenset(
+    {"office_phone", "phone", "patient_phone", "contact_phone"}
+)
+
 # Conditional formatting thresholds for rate columns.
+# booking_rate is ratio 0-1; conv_rate is percentage 0-100.
 _CONDITIONAL_FORMAT_THRESHOLDS: dict[str, tuple[float, float]] = {
     "booking_rate": (0.40, 0.20),
-    "conv_rate": (0.40, 0.20),
+    "conv_rate": (40.0, 20.0),
 }
 
 
@@ -647,9 +653,9 @@ class HtmlRenderer:
             else ""
         )
 
-        # Embedded JSON for Copy TSV
+        # Embedded JSON for Copy TSV (with PII masking)
         json_rows = section.full_rows if section.full_rows is not None else section.rows
-        json_data = json.dumps(json_rows, default=str)
+        json_data = json.dumps(_mask_pii_rows(json_rows), default=str)
 
         parts = [
             f'<section id="{sid}" class="table-section">',
@@ -957,21 +963,23 @@ _FIELD_FORMAT: dict[str, str] = {
     "expected_spend": "currency",
     "projected_spend": "currency",
     "budget_variance": "currency",
-    # RATE — stored as decimal, display as ×100 percent (0.0342 → 3.42%)
-    "ctr": "rate",
-    "lctr": "rate",
-    "conversion_rate": "rate",
+    # RATE — stored as decimal ratio 0-1, display as ×100 percent (0.0342 → 3.42%)
+    # Aligned with upstream _PRECISION_RULES RATE category (2026-02-22).
     "booking_rate": "rate",
-    "ns_rate": "rate",
-    "nc_rate": "rate",
-    "conv_rate": "rate",
-    "nsr_ncr": "rate",
     "sched_rate": "rate",
-    "pacing_ratio": "rate",
-    # PERCENTAGE — already in percent units (42.5 → 42.50%)
+    # PERCENTAGE — already in percent units (18.36 → 18.36%), do NOT multiply
+    # Upstream PercentageFormula outputs 0-100 directly for these fields.
+    "ctr": "percentage",
+    "lctr": "percentage",
+    "conversion_rate": "percentage",
+    "ns_rate": "percentage",
+    "nc_rate": "percentage",
+    "conv_rate": "percentage",
+    "nsr_ncr": "percentage",
     "variance_pct": "percentage",
-    # RATIO — multiplier notation (3.5 → 3.50x)
+    # RATIO — multiplier notation (3.5 → 3.50x), unbounded
     "roas": "ratio",
+    "pacing_ratio": "ratio",
     # PER_20K — comma-grouped decimal, no symbol
     "lp20m": "per20k",
     "sp20m": "per20k",
@@ -1005,6 +1013,10 @@ def _format_cell_html(value: Any, column: str = "") -> str:
     if value is None:
         return '<span class="dash">\u2014</span>'
 
+    # PII: mask phone columns before any other formatting
+    if column in _PII_PHONE_COLUMNS and isinstance(value, str):
+        return html.escape(mask_phone_number(value))
+
     fmt = _FIELD_FORMAT.get(column, "")
 
     if isinstance(value, (int, float)):
@@ -1024,6 +1036,25 @@ def _format_cell_html(value: Any, column: str = "") -> str:
         return html.escape(f"{value:,.2f}")
 
     return html.escape(str(value))
+
+
+def _mask_pii_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return a shallow copy of *rows* with PII phone columns masked."""
+    if not rows:
+        return rows
+    # Fast path: check if any PII columns are present in the first row
+    pii_cols = _PII_PHONE_COLUMNS & rows[0].keys()
+    if not pii_cols:
+        return rows
+    masked: list[dict[str, Any]] = []
+    for row in rows:
+        r = dict(row)
+        for col in pii_cols:
+            val = r.get(col)
+            if isinstance(val, str):
+                r[col] = mask_phone_number(val)
+        masked.append(r)
+    return masked
 
 
 def _discover_columns(rows: list[dict[str, Any]]) -> list[str]:

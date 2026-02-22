@@ -47,7 +47,6 @@ htmlcov/
 .envrc
 .profiling/
 
-# Environment files
-.env
-.env.*
-!.env.example
+# Environment files (secrets)
+.env/*
+!.env/*.example
