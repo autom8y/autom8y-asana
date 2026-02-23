@@ -144,10 +144,64 @@ def _bootstrap_session():
     Populates ProjectTypeRegistry before any tests run. Individual tests
     that call SystemContext.reset_all() will get re-populated via
     _ensure_bootstrapped() on first registry access.
+
+    Also resolves NameGid forward references on all Pydantic models.
+    Model files use ``from __future__ import annotations`` with NameGid
+    imported only under TYPE_CHECKING, so Pydantic cannot resolve the
+    forward-reference string without an explicit model_rebuild() call.
+    Rebuilding Task first propagates to all BusinessEntity subclasses.
     """
     from autom8_asana.models.business._bootstrap import bootstrap
 
     bootstrap()
+
+    # ------------------------------------------------------------------
+    # Resolve NameGid forward references for all resource models.
+    # Must happen after bootstrap() so all model modules are loaded.
+    # ------------------------------------------------------------------
+    from autom8_asana.models.attachment import Attachment
+    from autom8_asana.models.common import NameGid
+    from autom8_asana.models.custom_field import (
+        CustomField,
+        CustomFieldSetting,
+    )
+    from autom8_asana.models.goal import Goal, GoalMembership, GoalMetric
+    from autom8_asana.models.portfolio import Portfolio
+    from autom8_asana.models.project import Project
+    from autom8_asana.models.section import Section
+    from autom8_asana.models.story import Story
+    from autom8_asana.models.tag import Tag
+    from autom8_asana.models.task import Task
+    from autom8_asana.models.team import Team, TeamMembership
+    from autom8_asana.models.user import User
+    from autom8_asana.models.webhook import Webhook, WebhookFilter
+    from autom8_asana.models.workspace import Workspace
+
+    _ns: dict[str, type] = {"NameGid": NameGid}
+
+    # Task first -- BusinessEntity and all business models inherit from it
+    Task.model_rebuild(_types_namespace=_ns)
+
+    for model_cls in (
+        Attachment,
+        CustomField,
+        CustomFieldSetting,
+        Goal,
+        GoalMembership,
+        GoalMetric,
+        Portfolio,
+        Project,
+        Section,
+        Story,
+        Tag,
+        Team,
+        TeamMembership,
+        User,
+        Webhook,
+        WebhookFilter,
+        Workspace,
+    ):
+        model_cls.model_rebuild(_types_namespace=_ns)
 
 
 @pytest.fixture(autouse=True)
