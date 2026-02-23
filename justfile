@@ -10,6 +10,7 @@ default:
 # === Repository Path Bootstrap ===
 
 # Register this repository's path in ~/.config/autom8y/paths.env
+[group('setup')]
 bootstrap-paths:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -36,6 +37,7 @@ bootstrap-paths:
     echo "Paths configuration: $PATHS_FILE"
 
 # Check all configured repository paths (diagnostic command)
+[group('setup')]
 check-paths:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -64,63 +66,77 @@ check-paths:
 # === Code Quality ===
 
 # Sync dependencies
+[group('dev')]
 sync:
     uv sync
 
 # Format code
+[group('quality')]
 fmt:
     uv run ruff format .
 
 # Format check (CI)
+[group('quality')]
 fmt-check:
     uv run ruff format . --check
 
 # Lint and auto-fix
+[group('quality')]
 lint:
     uv run ruff check . --fix
 
 # Type check
+[group('quality')]
 typecheck:
     uv run mypy src/ --strict
 
 # === Testing ===
 
 # Run tests
+[group('test')]
 test *args:
     uv run pytest {{args}}
 
 # Run tests with coverage report
+[group('test')]
 test-cov:
     uv run pytest --cov=autom8_asana --cov-report=html --cov-report=term
 
 # Run fast tests only (no slow, integration, or benchmarks)
+[group('test')]
 test-fast *args:
     uv run pytest tests/ -m "not slow and not integration and not benchmark" {{args}}
 
 # Run slow tests only
+[group('test')]
 test-slow *args:
     uv run pytest tests/ -m "slow" {{args}}
 
 # Run integration tests (requires ASANA_PAT)
+[group('test')]
 test-integration *args:
     uv run pytest tests/ -m "integration" {{args}}
 
 # Run benchmarks
+[group('test')]
 test-bench *args:
     uv run pytest tests/ -m "benchmark" {{args}}
 
 # === Combined Checks ===
 
 # Full CI-equivalent check
+[group('quality')]
 check: fmt lint typecheck test
 
 # === Development Server ===
 
 # Start API development server with hot reload
+[group('dev')]
 serve-api port="8000":
     uv run uvicorn autom8_asana.api.main:create_app --factory --reload --port {{port}}
 
 # Check API health endpoint
+[group('dev')]
 health port="8000":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -139,16 +155,19 @@ health port="8000":
     fi
 
 # Warm DataFrame cache by building and persisting to S3
+[group('dev')]
 warm-cache:
     uv run python scripts/warm_cache.py
 
 # === Docker ===
 
 # Build Docker image
+[group('docker')]
 docker-build tag="latest":
     docker build -t autom8y-asana:{{tag}} .
 
 # Run Docker container
+[group('docker')]
 docker-run port="8000" tag="latest":
     docker run --rm -p {{port}}:8000 \
         -e ASANA_PAT="${ASANA_PAT:-}" \
@@ -156,11 +175,14 @@ docker-run port="8000" tag="latest":
         autom8y-asana:{{tag}}
 
 # Build and run Docker container
+[group('docker')]
 docker-serve port="8000" tag="latest": (docker-build tag) (docker-run port tag)
 
 # === Cleanup ===
 
 # Clean build artifacts
+[group('cleanup')]
+[confirm("This will delete build artifacts. Continue?")]
 clean:
     rm -rf .coverage htmlcov/ .pytest_cache/ .mypy_cache/ .ruff_cache/
     find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
@@ -172,6 +194,7 @@ clean:
 # Environment auto-loaded from: ~/.config/autom8y/envs/autom8y-asana/runbook.env
 
 # Setup runbook environment (creates ~/.config/autom8y/envs/autom8y-asana/runbook.env)
+[group('setup')]
 setup-env:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -204,6 +227,7 @@ setup-env:
     echo "Next: Add your ASANA_PAT (Personal Access Token from Asana)"
 
 # Check required environment variables for runbooks
+[group('setup')]
 check-env:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -236,5 +260,6 @@ check-env:
 # === Workflow Invocation ===
 
 # Invoke a workflow (direct mode)
+[group('runbook')]
 invoke workflow_id *args:
     uv run python scripts/invoke_workflow.py {{workflow_id}} {{args}}
