@@ -7,6 +7,7 @@ names, types, and nullability.
 from __future__ import annotations
 
 import polars as pl
+import pytest
 
 from autom8_asana.dataframes.schemas.base import BASE_COLUMNS, BASE_SCHEMA
 
@@ -55,101 +56,36 @@ class TestBaseSchemaColumns:
         ]
         assert BASE_SCHEMA.column_names() == expected_names
 
-    def test_gid_column(self) -> None:
-        """Verify gid column definition."""
-        col = BASE_SCHEMA.get_column("gid")
+    @pytest.mark.parametrize(
+        "column_name,expected_dtype,expected_nullable,expected_source",
+        [
+            pytest.param("gid", "Utf8", False, "gid", id="gid"),
+            pytest.param("name", "Utf8", False, "name", id="name"),
+            pytest.param("type", "Utf8", False, None, id="type"),
+            pytest.param("date", "Date", True, None, id="date"),
+            pytest.param("created", "Datetime", False, "created_at", id="created"),
+            pytest.param("due_on", "Date", True, "due_on", id="due_on"),
+            pytest.param("is_completed", "Boolean", False, "completed", id="is_completed"),
+            pytest.param("completed_at", "Datetime", True, "completed_at", id="completed_at"),
+            pytest.param("url", "Utf8", False, None, id="url"),
+            pytest.param("last_modified", "Datetime", False, "modified_at", id="last_modified"),
+            pytest.param("section", "Utf8", True, None, id="section"),
+            pytest.param("tags", "List[Utf8]", False, "tags", id="tags"),
+        ],
+    )
+    def test_column_definition(
+        self,
+        column_name: str,
+        expected_dtype: str,
+        expected_nullable: bool,
+        expected_source: str | None,
+    ) -> None:
+        """Verify column exists with correct dtype, nullability, and source."""
+        col = BASE_SCHEMA.get_column(column_name)
         assert col is not None
-        assert col.dtype == "Utf8"
-        assert col.nullable is False
-        assert col.source == "gid"
-
-    def test_name_column(self) -> None:
-        """Verify name column definition."""
-        col = BASE_SCHEMA.get_column("name")
-        assert col is not None
-        assert col.dtype == "Utf8"
-        assert col.nullable is False
-        assert col.source == "name"
-
-    def test_type_column(self) -> None:
-        """Verify type column definition."""
-        col = BASE_SCHEMA.get_column("type")
-        assert col is not None
-        assert col.dtype == "Utf8"
-        assert col.nullable is False
-        assert col.source is None  # Derived via _extract_type() with fallback logic
-
-    def test_date_column(self) -> None:
-        """Verify date column definition."""
-        col = BASE_SCHEMA.get_column("date")
-        assert col is not None
-        assert col.dtype == "Date"
-        assert col.nullable is True
-        assert col.source is None  # Custom extraction
-
-    def test_created_column(self) -> None:
-        """Verify created column definition."""
-        col = BASE_SCHEMA.get_column("created")
-        assert col is not None
-        assert col.dtype == "Datetime"
-        assert col.nullable is False
-        assert col.source == "created_at"
-
-    def test_due_on_column(self) -> None:
-        """Verify due_on column definition."""
-        col = BASE_SCHEMA.get_column("due_on")
-        assert col is not None
-        assert col.dtype == "Date"
-        assert col.nullable is True
-        assert col.source == "due_on"
-
-    def test_is_completed_column(self) -> None:
-        """Verify is_completed column definition."""
-        col = BASE_SCHEMA.get_column("is_completed")
-        assert col is not None
-        assert col.dtype == "Boolean"
-        assert col.nullable is False
-        assert col.source == "completed"
-
-    def test_completed_at_column(self) -> None:
-        """Verify completed_at column definition."""
-        col = BASE_SCHEMA.get_column("completed_at")
-        assert col is not None
-        assert col.dtype == "Datetime"
-        assert col.nullable is True
-        assert col.source == "completed_at"
-
-    def test_url_column(self) -> None:
-        """Verify url column definition."""
-        col = BASE_SCHEMA.get_column("url")
-        assert col is not None
-        assert col.dtype == "Utf8"
-        assert col.nullable is False
-        assert col.source is None  # Constructed from GID
-
-    def test_last_modified_column(self) -> None:
-        """Verify last_modified column definition."""
-        col = BASE_SCHEMA.get_column("last_modified")
-        assert col is not None
-        assert col.dtype == "Datetime"
-        assert col.nullable is False
-        assert col.source == "modified_at"
-
-    def test_section_column(self) -> None:
-        """Verify section column definition."""
-        col = BASE_SCHEMA.get_column("section")
-        assert col is not None
-        assert col.dtype == "Utf8"
-        assert col.nullable is True
-        assert col.source is None  # Extracted from memberships
-
-    def test_tags_column(self) -> None:
-        """Verify tags column definition."""
-        col = BASE_SCHEMA.get_column("tags")
-        assert col is not None
-        assert col.dtype == "List[Utf8]"
-        assert col.nullable is False
-        assert col.source == "tags"
+        assert col.dtype == expected_dtype
+        assert col.nullable is expected_nullable
+        assert col.source == expected_source
 
 
 class TestBaseSchemaPolarsConversion:
