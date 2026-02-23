@@ -387,6 +387,28 @@ class TestFetchTaskModifications:
         assert result["123"] == "v2"
         mock_api.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_api_returns_partial_results(self) -> None:
+        """Test handling when API returns fewer GIDs than requested."""
+
+        async def mock_api(gids: list[str]) -> dict[str, str]:
+            return {gid: "2025-01-01T00:00:00Z" for gid in gids[: len(gids) // 2]}
+
+        result = await fetch_task_modifications(["1", "2", "3", "4"], mock_api)
+        assert len(result) == 2
+
+    @pytest.mark.asyncio
+    async def test_api_returns_extra_gids(self) -> None:
+        """Test handling when API returns more GIDs than requested."""
+
+        async def mock_api(gids: list[str]) -> dict[str, str]:
+            out = {gid: "2025-01-01T00:00:00Z" for gid in gids}
+            out["extra_gid"] = "2025-01-01T00:00:00Z"
+            return out
+
+        result = await fetch_task_modifications(["1", "2"], mock_api)
+        assert "extra_gid" in result
+
 
 class TestTtlCachedModificationsDecorator:
     """Tests for ttl_cached_modifications decorator."""

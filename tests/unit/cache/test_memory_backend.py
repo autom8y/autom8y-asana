@@ -486,3 +486,125 @@ class TestEnhancedInMemoryCacheProvider:
 
         assert isinstance(result, WarmResult)
         assert result.skipped == 3
+
+    def test_get_nonexistent_key_returns_none(self) -> None:
+        """Test get with key that doesn't exist returns None."""
+        cache = EnhancedInMemoryCacheProvider()
+        result = cache.get("nonexistent_key_that_surely_does_not_exist")
+        assert result is None
+
+    def test_get_versioned_wrong_type_returns_none(self) -> None:
+        """Test get_versioned with wrong entry type returns None."""
+        cache = EnhancedInMemoryCacheProvider()
+        now = datetime.now(UTC)
+        entry = CacheEntry(
+            key="123",
+            data={"type": "task"},
+            entry_type=EntryType.TASK,
+            version=now,
+        )
+        cache.set_versioned("123", entry)
+        result = cache.get_versioned("123", EntryType.SUBTASKS)
+        assert result is None
+
+    def test_delete_nonexistent_key_does_not_raise(self) -> None:
+        """Test delete with nonexistent key doesn't raise."""
+        cache = EnhancedInMemoryCacheProvider()
+        cache.delete("nonexistent")  # Should not raise
+
+    def test_invalidate_nonexistent_key_does_not_raise(self) -> None:
+        """Test invalidate with nonexistent key doesn't raise."""
+        cache = EnhancedInMemoryCacheProvider()
+        cache.invalidate("nonexistent")  # Should not raise
+
+    def test_clear_empty_cache_does_not_raise(self) -> None:
+        """Test clear on empty cache doesn't raise."""
+        cache = EnhancedInMemoryCacheProvider()
+        cache.clear()  # Should not raise
+        assert cache.size() == 0
+
+    def test_get_batch_empty_list(self) -> None:
+        """Test get_batch with empty list returns empty dict."""
+        cache = EnhancedInMemoryCacheProvider()
+        result = cache.get_batch([], EntryType.TASK)
+        assert result == {}
+
+    def test_set_batch_empty_dict_does_not_raise(self) -> None:
+        """Test set_batch with empty dict doesn't raise."""
+        cache = EnhancedInMemoryCacheProvider()
+        cache.set_batch({})  # Should not raise
+
+    def test_special_characters_in_key(self) -> None:
+        """Test handling of special characters in cache keys."""
+        cache = EnhancedInMemoryCacheProvider()
+        now = datetime.now(UTC)
+        special_keys = [
+            "key with spaces",
+            "key:with:colons",
+            "key/with/slashes",
+            "key\\with\\backslashes",
+        ]
+        for key in special_keys:
+            entry = CacheEntry(
+                key=key,
+                data={"key": key},
+                entry_type=EntryType.TASK,
+                version=now,
+            )
+            cache.set_versioned(key, entry)
+            result = cache.get_versioned(key, EntryType.TASK)
+            assert result is not None
+            assert result.data["key"] == key
+
+
+class TestCacheThrashing:
+    """Tests for rapid cache operations under pressure (merged from adversarial tests)."""
+
+    def test_rapid_set_get_cycles(self) -> None:
+        """Test rapid set/get cycles over 10 keys don't cause issues."""
+        cache = EnhancedInMemoryCacheProvider(max_size=100)
+        now = datetime.now(UTC)
+        for i in range(1000):
+            entry = CacheEntry(
+                key=f"key_{i % 10}",
+                data={"iteration": i},
+                entry_type=EntryType.TASK,
+                version=now,
+                ttl=300,
+            )
+            cache.set_versioned(f"key_{i % 10}", entry)
+            result = cache.get_versioned(f"key_{i % 10}", EntryType.TASK)
+            assert result is not None
+            assert result.data["iteration"] == i
+
+    def test_rapid_set_delete_cycles(self) -> None:
+        """Test rapid set/delete cycles don't leave orphaned entries."""
+        cache = EnhancedInMemoryCacheProvider(max_size=100)
+        now = datetime.now(UTC)
+        for i in range(1000):
+            key = f"key_{i}"
+            entry = CacheEntry(
+                key=key,
+                data={"data": "x" * 1000},
+                entry_type=EntryType.TASK,
+                version=now,
+                ttl=300,
+            )
+            cache.set_versioned(key, entry)
+            cache.invalidate(key)
+        assert cache.size() <= 10
+
+    def test_eviction_under_pressure(self) -> None:
+        """Test that size never exceeds max_size under insertion pressure."""
+        cache = EnhancedInMemoryCacheProvider(max_size=50)
+        now = datetime.now(UTC)
+        for i in range(100):
+            entry = CacheEntry(
+                key=f"key_{i}",
+                data={"index": i},
+                entry_type=EntryType.TASK,
+                version=now,
+                ttl=300,
+            )
+            cache.set_versioned(f"key_{i}", entry)
+        assert cache.size() <= 50
