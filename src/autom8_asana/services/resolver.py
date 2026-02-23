@@ -722,3 +722,10 @@ def get_strategy(entity_type: str) -> UniversalResolutionStrategy | None:
 from autom8_asana.core.system_context import register_reset  # noqa: E402
 
 register_reset(EntityProjectRegistry.reset)
+
+# Subscribe to SchemaRegistry reset to clear resolvable entities cache.
+# This replaces the previous cross-boundary private API call where
+# SchemaRegistry.reset() directly imported _clear_resolvable_cache.
+from autom8_asana.dataframes.models.registry import SchemaRegistry  # noqa: E402
+
+SchemaRegistry.on_reset(_clear_resolvable_cache)
