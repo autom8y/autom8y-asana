@@ -423,7 +423,7 @@ class DataServiceClient:
             )
 
             # Create platform client
-            self._client = Autom8yHttpClient(config=http_config, logger=self._log)
+            self._client = Autom8yHttpClient(config=http_config, logger=self._log)  # type: ignore[arg-type]
 
             # Inject auth and content-type headers
             if token:
