@@ -23,6 +23,9 @@ from autom8_asana.lambda_handlers.workflow_handler import (
     WorkflowHandlerConfig,
     create_workflow_handler,
 )
+from autom8_asana.models.business._bootstrap import bootstrap
+
+bootstrap()
 
 
 def _create_workflow(asana_client: Any, data_client: Any) -> Any:

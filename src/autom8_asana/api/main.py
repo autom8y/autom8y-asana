@@ -29,11 +29,6 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-# CRITICAL: Import from models.business at module level to ensure bootstrap runs
-# on every app startup BEFORE any detection can occur. The bootstrap in
-# models/business/__init__.py populates ProjectTypeRegistry for Tier 1 detection.
-import autom8_asana.models.business  # noqa: F401 - side effect import for bootstrap
-
 from .config import get_settings
 from .errors import register_exception_handlers
 from .lifespan import lifespan  # noqa: F401

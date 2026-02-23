@@ -1,7 +1,7 @@
 """Explicit model registration for ProjectRegistry.
 
 Per TDD-registry-consolidation: Replaces __init_subclass__ auto-registration
-with deterministic bootstrap that runs at module import time.
+with deterministic bootstrap that runs at application startup via explicit bootstrap() call.
 
 This module is imported by models/business/__init__.py to ensure
 registration happens before any detection calls.
@@ -128,6 +128,40 @@ def register_all_models() -> None:
             "skipped_count": skipped_count,
             "total_models": len(ENTITY_MODELS),
         },
+    )
+
+
+def bootstrap() -> None:
+    """Initialize the autom8_asana application.
+
+    Populates ProjectTypeRegistry with all known entity type -> project GID
+    mappings. This is the single public API for application initialization,
+    analogous to Django's django.setup().
+
+    MUST be called once at application startup before any entity detection.
+    Idempotent: subsequent calls are no-ops.
+
+    The _ensure_bootstrapped() guard on ProjectTypeRegistry provides a safety
+    net for code paths that reach detection without explicit bootstrap, but
+    explicit bootstrap at the entry point is the expected pattern.
+
+    Example:
+        from autom8_asana.models.business._bootstrap import bootstrap
+        bootstrap()  # Call once at startup
+
+    See Also:
+        reset_bootstrap: Reset for test isolation.
+        is_bootstrap_complete: Check bootstrap state.
+    """
+    if is_bootstrap_complete():
+        logger.debug("bootstrap_noop", extra={"reason": "already_complete"})
+        return
+
+    logger.info("bootstrap_starting")
+    register_all_models()
+    logger.info(
+        "bootstrap_complete",
+        extra={"source": "explicit_bootstrap"},
     )
 
 

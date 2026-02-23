@@ -98,7 +98,7 @@ class TestRegistrationAndLookup:
         assert registry.is_registered("1234567890")
 
     def test_get_all_mappings(self) -> None:
-        """get_all_mappings() returns copy of all mappings."""
+        """get_all_mappings() returns copy of all mappings including bootstrap entries."""
         registry = get_registry()
 
         registry.register("gid1", EntityType.BUSINESS)
@@ -106,10 +106,9 @@ class TestRegistrationAndLookup:
 
         mappings = registry.get_all_mappings()
 
-        assert mappings == {
-            "gid1": EntityType.BUSINESS,
-            "gid2": EntityType.CONTACT,
-        }
+        # After bootstrap guard, mappings include bootstrap entries + manual entries
+        assert mappings["gid1"] == EntityType.BUSINESS
+        assert mappings["gid2"] == EntityType.CONTACT
 
         # Verify it's a copy (modifying doesn't affect registry)
         mappings["gid3"] = EntityType.UNIT
@@ -308,7 +307,14 @@ class TestReset:
     """Tests for registry reset functionality."""
 
     def test_reset_clears_all_registrations(self) -> None:
-        """reset() clears all registered mappings."""
+        """reset() clears manually registered mappings.
+
+        After reset, the internal dict is empty. However, calling lookup()
+        or get_all_mappings() triggers _ensure_bootstrapped() which
+        repopulates the registry with bootstrap entries. We verify the
+        reset by checking that manually registered GIDs are no longer
+        present (they are not in the bootstrap set).
+        """
         registry = get_registry()
 
         registry.register("gid1", EntityType.BUSINESS)
@@ -317,9 +323,15 @@ class TestReset:
         ProjectTypeRegistry.reset()
 
         new_registry = get_registry()
+        # Manually registered GIDs are gone after reset
+        # (lookup triggers _ensure_bootstrapped, but gid1/gid2 are not
+        # bootstrap entries so they remain absent)
         assert new_registry.lookup("gid1") is None
         assert new_registry.lookup("gid2") is None
-        assert new_registry.get_all_mappings() == {}
+        # Internal dict is repopulated by _ensure_bootstrapped with
+        # bootstrap entries, so it is not empty
+        assert "gid1" not in new_registry._gid_to_type
+        assert "gid2" not in new_registry._gid_to_type
 
 
 class TestAutoRegistration:

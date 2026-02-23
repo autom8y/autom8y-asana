@@ -137,6 +137,18 @@ def mock_client_builder() -> type[MockClientBuilder]:
     return MockClientBuilder
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _bootstrap_session():
+    """Bootstrap the application once per test session.
+
+    Populates ProjectTypeRegistry before any tests run. Individual tests
+    that call SystemContext.reset_all() will get re-populated via
+    _ensure_bootstrapped() on first registry access.
+    """
+    from autom8_asana.models.business._bootstrap import bootstrap
+    bootstrap()
+
+
 @pytest.fixture(autouse=True)
 def reset_all_singletons():
     """Reset all singletons before and after each test.

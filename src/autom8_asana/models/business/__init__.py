@@ -3,7 +3,7 @@
 Per TDD-BIZMODEL: Provides typed Business, Contact, Unit, Offer, Process and
 supporting classes for navigating the Asana task hierarchy with strong typing.
 Per TDD-HARDENING-C: Migrated to descriptor-based navigation and ClassVar configuration.
-Per TDD-registry-consolidation: Bootstrap registration runs at import time.
+Per TDD-bootstrap / ADR-0149: Explicit bootstrap() replaces import-time registration.
 
 Phase 1 + 2 + 3 + Hardening Exports:
     - Business: Root entity with 7 holder properties and 19 typed fields
@@ -52,18 +52,15 @@ Example:
         await session.commit_async()
 """
 
-# ARCHITECTURE: Import-time registration is intentional per TDD-registry-consolidation.
-# The idempotency guard in _bootstrap.py makes repeated calls safe.
-# Moving to explicit initialization would require auditing all entry points
-# (API lifespan, Lambda handlers, CLI, tests). Deferred per RF-009.
+# ARCHITECTURE: Bootstrap registration is now EXPLICIT, not import-time.
+# Call bootstrap() at your application entry point (API lifespan, Lambda
+# handler, CLI, test conftest). If you forget, _ensure_bootstrapped() on
+# ProjectTypeRegistry will lazily populate the registry on first access
+# and log a WARNING.
 #
-# Per TDD-registry-consolidation: Bootstrap registration FIRST - before any
-# other imports that might trigger detection. This ensures ProjectRegistry
-# is populated at module import time, not at class definition time via
-# __init_subclass__ (which is import-order dependent and unreliable).
-from autom8_asana.models.business._bootstrap import register_all_models
-
-register_all_models()
+# Per TDD-bootstrap (supersedes TDD-registry-consolidation / RF-009):
+# register_all_models() is called by bootstrap(), not at import time.
+from autom8_asana.models.business._bootstrap import bootstrap, register_all_models
 
 # Then export all entity classes (unchanged)
 # ruff: noqa: E402
@@ -150,6 +147,9 @@ from autom8_asana.models.business.unit import Unit, UnitHolder
 from autom8_asana.models.business.videography import Videography
 
 __all__ = [
+    # Bootstrap (per TDD-bootstrap / ADR-0149)
+    "bootstrap",
+    "register_all_models",
     # Models
     "Business",
     "Contact",
