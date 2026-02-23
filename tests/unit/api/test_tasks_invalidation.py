@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 
 from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator
 from autom8_asana.cache.models.mutation_event import EntityKind, MutationType
-from tests.api.conftest import (
+from tests.unit.api.conftest import (
     TEST_PROJECT_GID,
     TEST_SECTION_GID,
     TEST_TAG_GID,
