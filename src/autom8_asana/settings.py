@@ -814,7 +814,8 @@ class Settings(Autom8yBaseSettings):
         if not self._env_var_explicitly_set():
             return
         if self.autom8y_env not in (
-            Autom8yEnvironment.LOCAL, Autom8yEnvironment.TEST,
+            Autom8yEnvironment.LOCAL,
+            Autom8yEnvironment.TEST,
         ):
             return
 

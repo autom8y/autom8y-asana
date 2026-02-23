@@ -70,7 +70,6 @@ def _register_custom_field(
     _pending_fields[owner_id][descriptor._constant_name] = descriptor.field_name
 
 
-
 # Re-export Arrow type for use in annotations
 Arrow = arrow.Arrow
 

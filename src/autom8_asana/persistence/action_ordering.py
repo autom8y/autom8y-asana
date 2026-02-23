@@ -20,6 +20,7 @@ from autom8_asana.persistence.models import ActionOperation, ActionType
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
     pass
 
 

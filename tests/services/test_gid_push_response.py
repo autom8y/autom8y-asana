@@ -31,7 +31,12 @@ class TestGidPushResponse:
 
     def test_extra_fields_ignored(self):
         resp = GidPushResponse.model_validate(
-            {"accepted": 7, "replaced": 2, "timestamp": "2026-02-22T12:00:00", "unknown": True}
+            {
+                "accepted": 7,
+                "replaced": 2,
+                "timestamp": "2026-02-22T12:00:00",
+                "unknown": True,
+            }
         )
         assert resp.accepted == 7
         assert resp.replaced == 2

@@ -1,7 +1,8 @@
 # justfile - Developer task runner for autom8y-asana
-# Usage: just <recipe>
-
-set dotenv-load
+# Conventions match autom8y monorepo (Justfile)
+set shell := ["bash", "-euo", "pipefail", "-c"]
+set dotenv-load := false
+set export := true
 
 default:
     @just --list

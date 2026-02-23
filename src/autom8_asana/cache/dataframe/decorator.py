@@ -197,7 +197,6 @@ def dataframe_cache(
                         },
                     )
 
-
                 build_result = await build_func(project_gid, client)
 
                 df: pl.DataFrame | None

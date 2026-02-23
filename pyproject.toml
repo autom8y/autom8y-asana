@@ -134,7 +134,7 @@ src = ["src"]
 extend-exclude = ["examples/", "prototypes/", "scripts/", "tmp/", "docs/"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "G", "LOG", "TCH"]
+select = ["E", "F", "I", "UP", "B", "G", "LOG", "TCH", "TID"]
 ignore = [
     "E501", # Line length handled by formatter
     "B904", # raise-without-from-inside-except - common pattern in HTTP handlers
@@ -168,6 +168,7 @@ ignore = [
     "B015",
     "B017",
     "B023",
+    "TID251",
 ]
 "**/conftest.py" = ["F841", "E402"]
 # Intentional delayed imports (circular import avoidance, logger-before-imports)
@@ -187,6 +188,19 @@ runtime-evaluated-decorators = [
     "pydantic.model_validator",
     "pydantic.validator",
 ]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+# Logging: Use autom8y-log SDK
+"loguru".msg = "Use autom8y_log.get_logger() instead of loguru. See docs/guides/sdk-only-imports-migration.md"
+"loguru.logger".msg = "Use autom8y_log.get_logger() instead of loguru.logger. See docs/guides/sdk-only-imports-migration.md"
+"structlog".msg = "Use autom8y_log.get_logger() instead of direct structlog. See docs/guides/sdk-only-imports-migration.md"
+# HTTP: Use autom8y-http SDK
+"httpx".msg = "Use autom8y_http.Autom8yHttpClient instead of raw httpx. See docs/guides/sdk-only-imports-migration.md"
+"httpx.AsyncClient".msg = "Use autom8y_http.Autom8yHttpClient instead of httpx.AsyncClient. See docs/guides/sdk-only-imports-migration.md"
+"httpx.Client".msg = "Use autom8y_http.Autom8yHttpClient.sync() instead of httpx.Client. See docs/guides/sdk-only-imports-migration.md"
+
+[tool.ruff.lint.isort]
+known-first-party = ["autom8_asana"]
 
 [tool.uv]
 index-strategy = "first-index"

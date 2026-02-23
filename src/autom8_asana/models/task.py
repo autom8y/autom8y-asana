@@ -19,6 +19,7 @@ from autom8_asana.models.custom_field_accessor import CustomFieldAccessor
 
 if TYPE_CHECKING:
     from autom8_asana.models.common import NameGid
+
     pass
 
 logger = get_logger(__name__)
