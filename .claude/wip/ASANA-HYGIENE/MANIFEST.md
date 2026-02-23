@@ -4,8 +4,8 @@
 
 **Success Criteria**:
 - ~~Gate verdict upgrades from CONDITIONAL-PASS to PASS (20 httpx failures resolved)~~ **DONE** (commit `10c15db`)
-- 600-800 LOC reduction from copy-paste parametrization (16 clusters)
-- 16 broad `pytest.raises(Exception)` replaced with specific exception types
+- 400-600 LOC reduction from copy-paste parametrization (15 active clusters; LS-014 removed in prior refactoring)
+- ~~16 broad `pytest.raises(Exception)` replaced with specific exception types~~ **DONE** (commit `e073de7`)
 - Preload manifest check has proper integration test coverage
 - Slop-chop Partition 2 scanned and findings addressed
 - Zero regressions: test pass count stable or improved
