@@ -654,7 +654,9 @@ class HtmlRenderer:
         )
 
         # Embedded JSON for Copy TSV (with PII masking)
-        json_rows = section.full_rows if section.full_rows is not None else (section.rows or [])
+        json_rows = (
+            section.full_rows if section.full_rows is not None else (section.rows or [])
+        )
         json_data = json.dumps(_mask_pii_rows(json_rows), default=str)
 
         parts = [
