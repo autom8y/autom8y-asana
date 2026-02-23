@@ -24,21 +24,29 @@
 
 ## Sprint 3 Carry-Forward
 
-### D-001: Dead v1 `query_rows` handler [Sprint-3]
+### D-001: Dead v1 `query_rows` handler [Sprint-3] [CLOSED]
 
-- **Location**: `src/autom8_asana/api/routes/query.py:239-369`
+- **Status**: CLOSED (2026-02-23). Dead handler removed during v1/v2 query router merge (D-012). `query_v2.py` deleted; active `/rows` and `/aggregate` handlers now live in merged `query.py`.
+- **Location**: ~~`src/autom8_asana/api/routes/query.py:239-369`~~ (removed)
 - **Category**: Code > Dead Code
-- **Description**: The v1 `query_rows` handler is shadowed by v2 after the QW-6 router registration fix (`api/main.py:184` registers v2 first). This handler is unreachable -- FastAPI matches the first registered route for `POST /v1/query/{entity_type}/rows`. 130 LOC of dead code.
-- **Estimated LOC impact**: 130 (removal)
-- **Related**: D-002, D-003, D-005
+- **Estimated LOC impact**: 130 (removed)
+- **Related**: D-002, D-012
 
-### D-002: v1 query endpoint sunset -- full v1 router removal [Sprint-3]
+### D-002: v1 query endpoint sunset -- deprecated handler removal [Sprint-3]
 
-- **Location**: `src/autom8_asana/api/routes/query.py` (entire file, 369 LOC)
+- **Location**: `src/autom8_asana/api/routes/query.py:282-405` (deprecated handler + models, ~169 LOC)
 - **Category**: Code > Dead Code
-- **Description**: Per V1-SUNSET-INVENTORY.md, the v1 query router contains two endpoints: (a) `POST /v1/query/{entity_type}` (deprecated, sunset 2026-06-01) and (b) the dead `query_rows` handler (D-001). After sunset, the entire v1 router can be removed. The deprecated endpoint is the only one with no v2 equivalent -- callers must migrate from flat `where` equality filtering to `/rows` predicate trees. Also includes 3 request/response models (`QueryRequest`, `QueryMeta`, `QueryResponse`) that exist only for v1.
-- **Estimated LOC impact**: 369 (full file removal at sunset)
-- **Related**: D-001, D-003, D-004
+- **Description**: After the v1/v2 merge (D-012), only one v1-specific artifact remains: the deprecated `POST /v1/query/{entity_type}` handler (`query_entities()`, lines 282-405) plus its 3 legacy models (`QueryRequest`, `QueryMeta`, `QueryResponse`, lines 91-135). Sunset date 2026-06-01 (~14 weeks). Deprecation headers (`Sunset`, `Link`) and logging (`deprecated_query_endpoint_used`) are already emitted.
+
+  **WS-DEBT Consumer Audit (2026-02-23)**:
+  - **Internal consumers**: Zero. No code in this repository calls the flat-filter endpoint programmatically.
+  - **External consumers**: Unknown. S2S-only endpoint (JWT service token auth). Requires CloudWatch query on `deprecated_query_endpoint_used` log event to confirm zero/non-zero traffic. See U-004.
+  - **Test consumers**: `tests/unit/api/test_routes_query.py` (14 TCs) targets the deprecated handler. Remove with handler.
+  - **Documentation**: 26 doc files reference `/v1/query/` prefix but most describe the active `/rows` and `/aggregate` endpoints, not the deprecated flat-filter endpoint.
+
+  **Decision**: CONDITIONAL REMOVE-NOW. Pending a single CloudWatch log query (5 min, ops access) confirming zero traffic in the last 30 days, remove the deprecated handler, legacy models, and associated test file. If traffic exists, create consumer migration plan with 2026-05-04 check-in.
+- **Estimated LOC impact**: ~169 (handler + models) + ~500 (test file removal)
+- **Related**: D-001 (CLOSED), D-012
 
 ### D-003: Legacy preload module (active fallback) [Sprint-3]
 
@@ -175,15 +183,12 @@
 
 ## Code Debt
 
-### D-012: v1/v2 query routers -- consolidation target [PRIORITY]
+### D-012: v1/v2 query routers -- consolidation target [PRIORITY] [CLOSED]
 
-- **Location**: `src/autom8_asana/api/routes/query.py` (369 LOC), `query_v2.py` (191 LOC)
+- **Status**: CLOSED (2026-02-23). Merge completed. `query_v2.py` deleted; single `query.py` contains active `/rows` and `/aggregate` handlers plus deprecated `POST /{entity_type}` handler (D-002). `main.py` registers one `query_router`. D-001 dead handler removed as part of merge.
+- **Location**: `src/autom8_asana/api/routes/query.py` (406 LOC, single file)
 - **Category**: Code > Duplication
-- **Description**: Per stakeholder decision, the v1 and v2 query routers should be merged into a single `query.py`. Currently:
-  - v2 is the active router for `/rows` and `/aggregate` (registered first in `main.py:184`)
-  - v1 contributes only the deprecated `POST /{entity_type}` endpoint (sunset 2026-06-01)
-  - v1's `query_rows` handler (D-001) is dead code
-  - The naming convention (`query_v2.py`) should become just `query.py` per stakeholder decision to strip "v2" naming
+- **Description**: ~~Per stakeholder decision, the v1 and v2 query routers should be merged into a single `query.py`.~~ DONE. Remaining cleanup is D-002 (deprecated handler removal at sunset).
 
   After merge: single file, v2 error handling pattern (dict-mapping), v2 DI pattern (RequestId), with the legacy endpoint preserved behind deprecation headers until sunset.
 - **Estimated LOC impact**: ~370 (remove v1 file, merge deprecated endpoint into v2)
@@ -356,17 +361,18 @@
 
 ## Test Debt
 
-### D-026: Tests targeting dead/deprecated v1 query code
+### D-026: Tests targeting deprecated v1 query code
 
-- **Location**: `tests/api/test_routes_query.py`, `tests/api/test_routes_query_rows.py`
+- **Location**: `tests/unit/api/test_routes_query.py`
 - **Category**: Test > Targeting Dead Code
-- **Description**: Per V1-SUNSET-INVENTORY.md:
-  - `test_routes_query.py` -- 14 test cases targeting the deprecated `POST /v1/query/{entity_type}` endpoint
-  - `test_routes_query_rows.py` -- 20 test cases targeting the v1 `query_rows` handler (D-001, dead code after QW-6)
+- **Description**: Updated 2026-02-23 per WS-DEBT audit:
+  - `test_routes_query.py` -- 14 test cases targeting the deprecated `POST /v1/query/{entity_type}` flat-filter endpoint. Remove when D-002 handler is removed.
+  - `test_routes_query_rows.py` -- Now tests the **active** merged `/rows` handler (valid after D-012 merge). No longer targeting dead code. KEEP.
+  - `test_routes_query_aggregate.py` -- Tests the active `/aggregate` handler. KEEP.
 
-  The `test_routes_query_rows.py` tests pass only because they instantiate the v1 router directly, bypassing the v2-first registration. They test unreachable code paths. Should be migrated to test v2 handler (`query_v2.py`) directly, or deleted after v1 sunset.
-- **Estimated LOC impact**: ~500+ (across two test files, migrate or remove)
-- **Related**: D-001, D-002, D-012
+  Only `test_routes_query.py` (14 TCs) is debt. The other two test files are valid tests of active endpoints. Files relocated to `tests/unit/api/` during test arch remediation.
+- **Estimated LOC impact**: ~250 (single test file removal, down from ~500+)
+- **Related**: D-002, D-012 (CLOSED)
 
 ### D-027: Heavy mock usage in API tests (540 mock call sites)
 
@@ -510,8 +516,8 @@ Status of all 25 WS4 findings as of this audit:
 
 | Priority Flag | Items |
 |---------------|-------|
-| [PRIORITY] | D-004, D-005, D-007, D-008, D-012 |
-| [Sprint-3] | D-001, D-002, D-003 |
+| [PRIORITY] | D-004, D-005, D-007, D-008, ~~D-012~~ (CLOSED) |
+| [Sprint-3] | ~~D-001~~ (CLOSED), D-002 (conditional remove-now), D-003 |
 | [WS4] open | 22 items (see WS4 Baseline Status table) |
 | [WS4] resolved | 3 items (DRY-003, DRY-004, DC-002) |
 
@@ -519,10 +525,10 @@ Status of all 25 WS4 findings as of this audit:
 
 | Scope | LOC |
 |-------|-----|
-| Dead code removable now | ~500 (D-001 + D-016 + D-014) |
-| Dead code removable at sunset (2026-06-01) | ~370 (D-002) |
+| Dead code removable now | ~2 (D-016; D-001 CLOSED, D-014 CLOSED) |
+| Dead code removable at sunset or after CloudWatch check (D-002) | ~169 handler + ~250 tests |
 | Pattern consolidation | ~440 (D-004 + D-005 + D-006 + D-007 + D-008 + D-009 + D-010 + D-011) |
-| Query router merge | ~370 (D-012) |
+| Query router merge | ~~~370 (D-012)~~ CLOSED |
 | Deprecated alias cleanup | ~150 (D-017) |
 | God object decomposition targets | ~4,028 (D-030 + D-032) |
 | Pipeline convergence | ~1,500 (D-022 + D-033) |
@@ -549,7 +555,7 @@ Status of all 25 WS4 findings as of this audit:
 
 2. **Test coverage gaps**: This audit identified test files targeting dead code and mock density, but did not measure actual coverage percentages. A `pytest --cov` run would be needed to identify coverage gaps on critical paths.
 
-3. **External consumer audit**: The v1 query endpoint deprecation (D-002) affects external callers. This audit found "None in this repository" per the sunset inventory, but calling services have not been audited.
+3. **External consumer audit**: The v1 query endpoint deprecation (D-002) affects external callers. WS-DEBT audit (2026-02-23) confirmed zero internal consumers. External consumer status requires a CloudWatch log query on `deprecated_query_endpoint_used` events (last 30 days). This is the single remaining blocker for D-002 closure.
 
 4. **Git blame for age**: Debt item ages were not individually computed via `git blame`. The WS4 report timestamp (2026-02-17) and WS5 completion (2026-02-18) provide temporal bounds.
 
