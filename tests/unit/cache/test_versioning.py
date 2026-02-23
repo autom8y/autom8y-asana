@@ -197,6 +197,48 @@ class TestFormatVersion:
         assert parsed == original
 
 
+class TestVersionEdgeCases:
+    """Edge cases for version comparison (merged from adversarial tests)."""
+
+    def test_same_instant_different_timezones(self) -> None:
+        """Test comparing same instant expressed in different timezones."""
+        utc_time = datetime(2025, 1, 15, 12, 0, 0, tzinfo=UTC)
+        offset_time_str = "2025-01-15T17:30:00+05:30"  # Same instant as UTC 12:00
+        offset_dt = parse_version(offset_time_str)
+        assert compare_versions(utc_time, offset_dt) == 0
+
+    def test_microsecond_precision_stale(self) -> None:
+        """Test version comparison at microsecond precision."""
+        v1 = datetime(2025, 1, 15, 12, 0, 0, 123456, tzinfo=UTC)
+        v2 = datetime(2025, 1, 15, 12, 0, 0, 123457, tzinfo=UTC)
+        assert is_stale(v1, v2)  # v1 is 1 microsecond older
+        assert is_current(v2, v1)  # v2 is newer
+
+    def test_is_current_with_future_cached_version(self) -> None:
+        """Test is_current when cached version is from the future (still current)."""
+        cached = datetime(2025, 12, 31, 23, 59, 59, tzinfo=UTC)
+        current = datetime(2025, 1, 1, 0, 0, 0, tzinfo=UTC)
+        assert is_current(cached, current)
+
+    def test_parse_version_with_non_utc_offset(self) -> None:
+        """Test parsing version with non-UTC offset preserves timezone info."""
+        result = parse_version("2025-01-15T10:30:00+05:30")
+        assert result.tzinfo is not None
+
+    def test_parse_version_date_only_string(self) -> None:
+        """Test parsing date-only string (no time component)."""
+        result = parse_version("2025-01-15")
+        assert result.year == 2025
+        assert result.month == 1
+        assert result.day == 15
+
+    def test_compare_versions_naive_datetime(self) -> None:
+        """Test compare_versions with naive datetime assumes UTC."""
+        naive_dt = datetime(2025, 1, 15, 10, 30, 0)
+        aware_dt = datetime(2025, 1, 15, 10, 30, 0, tzinfo=UTC)
+        assert compare_versions(naive_dt, aware_dt) == 0
+
+
 class TestVersionToTimestamp:
     """Tests for version_to_timestamp function."""
 
