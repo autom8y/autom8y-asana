@@ -40,7 +40,7 @@ Phase A: COMPLETE
 
 Phase B (CURRENT):
   Lane 1: WS-PARAM S2     (hygiene/MODULE)      <- READY for dispatch
-  Lane 2: WS-INTEG        (10x-dev/SCRIPT)      <- READY for dispatch (rite switch)
+  Lane 2: WS-INTEG        (hygiene/SPOT)         <- READY for dispatch
 
 Phase B.2 (after Phase B Lane 2 frees):
   Lane 1: (done)
@@ -51,7 +51,7 @@ Phase C (entry criteria MET, but blocked on WS-PARAM S2 merge):
 ```
 
 Max concurrent: 2 worktrees
-Rite switches remaining: 3
+Rite switches remaining: 2 (rnd for WS-OVERMOCK, slop-chop for WS-SLOP2)
 
 ---
 
