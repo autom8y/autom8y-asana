@@ -725,3 +725,10 @@ def get_workspace_registry() -> WorkspaceProjectRegistry:
         The singleton WorkspaceProjectRegistry instance.
     """
     return WorkspaceProjectRegistry()
+
+
+# Self-register for SystemContext.reset_all()
+from autom8_asana.core.system_context import register_reset  # noqa: E402
+
+register_reset(ProjectTypeRegistry.reset)
+register_reset(WorkspaceProjectRegistry.reset)

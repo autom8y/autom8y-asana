@@ -260,3 +260,9 @@ def reset_dataframe_cache() -> None:
     global _dataframe_cache
     _dataframe_cache = None
     logger.debug("dataframe_cache_reset")
+
+
+# Self-register for SystemContext.reset_all()
+from autom8_asana.core.system_context import register_reset  # noqa: E402
+
+register_reset(reset_dataframe_cache)

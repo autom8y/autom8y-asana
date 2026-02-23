@@ -716,3 +716,9 @@ def get_strategy(entity_type: str) -> UniversalResolutionStrategy | None:
         return None
 
     return get_universal_strategy(entity_type)
+
+
+# Self-register for SystemContext.reset_all()
+from autom8_asana.core.system_context import register_reset  # noqa: E402
+
+register_reset(EntityProjectRegistry.reset)
