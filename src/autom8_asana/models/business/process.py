@@ -508,3 +508,9 @@ class ProcessHolder(
 
     # business property inherited from UnitNestedHolderMixin (DRY-006)
     # _populate_children inherited from UnitNestedHolderMixin (DRY-007)
+
+
+# Self-register ProcessHolder with HOLDER_REGISTRY (R-009)
+from autom8_asana.persistence.holder_construction import register_holder  # noqa: E402
+
+register_holder("process_holder", ProcessHolder)

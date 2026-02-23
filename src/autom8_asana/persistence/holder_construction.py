@@ -4,7 +4,8 @@ Per TDD-GAP-01 Section 3.3, 3.4, 5: Pure construction function and async
 detection function for the ENSURE_HOLDERS pipeline phase.
 
 This module provides:
-- HOLDER_CLASS_MAP: Registry mapping holder_key to holder class (9 entries).
+- HOLDER_REGISTRY: Registry mapping holder_key to holder class (9 entries).
+- register_holder(): Registration function called by each Holder module.
 - construct_holder(): Pure function building typed holder entities.
 - detect_existing_holders(): Async function checking Asana API for existing holders.
 
@@ -16,6 +17,9 @@ The construction function uses HOLDER_KEY_MAP metadata to determine:
 - Name (conventional name from the tuple, no emoji in name)
 - Parent reference (NameGid with real or temp GID)
 - Project assignment (PRIMARY_PROJECT_GID where available)
+
+Per R-009 (REM-ASANA-ARCH WS-DFEX): Each Holder module self-registers via
+register_holder() at module level, following the register_reset() pattern.
 """
 
 from __future__ import annotations
@@ -33,53 +37,98 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def _get_holder_class_map() -> dict[str, type]:
-    """Build the holder class map with deferred imports to avoid circular deps.
+# Public registry: populated by each Holder module at import time.
+# Each Holder file calls register_holder(key, cls) at module level.
+HOLDER_REGISTRY: dict[str, type] = {}
 
-    Returns:
-        Dict mapping holder_key to holder class for all 9 holder types.
+
+def register_holder(holder_key: str, holder_class: type) -> None:
+    """Register a Holder class for the given holder_key.
+
+    Called at module level in each Holder file so that importing the file
+    automatically populates HOLDER_REGISTRY. Duplicates are silently ignored.
+
+    Args:
+        holder_key: Canonical key (e.g., "contact_holder", "unit_holder").
+        holder_class: The Holder class to register.
     """
-    from autom8_asana.models.business.business import (
+    if holder_key not in HOLDER_REGISTRY:
+        HOLDER_REGISTRY[holder_key] = holder_class
+
+
+def reset_holder_registry() -> None:
+    """Reset HOLDER_REGISTRY to empty state.
+
+    For test isolation. Registered with SystemContext.reset_all()
+    so tests can call SystemContext.reset_all() and get a clean slate.
+
+    Note: After reset, Holder modules have already been imported and their
+    module-level register_holder() calls have run. The registry is rebuilt
+    lazily on next get_holder_class_map() call by re-importing the Holder
+    modules (which are cached in sys.modules and re-run their side effects
+    via _ensure_registered() on the Holder base class, or here via a
+    re-population step).
+    """
+    HOLDER_REGISTRY.clear()
+    # Re-populate from modules already in sys.modules
+    _repopulate_from_imported_modules()
+
+
+def _repopulate_from_imported_modules() -> None:
+    """Repopulate HOLDER_REGISTRY from already-imported Holder modules.
+
+    Called after reset_holder_registry() to restore the registry without
+    re-importing modules (which would be a no-op since Python caches imports).
+    Uses deferred imports to trigger module-level register_holder() side effects,
+    which are idempotent (duplicates are ignored).
+    """
+    # Import the Holder files; their module-level register_holder() calls
+    # will re-populate HOLDER_REGISTRY. Since modules are cached in
+    # sys.modules, Python re-executes only if the module was cleared.
+    # We force re-registration via direct import of each Holder class.
+    from autom8_asana.models.business.business import (  # noqa: F401
         AssetEditHolder,
         DNAHolder,
         ReconciliationHolder,
         VideographyHolder,
     )
-    from autom8_asana.models.business.contact import ContactHolder
-    from autom8_asana.models.business.location import LocationHolder
-    from autom8_asana.models.business.offer import OfferHolder
-    from autom8_asana.models.business.process import ProcessHolder
-    from autom8_asana.models.business.unit import UnitHolder
+    from autom8_asana.models.business.contact import ContactHolder  # noqa: F401
+    from autom8_asana.models.business.location import LocationHolder  # noqa: F401
+    from autom8_asana.models.business.offer import OfferHolder  # noqa: F401
+    from autom8_asana.models.business.process import ProcessHolder  # noqa: F401
+    from autom8_asana.models.business.unit import UnitHolder  # noqa: F401
 
-    return {
-        # Business-level holders (7)
-        "contact_holder": ContactHolder,
-        "unit_holder": UnitHolder,
-        "location_holder": LocationHolder,
-        "dna_holder": DNAHolder,
-        "reconciliation_holder": ReconciliationHolder,
-        "asset_edit_holder": AssetEditHolder,
-        "videography_holder": VideographyHolder,
-        # Unit-level holders (2)
-        "offer_holder": OfferHolder,
-        "process_holder": ProcessHolder,
-    }
-
-
-# Module-level cache; populated on first access
-_HOLDER_CLASS_MAP: dict[str, type] | None = None
+    # Explicitly register in case module caching prevented side-effect re-runs
+    register_holder("contact_holder", ContactHolder)
+    register_holder("unit_holder", UnitHolder)
+    register_holder("location_holder", LocationHolder)
+    register_holder("dna_holder", DNAHolder)
+    register_holder("reconciliation_holder", ReconciliationHolder)
+    register_holder("asset_edit_holder", AssetEditHolder)
+    register_holder("videography_holder", VideographyHolder)
+    register_holder("offer_holder", OfferHolder)
+    register_holder("process_holder", ProcessHolder)
 
 
 def get_holder_class_map() -> dict[str, type]:
-    """Get the holder class map, building it on first access.
+    """Get the holder class map from the registry.
+
+    Lazily populates the registry if empty (e.g., on first call or
+    after reset_holder_registry()).
 
     Returns:
-        Dict mapping holder_key to holder class for all 9 holder types.
+        Dict mapping holder_key to holder class (9 entries).
+        Populated by each Holder module's register_holder() call at import time.
     """
-    global _HOLDER_CLASS_MAP
-    if _HOLDER_CLASS_MAP is None:
-        _HOLDER_CLASS_MAP = _get_holder_class_map()
-    return _HOLDER_CLASS_MAP
+    if not HOLDER_REGISTRY:
+        _repopulate_from_imported_modules()
+    return HOLDER_REGISTRY
+
+
+# Self-register reset function with SystemContext for test isolation.
+from autom8_asana.core.system_context import register_reset  # noqa: E402
+
+register_reset(reset_holder_registry)
 
 
 def construct_holder(
