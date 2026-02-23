@@ -7,9 +7,7 @@ avoid OOM (exit 137).
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from autom8_asana.api.preload.progressive import (
     _invoke_cache_warmer_lambda_from_preload,
@@ -65,69 +63,23 @@ class TestInvokeCacheWarmerLambdaFromPreload:
 
 
 class TestPreloadManifestCheck:
-    """Tests for manifest check in process_project."""
+    """Tests for manifest check in process_project.
 
-    @pytest.mark.asyncio
-    @patch.dict(
-        "os.environ",
-        {"CACHE_WARMER_LAMBDA_ARN": "arn:aws:lambda:us-east-1:123:function:warmer"},
-    )
-    async def test_skips_build_when_no_manifest_and_lambda_available(self) -> None:
-        """When manifest is None and Lambda ARN is set, skip in-process build."""
-        mock_persistence = AsyncMock()
-        mock_persistence.get_manifest_async = AsyncMock(return_value=None)
-        mock_persistence.is_available = True
-        mock_persistence.__aenter__ = AsyncMock(return_value=mock_persistence)
-        mock_persistence.__aexit__ = AsyncMock(return_value=False)
+    The three manifest-branch simulation tests that were previously here
+    (test_skips_build_when_no_manifest_and_lambda_available,
+    test_proceeds_normally_when_manifest_exists,
+    test_skips_without_lambda_arn_when_no_manifest)
+    replicated production logic inline rather than calling the real function.
 
-        mock_builder = AsyncMock()
+    They have been replaced by integration tests that call the actual
+    _preload_dataframe_cache_progressive function:
+        tests/integration/api/test_preload_manifest_check.py
+            - test_manifest_exists_proceeds_with_progressive_build
+            - test_no_manifest_with_lambda_arn_delegates_to_lambda
+            - test_no_manifest_no_lambda_arn_skips_preload
 
-        projects_needing_lambda: list[str] = []
-
-        # Simulate the manifest check logic from process_project
-        manifest = await mock_persistence.get_manifest_async("proj-123")
-        assert manifest is None
-
-        # The builder should NOT be called
-        import os
-
-        lambda_arn = os.environ.get("CACHE_WARMER_LAMBDA_ARN")
-        assert lambda_arn is not None
-        projects_needing_lambda.append("unit")
-
-        # Builder was never called
-        mock_builder.build_progressive_async.assert_not_called()
-        assert projects_needing_lambda == ["unit"]
-
-    @pytest.mark.asyncio
-    async def test_proceeds_normally_when_manifest_exists(self) -> None:
-        """When manifest exists, build_progressive_async is called normally."""
-        mock_persistence = AsyncMock()
-        mock_manifest = MagicMock()
-        mock_persistence.get_manifest_async = AsyncMock(return_value=mock_manifest)
-
-        manifest = await mock_persistence.get_manifest_async("proj-123")
-        assert manifest is not None
-        # In the real code, this means build_progressive_async proceeds
-
-    @pytest.mark.asyncio
-    @patch.dict("os.environ", {}, clear=False)
-    async def test_skips_without_lambda_arn_when_no_manifest(self) -> None:
-        """When manifest is None and no Lambda ARN, skip gracefully."""
-        import os
-
-        # Ensure no Lambda ARN
-        os.environ.pop("CACHE_WARMER_LAMBDA_ARN", None)
-
-        mock_persistence = AsyncMock()
-        mock_persistence.get_manifest_async = AsyncMock(return_value=None)
-
-        manifest = await mock_persistence.get_manifest_async("proj-123")
-        assert manifest is None
-
-        lambda_arn = os.environ.get("CACHE_WARMER_LAMBDA_ARN")
-        assert lambda_arn is None
-        # In the real code, this returns False without adding to projects_needing_lambda
+    See: RS-013/LS-008 (slop-chop P1)
+    """
 
     @patch("boto3.client")
     def test_lambda_invoked_with_all_delegated_entities(
