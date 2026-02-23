@@ -23,8 +23,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import polars as pl
 import pytest
 
-from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.policies.hierarchy import HierarchyIndex
 from autom8_asana.cache.providers.unified import UnifiedTaskStore
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
@@ -170,7 +170,7 @@ class TestSC001SingleCacheEntryPerGID:
         """Test UnifiedTaskStore overwrites duplicate GIDs."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         task_v1 = make_task("task-001", "Version 1")
@@ -194,7 +194,7 @@ class TestSC001SingleCacheEntryPerGID:
         """Test batch put handles duplicate GIDs in input."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         task_v1 = make_task("task-001", "Version 1")
@@ -237,7 +237,7 @@ class TestSC002ColdCacheNoFalseNotFound:
         """Test fresh cache: populate then query cascade field successfully."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         # Create hierarchy: Business -> Unit
@@ -280,7 +280,7 @@ class TestSC002ColdCacheNoFalseNotFound:
         """Test that hierarchy relationships are preserved in cold cache."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         # Build hierarchy
@@ -304,7 +304,7 @@ class TestSC002ColdCacheNoFalseNotFound:
         """Test that empty cache returns empty result, not error."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         # Query non-existent task
@@ -383,7 +383,7 @@ class TestSC003CascadeReturnsCorrectParentValues:
 
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         # Business has value
@@ -456,7 +456,7 @@ class TestSC004WarmCacheReducedAPICalls:
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
             batch_client=mock_batch_client,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         # Pre-populate cache
@@ -479,7 +479,7 @@ class TestSC004WarmCacheReducedAPICalls:
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
             batch_client=mock_batch_client,
-            freshness_mode=FreshnessMode.EVENTUAL,
+            freshness_mode=FreshnessIntent.EVENTUAL,
         )
 
         # Pre-populate with fresh entry (just cached)
@@ -503,7 +503,7 @@ class TestSC004WarmCacheReducedAPICalls:
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
             batch_client=mock_batch_client,
-            freshness_mode=FreshnessMode.STRICT,
+            freshness_mode=FreshnessIntent.STRICT,
         )
 
         # Pre-populate cache with multiple tasks
@@ -546,16 +546,16 @@ class TestSC005FreshnessModeConfiguration:
     """SC-005: Freshness mode is configurable (STRICT/EVENTUAL/IMMEDIATE)."""
 
     def test_freshness_mode_enum_values(self) -> None:
-        """Test FreshnessMode enum has correct values."""
-        assert FreshnessMode.STRICT.value == "strict"
-        assert FreshnessMode.EVENTUAL.value == "eventual"
-        assert FreshnessMode.IMMEDIATE.value == "immediate"
+        """Test FreshnessIntent enum has correct values."""
+        assert FreshnessIntent.STRICT.value == "strict"
+        assert FreshnessIntent.EVENTUAL.value == "eventual"
+        assert FreshnessIntent.IMMEDIATE.value == "immediate"
 
     def test_unified_store_accepts_all_modes(
         self, mock_cache_provider: MagicMock
     ) -> None:
         """Test UnifiedTaskStore accepts all freshness modes."""
-        for mode in FreshnessMode:
+        for mode in FreshnessIntent:
             store = UnifiedTaskStore(
                 cache=mock_cache_provider,
                 freshness_mode=mode,
@@ -571,7 +571,7 @@ class TestSC005FreshnessModeConfiguration:
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
             batch_client=mock_batch_client,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         task = make_task("task-001", "Test Task")
@@ -583,7 +583,7 @@ class TestSC005FreshnessModeConfiguration:
 
         await store.get_batch_async(
             ["task-001"],
-            freshness=FreshnessMode.STRICT,
+            freshness=FreshnessIntent.STRICT,
         )
 
         # STRICT mode should attempt freshness check
@@ -592,7 +592,7 @@ class TestSC005FreshnessModeConfiguration:
     def test_default_mode_is_eventual(self, mock_cache_provider: MagicMock) -> None:
         """Test default freshness mode is EVENTUAL."""
         store = UnifiedTaskStore(cache=mock_cache_provider)
-        assert store.freshness_mode == FreshnessMode.EVENTUAL
+        assert store.freshness_mode == FreshnessIntent.EVENTUAL
 
 
 # =============================================================================
@@ -610,7 +610,7 @@ class TestSC006ColdStartPerformance:
         """Test cold start with 1000 tasks completes in reasonable time."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         # Generate 1000 tasks with hierarchy
@@ -645,7 +645,7 @@ class TestSC006ColdStartPerformance:
         """Test hierarchy lookups are fast with realistic data."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         # Build deep hierarchy (5 levels)
@@ -681,7 +681,7 @@ class TestEdgeCases:
         """Test empty project (no tasks) handles gracefully."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         # No tasks registered
@@ -697,7 +697,7 @@ class TestEdgeCases:
         """Test handling of orphaned subtask when parent is deleted."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         parent = make_task("parent-001", "Parent")
@@ -745,7 +745,7 @@ class TestEdgeCases:
 
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         # Concurrent puts
@@ -767,7 +767,7 @@ class TestEdgeCases:
         """Test cascade resolution handles cache eviction gracefully."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         business = make_task("b-001", "Business")
@@ -800,7 +800,7 @@ class TestEdgeCases:
         """Test tasks with special characters in GID."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         # Asana GIDs are numeric, but test boundary
@@ -817,7 +817,7 @@ class TestEdgeCases:
         """Test task with empty custom_fields list."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         task = make_task("task-001", "Task", custom_fields=[])
@@ -833,7 +833,7 @@ class TestEdgeCases:
         """Test task with None custom_fields."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         task = {

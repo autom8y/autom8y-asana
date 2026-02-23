@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 import polars as pl
 import pytest
 
-from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.dataframes.views.dataframe_view import DataFrameViewPlugin
 
@@ -255,10 +255,10 @@ class TestDataFrameViewPluginMaterialize:
 
         plugin = DataFrameViewPlugin(store=mock_store, schema=simple_schema)
 
-        await plugin.materialize_async(["task-1"], freshness=FreshnessMode.STRICT)
+        await plugin.materialize_async(["task-1"], freshness=FreshnessIntent.STRICT)
 
         mock_store.get_batch_async.assert_called_with(
-            ["task-1"], freshness=FreshnessMode.STRICT
+            ["task-1"], freshness=FreshnessIntent.STRICT
         )
 
     @pytest.mark.asyncio

@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     from autom8_asana.cache.models.entry import CacheEntry, EntryType
-    from autom8_asana.cache.models.freshness import Freshness
+    from autom8_asana.cache.models.freshness_unified import FreshnessIntent
     from autom8_asana.cache.models.metrics import CacheMetrics
     from autom8_asana.protocols.cache import WarmResult
 
@@ -52,7 +52,7 @@ class NullCacheProvider:
         self,
         key: str,
         entry_type: EntryType,
-        freshness: Freshness | None = None,
+        freshness: FreshnessIntent | None = None,
     ) -> CacheEntry | None:
         """Always returns None (cache miss)."""
         return None
@@ -216,14 +216,14 @@ class InMemoryCacheProvider:
         self,
         key: str,
         entry_type: EntryType,
-        freshness: Freshness | None = None,
+        freshness: FreshnessIntent | None = None,
     ) -> CacheEntry | None:
         """Retrieve versioned cache entry.
 
         Args:
             key: Cache key.
             entry_type: Type of entry.
-            freshness: Freshness mode (ignored for in-memory).
+            freshness: FreshnessIntent mode (ignored for in-memory).
 
         Returns:
             CacheEntry if found and not expired, None otherwise.

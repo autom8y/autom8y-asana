@@ -71,7 +71,7 @@ Structured log events:
 Example
 -------
 >>> from autom8_asana.cache import (
-...     UnifiedTaskStore, CompletenessLevel, FreshnessMode
+...     UnifiedTaskStore, CompletenessLevel, FreshnessIntent
 ... )
 >>> # Get task requiring STANDARD fields
 >>> task = await store.get_async(

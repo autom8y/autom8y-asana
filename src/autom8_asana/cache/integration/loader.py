@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8_asana.cache.models.freshness import Freshness
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.policies.staleness import check_entry_staleness
 
 if TYPE_CHECKING:
@@ -27,7 +27,7 @@ async def load_task_entry(
     cache: CacheProvider,
     fetcher: Callable[[str], Awaitable[dict[str, Any]]],
     current_modified_at: str | None = None,
-    freshness: Freshness = Freshness.EVENTUAL,
+    freshness: FreshnessIntent = FreshnessIntent.EVENTUAL,
     project_gid: str | None = None,
     ttl: int | None = 300,
 ) -> tuple[CacheEntry | None, bool]:
@@ -117,7 +117,7 @@ async def load_task_entries(
     cache: CacheProvider,
     fetchers: dict[EntryType, Callable[[str], Awaitable[dict[str, Any]]]],
     current_modified_at: str | None = None,
-    freshness: Freshness = Freshness.EVENTUAL,
+    freshness: FreshnessIntent = FreshnessIntent.EVENTUAL,
     project_gid: str | None = None,
     ttl: int | None = 300,
 ) -> dict[EntryType, tuple[CacheEntry | None, bool]]:
@@ -201,7 +201,7 @@ async def load_batch_entries(
     cache: CacheProvider,
     batch_fetcher: Callable[[list[str]], Awaitable[dict[str, dict[str, Any]]]],
     current_versions: dict[str, str] | None = None,
-    freshness: Freshness = Freshness.EVENTUAL,
+    freshness: FreshnessIntent = FreshnessIntent.EVENTUAL,
     ttl: int | None = 300,
 ) -> dict[str, tuple[CacheEntry | None, bool]]:
     """Load cache entries for multiple tasks, using batch API for misses.

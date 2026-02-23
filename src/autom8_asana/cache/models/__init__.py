@@ -40,6 +40,7 @@ from autom8_asana.cache.models.freshness_stamp import (
     FreshnessStamp,
     VerificationSource,
 )
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent, FreshnessState
 from autom8_asana.cache.models.metrics import CacheEvent, CacheMetrics
 from autom8_asana.cache.models.mutation_event import (
     EntityKind,
@@ -68,6 +69,8 @@ __all__ = [
     "DetectionCacheEntry",
     "EntryType",
     "Freshness",
+    "FreshnessIntent",
+    "FreshnessState",
     "FreshnessStamp",
     "FreshnessClassification",
     "VerificationSource",

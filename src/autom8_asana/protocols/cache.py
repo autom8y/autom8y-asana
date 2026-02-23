@@ -12,7 +12,7 @@ if TYPE_CHECKING:
         FreshnessInfo,
     )
     from autom8_asana.cache.models.entry import CacheEntry, EntryType
-    from autom8_asana.cache.models.freshness import Freshness
+    from autom8_asana.cache.models.freshness_unified import FreshnessIntent
     from autom8_asana.cache.models.metrics import CacheMetrics
 
 
@@ -78,7 +78,7 @@ class CacheProvider(Protocol):
         self,
         key: str,
         entry_type: EntryType,
-        freshness: Freshness | None = None,
+        freshness: FreshnessIntent | None = None,
     ) -> CacheEntry | None:
         """Retrieve versioned cache entry with freshness control.
 

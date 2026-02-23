@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8_asana.cache.models.freshness import Freshness
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.policies.staleness import (
     check_batch_staleness,
     check_entry_staleness,
@@ -27,8 +27,8 @@ class TestCheckEntryStaleness:
             ttl=1,
         )
 
-        assert check_entry_staleness(entry, None, Freshness.EVENTUAL) is True
-        assert check_entry_staleness(entry, None, Freshness.STRICT) is True
+        assert check_entry_staleness(entry, None, FreshnessIntent.EVENTUAL) is True
+        assert check_entry_staleness(entry, None, FreshnessIntent.STRICT) is True
 
     def test_eventual_freshness_trusts_ttl(self) -> None:
         """Test that EVENTUAL freshness only checks TTL."""
@@ -44,7 +44,7 @@ class TestCheckEntryStaleness:
 
         # Even with old version, EVENTUAL should not be stale if TTL valid
         newer_version = (now + timedelta(minutes=30)).isoformat()
-        assert check_entry_staleness(entry, newer_version, Freshness.EVENTUAL) is False
+        assert check_entry_staleness(entry, newer_version, FreshnessIntent.EVENTUAL) is False
 
     def test_strict_freshness_checks_version(self) -> None:
         """Test that STRICT freshness verifies version."""
@@ -60,7 +60,7 @@ class TestCheckEntryStaleness:
 
         # Newer source version should be stale in STRICT mode
         newer_version = now.isoformat()
-        assert check_entry_staleness(entry, newer_version, Freshness.STRICT) is True
+        assert check_entry_staleness(entry, newer_version, FreshnessIntent.STRICT) is True
 
     def test_strict_freshness_current_version(self) -> None:
         """Test that STRICT freshness accepts current version."""
@@ -78,8 +78,8 @@ class TestCheckEntryStaleness:
         same_version = now.isoformat()
         older_version = (now - timedelta(hours=1)).isoformat()
 
-        assert check_entry_staleness(entry, same_version, Freshness.STRICT) is False
-        assert check_entry_staleness(entry, older_version, Freshness.STRICT) is False
+        assert check_entry_staleness(entry, same_version, FreshnessIntent.STRICT) is False
+        assert check_entry_staleness(entry, older_version, FreshnessIntent.STRICT) is False
 
     def test_strict_without_current_version_is_stale(self) -> None:
         """Test that STRICT without current version treats as stale."""
@@ -92,7 +92,7 @@ class TestCheckEntryStaleness:
         )
 
         # Cannot verify without current version in STRICT mode
-        assert check_entry_staleness(entry, None, Freshness.STRICT) is True
+        assert check_entry_staleness(entry, None, FreshnessIntent.STRICT) is True
 
     def test_version_string_with_z_suffix(self) -> None:
         """Test version comparison with Z suffix timestamp."""
@@ -107,7 +107,7 @@ class TestCheckEntryStaleness:
 
         # Z suffix should be handled correctly
         newer_version = (now + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        assert check_entry_staleness(entry, newer_version, Freshness.STRICT) is True
+        assert check_entry_staleness(entry, newer_version, FreshnessIntent.STRICT) is True
 
     def test_no_ttl_not_expired(self) -> None:
         """Test that entries without TTL are not expired."""
@@ -120,7 +120,7 @@ class TestCheckEntryStaleness:
             ttl=None,  # No expiration
         )
 
-        assert check_entry_staleness(entry, None, Freshness.EVENTUAL) is False
+        assert check_entry_staleness(entry, None, FreshnessIntent.EVENTUAL) is False
 
 
 class TestCheckBatchStaleness:
@@ -135,7 +135,7 @@ class TestCheckBatchStaleness:
             ["123", "456", "789"],
             EntryType.TASK,
             {},
-            Freshness.EVENTUAL,
+            FreshnessIntent.EVENTUAL,
         )
 
         assert result == {"123": True, "456": True, "789": True}
@@ -163,7 +163,7 @@ class TestCheckBatchStaleness:
             ["123", "456", "789"],
             EntryType.TASK,
             {"123": now.isoformat(), "456": now.isoformat(), "789": now.isoformat()},
-            Freshness.EVENTUAL,
+            FreshnessIntent.EVENTUAL,
         )
 
         assert result == {"123": False, "456": False, "789": False}
@@ -190,7 +190,7 @@ class TestCheckBatchStaleness:
             ["123", "456"],
             EntryType.TASK,
             {},
-            Freshness.EVENTUAL,
+            FreshnessIntent.EVENTUAL,
         )
 
         assert result["123"] is False  # Cached
@@ -219,7 +219,7 @@ class TestCheckBatchStaleness:
             ["123"],
             EntryType.TASK,
             {"123": now.isoformat()},  # Newer current version
-            Freshness.STRICT,
+            FreshnessIntent.STRICT,
         )
 
         assert result["123"] is True  # Stale because version is older
@@ -233,7 +233,7 @@ class TestCheckBatchStaleness:
             [],
             EntryType.TASK,
             {},
-            Freshness.EVENTUAL,
+            FreshnessIntent.EVENTUAL,
         )
 
         assert result == {}
@@ -261,7 +261,7 @@ class TestCheckBatchStaleness:
             ["123"],
             EntryType.SUBTASKS,
             {},
-            Freshness.EVENTUAL,
+            FreshnessIntent.EVENTUAL,
         )
 
         assert result["123"] is True

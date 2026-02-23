@@ -36,7 +36,7 @@ from autom8_asana.exceptions import ConfigurationError
 from autom8_asana.settings import get_settings
 
 if TYPE_CHECKING:
-    from autom8_asana.cache.models.freshness import Freshness
+    from autom8_asana.cache.models.freshness_unified import FreshnessIntent
     from autom8_asana.cache.models.settings import OverflowSettings, TTLSettings
 
 __all__ = [
@@ -478,10 +478,10 @@ class CacheConfig:
     )
 
     # These use factory functions to avoid circular imports at module load
-    # The actual TTLSettings/OverflowSettings/Freshness are created lazily
+    # The actual TTLSettings/OverflowSettings/FreshnessIntent are created lazily
     _ttl: TTLSettings | None = field(default=None, repr=False)
     _overflow: OverflowSettings | None = field(default=None, repr=False)
-    _freshness: Freshness | None = field(default=None, repr=False)
+    _freshness: FreshnessIntent | None = field(default=None, repr=False)
 
     @property
     def ttl(self) -> TTLSettings:
@@ -512,16 +512,16 @@ class CacheConfig:
         object.__setattr__(self, "_overflow", value)
 
     @property
-    def freshness(self) -> Freshness:
+    def freshness(self) -> FreshnessIntent:
         """Default freshness mode for cache reads (lazy-loaded)."""
         if self._freshness is None:
-            from autom8_asana.cache.models.freshness import Freshness
+            from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 
-            object.__setattr__(self, "_freshness", Freshness.EVENTUAL)
+            object.__setattr__(self, "_freshness", FreshnessIntent.EVENTUAL)
         return self._freshness  # type: ignore[return-value]
 
     @freshness.setter
-    def freshness(self, value: Freshness) -> None:
+    def freshness(self, value: FreshnessIntent) -> None:
         """Set freshness mode."""
         object.__setattr__(self, "_freshness", value)
 

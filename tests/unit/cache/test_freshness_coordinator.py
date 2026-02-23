@@ -14,7 +14,7 @@ import pytest
 from autom8_asana.batch.models import BatchResult
 from autom8_asana.cache.integration.freshness_coordinator import (
     FreshnessCoordinator,
-    FreshnessMode,
+    FreshnessIntent,
     FreshnessResult,
 )
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
@@ -106,13 +106,13 @@ class TestFreshnessResult:
 
 
 class TestFreshnessMode:
-    """Tests for FreshnessMode enum."""
+    """Tests for FreshnessIntent enum."""
 
     def test_mode_values(self) -> None:
-        """Test FreshnessMode enum values."""
-        assert FreshnessMode.STRICT.value == "strict"
-        assert FreshnessMode.EVENTUAL.value == "eventual"
-        assert FreshnessMode.IMMEDIATE.value == "immediate"
+        """Test FreshnessIntent enum values."""
+        assert FreshnessIntent.STRICT.value == "strict"
+        assert FreshnessIntent.EVENTUAL.value == "eventual"
+        assert FreshnessIntent.IMMEDIATE.value == "immediate"
 
 
 class TestFreshnessCoordinatorImmediate:
@@ -126,7 +126,7 @@ class TestFreshnessCoordinatorImmediate:
         entries = [make_entry("123"), make_entry("456")]
 
         results = await coordinator.check_batch_async(
-            entries, mode=FreshnessMode.IMMEDIATE
+            entries, mode=FreshnessIntent.IMMEDIATE
         )
 
         # Should not call API
@@ -146,7 +146,7 @@ class TestFreshnessCoordinatorImmediate:
         """Test that IMMEDIATE mode tracks stats correctly."""
         entries = [make_entry("123"), make_entry("456"), make_entry("789")]
 
-        await coordinator.check_batch_async(entries, mode=FreshnessMode.IMMEDIATE)
+        await coordinator.check_batch_async(entries, mode=FreshnessIntent.IMMEDIATE)
 
         stats = coordinator.get_stats()
         assert stats["total_checks"] == 3
@@ -166,7 +166,7 @@ class TestFreshnessCoordinatorEventual:
         entry = make_entry("123", ttl=300, cached_ago_seconds=0)
 
         results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessMode.EVENTUAL
+            [entry], mode=FreshnessIntent.EVENTUAL
         )
 
         # Should not call API
@@ -189,7 +189,7 @@ class TestFreshnessCoordinatorEventual:
         ]
 
         results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessMode.EVENTUAL
+            [entry], mode=FreshnessIntent.EVENTUAL
         )
 
         # Should call API
@@ -215,7 +215,7 @@ class TestFreshnessCoordinatorEventual:
         ]
 
         results = await coordinator.check_batch_async(
-            [fresh_entry, expired_entry], mode=FreshnessMode.EVENTUAL
+            [fresh_entry, expired_entry], mode=FreshnessIntent.EVENTUAL
         )
 
         assert len(results) == 2
@@ -247,7 +247,7 @@ class TestFreshnessCoordinatorStrict:
         ]
 
         results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessMode.STRICT
+            [entry], mode=FreshnessIntent.STRICT
         )
 
         # Should call API
@@ -269,7 +269,7 @@ class TestFreshnessCoordinatorStrict:
         ]
 
         results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessMode.STRICT
+            [entry], mode=FreshnessIntent.STRICT
         )
 
         assert len(results) == 1
@@ -303,7 +303,7 @@ class TestFreshnessCoordinatorBatching:
             create_results(range(5)),  # Third chunk (5 remaining)
         ]
 
-        await coordinator.check_batch_async(entries, mode=FreshnessMode.STRICT)
+        await coordinator.check_batch_async(entries, mode=FreshnessIntent.STRICT)
 
         # Should make 3 API calls (chunks of 10, 10, 5)
         assert mock_batch_client.execute_async.call_count == 3
@@ -316,7 +316,7 @@ class TestFreshnessCoordinatorBatching:
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
         """Test that empty entries list doesn't call API."""
-        results = await coordinator.check_batch_async([], mode=FreshnessMode.STRICT)
+        results = await coordinator.check_batch_async([], mode=FreshnessIntent.STRICT)
 
         mock_batch_client.execute_async.assert_not_called()
         assert results == []
@@ -335,7 +335,7 @@ class TestFreshnessCoordinatorErrorHandling:
         mock_batch_client.execute_async.side_effect = ConnectionError("Network error")
 
         results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessMode.STRICT
+            [entry], mode=FreshnessIntent.STRICT
         )
 
         assert len(results) == 1
@@ -354,7 +354,7 @@ class TestFreshnessCoordinatorErrorHandling:
         ]
 
         results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessMode.STRICT
+            [entry], mode=FreshnessIntent.STRICT
         )
 
         assert len(results) == 1
@@ -374,7 +374,7 @@ class TestFreshnessCoordinatorErrorHandling:
         ]
 
         results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessMode.STRICT
+            [entry], mode=FreshnessIntent.STRICT
         )
 
         assert len(results) == 1
@@ -388,7 +388,7 @@ class TestFreshnessCoordinatorErrorHandling:
         entry = make_entry("123", ttl=1, cached_ago_seconds=100)
 
         results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessMode.STRICT
+            [entry], mode=FreshnessIntent.STRICT
         )
 
         assert len(results) == 1
@@ -407,7 +407,7 @@ class TestFreshnessCoordinatorHierarchy:
         entry = make_entry("root-123")
 
         result = await coordinator.check_hierarchy_async(
-            "root-123", root_entry=entry, mode=FreshnessMode.IMMEDIATE
+            "root-123", root_entry=entry, mode=FreshnessIntent.IMMEDIATE
         )
 
         mock_batch_client.execute_async.assert_not_called()
@@ -422,7 +422,7 @@ class TestFreshnessCoordinatorHierarchy:
         entry = make_entry("root-123", ttl=300, cached_ago_seconds=0)
 
         result = await coordinator.check_hierarchy_async(
-            "root-123", root_entry=entry, mode=FreshnessMode.EVENTUAL
+            "root-123", root_entry=entry, mode=FreshnessIntent.EVENTUAL
         )
 
         mock_batch_client.execute_async.assert_not_called()
@@ -441,7 +441,7 @@ class TestFreshnessCoordinatorHierarchy:
         ]
 
         result = await coordinator.check_hierarchy_async(
-            "root-123", root_entry=entry, mode=FreshnessMode.STRICT
+            "root-123", root_entry=entry, mode=FreshnessIntent.STRICT
         )
 
         mock_batch_client.execute_async.assert_called_once()
@@ -460,7 +460,7 @@ class TestFreshnessCoordinatorHierarchy:
         ]
 
         result = await coordinator.check_hierarchy_async(
-            "root-123", root_entry=entry, mode=FreshnessMode.STRICT
+            "root-123", root_entry=entry, mode=FreshnessIntent.STRICT
         )
 
         assert result.is_fresh is False
@@ -473,7 +473,7 @@ class TestFreshnessCoordinatorHierarchy:
         entry = make_entry("root-123")
 
         result = await coordinator.check_hierarchy_async(
-            "root-123", root_entry=entry, mode=FreshnessMode.STRICT
+            "root-123", root_entry=entry, mode=FreshnessIntent.STRICT
         )
 
         assert result.is_fresh is False
@@ -489,7 +489,7 @@ class TestFreshnessCoordinatorHierarchy:
         mock_batch_client.execute_async.side_effect = ConnectionError("Network error")
 
         result = await coordinator.check_hierarchy_async(
-            "root-123", root_entry=entry, mode=FreshnessMode.EVENTUAL
+            "root-123", root_entry=entry, mode=FreshnessIntent.EVENTUAL
         )
 
         assert result.is_fresh is False
@@ -519,7 +519,7 @@ class TestFreshnessCoordinatorStats:
         ]
 
         await coordinator.check_batch_async(
-            [fresh_entry, stale_entry], mode=FreshnessMode.EVENTUAL
+            [fresh_entry, stale_entry], mode=FreshnessIntent.EVENTUAL
         )
 
         stats = coordinator.get_stats()
@@ -532,7 +532,7 @@ class TestFreshnessCoordinatorStats:
     async def test_reset_stats(self, coordinator: FreshnessCoordinator) -> None:
         """Test that reset_stats clears all statistics."""
         entries = [make_entry("123")]
-        await coordinator.check_batch_async(entries, mode=FreshnessMode.IMMEDIATE)
+        await coordinator.check_batch_async(entries, mode=FreshnessIntent.IMMEDIATE)
 
         assert coordinator.get_stats()["total_checks"] > 0
 
@@ -560,7 +560,7 @@ class TestFreshnessCoordinatorVersionComparison:
         ]
 
         results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessMode.STRICT
+            [entry], mode=FreshnessIntent.STRICT
         )
 
         assert results[0].is_fresh is True
@@ -580,7 +580,7 @@ class TestFreshnessCoordinatorVersionComparison:
         ]
 
         results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessMode.STRICT
+            [entry], mode=FreshnessIntent.STRICT
         )
 
         # Cached is newer or equal, so fresh
@@ -600,7 +600,7 @@ class TestFreshnessCoordinatorVersionComparison:
         ]
 
         results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessMode.STRICT
+            [entry], mode=FreshnessIntent.STRICT
         )
 
         assert results[0].is_fresh is False

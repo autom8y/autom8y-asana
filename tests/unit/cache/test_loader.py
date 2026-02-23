@@ -12,7 +12,7 @@ from autom8_asana.cache.integration.loader import (
     load_task_entry,
 )
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8_asana.cache.models.freshness import Freshness
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 
 
 class TestLoadTaskEntry:
@@ -103,7 +103,7 @@ class TestLoadTaskEntry:
             cache=cache,
             fetcher=fetcher,
             current_modified_at=new_time.isoformat(),
-            freshness=Freshness.STRICT,
+            freshness=FreshnessIntent.STRICT,
         )
 
         assert hit is False
@@ -137,7 +137,7 @@ class TestLoadTaskEntry:
             cache=cache,
             fetcher=fetcher,
             current_modified_at=new_time.isoformat(),
-            freshness=Freshness.EVENTUAL,
+            freshness=FreshnessIntent.EVENTUAL,
         )
 
         assert hit is True
@@ -620,7 +620,7 @@ class TestLoadBatchEntries:
             cache=cache,
             batch_fetcher=batch_fetcher,
             current_versions={"123": new_time.isoformat()},
-            freshness=Freshness.STRICT,
+            freshness=FreshnessIntent.STRICT,
         )
 
         entry, hit = results["123"]

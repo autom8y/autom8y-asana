@@ -140,6 +140,7 @@ from autom8_asana.cache.models.events import (
     setup_cache_logging,
 )
 from autom8_asana.cache.models.freshness import Freshness
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent, FreshnessState
 from autom8_asana.cache.models.metrics import CacheEvent, CacheMetrics
 from autom8_asana.cache.models.settings import (
     CacheSettings,
@@ -187,6 +188,8 @@ __all__ = [
     "EntryType",
     # Freshness modes
     "Freshness",
+    "FreshnessIntent",
+    "FreshnessState",
     # Settings
     "CacheSettings",
     "TTLSettings",

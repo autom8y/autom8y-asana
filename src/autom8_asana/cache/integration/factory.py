@@ -14,7 +14,7 @@ from autom8_asana.settings import get_settings
 
 if TYPE_CHECKING:
     from autom8_asana.batch.client import BatchClient
-    from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+    from autom8_asana.cache.models.freshness_unified import FreshnessIntent
     from autom8_asana.cache.providers.unified import UnifiedTaskStore
     from autom8_asana.config import CacheConfig
     from autom8_asana.protocols.cache import CacheProvider
@@ -221,7 +221,7 @@ class CacheProviderFactory:
     def create_unified_store(
         config: CacheConfig,
         batch_client: BatchClient | None = None,
-        freshness_mode: FreshnessMode | None = None,
+        freshness_mode: FreshnessIntent | None = None,
     ) -> UnifiedTaskStore:
         """Create unified task store with environment-aware provider selection.
 
@@ -236,7 +236,7 @@ class CacheProviderFactory:
         Returns:
             UnifiedTaskStore configured for the environment.
         """
-        from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+        from autom8_asana.cache.models.freshness_unified import FreshnessIntent
         from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
         # Use same provider selection logic as create()
@@ -244,7 +244,7 @@ class CacheProviderFactory:
 
         # Default to EVENTUAL if not specified
         if freshness_mode is None:
-            freshness_mode = FreshnessMode.EVENTUAL
+            freshness_mode = FreshnessIntent.EVENTUAL
 
         # Create and return unified store
         return UnifiedTaskStore(

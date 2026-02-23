@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
 if TYPE_CHECKING:
@@ -94,7 +94,7 @@ def store(mock_cache_provider: MagicMock) -> UnifiedTaskStore:
     return UnifiedTaskStore(
         cache=mock_cache_provider,
         batch_client=MagicMock(),
-        freshness_mode=FreshnessMode.EVENTUAL,
+        freshness_mode=FreshnessIntent.EVENTUAL,
     )
 
 

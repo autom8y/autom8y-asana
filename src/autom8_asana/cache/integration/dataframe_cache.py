@@ -9,17 +9,21 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
+from autom8_asana.cache.models.freshness_unified import FreshnessState
+
+# Backward-compatible alias. New code should use FreshnessState directly.
+FreshnessStatus = FreshnessState
+
 try:
-    from autom8_asana.api.metrics import (  # nosemgrep: autom8y.asana-no-lower-imports-api
+    from autom8_asana.api.metrics import (  # nosemgrep: autom8y.asana-no-lower-imports-api, autom8y.no-lower-imports-api  # soft optional dep, guarded by try/except
         record_cache_op,
         record_rows_cached,
         record_swr_refresh,
-    )  # soft optional dep; guarded by try/except to support Lambda (no prometheus_client)
+    )
 
     _HAS_METRICS = True
 except ImportError:
@@ -42,17 +46,6 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class FreshnessStatus(str, Enum):
-    """Result of entity-aware freshness check."""
-
-    FRESH = "fresh"
-    STALE_SERVABLE = "stale_servable"  # Within SWR grace window
-    EXPIRED_SERVABLE = "expired_servable"  # Beyond grace, data structurally valid (LKG)
-    SCHEMA_MISMATCH = "schema_mismatch"  # Hard reject
-    WATERMARK_STALE = "watermark_stale"  # Hard reject
-    CIRCUIT_LKG = "circuit_lkg"  # Circuit breaker open, serving LKG
-
-
 @dataclass
 class FreshnessInfo:
     """Freshness metadata for a cache serve operation.
@@ -65,7 +58,7 @@ class FreshnessInfo:
     side-channel.
     """
 
-    freshness: str  # FreshnessStatus value (see FreshnessStatus enum)
+    freshness: str  # FreshnessState value (see FreshnessState enum)
     data_age_seconds: float
     staleness_ratio: float  # age / entity_ttl (>1.0 means past TTL)
     build_status: str | None = None  # "success", "partial", "failure" (C2)
@@ -269,11 +262,11 @@ class DataFrameCache:
         2. Progressive tier (cold storage via SectionPersistence)
         3. Return None (caller should trigger build)
 
-        Freshness states:
+        Freshness states (FreshnessState):
         - FRESH: Entry within entity TTL — serve immediately.
-        - STALE_SERVABLE: Entry past TTL but within SWR grace window —
+        - APPROACHING_STALE: Entry past TTL but within SWR grace window —
           serve stale data and trigger background refresh.
-        - EXPIRED: Entry beyond grace window — treat as cache miss.
+        - STALE: Entry beyond grace window — treat as cache miss.
 
         Args:
             project_gid: Asana project GID.
@@ -353,7 +346,7 @@ class DataFrameCache:
             self._stats[entity_type]["lkg_circuit_serves"] += 1
             self._stats[entity_type]["memory_hits"] += 1
             info = self._build_freshness_info(
-                entry, FreshnessStatus.CIRCUIT_LKG, cache_key
+                entry, FreshnessState.CIRCUIT_FALLBACK, cache_key
             )
             logger.info(
                 "dataframe_cache_circuit_lkg_serve",
@@ -374,7 +367,7 @@ class DataFrameCache:
             self._stats[entity_type]["lkg_circuit_serves"] += 1
             self._stats[entity_type]["s3_hits"] += 1
             info = self._build_freshness_info(
-                entry, FreshnessStatus.CIRCUIT_LKG, cache_key
+                entry, FreshnessState.CIRCUIT_FALLBACK, cache_key
             )
             logger.info(
                 "dataframe_cache_circuit_lkg_serve",
@@ -422,15 +415,15 @@ class DataFrameCache:
 
         # Build freshness info for servable states
         if status in (
-            FreshnessStatus.FRESH,
-            FreshnessStatus.STALE_SERVABLE,
-            FreshnessStatus.EXPIRED_SERVABLE,
+            FreshnessState.FRESH,
+            FreshnessState.APPROACHING_STALE,
+            FreshnessState.STALE,
         ):
             info = self._build_freshness_info(entry, status, cache_key)
         else:
             info = None
 
-        if status == FreshnessStatus.FRESH:
+        if status == FreshnessState.FRESH:
             self._stats[entity_type][f"{tier}_hits"] += 1
             if _HAS_METRICS:
                 record_cache_op(entity_type, tier, "hit")
@@ -445,7 +438,7 @@ class DataFrameCache:
             )
             return entry
 
-        if status == FreshnessStatus.STALE_SERVABLE:
+        if status == FreshnessState.APPROACHING_STALE:
             assert info is not None  # Guaranteed by status check above
             self._stats[entity_type][f"{tier}_hits"] += 1
             if _HAS_METRICS:
@@ -458,13 +451,13 @@ class DataFrameCache:
                     "entity_type": entity_type,
                     "row_count": entry.row_count,
                     "age_seconds": info.data_age_seconds,
-                    "freshness": "stale_servable",
+                    "freshness": "approaching_stale",
                 },
             )
             self._trigger_swr_refresh(project_gid, entity_type, cache_key)
             return entry
 
-        if status == FreshnessStatus.EXPIRED_SERVABLE:
+        if status == FreshnessState.STALE:
             assert info is not None  # Guaranteed by status check above
             # Check max staleness policy before serving
             entity_ttl = DEFAULT_ENTITY_TTLS.get(entry.entity_type, DEFAULT_TTL)
@@ -499,13 +492,13 @@ class DataFrameCache:
                     "entity_type": entity_type,
                     "row_count": entry.row_count,
                     "age_seconds": age,
-                    "freshness": "expired_servable",
+                    "freshness": "stale",
                 },
             )
             self._trigger_swr_refresh(project_gid, entity_type, cache_key)
             return entry
 
-        # SCHEMA_MISMATCH or WATERMARK_STALE — hard reject, remove from memory
+        # SCHEMA_INVALID or WATERMARK_BEHIND — hard reject, remove from memory
         logger.warning(
             f"dataframe_cache_{tier}_hard_reject",
             extra={
@@ -759,7 +752,7 @@ class DataFrameCache:
     def _build_freshness_info(
         self,
         entry: DataFrameCacheEntry,
-        status: FreshnessStatus,
+        status: FreshnessState,
         cache_key: str,
     ) -> FreshnessInfo:
         """Build FreshnessInfo and store in side-channel.
@@ -827,17 +820,18 @@ class DataFrameCache:
         self,
         entry: DataFrameCacheEntry,
         current_watermark: datetime | None,
-    ) -> FreshnessStatus:
+    ) -> FreshnessState:
         """Check entry freshness using entity-aware TTL with SWR grace.
 
-        Returns a five-state result:
+        Returns a six-state FreshnessState result:
         - FRESH: Within entity TTL, serve immediately.
-        - STALE_SERVABLE: Past entity TTL but within SWR grace window.
+        - APPROACHING_STALE: Past entity TTL but within SWR grace window.
           Caller should serve stale data and trigger background refresh.
-        - EXPIRED_SERVABLE: Beyond grace window but schema/watermark valid (LKG).
+        - STALE: Beyond grace window but schema/watermark valid (LKG).
           Serve with warning, trigger refresh.
-        - SCHEMA_MISMATCH: Schema version mismatch. Hard reject.
-        - WATERMARK_STALE: Source has newer data. Hard reject.
+        - SCHEMA_INVALID: Schema version mismatch. Hard reject.
+        - WATERMARK_BEHIND: Source has newer data. Hard reject.
+        - CIRCUIT_FALLBACK: Circuit breaker open, serving LKG.
 
         Schema version validation uses the SchemaRegistry to look up the
         expected version for the entry's entity type.
@@ -852,7 +846,7 @@ class DataFrameCache:
                     "entry_version": entry.schema_version,
                 },
             )
-            return FreshnessStatus.SCHEMA_MISMATCH
+            return FreshnessState.SCHEMA_INVALID
 
         if entry.schema_version != expected_version:
             logger.debug(
@@ -863,12 +857,12 @@ class DataFrameCache:
                     "expected_version": expected_version,
                 },
             )
-            return FreshnessStatus.SCHEMA_MISMATCH
+            return FreshnessState.SCHEMA_INVALID
 
         # Watermark check — hard-reject if source has newer data
         if current_watermark is not None:
             if not entry.is_fresh_by_watermark(current_watermark):
-                return FreshnessStatus.WATERMARK_STALE
+                return FreshnessState.WATERMARK_BEHIND
 
         # Entity-aware TTL with SWR grace window
         from autom8_asana.config import (
@@ -882,13 +876,13 @@ class DataFrameCache:
         age = (datetime.now(UTC) - entry.created_at).total_seconds()
 
         if age <= entity_ttl:
-            return FreshnessStatus.FRESH
+            return FreshnessState.FRESH
 
         if age <= grace_ttl:
-            return FreshnessStatus.STALE_SERVABLE
+            return FreshnessState.APPROACHING_STALE
 
         # Beyond grace window but schema/watermark valid — serve as LKG
-        return FreshnessStatus.EXPIRED_SERVABLE
+        return FreshnessState.STALE
 
     def _trigger_swr_refresh(
         self,

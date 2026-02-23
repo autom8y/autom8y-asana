@@ -338,7 +338,7 @@ class TestCacheProviderFactoryCreateUnifiedStore:
 
     def test_creates_unified_store_with_memory_provider(self) -> None:
         """Creates UnifiedTaskStore with InMemoryCacheProvider."""
-        from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+        from autom8_asana.cache.models.freshness_unified import FreshnessIntent
         from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
         config = CacheConfig(enabled=True, provider="memory")
@@ -347,7 +347,7 @@ class TestCacheProviderFactoryCreateUnifiedStore:
 
         assert isinstance(store, UnifiedTaskStore)
         assert isinstance(store.cache, InMemoryCacheProvider)
-        assert store.freshness_mode == FreshnessMode.EVENTUAL
+        assert store.freshness_mode == FreshnessIntent.EVENTUAL
         assert store.batch_client is None
 
     def test_creates_unified_store_with_null_provider_when_disabled(self) -> None:
@@ -379,21 +379,21 @@ class TestCacheProviderFactoryCreateUnifiedStore:
 
     def test_creates_unified_store_with_freshness_mode(self) -> None:
         """Creates UnifiedTaskStore with specified freshness mode."""
-        from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+        from autom8_asana.cache.models.freshness_unified import FreshnessIntent
         from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
         config = CacheConfig(enabled=True, provider="memory")
 
         store = CacheProviderFactory.create_unified_store(
-            config, freshness_mode=FreshnessMode.STRICT
+            config, freshness_mode=FreshnessIntent.STRICT
         )
 
         assert isinstance(store, UnifiedTaskStore)
-        assert store.freshness_mode == FreshnessMode.STRICT
+        assert store.freshness_mode == FreshnessIntent.STRICT
 
     def test_defaults_to_eventual_freshness_mode(self) -> None:
         """Defaults to EVENTUAL freshness mode when not specified."""
-        from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+        from autom8_asana.cache.models.freshness_unified import FreshnessIntent
         from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
         config = CacheConfig(enabled=True, provider="memory")
@@ -401,7 +401,7 @@ class TestCacheProviderFactoryCreateUnifiedStore:
         store = CacheProviderFactory.create_unified_store(config)
 
         assert isinstance(store, UnifiedTaskStore)
-        assert store.freshness_mode == FreshnessMode.EVENTUAL
+        assert store.freshness_mode == FreshnessIntent.EVENTUAL
 
 
 class TestCacheConfigDefaults:
@@ -438,12 +438,12 @@ class TestCacheConfigDefaults:
 
     def test_freshness_lazy_loaded(self) -> None:
         """Freshness mode is lazy-loaded."""
-        from autom8_asana.cache.models.freshness import Freshness
+        from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 
         config = CacheConfig()
         # Access triggers lazy load
         freshness = config.freshness
-        assert freshness == Freshness.EVENTUAL
+        assert freshness == FreshnessIntent.EVENTUAL
 
     def test_ttl_setter(self) -> None:
         """TTL can be set."""
@@ -465,8 +465,8 @@ class TestCacheConfigDefaults:
 
     def test_freshness_setter(self) -> None:
         """Freshness can be set."""
-        from autom8_asana.cache.models.freshness import Freshness
+        from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 
         config = CacheConfig()
-        config.freshness = Freshness.STRICT
-        assert config.freshness == Freshness.STRICT
+        config.freshness = FreshnessIntent.STRICT
+        assert config.freshness == FreshnessIntent.STRICT

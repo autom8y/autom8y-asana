@@ -22,8 +22,8 @@ from unittest.mock import AsyncMock, MagicMock
 import polars as pl
 import pytest
 
-from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.providers.unified import UnifiedTaskStore
 from autom8_asana.dataframes.builders.task_cache import (
     TaskCacheCoordinator,
@@ -75,7 +75,7 @@ def mock_unified_store(mock_cache_provider: MagicMock) -> UnifiedTaskStore:
     return UnifiedTaskStore(
         cache=mock_cache_provider,
         batch_client=None,
-        freshness_mode=FreshnessMode.IMMEDIATE,
+        freshness_mode=FreshnessIntent.IMMEDIATE,
     )
 
 
@@ -373,7 +373,7 @@ class TestTaskCacheCoordinatorUnifiedAdapter:
 
         unified_store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         coordinator = TaskCacheCoordinator.from_unified_store(unified_store)
@@ -394,7 +394,7 @@ class TestTaskCacheCoordinatorUnifiedAdapter:
         """Test that adapter populate delegates to UnifiedTaskStore."""
         unified_store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         coordinator = TaskCacheCoordinator.from_unified_store(unified_store)
@@ -484,7 +484,7 @@ class TestWarmCachePathSharedCache:
 
         unified_store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
 
         # Verify cache is being used correctly
@@ -580,7 +580,7 @@ class TestPerformanceTiming:
 
         unified_store = UnifiedTaskStore(
             cache=mock_cache_provider,
-            freshness_mode=FreshnessMode.IMMEDIATE,
+            freshness_mode=FreshnessIntent.IMMEDIATE,
         )
         coordinator = TaskCacheCoordinator.from_unified_store(unified_store)
 

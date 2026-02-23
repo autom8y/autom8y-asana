@@ -10,10 +10,10 @@ from datetime import UTC, datetime, timedelta
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.freshness_stamp import (
-    FreshnessClassification,
     FreshnessStamp,
     VerificationSource,
 )
+from autom8_asana.cache.models.freshness_unified import FreshnessState
 from autom8_asana.cache.policies.freshness_policy import FreshnessPolicy
 
 # ============================================================================
@@ -58,7 +58,7 @@ class TestFreshnessPolicyEvaluate:
         policy = FreshnessPolicy()
 
         result = policy.evaluate(entry, now=now)
-        assert result == FreshnessClassification.FRESH
+        assert result == FreshnessState.FRESH
 
     def test_evaluate_approaching_stale(self) -> None:
         """Entry at 76% of TTL classified as APPROACHING_STALE."""
@@ -72,7 +72,7 @@ class TestFreshnessPolicyEvaluate:
         policy = FreshnessPolicy()
 
         result = policy.evaluate(entry, now=now)
-        assert result == FreshnessClassification.APPROACHING_STALE
+        assert result == FreshnessState.APPROACHING_STALE
 
     def test_evaluate_stale_beyond_ttl(self) -> None:
         """Entry past TTL classified as STALE."""
@@ -85,7 +85,7 @@ class TestFreshnessPolicyEvaluate:
         policy = FreshnessPolicy()
 
         result = policy.evaluate(entry, now=now)
-        assert result == FreshnessClassification.STALE
+        assert result == FreshnessState.STALE
 
     def test_evaluate_no_stamp_is_stale(self) -> None:
         """Entry with freshness_stamp=None classified as STALE."""
@@ -93,7 +93,7 @@ class TestFreshnessPolicyEvaluate:
         policy = FreshnessPolicy()
 
         result = policy.evaluate(entry)
-        assert result == FreshnessClassification.STALE
+        assert result == FreshnessState.STALE
 
     def test_evaluate_soft_invalidated_is_stale(self) -> None:
         """Entry with staleness_hint classified as STALE regardless of age."""
@@ -107,7 +107,7 @@ class TestFreshnessPolicyEvaluate:
         policy = FreshnessPolicy()
 
         result = policy.evaluate(entry, now=now)
-        assert result == FreshnessClassification.STALE
+        assert result == FreshnessState.STALE
 
 
 class TestFreshnessPolicyRegistryTTL:
@@ -126,7 +126,7 @@ class TestFreshnessPolicyRegistryTTL:
         policy = FreshnessPolicy()
 
         result = policy.evaluate(entry, entity_type="business", now=now)
-        assert result == FreshnessClassification.FRESH
+        assert result == FreshnessState.FRESH
 
     def test_evaluate_fallback_ttl(self) -> None:
         """Unknown entity uses entry TTL or DEFAULT_TTL."""
@@ -141,7 +141,7 @@ class TestFreshnessPolicyRegistryTTL:
         # Unknown entity type falls back to entry TTL (200)
         # 100s / 200s = 50% -> FRESH
         result = policy.evaluate(entry, entity_type="nonexistent_entity_xyz", now=now)
-        assert result == FreshnessClassification.FRESH
+        assert result == FreshnessState.FRESH
 
     def test_evaluate_metadata_entity_type(self) -> None:
         """Entity type resolved from entry metadata."""
@@ -155,7 +155,7 @@ class TestFreshnessPolicyRegistryTTL:
         policy = FreshnessPolicy()
 
         result = policy.evaluate(entry, now=now)
-        assert result == FreshnessClassification.FRESH
+        assert result == FreshnessState.FRESH
 
 
 class TestFreshnessPolicyEvaluateStamp:
@@ -171,7 +171,7 @@ class TestFreshnessPolicyEvaluateStamp:
         policy = FreshnessPolicy()
 
         result = policy.evaluate_stamp(stamp, ttl_seconds=300, now=now)
-        assert result == FreshnessClassification.FRESH
+        assert result == FreshnessState.FRESH
 
     def test_evaluate_stamp_approaching(self) -> None:
         """evaluate_stamp() returns APPROACHING_STALE at threshold."""
@@ -184,7 +184,7 @@ class TestFreshnessPolicyEvaluateStamp:
 
         # 240 / 300 = 80% > 75% threshold
         result = policy.evaluate_stamp(stamp, ttl_seconds=300, now=now)
-        assert result == FreshnessClassification.APPROACHING_STALE
+        assert result == FreshnessState.APPROACHING_STALE
 
     def test_evaluate_stamp_stale(self) -> None:
         """evaluate_stamp() returns STALE beyond TTL."""
@@ -196,7 +196,7 @@ class TestFreshnessPolicyEvaluateStamp:
         policy = FreshnessPolicy()
 
         result = policy.evaluate_stamp(stamp, ttl_seconds=300, now=now)
-        assert result == FreshnessClassification.STALE
+        assert result == FreshnessState.STALE
 
     def test_evaluate_stamp_soft_invalidated(self) -> None:
         """evaluate_stamp() returns STALE for soft-invalidated stamp."""
@@ -209,7 +209,7 @@ class TestFreshnessPolicyEvaluateStamp:
         policy = FreshnessPolicy()
 
         result = policy.evaluate_stamp(stamp, ttl_seconds=300, now=now)
-        assert result == FreshnessClassification.STALE
+        assert result == FreshnessState.STALE
 
 
 class TestFreshnessPolicyCustomThreshold:
@@ -227,9 +227,9 @@ class TestFreshnessPolicyCustomThreshold:
         # With 0.5 threshold: 160/300 = 53% > 50% -> APPROACHING_STALE
         policy = FreshnessPolicy(approaching_threshold=0.5)
         result = policy.evaluate(entry, now=now)
-        assert result == FreshnessClassification.APPROACHING_STALE
+        assert result == FreshnessState.APPROACHING_STALE
 
         # With 0.9 threshold: 160/300 = 53% < 90% -> FRESH
         policy_high = FreshnessPolicy(approaching_threshold=0.9)
         result_high = policy_high.evaluate(entry, now=now)
-        assert result_high == FreshnessClassification.FRESH
+        assert result_high == FreshnessState.FRESH

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 from autom8y_log import get_logger
 
-from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.dataframes.builders.base import gather_with_limit
 from autom8_asana.dataframes.views.cascade_view import CascadeViewPlugin
 from autom8_asana.dataframes.views.cf_utils import extract_cf_value
@@ -126,7 +126,7 @@ class DataFrameViewPlugin:
         self,
         task_gids: list[str],
         project_gid: str | None = None,
-        freshness: FreshnessMode = FreshnessMode.EVENTUAL,
+        freshness: FreshnessIntent = FreshnessIntent.EVENTUAL,
     ) -> pl.DataFrame:
         """Materialize DataFrame from cached tasks.
 
@@ -139,7 +139,7 @@ class DataFrameViewPlugin:
         Args:
             task_gids: Task GIDs to include in DataFrame.
             project_gid: Optional project context for section extraction.
-            freshness: Freshness mode for cache lookups.
+            freshness: FreshnessIntent mode for cache lookups.
 
         Returns:
             Polars DataFrame with extracted data.
@@ -239,7 +239,7 @@ class DataFrameViewPlugin:
         updated_df = await self.materialize_async(
             task_gids=existing_gids,
             project_gid=project_gid,
-            freshness=FreshnessMode.EVENTUAL,
+            freshness=FreshnessIntent.EVENTUAL,
         )
 
         return updated_df, new_watermark
@@ -449,7 +449,7 @@ class DataFrameViewPlugin:
                     parent_data = await self._store.get_with_upgrade_async(
                         parent_gid,
                         required_level=CompletenessLevel.STANDARD,
-                        freshness=FreshnessMode.IMMEDIATE,
+                        freshness=FreshnessIntent.IMMEDIATE,
                     )
                     if parent_data:
                         parent_chain = [parent_data]
@@ -486,7 +486,7 @@ class DataFrameViewPlugin:
                         grandparent_data = await self._store.get_with_upgrade_async(
                             grandparent_gid,
                             required_level=CompletenessLevel.STANDARD,
-                            freshness=FreshnessMode.IMMEDIATE,
+                            freshness=FreshnessIntent.IMMEDIATE,
                         )
                         if grandparent_data and self._cascade_plugin is not None:
                             value = (
@@ -647,7 +647,7 @@ class DataFrameViewPlugin:
                     parent_data = await self._store.get_with_upgrade_async(
                         parent_gid,
                         required_level=CompletenessLevel.STANDARD,
-                        freshness=FreshnessMode.IMMEDIATE,
+                        freshness=FreshnessIntent.IMMEDIATE,
                     )
                     if parent_data:
                         parent_chain = [parent_data]

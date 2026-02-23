@@ -22,12 +22,12 @@ from autom8_asana.cache.dataframe.factory import (
 from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
 from autom8_asana.cache.integration.dataframe_cache import (
     DataFrameCache,
-    FreshnessStatus,
     _get_schema_version_for_entity,
 )
 from autom8_asana.cache.integration.dataframe_cache import (
     DataFrameCacheEntry as CacheEntry,
 )
+from autom8_asana.cache.models.freshness_unified import FreshnessState
 
 
 def make_entry(
@@ -522,40 +522,38 @@ class TestEntityTTLAndSWR:
         assert memory.get("unit:proj-1") is entry
 
     def test_check_freshness_returns_correct_states(self) -> None:
-        """_check_freshness returns correct FreshnessStatus for each age band."""
+        """_check_freshness returns correct FreshnessState for each age band."""
         cache = make_cache()
 
         # Fresh: 60s old, unit TTL = 900s
         fresh_entry = make_entry(entity_type="unit", created_seconds_ago=60)
-        assert cache._check_freshness(fresh_entry, None) == FreshnessStatus.FRESH
+        assert cache._check_freshness(fresh_entry, None) == FreshnessState.FRESH
 
-        # Stale servable: 1200s old, unit TTL = 900s, grace = 2700s
+        # Approaching stale: 1200s old, unit TTL = 900s, grace = 2700s
         stale_entry = make_entry(entity_type="unit", created_seconds_ago=1200)
         assert (
-            cache._check_freshness(stale_entry, None) == FreshnessStatus.STALE_SERVABLE
+            cache._check_freshness(stale_entry, None)
+            == FreshnessState.APPROACHING_STALE
         )
 
-        # Expired servable (LKG): 3600s old, unit TTL = 900s, grace = 2700s
+        # Stale (LKG): 3600s old, unit TTL = 900s, grace = 2700s
         expired_entry = make_entry(entity_type="unit", created_seconds_ago=3600)
-        assert (
-            cache._check_freshness(expired_entry, None)
-            == FreshnessStatus.EXPIRED_SERVABLE
-        )
+        assert cache._check_freshness(expired_entry, None) == FreshnessState.STALE
 
     def test_check_freshness_schema_mismatch_is_rejected(self) -> None:
-        """Schema mismatch always returns SCHEMA_MISMATCH regardless of age."""
+        """Schema mismatch always returns SCHEMA_INVALID regardless of age."""
         cache = make_cache()
         entry = make_entry(entity_type="unit", schema_version="0.0.1")
-        assert cache._check_freshness(entry, None) == FreshnessStatus.SCHEMA_MISMATCH
+        assert cache._check_freshness(entry, None) == FreshnessState.SCHEMA_INVALID
 
     def test_check_freshness_stale_watermark_is_rejected(self) -> None:
-        """Stale watermark always returns WATERMARK_STALE regardless of age."""
+        """Stale watermark always returns WATERMARK_BEHIND regardless of age."""
         cache = make_cache()
         entry = make_entry(entity_type="unit", created_seconds_ago=0)
         future_watermark = datetime.now(UTC) + timedelta(minutes=5)
         assert (
             cache._check_freshness(entry, future_watermark)
-            == FreshnessStatus.WATERMARK_STALE
+            == FreshnessState.WATERMARK_BEHIND
         )
 
 
@@ -991,7 +989,7 @@ class TestMaxStalenessEnforcement:
             with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task"):
                 swr_result = await cache.get_async("proj-swr", "unit")
 
-        # Both should still be served (staleness cap only applies to EXPIRED_SERVABLE)
+        # Both should still be served (staleness cap only applies to STALE/LKG entries)
         assert fresh_result is fresh_entry
         assert swr_result is swr_entry
 
@@ -1045,9 +1043,9 @@ class TestFreshnessInfoSideChannel:
 
     @pytest.mark.asyncio
     async def test_freshness_info_stored_on_stale_serve(self) -> None:
-        """Stale entry produces FreshnessInfo with freshness='stale_servable'."""
+        """Stale entry produces FreshnessInfo with freshness='approaching_stale'."""
         memory = MemoryTier(max_entries=100)
-        # unit TTL = 900s, entry 1200s old -> stale servable
+        # unit TTL = 900s, entry 1200s old -> approaching stale
         entry = make_entry(entity_type="unit", created_seconds_ago=1200)
         memory.put("unit:proj-1", entry)
 
@@ -1057,14 +1055,14 @@ class TestFreshnessInfoSideChannel:
 
         info = cache.get_freshness_info("proj-1", "unit")
         assert info is not None
-        assert info.freshness == "stale_servable"
+        assert info.freshness == "approaching_stale"
         assert info.staleness_ratio > 1.0
 
     @pytest.mark.asyncio
     async def test_freshness_info_stored_on_lkg_serve(self) -> None:
-        """LKG entry produces FreshnessInfo with freshness='expired_servable'."""
+        """LKG entry produces FreshnessInfo with freshness='stale'."""
         memory = MemoryTier(max_entries=100)
-        # unit TTL = 900s, grace = 2700s, entry 3600s old -> expired servable
+        # unit TTL = 900s, grace = 2700s, entry 3600s old -> stale
         entry = make_entry(entity_type="unit", created_seconds_ago=3600)
         memory.put("unit:proj-1", entry)
 
@@ -1074,7 +1072,7 @@ class TestFreshnessInfoSideChannel:
 
         info = cache.get_freshness_info("proj-1", "unit")
         assert info is not None
-        assert info.freshness == "expired_servable"
+        assert info.freshness == "stale"
         assert info.staleness_ratio > 1.0
 
     @pytest.mark.asyncio
@@ -1101,7 +1099,7 @@ class TestFreshnessInfoSideChannel:
 
     @pytest.mark.asyncio
     async def test_freshness_info_stored_on_circuit_lkg(self) -> None:
-        """Circuit breaker LKG serve stores FreshnessInfo with freshness='circuit_lkg'."""
+        """Circuit breaker LKG serve stores FreshnessInfo with freshness='circuit_fallback'."""
         memory = MemoryTier(max_entries=100)
         entry = make_entry(entity_type="unit", created_seconds_ago=60)
         memory.put("unit:proj-1", entry)
@@ -1114,7 +1112,7 @@ class TestFreshnessInfoSideChannel:
 
         info = cache.get_freshness_info("proj-1", "unit")
         assert info is not None
-        assert info.freshness == "circuit_lkg"
+        assert info.freshness == "circuit_fallback"
         assert info.data_age_seconds >= 59.0
 
 
