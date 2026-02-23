@@ -5,9 +5,9 @@ import time
 from collections.abc import Coroutine, Iterable
 from typing import Any
 
-import structlog
+from autom8y_log import get_logger
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 async def gather_with_semaphore(

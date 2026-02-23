@@ -29,7 +29,7 @@ from autom8_asana.exceptions import (
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-    import httpx
+    from autom8y_http import Response
 
     from autom8_asana.protocols.log import LogProvider
 
@@ -59,7 +59,7 @@ def validate_factory(
 
 
 async def handle_error_response(
-    response: httpx.Response,
+    response: Response,
     request_id: str,
     cache_key: str,
     factory: str,
@@ -195,7 +195,7 @@ async def handle_error_response(
 
 
 def parse_success_response(
-    response: httpx.Response,
+    response: Response,
     request_id: str,
     log: LogProvider | Any | None,
 ) -> InsightsResponse:

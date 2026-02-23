@@ -12,8 +12,8 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any
 
-import httpx
 from autom8y_config.lambda_extension import resolve_secret_from_env
+from autom8y_http import Autom8yHttpClient, HttpClientConfig, TimeoutException
 from autom8y_log import get_logger
 from pydantic import BaseModel, ConfigDict
 
@@ -29,7 +29,14 @@ logger = get_logger(__name__)
 GID_PUSH_ENABLED_ENV_VAR = "GID_PUSH_ENABLED"
 
 # Timeout for the push HTTP request (seconds).
-_PUSH_TIMEOUT = httpx.Timeout(connect=5.0, read=10.0, write=10.0, pool=5.0)
+_PUSH_CONFIG = HttpClientConfig(
+    connect_timeout=5.0,
+    read_timeout=10.0,
+    write_timeout=10.0,
+    pool_timeout=5.0,
+    enable_retry=False,
+    enable_circuit_breaker=False,
+)
 
 
 class GidPushResponse(BaseModel):
@@ -219,8 +226,9 @@ async def push_gid_mappings_to_data_service(
     )
 
     try:
-        async with httpx.AsyncClient(timeout=_PUSH_TIMEOUT) as client:
-            response = await client.post(url, json=payload, headers=headers)
+        async with Autom8yHttpClient(_PUSH_CONFIG) as client:
+            async with client.raw() as raw_client:
+                response = await raw_client.post(url, json=payload, headers=headers)
 
         if response.status_code < 300:
             try:
@@ -251,7 +259,7 @@ async def push_gid_mappings_to_data_service(
         )
         return False
 
-    except httpx.TimeoutException as e:
+    except TimeoutException as e:
         logger.warning(
             "gid_push_timeout",
             extra={

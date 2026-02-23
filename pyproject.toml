@@ -17,7 +17,7 @@ dependencies = [
     "arrow>=1.3.0",
     # Platform primitives (TDD-PRIMITIVE-MIGRATION-001)
     "autom8y-config>=0.4.0",
-    "autom8y-http[otel]>=0.4.0",
+    "autom8y-http[otel]>=0.5.0",
     "autom8y-cache>=0.4.0",  # Per TDD-GID-RESOLUTION-SERVICE: HierarchyAwareResolver + schema versioning
     "autom8y-log>=0.5.5",
     "opentelemetry-instrumentation-httpx>=0.42b0",  # W3C traceparent auto-propagation on outbound httpx calls
@@ -66,7 +66,7 @@ dev = [
     # SDK testing subpackages (per TDD-SDK-TESTING-ADOPTION)
     "autom8y-log[testing]>=0.5.5",
     "autom8y-cache[testing]>=0.4.0",
-    "autom8y-http[testing]>=0.4.0",
+    "autom8y-http[testing]>=0.5.0",
     "autom8y-config[testing]>=0.4.0",
     "autom8y-core[testing]>=1.1.0",
     "autom8y-auth[testing]>=1.1.0",

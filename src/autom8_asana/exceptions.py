@@ -6,7 +6,7 @@ import json
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
-    from httpx import Response
+    from autom8y_http import Response
 
 __all__ = [
     "AsanaError",

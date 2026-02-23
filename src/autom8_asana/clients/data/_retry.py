@@ -16,8 +16,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-    import httpx
-    from autom8y_http import CircuitBreaker
+    from autom8y_http import CircuitBreaker, HTTPError, TimeoutException
 
     from autom8_asana.protocols.log import LogProvider
 
@@ -27,8 +26,8 @@ class RetryCallbacks:
     """Container for the three retry callback functions."""
 
     on_retry: Callable[[int, int, int | None], Awaitable[None]] | None
-    on_timeout_exhausted: Callable[[httpx.TimeoutException, int], Awaitable[None]]
-    on_http_error: Callable[[httpx.HTTPError, int], Awaitable[None]]
+    on_timeout_exhausted: Callable[[TimeoutException, int], Awaitable[None]]
+    on_http_error: Callable[[HTTPError, int], Awaitable[None]]
 
 
 def build_retry_callbacks(
@@ -113,7 +112,7 @@ def build_retry_callbacks(
     else:
         on_retry = None
 
-    async def on_timeout_exhausted(e: httpx.TimeoutException, attempt: int) -> None:
+    async def on_timeout_exhausted(e: TimeoutException, attempt: int) -> None:
         if start_time is not None:
             elapsed_ms: float | None = (time.monotonic() - start_time) * 1000
         else:
@@ -149,7 +148,7 @@ def build_retry_callbacks(
             reason="timeout",
         ) from e
 
-    async def on_http_error(e: httpx.HTTPError, attempt: int) -> None:
+    async def on_http_error(e: HTTPError, attempt: int) -> None:
         if start_time is not None:
             elapsed_ms = (time.monotonic() - start_time) * 1000
         else:
