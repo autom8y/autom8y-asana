@@ -7,16 +7,18 @@ and error handling.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from autom8_asana.batch.models import BatchResult
+from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
 from autom8_asana.cache.integration.staleness_coordinator import (
     StalenessCheckCoordinator,
 )
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.staleness_settings import StalenessCheckSettings
-from autom8_asana.core.exceptions import CacheConnectionError
+from autom8_asana.core.exceptions import CacheConnectionError, RedisTransportError
 
 
 @pytest.fixture
@@ -467,3 +469,197 @@ class TestStalenessCheckSettings:
         settings = StalenessCheckSettings()
         with pytest.raises(ValueError, match="extension_count must be non-negative"):
             settings.calculate_extended_ttl(-1)
+
+
+class TestDeletedEntityHandling:
+    """Deleted entity (404) handling tests (FR-STALE-006)."""
+
+    @pytest.mark.asyncio
+    async def test_404_response_returns_none_and_records_error(self) -> None:
+        """404 response returns None and records in error stats."""
+        cache = EnhancedInMemoryCacheProvider()
+        batch_client = MagicMock()
+
+        batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=404,
+                    body={"errors": [{"message": "Not found"}]},
+                )
+            ]
+        )
+
+        coordinator = StalenessCheckCoordinator(
+            cache_provider=cache,
+            batch_client=batch_client,
+            settings=StalenessCheckSettings(enabled=True, coalesce_window_ms=1),
+        )
+
+        entry = make_entry("123")
+        result = await coordinator.check_and_get_async(entry)
+
+        assert result is None
+        stats = coordinator.get_extension_stats()
+        assert stats["error_count"] >= 1
+
+
+class TestTTLCeilingBoundaryAdversarial:
+    """TTL ceiling boundary tests (FR-TTL-002) -- adversarial edge cases."""
+
+    def test_ttl_exactly_at_ceiling_and_beyond(self) -> None:
+        """TTL at and above ceiling always returns max_ttl."""
+        settings = StalenessCheckSettings(base_ttl=300, max_ttl=86400)
+        # At count 9: 300 * 512 = 153600, capped to 86400
+        assert settings.calculate_extended_ttl(9) == 86400
+        assert settings.calculate_extended_ttl(10) == 86400
+        assert settings.calculate_extended_ttl(100) == 86400
+
+    def test_ttl_just_below_ceiling(self) -> None:
+        """TTL at count 8 is below ceiling: 300 * 256 = 76800."""
+        settings = StalenessCheckSettings(base_ttl=300, max_ttl=86400)
+        assert settings.calculate_extended_ttl(8) == 76800
+
+    @pytest.mark.asyncio
+    async def test_progressive_extension_respects_ceiling(self) -> None:
+        """Progressive extension never exceeds max_ttl ceiling."""
+        cache = EnhancedInMemoryCacheProvider()
+        batch_client = MagicMock()
+
+        batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=200,
+                    body={"data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}},
+                )
+            ]
+        )
+
+        coordinator = StalenessCheckCoordinator(
+            cache_provider=cache,
+            batch_client=batch_client,
+            settings=StalenessCheckSettings(
+                enabled=True,
+                base_ttl=300,
+                max_ttl=86400,
+                coalesce_window_ms=1,
+            ),
+        )
+
+        # Start with extension_count=8 (76800 TTL) -- next extension should cap at 86400
+        entry = make_entry("123", ttl=76800, extension_count=8)
+        result = await coordinator.check_and_get_async(entry)
+
+        assert result is not None
+        assert result.ttl == 86400
+        assert result.metadata.get("extension_count") == 9
+
+        # Another extension stays at ceiling
+        result2 = await coordinator.check_and_get_async(result)
+        assert result2 is not None
+        assert result2.ttl == 86400
+        assert result2.metadata.get("extension_count") == 10
+
+
+class TestExtensionCountOverflowAdversarial:
+    """Extension count overflow edge cases."""
+
+    def test_massive_extension_count_capped_at_max_ttl(self) -> None:
+        """Very large extension counts still cap at max_ttl."""
+        settings = StalenessCheckSettings(base_ttl=300, max_ttl=86400)
+        assert settings.calculate_extended_ttl(1000) == 86400
+        assert settings.calculate_extended_ttl(999999) == 86400
+
+    @pytest.mark.asyncio
+    async def test_entry_with_large_extension_count_increments_correctly(self) -> None:
+        """Entry already at large extension count increments by 1 on next check."""
+        cache = EnhancedInMemoryCacheProvider()
+        batch_client = MagicMock()
+
+        batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=200,
+                    body={"data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}},
+                )
+            ]
+        )
+
+        coordinator = StalenessCheckCoordinator(
+            cache_provider=cache,
+            batch_client=batch_client,
+            settings=StalenessCheckSettings(
+                enabled=True,
+                base_ttl=300,
+                max_ttl=86400,
+                coalesce_window_ms=1,
+            ),
+        )
+
+        entry = make_entry("123", ttl=86400, extension_count=100)
+        result = await coordinator.check_and_get_async(entry)
+
+        assert result is not None
+        assert result.ttl == 86400
+        assert result.metadata.get("extension_count") == 101
+
+
+class TestCoordinatorGracefulDegradation:
+    """Coordinator graceful degradation when cache operations fail."""
+
+    @pytest.mark.asyncio
+    async def test_cache_write_failure_still_returns_result(self) -> None:
+        """Cache write failure (RedisTransportError) doesn't prevent returning result."""
+        mock_cache = MagicMock()
+        mock_cache.set_versioned = MagicMock(
+            side_effect=RedisTransportError("Redis down")
+        )
+        mock_cache.invalidate = MagicMock()
+
+        batch_client = MagicMock()
+        batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=200,
+                    body={"data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}},
+                )
+            ]
+        )
+
+        coordinator = StalenessCheckCoordinator(
+            cache_provider=mock_cache,
+            batch_client=batch_client,
+            settings=StalenessCheckSettings(enabled=True, coalesce_window_ms=1),
+        )
+
+        entry = make_entry("123")
+        result = await coordinator.check_and_get_async(entry)
+
+        assert result is not None
+        assert result.ttl == 600  # Extended TTL
+
+    @pytest.mark.asyncio
+    async def test_invalidate_failure_on_404_handled_gracefully(self) -> None:
+        """Invalidation failure on 404 response returns None without raising."""
+        mock_cache = MagicMock()
+        mock_cache.set_versioned = MagicMock()
+        mock_cache.invalidate = MagicMock(side_effect=RedisTransportError("Redis down"))
+
+        batch_client = MagicMock()
+        batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=404,
+                    body={"errors": [{"message": "Not found"}]},
+                )
+            ]
+        )
+
+        coordinator = StalenessCheckCoordinator(
+            cache_provider=mock_cache,
+            batch_client=batch_client,
+            settings=StalenessCheckSettings(enabled=True, coalesce_window_ms=1),
+        )
+
+        entry = make_entry("123")
+        result = await coordinator.check_and_get_async(entry)
+        assert result is None
