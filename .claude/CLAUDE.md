@@ -15,15 +15,15 @@ Use `/go` to start any session. Use `/consult` for mode selection.
 <!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
-This project uses a 5-agent workflow (hygiene):
+This project uses a 5-agent workflow (10x-dev):
 
 | Agent | Role |
 | ----- | ---- |
-| **pythia** | Coordinates code hygiene initiative phases |
-| **code-smeller** | Detects code smells and quality issues across codebase |
-| **architect-enforcer** | Plans refactoring approach and enforces architecture standards |
-| **janitor** | Executes code cleanup and improvements |
-| **audit-lead** | Audits cleanup results and provides quality signoff |
+| **pythia** | Coordinates development lifecycle phases and routes work to specialists |
+| **requirements-analyst** | Gathers requirements and produces PRD artifacts |
+| **architect** | Creates technical design documents and architecture decisions |
+| **principal-engineer** | Implements code according to design specifications |
+| **qa-adversary** | Validates implementation through adversarial testing |
 
 Entry point: `/go`. Agent invocation patterns: `prompting` skill. Routing guidance: `/consult`.
 <!-- KNOSSOS:END quick-start -->
@@ -55,11 +55,11 @@ The main thread MAY track subagent IDs for throughline agents (Pythia, Moirai) a
 
 Prompts in `.claude/agents/`:
 
-- `pythia.md` - Coordinates code hygiene initiative phases
-- `code-smeller.md` - Detects code smells and quality issues across codebase
-- `architect-enforcer.md` - Plans refactoring approach and enforces architecture standards
-- `janitor.md` - Executes code cleanup and improvements
-- `audit-lead.md` - Audits cleanup results and provides quality signoff
+- `pythia.md` - Coordinates development lifecycle phases and routes work to specialists
+- `requirements-analyst.md` - Gathers requirements and produces PRD artifacts
+- `architect.md` - Creates technical design documents and architecture decisions
+- `principal-engineer.md` - Implements code according to design specifications
+- `qa-adversary.md` - Validates implementation through adversarial testing
 <!-- KNOSSOS:END agent-configurations -->
 
 <!-- KNOSSOS:START user-content -->

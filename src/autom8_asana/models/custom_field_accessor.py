@@ -417,7 +417,7 @@ class CustomFieldAccessor:
         """
         from decimal import Decimal
 
-        from autom8_asana.persistence.exceptions import GidValidationError
+        from autom8_asana.persistence.exceptions import GidValidationError  # nosemgrep: autom8y.no-models-import-upper
 
         if value is None:
             return  # None is always valid (clears the field)

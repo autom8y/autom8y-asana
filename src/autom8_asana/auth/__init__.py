@@ -11,7 +11,7 @@ Per TDD-S2S-001:
 
 Usage:
     # In route handlers, use the dependencies from api.dependencies:
-    from autom8_asana.api.dependencies import get_auth_context, AuthContext
+    from autom8_asana.api.dependencies import get_auth_context, AuthContext  # nosemgrep: autom8y.no-lower-imports-api
 
     @app.get("/api/v1/tasks")
     async def get_tasks(auth: AuthContext = Depends(get_auth_context)):
