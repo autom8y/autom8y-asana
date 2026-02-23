@@ -6,12 +6,15 @@ and cascade field resolution fixes.
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from autom8_asana.cache.integration.hierarchy_warmer import (
     _HIERARCHY_OPT_FIELDS,
+    _fetch_parent,
     warm_ancestors_async,
 )
 from autom8_asana.cache.policies.hierarchy import HierarchyIndex
@@ -298,3 +301,195 @@ class TestHierarchyIndexAncestorChainWithRegisteredParent:
 
         chain = index.get_ancestor_chain("unit-1")
         assert chain == ["business-1", "account-1"]
+
+
+class TestDeadCodeRemoval:
+    """Verify dead code (backoff_event) has been fully removed from hierarchy_warmer."""
+
+    def test_fetch_parent_no_backoff_event_param(self) -> None:
+        """_fetch_parent must NOT accept backoff_event -- old dead code signature."""
+        sig = inspect.signature(_fetch_parent)
+        param_names = set(sig.parameters.keys())
+        assert "backoff_event" not in param_names, (
+            "_fetch_parent still accepts backoff_event -- dead code not fully removed"
+        )
+
+    def test_fetch_parent_rejects_backoff_event_kwarg(self) -> None:
+        """Passing backoff_event= to _fetch_parent raises TypeError."""
+        client = MagicMock()
+        client.get_async = AsyncMock(return_value=None)
+
+        with pytest.raises(TypeError, match="unexpected keyword argument"):
+            _fetch_parent("gid-1", tasks_client=client, backoff_event=asyncio.Event())
+
+    def test_is_rate_limit_error_removed(self) -> None:
+        """_is_rate_limit_error should no longer exist in hierarchy_warmer module."""
+        import autom8_asana.cache.integration.hierarchy_warmer as hw
+
+        assert not hasattr(hw, "_is_rate_limit_error"), (
+            "_is_rate_limit_error still present -- dead code not removed"
+        )
+
+    def test_no_backoff_event_references_in_source(self) -> None:
+        """No references to backoff_event in production hierarchy source."""
+        import autom8_asana.cache.integration.hierarchy_warmer as hw
+        import autom8_asana.cache.providers.unified as uf
+
+        hw_src = inspect.getsource(hw)
+        uf_src = inspect.getsource(uf)
+        assert "backoff_event" not in hw_src, (
+            "backoff_event reference in hierarchy_warmer.py"
+        )
+        assert "backoff_event" not in uf_src, "backoff_event reference in unified.py"
+
+
+class TestRateLimitLogging:
+    """Verify structured rate_limit_429_received log is emitted correctly."""
+
+    def test_429_log_event_present_in_transport_source(self) -> None:
+        """rate_limit_429_received log event exists in transport source."""
+        from autom8_asana.transport import asana_http as transport_mod
+
+        src = inspect.getsource(transport_mod)
+        assert '"rate_limit_429_received"' in src, (
+            "rate_limit_429_received log event not found in transport source"
+        )
+        assert '"path"' in src
+        assert '"attempt"' in src
+        assert '"retry_after"' in src
+
+    def test_429_log_format_in_multiple_request_paths(self) -> None:
+        """rate_limit_429_received must appear in at least 2 request paths."""
+        from autom8_asana.transport import asana_http as transport_mod
+
+        src = inspect.getsource(transport_mod)
+        occurrences = src.count('"rate_limit_429_received"')
+        assert occurrences >= 2, (
+            f"Expected rate_limit_429_received in >=2 paths, found {occurrences}"
+        )
+
+
+class TestWarmAncestorsPhase2:
+    """Verify warm_ancestors_async works correctly (merged from adversarial tests)."""
+
+    @pytest.fixture
+    def hierarchy_index(self) -> HierarchyIndex:
+        return HierarchyIndex()
+
+    @pytest.mark.asyncio
+    async def test_warm_ancestors_basic_traversal(
+        self, hierarchy_index: HierarchyIndex
+    ) -> None:
+        """Basic parent chain traversal fetches and registers parent."""
+        hierarchy_index.register({"gid": "unit-1", "parent": {"gid": "biz-1"}})
+
+        biz_task = MagicMock()
+        biz_task.model_dump.return_value = {
+            "gid": "biz-1",
+            "name": "Business",
+            "parent": None,
+            "custom_fields": [],
+        }
+        client = MagicMock()
+        client.get_async = AsyncMock(return_value=biz_task)
+
+        warmed = await warm_ancestors_async(
+            gids=["unit-1"],
+            hierarchy_index=hierarchy_index,
+            tasks_client=client,
+            max_depth=5,
+        )
+
+        assert warmed == 1
+        assert hierarchy_index.contains("biz-1")
+
+    @pytest.mark.asyncio
+    async def test_warm_ancestors_multi_level(
+        self, hierarchy_index: HierarchyIndex
+    ) -> None:
+        """Multi-level traversal reaches all ancestors."""
+        hierarchy_index.register({"gid": "unit-1", "parent": {"gid": "biz-1"}})
+
+        responses = {
+            "biz-1": {
+                "gid": "biz-1",
+                "name": "Business",
+                "parent": {"gid": "acct-1"},
+                "custom_fields": [],
+            },
+            "acct-1": {
+                "gid": "acct-1",
+                "name": "Account",
+                "parent": None,
+                "custom_fields": [],
+            },
+        }
+
+        async def _get(gid: str, **kwargs):  # noqa: ANN003
+            data = responses.get(gid)
+            if data is None:
+                return None
+            mock = MagicMock()
+            mock.model_dump.return_value = data
+            return mock
+
+        client = MagicMock()
+        client.get_async = AsyncMock(side_effect=_get)
+
+        warmed = await warm_ancestors_async(
+            gids=["unit-1"],
+            hierarchy_index=hierarchy_index,
+            tasks_client=client,
+            max_depth=5,
+        )
+
+        assert warmed == 2
+        assert hierarchy_index.contains("biz-1")
+        assert hierarchy_index.contains("acct-1")
+
+    @pytest.mark.asyncio
+    async def test_warm_ancestors_error_resilience(
+        self, hierarchy_index: HierarchyIndex
+    ) -> None:
+        """warm_ancestors_async handles fetch errors gracefully."""
+        hierarchy_index.register({"gid": "u-1", "parent": {"gid": "b-1"}})
+
+        client = MagicMock()
+        client.get_async = AsyncMock(side_effect=ConnectionError("Network down"))
+
+        warmed = await warm_ancestors_async(
+            gids=["u-1"],
+            hierarchy_index=hierarchy_index,
+            tasks_client=client,
+            max_depth=5,
+        )
+
+        assert warmed == 0
+
+    @pytest.mark.asyncio
+    async def test_warm_ancestors_global_semaphore(
+        self, hierarchy_index: HierarchyIndex
+    ) -> None:
+        """Global semaphore parameter is accepted and respected."""
+        hierarchy_index.register({"gid": "u-1", "parent": {"gid": "b-1"}})
+
+        biz_task = MagicMock()
+        biz_task.model_dump.return_value = {
+            "gid": "b-1",
+            "name": "Business",
+            "parent": None,
+            "custom_fields": [],
+        }
+        client = MagicMock()
+        client.get_async = AsyncMock(return_value=biz_task)
+
+        sem = asyncio.Semaphore(2)
+        warmed = await warm_ancestors_async(
+            gids=["u-1"],
+            hierarchy_index=hierarchy_index,
+            tasks_client=client,
+            max_depth=5,
+            global_semaphore=sem,
+        )
+
+        assert warmed == 1
