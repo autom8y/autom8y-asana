@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
-from tests.api.conftest import (
+from tests.unit.api.conftest import (
     TEST_PROJECT_GID,
     TEST_SECTION_GID,
     TEST_TASK_GID,

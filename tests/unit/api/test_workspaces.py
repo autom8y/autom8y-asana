@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
-from tests.api.conftest import TEST_WORKSPACE_GID
+from tests.unit.api.conftest import TEST_WORKSPACE_GID
 
 
 class TestListWorkspaces:
