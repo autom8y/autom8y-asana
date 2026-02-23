@@ -26,7 +26,9 @@ from typing import TYPE_CHECKING, Any
 from autom8y_log import get_logger
 
 if TYPE_CHECKING:
-    from autom8_asana.api.dependencies import AuthContext  # nosemgrep: autom8y.no-lower-imports-api
+    from autom8_asana.api.dependencies import (
+        AuthContext,
+    )  # nosemgrep: autom8y.no-lower-imports-api
 
 logger = get_logger("autom8_asana.audit")
 

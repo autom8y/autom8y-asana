@@ -58,6 +58,7 @@ def _ensure_bootstrap() -> None:
     if not _bootstrap_initialized:
         try:
             from autom8_asana.models.business._bootstrap import bootstrap
+
             bootstrap()
             _bootstrap_initialized = True
 

@@ -127,6 +127,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Bootstrap business model registry (per TDD-bootstrap / ADR-0149)
     from autom8_asana.models.business._bootstrap import bootstrap
+
     bootstrap()
 
     # Entity resolver startup discovery (FR-004, FR-005)

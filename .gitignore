@@ -49,3 +49,4 @@ htmlcov/
 # Environment files (secrets)
 .env/*
 !.env/*.example
+.claude/worktrees/
