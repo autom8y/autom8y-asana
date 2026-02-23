@@ -1,29 +1,24 @@
 """Tests for structured logging in polling automation.
 
 Per TDD-PIPELINE-AUTOMATION-EXPANSION: Tests for JSON-structured logging
-with structlog integration and stdlib fallback.
+with autom8y-log SDK integration.
 
 Covers:
 - configure() sets up logging
 - get_logger() returns usable logger
 - log_rule_evaluation() outputs JSON
 - log_automation_result() outputs JSON
-- Fallback to stdlib works when structlog not available
 """
 
 from __future__ import annotations
 
-import json
-import logging
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 import autom8_asana.core.logging as core_logging
 from autom8_asana.automation.polling.structured_logger import (
-    _STRUCTLOG_AVAILABLE,
     StructuredLogger,
-    _StdlibLoggerAdapter,
 )
 
 
@@ -68,25 +63,12 @@ class TestStructuredLoggerConfigure:
         assert StructuredLogger._json_format is True
         assert StructuredLogger._level == "INFO"
 
-    @pytest.mark.skipif(not _STRUCTLOG_AVAILABLE, reason="structlog not installed")
-    def test_configure_with_structlog(self) -> None:
-        """configure() properly configures structlog when available."""
+    def test_configure_with_sdk(self) -> None:
+        """configure() properly configures via autom8y-log SDK."""
         StructuredLogger.configure(json_format=True, level="DEBUG")
 
         # Should not raise
         assert StructuredLogger._configured is True
-
-    def test_configure_without_structlog(self) -> None:
-        """configure() falls back to stdlib when structlog not available."""
-        with patch(
-            "autom8_asana.automation.polling.structured_logger._STRUCTLOG_AVAILABLE",
-            False,
-        ):
-            # Force reconfiguration
-            StructuredLogger._configured = False
-            StructuredLogger.configure(level="INFO")
-
-            assert StructuredLogger._configured is True
 
 
 class TestStructuredLoggerGetLogger:
@@ -126,26 +108,12 @@ class TestStructuredLoggerGetLogger:
         # Logger should be returned (context binding is internal)
         assert logger is not None
 
-    @pytest.mark.skipif(not _STRUCTLOG_AVAILABLE, reason="structlog not installed")
-    def test_get_logger_with_structlog_returns_bound_logger(self) -> None:
-        """get_logger() returns structlog BoundLogger when available."""
-
+    def test_get_logger_returns_bound_logger(self) -> None:
+        """get_logger() returns a bound logger with bind() support."""
         StructuredLogger.configure()
         logger = StructuredLogger.get_logger(test_key="test_value")
 
-        # Should be a structlog bound logger
         assert hasattr(logger, "bind")
-
-    def test_get_logger_without_structlog_returns_adapter(self) -> None:
-        """get_logger() returns _StdlibLoggerAdapter when structlog unavailable."""
-        with patch(
-            "autom8_asana.automation.polling.structured_logger._STRUCTLOG_AVAILABLE",
-            False,
-        ):
-            StructuredLogger._configured = False
-            logger = StructuredLogger.get_logger(test_key="test_value")
-
-            assert isinstance(logger, _StdlibLoggerAdapter)
 
 
 class TestStructuredLoggerLogRuleEvaluation:
@@ -378,226 +346,3 @@ class TestStructuredLoggerLogAutomationResult:
 
         # Should not raise
         StructuredLogger.log_automation_result(mock_result)
-
-
-class TestStdlibLoggerAdapter:
-    """Tests for _StdlibLoggerAdapter fallback."""
-
-    def test_adapter_stores_bound_context(self) -> None:
-        """Adapter stores initial bound context."""
-        stdlib_logger = logging.getLogger("test")
-        adapter = _StdlibLoggerAdapter(stdlib_logger, {"key1": "value1"})
-
-        assert adapter._bound_context == {"key1": "value1"}
-
-    def test_adapter_bind_creates_new_adapter(self) -> None:
-        """bind() creates new adapter with merged context."""
-        stdlib_logger = logging.getLogger("test")
-        adapter = _StdlibLoggerAdapter(stdlib_logger, {"key1": "value1"})
-
-        new_adapter = adapter.bind(key2="value2")
-
-        # Original unchanged
-        assert adapter._bound_context == {"key1": "value1"}
-        # New adapter has merged context
-        assert new_adapter._bound_context == {"key1": "value1", "key2": "value2"}
-
-    def test_adapter_format_message_includes_context(self) -> None:
-        """_format_message() includes bound context."""
-        stdlib_logger = logging.getLogger("test")
-        adapter = _StdlibLoggerAdapter(stdlib_logger, {"scheduler_id": "daily"})
-
-        message = adapter._format_message("test_event", extra_key="extra_value")
-
-        # Should be JSON-like
-        assert '"event": "test_event"' in message
-        assert '"scheduler_id": "daily"' in message
-        assert '"extra_key": "extra_value"' in message
-
-    def test_adapter_format_message_includes_timestamp(self) -> None:
-        """_format_message() includes ISO timestamp."""
-        stdlib_logger = logging.getLogger("test")
-        adapter = _StdlibLoggerAdapter(stdlib_logger, {})
-
-        message = adapter._format_message("test_event")
-
-        assert '"timestamp":' in message
-
-    def test_adapter_info_logs_correctly(self, caplog) -> None:
-        """info() method logs at INFO level."""
-        stdlib_logger = logging.getLogger("test.adapter")
-        adapter = _StdlibLoggerAdapter(stdlib_logger, {"context": "test"})
-
-        with caplog.at_level(logging.INFO, logger="test.adapter"):
-            adapter.info("test_info_event", key="value")
-
-        assert len(caplog.records) == 1
-        assert caplog.records[0].levelname == "INFO"
-
-    def test_adapter_debug_logs_correctly(self, caplog) -> None:
-        """debug() method logs at DEBUG level."""
-        stdlib_logger = logging.getLogger("test.adapter.debug")
-        adapter = _StdlibLoggerAdapter(stdlib_logger, {})
-
-        with caplog.at_level(logging.DEBUG, logger="test.adapter.debug"):
-            adapter.debug("test_debug_event")
-
-        assert len(caplog.records) == 1
-        assert caplog.records[0].levelname == "DEBUG"
-
-    def test_adapter_warning_logs_correctly(self, caplog) -> None:
-        """warning() method logs at WARNING level."""
-        stdlib_logger = logging.getLogger("test.adapter.warning")
-        adapter = _StdlibLoggerAdapter(stdlib_logger, {})
-
-        with caplog.at_level(logging.WARNING, logger="test.adapter.warning"):
-            adapter.warning("test_warning_event")
-
-        assert len(caplog.records) == 1
-        assert caplog.records[0].levelname == "WARNING"
-
-    def test_adapter_warn_alias(self, caplog) -> None:
-        """warn() is an alias for warning()."""
-        stdlib_logger = logging.getLogger("test.adapter.warn")
-        adapter = _StdlibLoggerAdapter(stdlib_logger, {})
-
-        with caplog.at_level(logging.WARNING, logger="test.adapter.warn"):
-            adapter.warn("test_warn_event")
-
-        assert len(caplog.records) == 1
-        assert caplog.records[0].levelname == "WARNING"
-
-    def test_adapter_error_logs_correctly(self, caplog) -> None:
-        """error() method logs at ERROR level."""
-        stdlib_logger = logging.getLogger("test.adapter.error")
-        adapter = _StdlibLoggerAdapter(stdlib_logger, {})
-
-        with caplog.at_level(logging.ERROR, logger="test.adapter.error"):
-            adapter.error("test_error_event")
-
-        assert len(caplog.records) == 1
-        assert caplog.records[0].levelname == "ERROR"
-
-    def test_adapter_critical_logs_correctly(self, caplog) -> None:
-        """critical() method logs at CRITICAL level."""
-        stdlib_logger = logging.getLogger("test.adapter.critical")
-        adapter = _StdlibLoggerAdapter(stdlib_logger, {})
-
-        with caplog.at_level(logging.CRITICAL, logger="test.adapter.critical"):
-            adapter.critical("test_critical_event")
-
-        assert len(caplog.records) == 1
-        assert caplog.records[0].levelname == "CRITICAL"
-
-    def test_adapter_handles_list_values(self) -> None:
-        """Adapter handles list values in context."""
-        stdlib_logger = logging.getLogger("test")
-        adapter = _StdlibLoggerAdapter(stdlib_logger, {})
-
-        message = adapter._format_message(
-            "test_event",
-            items=["a", "b", "c"],
-        )
-
-        assert '"items": ["a", "b", "c"]' in message
-
-    def test_adapter_handles_dict_values(self) -> None:
-        """Adapter handles dict values in context."""
-        stdlib_logger = logging.getLogger("test")
-        adapter = _StdlibLoggerAdapter(stdlib_logger, {})
-
-        message = adapter._format_message(
-            "test_event",
-            data={"nested": "value"},
-        )
-
-        assert '"data": {"nested": "value"}' in message
-
-    def test_adapter_handles_numeric_values(self) -> None:
-        """Adapter handles numeric values correctly."""
-        stdlib_logger = logging.getLogger("test")
-        adapter = _StdlibLoggerAdapter(stdlib_logger, {})
-
-        message = adapter._format_message(
-            "test_event",
-            count=42,
-            ratio=3.14,
-        )
-
-        assert '"count": 42' in message
-        assert '"ratio": 3.14' in message
-
-    def test_adapter_handles_boolean_values(self) -> None:
-        """Adapter handles boolean values correctly."""
-        stdlib_logger = logging.getLogger("test")
-        adapter = _StdlibLoggerAdapter(stdlib_logger, {})
-
-        message = adapter._format_message(
-            "test_event",
-            enabled=True,
-            disabled=False,
-        )
-
-        # Python bools are True/False, need to check actual output
-        assert '"enabled":' in message
-        assert '"disabled":' in message
-
-
-class TestStructuredLoggerFallback:
-    """Tests for structlog fallback behavior."""
-
-    def setup_method(self) -> None:
-        """Reset configured state before each test."""
-        StructuredLogger._configured = False
-        core_logging._configured = False
-
-    def test_fallback_produces_parseable_json(self) -> None:
-        """Fallback logger produces valid JSON-like output."""
-        with patch(
-            "autom8_asana.automation.polling.structured_logger._STRUCTLOG_AVAILABLE",
-            False,
-        ):
-            StructuredLogger._configured = False
-            logger = StructuredLogger.get_logger(test_context="value")
-
-            # Get the formatted message
-            message = logger._format_message("test_event", key="data")
-
-            # Should be valid JSON
-            try:
-                parsed = json.loads(message)
-                assert parsed["event"] == "test_event"
-                assert parsed["test_context"] == "value"
-                assert parsed["key"] == "data"
-                assert "timestamp" in parsed
-            except json.JSONDecodeError:
-                pytest.fail(f"Output is not valid JSON: {message}")
-
-    def test_fallback_works_without_structlog(self) -> None:
-        """Full logging workflow works without structlog installed."""
-        with patch(
-            "autom8_asana.automation.polling.structured_logger._STRUCTLOG_AVAILABLE",
-            False,
-        ):
-            StructuredLogger._configured = False
-
-            # Configure
-            StructuredLogger.configure(json_format=True, level="DEBUG")
-
-            # Get logger
-            logger = StructuredLogger.get_logger(scheduler="test")
-
-            # Use logger (should not raise)
-            logger.info("test_info")
-            logger.debug("test_debug")
-            logger.warning("test_warning")
-            logger.error("test_error")
-
-            # Log rule evaluation (should not raise)
-            StructuredLogger.log_rule_evaluation(
-                rule_id="test",
-                rule_name="Test",
-                project_gid="123",
-                matches=1,
-                duration_ms=10.0,
-            )

@@ -4,8 +4,7 @@ Per TDD-PIPELINE-AUTOMATION-EXPANSION: Provides structured logging with JSON
 output format for rule evaluation, automation results, and scheduler events.
 
 Features:
-- JSON-formatted log output for machine parsing
-- Graceful fallback to stdlib logging if structlog not installed
+- JSON-formatted log output for machine parsing via autom8y-log SDK
 - Context binding for correlation across log entries
 - Specialized methods for rule evaluation and automation results
 
@@ -43,9 +42,6 @@ Example - JSON Output:
 
 from __future__ import annotations
 
-import logging
-import sys
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -54,22 +50,11 @@ if TYPE_CHECKING:
 
 __all__ = ["StructuredLogger"]
 
-# autom8y_log is a hard dependency; feature flag is always True.
-# The _StdlibLoggerAdapter fallback path below is retained for compatibility
-# but will never be reached in normal operation.
-_STRUCTLOG_AVAILABLE = True
-try:
-    import autom8y_log as _autom8y_log_check  # noqa: F401
-except ImportError:  # pragma: no cover
-    _STRUCTLOG_AVAILABLE = False
-
 
 class StructuredLogger:
     """JSON-structured logger for polling automation.
 
-    Provides structured logging with JSON output format. Uses structlog when
-    available, falling back gracefully to stdlib logging with JSON-like
-    formatting when structlog is not installed.
+    Provides structured logging with JSON output format via autom8y-log SDK.
 
     All methods are class methods to provide a singleton-like interface
     without requiring instance management.
@@ -91,16 +76,13 @@ class StructuredLogger:
         json_format: bool = True,
         level: str = "INFO",
     ) -> None:
-        """Configure structlog for the application.
+        """Configure logging via autom8y-log SDK.
 
-        Configures either structlog (preferred) or stdlib logging (fallback)
-        based on package availability. Should be called once at application
-        startup before any logging occurs.
+        Should be called once at application startup before any logging occurs.
 
         Args:
             json_format: If True, output logs as JSON. If False, use human-
-                readable format. Only affects structlog; stdlib fallback
-                always uses a JSON-like string format.
+                readable format.
             level: Log level string (DEBUG, INFO, WARNING, ERROR, CRITICAL).
                 Defaults to INFO.
 
@@ -110,49 +92,26 @@ class StructuredLogger:
         cls._json_format = json_format
         cls._level = level.upper()
 
-        if _STRUCTLOG_AVAILABLE:
-            # Delegate to SDK configure (idempotent, respects _configured guard)
-            from autom8_asana.core.logging import configure as sdk_configure
+        from autom8_asana.core.logging import configure as sdk_configure
 
-            fmt = "json" if json_format else "console"
-            sdk_configure(level=cls._level, format=fmt)
-        else:
-            cls._configure_stdlib(cls._level)
+        fmt = "json" if json_format else "console"
+        sdk_configure(level=cls._level, format=fmt)
 
         cls._configured = True
-
-    @classmethod
-    def _configure_stdlib(cls, level: str) -> None:
-        """Configure stdlib logging as fallback.
-
-        Uses a simple format since the _StdlibLoggerAdapter handles
-        JSON formatting. We only pass through the message content.
-
-        Args:
-            level: Log level string.
-        """
-        # Simple format - _StdlibLoggerAdapter handles JSON structure
-        logging.basicConfig(
-            format="%(message)s",
-            stream=sys.stdout,
-            level=getattr(logging, level, logging.INFO),
-        )
 
     @classmethod
     def get_logger(cls, **bound_context: Any) -> Any:
         """Get a logger with bound context.
 
-        Returns a structlog logger (if available) or stdlib logger with
-        bound context values that will be included in all subsequent log
-        entries from this logger instance.
+        Returns a logger with bound context values that will be included
+        in all subsequent log entries from this logger instance.
 
         Args:
             **bound_context: Key-value pairs to bind to all log entries.
                 Common context: scheduler_id, rule_id, project_gid.
 
         Returns:
-            A logger instance (structlog.BoundLogger or _StdlibLoggerAdapter).
-            The logger supports standard methods: debug, info, warning, error.
+            A bound logger instance supporting debug, info, warning, error.
 
         Example:
             logger = StructuredLogger.get_logger(
@@ -163,21 +122,13 @@ class StructuredLogger:
             # Output includes scheduler_id and timezone in context
         """
         if not cls._configured:
-            # Auto-configure with defaults on first use
             cls.configure()
 
-        if _STRUCTLOG_AVAILABLE:
-            from autom8_asana.core.logging import get_logger as sdk_get_logger
+        from autom8_asana.core.logging import get_logger as sdk_get_logger
 
-            return sdk_get_logger("autom8_asana.automation.polling").bind(
-                **bound_context
-            )
-        else:
-            # Return adapted stdlib logger
-            return _StdlibLoggerAdapter(
-                logging.getLogger("autom8_asana.automation.polling"),
-                bound_context,
-            )
+        return sdk_get_logger("autom8_asana.automation.polling").bind(
+            **bound_context
+        )
 
     @classmethod
     def log_rule_evaluation(
@@ -223,26 +174,14 @@ class StructuredLogger:
             }
         """
         logger = cls.get_logger()
-
-        if _STRUCTLOG_AVAILABLE:
-            logger.info(
-                "rule_evaluation_complete",
-                rule_id=rule_id,
-                rule_name=rule_name,
-                project_gid=project_gid,
-                matches=matches,
-                duration_ms=duration_ms,
-            )
-        else:
-            # Stdlib fallback: format as JSON-like string
-            logger.info(
-                "rule_evaluation_complete",
-                rule_id=rule_id,
-                rule_name=rule_name,
-                project_gid=project_gid,
-                matches=matches,
-                duration_ms=duration_ms,
-            )
+        logger.info(
+            "rule_evaluation_complete",
+            rule_id=rule_id,
+            rule_name=rule_name,
+            project_gid=project_gid,
+            matches=matches,
+            duration_ms=duration_ms,
+        )
 
     @classmethod
     def log_action_result(
@@ -398,104 +337,7 @@ class StructuredLogger:
             context["enhancement_results"] = result.enhancement_results
 
         # Log at appropriate level
-        if _STRUCTLOG_AVAILABLE:
-            log_method = getattr(logger, level)
-            log_method(event, **context)
-        else:
-            # Stdlib fallback
-            log_method = getattr(logger, level)
-            log_method(event, **context)
+        log_method = getattr(logger, level)
+        log_method(event, **context)
 
 
-class _StdlibLoggerAdapter:
-    """Adapter to make stdlib logger behave like structlog.
-
-    Provides structlog-like interface for stdlib logging when structlog
-    is not installed. Handles bound context and keyword argument logging.
-    """
-
-    def __init__(
-        self,
-        logger: logging.Logger,
-        bound_context: dict[str, Any],
-    ) -> None:
-        """Initialize adapter with logger and bound context.
-
-        Args:
-            logger: Stdlib Logger instance.
-            bound_context: Initial bound context dict.
-        """
-        self._logger = logger
-        self._bound_context = bound_context.copy()
-
-    def bind(self, **new_context: Any) -> _StdlibLoggerAdapter:
-        """Return new adapter with additional bound context.
-
-        Args:
-            **new_context: Additional context to bind.
-
-        Returns:
-            New adapter with merged context.
-        """
-        merged = {**self._bound_context, **new_context}
-        return _StdlibLoggerAdapter(self._logger, merged)
-
-    def _format_message(self, event: str, **context: Any) -> str:
-        """Format message with context as JSON-like string.
-
-        Args:
-            event: Event name/message.
-            **context: Additional context for this log entry.
-
-        Returns:
-            Formatted message string.
-        """
-        # Merge bound context with call-time context
-        full_context = {**self._bound_context, **context}
-
-        # Build JSON-like parts
-        parts = [f'"event": "{event}"']
-        for key, value in full_context.items():
-            if isinstance(value, str):
-                parts.append(f'"{key}": "{value}"')
-            elif isinstance(value, (list, dict)):
-                # Simple JSON representation
-                import json
-
-                parts.append(f'"{key}": {json.dumps(value)}')
-            else:
-                parts.append(f'"{key}": {value}')
-
-        # Add timestamp
-        timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-        parts.insert(0, f'"timestamp": "{timestamp}"')
-
-        return "{" + ", ".join(parts) + "}"
-
-    def debug(self, event: str, **context: Any) -> None:
-        """Log at DEBUG level."""
-        self._logger.debug(self._format_message(event, **context))
-
-    def info(self, event: str, **context: Any) -> None:
-        """Log at INFO level."""
-        self._logger.info(self._format_message(event, **context))
-
-    def warning(self, event: str, **context: Any) -> None:
-        """Log at WARNING level."""
-        self._logger.warning(self._format_message(event, **context))
-
-    def warn(self, event: str, **context: Any) -> None:
-        """Log at WARNING level (alias)."""
-        self.warning(event, **context)
-
-    def error(self, event: str, **context: Any) -> None:
-        """Log at ERROR level."""
-        self._logger.error(self._format_message(event, **context))
-
-    def critical(self, event: str, **context: Any) -> None:
-        """Log at CRITICAL level."""
-        self._logger.critical(self._format_message(event, **context))
-
-    def exception(self, event: str, **context: Any) -> None:
-        """Log at ERROR level with exception info."""
-        self._logger.exception(self._format_message(event, **context))
