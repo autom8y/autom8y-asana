@@ -23,7 +23,8 @@ from autom8_asana.models.business.hydration import (
 from autom8_asana.models.business.offer import Offer, OfferHolder
 from autom8_asana.models.business.process import ProcessHolder
 from autom8_asana.models.business.unit import Unit, UnitHolder
-from autom8_asana.models.task import NameGid, Task
+from autom8_asana.models.common import NameGid
+from autom8_asana.models.task import Task
 
 # =============================================================================
 # Parent Chain Navigation Tests

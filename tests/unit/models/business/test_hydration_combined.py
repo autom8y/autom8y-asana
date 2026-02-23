@@ -20,7 +20,8 @@ from autom8_asana.models.business.hydration import (
     HydrationResult,
     hydrate_from_gid_async,
 )
-from autom8_asana.models.task import NameGid, Task
+from autom8_asana.models.common import NameGid
+from autom8_asana.models.task import Task
 
 # =============================================================================
 # Entry Point Tests - From Business GID
