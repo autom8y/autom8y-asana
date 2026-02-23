@@ -775,3 +775,12 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
             request_kwargs["period"] = period
 
         return await client.get_insights_async(**request_kwargs)
+
+
+# Self-register business-level Holders with HOLDER_REGISTRY (R-009)
+from autom8_asana.persistence.holder_construction import register_holder  # noqa: E402
+
+register_holder("dna_holder", DNAHolder)
+register_holder("reconciliation_holder", ReconciliationHolder)
+register_holder("asset_edit_holder", AssetEditHolder)
+register_holder("videography_holder", VideographyHolder)

@@ -13,6 +13,7 @@ import pytest
 from autom8_asana.models import Task
 from autom8_asana.models.common import NameGid
 from autom8_asana.persistence.holder_construction import (
+    HOLDER_REGISTRY,
     construct_holder,
     detect_existing_holders,
     get_holder_class_map,
@@ -57,6 +58,61 @@ class TestHolderClassMap:
         class_map = get_holder_class_map()
         for key, cls in class_map.items():
             assert issubclass(cls, Task), f"{key} class {cls} is not a Task subclass"
+
+
+# ---------------------------------------------------------------------------
+# HOLDER_REGISTRY Completeness Tests
+# ---------------------------------------------------------------------------
+
+
+class TestHolderRegistryCompleteness:
+    """Verify HOLDER_REGISTRY covers all expected entity types from EntityRegistry.
+
+    Per R-009 (REM-ASANA-ARCH WS-DFEX): Completeness gate ensuring no Holder
+    class is missing from the registry when EntityRegistry adds a new one.
+    """
+
+    def test_holder_registry_is_public(self) -> None:
+        """HOLDER_REGISTRY is directly accessible as a public module attribute."""
+        assert isinstance(HOLDER_REGISTRY, dict)
+
+    def test_all_entity_registry_holders_registered(self) -> None:
+        """Every holder type in EntityRegistry has a registered Holder class.
+
+        Cross-checks HOLDER_REGISTRY against EntityRegistry.holders() to
+        ensure the registry is complete and stays in sync.
+        """
+        from autom8_asana.core.entity_registry import get_registry
+
+        registry = get_registry()
+        entity_holder_names = {d.name for d in registry.holders()}
+
+        class_map = get_holder_class_map()
+        registered_names = set(class_map.keys())
+
+        missing = entity_holder_names - registered_names
+        assert not missing, (
+            f"Holder types in EntityRegistry but missing from HOLDER_REGISTRY: {missing}"
+        )
+
+    def test_no_extra_holders_not_in_entity_registry(self) -> None:
+        """HOLDER_REGISTRY has no holders absent from EntityRegistry.
+
+        Catches stale entries if an entity type is removed from EntityRegistry
+        but its registration call is not removed from the Holder file.
+        """
+        from autom8_asana.core.entity_registry import get_registry
+
+        registry = get_registry()
+        entity_holder_names = {d.name for d in registry.holders()}
+
+        class_map = get_holder_class_map()
+        registered_names = set(class_map.keys())
+
+        extra = registered_names - entity_holder_names
+        assert not extra, (
+            f"Holder types in HOLDER_REGISTRY but absent from EntityRegistry: {extra}"
+        )
 
 
 # ---------------------------------------------------------------------------

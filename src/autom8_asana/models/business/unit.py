@@ -477,3 +477,9 @@ class UnitHolder(
     # with "Business Units" (Unit entity), causing last-write-wins to return wrong GIDs.
     # Previous None value was incorrect - UnitHolder needs its own project mapping.
     PRIMARY_PROJECT_GID: ClassVar[str | None] = "1204433992667196"
+
+
+# Self-register UnitHolder with HOLDER_REGISTRY (R-009)
+from autom8_asana.persistence.holder_construction import register_holder  # noqa: E402
+
+register_holder("unit_holder", UnitHolder)
