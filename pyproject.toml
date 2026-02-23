@@ -39,7 +39,6 @@ api = [
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",
     "slowapi>=0.1.9",
-    "structlog>=24.1.0",
 ]
 # auth: Platform authentication via autom8y-auth SDK
 # JWT validation, JWKS fetching, and crypto are encapsulated in the SDK
@@ -127,7 +126,7 @@ ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py312"
 src = ["src"]
 
 # Exclude non-production code from strict linting
@@ -145,6 +144,8 @@ ignore = [
     "G004", # f-string in logging - we prefer lazy %s but don't ban f-strings
     "G010", # logging.warn() deprecated -> logging.warning() (safety net)
     "G101", # extra field name clashes - structlog unpacks extra into event_dict, no stdlib LogRecord conflict
+    "UP046", # PEP 695 type params - requires-python still >=3.11
+    "UP047", # PEP 695 type params in functions - requires-python still >=3.11
 ]
 
 [tool.ruff.lint.per-file-ignores]
