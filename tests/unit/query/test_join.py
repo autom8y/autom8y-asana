@@ -286,3 +286,248 @@ class TestExecuteJoin:
         assert result.df.height == primary_df.height
         assert result.matched_count == 0
         assert result.unmatched_count == primary_df.height
+
+
+# ---------------------------------------------------------------------------
+# Join execution edge cases (merged from test_adversarial_hierarchy.py)
+# ---------------------------------------------------------------------------
+
+
+class TestJoinExecutionEdgeCases:
+    """Unique edge cases not covered by TC-JE001 through TC-JE011."""
+
+    def test_all_source_rows_null_join_key_typed(self) -> None:
+        """Source DataFrame where ALL rows have null join key (typed Utf8 column).
+
+        In production, DataFrames come from cache with explicit Utf8 dtype.
+        All-null values should result in zero matches.
+        """
+        primary = pl.DataFrame(
+            {
+                "gid": ["o1", "o2", "o3"],
+                "office_phone": pl.Series([None, None, None], dtype=pl.Utf8),
+            }
+        )
+        target = pl.DataFrame(
+            {
+                "office_phone": ["+1111", "+2222"],
+                "booking_type": ["Online", "Phone"],
+            }
+        )
+        result = execute_join(
+            primary_df=primary,
+            target_df=target,
+            join_key="office_phone",
+            select_columns=["booking_type"],
+            target_entity_type="business",
+        )
+        assert result.df.height == 3
+        assert result.matched_count == 0
+        assert result.unmatched_count == 3
+        assert result.df["business_booking_type"].null_count() == 3
+
+    def test_all_source_rows_null_join_key_untyped_raises(self) -> None:
+        """DEFECT: All-null join key without explicit dtype causes SchemaError.
+
+        Severity: LOW -- In production, DataFrames always have explicit dtypes
+        from the schema registry. This only manifests if a DataFrame is
+        constructed without dtype specification and all join key values are null,
+        causing Polars to infer dtype as Null which mismatches the target's
+        Utf8 dtype. Documenting as known edge case.
+        """
+        primary = pl.DataFrame(
+            {
+                "gid": ["o1", "o2"],
+                "office_phone": [None, None],  # Polars infers Null dtype
+            }
+        )
+        target = pl.DataFrame(
+            {
+                "office_phone": ["+1111"],
+                "booking_type": ["Online"],
+            }
+        )
+        with pytest.raises(Exception):  # polars.exceptions.SchemaError
+            execute_join(
+                primary_df=primary,
+                target_df=target,
+                join_key="office_phone",
+                select_columns=["booking_type"],
+                target_entity_type="business",
+            )
+
+    def test_join_column_name_collision_with_prefix(self) -> None:
+        """Primary already has a column named business_booking_type.
+
+        The prefixed join column should still be added (Polars will suffix
+        with _right or similar). This tests whether the implementation
+        handles this gracefully.
+        """
+        primary = pl.DataFrame(
+            {
+                "gid": ["o1"],
+                "office_phone": ["+1111"],
+                "business_booking_type": ["existing_value"],
+            }
+        )
+        target = pl.DataFrame(
+            {
+                "office_phone": ["+1111"],
+                "booking_type": ["Online"],
+            }
+        )
+        result = execute_join(
+            primary_df=primary,
+            target_df=target,
+            join_key="office_phone",
+            select_columns=["booking_type"],
+            target_entity_type="business",
+        )
+        # The join should complete without error.
+        # Polars will resolve the collision by suffixing the right column.
+        assert result.df.height == 1
+        # Check that both original and joined columns exist in some form
+        col_names = result.df.columns
+        assert any("business_booking_type" in c for c in col_names)
+
+    def test_large_join_1000_rows(self) -> None:
+        """Performance/correctness: 1000+ rows in both DataFrames."""
+        n = 1200
+        phones = [f"+{i:04d}" for i in range(n)]
+        primary = pl.DataFrame(
+            {
+                "gid": [f"o{i}" for i in range(n)],
+                "office_phone": phones,
+            }
+        )
+        target = pl.DataFrame(
+            {
+                "office_phone": phones,
+                "booking_type": [f"type_{i}" for i in range(n)],
+            }
+        )
+        result = execute_join(
+            primary_df=primary,
+            target_df=target,
+            join_key="office_phone",
+            select_columns=["booking_type"],
+            target_entity_type="business",
+        )
+        assert result.df.height == n
+        assert result.matched_count == n
+        assert result.unmatched_count == 0
+
+    def test_target_select_column_all_null_values(self) -> None:
+        """Join target select column exists but all values are null."""
+        primary = pl.DataFrame(
+            {
+                "gid": ["o1", "o2"],
+                "office_phone": ["+1111", "+2222"],
+            }
+        )
+        target = pl.DataFrame(
+            {
+                "office_phone": ["+1111", "+2222"],
+                "booking_type": [None, None],
+            }
+        )
+        result = execute_join(
+            primary_df=primary,
+            target_df=target,
+            join_key="office_phone",
+            select_columns=["booking_type"],
+            target_entity_type="business",
+        )
+        assert result.df.height == 2
+        # matched_count uses is_not_null on first join col -- since all
+        # join col values are null, matched_count should be 0 even though
+        # the join key matched.
+        assert result.matched_count == 0
+        assert result.unmatched_count == 2
+
+    def test_select_includes_join_key_column(self) -> None:
+        """Select list includes the join key itself.
+
+        The join key should not be duplicated in the result. The rename map
+        skips the join key, so it should appear un-prefixed.
+        """
+        primary = pl.DataFrame(
+            {
+                "gid": ["o1"],
+                "office_phone": ["+1111"],
+            }
+        )
+        target = pl.DataFrame(
+            {
+                "office_phone": ["+1111"],
+                "booking_type": ["Online"],
+            }
+        )
+        result = execute_join(
+            primary_df=primary,
+            target_df=target,
+            join_key="office_phone",
+            select_columns=["office_phone", "booking_type"],
+            target_entity_type="business",
+        )
+        assert result.df.height == 1
+        # office_phone should NOT be prefixed (it's the join key)
+        assert "office_phone" in result.df.columns
+        # booking_type SHOULD be prefixed
+        assert "business_booking_type" in result.df.columns
+
+    def test_null_join_key_left_join_semantics(self) -> None:
+        """Null join key rows get null join columns via left join."""
+        primary = pl.DataFrame(
+            {
+                "gid": ["o1", "o2"],
+                "office_phone": ["+1111", None],
+            }
+        )
+        target = pl.DataFrame(
+            {
+                "office_phone": ["+1111"],
+                "booking_type": ["Online"],
+            }
+        )
+        result = execute_join(
+            primary_df=primary,
+            target_df=target,
+            join_key="office_phone",
+            select_columns=["booking_type"],
+            target_entity_type="business",
+        )
+        assert result.df.height == 2
+        # Row with null join key gets null join columns
+        null_row = result.df.filter(pl.col("gid") == "o2")
+        assert null_row["business_booking_type"][0] is None
+
+    def test_join_result_preserves_row_count(self) -> None:
+        """Left join must never change the primary DataFrame row count."""
+        primary = pl.DataFrame(
+            {
+                "gid": [f"o{i}" for i in range(50)],
+                "office_phone": ["+1111"] * 50,  # All same phone
+            }
+        )
+        target = pl.DataFrame(
+            {
+                "office_phone": ["+1111", "+1111", "+1111"],
+                "booking_type": ["A", "B", "C"],
+            }
+        )
+        result = execute_join(
+            primary_df=primary,
+            target_df=target,
+            join_key="office_phone",
+            select_columns=["booking_type"],
+            target_entity_type="business",
+        )
+        # Dedup ensures no row multiplication
+        assert result.df.height == 50
+
+    def test_max_join_depth_constant(self) -> None:
+        """MAX_JOIN_DEPTH is set to 1 per TDD constraint."""
+        from autom8_asana.query.join import MAX_JOIN_DEPTH
+
+        assert MAX_JOIN_DEPTH == 1
