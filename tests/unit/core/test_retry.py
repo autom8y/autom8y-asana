@@ -14,6 +14,8 @@ import time
 
 import pytest
 
+from botocore.exceptions import ClientError
+
 from autom8_asana.core.exceptions import (
     CacheError,
     RedisTransportError,
@@ -1121,7 +1123,7 @@ class TestCBNotIncrementedForPermanentErrors:
         orch = self._make_orchestrator(max_attempts=1)
         error = self._make_client_error("NoSuchKey")
 
-        with pytest.raises(Exception):  # noqa: B017
+        with pytest.raises(ClientError):
             orch.execute_with_retry(
                 lambda: (_ for _ in ()).throw(error),
                 operation_name="test",
@@ -1135,7 +1137,7 @@ class TestCBNotIncrementedForPermanentErrors:
         orch = self._make_orchestrator(max_attempts=1)
         error = self._make_client_error("Throttling")
 
-        with pytest.raises(Exception):  # noqa: B017
+        with pytest.raises(ClientError):
             orch.execute_with_retry(
                 lambda: (_ for _ in ()).throw(error),
                 operation_name="test",
@@ -1153,7 +1155,7 @@ class TestCBNotIncrementedForPermanentErrors:
             call_count += 1
             raise self._make_client_error("NoSuchKey")
 
-        with pytest.raises(Exception):  # noqa: B017
+        with pytest.raises(ClientError):
             orch.execute_with_retry(op, operation_name="test")
 
         assert call_count == 1  # No retry
@@ -1168,7 +1170,7 @@ class TestCBNotIncrementedForPermanentErrors:
             call_count += 1
             raise self._make_client_error("Throttling")
 
-        with pytest.raises(Exception):  # noqa: B017
+        with pytest.raises(ClientError):
             orch.execute_with_retry(op, operation_name="test")
 
         assert call_count == 3  # Retried up to max
@@ -1178,7 +1180,7 @@ class TestCBNotIncrementedForPermanentErrors:
         orch = self._make_orchestrator(max_attempts=1, failure_threshold=5)
 
         for _ in range(10):
-            with pytest.raises(Exception):  # noqa: B017
+            with pytest.raises(ClientError):
                 orch.execute_with_retry(
                     lambda: (_ for _ in ()).throw(
                         self._make_client_error("AccessDenied")
@@ -1198,7 +1200,7 @@ class TestCBNotIncrementedForPermanentErrors:
         async def op() -> str:
             raise error
 
-        with pytest.raises(Exception):  # noqa: B017
+        with pytest.raises(ClientError):
             await orch.execute_with_retry_async(op, operation_name="test")
 
         assert orch.circuit_breaker._failure_count == 0
@@ -1213,7 +1215,7 @@ class TestCBNotIncrementedForPermanentErrors:
         async def op() -> str:
             raise error
 
-        with pytest.raises(Exception):  # noqa: B017
+        with pytest.raises(ClientError):
             await orch.execute_with_retry_async(op, operation_name="test")
 
         assert orch.circuit_breaker._failure_count == 1

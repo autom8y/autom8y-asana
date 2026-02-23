@@ -5,6 +5,7 @@ Per ADR-0054: Tests for CascadeOperation, CascadeResult, and CascadeExecutor.
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
 from unittest.mock import MagicMock
 
 import pytest
@@ -51,7 +52,7 @@ class TestCascadeOperation:
             source_entity=business,
             field_name="Office Phone",
         )
-        with pytest.raises(Exception):  # FrozenInstanceError
+        with pytest.raises(FrozenInstanceError):
             op.field_name = "Other Field"  # type: ignore
 
 
