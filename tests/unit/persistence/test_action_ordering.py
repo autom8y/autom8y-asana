@@ -283,3 +283,121 @@ class TestResolveOrderEdgeCases:
 
         assert len(tiers) == 1
         assert tiers[0] == [action]
+
+
+# ---------------------------------------------------------------------------
+# Merged from test_action_batch_adversarial.py [RF-009]
+# ---------------------------------------------------------------------------
+
+
+class TestResolveOrderMatchFnEdgeCases:
+    """Actions that match rule's ActionType but not match_fn."""
+
+    def test_multiple_add_project_one_move_section_only_constrains_matching(
+        self,
+    ) -> None:
+        """ADD_TO_PROJECT for tasks A,B,C + MOVE_TO_SECTION for task B only.
+
+        Only task B's pair should be constrained.
+        """
+        add_a = _make_action("task_A", ActionType.ADD_TO_PROJECT, "proj_1")
+        add_b = _make_action("task_B", ActionType.ADD_TO_PROJECT, "proj_2")
+        add_c = _make_action("task_C", ActionType.ADD_TO_PROJECT, "proj_3")
+        move_b = _make_action("task_B", ActionType.MOVE_TO_SECTION, "sect_1")
+
+        tiers = resolve_order([add_a, add_b, add_c, move_b])
+
+        assert len(tiers) == 2
+        # Tier 0: add_a, add_b, add_c (3 ADD_TO_PROJECT)
+        assert len(tiers[0]) == 3
+        # Tier 1: move_b (MOVE_TO_SECTION for task_B)
+        assert len(tiers[1]) == 1
+        assert tiers[1][0] is move_b
+
+
+class TestResolveOrderScale:
+    """Scale tests for the DAG algorithm to confirm O(A*R) performance."""
+
+    def test_1000_independent_actions(self) -> None:
+        """1000 independent actions should resolve into 1 tier quickly."""
+        actions = [
+            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}")
+            for i in range(1000)
+        ]
+
+        tiers = resolve_order(actions)
+
+        assert len(tiers) == 1
+        assert len(tiers[0]) == 1000
+
+    def test_500_actions_with_ordering(self) -> None:
+        """500 actions: 250 ADD_TO_PROJECT + 250 MOVE_TO_SECTION for same tasks."""
+        actions = []
+        for i in range(250):
+            actions.append(
+                _make_action(f"task_{i}", ActionType.ADD_TO_PROJECT, f"proj_{i}")
+            )
+        for i in range(250):
+            actions.append(
+                _make_action(f"task_{i}", ActionType.MOVE_TO_SECTION, f"sect_{i}")
+            )
+
+        tiers = resolve_order(actions)
+
+        assert len(tiers) == 2
+        assert len(tiers[0]) == 250
+        assert len(tiers[1]) == 250
+
+    def test_ordering_constraint_100_actions(self) -> None:
+        """100 actions with ordering constraints should work correctly."""
+        tag_actions = [
+            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(98)
+        ]
+        add_proj = _make_action("task_x", ActionType.ADD_TO_PROJECT, "proj_1")
+        move_sect = _make_action("task_x", ActionType.MOVE_TO_SECTION, "sect_1")
+
+        actions = tag_actions + [add_proj, move_sect]
+        tiers = resolve_order(actions)
+
+        assert len(tiers) == 2
+        assert len(tiers[0]) == 99  # 98 tags + add_project
+        assert len(tiers[1]) == 1  # move_to_section
+
+
+class TestMultipleDependenciesPerTask:
+    """Multiple ADD_TO_PROJECT -> MOVE_TO_SECTION for same task."""
+
+    def test_two_add_projects_two_move_sections_same_task(self) -> None:
+        """2 ADD_TO_PROJECT + 2 MOVE_TO_SECTION for same task -> 2 tiers."""
+        add_1 = _make_action("task_1", ActionType.ADD_TO_PROJECT, "proj_1")
+        add_2 = _make_action("task_1", ActionType.ADD_TO_PROJECT, "proj_2")
+        move_1 = _make_action("task_1", ActionType.MOVE_TO_SECTION, "sect_1")
+        move_2 = _make_action("task_1", ActionType.MOVE_TO_SECTION, "sect_2")
+
+        tiers = resolve_order([add_1, add_2, move_1, move_2])
+
+        assert len(tiers) == 2
+        # Tier 0: both ADD_TO_PROJECT
+        assert len(tiers[0]) == 2
+        assert all(a.action == ActionType.ADD_TO_PROJECT for a in tiers[0])
+        # Tier 1: both MOVE_TO_SECTION
+        assert len(tiers[1]) == 2
+        assert all(a.action == ActionType.MOVE_TO_SECTION for a in tiers[1])
+
+    def test_in_degree_accumulates_from_multiple_predecessors(self) -> None:
+        """A MOVE_TO_SECTION with 3 ADD_TO_PROJECT predecessors has in_degree=3.
+
+        Kahn's algorithm should place it in tier 1 because all predecessors
+        are in tier 0. In_degree goes to 0 after processing tier 0.
+        """
+        add_1 = _make_action("task_1", ActionType.ADD_TO_PROJECT, "proj_1")
+        add_2 = _make_action("task_1", ActionType.ADD_TO_PROJECT, "proj_2")
+        add_3 = _make_action("task_1", ActionType.ADD_TO_PROJECT, "proj_3")
+        move = _make_action("task_1", ActionType.MOVE_TO_SECTION, "sect_1")
+
+        tiers = resolve_order([add_1, add_2, add_3, move])
+
+        assert len(tiers) == 2
+        assert len(tiers[0]) == 3
+        assert len(tiers[1]) == 1
+        assert tiers[1][0] is move

@@ -1338,3 +1338,527 @@ class TestEdgeCases:
         assert len(results) == 17
         assert all(r.success for r in results)
         assert mock_batch_client.execute_async.call_count == 3
+
+
+# ---------------------------------------------------------------------------
+# Merged from test_action_batch_adversarial.py [RF-009]
+# ---------------------------------------------------------------------------
+
+
+class TestPayloadContractAllActionTypes:
+    """Contract test: every ActionType's to_api_call() returns {"data": ...}."""
+
+    def test_all_action_types_always_have_data_key(self) -> None:
+        """Contract: every ActionType's to_api_call() returns {"data": ...}."""
+        from autom8_asana.persistence.models import ActionOperation, ActionType
+
+        task = Task(gid="task_1", name="Test")
+
+        test_cases = [
+            (ActionType.ADD_TAG, NameGid(gid="t1"), {}),
+            (ActionType.REMOVE_TAG, NameGid(gid="t1"), {}),
+            (ActionType.ADD_TO_PROJECT, NameGid(gid="p1"), {}),
+            (ActionType.REMOVE_FROM_PROJECT, NameGid(gid="p1"), {}),
+            (ActionType.ADD_DEPENDENCY, NameGid(gid="d1"), {}),
+            (ActionType.REMOVE_DEPENDENCY, NameGid(gid="d1"), {}),
+            (ActionType.MOVE_TO_SECTION, NameGid(gid="s1"), {}),
+            (ActionType.ADD_FOLLOWER, NameGid(gid="u1"), {}),
+            (ActionType.REMOVE_FOLLOWER, NameGid(gid="u1"), {}),
+            (ActionType.ADD_DEPENDENT, NameGid(gid="d1"), {}),
+            (ActionType.REMOVE_DEPENDENT, NameGid(gid="d1"), {}),
+            (ActionType.ADD_LIKE, None, {}),
+            (ActionType.REMOVE_LIKE, None, {}),
+            (ActionType.ADD_COMMENT, None, {"text": "Hello"}),
+            (ActionType.SET_PARENT, None, {"parent": "p1"}),
+        ]
+
+        for action_type, target, extra_params in test_cases:
+            action = ActionOperation(
+                task=task,
+                action=action_type,
+                target=target,
+                extra_params=extra_params,
+            )
+            _, _, payload = action.to_api_call()
+            assert "data" in payload, (
+                f"ActionType.{action_type.name} to_api_call() missing 'data' key"
+            )
+
+
+class TestBatchResultCountMismatchEdgeCases:
+    """Edge cases for batch result count mismatches beyond basic coverage."""
+
+    @pytest.mark.asyncio
+    async def test_more_results_than_requests_triggers_fallback(self) -> None:
+        """BatchClient returning MORE results than sent -> fallback."""
+        mock_http = AsyncMock()
+        mock_http.request = AsyncMock(return_value={"data": {}})
+        mock_http._log = None
+
+        mock_batch = AsyncMock()
+        # Return 5 results for 2 requests
+        mock_batch.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(status_code=200, body={"data": {"gid": f"r{i}"}})
+                for i in range(5)
+            ]
+        )
+
+        executor = ActionExecutor(mock_http, mock_batch)
+        task = Task(gid="task_1", name="Test")
+        actions = [
+            ActionOperation(
+                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
+            )
+            for i in range(2)
+        ]
+
+        results = await executor.execute_async(actions, {})
+
+        assert len(results) == 2
+        assert all(r.success for r in results)
+        # Fell back to sequential
+        assert mock_http.request.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_empty_results_for_nonempty_chunk_triggers_fallback(self) -> None:
+        """BatchClient returning empty list for a chunk -> fallback."""
+        mock_http = AsyncMock()
+        mock_http.request = AsyncMock(return_value={"data": {}})
+        mock_http._log = None
+
+        mock_batch = AsyncMock()
+        mock_batch.execute_async = AsyncMock(return_value=[])
+
+        executor = ActionExecutor(mock_http, mock_batch)
+        task = Task(gid="task_1", name="Test")
+        actions = [
+            ActionOperation(
+                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
+            )
+            for i in range(3)
+        ]
+
+        results = await executor.execute_async(actions, {})
+
+        assert len(results) == 3
+        assert mock_http.request.call_count == 3
+
+
+class TestResolveTempGidsImmutability:
+    """_resolve_temp_gids must not mutate ActionOperation (frozen dataclass)."""
+
+    @pytest.mark.asyncio
+    async def test_resolve_does_not_mutate_original_action(self) -> None:
+        """Resolved action should be a new object, not the original mutated."""
+        mock_http = AsyncMock()
+        mock_http.request = AsyncMock(return_value={"data": {}})
+
+        executor = ActionExecutor(mock_http)
+
+        task = Task(gid="task_1", name="Test")
+        action = ActionOperation(
+            task=task,
+            action=ActionType.ADD_TAG,
+            target=NameGid(gid="temp_tag_1", name="Tag"),
+        )
+
+        gid_map = {"temp_tag_1": "real_tag_1"}
+        resolved = executor._resolve_temp_gids(action, gid_map)
+
+        # Original action unchanged (frozen dataclass)
+        assert action.target.gid == "temp_tag_1"
+        # Resolved action has new GID
+        assert resolved.target.gid == "real_tag_1"
+        # They should be different objects
+        assert resolved is not action
+
+    @pytest.mark.asyncio
+    async def test_resolve_no_mutation_when_no_temp_gids(self) -> None:
+        """When no temp GIDs, returns the SAME object (identity preserved)."""
+        mock_http = AsyncMock()
+        mock_http.request = AsyncMock(return_value={"data": {}})
+
+        executor = ActionExecutor(mock_http)
+
+        task = Task(gid="task_1", name="Test")
+        action = ActionOperation(
+            task=task,
+            action=ActionType.ADD_TAG,
+            target=NameGid(gid="tag_1"),  # Not a temp GID
+        )
+
+        resolved = executor._resolve_temp_gids(action, {})
+
+        # Same object returned (no copy needed)
+        assert resolved is action
+
+
+class TestBatchExecutorScale:
+    """Scale tests for the batch execution path."""
+
+    @pytest.mark.asyncio
+    async def test_100_actions_batch_execution(self) -> None:
+        """100 actions through batch executor: 10 batch calls expected."""
+        mock_http = AsyncMock()
+        mock_http.request = AsyncMock(return_value={"data": {}})
+        mock_http._log = None
+
+        mock_batch = AsyncMock()
+        # 10 chunks of 10
+        mock_batch.execute_async.side_effect = [
+            [
+                BatchResult(status_code=200, body={"data": {"gid": f"r{j}"}})
+                for j in range(10)
+            ]
+            for _ in range(10)
+        ]
+
+        executor = ActionExecutor(mock_http, mock_batch)
+        task = Task(gid="task_1", name="Test")
+        actions = [
+            ActionOperation(
+                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
+            )
+            for i in range(100)
+        ]
+
+        results = await executor.execute_async(actions, {})
+
+        assert len(results) == 100
+        assert all(r.success for r in results)
+        assert mock_batch.execute_async.call_count == 10
+
+
+class TestMetricsLogging:
+    """TDD Section 7: Structured log fields verification."""
+
+    @pytest.mark.asyncio
+    async def test_batch_complete_log_fields(self) -> None:
+        """The action_batch_complete log should include all TDD-specified fields."""
+        mock_log = MagicMock()
+        mock_http = AsyncMock()
+        mock_http.request = AsyncMock(return_value={"data": {}})
+        mock_http._log = mock_log
+
+        mock_batch = AsyncMock()
+        mock_batch.execute_async.return_value = [
+            BatchResult(status_code=200, body={"data": {"gid": "r1"}}),
+            BatchResult(status_code=500, body={"errors": [{"message": "Server error"}]}),
+            BatchResult(status_code=200, body={"data": {"gid": "r3"}}),
+        ]
+
+        executor = ActionExecutor(mock_http, mock_batch)
+        task = Task(gid="task_1", name="Test")
+        actions = [
+            ActionOperation(
+                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
+            )
+            for i in range(3)
+        ]
+
+        await executor.execute_async(actions, {})
+
+        # Find the action_batch_complete log call
+        info_calls = mock_log.info.call_args_list
+        batch_complete_call = None
+        for call in info_calls:
+            if call[0][0] == "action_batch_complete":
+                batch_complete_call = call
+                break
+
+        assert batch_complete_call is not None, "action_batch_complete log not emitted"
+
+        kwargs = batch_complete_call[1]
+        # TDD Section 7.1 specifies these counters
+        assert "total_actions" in kwargs
+        assert kwargs["total_actions"] == 3
+        assert "batch_succeeded" in kwargs
+        assert kwargs["batch_succeeded"] == 2
+        assert "batch_failed" in kwargs
+        assert kwargs["batch_failed"] == 1
+        assert "tiers" in kwargs
+        assert "chunks_total" in kwargs
+        assert "chunks_fallback" in kwargs
+        assert "sequential_fallback" in kwargs
+
+    @pytest.mark.asyncio
+    async def test_no_log_when_log_is_none(self) -> None:
+        """When _log is None, no logging calls should happen (no AttributeError)."""
+        mock_http = AsyncMock()
+        mock_http.request = AsyncMock(return_value={"data": {}})
+        mock_http._log = None  # No logger
+
+        mock_batch = AsyncMock()
+        mock_batch.execute_async.return_value = [
+            BatchResult(status_code=200, body={"data": {"gid": "r1"}}),
+            BatchResult(status_code=200, body={"data": {"gid": "r2"}}),
+        ]
+
+        executor = ActionExecutor(mock_http, mock_batch)
+        task = Task(gid="task_1", name="Test")
+        actions = [
+            ActionOperation(
+                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
+            )
+            for i in range(2)
+        ]
+
+        # Should not raise even with no logger
+        results = await executor.execute_async(actions, {})
+        assert len(results) == 2
+
+
+class TestCrossTierResultOrdering:
+    """Result order must match input order even when actions span multiple tiers."""
+
+    @pytest.mark.asyncio
+    async def test_results_ordered_by_input_not_tier_order(self) -> None:
+        """If input is [MOVE, TAG, ADD_PROJECT], results must be [MOVE_result, TAG_result, ADD_result]."""
+        mock_http = AsyncMock()
+        mock_http.request = AsyncMock(return_value={"data": {}})
+        mock_http._log = None
+
+        mock_batch = AsyncMock()
+        # Tier 0: TAG + ADD_PROJECT -> 2 results
+        # Tier 1: MOVE_TO_SECTION -> 1 result
+        mock_batch.execute_async.side_effect = [
+            [
+                BatchResult(status_code=200, body={"data": {"gid": "tag_result"}}),
+                BatchResult(status_code=200, body={"data": {"gid": "add_proj_result"}}),
+            ],
+            [
+                BatchResult(status_code=200, body={"data": {"gid": "move_result"}}),
+            ],
+        ]
+
+        executor = ActionExecutor(mock_http, mock_batch)
+
+        # Input order: MOVE, TAG, ADD_PROJECT (MOVE must go to tier 1)
+        task = Task(gid="task_1", name="Test")
+        actions = [
+            ActionOperation(
+                task=task,
+                action=ActionType.MOVE_TO_SECTION,
+                target=NameGid(gid="sect_1"),
+            ),
+            ActionOperation(
+                task=task,
+                action=ActionType.ADD_TAG,
+                target=NameGid(gid="tag_1"),
+            ),
+            ActionOperation(
+                task=task,
+                action=ActionType.ADD_TO_PROJECT,
+                target=NameGid(gid="proj_1"),
+            ),
+        ]
+
+        results = await executor.execute_async(actions, {})
+
+        assert len(results) == 3
+        # Result 0 should correspond to MOVE_TO_SECTION (input[0])
+        assert results[0].action.action == ActionType.MOVE_TO_SECTION
+        # Result 1 should correspond to ADD_TAG (input[1])
+        assert results[1].action.action == ActionType.ADD_TAG
+        # Result 2 should correspond to ADD_TO_PROJECT (input[2])
+        assert results[2].action.action == ActionType.ADD_TO_PROJECT
+
+        # Verify the response_data matches the correct action
+        assert results[0].response_data == {"gid": "move_result"}
+        assert results[1].response_data == {"gid": "tag_result"}
+        assert results[2].response_data == {"gid": "add_proj_result"}
+
+
+class TestFallbackEdgeCases:
+    """Fallback path edge cases not covered by basic fallback tests."""
+
+    @pytest.mark.asyncio
+    async def test_fallback_with_no_target_action(self) -> None:
+        """Fallback with ADD_LIKE (target=None) should work."""
+        mock_http = AsyncMock()
+        mock_http.request = AsyncMock(return_value={"data": {}})
+        mock_http._log = None
+
+        mock_batch = AsyncMock()
+        mock_batch.execute_async.side_effect = ConnectionError("fail")
+
+        executor = ActionExecutor(mock_http, mock_batch)
+        task = Task(gid="task_1", name="Test")
+        actions = [
+            ActionOperation(task=task, action=ActionType.ADD_LIKE, target=None),
+            ActionOperation(task=task, action=ActionType.ADD_LIKE, target=None),
+        ]
+
+        results = await executor.execute_async(actions, {})
+
+        assert len(results) == 2
+        assert all(r.success for r in results)
+
+    @pytest.mark.asyncio
+    async def test_fallback_with_comment_action(self) -> None:
+        """Fallback with ADD_COMMENT should preserve extra_params."""
+        mock_http = AsyncMock()
+        mock_http.request = AsyncMock(return_value={"data": {"gid": "story_1"}})
+        mock_http._log = None
+
+        mock_batch = AsyncMock()
+        mock_batch.execute_async.side_effect = ConnectionError("fail")
+
+        executor = ActionExecutor(mock_http, mock_batch)
+        task = Task(gid="task_1", name="Test")
+        actions = [
+            ActionOperation(
+                task=task,
+                action=ActionType.ADD_COMMENT,
+                target=None,
+                extra_params={"text": "Hello"},
+            ),
+            ActionOperation(
+                task=task,
+                action=ActionType.ADD_COMMENT,
+                target=None,
+                extra_params={"text": "World"},
+            ),
+        ]
+
+        results = await executor.execute_async(actions, {})
+
+        assert len(results) == 2
+        assert all(r.success for r in results)
+        # Verify comment text was passed correctly
+        call_args_list = mock_http.request.call_args_list
+        assert call_args_list[0][1]["json"]["data"]["text"] == "Hello"
+        assert call_args_list[1][1]["json"]["data"]["text"] == "World"
+
+
+class TestBatchResultStatusCodes:
+    """Edge-case HTTP status code handling in batch results."""
+
+    def test_batch_result_201_is_success(self) -> None:
+        """201 Created should be treated as success."""
+        br = BatchResult(status_code=201, body={"data": {"gid": "new_1"}})
+        task = Task(gid="task_1", name="Test")
+        action = ActionOperation(
+            task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
+        )
+
+        result = batch_result_to_action_result(action, br)
+        assert result.success is True
+
+    def test_batch_result_204_is_success(self) -> None:
+        """204 No Content should be treated as success (data may be None)."""
+        br = BatchResult(status_code=204, body=None)
+        task = Task(gid="task_1", name="Test")
+        action = ActionOperation(
+            task=task, action=ActionType.REMOVE_TAG, target=NameGid(gid="tag_1")
+        )
+
+        result = batch_result_to_action_result(action, br)
+        assert result.success is True
+        assert result.response_data is None
+
+    def test_batch_result_400_is_failure(self) -> None:
+        """400 Bad Request should be treated as failure."""
+        br = BatchResult(
+            status_code=400,
+            body={"errors": [{"message": "Bad request"}]},
+        )
+        task = Task(gid="task_1", name="Test")
+        action = ActionOperation(
+            task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
+        )
+
+        result = batch_result_to_action_result(action, br)
+        assert result.success is False
+        assert isinstance(result.error, AsanaError)
+
+    def test_batch_result_403_is_failure(self) -> None:
+        """403 Forbidden should be treated as failure."""
+        br = BatchResult(
+            status_code=403,
+            body={"errors": [{"message": "Forbidden"}]},
+        )
+        task = Task(gid="task_1", name="Test")
+        action = ActionOperation(
+            task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
+        )
+
+        result = batch_result_to_action_result(action, br)
+        assert result.success is False
+
+
+class TestDoubleFailure:
+    """What happens when batch fails AND sequential fallback also fails?"""
+
+    @pytest.mark.asyncio
+    async def test_batch_fails_then_sequential_also_fails(self) -> None:
+        """Batch fails, fallback sequential also fails -> failed ActionResults."""
+        mock_http = AsyncMock()
+        mock_http.request = AsyncMock(side_effect=RuntimeError("HTTP also down"))
+        mock_http._log = None
+
+        mock_batch = AsyncMock()
+        mock_batch.execute_async.side_effect = ConnectionError("Batch down")
+
+        executor = ActionExecutor(mock_http, mock_batch)
+        task = Task(gid="task_1", name="Test")
+        actions = [
+            ActionOperation(
+                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
+            )
+            for i in range(3)
+        ]
+
+        results = await executor.execute_async(actions, {})
+
+        assert len(results) == 3
+        assert all(not r.success for r in results)
+        assert all(isinstance(r.error, RuntimeError) for r in results)
+        assert all("HTTP also down" in str(r.error) for r in results)
+
+
+class TestChunkBoundaryEdgeCases:
+    """Chunk boundary edge case not covered by basic chunk tests."""
+
+    def test_chunk_11_into_10(self) -> None:
+        """11 actions into chunks of 10: [10, 1]."""
+        task = Task(gid="task_1", name="Test")
+        actions = [
+            ActionOperation(
+                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
+            )
+            for i in range(11)
+        ]
+        chunks = _chunk_actions(actions, 10)
+        assert len(chunks) == 2
+        assert len(chunks[0]) == 10
+        assert len(chunks[1]) == 1
+
+
+class TestSessionWiring:
+    """Verify SaveSession wires batch_client correctly to ActionExecutor."""
+
+    def test_save_session_passes_batch_client(self) -> None:
+        """SaveSession.__init__ wires client.batch to ActionExecutor."""
+        from autom8_asana.persistence.session import SaveSession
+
+        mock_client = MagicMock()
+        mock_http = AsyncMock()
+        mock_http._log = None
+        mock_client._http = mock_http
+
+        mock_batch = MagicMock()
+        mock_client.batch = mock_batch
+
+        mock_client.automation = None
+        mock_client._cache_provider = None
+        mock_client._log = None
+        mock_client._config = MagicMock()
+        mock_client._config.automation = None
+
+        session = SaveSession(mock_client)
+
+        # Verify ActionExecutor received both http and batch
+        assert session._action_executor._http is mock_http
+        assert session._action_executor._batch_client is mock_batch
