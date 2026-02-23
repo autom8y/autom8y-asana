@@ -279,8 +279,18 @@ class TestStaleFallback:
 
     @pytest.mark.slow
     @pytest.mark.asyncio
-    async def test_stale_fallback_on_502_error(self) -> None:
-        """Returns stale cache on HTTP 502 Bad Gateway error."""
+    @pytest.mark.parametrize(
+        "status_code,error_msg",
+        [
+            pytest.param(502, "Bad gateway", id="502-bad-gateway"),
+            pytest.param(503, "Service unavailable", id="503-service-unavailable"),
+            pytest.param(504, "Gateway timeout", id="504-gateway-timeout"),
+        ],
+    )
+    async def test_stale_fallback_on_server_error(
+        self, status_code: int, error_msg: str
+    ) -> None:
+        """Returns stale cache on server error (502/503/504)."""
         import respx
 
         mock_cache = MagicMock()
@@ -304,88 +314,8 @@ class TestStaleFallback:
         with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
-                    status_code=502,
-                    json={"error": "Bad gateway"},
-                )
-
-                async with client:
-                    response = await client.get_insights_async(
-                        factory="account",
-                        office_phone="+17705753103",
-                        vertical="chiropractic",
-                    )
-
-        assert response.metadata.is_stale is True
-
-    @pytest.mark.slow
-    @pytest.mark.asyncio
-    async def test_stale_fallback_on_503_error(self) -> None:
-        """Returns stale cache on HTTP 503 Service Unavailable error."""
-        import respx
-
-        mock_cache = MagicMock()
-        mock_cache.get.return_value = {
-            "data": [{"spend": 100.0}],
-            "metadata": {
-                "factory": "account",
-                "row_count": 1,
-                "column_count": 1,
-                "columns": [{"name": "spend", "dtype": "float64"}],
-                "cache_hit": False,
-                "duration_ms": 50.0,
-            },
-            "request_id": "cached-id",
-            "warnings": [],
-            "cached_at": "2024-01-15T10:30:00+00:00",
-        }
-
-        client = DataServiceClient(cache_provider=mock_cache)
-
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
-            with respx.mock:
-                respx.post("/api/v1/data-service/insights").respond(
-                    status_code=503,
-                    json={"error": "Service unavailable"},
-                )
-
-                async with client:
-                    response = await client.get_insights_async(
-                        factory="account",
-                        office_phone="+17705753103",
-                        vertical="chiropractic",
-                    )
-
-        assert response.metadata.is_stale is True
-
-    @pytest.mark.slow
-    @pytest.mark.asyncio
-    async def test_stale_fallback_on_504_error(self) -> None:
-        """Returns stale cache on HTTP 504 Gateway Timeout error."""
-        import respx
-
-        mock_cache = MagicMock()
-        mock_cache.get.return_value = {
-            "data": [{"spend": 100.0}],
-            "metadata": {
-                "factory": "account",
-                "row_count": 1,
-                "column_count": 1,
-                "columns": [{"name": "spend", "dtype": "float64"}],
-                "cache_hit": False,
-                "duration_ms": 50.0,
-            },
-            "request_id": "cached-id",
-            "warnings": [],
-            "cached_at": "2024-01-15T10:30:00+00:00",
-        }
-
-        client = DataServiceClient(cache_provider=mock_cache)
-
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
-            with respx.mock:
-                respx.post("/api/v1/data-service/insights").respond(
-                    status_code=504,
-                    json={"error": "Gateway timeout"},
+                    status_code=status_code,
+                    json={"error": error_msg},
                 )
 
                 async with client:

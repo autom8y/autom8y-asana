@@ -316,39 +316,21 @@ class TestShouldHeal:
 
         assert session._healing_manager.should_heal(entity, None) is False
 
-    def test_should_heal_true_for_tier_2(self) -> None:
-        """Returns True if entity was detected via Tier 2."""
+    @pytest.mark.parametrize(
+        "tier",
+        [
+            pytest.param(2, id="tier-2"),
+            pytest.param(3, id="tier-3"),
+            pytest.param(4, id="tier-4"),
+            pytest.param(5, id="tier-5"),
+        ],
+    )
+    def test_should_heal_true_for_fallback_tiers(self, tier: int) -> None:
+        """Returns True if entity was detected via fallback tier (2-5)."""
         mock_client = create_mock_client()
         session = SaveSession(mock_client, auto_heal=True)
 
-        entity = create_entity_with_detection("123", "Test", tier_used=2)
-
-        assert session._healing_manager.should_heal(entity, None) is True
-
-    def test_should_heal_true_for_tier_3(self) -> None:
-        """Returns True if entity was detected via Tier 3."""
-        mock_client = create_mock_client()
-        session = SaveSession(mock_client, auto_heal=True)
-
-        entity = create_entity_with_detection("123", "Test", tier_used=3)
-
-        assert session._healing_manager.should_heal(entity, None) is True
-
-    def test_should_heal_true_for_tier_4(self) -> None:
-        """Returns True if entity was detected via Tier 4."""
-        mock_client = create_mock_client()
-        session = SaveSession(mock_client, auto_heal=True)
-
-        entity = create_entity_with_detection("123", "Test", tier_used=4)
-
-        assert session._healing_manager.should_heal(entity, None) is True
-
-    def test_should_heal_true_for_tier_5(self) -> None:
-        """Returns True if entity was detected via Tier 5 (with expected project)."""
-        mock_client = create_mock_client()
-        session = SaveSession(mock_client, auto_heal=True)
-
-        entity = create_entity_with_detection("123", "Test", tier_used=5)
+        entity = create_entity_with_detection("123", "Test", tier_used=tier)
 
         assert session._healing_manager.should_heal(entity, None) is True
 
