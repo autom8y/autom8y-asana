@@ -28,22 +28,59 @@ rules:
       - pattern-regex: "import autom8_asana\\.api"
     paths:
       include:
-        - "**/src/autom8_asana/models/"
         - "**/src/autom8_asana/core/"
+        - "**/src/autom8_asana/models/"
         - "**/src/autom8_asana/protocols/"
-        - "**/src/autom8_asana/clients/"
         - "**/src/autom8_asana/transport/"
-        - "**/src/autom8_asana/services/"
-        - "**/src/autom8_asana/automation/"
-        - "**/src/autom8_asana/persistence/"
-        - "**/src/autom8_asana/dataframes/"
+        - "**/src/autom8_asana/clients/"
+        - "**/src/autom8_asana/batch/"
+        - "**/src/autom8_asana/_defaults/"
+        - "**/src/autom8_asana/observability/"
         - "**/src/autom8_asana/cache/"
+        - "**/src/autom8_asana/dataframes/"
+        - "**/src/autom8_asana/resolution/"
+        - "**/src/autom8_asana/search/"
+        - "**/src/autom8_asana/query/"
+        - "**/src/autom8_asana/metrics/"
+        - "**/src/autom8_asana/patterns/"
+        - "**/src/autom8_asana/persistence/"
+        - "**/src/autom8_asana/services/"
+        - "**/src/autom8_asana/lifecycle/"
+        - "**/src/autom8_asana/automation/"
       exclude:
         - "**/tests/**"
         - "**/test_*.py"
         - "**/conftest.py"
     message: >-
-      Layer violation: domain, service, and data layers must not import from api/.
-      Move shared definitions to models/, core/, or protocols/ and have api/ import from there.
+      Layer violation: non-API packages must not import from api/ (Layer 5).
+      The api/ layer is the outermost boundary. Move shared definitions to
+      core/, models/, or protocols/ and have api/ import from there.
     severity: ERROR
     languages: [python]
+
+  - id: autom8y.no-models-import-upper
+    pattern-either:
+      - pattern-regex: "from autom8_asana\\.services"
+      - pattern-regex: "import autom8_asana\\.services"
+      - pattern-regex: "from autom8_asana\\.persistence"
+      - pattern-regex: "import autom8_asana\\.persistence"
+      - pattern-regex: "from autom8_asana\\.lifecycle"
+      - pattern-regex: "import autom8_asana\\.lifecycle"
+      - pattern-regex: "from autom8_asana\\.automation"
+      - pattern-regex: "import autom8_asana\\.automation"
+    paths:
+      include:
+        - "**/src/autom8_asana/models/"
+        - "**/src/autom8_asana/protocols/"
+        - "**/src/autom8_asana/transport/"
+      exclude:
+        - "**/tests/**"
+        - "**/test_*.py"
+        - "**/conftest.py"
+    message: >-
+      Layer violation: models/, protocols/, and transport/ (Layers 1-2) must not
+      import from services/, persistence/, lifecycle/, or automation/ (Layers 3-4).
+      Move shared definitions downward.
+    severity: ERROR
+    languages:
+      - python
