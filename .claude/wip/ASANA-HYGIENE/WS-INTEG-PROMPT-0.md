@@ -1,9 +1,9 @@
 # WS-INTEG Session Prompt
 
 ## Rite & Workflow
-- Rite: 10x-dev
+- Rite: hygiene
 - Workflow: `/task`
-- Complexity: SCRIPT
+- Complexity: SPOT
 
 ## Objective
 
