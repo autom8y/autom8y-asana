@@ -15,7 +15,7 @@ import os
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import httpx
+from autom8y_http import HttpClientConfig
 import pytest
 
 from autom8_asana.clients.data.client import DataServiceClient
@@ -121,19 +121,15 @@ class TestDataServiceClientContextManager:
         """__aexit__ calls close() to release resources."""
         client = DataServiceClient()
 
-        # Force client creation
-        with patch.object(
-            httpx.AsyncClient, "aclose", new_callable=AsyncMock
-        ) as mock_close:
-            # Manually set a mock client to test close
-            client._client = MagicMock()
-            client._client.aclose = mock_close
+        mock_close = AsyncMock()
+        client._client = MagicMock()
+        client._client.close = mock_close
 
-            async with client:
-                pass
+        async with client:
+            pass
 
-            mock_close.assert_called_once()
-            assert client._client is None
+        mock_close.assert_called_once()
+        assert client._client is None
 
     @pytest.mark.asyncio
     async def test_context_manager_closes_on_exception(self) -> None:
@@ -165,7 +161,7 @@ class TestDataServiceClientClose:
 
     @pytest.mark.asyncio
     async def test_close_closes_http_client(self) -> None:
-        """close() calls aclose() on httpx client."""
+        """close() calls close() on Autom8yHttpClient."""
         client = DataServiceClient()
 
         mock_http = AsyncMock()
@@ -173,7 +169,7 @@ class TestDataServiceClientClose:
 
         await client.close()
 
-        mock_http.aclose.assert_called_once()
+        mock_http.close.assert_called_once()
         assert client._client is None
 
     @pytest.mark.asyncio
@@ -208,25 +204,26 @@ class TestDataServiceClientGetClient:
 
     @pytest.mark.asyncio
     async def test_creates_httpx_client(self) -> None:
-        """_get_client creates httpx.AsyncClient with correct config."""
+        """_get_client creates Autom8yHttpClient with correct config."""
         config = DataServiceConfig(
             base_url="https://test.example.com",
         )
         client = DataServiceClient(config=config)
 
-        with patch("autom8_asana.clients.data.client.httpx.AsyncClient") as mock_class:
-            mock_instance = AsyncMock()
+        with patch("autom8_asana.clients.data.client.Autom8yHttpClient") as mock_class:
+            mock_instance = MagicMock()
+            mock_instance._client = MagicMock()
+            mock_instance._client.headers = {}
+            mock_instance.close = AsyncMock()
             mock_class.return_value = mock_instance
 
             await client._get_client()
 
             mock_class.assert_called_once()
             call_kwargs = mock_class.call_args.kwargs
-
-            assert call_kwargs["base_url"] == "https://test.example.com"
-            assert "timeout" in call_kwargs
-            assert "limits" in call_kwargs
-            assert "headers" in call_kwargs
+            http_config = call_kwargs["config"]
+            assert isinstance(http_config, HttpClientConfig)
+            assert http_config.base_url == "https://test.example.com"
 
     @pytest.mark.asyncio
     async def test_configures_timeouts_from_config(self) -> None:
@@ -242,17 +239,21 @@ class TestDataServiceClientGetClient:
         )
         client = DataServiceClient(config=config)
 
-        with patch("autom8_asana.clients.data.client.httpx.AsyncClient") as mock_class:
+        with patch("autom8_asana.clients.data.client.Autom8yHttpClient") as mock_class:
+            mock_instance = MagicMock()
+            mock_instance._client = MagicMock()
+            mock_instance._client.headers = {}
+            mock_instance.close = AsyncMock()
+            mock_class.return_value = mock_instance
+
             await client._get_client()
 
             call_kwargs = mock_class.call_args.kwargs
-            timeout = call_kwargs["timeout"]
-
-            assert isinstance(timeout, httpx.Timeout)
-            assert timeout.connect == 10.0
-            assert timeout.read == 60.0
-            assert timeout.write == 45.0
-            assert timeout.pool == 8.0
+            http_config = call_kwargs["config"]
+            assert http_config.connect_timeout == 10.0
+            assert http_config.read_timeout == 60.0
+            assert http_config.write_timeout == 45.0
+            assert http_config.pool_timeout == 8.0
 
     @pytest.mark.asyncio
     async def test_configures_connection_pool_from_config(self) -> None:
@@ -267,16 +268,20 @@ class TestDataServiceClientGetClient:
         )
         client = DataServiceClient(config=config)
 
-        with patch("autom8_asana.clients.data.client.httpx.AsyncClient") as mock_class:
+        with patch("autom8_asana.clients.data.client.Autom8yHttpClient") as mock_class:
+            mock_instance = MagicMock()
+            mock_instance._client = MagicMock()
+            mock_instance._client.headers = {}
+            mock_instance.close = AsyncMock()
+            mock_class.return_value = mock_instance
+
             await client._get_client()
 
             call_kwargs = mock_class.call_args.kwargs
-            limits = call_kwargs["limits"]
-
-            assert isinstance(limits, httpx.Limits)
-            assert limits.max_connections == 20
-            assert limits.max_keepalive_connections == 10
-            assert limits.keepalive_expiry == 60.0
+            http_config = call_kwargs["config"]
+            assert http_config.max_connections == 20
+            assert http_config.max_keepalive_connections == 10
+            assert http_config.keepalive_expiry == 60.0
 
     @pytest.mark.asyncio
     async def test_includes_auth_header_when_token_available(self) -> None:
@@ -286,13 +291,16 @@ class TestDataServiceClientGetClient:
 
         client = DataServiceClient(auth_provider=mock_auth)
 
-        with patch("autom8_asana.clients.data.client.httpx.AsyncClient") as mock_class:
+        with patch("autom8_asana.clients.data.client.Autom8yHttpClient") as mock_class:
+            mock_instance = MagicMock()
+            mock_instance._client = MagicMock()
+            mock_instance._client.headers = {}
+            mock_instance.close = AsyncMock()
+            mock_class.return_value = mock_instance
+
             await client._get_client()
 
-            call_kwargs = mock_class.call_args.kwargs
-            headers = call_kwargs["headers"]
-
-            assert headers["Authorization"] == "Bearer test-jwt-token"
+            assert mock_instance._client.headers["Authorization"] == "Bearer test-jwt-token"
 
     @pytest.mark.asyncio
     async def test_no_auth_header_when_no_token(self) -> None:
@@ -303,36 +311,45 @@ class TestDataServiceClientGetClient:
         )
         client = DataServiceClient(config=config)
 
-        with patch("autom8_asana.clients.data.client.httpx.AsyncClient") as mock_class:
+        with patch("autom8_asana.clients.data.client.Autom8yHttpClient") as mock_class:
+            mock_instance = MagicMock()
+            mock_instance._client = MagicMock()
+            mock_instance._client.headers = {}
+            mock_instance.close = AsyncMock()
+            mock_class.return_value = mock_instance
+
             with patch.dict(os.environ, {}, clear=True):
                 await client._get_client()
 
-            call_kwargs = mock_class.call_args.kwargs
-            headers = call_kwargs["headers"]
-
-            assert "Authorization" not in headers
+            assert "Authorization" not in mock_instance._client.headers
 
     @pytest.mark.asyncio
     async def test_includes_content_type_headers(self) -> None:
         """_get_client includes Accept and Content-Type headers."""
         client = DataServiceClient()
 
-        with patch("autom8_asana.clients.data.client.httpx.AsyncClient") as mock_class:
+        with patch("autom8_asana.clients.data.client.Autom8yHttpClient") as mock_class:
+            mock_instance = MagicMock()
+            mock_instance._client = MagicMock()
+            mock_instance._client.headers = {}
+            mock_instance.close = AsyncMock()
+            mock_class.return_value = mock_instance
+
             await client._get_client()
 
-            call_kwargs = mock_class.call_args.kwargs
-            headers = call_kwargs["headers"]
-
-            assert headers["Accept"] == "application/json"
-            assert headers["Content-Type"] == "application/json"
+            assert mock_instance._client.headers["Accept"] == "application/json"
+            assert mock_instance._client.headers["Content-Type"] == "application/json"
 
     @pytest.mark.asyncio
     async def test_returns_same_client_on_subsequent_calls(self) -> None:
         """_get_client returns cached client on subsequent calls."""
         client = DataServiceClient()
 
-        with patch("autom8_asana.clients.data.client.httpx.AsyncClient") as mock_class:
-            mock_instance = AsyncMock()
+        with patch("autom8_asana.clients.data.client.Autom8yHttpClient") as mock_class:
+            mock_instance = MagicMock()
+            mock_instance._client = MagicMock()
+            mock_instance._client.headers = {}
+            mock_instance.close = AsyncMock()
             mock_class.return_value = mock_instance
 
             result1 = await client._get_client()
@@ -349,7 +366,13 @@ class TestDataServiceClientGetClient:
 
         assert client.is_initialized is False
 
-        with patch("autom8_asana.clients.data.client.httpx.AsyncClient"):
+        with patch("autom8_asana.clients.data.client.Autom8yHttpClient") as mock_class:
+            mock_instance = MagicMock()
+            mock_instance._client = MagicMock()
+            mock_instance._client.headers = {}
+            mock_instance.close = AsyncMock()
+            mock_class.return_value = mock_instance
+
             await client._get_client()
 
         assert client.is_initialized is True
@@ -360,7 +383,13 @@ class TestDataServiceClientGetClient:
         mock_logger = MagicMock()
         client = DataServiceClient(logger=mock_logger)
 
-        with patch("autom8_asana.clients.data.client.httpx.AsyncClient"):
+        with patch("autom8_asana.clients.data.client.Autom8yHttpClient") as mock_class:
+            mock_instance = MagicMock()
+            mock_instance._client = MagicMock()
+            mock_instance._client.headers = {}
+            mock_instance.close = AsyncMock()
+            mock_class.return_value = mock_instance
+
             await client._get_client()
 
         mock_logger.debug.assert_called()
@@ -478,15 +507,18 @@ class TestDataServiceClientConcurrency:
         """Multiple concurrent _get_client calls create only one client."""
         client = DataServiceClient()
         creation_count = 0
-        mock_instance = MagicMock()
 
         def mock_create(*args: Any, **kwargs: Any) -> MagicMock:
             nonlocal creation_count
             creation_count += 1
-            return mock_instance
+            instance = MagicMock()
+            instance._client = MagicMock()
+            instance._client.headers = {}
+            instance.close = AsyncMock()
+            return instance
 
         with patch(
-            "autom8_asana.clients.data.client.httpx.AsyncClient",
+            "autom8_asana.clients.data.client.Autom8yHttpClient",
             side_effect=mock_create,
         ):
             # Start multiple concurrent calls
@@ -500,7 +532,6 @@ class TestDataServiceClientConcurrency:
         assert creation_count == 1
         # All calls should return the same instance
         assert results[0] is results[1] is results[2]
-        assert results[0] is mock_instance
 
 
 class TestDataServiceClientProperties:

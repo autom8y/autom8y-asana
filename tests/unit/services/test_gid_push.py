@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from autom8y_http import TimeoutException
 import httpx
 import pytest
 
@@ -141,6 +142,34 @@ class TestIsPushEnabled:
 # ============================================================================
 
 
+def _make_push_mocks(
+    mock_http_cls: MagicMock,
+    *,
+    post_return: object | None = None,
+    post_side_effect: object | None = None,
+) -> AsyncMock:
+    """Build the two-layer Autom8yHttpClient mock chain.
+
+    Returns the mock_raw_client whose .post is the assertion target.
+    """
+    mock_raw_client = AsyncMock()
+    if post_side_effect is not None:
+        mock_raw_client.post.side_effect = post_side_effect
+    elif post_return is not None:
+        mock_raw_client.post.return_value = post_return
+
+    mock_raw_cm = AsyncMock()
+    mock_raw_cm.__aenter__.return_value = mock_raw_client
+
+    mock_outer = MagicMock()
+    mock_outer.raw.return_value = mock_raw_cm
+
+    mock_http_cls.return_value = AsyncMock()
+    mock_http_cls.return_value.__aenter__.return_value = mock_outer
+
+    return mock_raw_client
+
+
 class TestPushGidMappingsToDataService:
     """Tests for the async push function."""
 
@@ -223,13 +252,9 @@ class TestPushGidMappingsToDataService:
         )
 
         with patch(
-            "autom8_asana.services.gid_push.httpx.AsyncClient"
-        ) as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post.return_value = mock_response
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_cls.return_value = mock_client
+            "autom8_asana.services.gid_push.Autom8yHttpClient"
+        ) as mock_http_cls:
+            mock_raw_client = _make_push_mocks(mock_http_cls, post_return=mock_response)
 
             result = await push_gid_mappings_to_data_service(
                 project_gid="1201081073731555",
@@ -241,8 +266,8 @@ class TestPushGidMappingsToDataService:
         assert result is True
 
         # Verify the POST was called with correct URL and payload
-        mock_client.post.assert_called_once()
-        call_args = mock_client.post.call_args
+        mock_raw_client.post.assert_called_once()
+        call_args = mock_raw_client.post.call_args
         assert call_args.args[0] == "http://localhost:8000/api/v1/gid-mappings/sync"
 
         payload = call_args.kwargs["json"]
@@ -273,13 +298,10 @@ class TestPushGidMappingsToDataService:
             return mock_response
 
         with patch(
-            "autom8_asana.services.gid_push.httpx.AsyncClient"
-        ) as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post = capture_post
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_cls.return_value = mock_client
+            "autom8_asana.services.gid_push.Autom8yHttpClient"
+        ) as mock_http_cls:
+            mock_raw_client = _make_push_mocks(mock_http_cls)
+            mock_raw_client.post = capture_post
 
             await push_gid_mappings_to_data_service(
                 project_gid="1201081073731555",
@@ -303,13 +325,9 @@ class TestPushGidMappingsToDataService:
         )
 
         with patch(
-            "autom8_asana.services.gid_push.httpx.AsyncClient"
-        ) as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post.return_value = mock_response
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_cls.return_value = mock_client
+            "autom8_asana.services.gid_push.Autom8yHttpClient"
+        ) as mock_http_cls:
+            _make_push_mocks(mock_http_cls, post_return=mock_response)
 
             result = await push_gid_mappings_to_data_service(
                 project_gid="1201081073731555",
@@ -324,13 +342,12 @@ class TestPushGidMappingsToDataService:
     async def test_timeout_returns_false(self, sample_index: GidLookupIndex) -> None:
         """Returns False on HTTP timeout (non-blocking)."""
         with patch(
-            "autom8_asana.services.gid_push.httpx.AsyncClient"
-        ) as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post.side_effect = httpx.ReadTimeout("timed out")
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_cls.return_value = mock_client
+            "autom8_asana.services.gid_push.Autom8yHttpClient"
+        ) as mock_http_cls:
+            _make_push_mocks(
+                mock_http_cls,
+                post_side_effect=TimeoutException("timed out"),
+            )
 
             result = await push_gid_mappings_to_data_service(
                 project_gid="1201081073731555",
@@ -347,13 +364,12 @@ class TestPushGidMappingsToDataService:
     ) -> None:
         """Returns False on unexpected exceptions (non-blocking)."""
         with patch(
-            "autom8_asana.services.gid_push.httpx.AsyncClient"
-        ) as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post.side_effect = RuntimeError("unexpected")
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_cls.return_value = mock_client
+            "autom8_asana.services.gid_push.Autom8yHttpClient"
+        ) as mock_http_cls:
+            _make_push_mocks(
+                mock_http_cls,
+                post_side_effect=RuntimeError("unexpected"),
+            )
 
             result = await push_gid_mappings_to_data_service(
                 project_gid="1201081073731555",
@@ -370,13 +386,9 @@ class TestPushGidMappingsToDataService:
         mock_response = httpx.Response(status_code=200, json={"accepted": 2})
 
         with patch(
-            "autom8_asana.services.gid_push.httpx.AsyncClient"
-        ) as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post.return_value = mock_response
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_cls.return_value = mock_client
+            "autom8_asana.services.gid_push.Autom8yHttpClient"
+        ) as mock_http_cls:
+            mock_raw_client = _make_push_mocks(mock_http_cls, post_return=mock_response)
 
             await push_gid_mappings_to_data_service(
                 project_gid="1201081073731555",
@@ -385,7 +397,7 @@ class TestPushGidMappingsToDataService:
                 auth_token="test-token",
             )
 
-        call_args = mock_client.post.call_args
+        call_args = mock_raw_client.post.call_args
         assert "custom-url.example.com" in call_args.args[0]
 
     @pytest.mark.asyncio
@@ -396,13 +408,9 @@ class TestPushGidMappingsToDataService:
         mock_response = httpx.Response(status_code=200, json={"accepted": 2})
 
         with patch(
-            "autom8_asana.services.gid_push.httpx.AsyncClient"
-        ) as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post.return_value = mock_response
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_cls.return_value = mock_client
+            "autom8_asana.services.gid_push.Autom8yHttpClient"
+        ) as mock_http_cls:
+            mock_raw_client = _make_push_mocks(mock_http_cls, post_return=mock_response)
 
             await push_gid_mappings_to_data_service(
                 project_gid="test-gid",
@@ -411,7 +419,7 @@ class TestPushGidMappingsToDataService:
                 auth_token="test-token",
             )
 
-        call_args = mock_client.post.call_args
+        call_args = mock_raw_client.post.call_args
         url = call_args.args[0]
         assert "//" not in url.replace("http://", "")
 
@@ -445,13 +453,9 @@ class TestPiiMaskingInLogs:
         )
 
         with patch(
-            "autom8_asana.services.gid_push.httpx.AsyncClient"
-        ) as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post.return_value = mock_response
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_cls.return_value = mock_client
+            "autom8_asana.services.gid_push.Autom8yHttpClient"
+        ) as mock_http_cls:
+            _make_push_mocks(mock_http_cls, post_return=mock_response)
 
             with patch("autom8_asana.services.gid_push.logger") as mock_logger:
                 mock_logger.warning.side_effect = capture_warning
