@@ -286,3 +286,9 @@ class SchemaRegistry:
 
         with self._lock:
             return dict(self._schemas)
+
+
+# Self-register for SystemContext.reset_all()
+from autom8_asana.core.system_context import register_reset  # noqa: E402
+
+register_reset(SchemaRegistry.reset)

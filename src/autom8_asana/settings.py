@@ -884,3 +884,9 @@ def reset_settings() -> None:
     global _settings
     _settings = None
     Autom8yBaseSettings.reset_resolver()
+
+
+# Self-register for SystemContext.reset_all()
+from autom8_asana.core.system_context import register_reset  # noqa: E402
+
+register_reset(reset_settings)

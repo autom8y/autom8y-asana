@@ -182,3 +182,9 @@ def reset_bootstrap() -> None:
     global _BOOTSTRAP_COMPLETE
     _BOOTSTRAP_COMPLETE = False
     logger.debug("bootstrap_reset")
+
+
+# Self-register for SystemContext.reset_all()
+from autom8_asana.core.system_context import register_reset  # noqa: E402
+
+register_reset(reset_bootstrap)

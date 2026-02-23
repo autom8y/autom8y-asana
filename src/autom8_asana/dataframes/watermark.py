@@ -320,3 +320,9 @@ def get_watermark_repo() -> WatermarkRepository:
         >>> repo.set_watermark("proj_123", datetime.now(timezone.utc))
     """
     return WatermarkRepository.get_instance()
+
+
+# Self-register for SystemContext.reset_all()
+from autom8_asana.core.system_context import register_reset  # noqa: E402
+
+register_reset(WatermarkRepository.reset)
