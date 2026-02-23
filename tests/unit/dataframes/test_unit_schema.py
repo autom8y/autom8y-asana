@@ -7,6 +7,7 @@ with correct names, types, and nullability.
 from __future__ import annotations
 
 import polars as pl
+import pytest
 
 from autom8_asana.dataframes.schemas.base import BASE_COLUMNS
 from autom8_asana.dataframes.schemas.unit import UNIT_COLUMNS, UNIT_SCHEMA
@@ -64,81 +65,27 @@ class TestUnitSchemaColumns:
         unit_names = UNIT_SCHEMA.column_names()[12:]
         assert unit_names == expected_unit_columns
 
-    def test_mrr_column(self) -> None:
-        """Verify mrr column definition."""
-        col = UNIT_SCHEMA.get_column("mrr")
+    @pytest.mark.parametrize(
+        "column_name,expected_dtype",
+        [
+            pytest.param("mrr", "Decimal", id="mrr"),
+            pytest.param("weekly_ad_spend", "Decimal", id="weekly_ad_spend"),
+            pytest.param("products", "List[Utf8]", id="products"),
+            pytest.param("languages", "List[Utf8]", id="languages"),
+            pytest.param("discount", "Decimal", id="discount"),
+            pytest.param("office", "Utf8", id="office"),
+            pytest.param("office_phone", "Utf8", id="office_phone"),
+            pytest.param("vertical", "Utf8", id="vertical"),
+            pytest.param("vertical_id", "Utf8", id="vertical_id"),
+            pytest.param("specialty", "Utf8", id="specialty"),
+            pytest.param("max_pipeline_stage", "Utf8", id="max_pipeline_stage"),
+        ],
+    )
+    def test_column_definition(self, column_name: str, expected_dtype: str) -> None:
+        """Verify column exists with correct dtype and nullability."""
+        col = UNIT_SCHEMA.get_column(column_name)
         assert col is not None
-        assert col.dtype == "Decimal"
-        assert col.nullable is True
-
-    def test_weekly_ad_spend_column(self) -> None:
-        """Verify weekly_ad_spend column definition."""
-        col = UNIT_SCHEMA.get_column("weekly_ad_spend")
-        assert col is not None
-        assert col.dtype == "Decimal"
-        assert col.nullable is True
-
-    def test_products_column(self) -> None:
-        """Verify products column definition."""
-        col = UNIT_SCHEMA.get_column("products")
-        assert col is not None
-        assert col.dtype == "List[Utf8]"
-        assert col.nullable is True
-
-    def test_languages_column(self) -> None:
-        """Verify languages column definition."""
-        col = UNIT_SCHEMA.get_column("languages")
-        assert col is not None
-        assert col.dtype == "List[Utf8]"
-        assert col.nullable is True
-
-    def test_discount_column(self) -> None:
-        """Verify discount column definition."""
-        col = UNIT_SCHEMA.get_column("discount")
-        assert col is not None
-        assert col.dtype == "Decimal"
-        assert col.nullable is True
-
-    def test_office_column(self) -> None:
-        """Verify office column definition."""
-        col = UNIT_SCHEMA.get_column("office")
-        assert col is not None
-        assert col.dtype == "Utf8"
-        assert col.nullable is True
-
-    def test_office_phone_column(self) -> None:
-        """Verify office_phone column definition."""
-        col = UNIT_SCHEMA.get_column("office_phone")
-        assert col is not None
-        assert col.dtype == "Utf8"
-        assert col.nullable is True
-
-    def test_vertical_column(self) -> None:
-        """Verify vertical column definition."""
-        col = UNIT_SCHEMA.get_column("vertical")
-        assert col is not None
-        assert col.dtype == "Utf8"
-        assert col.nullable is True
-
-    def test_vertical_id_column(self) -> None:
-        """Verify vertical_id column definition."""
-        col = UNIT_SCHEMA.get_column("vertical_id")
-        assert col is not None
-        assert col.dtype == "Utf8"
-        assert col.nullable is True
-
-    def test_specialty_column(self) -> None:
-        """Verify specialty column definition."""
-        col = UNIT_SCHEMA.get_column("specialty")
-        assert col is not None
-        assert col.dtype == "Utf8"
-        assert col.nullable is True
-
-    def test_max_pipeline_stage_column(self) -> None:
-        """Verify max_pipeline_stage column definition."""
-        col = UNIT_SCHEMA.get_column("max_pipeline_stage")
-        assert col is not None
-        assert col.dtype == "Utf8"
+        assert col.dtype == expected_dtype
         assert col.nullable is True
 
 

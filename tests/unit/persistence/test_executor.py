@@ -242,47 +242,23 @@ class TestBuildRequest:
 class TestResourceToPath:
     """Tests for _resource_to_path() method."""
 
-    def test_resource_to_path_task(self) -> None:
-        """'task' maps to 'tasks'."""
+    @pytest.mark.parametrize(
+        "resource,expected_path",
+        [
+            pytest.param("task", "tasks", id="task"),
+            pytest.param("project", "projects", id="project"),
+            pytest.param("section", "sections", id="section"),
+            pytest.param("tag", "tags", id="tag"),
+            pytest.param("user", "users", id="user"),
+            pytest.param("story", "stories", id="story"),
+        ],
+    )
+    def test_resource_to_path(self, resource: str, expected_path: str) -> None:
+        """Verify singular resource type maps to correct plural path."""
         mock_client = create_mock_batch_client()
         executor = BatchExecutor(mock_client)
 
-        assert executor._resource_to_path("task") == "tasks"
-
-    def test_resource_to_path_project(self) -> None:
-        """'project' maps to 'projects'."""
-        mock_client = create_mock_batch_client()
-        executor = BatchExecutor(mock_client)
-
-        assert executor._resource_to_path("project") == "projects"
-
-    def test_resource_to_path_section(self) -> None:
-        """'section' maps to 'sections'."""
-        mock_client = create_mock_batch_client()
-        executor = BatchExecutor(mock_client)
-
-        assert executor._resource_to_path("section") == "sections"
-
-    def test_resource_to_path_tag(self) -> None:
-        """'tag' maps to 'tags'."""
-        mock_client = create_mock_batch_client()
-        executor = BatchExecutor(mock_client)
-
-        assert executor._resource_to_path("tag") == "tags"
-
-    def test_resource_to_path_user(self) -> None:
-        """'user' maps to 'users'."""
-        mock_client = create_mock_batch_client()
-        executor = BatchExecutor(mock_client)
-
-        assert executor._resource_to_path("user") == "users"
-
-    def test_resource_to_path_story(self) -> None:
-        """'story' maps to 'stories'."""
-        mock_client = create_mock_batch_client()
-        executor = BatchExecutor(mock_client)
-
-        assert executor._resource_to_path("story") == "stories"
+        assert executor._resource_to_path(resource) == expected_path
 
     def test_resource_to_path_already_plural(self) -> None:
         """Already plural resource types returned as-is."""

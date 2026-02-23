@@ -381,72 +381,34 @@ class TestGetLeadsAsync:
 class TestNormalizePeriod:
     """Tests for _normalize_period extensions (AC-W04.5 through AC-W04.8)."""
 
-    def test_quarter_normalizes_to_QUARTER(self) -> None:
-        """'quarter' -> 'QUARTER' (AC-W04.5)."""
+    @pytest.mark.parametrize(
+        "input_val,expected",
+        [
+            pytest.param("quarter", "QUARTER", id="quarter-lower"),
+            pytest.param("QUARTER", "QUARTER", id="quarter-upper"),
+            pytest.param("Quarter", "QUARTER", id="quarter-title"),
+            pytest.param("month", "MONTH", id="month-lower"),
+            pytest.param("MONTH", "MONTH", id="month-upper"),
+            pytest.param("Month", "MONTH", id="month-title"),
+            pytest.param("week", "WEEK", id="week-lower"),
+            pytest.param("WEEK", "WEEK", id="week-upper"),
+            pytest.param("Week", "WEEK", id="week-title"),
+            pytest.param("lifetime", "LIFETIME", id="lifetime-lower"),
+            pytest.param("LIFETIME", "LIFETIME", id="lifetime-upper"),
+            pytest.param("t7", "T7", id="t7"),
+            pytest.param("l7", "T7", id="l7-alias"),
+            pytest.param("t14", "T14", id="t14"),
+            pytest.param("l14", "T14", id="l14-alias"),
+            pytest.param("t30", "T30", id="t30"),
+            pytest.param("l30", "T30", id="l30-alias"),
+            pytest.param(None, "LIFETIME", id="none-defaults-to-lifetime"),
+            pytest.param("custom", "T30", id="unknown-defaults-to-t30"),
+        ],
+    )
+    def test_normalize_period(self, input_val: str | None, expected: str) -> None:
+        """Verify _normalize_period maps input to correct canonical period."""
         client = _make_client()
-        assert client._normalize_period("quarter") == "QUARTER"
-
-    def test_quarter_case_insensitive(self) -> None:
-        """'QUARTER' -> 'QUARTER' (case-insensitive)."""
-        client = _make_client()
-        assert client._normalize_period("QUARTER") == "QUARTER"
-        assert client._normalize_period("Quarter") == "QUARTER"
-
-    def test_month_normalizes_to_MONTH(self) -> None:
-        """'month' -> 'MONTH' (AC-W04.6)."""
-        client = _make_client()
-        assert client._normalize_period("month") == "MONTH"
-
-    def test_month_case_insensitive(self) -> None:
-        """'MONTH' -> 'MONTH' (case-insensitive)."""
-        client = _make_client()
-        assert client._normalize_period("MONTH") == "MONTH"
-        assert client._normalize_period("Month") == "MONTH"
-
-    def test_week_normalizes_to_WEEK(self) -> None:
-        """'week' -> 'WEEK' (AC-W04.7)."""
-        client = _make_client()
-        assert client._normalize_period("week") == "WEEK"
-
-    def test_week_case_insensitive(self) -> None:
-        """'WEEK' -> 'WEEK' (case-insensitive)."""
-        client = _make_client()
-        assert client._normalize_period("WEEK") == "WEEK"
-        assert client._normalize_period("Week") == "WEEK"
-
-    def test_existing_lifetime_unchanged(self) -> None:
-        """Existing 'lifetime' -> 'LIFETIME' still works (AC-W04.8)."""
-        client = _make_client()
-        assert client._normalize_period("lifetime") == "LIFETIME"
-        assert client._normalize_period("LIFETIME") == "LIFETIME"
-
-    def test_existing_t7_unchanged(self) -> None:
-        """Existing 't7' -> 'T7' still works (AC-W04.8)."""
-        client = _make_client()
-        assert client._normalize_period("t7") == "T7"
-        assert client._normalize_period("l7") == "T7"
-
-    def test_existing_t14_unchanged(self) -> None:
-        """Existing 't14' -> 'T14' still works (AC-W04.8)."""
-        client = _make_client()
-        assert client._normalize_period("t14") == "T14"
-        assert client._normalize_period("l14") == "T14"
-
-    def test_existing_t30_unchanged(self) -> None:
-        """Existing 't30' -> 'T30' still works (AC-W04.8)."""
-        client = _make_client()
-        assert client._normalize_period("t30") == "T30"
-        assert client._normalize_period("l30") == "T30"
-
-    def test_none_returns_lifetime(self) -> None:
-        """None -> 'LIFETIME' (default behavior preserved)."""
-        client = _make_client()
-        assert client._normalize_period(None) == "LIFETIME"
-
-    def test_unknown_defaults_to_t30(self) -> None:
-        """Unknown period -> 'T30' (backward compatibility preserved)."""
-        client = _make_client()
-        assert client._normalize_period("custom") == "T30"
+        assert client._normalize_period(input_val) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -457,39 +419,23 @@ class TestNormalizePeriod:
 class TestInsightsRequestValidation:
     """Tests for InsightsRequest.validate_period with new periods (AC-W04.9)."""
 
-    def test_quarter_passes_validation(self) -> None:
-        """InsightsRequest(insights_period='quarter') passes validation."""
+    @pytest.mark.parametrize(
+        "period",
+        [
+            pytest.param("quarter", id="quarter"),
+            pytest.param("month", id="month"),
+            pytest.param("week", id="week"),
+            pytest.param("lifetime", id="lifetime"),
+            pytest.param("t7", id="t7"),
+            pytest.param("t14", id="t14"),
+            pytest.param("t30", id="t30"),
+        ],
+    )
+    def test_period_passes_validation(self, period: str) -> None:
+        """InsightsRequest accepts valid insights_period values."""
         request = InsightsRequest(
             office_phone="+17705551234",
             vertical="dental",
-            insights_period="quarter",
+            insights_period=period,
         )
-        assert request.insights_period == "quarter"
-
-    def test_month_passes_validation(self) -> None:
-        """InsightsRequest(insights_period='month') passes validation."""
-        request = InsightsRequest(
-            office_phone="+17705551234",
-            vertical="dental",
-            insights_period="month",
-        )
-        assert request.insights_period == "month"
-
-    def test_week_passes_validation(self) -> None:
-        """InsightsRequest(insights_period='week') passes validation."""
-        request = InsightsRequest(
-            office_phone="+17705551234",
-            vertical="dental",
-            insights_period="week",
-        )
-        assert request.insights_period == "week"
-
-    def test_existing_periods_still_valid(self) -> None:
-        """Existing period values continue to work."""
-        for period in ("lifetime", "t7", "t14", "t30"):
-            request = InsightsRequest(
-                office_phone="+17705551234",
-                vertical="dental",
-                insights_period=period,
-            )
-            assert request.insights_period == period
+        assert request.insights_period == period

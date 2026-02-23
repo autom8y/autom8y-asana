@@ -111,71 +111,29 @@ class StubEntityWithDescriptors(BusinessEntity):
 class TestFieldNameDerivation:
     """Tests for field name derivation from property names."""
 
-    def test_simple_name(self) -> None:
-        """Simple snake_case converts to Title Case."""
-        descriptor = TextField()
-        descriptor.__set_name__(StubEntityWithDescriptors, "company_name")
-        assert descriptor.field_name == "Company Name"
-
-    def test_single_word(self) -> None:
-        """Single word capitalizes."""
-        descriptor = TextField()
-        descriptor.__set_name__(StubEntityWithDescriptors, "status")
-        assert descriptor.field_name == "Status"
-
-    def test_abbreviation_id(self) -> None:
-        """ID abbreviation preserved as uppercase."""
-        descriptor = TextField()
-        descriptor.__set_name__(StubEntityWithDescriptors, "company_id")
-        assert descriptor.field_name == "Company ID"
-
-    def test_abbreviation_mrr(self) -> None:
-        """MRR abbreviation preserved as uppercase."""
-        descriptor = NumberField()
-        descriptor.__set_name__(StubEntityWithDescriptors, "mrr")
-        assert descriptor.field_name == "MRR"
-
-    def test_abbreviation_ai(self) -> None:
-        """AI abbreviation preserved as uppercase."""
-        descriptor = IntField()
-        descriptor.__set_name__(StubEntityWithDescriptors, "total_ai_count")
-        assert descriptor.field_name == "Total AI Count"
-
-    def test_abbreviation_url(self) -> None:
-        """URL abbreviation preserved as uppercase."""
-        descriptor = TextField()
-        descriptor.__set_name__(StubEntityWithDescriptors, "website_url")
-        assert descriptor.field_name == "Website URL"
-
-    def test_abbreviation_vca(self) -> None:
-        """VCA abbreviation preserved as uppercase."""
-        descriptor = EnumField()
-        descriptor.__set_name__(StubEntityWithDescriptors, "vca_status")
-        assert descriptor.field_name == "VCA Status"
-
-    def test_abbreviation_sms(self) -> None:
-        """SMS abbreviation preserved as uppercase."""
-        descriptor = TextField()
-        descriptor.__set_name__(StubEntityWithDescriptors, "sms_number")
-        assert descriptor.field_name == "SMS Number"
-
-    def test_abbreviation_cal(self) -> None:
-        """CAL abbreviation preserved as uppercase."""
-        descriptor = TextField()
-        descriptor.__set_name__(StubEntityWithDescriptors, "google_cal_id")
-        assert descriptor.field_name == "Google CAL ID"
-
-    def test_abbreviation_ad(self) -> None:
-        """AD abbreviation preserved as uppercase."""
-        descriptor = MultiEnumField()
-        descriptor.__set_name__(StubEntityWithDescriptors, "ad_types")
-        assert descriptor.field_name == "AD Types"
-
-    def test_multiple_abbreviations(self) -> None:
-        """Multiple abbreviations in same name."""
-        descriptor = TextField()
-        descriptor.__set_name__(StubEntityWithDescriptors, "ai_ad_url_id")
-        assert descriptor.field_name == "AI AD URL ID"
+    @pytest.mark.parametrize(
+        "descriptor_cls,attr_name,expected",
+        [
+            pytest.param(TextField, "company_name", "Company Name", id="simple-name"),
+            pytest.param(TextField, "status", "Status", id="single-word"),
+            pytest.param(TextField, "company_id", "Company ID", id="abbrev-id"),
+            pytest.param(NumberField, "mrr", "MRR", id="abbrev-mrr"),
+            pytest.param(IntField, "total_ai_count", "Total AI Count", id="abbrev-ai"),
+            pytest.param(TextField, "website_url", "Website URL", id="abbrev-url"),
+            pytest.param(EnumField, "vca_status", "VCA Status", id="abbrev-vca"),
+            pytest.param(TextField, "sms_number", "SMS Number", id="abbrev-sms"),
+            pytest.param(TextField, "google_cal_id", "Google CAL ID", id="abbrev-cal"),
+            pytest.param(MultiEnumField, "ad_types", "AD Types", id="abbrev-ad"),
+            pytest.param(TextField, "ai_ad_url_id", "AI AD URL ID", id="multiple-abbreviations"),
+        ],
+    )
+    def test_field_name_derivation(
+        self, descriptor_cls: type, attr_name: str, expected: str
+    ) -> None:
+        """Verify snake_case property name derives correct Title Case field name."""
+        descriptor = descriptor_cls()
+        descriptor.__set_name__(StubEntityWithDescriptors, attr_name)
+        assert descriptor.field_name == expected
 
     def test_explicit_override(self) -> None:
         """Explicit field_name overrides derivation."""
@@ -867,51 +825,24 @@ class TestFieldsClassGeneration:
         """Fields class is generated."""
         assert hasattr(StubEntityWithDescriptors, "Fields")
 
-    def test_fields_has_text_field_constant(self) -> None:
-        """Fields class has constant for text field."""
-        assert hasattr(StubEntityWithDescriptors.Fields, "COMPANY_ID")
-        assert StubEntityWithDescriptors.Fields.COMPANY_ID == "Company ID"
-
-    def test_fields_has_explicit_name_constant(self) -> None:
-        """Fields class uses explicit field name for constant value."""
-        assert hasattr(StubEntityWithDescriptors.Fields, "FACEBOOK_PAGE_ID")
-        assert StubEntityWithDescriptors.Fields.FACEBOOK_PAGE_ID == "Facebook Page ID"
-
-    def test_fields_has_enum_field_constant(self) -> None:
-        """Fields class has constant for enum field."""
-        assert hasattr(StubEntityWithDescriptors.Fields, "VERTICAL")
-        assert StubEntityWithDescriptors.Fields.VERTICAL == "Vertical"
-
-    def test_fields_has_number_field_constant(self) -> None:
-        """Fields class has constant for number field with explicit name."""
-        assert hasattr(StubEntityWithDescriptors.Fields, "MRR")
-        assert StubEntityWithDescriptors.Fields.MRR == "MRR"
-
-    def test_fields_has_int_field_constant(self) -> None:
-        """Fields class has constant for int field."""
-        assert hasattr(StubEntityWithDescriptors.Fields, "NUM_AI_COPIES")
-        # Note: "num" and "ai" are both abbreviations, so field name is "NUM AI Copies"
-        assert StubEntityWithDescriptors.Fields.NUM_AI_COPIES == "NUM AI Copies"
-
-    def test_fields_has_multi_enum_constant(self) -> None:
-        """Fields class has constant for multi-enum field."""
-        assert hasattr(StubEntityWithDescriptors.Fields, "AD_TYPES")
-        assert StubEntityWithDescriptors.Fields.AD_TYPES == "AD Types"
-
-    def test_fields_has_cascading_field_constant(self) -> None:
-        """Fields class includes cascading field."""
-        assert hasattr(StubEntityWithDescriptors.Fields, "OFFICE_PHONE")
-        assert StubEntityWithDescriptors.Fields.OFFICE_PHONE == "Office Phone"
-
-    def test_fields_has_people_field_constant(self) -> None:
-        """Fields class has constant for people field."""
-        assert hasattr(StubEntityWithDescriptors.Fields, "REP")
-        assert StubEntityWithDescriptors.Fields.REP == "Rep"
-
-    def test_fields_has_date_field_constant(self) -> None:
-        """Fields class has constant for date field."""
-        assert hasattr(StubEntityWithDescriptors.Fields, "DUE_DATE")
-        assert StubEntityWithDescriptors.Fields.DUE_DATE == "Due Date"
+    @pytest.mark.parametrize(
+        "constant_name,expected_value",
+        [
+            pytest.param("COMPANY_ID", "Company ID", id="text-field"),
+            pytest.param("FACEBOOK_PAGE_ID", "Facebook Page ID", id="explicit-name"),
+            pytest.param("VERTICAL", "Vertical", id="enum-field"),
+            pytest.param("MRR", "MRR", id="number-field"),
+            pytest.param("NUM_AI_COPIES", "NUM AI Copies", id="int-field"),
+            pytest.param("AD_TYPES", "AD Types", id="multi-enum"),
+            pytest.param("OFFICE_PHONE", "Office Phone", id="cascading"),
+            pytest.param("REP", "Rep", id="people-field"),
+            pytest.param("DUE_DATE", "Due Date", id="date-field"),
+        ],
+    )
+    def test_fields_has_constant(self, constant_name: str, expected_value: str) -> None:
+        """Verify Fields class has constant with correct value."""
+        assert hasattr(StubEntityWithDescriptors.Fields, constant_name)
+        assert getattr(StubEntityWithDescriptors.Fields, constant_name) == expected_value
 
 
 class TestFieldsClassWithExistingFields:

@@ -5,6 +5,8 @@ Per TDD-BusinessSeeder-v2: Tests for field normalization.
 
 from __future__ import annotations
 
+import pytest
+
 from autom8_asana.models.business.matching.normalizers import (
     AddressNormalizer,
     BusinessNameNormalizer,
@@ -28,35 +30,20 @@ class TestPhoneNormalizer:
         assert norm.normalize("") is None
         assert norm.normalize("   ") is None
 
-    def test_normalize_10_digit_phone(self) -> None:
-        """10-digit phone normalized to E.164."""
+    @pytest.mark.parametrize(
+        "input_val,expected",
+        [
+            pytest.param("5551234567", "+15551234567", id="10-digit"),
+            pytest.param("(555) 123-4567", "+15551234567", id="formatted"),
+            pytest.param("+1 555-123-4567", "+15551234567", id="with-country-code"),
+            pytest.param("1-555-123-4567", "+15551234567", id="with-1-prefix"),
+            pytest.param("123", "123", id="invalid-returns-digits"),
+        ],
+    )
+    def test_normalize_phone(self, input_val: str, expected: str) -> None:
+        """Verify phone normalization for various input formats."""
         norm = PhoneNormalizer()
-        result = norm.normalize("5551234567")
-        assert result == "+15551234567"
-
-    def test_normalize_formatted_phone(self) -> None:
-        """Formatted phone normalized to E.164."""
-        norm = PhoneNormalizer()
-        result = norm.normalize("(555) 123-4567")
-        assert result == "+15551234567"
-
-    def test_normalize_phone_with_country_code(self) -> None:
-        """Phone with +1 country code normalized."""
-        norm = PhoneNormalizer()
-        result = norm.normalize("+1 555-123-4567")
-        assert result == "+15551234567"
-
-    def test_normalize_phone_with_1_prefix(self) -> None:
-        """Phone with 1 prefix normalized."""
-        norm = PhoneNormalizer()
-        result = norm.normalize("1-555-123-4567")
-        assert result == "+15551234567"
-
-    def test_normalize_invalid_phone_returns_digits(self) -> None:
-        """Invalid phone returns digits only."""
-        norm = PhoneNormalizer()
-        result = norm.normalize("123")
-        assert result == "123"
+        assert norm.normalize(input_val) == expected
 
     def test_normalize_non_numeric_only_returns_none(self) -> None:
         """Non-numeric input returns None."""
@@ -175,41 +162,26 @@ class TestDomainNormalizer:
         assert norm.normalize("") is None
         assert norm.normalize("   ") is None
 
-    def test_normalize_lowercases(self) -> None:
-        """Domain is lowercased."""
+    @pytest.mark.parametrize(
+        "input_val,expected",
+        [
+            pytest.param("EXAMPLE.COM", "example.com", id="lowercases"),
+            pytest.param("www.example.com", "example.com", id="strips-www"),
+            pytest.param("https://example.com", "example.com", id="strips-https"),
+            pytest.param("http://example.com", "example.com", id="strips-http"),
+            pytest.param("example.com/path/to/page", "example.com", id="strips-path"),
+            pytest.param("example.com?foo=bar", "example.com", id="strips-query"),
+            pytest.param(
+                "https://www.EXAMPLE.COM/path?query=1#hash",
+                "example.com",
+                id="full-url",
+            ),
+        ],
+    )
+    def test_normalize_domain(self, input_val: str, expected: str) -> None:
+        """Verify domain normalization for various input formats."""
         norm = DomainNormalizer()
-        result = norm.normalize("EXAMPLE.COM")
-        assert result == "example.com"
-
-    def test_normalize_strips_www(self) -> None:
-        """www prefix is stripped."""
-        norm = DomainNormalizer()
-        result = norm.normalize("www.example.com")
-        assert result == "example.com"
-
-    def test_normalize_strips_protocol(self) -> None:
-        """Protocol is stripped."""
-        norm = DomainNormalizer()
-        assert norm.normalize("https://example.com") == "example.com"
-        assert norm.normalize("http://example.com") == "example.com"
-
-    def test_normalize_strips_path(self) -> None:
-        """Path is stripped."""
-        norm = DomainNormalizer()
-        result = norm.normalize("example.com/path/to/page")
-        assert result == "example.com"
-
-    def test_normalize_strips_query(self) -> None:
-        """Query string is stripped."""
-        norm = DomainNormalizer()
-        result = norm.normalize("example.com?foo=bar")
-        assert result == "example.com"
-
-    def test_normalize_full_url(self) -> None:
-        """Full URL is normalized to domain."""
-        norm = DomainNormalizer()
-        result = norm.normalize("https://www.EXAMPLE.COM/path?query=1#hash")
-        assert result == "example.com"
+        assert norm.normalize(input_val) == expected
 
 
 class TestAddressNormalizer:
