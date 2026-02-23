@@ -6,13 +6,15 @@ response parsing, and partial failure handling.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from autom8_asana.batch.models import BatchResult
-from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.entry import CacheEntry, EntryType, _parse_datetime
 from autom8_asana.cache.policies.lightweight_checker import (
     ASANA_BATCH_LIMIT,
     LightweightChecker,
@@ -20,7 +22,7 @@ from autom8_asana.cache.policies.lightweight_checker import (
 )
 
 if TYPE_CHECKING:
-    from unittest.mock import MagicMock
+    pass
 
 
 @pytest.fixture
@@ -328,3 +330,198 @@ class TestChunkFunction:
         assert len(chunks[0]) == 10
         assert len(chunks[1]) == 10
         assert len(chunks[2]) == 5
+
+    def test_zero_chunk_size_returns_empty(self) -> None:
+        """Test zero chunk size returns empty list."""
+        assert _chunk(["a", "b"], 0) == []
+
+    def test_negative_chunk_size_returns_empty(self) -> None:
+        """Test negative chunk size returns empty list."""
+        assert _chunk(["a", "b"], -1) == []
+
+
+class TestMalformedModifiedAt:
+    """Malformed modified_at handling tests (FR-DEGRADE-002)."""
+
+    def test_empty_string_raises(self) -> None:
+        """Test empty string raises ValueError."""
+        with pytest.raises(ValueError):
+            _parse_datetime("")
+
+    def test_invalid_format_raises(self) -> None:
+        """Test invalid format raises ValueError."""
+        with pytest.raises(ValueError):
+            _parse_datetime("not-a-date")
+
+    def test_invalid_date_components_raises(self) -> None:
+        """Test invalid date components raise ValueError."""
+        with pytest.raises(ValueError):
+            _parse_datetime("2025-13-45T99:99:99")
+
+    @pytest.mark.asyncio
+    async def test_missing_modified_at_in_response_returns_none(self) -> None:
+        """Test that missing modified_at in response returns None."""
+        mock_batch_client = MagicMock()
+        mock_batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=200,
+                    body={"data": {"gid": "123"}},  # No modified_at field
+                )
+            ]
+        )
+
+        checker = LightweightChecker(batch_client=mock_batch_client)
+        entries = [make_entry("123")]
+        result = await checker.check_batch_async(entries)
+        assert result["123"] is None
+
+    @pytest.mark.asyncio
+    async def test_null_modified_at_in_response_returns_none(self) -> None:
+        """Test that null modified_at in response returns None."""
+        mock_batch_client = MagicMock()
+        mock_batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=200,
+                    body={"data": {"gid": "123", "modified_at": None}},
+                )
+            ]
+        )
+
+        checker = LightweightChecker(batch_client=mock_batch_client)
+        entries = [make_entry("123")]
+        result = await checker.check_batch_async(entries)
+        assert result["123"] is None
+
+    @pytest.mark.asyncio
+    async def test_non_string_modified_at_in_response_returns_none(self) -> None:
+        """Test that non-string modified_at (e.g. int) returns None."""
+        mock_batch_client = MagicMock()
+        mock_batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=200,
+                    body={"data": {"gid": "123", "modified_at": 12345}},
+                )
+            ]
+        )
+
+        checker = LightweightChecker(batch_client=mock_batch_client)
+        entries = [make_entry("123")]
+        result = await checker.check_batch_async(entries)
+        assert result["123"] is None
+
+
+class TestChunkingAtAsanaLimit:
+    """Verify LightweightChecker chunks at Asana's 10-action limit (FR-BATCH-002)."""
+
+    @pytest.mark.asyncio
+    async def test_25_entries_chunked_10_10_5(self) -> None:
+        """25 entries become 3 chunks: 10, 10, 5."""
+        mock_batch_client = MagicMock()
+        chunks_called = []
+
+        async def mock_execute(requests):
+            chunks_called.append(len(requests))
+            return [
+                BatchResult(
+                    status_code=200,
+                    body={
+                        "data": {
+                            "gid": r.relative_path.split("/")[-1],
+                            "modified_at": "2025-12-23T10:00:00.000Z",
+                        }
+                    },
+                )
+                for r in requests
+            ]
+
+        mock_batch_client.execute_async = mock_execute
+
+        checker = LightweightChecker(batch_client=mock_batch_client, chunk_size=10)
+        entries = [make_entry(str(i)) for i in range(25)]
+        result = await checker.check_batch_async(entries)
+
+        assert len(result) == 25
+        assert chunks_called == [10, 10, 5]
+
+    @pytest.mark.asyncio
+    async def test_partial_chunk_failure_isolated(self) -> None:
+        """One chunk failing doesn't prevent other chunks from succeeding."""
+        mock_batch_client = MagicMock()
+        call_count = 0
+
+        async def mock_execute(requests):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 2:  # Fail second chunk
+                raise ConnectionError("Network error")
+            return [
+                BatchResult(
+                    status_code=200,
+                    body={
+                        "data": {
+                            "gid": r.relative_path.split("/")[-1],
+                            "modified_at": "2025-12-23T10:00:00.000Z",
+                        }
+                    },
+                )
+                for r in requests
+            ]
+
+        mock_batch_client.execute_async = mock_execute
+
+        checker = LightweightChecker(batch_client=mock_batch_client, chunk_size=10)
+        entries = [make_entry(str(i)) for i in range(25)]
+        result = await checker.check_batch_async(entries)
+
+        # First 10 should succeed
+        for i in range(10):
+            assert result[str(i)] is not None
+
+        # Second 10 (chunk failed) should be None
+        for i in range(10, 20):
+            assert result[str(i)] is None
+
+        # Third 5 should succeed
+        for i in range(20, 25):
+            assert result[str(i)] is not None
+
+
+class TestMixedSuccessFailure:
+    """Mixed success/failure handling tests (FR-DEGRADE-003)."""
+
+    @pytest.mark.asyncio
+    async def test_mixed_200_404_500_responses(self) -> None:
+        """Mix of success (200), deleted (404), and error (500) responses."""
+        mock_batch_client = MagicMock()
+        mock_batch_client.execute_async = AsyncMock(
+            return_value=[
+                BatchResult(
+                    status_code=200,
+                    body={"data": {"gid": "1", "modified_at": "2025-12-23T10:00:00.000Z"}},
+                ),
+                BatchResult(
+                    status_code=404,
+                    body={"errors": [{"message": "Not found"}]},
+                ),
+                BatchResult(
+                    status_code=500,
+                    body={"errors": [{"message": "Internal error"}]},
+                ),
+                BatchResult(
+                    status_code=200,
+                    body={"data": {"gid": "4", "modified_at": "2025-12-23T11:00:00.000Z"}},
+                ),
+            ]
+        )
+
+        checker = LightweightChecker(batch_client=mock_batch_client)
+        entries = [make_entry(str(i)) for i in range(1, 5)]
+        result = await checker.check_batch_async(entries)
+
+        assert result["1"] == "2025-12-23T10:00:00.000Z"
+        assert result["4"] == "2025-12-23T11:00:00.000Z"
+        assert result["2"] is None
+        assert result["3"] is None

@@ -304,3 +304,138 @@ class TestRequestCoalescerConfiguration:
         )
         assert coalescer.window_ms == 100
         assert coalescer.max_batch == 50
+
+
+class TestRaceConditionsCoalescer:
+    """Race condition tests -- 100+ concurrent requests (NFR-REL-003)."""
+
+    @pytest.mark.asyncio
+    async def test_100_concurrent_requests_for_same_gid_deduplicated(self) -> None:
+        """100+ concurrent requests for same GID share single result, one API call."""
+        mock_checker = MagicMock()
+        call_count = 0
+
+        async def mock_check_batch(entries: list[CacheEntry]) -> dict[str, str | None]:
+            nonlocal call_count
+            call_count += 1
+            await asyncio.sleep(0.01)
+            return {"123": "2025-12-23T10:30:00.000Z"}
+
+        mock_checker.check_batch_async = mock_check_batch
+
+        coalescer = RequestCoalescer(checker=mock_checker, window_ms=50, max_batch=100)
+
+        tasks = [coalescer.request_check_async(make_entry("123")) for _ in range(100)]
+        results = await asyncio.gather(*tasks)
+
+        assert all(r == "2025-12-23T10:30:00.000Z" for r in results)
+        assert call_count == 1, f"Expected 1 API call, got {call_count}"
+
+    @pytest.mark.asyncio
+    async def test_concurrent_different_gids_batched_into_single_call(self) -> None:
+        """Concurrent requests for different GIDs are batched into single API call."""
+        mock_checker = MagicMock()
+        call_count = 0
+
+        async def mock_check_batch(entries: list[CacheEntry]) -> dict[str, str | None]:
+            nonlocal call_count
+            call_count += 1
+            return {e.key: "2025-12-23T10:30:00.000Z" for e in entries}
+
+        mock_checker.check_batch_async = mock_check_batch
+
+        coalescer = RequestCoalescer(checker=mock_checker, window_ms=50, max_batch=100)
+
+        tasks = [coalescer.request_check_async(make_entry(str(i))) for i in range(50)]
+        results = await asyncio.gather(*tasks)
+
+        assert len(results) == 50
+        assert all(r is not None for r in results)
+        assert call_count == 1, f"Expected 1 batch, got {call_count}"
+
+
+class TestTimerEdgeCasesCoalescer:
+    """Timer boundary condition tests for RequestCoalescer."""
+
+    @pytest.mark.asyncio
+    async def test_request_within_window_batched_with_first(self) -> None:
+        """Request arriving within coalesce window is included in same batch.
+
+        Uses a very large window (2000ms) with a short sleep (50ms) to ensure
+        the second request always arrives well before the timer fires, even
+        on slow CI runners.
+        """
+        mock_checker = MagicMock()
+        batches_received = []
+
+        async def mock_check_batch(entries: list[CacheEntry]) -> dict[str, str | None]:
+            batches_received.append([e.key for e in entries])
+            return {e.key: "2025-12-23T10:30:00.000Z" for e in entries}
+
+        mock_checker.check_batch_async = mock_check_batch
+
+        coalescer = RequestCoalescer(
+            checker=mock_checker,
+            window_ms=2000,
+            max_batch=100,
+        )
+
+        task1 = asyncio.create_task(coalescer.request_check_async(make_entry("1")))
+        await asyncio.sleep(0.050)
+        task2 = asyncio.create_task(coalescer.request_check_async(make_entry("2")))
+        await asyncio.sleep(0.010)
+        await coalescer.flush_pending()
+        results = await asyncio.gather(task1, task2)
+
+        assert len(results) == 2
+        assert len(batches_received) == 1
+        assert set(batches_received[0]) == {"1", "2"}
+
+    @pytest.mark.asyncio
+    async def test_zero_window_executes_immediately(self) -> None:
+        """Zero coalesce window executes immediately with no waiting."""
+        import time
+
+        mock_checker = MagicMock()
+        mock_checker.check_batch_async = AsyncMock(
+            return_value={"123": "2025-12-23T10:30:00.000Z"}
+        )
+
+        coalescer = RequestCoalescer(checker=mock_checker, window_ms=0, max_batch=100)
+
+        start = time.monotonic()
+        result = await coalescer.request_check_async(make_entry("123"))
+        elapsed = time.monotonic() - start
+
+        assert result == "2025-12-23T10:30:00.000Z"
+        assert elapsed < 0.05, f"Zero window should be immediate, took {elapsed}s"
+
+
+class TestBatchOverflowCoalescer:
+    """Batch overflow handling tests (FR-BATCH-002, FR-BATCH-005)."""
+
+    @pytest.mark.asyncio
+    async def test_200_requests_split_at_max_batch_boundary(self) -> None:
+        """200+ requests split at max_batch=100 into at least 2 batches."""
+        mock_checker = MagicMock()
+        batches_received = []
+
+        async def mock_check_batch(entries: list[CacheEntry]) -> dict[str, str | None]:
+            batches_received.append(len(entries))
+            return {e.key: "2025-12-23T10:30:00.000Z" for e in entries}
+
+        mock_checker.check_batch_async = mock_check_batch
+
+        coalescer = RequestCoalescer(
+            checker=mock_checker,
+            window_ms=5000,
+            max_batch=100,
+        )
+
+        tasks = [coalescer.request_check_async(make_entry(str(i))) for i in range(200)]
+        results = await asyncio.gather(*tasks)
+
+        assert len(results) == 200
+        assert all(r is not None for r in results)
+        assert len(batches_received) >= 2
+        assert batches_received[0] == 100  # First batch at max_batch
