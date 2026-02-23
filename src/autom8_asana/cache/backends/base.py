@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     from autom8_asana.cache.models.entry import CacheEntry, EntryType
-    from autom8_asana.cache.models.freshness import Freshness
+    from autom8_asana.cache.models.freshness_unified import FreshnessIntent
     from autom8_asana.protocols.cache import WarmResult
 
 logger = get_logger(__name__)
@@ -300,7 +300,7 @@ class CacheBackendBase(DegradedModeMixin, abc.ABC):
         self,
         key: str,
         entry_type: EntryType,
-        freshness: Freshness | None = None,
+        freshness: FreshnessIntent | None = None,
     ) -> CacheEntry | None:
         """Retrieve versioned cache entry with freshness control.
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from autom8_asana.cache.models.freshness import Freshness
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.models.versioning import is_stale
 
 if TYPE_CHECKING:
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 def check_entry_staleness(
     entry: CacheEntry,
     current_modified_at: str | None,
-    freshness: Freshness = Freshness.EVENTUAL,
+    freshness: FreshnessIntent = FreshnessIntent.EVENTUAL,
 ) -> bool:
     """Check if a cache entry is stale.
 
@@ -38,7 +38,7 @@ def check_entry_staleness(
         False if entry is fresh and can be used.
 
     Example:
-        >>> from autom8_asana.cache import CacheEntry, EntryType, Freshness
+        >>> from autom8_asana.cache import CacheEntry, EntryType, FreshnessIntent
         >>> from datetime import datetime, timezone
         >>> entry = CacheEntry(
         ...     key="123",
@@ -47,7 +47,7 @@ def check_entry_staleness(
         ...     version=datetime(2025, 1, 1, tzinfo=timezone.utc),
         ...     ttl=300,
         ... )
-        >>> check_entry_staleness(entry, "2025-01-02T00:00:00Z", Freshness.STRICT)
+        >>> check_entry_staleness(entry, "2025-01-02T00:00:00Z", FreshnessIntent.STRICT)
         True
     """
     # If entry is TTL-expired, it's always stale
@@ -55,7 +55,7 @@ def check_entry_staleness(
         return True
 
     # For EVENTUAL freshness, TTL expiration is the only staleness check
-    if freshness == Freshness.EVENTUAL:
+    if freshness == FreshnessIntent.EVENTUAL:
         return False
 
     # For STRICT freshness, we must verify against current version
@@ -71,7 +71,7 @@ def check_batch_staleness(
     task_gids: list[str],
     entry_type: EntryType,
     current_versions: dict[str, str],
-    freshness: Freshness = Freshness.EVENTUAL,
+    freshness: FreshnessIntent = FreshnessIntent.EVENTUAL,
 ) -> dict[str, bool]:
     """Check staleness for multiple tasks.
 

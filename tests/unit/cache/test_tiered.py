@@ -8,7 +8,7 @@ from unittest.mock import Mock
 import pytest
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8_asana.cache.models.freshness import Freshness
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.models.metrics import CacheMetrics
 from autom8_asana.core.exceptions import S3TransportError
 from autom8_asana.protocols.cache import CacheProvider, WarmResult
@@ -148,7 +148,7 @@ class TestReadPathS3Disabled:
         assert result.key == "123456"
         assert result.data["name"] == "Test Task"
         mock_hot_tier.get_versioned.assert_called_once_with(
-            "123456", EntryType.TASK, Freshness.EVENTUAL
+            "123456", EntryType.TASK, FreshnessIntent.EVENTUAL
         )
 
     def test_get_versioned_s3_disabled_miss(self, mock_hot_tier: Mock) -> None:
@@ -829,7 +829,7 @@ class TestWarmOperations:
 
 
 # ============================================================================
-# Check Freshness Tests
+# Check FreshnessIntent Tests
 # ============================================================================
 
 
@@ -899,7 +899,7 @@ class TestResetMetrics:
 
 
 # ============================================================================
-# Freshness Parameter Passthrough Tests
+# FreshnessIntent Parameter Passthrough Tests
 # ============================================================================
 
 
@@ -919,10 +919,10 @@ class TestFreshnessPassthrough:
         config = TieredConfig(s3_enabled=False)
         provider = TieredCacheProvider(hot_tier=mock_hot_tier, config=config)
 
-        provider.get_versioned("123456", EntryType.TASK, Freshness.STRICT)
+        provider.get_versioned("123456", EntryType.TASK, FreshnessIntent.STRICT)
 
         mock_hot_tier.get_versioned.assert_called_once_with(
-            "123456", EntryType.TASK, Freshness.STRICT
+            "123456", EntryType.TASK, FreshnessIntent.STRICT
         )
 
     def test_get_versioned_passes_freshness_to_cold(
@@ -946,8 +946,8 @@ class TestFreshnessPassthrough:
             config=config,
         )
 
-        provider.get_versioned("123456", EntryType.TASK, Freshness.EVENTUAL)
+        provider.get_versioned("123456", EntryType.TASK, FreshnessIntent.EVENTUAL)
 
         mock_cold_tier.get_versioned.assert_called_once_with(
-            "123456", EntryType.TASK, Freshness.EVENTUAL
+            "123456", EntryType.TASK, FreshnessIntent.EVENTUAL
         )

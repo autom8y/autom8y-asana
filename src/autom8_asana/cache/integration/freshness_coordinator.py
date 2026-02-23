@@ -9,13 +9,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
 from typing import TYPE_CHECKING, Any, Literal
 
 from autom8y_log import get_logger
 
 from autom8_asana.batch.models import BatchRequest
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
+
+# Backward-compatible alias. New code should use FreshnessIntent directly.
+FreshnessMode = FreshnessIntent
 
 if TYPE_CHECKING:
     from autom8_asana.batch.client import BatchClient
@@ -25,20 +28,6 @@ logger = get_logger(__name__)
 
 # Asana batch API limit per request
 ASANA_BATCH_LIMIT = 10
-
-
-class FreshnessMode(Enum):
-    """Freshness validation modes.
-
-    Per TDD-UNIFIED-CACHE-001 Section 6.3:
-    - STRICT: Always validate against API
-    - EVENTUAL: TTL-based with lazy validation
-    - IMMEDIATE: Return cached without validation
-    """
-
-    STRICT = "strict"
-    EVENTUAL = "eventual"
-    IMMEDIATE = "immediate"
 
 
 @dataclass(frozen=True)
@@ -110,7 +99,7 @@ class FreshnessCoordinator:
     async def check_batch_async(
         self,
         entries: list[CacheEntry],
-        mode: FreshnessMode = FreshnessMode.EVENTUAL,
+        mode: FreshnessIntent = FreshnessIntent.EVENTUAL,
     ) -> list[FreshnessResult]:
         """Check freshness for batch of cache entries.
 
@@ -141,7 +130,7 @@ class FreshnessCoordinator:
         self._stats["total_checks"] += len(entries)
 
         # IMMEDIATE mode: return immediately without API call
-        if mode == FreshnessMode.IMMEDIATE:
+        if mode == FreshnessIntent.IMMEDIATE:
             self._stats["immediate_returns"] += len(entries)
             return [
                 FreshnessResult(
@@ -155,7 +144,7 @@ class FreshnessCoordinator:
             ]
 
         # For EVENTUAL mode, filter to only expired entries
-        if mode == FreshnessMode.EVENTUAL:
+        if mode == FreshnessIntent.EVENTUAL:
             now = datetime.now(UTC)
             expired_entries = [e for e in entries if e.is_expired(now)]
             non_expired_entries = [e for e in entries if not e.is_expired(now)]
@@ -387,7 +376,7 @@ class FreshnessCoordinator:
         self,
         root_gid: str,
         root_entry: CacheEntry | None = None,
-        mode: FreshnessMode = FreshnessMode.EVENTUAL,
+        mode: FreshnessIntent = FreshnessIntent.EVENTUAL,
     ) -> FreshnessResult:
         """Check freshness using root entity's modified_at.
 
@@ -405,7 +394,7 @@ class FreshnessCoordinator:
         self._stats["total_checks"] += 1
 
         # IMMEDIATE mode: return fresh without checking
-        if mode == FreshnessMode.IMMEDIATE:
+        if mode == FreshnessIntent.IMMEDIATE:
             self._stats["immediate_returns"] += 1
             return FreshnessResult(
                 gid=root_gid,
@@ -416,7 +405,7 @@ class FreshnessCoordinator:
             )
 
         # For EVENTUAL mode with non-expired entry, return fresh
-        if mode == FreshnessMode.EVENTUAL and root_entry is not None:
+        if mode == FreshnessIntent.EVENTUAL and root_entry is not None:
             if not root_entry.is_expired():
                 self._stats["fresh_count"] += 1
                 return FreshnessResult(

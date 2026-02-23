@@ -21,7 +21,7 @@ def test_root_imports():
         CompletenessLevel,
         EntryType,
         Freshness,
-        FreshnessMode,
+        FreshnessIntent,
         HierarchyIndex,
         LightweightChecker,
         OverflowSettings,
@@ -56,7 +56,7 @@ def test_canonical_imports():
         CacheProviderFactory,  # noqa: F401
     )
     from autom8_asana.cache.integration.freshness_coordinator import (
-        FreshnessMode,  # noqa: F401
+        FreshnessIntent,  # noqa: F401
     )
     from autom8_asana.cache.integration.mutation_invalidator import (
         MutationInvalidator,  # noqa: F401
@@ -98,7 +98,7 @@ def test_canonical_imports():
 def test_subpackage_imports():
     """Subpackage __init__.py re-exports work."""
     from autom8_asana.cache.integration import (  # noqa: F401
-        FreshnessMode,
+        FreshnessIntent,
         MutationInvalidator,
     )
     from autom8_asana.cache.models import (  # noqa: F401

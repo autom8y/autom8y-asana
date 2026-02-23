@@ -11,10 +11,10 @@ from datetime import UTC, datetime
 import pytest
 
 from autom8_asana.cache.models.freshness_stamp import (
-    FreshnessClassification,
     FreshnessStamp,
     VerificationSource,
 )
+from autom8_asana.cache.models.freshness_unified import FreshnessState
 
 
 class TestFreshnessStampAgeSeconds:
@@ -160,12 +160,15 @@ class TestVerificationSourceEnum:
         assert actual == expected
 
 
-class TestFreshnessClassificationEnum:
-    """Tests for FreshnessClassification enum values."""
+class TestFreshnessStateEnum:
+    """Tests for FreshnessState enum values."""
 
-    def test_classification_values(self) -> None:
-        """Verify three classifications exist."""
-        assert len(FreshnessClassification) == 3
-        assert FreshnessClassification.FRESH.value == "fresh"
-        assert FreshnessClassification.APPROACHING_STALE.value == "approaching_stale"
-        assert FreshnessClassification.STALE.value == "stale"
+    def test_state_values(self) -> None:
+        """Verify all six freshness states exist with correct values."""
+        assert len(FreshnessState) == 6
+        assert FreshnessState.FRESH.value == "fresh"
+        assert FreshnessState.APPROACHING_STALE.value == "approaching_stale"
+        assert FreshnessState.STALE.value == "stale"
+        assert FreshnessState.SCHEMA_INVALID.value == "schema_invalid"
+        assert FreshnessState.WATERMARK_BEHIND.value == "watermark_behind"
+        assert FreshnessState.CIRCUIT_FALLBACK.value == "circuit_fallback"

@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.cache.models.freshness import Freshness
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.models.metrics import CacheMetrics
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 
@@ -180,7 +180,7 @@ class TieredCacheProvider:
         self,
         key: str,
         entry_type: EntryType,
-        freshness: Freshness | None = None,
+        freshness: FreshnessIntent | None = None,
     ) -> CacheEntry | None:
         """Retrieve versioned cache entry with two-tier lookup.
 
@@ -200,7 +200,7 @@ class TieredCacheProvider:
             CacheEntry if found in either tier, None otherwise.
         """
         if freshness is None:
-            freshness = Freshness.EVENTUAL
+            freshness = FreshnessIntent.EVENTUAL
 
         # Check hot tier first
         entry = self._hot.get_versioned(key, entry_type, freshness)

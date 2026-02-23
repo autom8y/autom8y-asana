@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.errors import DegradedModeMixin
-from autom8_asana.cache.models.freshness import Freshness
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.models.metrics import CacheMetrics
 from autom8_asana.cache.models.settings import CacheSettings
 from autom8_asana.cache.models.versioning import is_current
@@ -215,20 +215,20 @@ class EnhancedInMemoryCacheProvider(DegradedModeMixin):
         self,
         key: str,
         entry_type: EntryType,
-        freshness: Freshness | None = None,
+        freshness: FreshnessIntent | None = None,
     ) -> CacheEntry | None:
         """Retrieve versioned cache entry with freshness control.
 
         Args:
             key: Cache key (task GID).
             entry_type: Type of entry.
-            freshness: Freshness mode (STRICT/EVENTUAL).
+            freshness: FreshnessIntent mode (STRICT/EVENTUAL).
 
         Returns:
             CacheEntry if found and not expired, None otherwise.
         """
         if freshness is None:
-            freshness = Freshness.EVENTUAL
+            freshness = FreshnessIntent.EVENTUAL
 
         start = time.perf_counter()
         internal_key = self._make_versioned_key(key, entry_type)

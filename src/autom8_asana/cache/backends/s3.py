@@ -15,7 +15,7 @@ from autom8y_log import get_logger
 from autom8_asana.cache.backends.base import CacheBackendBase
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.errors import is_connection_error, is_s3_not_found_error
-from autom8_asana.cache.models.freshness import Freshness
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.models.versioning import (
     format_version,
     is_current,
@@ -453,7 +453,7 @@ class S3CacheProvider(CacheBackendBase):
         self,
         key: str,
         entry_type: EntryType,
-        freshness: Freshness | None = None,
+        freshness: FreshnessIntent | None = None,
     ) -> CacheEntry | None:
         """Retrieve versioned cache entry with freshness control.
 
@@ -466,7 +466,7 @@ class S3CacheProvider(CacheBackendBase):
             CacheEntry if found and not expired, None otherwise.
         """
         if freshness is None:
-            freshness = Freshness.EVENTUAL
+            freshness = FreshnessIntent.EVENTUAL
 
         start = time.perf_counter()
         entry_type_str = entry_type.value

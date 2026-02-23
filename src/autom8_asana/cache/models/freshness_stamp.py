@@ -15,6 +15,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
 
+from autom8_asana.cache.models.freshness_unified import FreshnessState
+
+# Backward-compatible alias. New code should use FreshnessState directly.
+FreshnessClassification = FreshnessState
+
 
 class VerificationSource(str, Enum):
     """How the data was verified as fresh.
@@ -32,20 +37,6 @@ class VerificationSource(str, Enum):
     CACHE_WARM = "cache_warm"
     PROMOTION = "promotion"
     UNKNOWN = "unknown"
-
-
-class FreshnessClassification(str, Enum):
-    """Result of evaluating a FreshnessStamp against policy.
-
-    Three-state classification enables graduated responses:
-    - FRESH: Serve without concern
-    - APPROACHING_STALE: Serve, but consider background refresh
-    - STALE: Serve with degradation warning, or reject
-    """
-
-    FRESH = "fresh"
-    APPROACHING_STALE = "approaching_stale"
-    STALE = "stale"
 
 
 @dataclass(frozen=True, slots=True)

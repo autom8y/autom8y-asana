@@ -6,11 +6,11 @@ TTLs. The policy is a pure evaluator with no side effects.
 
 Usage:
     from autom8_asana.cache.freshness_policy import FreshnessPolicy
-    from autom8_asana.cache.models.freshness_stamp import FreshnessClassification
+    from autom8_asana.cache.models.freshness_unified import FreshnessState
 
     policy = FreshnessPolicy()
     classification = policy.evaluate(entry, entity_type="unit")
-    if classification == FreshnessClassification.STALE:
+    if classification == FreshnessState.STALE:
         trigger_refresh()
 """
 
@@ -23,10 +23,8 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     from autom8_asana.cache.models.entry import CacheEntry
-    from autom8_asana.cache.models.freshness_stamp import (
-        FreshnessClassification,
-        FreshnessStamp,
-    )
+    from autom8_asana.cache.models.freshness_stamp import FreshnessStamp
+    from autom8_asana.cache.models.freshness_unified import FreshnessState
 
 # Threshold: entry is "approaching stale" when age exceeds
 # this fraction of the entity's TTL. 0.75 means at 75% of TTL,
@@ -62,7 +60,7 @@ class FreshnessPolicy:
         entry: CacheEntry,
         entity_type: str | None = None,
         now: datetime | None = None,
-    ) -> FreshnessClassification:
+    ) -> FreshnessState:
         """Classify an entry's freshness.
 
         Decision tree:
@@ -79,34 +77,34 @@ class FreshnessPolicy:
             now: Current time for age calculation. Defaults to UTC now.
 
         Returns:
-            FreshnessClassification enum value.
+            FreshnessState enum value.
         """
-        from autom8_asana.cache.models.freshness_stamp import FreshnessClassification
+        from autom8_asana.cache.models.freshness_unified import FreshnessState
 
         stamp = entry.freshness_stamp
         if stamp is None:
-            return FreshnessClassification.STALE
+            return FreshnessState.STALE
 
         if stamp.is_soft_invalidated():
-            return FreshnessClassification.STALE
+            return FreshnessState.STALE
 
         ttl = self._get_ttl(entry, entity_type)
         age = stamp.age_seconds(now)
 
         if age > ttl:
-            return FreshnessClassification.STALE
+            return FreshnessState.STALE
 
         if age > ttl * self.approaching_threshold:
-            return FreshnessClassification.APPROACHING_STALE
+            return FreshnessState.APPROACHING_STALE
 
-        return FreshnessClassification.FRESH
+        return FreshnessState.FRESH
 
     def evaluate_stamp(
         self,
         stamp: FreshnessStamp,
         ttl_seconds: int,
         now: datetime | None = None,
-    ) -> FreshnessClassification:
+    ) -> FreshnessState:
         """Classify freshness from a stamp and explicit TTL.
 
         Lower-level method for callers that already know the TTL.
@@ -119,22 +117,22 @@ class FreshnessPolicy:
             now: Current time. Defaults to UTC now.
 
         Returns:
-            FreshnessClassification enum value.
+            FreshnessState enum value.
         """
-        from autom8_asana.cache.models.freshness_stamp import FreshnessClassification
+        from autom8_asana.cache.models.freshness_unified import FreshnessState
 
         if stamp.is_soft_invalidated():
-            return FreshnessClassification.STALE
+            return FreshnessState.STALE
 
         age = stamp.age_seconds(now)
 
         if age > ttl_seconds:
-            return FreshnessClassification.STALE
+            return FreshnessState.STALE
 
         if age > ttl_seconds * self.approaching_threshold:
-            return FreshnessClassification.APPROACHING_STALE
+            return FreshnessState.APPROACHING_STALE
 
-        return FreshnessClassification.FRESH
+        return FreshnessState.FRESH
 
     def _get_ttl(self, entry: CacheEntry, entity_type: str | None) -> int:
         """Resolve TTL from EntityRegistry.

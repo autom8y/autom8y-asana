@@ -27,7 +27,7 @@ from autom8y_log import get_logger
 
 from autom8_asana.cache.integration.dataframes import make_dataframe_key
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8_asana.cache.models.freshness import Freshness
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.models.versioning import parse_version
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 
@@ -179,7 +179,7 @@ class DataFrameCacheIntegration:
         project_gid: str,
         schema_version: str,
         current_modified_at: datetime | str | None = None,
-        freshness: Freshness = Freshness.EVENTUAL,
+        freshness: FreshnessIntent = FreshnessIntent.EVENTUAL,
     ) -> CachedRow | None:
         """Retrieve a cached dataframe row if valid.
 
@@ -264,7 +264,7 @@ class DataFrameCacheIntegration:
         task_project_pairs: list[tuple[str, str]],
         schema_version: str,
         modifications: dict[str, datetime | str] | None = None,
-        freshness: Freshness = Freshness.EVENTUAL,
+        freshness: FreshnessIntent = FreshnessIntent.EVENTUAL,
     ) -> dict[str, CachedRow | None]:
         """Retrieve multiple cached dataframe rows.
 
@@ -496,7 +496,7 @@ class DataFrameCacheIntegration:
         project_gid: str,
         schema_version: str,
         current_modified_at: datetime | str | None = None,
-        freshness: Freshness = Freshness.EVENTUAL,
+        freshness: FreshnessIntent = FreshnessIntent.EVENTUAL,
     ) -> CachedRow | None:
         """Sync wrapper for get_cached_row_async.
 
@@ -517,7 +517,7 @@ class DataFrameCacheIntegration:
         task_project_pairs: list[tuple[str, str]],
         schema_version: str,
         modifications: dict[str, datetime | str] | None = None,
-        freshness: Freshness = Freshness.EVENTUAL,
+        freshness: FreshnessIntent = FreshnessIntent.EVENTUAL,
     ) -> dict[str, CachedRow | None]:
         """Sync wrapper for get_cached_batch_async.
 

@@ -12,8 +12,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from autom8_asana.batch.models import BatchResult
-from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
 
@@ -37,7 +37,7 @@ def store(
     return UnifiedTaskStore(
         cache=mock_cache_provider,
         batch_client=mock_batch_client,
-        freshness_mode=FreshnessMode.EVENTUAL,
+        freshness_mode=FreshnessIntent.EVENTUAL,
     )
 
 
@@ -109,7 +109,7 @@ class TestUnifiedTaskStoreInit:
 
         assert store.cache == mock_cache_provider
         assert store.batch_client is None
-        assert store.freshness_mode == FreshnessMode.EVENTUAL
+        assert store.freshness_mode == FreshnessIntent.EVENTUAL
         assert store._hierarchy is not None
         assert store._freshness is not None
 
@@ -120,10 +120,10 @@ class TestUnifiedTaskStoreInit:
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
             batch_client=mock_batch_client,
-            freshness_mode=FreshnessMode.STRICT,
+            freshness_mode=FreshnessIntent.STRICT,
         )
 
-        assert store.freshness_mode == FreshnessMode.STRICT
+        assert store.freshness_mode == FreshnessIntent.STRICT
 
 
 class TestUnifiedTaskStoreGet:
@@ -151,7 +151,7 @@ class TestUnifiedTaskStoreGet:
         entry = make_entry("task-123")
         mock_cache_provider.get_versioned.return_value = entry
 
-        result = await store.get_async("task-123", freshness=FreshnessMode.IMMEDIATE)
+        result = await store.get_async("task-123", freshness=FreshnessIntent.IMMEDIATE)
 
         assert result == entry.data
         # Should not check freshness for IMMEDIATE
@@ -165,7 +165,7 @@ class TestUnifiedTaskStoreGet:
         entry = make_entry("task-123", cached_ago_seconds=0, ttl=300)
         mock_cache_provider.get_versioned.return_value = entry
 
-        result = await store.get_async("task-123", freshness=FreshnessMode.EVENTUAL)
+        result = await store.get_async("task-123", freshness=FreshnessIntent.EVENTUAL)
 
         assert result == entry.data
 
@@ -191,7 +191,7 @@ class TestUnifiedTaskStoreGet:
             make_batch_result("task-123", "2025-12-23T12:00:00.000Z")
         ]
 
-        result = await store.get_async("task-123", freshness=FreshnessMode.EVENTUAL)
+        result = await store.get_async("task-123", freshness=FreshnessIntent.EVENTUAL)
 
         # Should return None since entry is stale
         assert result is None
@@ -234,7 +234,7 @@ class TestUnifiedTaskStoreGetBatch:
         }
 
         result = await store.get_batch_async(
-            ["task-1", "task-2"], freshness=FreshnessMode.IMMEDIATE
+            ["task-1", "task-2"], freshness=FreshnessIntent.IMMEDIATE
         )
 
         assert result["task-1"] == entry1.data
@@ -252,7 +252,7 @@ class TestUnifiedTaskStoreGetBatch:
         }
 
         result = await store.get_batch_async(
-            ["task-1", "task-2"], freshness=FreshnessMode.IMMEDIATE
+            ["task-1", "task-2"], freshness=FreshnessIntent.IMMEDIATE
         )
 
         assert result["task-1"] == entry1.data
@@ -665,7 +665,7 @@ class TestUnifiedTaskStoreStats:
         # Get hit (immediate)
         entry = make_entry("task-3")
         mock_cache_provider.get_versioned.return_value = entry
-        await store.get_async("task-3", freshness=FreshnessMode.IMMEDIATE)
+        await store.get_async("task-3", freshness=FreshnessIntent.IMMEDIATE)
 
         stats = store.get_stats()
         assert stats["put_count"] == 1
@@ -772,7 +772,7 @@ class TestUnifiedTaskStoreCompleteness:
 
         result = await store.get_async(
             "task-123",
-            freshness=FreshnessMode.IMMEDIATE,
+            freshness=FreshnessIntent.IMMEDIATE,
             required_level=CompletenessLevel.STANDARD,
         )
 
@@ -801,7 +801,7 @@ class TestUnifiedTaskStoreCompleteness:
 
         result = await store.get_async(
             "task-123",
-            freshness=FreshnessMode.IMMEDIATE,
+            freshness=FreshnessIntent.IMMEDIATE,
             required_level=CompletenessLevel.STANDARD,
         )
 
@@ -831,7 +831,7 @@ class TestUnifiedTaskStoreCompleteness:
 
         result = await store.get_async(
             "task-123",
-            freshness=FreshnessMode.IMMEDIATE,
+            freshness=FreshnessIntent.IMMEDIATE,
             required_level=CompletenessLevel.STANDARD,
         )
 
@@ -852,7 +852,7 @@ class TestUnifiedTaskStoreCompleteness:
 
         result = await store.get_async(
             "task-123",
-            freshness=FreshnessMode.IMMEDIATE,
+            freshness=FreshnessIntent.IMMEDIATE,
             required_level=CompletenessLevel.MINIMAL,
         )
 
@@ -873,7 +873,7 @@ class TestUnifiedTaskStoreCompleteness:
 
         result = await store.get_async(
             "task-123",
-            freshness=FreshnessMode.IMMEDIATE,
+            freshness=FreshnessIntent.IMMEDIATE,
             required_level=CompletenessLevel.STANDARD,
         )
 
@@ -989,7 +989,7 @@ class TestUnifiedTaskStoreCompleteness:
 
         result = await store.get_batch_async(
             ["task-1", "task-2"],
-            freshness=FreshnessMode.IMMEDIATE,
+            freshness=FreshnessIntent.IMMEDIATE,
             required_level=CompletenessLevel.STANDARD,
         )
 
@@ -1018,7 +1018,7 @@ class TestUnifiedTaskStoreCompleteness:
         mock_cache_provider.get_versioned.return_value = minimal_entry
 
         # Call without explicit required_level (should use default STANDARD)
-        result = await store.get_async("task-123", freshness=FreshnessMode.IMMEDIATE)
+        result = await store.get_async("task-123", freshness=FreshnessIntent.IMMEDIATE)
 
         assert result is None
         assert store._stats["completeness_misses"] == 1
@@ -1044,12 +1044,12 @@ class TestUnifiedTaskStoreCompleteness:
         # Multiple get calls should accumulate completeness_misses
         await store.get_async(
             "task-123",
-            freshness=FreshnessMode.IMMEDIATE,
+            freshness=FreshnessIntent.IMMEDIATE,
             required_level=CompletenessLevel.STANDARD,
         )
         await store.get_async(
             "task-123",
-            freshness=FreshnessMode.IMMEDIATE,
+            freshness=FreshnessIntent.IMMEDIATE,
             required_level=CompletenessLevel.FULL,
         )
 

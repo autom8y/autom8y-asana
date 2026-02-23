@@ -14,10 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.cache.integration.freshness_coordinator import (
-    FreshnessCoordinator,
-    FreshnessMode,
-)
+from autom8_asana.cache.integration.freshness_coordinator import FreshnessCoordinator
 from autom8_asana.cache.models.completeness import (
     CompletenessLevel,
     create_completeness_metadata,
@@ -26,6 +23,7 @@ from autom8_asana.cache.models.completeness import (
     is_entry_sufficient,
 )
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.policies.hierarchy import HierarchyIndex
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 
@@ -58,7 +56,7 @@ class UnifiedTaskStore:
         >>> store = UnifiedTaskStore(
         ...     cache=tiered_cache,
         ...     batch_client=batch_client,
-        ...     freshness_mode=FreshnessMode.EVENTUAL,
+        ...     freshness_mode=FreshnessIntent.EVENTUAL,
         ... )
         >>> # Get single task
         >>> task = await store.get_async("task-gid")
@@ -70,7 +68,7 @@ class UnifiedTaskStore:
 
     cache: CacheProvider
     batch_client: BatchClient | None = None
-    freshness_mode: FreshnessMode = FreshnessMode.EVENTUAL
+    freshness_mode: FreshnessIntent = FreshnessIntent.EVENTUAL
     hierarchy_concurrency: int = 10
 
     # Internal components
@@ -102,7 +100,7 @@ class UnifiedTaskStore:
     async def get_async(
         self,
         gid: str,
-        freshness: FreshnessMode | None = None,
+        freshness: FreshnessIntent | None = None,
         required_level: CompletenessLevel = CompletenessLevel.STANDARD,
     ) -> dict[str, Any] | None:
         """Get single task, respecting freshness mode and completeness.
@@ -148,7 +146,7 @@ class UnifiedTaskStore:
             return None
 
         # For IMMEDIATE mode, return cached immediately
-        if mode == FreshnessMode.IMMEDIATE:
+        if mode == FreshnessIntent.IMMEDIATE:
             self._stats["get_hits"] += 1
             return entry.data
 
@@ -165,7 +163,7 @@ class UnifiedTaskStore:
     async def get_batch_async(
         self,
         gids: list[str],
-        freshness: FreshnessMode | None = None,
+        freshness: FreshnessIntent | None = None,
         required_level: CompletenessLevel = CompletenessLevel.STANDARD,
     ) -> dict[str, dict[str, Any] | None]:
         """Get multiple tasks with batch freshness check and completeness.
@@ -218,7 +216,7 @@ class UnifiedTaskStore:
             return result
 
         # For IMMEDIATE mode, return all found entries
-        if mode == FreshnessMode.IMMEDIATE:
+        if mode == FreshnessIntent.IMMEDIATE:
             for entry in found_entries:
                 result[entry.key] = entry.data
                 self._stats["get_hits"] += 1
@@ -295,7 +293,7 @@ class UnifiedTaskStore:
         self,
         gid: str,
         required_level: CompletenessLevel = CompletenessLevel.STANDARD,
-        freshness: FreshnessMode | None = None,
+        freshness: FreshnessIntent | None = None,
         tasks_client: TasksClient | None = None,
     ) -> dict[str, Any] | None:
         """Get task with automatic upgrade if insufficient.
@@ -796,7 +794,7 @@ class UnifiedTaskStore:
 
         # Check freshness
         results = await self._freshness.check_batch_async(
-            found_entries, mode=FreshnessMode.STRICT
+            found_entries, mode=FreshnessIntent.STRICT
         )
 
         # Build result map

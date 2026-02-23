@@ -25,7 +25,7 @@ from autom8_asana.cache.integration.batch import (
     reset_modification_cache,
 )
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8_asana.cache.models.freshness import Freshness
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.models.metrics import CacheEvent, CacheMetrics
 from autom8_asana.cache.models.settings import (
     CacheSettings,
@@ -631,7 +631,7 @@ class TestStalenessEdgeCases:
         )
 
         # STRICT mode with no current version should be stale
-        is_stale_result = check_entry_staleness(entry, None, Freshness.STRICT)
+        is_stale_result = check_entry_staleness(entry, None, FreshnessIntent.STRICT)
         assert is_stale_result is True
 
     def test_check_entry_staleness_eventual_no_version(self) -> None:
@@ -645,7 +645,7 @@ class TestStalenessEdgeCases:
         )
 
         # EVENTUAL mode should not be stale if not expired
-        is_stale_result = check_entry_staleness(entry, None, Freshness.EVENTUAL)
+        is_stale_result = check_entry_staleness(entry, None, FreshnessIntent.EVENTUAL)
         assert is_stale_result is False
 
     def test_partition_empty_dict(self) -> None:

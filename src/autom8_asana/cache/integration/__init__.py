@@ -19,8 +19,10 @@ from autom8_asana.cache.integration.stories import (
     read_cached_stories,
     read_stories_batch,
 )
+from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 
 __all__ = [
+    "FreshnessIntent",
     "FreshnessMode",
     "MutationInvalidator",
     "SoftInvalidationConfig",
