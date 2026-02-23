@@ -169,18 +169,17 @@ class TestRaiseApiErrorEdgeCases:
 
         assert exc_info.value.detail["message"] == ""
 
-    def test_details_none_not_merged(self) -> None:
-        """When details is None, only base keys are in detail."""
+    @pytest.mark.parametrize(
+        "details",
+        [
+            pytest.param(None, id="none"),
+            pytest.param({}, id="empty-dict"),
+        ],
+    )
+    def test_details_falsy_not_merged(self, details: Any) -> None:
+        """When details is None or empty dict, only base keys are in detail."""
         with pytest.raises(HTTPException) as exc_info:
-            raise_api_error("id", 400, "CODE", "msg", details=None)
-
-        detail = exc_info.value.detail
-        assert set(detail.keys()) == {"error", "message", "request_id"}
-
-    def test_details_empty_dict_not_merged(self) -> None:
-        """When details is empty dict, only base keys are in detail (falsy check)."""
-        with pytest.raises(HTTPException) as exc_info:
-            raise_api_error("id", 400, "CODE", "msg", details={})
+            raise_api_error("id", 400, "CODE", "msg", details=details)
 
         detail = exc_info.value.detail
         assert set(detail.keys()) == {"error", "message", "request_id"}
@@ -742,38 +741,33 @@ class TestServiceErrorStatusMapping:
 class TestRequestIdExtraction:
     """Adversarial tests for request_id extraction from various sources."""
 
-    def test_request_with_normal_id(self) -> None:
-        """Normal 16-char hex ID passed as string."""
-        with pytest.raises(HTTPException) as exc_info:
-            raise_api_error("a1b2c3d4e5f67890", 400, "C", "m")
-        assert exc_info.value.detail["request_id"] == "a1b2c3d4e5f67890"
-
-    def test_request_object_without_request_id_attr(self) -> None:
-        """Caller passes 'unknown' when request.state has no request_id."""
-        with pytest.raises(HTTPException) as exc_info:
-            raise_api_error("unknown", 400, "C", "m")
-        assert exc_info.value.detail["request_id"] == "unknown"
-
-    def test_string_request_id_passthrough(self) -> None:
+    @pytest.mark.parametrize(
+        "request_id",
+        [
+            pytest.param("a1b2c3d4e5f67890", id="normal-hex-id"),
+            pytest.param("unknown", id="unknown-fallback"),
+            pytest.param("my-custom-id", id="custom-string"),
+        ],
+    )
+    def test_api_error_request_id_passthrough(self, request_id: str) -> None:
         """String request_id is used directly without any transformation."""
         with pytest.raises(HTTPException) as exc_info:
-            raise_api_error("my-custom-id", 400, "C", "m")
-        assert exc_info.value.detail["request_id"] == "my-custom-id"
+            raise_api_error(request_id, 400, "C", "m")
+        assert exc_info.value.detail["request_id"] == request_id
 
-    def test_service_error_with_request_object(self) -> None:
-        """raise_service_error accepts string request_id extracted from Request."""
-        req = _make_request("from-req-obj")
+    @pytest.mark.parametrize(
+        "request_id",
+        [
+            pytest.param("from-req-obj", id="from-request-object"),
+            pytest.param("str-id", id="string-direct"),
+        ],
+    )
+    def test_service_error_request_id_passthrough(self, request_id: str) -> None:
+        """raise_service_error preserves string request_id."""
         err = ServiceError("test")
         with pytest.raises(HTTPException) as exc_info:
-            raise_service_error(req.state.request_id, err)
-        assert exc_info.value.detail["request_id"] == "from-req-obj"
-
-    def test_service_error_with_string_id(self) -> None:
-        """raise_service_error accepts string directly."""
-        err = ServiceError("test")
-        with pytest.raises(HTTPException) as exc_info:
-            raise_service_error("str-id", err)
-        assert exc_info.value.detail["request_id"] == "str-id"
+            raise_service_error(request_id, err)
+        assert exc_info.value.detail["request_id"] == request_id
 
 
 # ===========================================================================
