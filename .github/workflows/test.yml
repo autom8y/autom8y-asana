@@ -13,36 +13,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  fast-tests:
+  lint-check:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 5
     permissions:
       id-token: write
       contents: read
-    strategy:
-      matrix:
-        python-version: ["3.12"]
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: astral-sh/setup-uv@v4
         with:
           version: "latest"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-
+          python-version: "3.12"
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::696318035277:role/github-actions-deploy
           aws-region: us-east-1
-
       - name: Get CodeArtifact auth token
         id: codeartifact
         run: |
@@ -52,27 +44,61 @@ jobs:
             --output text)
           echo "::add-mask::$TOKEN"
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
-
       - name: Configure uv for CodeArtifact
         run: |
           echo "UV_INDEX_AUTOM8Y_USERNAME=aws" >> $GITHUB_ENV
           echo "UV_INDEX_AUTOM8Y_PASSWORD=${{ steps.codeartifact.outputs.token }}" >> $GITHUB_ENV
-
       - name: Install dependencies
         run: uv sync --all-extras
-
       - name: Check formatting
         run: uv run ruff format . --check
-
       - name: Run linting
         run: uv run ruff check .
-
       - name: Run type checking
         run: uv run mypy src/autom8_asana --strict
 
-      - name: Run fast tests with coverage
-        run: uv run pytest tests/ -m "not slow and not integration and not benchmark" -v --cov=autom8_asana --cov-report=xml --cov-fail-under=80
-
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::696318035277:role/github-actions-deploy
+          aws-region: us-east-1
+      - name: Get CodeArtifact auth token
+        id: codeartifact
+        run: |
+          TOKEN=$(aws codeartifact get-authorization-token \
+            --domain autom8y \
+            --query authorizationToken \
+            --output text)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+      - name: Configure uv for CodeArtifact
+        run: |
+          echo "UV_INDEX_AUTOM8Y_USERNAME=aws" >> $GITHUB_ENV
+          echo "UV_INDEX_AUTOM8Y_PASSWORD=${{ steps.codeartifact.outputs.token }}" >> $GITHUB_ENV
+      - name: Install dependencies
+        run: uv sync --all-extras
+      - name: Run unit tests with coverage
+        run: uv run pytest tests/ -n auto -m "not slow and not integration and not benchmark" -v --cov=autom8_asana --cov-report=xml --cov-fail-under=80
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         if: matrix.python-version == '3.12'
@@ -80,37 +106,32 @@ jobs:
           file: ./coverage.xml
           fail_ci_if_error: false
 
-  full-tests:
+  full-regression:
     if: github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     permissions:
       id-token: write
       contents: read
     strategy:
       matrix:
         python-version: ["3.12"]
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: astral-sh/setup-uv@v4
         with:
           version: "latest"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::696318035277:role/github-actions-deploy
           aws-region: us-east-1
-
       - name: Get CodeArtifact auth token
         id: codeartifact
         run: |
@@ -120,18 +141,14 @@ jobs:
             --output text)
           echo "::add-mask::$TOKEN"
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
-
       - name: Configure uv for CodeArtifact
         run: |
           echo "UV_INDEX_AUTOM8Y_USERNAME=aws" >> $GITHUB_ENV
           echo "UV_INDEX_AUTOM8Y_PASSWORD=${{ steps.codeartifact.outputs.token }}" >> $GITHUB_ENV
-
       - name: Install dependencies
         run: uv sync --all-extras
-
       - name: Run all tests with coverage
-        run: uv run pytest tests/ -m "not integration" -v --cov=autom8_asana --cov-report=xml --cov-fail-under=80
-
+        run: uv run pytest tests/ -n auto -m "not integration" -v --cov=autom8_asana --cov-report=xml --cov-fail-under=80
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
@@ -145,27 +162,22 @@ jobs:
     permissions:
       id-token: write
       contents: read
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: astral-sh/setup-uv@v4
         with:
           version: "latest"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::696318035277:role/github-actions-deploy
           aws-region: us-east-1
-
       - name: Get CodeArtifact auth token
         id: codeartifact
         run: |
@@ -175,19 +187,15 @@ jobs:
             --output text)
           echo "::add-mask::$TOKEN"
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
-
       - name: Configure uv for CodeArtifact
         run: |
           echo "UV_INDEX_AUTOM8Y_USERNAME=aws" >> $GITHUB_ENV
           echo "UV_INDEX_AUTOM8Y_PASSWORD=${{ steps.codeartifact.outputs.token }}" >> $GITHUB_ENV
-
       - name: Install dependencies
         run: uv sync --all-extras
-
       - name: Run integration tests
         run: uv run pytest tests/integration/ -v --timeout=300 --cov=autom8_asana --cov-report=xml
         continue-on-error: true
-
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
