@@ -1,0 +1,23 @@
+rules:
+  # Canonical source: autom8y/.semgrep.yml
+  # Vendored copies must be synced manually when this file changes.
+  - id: autom8y.no-logger-positional-args
+    pattern-either:
+      - pattern: $LOGGER.debug("...", $ARG, ...)
+      - pattern: $LOGGER.info("...", $ARG, ...)
+      - pattern: $LOGGER.warning("...", $ARG, ...)
+      - pattern: $LOGGER.error("...", $ARG, ...)
+      - pattern: $LOGGER.exception("...", $ARG, ...)
+      - pattern: $LOGGER.critical("...", $ARG, ...)
+    message: >
+      Logger methods do not accept positional arguments.
+      Use f-strings: logger.debug(f"msg {value}")
+      or keyword args: logger.debug("event", key=value).
+      See: LoggerProtocol in autom8y_log.protocols
+    severity: ERROR
+    languages: [python]
+    paths:
+      exclude:
+        - "**/tests/**"
+        - "**/test_*.py"
+        - "**/conftest.py"

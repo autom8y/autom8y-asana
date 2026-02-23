@@ -22,3 +22,13 @@ repos:
         types_or: [python, pyi]
       - id: ruff-format
         types_or: [python, pyi]
+
+  # Semgrep (architecture enforcement)
+  - repo: local
+    hooks:
+      - id: semgrep
+        name: semgrep
+        entry: semgrep --config .semgrep.yml --error
+        language: system
+        types: [python]
+        pass_filenames: false
