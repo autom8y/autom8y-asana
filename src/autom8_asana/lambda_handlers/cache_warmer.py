@@ -53,23 +53,15 @@ _bootstrap_initialized = False
 
 
 def _ensure_bootstrap() -> None:
-    """Lazy bootstrap initialization for Lambda cold starts.
-
-    Moved from module-level import to avoid import chain failures
-    when autom8y_cache has missing modules. The bootstrap populates
-    ProjectTypeRegistry for Tier 1 detection.
-    """
+    """Lazy bootstrap initialization for Lambda cold starts."""
     global _bootstrap_initialized
     if not _bootstrap_initialized:
         try:
-            import autom8_asana.models.business  # noqa: F401 - side effect import
-
+            from autom8_asana.models.business._bootstrap import bootstrap
+            bootstrap()
             _bootstrap_initialized = True
-            logger.info("bootstrap_complete", detail="ProjectTypeRegistry populated")
 
-            # Cross-registry validation (QW-4) — Lambda only checks
-            # ProjectTypeRegistry since EntityProjectRegistry is not
-            # populated in Lambda context.
+            # Cross-registry validation (QW-4)
             from autom8_asana.core.registry_validation import (
                 validate_cross_registry_consistency,
             )

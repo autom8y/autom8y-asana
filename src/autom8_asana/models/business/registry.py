@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import re
+import threading
 import time
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -34,6 +35,9 @@ __all__ = [
 ]
 
 logger = get_logger(__name__)
+
+# Module-level lock for thread-safe bootstrap guard (only contended on first call)
+_bootstrap_lock = threading.Lock()
 
 
 class ProjectTypeRegistry:
@@ -87,6 +91,39 @@ class ProjectTypeRegistry:
         """Initialize instance attributes (only runs once due to singleton)."""
         # Attributes are set in __new__ to avoid re-initialization
         pass
+
+    def _ensure_bootstrapped(self) -> None:
+        """Lazy bootstrap guard: populates registry on first access if needed.
+
+        Follows the SchemaRegistry._ensure_initialized() pattern.
+        Hot path: single boolean check (<1us). Cold path: acquires lock,
+        calls register_all_models(), logs WARNING about missing explicit bootstrap.
+
+        Thread-safe via double-checked locking pattern.
+        """
+        from autom8_asana.models.business._bootstrap import is_bootstrap_complete
+
+        if is_bootstrap_complete():
+            return
+
+        with _bootstrap_lock:
+            # Double-checked locking: another thread may have completed bootstrap
+            if is_bootstrap_complete():
+                return
+
+            logger.warning(
+                "ensure_bootstrapped_triggered",
+                extra={
+                    "detail": (
+                        "ProjectTypeRegistry accessed before explicit bootstrap(). "
+                        "Add bootstrap() call to your entry point. "
+                        "Falling back to lazy initialization."
+                    ),
+                },
+            )
+
+            from autom8_asana.models.business._bootstrap import register_all_models
+            register_all_models()
 
     def register(self, project_gid: str, entity_type: EntityType) -> None:
         """Register a project GID to EntityType mapping.
@@ -150,6 +187,7 @@ class ProjectTypeRegistry:
         Returns:
             EntityType if found, None otherwise.
         """
+        self._ensure_bootstrapped()
         result = self._gid_to_type.get(project_gid)
         if result is None:
             logger.debug(
@@ -169,6 +207,7 @@ class ProjectTypeRegistry:
         Returns:
             Primary project GID if registered, None otherwise.
         """
+        self._ensure_bootstrapped()
         return self._type_to_gid.get(entity_type)
 
     def is_registered(self, project_gid: str) -> bool:
@@ -180,6 +219,7 @@ class ProjectTypeRegistry:
         Returns:
             True if registered, False otherwise.
         """
+        self._ensure_bootstrapped()
         return project_gid in self._gid_to_type
 
     def get_all_mappings(self) -> dict[str, EntityType]:
@@ -188,6 +228,7 @@ class ProjectTypeRegistry:
         Returns:
             Copy of the internal mapping dict (for testing/debugging).
         """
+        self._ensure_bootstrapped()
         return dict(self._gid_to_type)
 
     @classmethod

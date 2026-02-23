@@ -33,6 +33,9 @@ def log_error(message: str) -> None:
 
 def run_ecs_mode() -> None:
     """Start uvicorn API server for ECS deployment."""
+    from autom8_asana.models.business._bootstrap import bootstrap
+    bootstrap()
+
     import uvicorn
 
     from autom8_asana.settings import get_settings

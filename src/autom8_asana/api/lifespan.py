@@ -125,6 +125,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     logger.info("client_pool_initialized")
 
+    # Bootstrap business model registry (per TDD-bootstrap / ADR-0149)
+    from autom8_asana.models.business._bootstrap import bootstrap
+    bootstrap()
+
     # Entity resolver startup discovery (FR-004, FR-005)
     try:
         await _discover_entity_projects(app)
