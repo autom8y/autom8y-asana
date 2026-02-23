@@ -50,7 +50,7 @@ The main thread MAY track subagent IDs for throughline agents (Pythia, Moirai) a
 - Resume is opportunistic -- orchestrated workflows function correctly without it
 <!-- KNOSSOS:END agent-routing -->
 
-<!-- KNOSSOS:START agent-configurations source=agents/*.md regenerate=true -->
+<!-- KNOSSOS:START agent-configurations regenerate=true source=agents/*.md -->
 ## Agents
 
 Prompts in `.claude/agents/`:
