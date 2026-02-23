@@ -33,6 +33,7 @@ from autom8_asana.automation.polling.structured_logger import StructuredLogger
 
 if TYPE_CHECKING:
     from autom8_asana.automation.polling.config_schema import ActionConfig
+
     pass
 
 __all__ = ["ActionExecutor", "ActionResult"]

@@ -44,7 +44,6 @@ htmlcov/
 .ruff_cache/
 
 # Project-specific
-.envrc
 .profiling/
 
 # Environment files (secrets)

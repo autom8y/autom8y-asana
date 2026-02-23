@@ -46,7 +46,6 @@ except ImportError:
     register_schema_provider = None  # type: ignore[assignment]
 
 
-
 class AsanaSchemaProvider:
     """Bridges Asana SchemaRegistry to SDK SchemaVersionProvider protocol.
 

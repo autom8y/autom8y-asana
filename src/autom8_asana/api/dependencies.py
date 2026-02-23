@@ -34,10 +34,9 @@ from autom8y_log import get_logger
 from fastapi import Depends, Header, HTTPException, Request
 
 from autom8_asana import AsanaClient
+from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
+from autom8_asana.auth.dual_mode import AuthMode, detect_token_type
 from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator
-
-from ..auth.bot_pat import BotPATError, get_bot_pat
-from ..auth.dual_mode import AuthMode, detect_token_type
 
 logger = get_logger("autom8_asana.api")
 
@@ -168,7 +167,7 @@ async def get_auth_context(
     # JWT mode: validate token, then use bot PAT
     try:
         # Lazy import to avoid loading SDK when not needed
-        from ..auth.jwt_validator import validate_service_token
+        from autom8_asana.auth.jwt_validator import validate_service_token
 
         claims = await validate_service_token(token)
     except ImportError as e:
