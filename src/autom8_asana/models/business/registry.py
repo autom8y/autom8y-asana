@@ -123,6 +123,7 @@ class ProjectTypeRegistry:
             )
 
             from autom8_asana.models.business._bootstrap import register_all_models
+
             register_all_models()
 
     def register(self, project_gid: str, entity_type: EntityType) -> None:

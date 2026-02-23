@@ -146,6 +146,7 @@ def _bootstrap_session():
     _ensure_bootstrapped() on first registry access.
     """
     from autom8_asana.models.business._bootstrap import bootstrap
+
     bootstrap()
 
 

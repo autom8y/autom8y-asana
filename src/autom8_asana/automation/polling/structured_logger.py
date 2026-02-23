@@ -126,9 +126,7 @@ class StructuredLogger:
 
         from autom8_asana.core.logging import get_logger as sdk_get_logger
 
-        return sdk_get_logger("autom8_asana.automation.polling").bind(
-            **bound_context
-        )
+        return sdk_get_logger("autom8_asana.automation.polling").bind(**bound_context)
 
     @classmethod
     def log_rule_evaluation(
@@ -339,5 +337,3 @@ class StructuredLogger:
         # Log at appropriate level
         log_method = getattr(logger, level)
         log_method(event, **context)
-
-

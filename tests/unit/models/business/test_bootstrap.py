@@ -88,9 +88,7 @@ class TestEnsureBootstrappedFallback:
         assert is_bootstrap_complete()
         assert registry.get_all_mappings()  # Non-empty
 
-    def test_ensure_bootstrapped_noop_when_complete(
-        self, clean_state: None
-    ) -> None:
+    def test_ensure_bootstrapped_noop_when_complete(self, clean_state: None) -> None:
         """_ensure_bootstrapped() is a no-op when bootstrap is already complete."""
         bootstrap()
 

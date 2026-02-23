@@ -173,7 +173,9 @@ async def deps_check() -> JSONResponse:
     )
 
     t0 = time.monotonic()
-    _jwks_config = HttpClientConfig(timeout=5.0, enable_retry=False, enable_circuit_breaker=False)
+    _jwks_config = HttpClientConfig(
+        timeout=5.0, enable_retry=False, enable_circuit_breaker=False
+    )
     try:
         async with Autom8yHttpClient(_jwks_config) as client:
             async with client.raw() as raw_client:
