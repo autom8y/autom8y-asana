@@ -1026,3 +1026,57 @@ class TestModelValidation:
         assert len(cf.enum_options) == 2
         assert cf.enum_options[0].name == "Active"
         assert cf.enum_options[0].enabled is True
+
+
+# =============================================================================
+# Thread Safety Tests (merged from test_tier1_adversarial.py)
+# =============================================================================
+
+
+class TestAsanaClientThreadSafety:
+    """Test thread safety of lazy initialization."""
+
+    def test_concurrent_access_same_client(self) -> None:
+        """Concurrent access from multiple threads returns same client."""
+        import threading
+
+        from unittest.mock import MagicMock, patch
+
+        with patch("autom8_asana.client.AsanaHttpClient") as mock_http_class:
+            mock_http_class.return_value = MagicMock()
+            from autom8_asana.client import AsanaClient
+            from autom8_asana.clients.projects import ProjectsClient
+
+            client = AsanaClient(token="test-token")
+
+            results: list[ProjectsClient] = []
+            errors: list[Exception] = []
+
+            def access_projects() -> None:
+                try:
+                    results.append(client.projects)
+                except Exception as e:
+                    errors.append(e)
+
+            # Create multiple threads
+            threads = [threading.Thread(target=access_projects) for _ in range(10)]
+
+            # Start all threads
+            for t in threads:
+                t.start()
+
+            # Wait for all threads to complete
+            for t in threads:
+                t.join(timeout=10)
+                if t.is_alive():
+                    raise AssertionError(
+                        f"Thread {t.name} did not complete within timeout"
+                    )
+
+            # No errors should have occurred
+            assert len(errors) == 0
+
+            # All results should be the same instance
+            assert len(results) == 10
+            first = results[0]
+            assert all(r is first for r in results)
