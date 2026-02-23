@@ -9,13 +9,15 @@ Verifies model behavior per ADR-0005 and TDD-0002:
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from pydantic import ValidationError
 
-from autom8_asana.models import AsanaResource, NameGid, Task
+from autom8_asana.models import AsanaResource, NameGid, PageIterator, Task
 
 # ---------------------------------------------------------------------------
 # Test Fixtures - Realistic Asana API responses
@@ -924,3 +926,540 @@ class TestDirectConstruction:
         assert from_validate.gid == from_constructor.gid
         assert from_validate.name == from_constructor.name
         assert from_validate.completed == from_constructor.completed
+
+
+# ---------------------------------------------------------------------------
+# NameGid Validation Edge Cases (merged from test_phase2a_adversarial.py)
+# ---------------------------------------------------------------------------
+
+
+class TestNameGidValidationEdgeCases:
+    """Adversarial validation edge cases for NameGid."""
+
+    def test_empty_gid_string(self) -> None:
+        """Empty string gid is accepted (documents gap: may never be valid from API)."""
+        ref = NameGid(gid="")
+        assert ref.gid == ""
+
+    def test_whitespace_only_gid_stripped(self) -> None:
+        """Whitespace-only gid becomes empty after strip (str_strip_whitespace=True)."""
+        ref = NameGid(gid="   ")
+        assert ref.gid == ""
+
+    def test_gid_with_leading_trailing_whitespace(self) -> None:
+        """Whitespace around valid gid is stripped."""
+        ref = NameGid(gid="  12345  ")
+        assert ref.gid == "12345"
+
+    def test_gid_type_coercion_integer_fails(self) -> None:
+        """Integer gid should fail validation (Pydantic v2 strict string)."""
+        with pytest.raises(ValidationError) as exc_info:
+            NameGid(gid=12345)  # type: ignore[arg-type]
+
+        errors = exc_info.value.errors()
+        assert any(e["type"] == "string_type" for e in errors)
+
+    def test_gid_type_coercion_float_fails(self) -> None:
+        """Float gid should fail validation."""
+        with pytest.raises(ValidationError) as exc_info:
+            NameGid(gid=123.45)  # type: ignore[arg-type]
+
+        errors = exc_info.value.errors()
+        assert any(e["type"] == "string_type" for e in errors)
+
+    def test_name_whitespace_only_stripped(self) -> None:
+        """Name with only whitespace is stripped to empty string."""
+        ref = NameGid(gid="123", name="   ")
+        assert ref.name == ""
+
+    def test_name_with_newlines(self) -> None:
+        """Name with newlines is preserved."""
+        ref = NameGid(gid="123", name="Line1\nLine2\nLine3")
+        assert "\n" in (ref.name or "")
+
+    def test_name_with_tabs(self) -> None:
+        """Name with tabs is preserved."""
+        ref = NameGid(gid="123", name="Col1\tCol2")
+        assert "\t" in (ref.name or "")
+
+
+# ---------------------------------------------------------------------------
+# NameGid Hashing and Equality (merged from test_phase2a_adversarial.py)
+# ---------------------------------------------------------------------------
+
+
+class TestNameGidHashingEquality:
+    """Edge cases for NameGid hashing and equality (equality is gid-based)."""
+
+    def test_hash_consistency_for_equal_objects(self) -> None:
+        """Equal objects must have equal hashes."""
+        ref1 = NameGid(gid="123", name="Alice")
+        ref2 = NameGid(gid="123", name="Bob")  # Same gid, different name
+
+        assert ref1 == ref2
+        assert hash(ref1) == hash(ref2)
+
+    def test_hash_stability(self) -> None:
+        """Hash of same object is stable across multiple calls."""
+        ref = NameGid(gid="123", name="Test")
+        h1 = hash(ref)
+        h2 = hash(ref)
+        h3 = hash(ref)
+
+        assert h1 == h2 == h3
+
+    def test_set_membership_with_different_names(self) -> None:
+        """Set membership is based on gid, not name."""
+        s = {NameGid(gid="123", name="Alice")}
+
+        # Same gid, different name - should be "in" the set
+        assert NameGid(gid="123", name="Bob") in s
+        # Different gid - should not be in the set
+        assert NameGid(gid="456", name="Alice") not in s
+
+    def test_dict_key_lookup(self) -> None:
+        """Dict key lookup is based on gid."""
+        d = {NameGid(gid="123", name="Key1"): "value1"}
+
+        # Same gid, different name should find the value
+        assert d[NameGid(gid="123", name="Different")] == "value1"
+
+    def test_equality_with_non_namegid_returns_false(self) -> None:
+        """Equality with non-NameGid types returns False."""
+        ref = NameGid(gid="123")
+
+        assert not (ref == "123")
+        assert not (ref == {"gid": "123"})
+        assert not (ref == 123)
+        assert not (ref == None)
+
+    def test_inequality_operator(self) -> None:
+        """!= operator works correctly."""
+        ref1 = NameGid(gid="123")
+        ref2 = NameGid(gid="456")
+        ref3 = NameGid(gid="123")
+
+        assert ref1 != ref2
+        assert not (ref1 != ref3)
+
+
+# ---------------------------------------------------------------------------
+# PageIterator Exception Handling (merged from test_phase2a_adversarial.py)
+# ---------------------------------------------------------------------------
+
+
+class TestPageIteratorExceptionHandling:
+    """Exception propagation tests for PageIterator."""
+
+    async def test_fetch_raises_on_first_page(self) -> None:
+        """fetch_page raises exception on first call propagates out."""
+
+        async def fetch_page(offset: str | None) -> tuple[list[str], str | None]:
+            raise ValueError("Network error")
+
+        iterator = PageIterator(fetch_page)
+
+        with pytest.raises(ValueError, match="Network error"):
+            await iterator.collect()
+
+    async def test_fetch_raises_on_second_page(self) -> None:
+        """Exception on second page propagates after first page succeeds."""
+        call_count = [0]
+
+        async def fetch_page(offset: str | None) -> tuple[list[int], str | None]:
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return [1, 2], "offset1"
+            raise ConnectionError("Connection lost")
+
+        iterator = PageIterator(fetch_page)
+
+        with pytest.raises(ConnectionError, match="Connection lost"):
+            await iterator.collect()
+
+        assert call_count[0] == 2
+
+    async def test_fetch_raises_during_async_for_iteration(self) -> None:
+        """Exception during async for loop propagates and yields first page items."""
+        call_count = [0]
+
+        async def fetch_page(offset: str | None) -> tuple[list[int], str | None]:
+            call_count[0] += 1
+            if call_count[0] == 2:
+                raise RuntimeError("Mid-iteration failure")
+            return [1, 2, 3], "next"
+
+        iterator = PageIterator(fetch_page)
+        items = []
+
+        with pytest.raises(RuntimeError, match="Mid-iteration failure"):
+            async for item in iterator:
+                items.append(item)
+
+        assert items == [1, 2, 3]
+
+
+# ---------------------------------------------------------------------------
+# PageIterator State Management (merged from test_phase2a_adversarial.py)
+# ---------------------------------------------------------------------------
+
+
+class TestPageIteratorStateManagement:
+    """State management after exhaustion and partial iteration."""
+
+    async def test_collect_multiple_times_exhausts_iterator(self) -> None:
+        """Second collect() returns empty because iterator is exhausted.
+
+        FINDING: This is expected behavior but worth documenting.
+        """
+
+        async def fetch_page(offset: str | None) -> tuple[list[int], str | None]:
+            return [1, 2, 3], None
+
+        iterator = PageIterator(fetch_page)
+
+        result1 = await iterator.collect()
+        assert result1 == [1, 2, 3]
+
+        result2 = await iterator.collect()
+        assert result2 == []  # Empty because exhausted
+
+    async def test_first_then_collect_returns_remaining(self) -> None:
+        """Calling first() then collect() returns only remaining items."""
+
+        async def fetch_page(offset: str | None) -> tuple[list[int], str | None]:
+            return [1, 2, 3], None
+
+        iterator = PageIterator(fetch_page)
+
+        first = await iterator.first()
+        assert first == 1
+
+        remaining = await iterator.collect()
+        assert remaining == [2, 3]
+
+    async def test_iteration_after_exhaustion(self) -> None:
+        """Iterating after exhaustion yields nothing."""
+
+        async def fetch_page(offset: str | None) -> tuple[list[int], str | None]:
+            return [1], None
+
+        iterator = PageIterator(fetch_page)
+
+        await iterator.collect()
+
+        items = []
+        async for item in iterator:
+            items.append(item)
+
+        assert items == []
+
+
+# ---------------------------------------------------------------------------
+# PageIterator Memory Efficiency (merged from test_phase2a_adversarial.py)
+# ---------------------------------------------------------------------------
+
+
+class TestPageIteratorMemoryEfficiency:
+    """Memory efficiency tests for PageIterator."""
+
+    async def test_large_result_set_streaming(self) -> None:
+        """take(50) fetches only 1 page even with 10 pages available."""
+        pages_fetched = []
+
+        async def fetch_page(offset: str | None) -> tuple[list[int], str | None]:
+            page_num = len(pages_fetched)
+            pages_fetched.append(page_num)
+
+            if page_num < 10:
+                return list(
+                    range(page_num * 100, (page_num + 1) * 100)
+                ), f"page{page_num + 1}"
+            return [], None
+
+        iterator = PageIterator(fetch_page)
+
+        items = await iterator.take(50)
+
+        assert len(items) == 50
+        # Should only have fetched 1 page (first page has 100 items)
+        assert len(pages_fetched) == 1
+
+    async def test_buffer_cleared_after_consumption(self) -> None:
+        """Buffer is empty after all items are consumed."""
+
+        async def fetch_page(offset: str | None) -> tuple[list[int], str | None]:
+            return list(range(100)), None
+
+        iterator = PageIterator(fetch_page)
+
+        count = 0
+        async for _ in iterator:
+            count += 1
+            if count == 100:
+                assert iterator._buffer == []
+
+        assert count == 100
+
+
+# ---------------------------------------------------------------------------
+# TasksClient.list_async() Filter Parameter Tests
+# (merged from test_phase2a_adversarial.py)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def mock_http_for_tasks() -> AsyncMock:
+    """Create mock HTTP client for tasks tests."""
+    mock = AsyncMock()
+    mock.get_paginated = AsyncMock(return_value=([], None))
+    return mock
+
+
+@pytest.fixture
+def tasks_client_local(mock_http_for_tasks: AsyncMock) -> Any:
+    """Create TasksClient with mocked HTTP."""
+    from autom8_asana.clients.tasks import TasksClient
+    from autom8_asana.config import AsanaConfig
+
+    class MockAuthProvider:
+        def get_secret(self, key: str) -> str:
+            return "token"
+
+    return TasksClient(
+        http=mock_http_for_tasks,
+        config=AsanaConfig(),
+        auth_provider=MockAuthProvider(),
+    )
+
+
+class TestListAsyncFilterParameters:
+    """Tests for TasksClient.list_async() filter parameters."""
+
+    async def test_project_filter(
+        self, tasks_client_local: Any, mock_http_for_tasks: AsyncMock
+    ) -> None:
+        """Project filter is passed correctly."""
+        iterator = tasks_client_local.list_async(project="proj123")
+        await iterator.collect()
+
+        params = mock_http_for_tasks.get_paginated.call_args[1]["params"]
+        assert params.get("project") == "proj123"
+
+    async def test_assignee_filter(
+        self, tasks_client_local: Any, mock_http_for_tasks: AsyncMock
+    ) -> None:
+        """Assignee and workspace filters are passed correctly."""
+        iterator = tasks_client_local.list_async(assignee="me", workspace="ws123")
+        await iterator.collect()
+
+        params = mock_http_for_tasks.get_paginated.call_args[1]["params"]
+        assert params.get("assignee") == "me"
+        assert params.get("workspace") == "ws123"
+
+    async def test_opt_fields_joined(
+        self, tasks_client_local: Any, mock_http_for_tasks: AsyncMock
+    ) -> None:
+        """opt_fields list is joined with commas."""
+        iterator = tasks_client_local.list_async(
+            project="proj1",
+            opt_fields=["name", "completed", "due_on"],
+        )
+        await iterator.collect()
+
+        params = mock_http_for_tasks.get_paginated.call_args[1]["params"]
+        opt_fields = set(params.get("opt_fields", "").split(","))
+        assert {"name", "completed", "due_on"}.issubset(opt_fields)
+
+    async def test_limit_capped_at_100(
+        self, tasks_client_local: Any, mock_http_for_tasks: AsyncMock
+    ) -> None:
+        """Limit is capped at 100 (Asana max)."""
+        iterator = tasks_client_local.list_async(project="proj1", limit=200)
+        await iterator.collect()
+
+        params = mock_http_for_tasks.get_paginated.call_args[1]["params"]
+        assert params.get("limit") == 100
+
+    async def test_empty_project_filter_not_included(
+        self, tasks_client_local: Any, mock_http_for_tasks: AsyncMock
+    ) -> None:
+        """Empty string project filter is not included in params."""
+        iterator = tasks_client_local.list_async(project="", workspace="ws123")
+        await iterator.collect()
+
+        params = mock_http_for_tasks.get_paginated.call_args[1]["params"]
+        assert "project" not in params
+
+    async def test_all_filters_combined(
+        self, tasks_client_local: Any, mock_http_for_tasks: AsyncMock
+    ) -> None:
+        """All filters can be combined in a single call."""
+        iterator = tasks_client_local.list_async(
+            project="proj1",
+            section="sec1",
+            assignee="user1",
+            workspace="ws1",
+            completed_since="2024-01-01T00:00:00Z",
+            modified_since="2024-06-01T00:00:00Z",
+            opt_fields=["name"],
+            limit=50,
+        )
+        await iterator.collect()
+
+        params = mock_http_for_tasks.get_paginated.call_args[1]["params"]
+        assert params["project"] == "proj1"
+        assert params["section"] == "sec1"
+        assert params["assignee"] == "user1"
+        assert params["workspace"] == "ws1"
+        assert params["completed_since"] == "2024-01-01T00:00:00Z"
+        assert params["modified_since"] == "2024-06-01T00:00:00Z"
+        assert "name" in params["opt_fields"]
+        assert params["limit"] == 50
+
+
+class TestListAsyncPagination:
+    """Tests for pagination behavior of TasksClient.list_async()."""
+
+    async def test_pagination_offset_passed(
+        self, tasks_client_local: Any, mock_http_for_tasks: AsyncMock
+    ) -> None:
+        """Pagination offset is passed correctly on subsequent pages."""
+        mock_http_for_tasks.get_paginated.side_effect = [
+            ([{"gid": "1", "name": "Task 1"}], "offset_abc"),
+            ([{"gid": "2", "name": "Task 2"}], None),
+        ]
+
+        iterator = tasks_client_local.list_async(project="proj1")
+        tasks = await iterator.collect()
+
+        assert len(tasks) == 2
+        assert mock_http_for_tasks.get_paginated.call_count == 2
+
+        second_call_params = mock_http_for_tasks.get_paginated.call_args_list[1][1][
+            "params"
+        ]
+        assert second_call_params.get("offset") == "offset_abc"
+
+    async def test_empty_page_stops_iteration(
+        self, tasks_client_local: Any, mock_http_for_tasks: AsyncMock
+    ) -> None:
+        """Empty page with no offset stops iteration."""
+        mock_http_for_tasks.get_paginated.return_value = ([], None)
+
+        iterator = tasks_client_local.list_async(project="proj1")
+        tasks = await iterator.collect()
+
+        assert tasks == []
+        assert mock_http_for_tasks.get_paginated.call_count == 1
+
+
+class TestListAsyncErrorHandling:
+    """Error handling tests for TasksClient.list_async()."""
+
+    async def test_network_error_during_pagination(
+        self, tasks_client_local: Any, mock_http_for_tasks: AsyncMock
+    ) -> None:
+        """Network error mid-pagination is propagated."""
+        from autom8_asana.exceptions import AsanaError
+
+        mock_http_for_tasks.get_paginated.side_effect = [
+            ([{"gid": "1"}], "offset1"),
+            AsanaError("Network error"),
+        ]
+
+        iterator = tasks_client_local.list_async(project="proj1")
+
+        with pytest.raises(AsanaError, match="Network error"):
+            await iterator.collect()
+
+    async def test_invalid_task_data_fails_validation(
+        self, tasks_client_local: Any, mock_http_for_tasks: AsyncMock
+    ) -> None:
+        """Invalid task data (missing gid) fails Pydantic validation."""
+        mock_http_for_tasks.get_paginated.return_value = (
+            [{"name": "No GID Task"}],
+            None,
+        )
+
+        iterator = tasks_client_local.list_async(project="proj1")
+
+        with pytest.raises(ValidationError):
+            await iterator.collect()
+
+
+# ---------------------------------------------------------------------------
+# End-to-End Scenarios (merged from test_phase2a_adversarial.py)
+# ---------------------------------------------------------------------------
+
+
+class TestEndToEndScenarios:
+    """End-to-end scenarios combining models and pagination."""
+
+    async def test_iterate_tasks_access_namegid_fields(self) -> None:
+        """Iterate tasks from PageIterator and access NameGid fields."""
+        task_data = [
+            {
+                "gid": "task1",
+                "name": "Task 1",
+                "assignee": {"gid": "user1", "name": "Alice"},
+                "projects": [{"gid": "proj1", "name": "Project A"}],
+            },
+            {
+                "gid": "task2",
+                "name": "Task 2",
+                "assignee": {"gid": "user2", "name": "Bob"},
+                "projects": [],
+            },
+        ]
+
+        async def fetch_page(offset: str | None) -> tuple[list[Task], str | None]:
+            if offset is None:
+                return [Task.model_validate(t) for t in task_data], None
+            return [], None
+
+        iterator = PageIterator(fetch_page)
+
+        tasks = await iterator.collect()
+        assert len(tasks) == 2
+
+        assert tasks[0].assignee is not None
+        assert tasks[0].assignee.name == "Alice"
+        assert tasks[0].projects is not None
+        assert len(tasks[0].projects) == 1
+
+        assert tasks[1].assignee is not None
+        assert tasks[1].assignee.name == "Bob"
+        assert tasks[1].projects == []
+
+    async def test_large_result_set_with_namegid(self) -> None:
+        """Large result set (5 pages x 100 tasks) with NameGid fields."""
+        page_count = [0]
+
+        def make_task(i: int) -> dict[str, Any]:
+            return {
+                "gid": f"task{i}",
+                "name": f"Task {i}",
+                "assignee": {"gid": f"user{i % 10}", "name": f"User {i % 10}"},
+            }
+
+        async def fetch_page(offset: str | None) -> tuple[list[Task], str | None]:
+            page_count[0] += 1
+            if page_count[0] <= 5:
+                tasks = [
+                    Task.model_validate(make_task(i + (page_count[0] - 1) * 100))
+                    for i in range(100)
+                ]
+                return tasks, f"offset{page_count[0]}"
+            return [], None
+
+        iterator = PageIterator(fetch_page)
+
+        # Take first 250 items (should fetch 3 pages)
+        tasks = await iterator.take(250)
+
+        assert len(tasks) == 250
+        assert page_count[0] == 3
+
+        for task in tasks:
+            assert isinstance(task.assignee, NameGid)
