@@ -18,67 +18,24 @@ import pytest
 class TestMaskPhoneNumber:
     """Tests for mask_phone_number PII redaction helper (Story 1.9)."""
 
-    def test_masks_standard_us_phone(self) -> None:
-        """Standard US phone number is masked correctly."""
+    @pytest.mark.parametrize(
+        "phone,expected",
+        [
+            pytest.param("+17705753103", "+1770***3103", id="standard-us-phone"),
+            pytest.param("+14155551234", "+1415***1234", id="us-phone-masking"),
+            pytest.param("+123456", "+123456", id="short-phone-unchanged"),
+            pytest.param("", "", id="empty-string-unchanged"),
+            pytest.param("7705753103", "7705753103", id="non-e164-unchanged"),
+            pytest.param("+447911123456", "+4479***3456", id="international-phone"),
+        ],
+    )
+    def test_mask_phone_number(self, phone: str, expected: str) -> None:
+        """mask_phone_number masks E.164 phones and returns others unchanged."""
         from autom8_asana.clients.data.client import mask_phone_number
 
-        result = mask_phone_number("+17705753103")
+        result = mask_phone_number(phone)
 
-        assert result == "+1770***3103"
-
-    def test_masks_phone_keep_first_five_last_four(self) -> None:
-        """Keeps first 5 chars and last 4 chars, masks middle."""
-        from autom8_asana.clients.data.client import mask_phone_number
-
-        result = mask_phone_number("+14155551234")
-
-        assert result == "+1415***1234"
-        assert result.startswith("+1415")
-        assert result.endswith("1234")
-
-    def test_returns_short_phone_unchanged(self) -> None:
-        """Short phone numbers (< 9 chars) are returned unchanged."""
-        from autom8_asana.clients.data.client import mask_phone_number
-
-        # Too short to mask meaningfully
-        result = mask_phone_number("+123456")
-
-        assert result == "+123456"
-
-    def test_returns_empty_string_unchanged(self) -> None:
-        """Empty string is returned unchanged."""
-        from autom8_asana.clients.data.client import mask_phone_number
-
-        result = mask_phone_number("")
-
-        assert result == ""
-
-    def test_returns_none_phone_unchanged(self) -> None:
-        """None-like empty value is handled."""
-        from autom8_asana.clients.data.client import mask_phone_number
-
-        # Empty string edge case
-        result = mask_phone_number("")
-
-        assert result == ""
-
-    def test_returns_non_e164_unchanged(self) -> None:
-        """Non-E.164 format strings without + prefix are returned unchanged."""
-        from autom8_asana.clients.data.client import mask_phone_number
-
-        result = mask_phone_number("7705753103")
-
-        # No + prefix, returned as-is
-        assert result == "7705753103"
-
-    def test_masks_international_phone(self) -> None:
-        """International phone numbers are masked correctly."""
-        from autom8_asana.clients.data.client import mask_phone_number
-
-        # UK number
-        result = mask_phone_number("+447911123456")
-
-        assert result == "+4479***3456"
+        assert result == expected
 
 
 class TestMaskCanonicalKey:

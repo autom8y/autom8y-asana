@@ -78,8 +78,19 @@ class TestAdminRefreshAdversarialInputs:
         body = response.json()
         assert body["detail"]["error"] == "INVALID_ENTITY_TYPE"
 
-    def test_sql_injection_entity_type_rejected(self, client: TestClient) -> None:
-        """SQL injection in entity_type should be rejected."""
+    @pytest.mark.parametrize(
+        "entity_type",
+        [
+            pytest.param("' OR '1'='1", id="sql-injection"),
+            pytest.param("../../../etc/passwd", id="path-traversal"),
+            pytest.param("a" * 10000, id="extremely-long"),
+            pytest.param("offer\x00malicious", id="null-byte"),
+        ],
+    )
+    def test_adversarial_entity_type_rejected(
+        self, client: TestClient, entity_type: str
+    ) -> None:
+        """Adversarial entity_type values should be rejected with 400."""
         with (
             patch(
                 "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
@@ -95,73 +106,7 @@ class TestAdminRefreshAdversarialInputs:
 
             response = client.post(
                 "/v1/admin/cache/refresh",
-                json={"entity_type": "' OR '1'='1"},
-            )
-
-        assert response.status_code == 400
-
-    def test_path_traversal_entity_type_rejected(self, client: TestClient) -> None:
-        """Path traversal in entity_type should be rejected."""
-        with (
-            patch(
-                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
-                return_value=MagicMock(),
-            ),
-            patch(
-                "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
-            ) as mock_registry_cls,
-        ):
-            mock_registry = MagicMock()
-            mock_registry.is_ready.return_value = True
-            mock_registry_cls.return_value = mock_registry
-
-            response = client.post(
-                "/v1/admin/cache/refresh",
-                json={"entity_type": "../../../etc/passwd"},
-            )
-
-        assert response.status_code == 400
-
-    def test_extremely_long_entity_type_rejected(self, client: TestClient) -> None:
-        """Extremely long entity_type should be rejected (not in valid set)."""
-        with (
-            patch(
-                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
-                return_value=MagicMock(),
-            ),
-            patch(
-                "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
-            ) as mock_registry_cls,
-        ):
-            mock_registry = MagicMock()
-            mock_registry.is_ready.return_value = True
-            mock_registry_cls.return_value = mock_registry
-
-            response = client.post(
-                "/v1/admin/cache/refresh",
-                json={"entity_type": "a" * 10000},
-            )
-
-        assert response.status_code == 400
-
-    def test_null_byte_entity_type_rejected(self, client: TestClient) -> None:
-        """Null byte in entity_type should be rejected."""
-        with (
-            patch(
-                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
-                return_value=MagicMock(),
-            ),
-            patch(
-                "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
-            ) as mock_registry_cls,
-        ):
-            mock_registry = MagicMock()
-            mock_registry.is_ready.return_value = True
-            mock_registry_cls.return_value = mock_registry
-
-            response = client.post(
-                "/v1/admin/cache/refresh",
-                json={"entity_type": "offer\x00malicious"},
+                json={"entity_type": entity_type},
             )
 
         assert response.status_code == 400

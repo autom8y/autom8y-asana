@@ -28,7 +28,15 @@ class TestFeatureFlagDisabled:
     """
 
     @pytest.mark.asyncio
-    async def test_disabled_when_env_var_false(self) -> None:
+    @pytest.mark.parametrize(
+        "scenario",
+        [
+            pytest.param("false", id="env-var-false"),
+            pytest.param("0", id="env-var-zero"),
+            pytest.param("no", id="env-var-no"),
+        ],
+    )
+    async def test_disabled_when_env_var_opt_out(self, scenario: str) -> None:
         """get_insights_async raises InsightsServiceError when insights_enabled=False."""
         from autom8_asana.exceptions import InsightsServiceError
 
@@ -48,48 +56,6 @@ class TestFeatureFlagDisabled:
 
         assert exc.value.reason == "feature_disabled"
         assert "Insights integration is disabled" in str(exc.value)
-
-    @pytest.mark.asyncio
-    async def test_disabled_when_env_var_zero(self) -> None:
-        """get_insights_async raises InsightsServiceError when insights_enabled=False."""
-        from autom8_asana.exceptions import InsightsServiceError
-
-        client = DataServiceClient()
-
-        with patch(
-            "autom8_asana.settings.get_settings",
-            return_value=_make_disabled_settings_mock(),
-        ):
-            async with client:
-                with pytest.raises(InsightsServiceError) as exc:
-                    await client.get_insights_async(
-                        factory="account",
-                        office_phone="+17705753103",
-                        vertical="chiropractic",
-                    )
-
-        assert exc.value.reason == "feature_disabled"
-
-    @pytest.mark.asyncio
-    async def test_disabled_when_env_var_no(self) -> None:
-        """get_insights_async raises InsightsServiceError when insights_enabled=False."""
-        from autom8_asana.exceptions import InsightsServiceError
-
-        client = DataServiceClient()
-
-        with patch(
-            "autom8_asana.settings.get_settings",
-            return_value=_make_disabled_settings_mock(),
-        ):
-            async with client:
-                with pytest.raises(InsightsServiceError) as exc:
-                    await client.get_insights_async(
-                        factory="account",
-                        office_phone="+17705753103",
-                        vertical="chiropractic",
-                    )
-
-        assert exc.value.reason == "feature_disabled"
 
     @pytest.mark.asyncio
     async def test_disabled_with_case_variations(self) -> None:
@@ -215,141 +181,23 @@ class TestFeatureFlagEnabled:
                 assert response is not None
 
     @pytest.mark.asyncio
-    async def test_enabled_with_true_lowercase(self) -> None:
-        """get_insights_async succeeds when env var is 'true'."""
+    @pytest.mark.parametrize(
+        "env_value",
+        [
+            pytest.param("true", id="true-lowercase"),
+            pytest.param("TRUE", id="true-uppercase"),
+            pytest.param("1", id="one"),
+            pytest.param("yes", id="yes-lowercase"),
+            pytest.param("YES", id="yes-uppercase"),
+        ],
+    )
+    async def test_enabled_with_truthy_env_value(self, env_value: str) -> None:
+        """get_insights_async succeeds when env var is a truthy value."""
         import respx
 
         client = DataServiceClient()
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
-            with respx.mock:
-                respx.post("/api/v1/data-service/insights").respond(
-                    json={
-                        "data": [{"spend": 100.0}],
-                        "metadata": {
-                            "factory": "account",
-                            "row_count": 1,
-                            "column_count": 1,
-                            "columns": [{"name": "spend", "dtype": "float64"}],
-                            "cache_hit": False,
-                            "duration_ms": 50.0,
-                        },
-                    }
-                )
-
-                async with client:
-                    response = await client.get_insights_async(
-                        factory="account",
-                        office_phone="+17705753103",
-                        vertical="chiropractic",
-                    )
-
-                assert response.metadata.factory == "account"
-
-    @pytest.mark.asyncio
-    async def test_enabled_with_true_uppercase(self) -> None:
-        """get_insights_async succeeds when env var is 'TRUE' (case-insensitive)."""
-        import respx
-
-        client = DataServiceClient()
-
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "TRUE"}):
-            with respx.mock:
-                respx.post("/api/v1/data-service/insights").respond(
-                    json={
-                        "data": [],
-                        "metadata": {
-                            "factory": "account",
-                            "row_count": 0,
-                            "column_count": 0,
-                            "columns": [],
-                            "cache_hit": False,
-                            "duration_ms": 10.0,
-                        },
-                    }
-                )
-
-                async with client:
-                    response = await client.get_insights_async(
-                        factory="account",
-                        office_phone="+17705753103",
-                        vertical="chiropractic",
-                    )
-
-                assert response is not None
-
-    @pytest.mark.asyncio
-    async def test_enabled_with_one(self) -> None:
-        """get_insights_async succeeds when env var is '1'."""
-        import respx
-
-        client = DataServiceClient()
-
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "1"}):
-            with respx.mock:
-                respx.post("/api/v1/data-service/insights").respond(
-                    json={
-                        "data": [],
-                        "metadata": {
-                            "factory": "account",
-                            "row_count": 0,
-                            "column_count": 0,
-                            "columns": [],
-                            "cache_hit": False,
-                            "duration_ms": 10.0,
-                        },
-                    }
-                )
-
-                async with client:
-                    response = await client.get_insights_async(
-                        factory="account",
-                        office_phone="+17705753103",
-                        vertical="chiropractic",
-                    )
-
-                assert response is not None
-
-    @pytest.mark.asyncio
-    async def test_enabled_with_yes(self) -> None:
-        """get_insights_async succeeds when env var is 'yes'."""
-        import respx
-
-        client = DataServiceClient()
-
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "yes"}):
-            with respx.mock:
-                respx.post("/api/v1/data-service/insights").respond(
-                    json={
-                        "data": [],
-                        "metadata": {
-                            "factory": "account",
-                            "row_count": 0,
-                            "column_count": 0,
-                            "columns": [],
-                            "cache_hit": False,
-                            "duration_ms": 10.0,
-                        },
-                    }
-                )
-
-                async with client:
-                    response = await client.get_insights_async(
-                        factory="account",
-                        office_phone="+17705753103",
-                        vertical="chiropractic",
-                    )
-
-                assert response is not None
-
-    @pytest.mark.asyncio
-    async def test_enabled_with_yes_uppercase(self) -> None:
-        """get_insights_async succeeds when env var is 'YES' (case-insensitive)."""
-        import respx
-
-        client = DataServiceClient()
-
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "YES"}):
+        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": env_value}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     json={

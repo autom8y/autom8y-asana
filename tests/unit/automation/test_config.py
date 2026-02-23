@@ -37,17 +37,17 @@ class TestAutomationConfig:
         assert config.rules_source == "file"
         assert config.pipeline_templates == {"sales": "123", "onboarding": "456"}
 
-    def test_max_cascade_depth_validation_zero(self) -> None:
-        """Test that max_cascade_depth=0 raises ConfigurationError."""
+    @pytest.mark.parametrize(
+        "depth",
+        [
+            pytest.param(0, id="zero"),
+            pytest.param(-1, id="negative"),
+        ],
+    )
+    def test_max_cascade_depth_validation_invalid(self, depth: int) -> None:
+        """Test that max_cascade_depth < 1 raises ConfigurationError."""
         with pytest.raises(ConfigurationError) as exc_info:
-            AutomationConfig(max_cascade_depth=0)
-
-        assert "max_cascade_depth must be at least 1" in str(exc_info.value)
-
-    def test_max_cascade_depth_validation_negative(self) -> None:
-        """Test that negative max_cascade_depth raises ConfigurationError."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            AutomationConfig(max_cascade_depth=-1)
+            AutomationConfig(max_cascade_depth=depth)
 
         assert "max_cascade_depth must be at least 1" in str(exc_info.value)
 
@@ -63,20 +63,18 @@ class TestAutomationConfig:
 
         assert "rules_source must be 'inline', 'file', or 'api'" in str(exc_info.value)
 
-    def test_rules_source_inline_valid(self) -> None:
-        """Test that rules_source='inline' is valid."""
-        config = AutomationConfig(rules_source="inline")
-        assert config.rules_source == "inline"
-
-    def test_rules_source_file_valid(self) -> None:
-        """Test that rules_source='file' is valid."""
-        config = AutomationConfig(rules_source="file")
-        assert config.rules_source == "file"
-
-    def test_rules_source_api_valid(self) -> None:
-        """Test that rules_source='api' is valid."""
-        config = AutomationConfig(rules_source="api")
-        assert config.rules_source == "api"
+    @pytest.mark.parametrize(
+        "source",
+        [
+            pytest.param("inline", id="inline"),
+            pytest.param("file", id="file"),
+            pytest.param("api", id="api"),
+        ],
+    )
+    def test_rules_source_valid_values(self, source: str) -> None:
+        """Test that valid rules_source values are accepted."""
+        config = AutomationConfig(rules_source=source)
+        assert config.rules_source == source
 
     def test_pipeline_templates_mutable(self) -> None:
         """Test that pipeline_templates can be modified."""
