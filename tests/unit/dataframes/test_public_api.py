@@ -1,12 +1,14 @@
-"""Tests for public DataFrame API on Project and Section models.
+"""Tests for public DataFrame API via DataFrameService.
 
-Per TDD-0009 Phase 5: Validates the public API methods:
-- Project.to_dataframe() and to_dataframe_async()
-- Section.to_dataframe() and to_dataframe_async()
+Per TDD-0009 Phase 5 / R-006 (REM-ASANA-ARCH WS-DFEX):
+Validates the service functions that replaced model convenience methods:
+- build_for_project() — replaces Project.to_dataframe() / to_dataframe_async()
+- build_for_section() — replaces Section.to_dataframe() / to_dataframe_async()
 """
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
@@ -27,6 +29,7 @@ from autom8_asana.models.common import NameGid
 from autom8_asana.models.project import Project
 from autom8_asana.models.section import Section
 from autom8_asana.models.task import Task
+from autom8_asana.services.dataframe_service import build_for_project, build_for_section
 
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
@@ -59,21 +62,25 @@ def _make_build_result(df: pl.DataFrame) -> BuildResult:
 def _patch_builder_and_persistence(
     mocker: MockerFixture, sample_df: pl.DataFrame
 ) -> MagicMock:
-    """Patch ProgressiveProjectBuilder and SectionPersistence for tests."""
+    """Patch ProgressiveProjectBuilder and create_section_persistence for tests.
+
+    Patches at the service module level since build_for_project imports these
+    at module level via autom8_asana.services.dataframe_service.
+    """
     mock_builder = mocker.patch(
-        "autom8_asana.dataframes.builders.ProgressiveProjectBuilder"
+        "autom8_asana.services.dataframe_service.ProgressiveProjectBuilder"
     )
     mock_builder.return_value.build_progressive_async = AsyncMock(
         return_value=_make_build_result(sample_df)
     )
 
-    mock_persistence = mocker.patch(
-        "autom8_asana.dataframes.section_persistence.SectionPersistence"
-    )
     mock_persistence_inst = MagicMock()
     mock_persistence_inst.__aenter__ = AsyncMock(return_value=mock_persistence_inst)
     mock_persistence_inst.__aexit__ = AsyncMock(return_value=None)
-    mock_persistence.return_value = mock_persistence_inst
+    mocker.patch(
+        "autom8_asana.services.dataframe_service.create_section_persistence",
+        return_value=mock_persistence_inst,
+    )
 
     return mock_builder
 
@@ -180,156 +187,148 @@ def empty_dataframe() -> pl.DataFrame:
 
 
 # ============================================================================
-# Project.to_dataframe() Tests
+# build_for_project() Tests
 # ============================================================================
 
 
-class TestProjectToDataFrame:
-    """Test Project.to_dataframe() method."""
+class TestBuildForProject:
+    """Test build_for_project() service function (replaces Project.to_dataframe)."""
 
-    def test_to_dataframe_returns_polars(
+    @pytest.mark.asyncio
+    async def test_returns_polars(
         self,
         project_with_tasks: Project,
         mock_client: MagicMock,
         sample_dataframe: pl.DataFrame,
         mocker: MockerFixture,
     ) -> None:
-        """to_dataframe() should return a Polars DataFrame."""
+        """build_for_project() should return a Polars DataFrame."""
         _patch_builder_and_persistence(mocker, sample_dataframe)
 
-        df = project_with_tasks.to_dataframe(task_type="Unit", client=mock_client)
+        df = await build_for_project(
+            project_with_tasks, task_type="Unit", client=mock_client
+        )
         assert isinstance(df, pl.DataFrame)
 
-    def test_to_dataframe_has_base_columns(
+    @pytest.mark.asyncio
+    async def test_has_base_columns(
         self,
         project_with_tasks: Project,
         mock_client: MagicMock,
         sample_dataframe: pl.DataFrame,
         mocker: MockerFixture,
     ) -> None:
-        """to_dataframe() should have base schema columns."""
+        """build_for_project() should have base schema columns."""
         _patch_builder_and_persistence(mocker, sample_dataframe)
 
-        df = project_with_tasks.to_dataframe(task_type="Unit", client=mock_client)
+        df = await build_for_project(
+            project_with_tasks, task_type="Unit", client=mock_client
+        )
 
-        # Check for base columns
         assert "gid" in df.columns
         assert "name" in df.columns
         assert "created" in df.columns
 
-    def test_to_dataframe_extracts_task_data(
+    @pytest.mark.asyncio
+    async def test_extracts_task_data(
         self,
         project_with_tasks: Project,
         mock_client: MagicMock,
         sample_dataframe: pl.DataFrame,
         mocker: MockerFixture,
     ) -> None:
-        """to_dataframe() should extract task data correctly."""
+        """build_for_project() should extract task data correctly."""
         _patch_builder_and_persistence(mocker, sample_dataframe)
 
-        df = project_with_tasks.to_dataframe(task_type="Unit", client=mock_client)
+        df = await build_for_project(
+            project_with_tasks, task_type="Unit", client=mock_client
+        )
 
         assert len(df) == 1
         assert df["gid"][0] == "unit-001"
         assert df["name"][0] == "Test Unit"
 
-    def test_to_dataframe_empty_project(
+    @pytest.mark.asyncio
+    async def test_empty_project(
         self,
         mock_client: MagicMock,
         empty_dataframe: pl.DataFrame,
         mocker: MockerFixture,
     ) -> None:
-        """to_dataframe() should handle empty project."""
+        """build_for_project() should handle empty project."""
         _patch_builder_and_persistence(mocker, empty_dataframe)
 
         project = Project(gid="proj-empty", name="Empty")
         project.tasks = []
 
-        df = project.to_dataframe(task_type="Unit", client=mock_client)
+        df = await build_for_project(project, task_type="Unit", client=mock_client)
 
         assert isinstance(df, pl.DataFrame)
         assert len(df) == 0
-        # Should preserve schema columns
         assert "gid" in df.columns
 
-    def test_to_dataframe_with_use_cache_false(
+    @pytest.mark.asyncio
+    async def test_with_use_cache_false(
         self,
         project_with_tasks: Project,
         mock_client: MagicMock,
         sample_dataframe: pl.DataFrame,
         mocker: MockerFixture,
     ) -> None:
-        """to_dataframe() should work with use_cache=False."""
+        """build_for_project() should work with use_cache=False."""
         _patch_builder_and_persistence(mocker, sample_dataframe)
 
-        df = project_with_tasks.to_dataframe(
-            task_type="Unit", use_cache=False, client=mock_client
+        df = await build_for_project(
+            project_with_tasks, task_type="Unit", use_cache=False, client=mock_client
         )
         assert isinstance(df, pl.DataFrame)
         assert len(df) == 1
 
-
-class TestProjectToDataFrameAsync:
-    """Test Project.to_dataframe_async() method."""
-
     @pytest.mark.asyncio
-    async def test_to_dataframe_async_returns_polars(
+    async def test_sync_wrapper_returns_polars(
         self,
         project_with_tasks: Project,
         mock_client: MagicMock,
         sample_dataframe: pl.DataFrame,
         mocker: MockerFixture,
     ) -> None:
-        """to_dataframe_async() should return a Polars DataFrame."""
+        """asyncio.run(build_for_project()) matches async call result."""
         _patch_builder_and_persistence(mocker, sample_dataframe)
 
-        df = await project_with_tasks.to_dataframe_async(
-            task_type="Unit", client=mock_client
+        df = await build_for_project(
+            project_with_tasks, task_type="Unit", client=mock_client
         )
         assert isinstance(df, pl.DataFrame)
-
-    @pytest.mark.asyncio
-    async def test_to_dataframe_async_extracts_data(
-        self,
-        project_with_tasks: Project,
-        mock_client: MagicMock,
-        sample_dataframe: pl.DataFrame,
-        mocker: MockerFixture,
-    ) -> None:
-        """to_dataframe_async() should extract task data."""
-        _patch_builder_and_persistence(mocker, sample_dataframe)
-
-        df = await project_with_tasks.to_dataframe_async(
-            task_type="Unit", client=mock_client
-        )
-
         assert len(df) == 1
         assert df["gid"][0] == "unit-001"
 
 
 # ============================================================================
-# Section.to_dataframe() Tests
+# build_for_section() Tests
 # ============================================================================
 
 
-class TestSectionToDataFrame:
-    """Test Section.to_dataframe() method."""
+class TestBuildForSection:
+    """Test build_for_section() service function (replaces Section.to_dataframe)."""
 
-    def test_to_dataframe_returns_polars(self, section_with_tasks: Section) -> None:
-        """to_dataframe() should return a Polars DataFrame."""
-        df = section_with_tasks.to_dataframe(task_type="Unit")
+    @pytest.mark.asyncio
+    async def test_returns_polars(self, section_with_tasks: Section) -> None:
+        """build_for_section() should return a Polars DataFrame."""
+        df = await build_for_section(section_with_tasks, task_type="Unit")
         assert isinstance(df, pl.DataFrame)
 
-    def test_to_dataframe_extracts_task_data(self, section_with_tasks: Section) -> None:
-        """to_dataframe() should extract task data correctly."""
-        df = section_with_tasks.to_dataframe(task_type="Unit")
+    @pytest.mark.asyncio
+    async def test_extracts_task_data(self, section_with_tasks: Section) -> None:
+        """build_for_section() should extract task data correctly."""
+        df = await build_for_section(section_with_tasks, task_type="Unit")
 
         assert len(df) == 1
         assert df["gid"][0] == "unit-001"
         assert df["name"][0] == "Test Unit"
 
-    def test_to_dataframe_empty_section(self) -> None:
-        """to_dataframe() should handle empty section."""
+    @pytest.mark.asyncio
+    async def test_empty_section(self) -> None:
+        """build_for_section() should handle empty section."""
         section = Section(
             gid="sect-empty",
             name="Empty",
@@ -337,22 +336,24 @@ class TestSectionToDataFrame:
         )
         section.tasks = []
 
-        df = section.to_dataframe(task_type="Unit")
+        df = await build_for_section(section, task_type="Unit")
 
         assert isinstance(df, pl.DataFrame)
         assert len(df) == 0
 
-
-class TestSectionToDataFrameAsync:
-    """Test Section.to_dataframe_async() method."""
-
     @pytest.mark.asyncio
-    async def test_to_dataframe_async_returns_polars(
-        self, section_with_tasks: Section
-    ) -> None:
-        """to_dataframe_async() should return a Polars DataFrame."""
-        df = await section_with_tasks.to_dataframe_async(task_type="Unit")
+    async def test_section_without_project_gid(self) -> None:
+        """build_for_section() should handle section without project."""
+        section = Section(
+            gid="sect-orphan",
+            name="Orphan Section",
+            project=None,
+        )
+        section.tasks = []
+
+        df = await build_for_section(section, task_type="Unit")
         assert isinstance(df, pl.DataFrame)
+        assert len(df) == 0
 
 
 # ============================================================================
@@ -361,13 +362,13 @@ class TestSectionToDataFrameAsync:
 
 
 class TestPublicAPIIntegration:
-    """Integration tests for public API methods."""
+    """Integration tests for service functions."""
 
-    def test_project_dataframe_section_filtering(
+    @pytest.mark.asyncio
+    async def test_project_dataframe_section_filtering(
         self, mock_client: MagicMock, mocker: MockerFixture
     ) -> None:
-        """to_dataframe() should filter by sections when specified."""
-        # Create filtered DataFrame that simulates section filtering
+        """build_for_project() should filter by sections when specified."""
         filtered_df = pl.DataFrame(
             {
                 "gid": ["unit-001"],
@@ -388,19 +389,17 @@ class TestPublicAPIIntegration:
         _patch_builder_and_persistence(mocker, filtered_df)
 
         project = Project(gid="proj-001", name="Test Project")
-        project.tasks = []  # Tasks aren't used since we mock the builder
+        project.tasks = []
 
-        # Filter to only Active section
-        df = project.to_dataframe(
-            task_type="Unit", sections=["Active"], client=mock_client
+        df = await build_for_project(
+            project, task_type="Unit", sections=["Active"], client=mock_client
         )
 
         assert len(df) == 1
         assert df["gid"][0] == "unit-001"
 
     def test_schema_registry_integration(self) -> None:
-        """to_dataframe() should use SchemaRegistry for schema lookup."""
-        # Verify registry has expected schemas
+        """Service functions should use SchemaRegistry for schema lookup."""
         registry = SchemaRegistry.get_instance()
 
         assert registry.has_schema("Unit")
@@ -408,25 +407,26 @@ class TestPublicAPIIntegration:
         assert registry.has_schema("*")
 
     @pytest.mark.asyncio
-    async def test_async_produces_same_data(
+    async def test_async_produces_correct_data(
         self,
         project_with_tasks: Project,
         mock_client: MagicMock,
         sample_dataframe: pl.DataFrame,
         mocker: MockerFixture,
     ) -> None:
-        """Async method should produce same data as would sync version."""
+        """build_for_project() async should produce correct data."""
         _patch_builder_and_persistence(mocker, sample_dataframe)
 
-        df_async = await project_with_tasks.to_dataframe_async(
-            task_type="Unit", client=mock_client
+        df = await build_for_project(
+            project_with_tasks, task_type="Unit", client=mock_client
         )
 
-        assert isinstance(df_async, pl.DataFrame)
-        assert len(df_async) == 1
-        assert df_async["gid"][0] == "unit-001"
+        assert isinstance(df, pl.DataFrame)
+        assert len(df) == 1
+        assert df["gid"][0] == "unit-001"
 
-    def test_unit_schema_columns_present(
+    @pytest.mark.asyncio
+    async def test_unit_schema_columns_present(
         self,
         project_with_tasks: Project,
         mock_client: MagicMock,
@@ -436,45 +436,25 @@ class TestPublicAPIIntegration:
         """Unit schema should include type-specific columns."""
         _patch_builder_and_persistence(mocker, sample_dataframe)
 
-        df = project_with_tasks.to_dataframe(task_type="Unit", client=mock_client)
+        df = await build_for_project(
+            project_with_tasks, task_type="Unit", client=mock_client
+        )
 
-        # Unit schema should have extended columns
         assert "gid" in df.columns
         assert "name" in df.columns
-        # These may or may not be present depending on schema
-        # Just verify DataFrame was created successfully
         assert len(df) >= 0
 
-
-class TestEdgeCases:
-    """Test edge cases for public API methods."""
-
-    def test_project_with_none_tasks(
+    @pytest.mark.asyncio
+    async def test_project_with_none_tasks(
         self,
         mock_client: MagicMock,
         empty_dataframe: pl.DataFrame,
         mocker: MockerFixture,
     ) -> None:
-        """to_dataframe() should handle tasks=None."""
+        """build_for_project() should handle tasks=None."""
         _patch_builder_and_persistence(mocker, empty_dataframe)
 
         project = Project(gid="proj-none", name="None Tasks")
-        # tasks is None by default
 
-        df = project.to_dataframe(task_type="Unit", client=mock_client)
-        # Should return empty DataFrame when builder returns empty
-        assert len(df) == 0
-
-    def test_section_without_project_gid(self) -> None:
-        """to_dataframe() should handle section without project."""
-        section = Section(
-            gid="sect-orphan",
-            name="Orphan Section",
-            project=None,  # No project reference
-        )
-        section.tasks = []
-
-        # Should still work with empty tasks
-        df = section.to_dataframe(task_type="Unit")
-        assert isinstance(df, pl.DataFrame)
+        df = await build_for_project(project, task_type="Unit", client=mock_client)
         assert len(df) == 0

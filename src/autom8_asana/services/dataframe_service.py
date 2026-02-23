@@ -14,18 +14,25 @@ Both return DataFrameResult as the common abstraction boundary.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import polars as pl
 from autom8y_log import get_logger
 
+from autom8_asana.dataframes.builders import ProgressiveProjectBuilder, SectionDataFrameBuilder
 from autom8_asana.dataframes.models.registry import SchemaRegistry, get_schema
+from autom8_asana.dataframes.section_persistence import create_section_persistence
 from autom8_asana.services.errors import EntityNotFoundError, InvalidParameterError
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
+    from autom8_asana.dataframes.cache_integration import DataFrameCacheIntegration
     from autom8_asana.dataframes.models.schema import DataFrameSchema
+    from autom8_asana.dataframes.resolver.protocol import CustomFieldResolver
+    from autom8_asana.models.project import Project
+    from autom8_asana.models.section import Section
 
 logger = get_logger(__name__)
 
@@ -296,6 +303,112 @@ class DataFrameService:
         return _get_schema_mapping_cached()
 
 
+async def build_for_project(
+    project: Project,
+    *,
+    task_type: str = "*",
+    sections: list[str] | None = None,
+    resolver: CustomFieldResolver | None = None,
+    cache_integration: DataFrameCacheIntegration | None = None,
+    use_cache: bool = True,
+    lazy: bool | None = None,
+    client: AsanaClient,
+    max_concurrent_sections: int = 5,
+) -> pl.DataFrame:
+    """Build a DataFrame from project tasks.
+
+    Extracted from Project.to_dataframe_async() / Project.to_dataframe_parallel_async().
+    Preserves identical behavior; moves deferred imports to module level.
+
+    Per R-006 (REM-ASANA-ARCH WS-DFEX): Service function replacing model
+    convenience methods.
+
+    Args:
+        project: Project model instance.
+        task_type: Task type filter ("Unit", "Contact", "*" for base).
+        sections: Optional list of section names to filter by.
+        resolver: Optional custom field resolver for dynamic fields.
+        cache_integration: Optional cache integration for dataframe caching.
+        use_cache: Whether to use caching (maps to resume parameter).
+        lazy: If True, force lazy evaluation. If False, force eager.
+              If None, auto-select based on task count threshold.
+        client: AsanaClient for API calls (required).
+        max_concurrent_sections: Max parallel section fetches (default 5).
+
+    Returns:
+        Polars DataFrame with extracted task data.
+
+    Raises:
+        SchemaNotFoundError: If task_type has no registered schema.
+        ExtractionError: If extraction fails for any task.
+        ValueError: If client is None.
+    """
+    schema = get_schema(task_type)
+    entity_type = task_type.lower() if task_type != "*" else "task"
+
+    persistence = create_section_persistence()
+
+    async with persistence:
+        builder = ProgressiveProjectBuilder(
+            client=client,
+            project_gid=project.gid,
+            entity_type=entity_type,
+            schema=schema,
+            persistence=persistence,
+            resolver=resolver,
+            store=client.unified_store,
+            max_concurrent_sections=max_concurrent_sections,
+        )
+
+        result = await builder.build_progressive_async(resume=use_cache)
+        assert result.dataframe is not None, "Build produced no DataFrame"
+        return result.dataframe
+
+
+async def build_for_section(
+    section: Section,
+    *,
+    task_type: str = "*",
+    resolver: CustomFieldResolver | None = None,
+    cache_integration: DataFrameCacheIntegration | None = None,
+    use_cache: bool = True,
+    lazy: bool | None = None,
+) -> pl.DataFrame:
+    """Build a DataFrame from section tasks.
+
+    Extracted from Section.to_dataframe_async().
+    Preserves identical behavior; moves deferred imports to module level.
+
+    Per R-006 (REM-ASANA-ARCH WS-DFEX): Service function replacing model
+    convenience methods.
+
+    Args:
+        section: Section model instance.
+        task_type: Task type filter ("Unit", "Contact", "*" for base).
+        resolver: Optional custom field resolver for dynamic fields.
+        cache_integration: Optional cache integration for dataframe caching.
+        use_cache: Whether to use caching (default True, requires cache_integration).
+        lazy: If True, force lazy evaluation. If False, force eager.
+              If None, auto-select based on task count threshold.
+
+    Returns:
+        Polars DataFrame with extracted task data.
+
+    Raises:
+        SchemaNotFoundError: If task_type has no registered schema.
+        ExtractionError: If extraction fails for any task.
+    """
+    schema = get_schema(task_type)
+    builder = SectionDataFrameBuilder(
+        section=section,
+        task_type=task_type,
+        schema=schema,
+        resolver=resolver,
+        cache_integration=cache_integration if use_cache else None,
+    )
+    return await builder.build_async(lazy=lazy, use_cache=use_cache)
+
+
 class _SectionProxy:
     """Adapter for SectionDataFrameBuilder's section interface.
 
@@ -356,5 +469,7 @@ __all__ = [
     "DataFrameResult",
     "DataFrameService",
     "InvalidSchemaError",
+    "build_for_project",
+    "build_for_section",
     "reset_schema_cache",
 ]
