@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
+
 import pytest
 
 from autom8_asana.resolution.result import ResolutionResult, ResolutionStatus
@@ -88,7 +90,7 @@ class TestResolutionResult:
     def test_frozen_dataclass(self) -> None:
         """Test that ResolutionResult is frozen."""
         result = ResolutionResult(status=ResolutionStatus.FAILED)
-        with pytest.raises(Exception):  # FrozenInstanceError
+        with pytest.raises(FrozenInstanceError):
             result.status = ResolutionStatus.RESOLVED
 
     def test_default_diagnostics(self) -> None:

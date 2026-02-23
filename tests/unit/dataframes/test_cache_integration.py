@@ -11,6 +11,7 @@ Coverage targets:
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
@@ -231,7 +232,7 @@ class TestCachedRow:
             version=now,
         )
 
-        with pytest.raises(Exception):  # FrozenInstanceError
+        with pytest.raises(FrozenInstanceError):
             row.task_gid = "changed"  # type: ignore[misc]
 
 

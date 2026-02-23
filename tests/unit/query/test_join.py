@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import polars as pl
 import pytest
+from polars.exceptions import SchemaError
 from pydantic import ValidationError
 
 from autom8_asana.query.errors import JoinError
@@ -347,7 +348,7 @@ class TestJoinExecutionEdgeCases:
                 "booking_type": ["Online"],
             }
         )
-        with pytest.raises(Exception):  # polars.exceptions.SchemaError
+        with pytest.raises(SchemaError):
             execute_join(
                 primary_df=primary,
                 target_df=target,

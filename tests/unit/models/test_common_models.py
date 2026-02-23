@@ -6,6 +6,7 @@ Per TDD-0002 and ADR-0006: Tests for core models and pagination infrastructure.
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from autom8_asana.models import NameGid, PageIterator
 
@@ -35,7 +36,7 @@ class TestNameGidBasics:
 
     def test_gid_is_required(self) -> None:
         """NameGid requires gid field."""
-        with pytest.raises(Exception):  # ValidationError
+        with pytest.raises(ValidationError):
             NameGid()  # type: ignore[call-arg]
 
     def test_model_validate_from_dict(self) -> None:
@@ -82,7 +83,7 @@ class TestNameGidFrozen:
         """NameGid is frozen and cannot be modified."""
         ref = NameGid(gid="123", name="Original")
 
-        with pytest.raises(Exception):  # ValidationError or AttributeError
+        with pytest.raises(ValidationError):
             ref.name = "Modified"  # type: ignore[misc]
 
     def test_is_hashable(self) -> None:
