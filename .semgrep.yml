@@ -21,3 +21,29 @@ rules:
         - "**/tests/**"
         - "**/test_*.py"
         - "**/conftest.py"
+
+  - id: autom8y.asana-no-lower-imports-api
+    pattern-either:
+      - pattern-regex: "from autom8_asana\\.api"
+      - pattern-regex: "import autom8_asana\\.api"
+    paths:
+      include:
+        - "**/src/autom8_asana/models/"
+        - "**/src/autom8_asana/core/"
+        - "**/src/autom8_asana/protocols/"
+        - "**/src/autom8_asana/clients/"
+        - "**/src/autom8_asana/transport/"
+        - "**/src/autom8_asana/services/"
+        - "**/src/autom8_asana/automation/"
+        - "**/src/autom8_asana/persistence/"
+        - "**/src/autom8_asana/dataframes/"
+        - "**/src/autom8_asana/cache/"
+      exclude:
+        - "**/tests/**"
+        - "**/test_*.py"
+        - "**/conftest.py"
+    message: >-
+      Layer violation: domain, service, and data layers must not import from api/.
+      Move shared definitions to models/, core/, or protocols/ and have api/ import from there.
+    severity: ERROR
+    languages: [python]
