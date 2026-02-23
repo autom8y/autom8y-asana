@@ -9,6 +9,7 @@ from autom8_asana.protocols.cache import (
     DataFrameCacheProtocol,
     WarmResult,
 )
+from autom8_asana.protocols.insights import InsightsProvider
 from autom8_asana.protocols.item_loader import ItemLoader
 from autom8_asana.protocols.log import LogProvider
 from autom8_asana.protocols.observability import ObservabilityHook
@@ -17,6 +18,7 @@ __all__ = [
     "AuthProvider",
     "CacheProvider",
     "DataFrameCacheProtocol",
+    "InsightsProvider",
     "ItemLoader",
     "LogProvider",
     "WarmResult",

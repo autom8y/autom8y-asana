@@ -7,7 +7,7 @@ and runtime registration support.
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Callable, ClassVar
 
 from autom8_asana.dataframes.exceptions import SchemaNotFoundError, SchemaVersionError
 
@@ -52,6 +52,7 @@ class SchemaRegistry:
 
     _instance: ClassVar[SchemaRegistry | None] = None
     _lock: ClassVar[threading.Lock] = threading.Lock()
+    _on_reset_callbacks: ClassVar[list[Callable[[], None]]] = []
 
     # Instance attributes (set in __new__)
     _schemas: dict[str, DataFrameSchema]
@@ -87,19 +88,26 @@ class SchemaRegistry:
             in production code.
 
         Note:
-            Also clears the resolvable entities cache in resolver module.
+            Notifies subscribers via on_reset callbacks (e.g., resolver
+            cache clearing) instead of importing private functions directly.
         """
         with cls._lock:
             cls._instance = None
 
-        # Clear resolvable entities cache (import here to avoid circular import)
-        try:
-            from autom8_asana.services.resolver import _clear_resolvable_cache
+        for callback in cls._on_reset_callbacks:
+            callback()
 
-            _clear_resolvable_cache()
-        except ImportError:
-            # If resolver module not yet loaded, no cache to clear
-            pass
+    @classmethod
+    def on_reset(cls, callback: Callable[[], None]) -> None:
+        """Register a callback to be invoked when the registry is reset.
+
+        Used by dependent modules to subscribe to reset events without
+        creating cross-boundary private API imports.
+
+        Args:
+            callback: Zero-argument callable invoked on reset.
+        """
+        cls._on_reset_callbacks.append(callback)
 
     def _ensure_initialized(self) -> None:
         """Lazy initialization of built-in schemas.

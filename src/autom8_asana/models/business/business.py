@@ -32,13 +32,13 @@ from autom8_asana.models.business.mixins import (
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
-    from autom8_asana.clients.data import DataServiceClient
     from autom8_asana.clients.data.models import InsightsResponse
     from autom8_asana.models.business.activity import AccountActivity
     from autom8_asana.models.business.hours import Hours
     from autom8_asana.models.business.location import Location, LocationHolder
     from autom8_asana.models.business.unit import Unit, UnitHolder
     from autom8_asana.models.task import Task
+    from autom8_asana.protocols.insights import InsightsProvider
 
 
 # --- Stub Holder Classes (TDD-PATTERNS-C: Migrated to HolderFactory) ---
@@ -714,18 +714,18 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
 
     async def get_insights_async(
         self,
-        client: DataServiceClient,
+        client: InsightsProvider,
         factory: str = "account",
         period: str | None = None,
         **kwargs: Any,
     ) -> InsightsResponse:
         """Fetch analytics insights for this business.
 
-        Convenience method that wraps DataServiceClient.get_insights_async,
+        Convenience method that wraps an InsightsProvider.get_insights_async,
         automatically using this business's office_phone and vertical.
 
         Args:
-            client: DataServiceClient instance for API calls.
+            client: InsightsProvider implementation (e.g., DataServiceClient).
             factory: InsightsFactory name (default: "account").
                 Valid: account, ads, adsets, campaigns, etc.
             period: Time period preset (e.g., "lifetime", "t30", "l7").
@@ -742,10 +742,11 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
             InsightsServiceError: Upstream service failure.
 
         Example:
-            >>> async with DataServiceClient() as data_client:
+            >>> # Any InsightsProvider implementation works (e.g., DataServiceClient)
+            >>> async with DataServiceClient() as provider:
             ...     business = await Business.from_gid_async(asana_client, gid)
             ...     insights = await business.get_insights_async(
-            ...         data_client,
+            ...         provider,
             ...         factory="account",
             ...         period="t30",
             ...     )
