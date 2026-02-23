@@ -20,12 +20,14 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
-import httpx
 from autom8y_http import (
     Autom8yHttpClient,
     CircuitBreaker,
     ExponentialBackoffRetry,
+    HTTPError,
     RateLimiterProtocol,
+    Response,
+    TimeoutException,
     TokenBucketRateLimiter,
 )
 from autom8y_log import LoggerProtocol
@@ -343,7 +345,7 @@ class AsanaHttpClient:
         method: str,
         path: str,
         **kwargs: Any,
-    ) -> AsyncIterator[httpx.Response]:
+    ) -> AsyncIterator[Response]:
         """Stream response for large downloads.
 
         Uses raw() escape hatch from Autom8yHttpClient.
@@ -464,7 +466,7 @@ class AsanaHttpClient:
                     await self._circuit_breaker.record_success()
                     return self._response_handler.unwrap_response(response)
 
-                except httpx.TimeoutException as e:
+                except TimeoutException as e:
                     # No AIMD signal -- timeout is not a rate limit
                     await self._circuit_breaker.record_failure(e)
                     if self._should_retry(504, attempt, max_attempts):
@@ -475,7 +477,7 @@ class AsanaHttpClient:
                         continue
                     raise TimeoutError(f"Request timed out: {path}") from e
 
-                except httpx.HTTPError as e:
+                except HTTPError as e:
                     # No AIMD signal -- network error is not a rate limit
                     await self._circuit_breaker.record_failure(e)
                     raise AsanaError(f"HTTP error: {e}") from e
@@ -624,7 +626,7 @@ class AsanaHttpClient:
                     await self._circuit_breaker.record_success()
                     return self._response_handler.unwrap_response(response)
 
-                except httpx.TimeoutException as e:
+                except TimeoutException as e:
                     # No AIMD signal -- timeout is not a rate limit
                     await self._circuit_breaker.record_failure(e)
                     if self._should_retry(504, attempt, max_attempts):
@@ -635,7 +637,7 @@ class AsanaHttpClient:
                         continue
                     raise TimeoutError(f"Request timed out: {path}") from e
 
-                except httpx.HTTPError as e:
+                except HTTPError as e:
                     # No AIMD signal -- network error is not a rate limit
                     await self._circuit_breaker.record_failure(e)
                     raise AsanaError(f"HTTP error: {e}") from e
@@ -714,7 +716,7 @@ class AsanaHttpClient:
                     await self._circuit_breaker.record_success()
                     return self._response_handler.unwrap_paginated_response(response)
 
-                except httpx.TimeoutException as e:
+                except TimeoutException as e:
                     # No AIMD signal -- timeout is not a rate limit
                     await self._circuit_breaker.record_failure(e)
                     if self._should_retry(504, attempt, max_attempts):
@@ -725,7 +727,7 @@ class AsanaHttpClient:
                         continue
                     raise TimeoutError(f"Request timed out: {path}") from e
 
-                except httpx.HTTPError as e:
+                except HTTPError as e:
                     # No AIMD signal -- network error is not a rate limit
                     await self._circuit_breaker.record_failure(e)
                     raise AsanaError(f"HTTP error: {e}") from e

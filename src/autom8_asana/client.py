@@ -723,7 +723,7 @@ class AsanaClient:
         Raises:
             ConfigurationError: If >1 workspaces found (ambiguous choice)
         """
-        import httpx
+        from autom8y_http import HttpClientConfig, HTTPError, SyncHttpClient
 
         # Get token from auth provider using the specified key
         try:
@@ -734,15 +734,18 @@ class AsanaClient:
             )
 
         # Create temporary synchronous HTTP client
-        with httpx.Client(
-            headers={"Authorization": f"Bearer {token}"},
+        _config = HttpClientConfig(
             base_url="https://app.asana.com/api/1.0",
-        ) as client:
+            timeout=10.0,
+            enable_retry=False,
+            enable_circuit_breaker=False,
+        )
+        with SyncHttpClient(_config) as client:
             try:
                 response = client.get(
                     "/users/me",
                     params={"opt_fields": "workspaces.gid,workspaces.name"},
-                    timeout=10.0,
+                    headers={"Authorization": f"Bearer {token}"},
                 )
                 response.raise_for_status()
                 data: dict[str, Any] = response.json()["data"]
@@ -762,7 +765,7 @@ class AsanaClient:
                         f"Please specify workspace_gid explicitly: "
                         f"AsanaClient(token=..., workspace_gid='your_gid')"
                     )
-            except httpx.HTTPError:
+            except HTTPError:
                 # If the token is invalid or the API is unreachable, we can't auto-detect
                 # This is expected for test tokens, so we return None to indicate no auto-detection
                 # The client will continue without a workspace_gid

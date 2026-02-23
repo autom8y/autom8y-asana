@@ -25,7 +25,12 @@ from __future__ import annotations
 import os
 import time
 
-import httpx
+from autom8y_http import (
+    Autom8yHttpClient,
+    HttpClientConfig,
+    RequestError,
+    TimeoutException,
+)
 from autom8y_log import get_logger
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
@@ -168,9 +173,11 @@ async def deps_check() -> JSONResponse:
     )
 
     t0 = time.monotonic()
+    _jwks_config = HttpClientConfig(timeout=5.0, enable_retry=False, enable_circuit_breaker=False)
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(jwks_url)
+        async with Autom8yHttpClient(_jwks_config) as client:
+            async with client.raw() as raw_client:
+                response = await raw_client.get(jwks_url)
             latency = (time.monotonic() - t0) * 1000
             if response.status_code == 200:
                 data = response.json()
@@ -191,7 +198,7 @@ async def deps_check() -> JSONResponse:
                     latency_ms=round(latency, 1),
                     detail={"error": f"http_{response.status_code}"},
                 )
-    except httpx.TimeoutException:
+    except TimeoutException:
         latency = (time.monotonic() - t0) * 1000
         logger.warning("JWKS health check timed out", extra={"jwks_url": jwks_url})
         checks["jwks"] = CheckResult(
@@ -199,7 +206,7 @@ async def deps_check() -> JSONResponse:
             latency_ms=round(latency, 1),
             detail={"error": "timeout"},
         )
-    except httpx.RequestError as e:
+    except RequestError as e:
         latency = (time.monotonic() - t0) * 1000
         logger.warning(
             "JWKS health check failed",

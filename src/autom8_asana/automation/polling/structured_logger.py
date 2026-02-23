@@ -54,14 +54,14 @@ if TYPE_CHECKING:
 
 __all__ = ["StructuredLogger"]
 
-# Attempt to import structlog, set flag for fallback behavior
-_STRUCTLOG_AVAILABLE = False
+# autom8y_log is a hard dependency; feature flag is always True.
+# The _StdlibLoggerAdapter fallback path below is retained for compatibility
+# but will never be reached in normal operation.
+_STRUCTLOG_AVAILABLE = True
 try:
-    import structlog
-
-    _STRUCTLOG_AVAILABLE = True
-except ImportError:
-    structlog = None  # type: ignore[assignment]
+    import autom8y_log as _autom8y_log_check  # noqa: F401
+except ImportError:  # pragma: no cover
+    _STRUCTLOG_AVAILABLE = False
 
 
 class StructuredLogger:

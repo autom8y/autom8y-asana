@@ -18,7 +18,7 @@ from autom8_asana.exceptions import (
 )
 
 if TYPE_CHECKING:
-    import httpx
+    from autom8y_http import Response
 
 __all__ = ["AsanaResponseHandler"]
 
@@ -47,7 +47,7 @@ class AsanaResponseHandler:
     """
 
     @staticmethod
-    def unwrap_response(response: httpx.Response) -> dict[str, Any]:
+    def unwrap_response(response: Response) -> dict[str, Any]:
         """Unwrap Asana response envelope.
 
         Asana wraps all responses in {"data": ...}. This method:
@@ -89,7 +89,7 @@ class AsanaResponseHandler:
 
     @staticmethod
     def unwrap_paginated_response(
-        response: httpx.Response,
+        response: Response,
     ) -> tuple[list[dict[str, Any]], str | None]:
         """Unwrap paginated Asana response.
 
@@ -140,7 +140,7 @@ class AsanaResponseHandler:
         return data, next_offset
 
     @staticmethod
-    def parse_error(response: httpx.Response) -> AsanaError:
+    def parse_error(response: Response) -> AsanaError:
         """Parse error response into domain exception.
 
         Parses the response body and returns the most specific exception
@@ -174,7 +174,7 @@ class AsanaResponseHandler:
         return AsanaError.from_response(response)
 
     @staticmethod
-    def _parse_rate_limit_error(response: httpx.Response) -> RateLimitError:
+    def _parse_rate_limit_error(response: Response) -> RateLimitError:
         """Parse rate limit (429) error with Retry-After header.
 
         Args:

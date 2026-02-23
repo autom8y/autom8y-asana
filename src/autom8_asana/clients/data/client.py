@@ -10,13 +10,16 @@ import asyncio
 import uuid
 from typing import TYPE_CHECKING, Any, cast
 
-import httpx
-
 # Platform SDK resilience primitives (autom8y-http >= 0.3.0)
 from autom8y_config.lambda_extension import resolve_secret_from_env
 from autom8y_http import (
+    Autom8yHttpClient,
     CircuitBreaker,
     ExponentialBackoffRetry,
+    HttpClientConfig,
+    HTTPError,
+    Response,
+    TimeoutException,
 )
 from autom8y_http import (
     CircuitBreakerConfig as SdkCircuitBreakerConfig,
@@ -141,7 +144,7 @@ class DataServiceClient:
         self._metrics_hook = metrics_hook
 
         # HTTP client (created lazily via _get_client)
-        self._client: httpx.AsyncClient | None = None
+        self._client: Autom8yHttpClient | None = None
         self._client_lock = asyncio.Lock()
 
         # Circuit breaker for cascade failure prevention (Story 2.3)
@@ -266,12 +269,12 @@ class DataServiceClient:
 
     async def _execute_with_retry(
         self,
-        make_request: Callable[[], Awaitable[httpx.Response]],
+        make_request: Callable[[], Awaitable[Response]],
         *,
         on_retry: Callable[[int, int, int | None], Awaitable[None]] | None = None,
-        on_timeout_exhausted: Callable[[httpx.TimeoutException, int], Awaitable[None]],
-        on_http_error: Callable[[httpx.HTTPError, int], Awaitable[None]],
-    ) -> tuple[httpx.Response, int]:
+        on_timeout_exhausted: Callable[[TimeoutException, int], Awaitable[None]],
+        on_http_error: Callable[[HTTPError, int], Awaitable[None]],
+    ) -> tuple[Response, int]:
         """Execute an HTTP request with retry on transient failures.
 
         Retry with exponential backoff on transient failures.
@@ -303,7 +306,7 @@ class DataServiceClient:
             Whatever on_timeout_exhausted or on_http_error raise.
         """
         attempt = 0
-        response: httpx.Response | None = None
+        response: Response | None = None
 
         while True:
             try:
@@ -333,7 +336,7 @@ class DataServiceClient:
                 # Non-retryable status or success - exit retry loop
                 break
 
-            except httpx.TimeoutException as e:
+            except TimeoutException as e:
                 # Check if we can retry timeout errors (Story 2.2)
                 if attempt < self._config.retry.max_retries:
                     if on_retry is not None:
@@ -349,7 +352,7 @@ class DataServiceClient:
                 # on_timeout_exhausted MUST raise; this is a safety fallback
                 raise  # pragma: no cover
 
-            except httpx.HTTPError as e:
+            except HTTPError as e:
                 # Non-retryable HTTP error - delegate to caller's error handler
                 await on_http_error(e, attempt)
 
@@ -369,23 +372,28 @@ class DataServiceClient:
         This method is idempotent - safe to call multiple times.
         """
         if self._client is not None:
-            await self._client.aclose()
+            await self._client.close()
             self._client = None
             if self._log:
                 self._log.debug("DataServiceClient: HTTP client closed")
 
     # --- HTTP Client Management ---
 
-    async def _get_client(self) -> httpx.AsyncClient:
-        """Get or create httpx client with configured settings.
+    async def _get_client(self) -> Autom8yHttpClient:
+        """Get or create HTTP client with configured settings.
 
-        Per TDD-INSIGHTS-001 Section 5.1: Creates httpx.AsyncClient with
+        Per TDD-INSIGHTS-001 Section 5.1: Creates Autom8yHttpClient with
         connection pooling, timeouts, and authentication headers.
 
         Uses double-checked locking for thread-safe lazy initialization.
 
+        Note: DataServiceClient manages its own circuit breaker and retry
+        policies (see self._circuit_breaker, self._retry_handler). The
+        platform client is created with enable_retry=False and
+        enable_circuit_breaker=False to avoid double-applying policies.
+
         Returns:
-            Configured httpx.AsyncClient instance.
+            Configured Autom8yHttpClient instance.
         """
         if self._client is not None:
             return self._client
@@ -398,36 +406,30 @@ class DataServiceClient:
             # Get auth token
             token = self._get_auth_token()
 
-            # Configure timeouts from config
-            timeout = httpx.Timeout(
-                connect=self._config.timeout.connect,
-                read=self._config.timeout.read,
-                write=self._config.timeout.write,
-                pool=self._config.timeout.pool,
-            )
-
-            # Configure connection pool from config
-            limits = httpx.Limits(
+            # Build HttpClientConfig from domain config.
+            # DataServiceClient manages its own retry + circuit breaker, so
+            # disable both at the platform-client level to avoid double-applying.
+            http_config = HttpClientConfig(
+                base_url=self._config.base_url,
+                connect_timeout=self._config.timeout.connect,
+                read_timeout=self._config.timeout.read,
+                write_timeout=self._config.timeout.write,
+                pool_timeout=self._config.timeout.pool,
                 max_connections=self._config.connection_pool.max_connections,
                 max_keepalive_connections=self._config.connection_pool.max_keepalive_connections,
                 keepalive_expiry=self._config.connection_pool.keepalive_expiry,
+                enable_retry=False,
+                enable_circuit_breaker=False,
             )
 
-            # Build headers
-            headers = {
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            }
+            # Create platform client
+            self._client = Autom8yHttpClient(config=http_config, logger=self._log)
+
+            # Inject auth and content-type headers
             if token:
-                headers["Authorization"] = f"Bearer {token}"
-
-            # Create client with configuration
-            self._client = httpx.AsyncClient(
-                base_url=self._config.base_url,
-                headers=headers,
-                timeout=timeout,
-                limits=limits,
-            )
+                self._client._client.headers["Authorization"] = f"Bearer {token}"
+            self._client._client.headers["Accept"] = "application/json"
+            self._client._client.headers["Content-Type"] = "application/json"
 
             if self._log:
                 self._log.debug(
@@ -1099,7 +1101,7 @@ class DataServiceClient:
 
     async def _handle_error_response(
         self,
-        response: httpx.Response,
+        response: Response,
         request_id: str,
         cache_key: str,
         factory: str,
@@ -1123,7 +1125,7 @@ class DataServiceClient:
 
     def _parse_success_response(
         self,
-        response: httpx.Response,
+        response: Response,
         request_id: str,
     ) -> InsightsResponse:
         """Parse successful HTTP response to InsightsResponse.

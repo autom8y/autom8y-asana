@@ -30,10 +30,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Never
 
+from autom8y_http import RequestError
 from autom8y_log import get_logger
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
-from httpx import RequestError
 
 if TYPE_CHECKING:
     from autom8_asana.services.errors import ServiceError
