@@ -32,3 +32,13 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+
+  # Type checking (mypy strict)
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: uv run mypy src/autom8_asana --strict
+        language: system
+        types: [python]
+        pass_filenames: false

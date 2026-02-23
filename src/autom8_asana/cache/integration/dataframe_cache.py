@@ -15,11 +15,11 @@ from typing import TYPE_CHECKING, Any
 from autom8y_log import get_logger
 
 try:
-    from autom8_asana.api.metrics import (
+    from autom8_asana.api.metrics import (  # nosemgrep: autom8y.asana-no-lower-imports-api
         record_cache_op,
         record_rows_cached,
         record_swr_refresh,
-    )
+    )  # soft optional dep; guarded by try/except to support Lambda (no prometheus_client)
 
     _HAS_METRICS = True
 except ImportError:
