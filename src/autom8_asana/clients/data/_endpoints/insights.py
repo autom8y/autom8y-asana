@@ -4,23 +4,148 @@ Private module holding the execute_insights_request function extracted
 from DataServiceClient._execute_insights_request. The class method becomes
 a thin delegation wrapper.
 
+Per WS-DSC: S2-S8 orchestration delegated to DefaultEndpointPolicy.
+
 This module is NOT part of the public API.
 """
 
 from __future__ import annotations
 
-import time
 from typing import TYPE_CHECKING, Any
-
-from autom8y_http import CircuitBreakerOpenError as SdkCircuitBreakerOpenError
 
 from autom8_asana.clients.data import _normalize as _normalize_mod
 from autom8_asana.clients.data import _retry as _retry_mod
+from autom8_asana.clients.data._policy import (
+    DefaultEndpointPolicy,
+    InsightsRequestDescriptor,
+)
 from autom8_asana.exceptions import InsightsServiceError
 
 if TYPE_CHECKING:
+    from autom8y_http import CircuitBreakerOpenError, Response
+
     from autom8_asana.clients.data.client import DataServiceClient
     from autom8_asana.clients.data.models import InsightsRequest, InsightsResponse
+
+
+# ---------------------------------------------------------------------------
+# Pluggable behaviors
+# ---------------------------------------------------------------------------
+
+
+def _cb_error_factory(
+    e: CircuitBreakerOpenError, request: InsightsRequestDescriptor
+) -> Any:
+    """Convert CB open error to InsightsServiceError (always raises)."""
+    raise InsightsServiceError(
+        f"Circuit breaker open. Service appears degraded. "
+        f"Retry in {e.time_remaining:.1f}s.",
+        request_id=request.request_id,
+        reason="circuit_breaker",
+    ) from e
+
+
+def _request_builder(
+    http_client: Any, request: InsightsRequestDescriptor
+) -> Any:
+    """Build the make_request lambda for insights POST."""
+    return lambda: http_client.post(
+        request.path,
+        json=request.request_body,
+        headers={"X-Request-Id": request.request_id},
+    )
+
+
+def _make_pre_execute_error_handler(
+    client: DataServiceClient,
+    cache_key: str,
+    request_id: str,
+) -> Any:
+    """Build the stale-cache fallback handler for insights.
+
+    Returns a callable: (Exception, InsightsRequestDescriptor) -> InsightsResponse | None
+    """
+
+    def handler(
+        exc: Exception, request: InsightsRequestDescriptor
+    ) -> InsightsResponse | None:
+        if isinstance(exc, InsightsServiceError):
+            stale_response = client._get_stale_response(cache_key, request_id)
+            if stale_response is not None:
+                return stale_response
+        return None
+
+    return handler
+
+
+async def _error_handler(
+    response: Response,
+    request: InsightsRequestDescriptor,
+    elapsed_ms: float,
+    *,
+    client: DataServiceClient,
+) -> InsightsResponse:
+    """Delegate to client._handle_error_response for insights."""
+    return await client._handle_error_response(
+        response,
+        request.request_id,
+        request.cache_key,
+        request.factory,
+        elapsed_ms,
+    )
+
+
+async def _success_handler(
+    response: Response,
+    request: InsightsRequestDescriptor,
+    elapsed_ms: float,
+    *,
+    client: DataServiceClient,
+    attempt: int = 0,
+) -> InsightsResponse:
+    """Parse success + record metrics + cache for insights endpoint."""
+    insights_response = client._parse_success_response(
+        response, request.request_id
+    )
+
+    # Response logging (Story 1.9)
+    if client._log:
+        client._log.info(
+            "insights_request_completed",
+            extra={
+                "request_id": request.request_id,
+                "row_count": insights_response.metadata.row_count,
+                "cache_hit": insights_response.metadata.cache_hit,
+                "is_stale": insights_response.metadata.is_stale,
+                "duration_ms": elapsed_ms,
+                "attempt": 1,  # Attempt count is internal to retry loop
+            },
+        )
+
+    # Success metrics (Story 1.9)
+    client._emit_metric(
+        "insights_request_total",
+        1,
+        {"factory": request.factory, "status": "success"},
+    )
+    client._emit_metric(
+        "insights_request_latency_ms",
+        elapsed_ms,
+        {"factory": request.factory, "status": "success"},
+    )
+
+    # Circuit breaker record success (Story 2.3)
+    await client._circuit_breaker.record_success()
+
+    # Cache successful response (Story 1.8)
+    client._cache_response(request.cache_key, insights_response)
+
+    return insights_response
+
+
+# ---------------------------------------------------------------------------
+# Public endpoint function
+# ---------------------------------------------------------------------------
 
 
 async def execute_insights_request(
@@ -62,20 +187,7 @@ async def execute_insights_request(
     # Import here to avoid circular import at module level
     from autom8_asana.clients.data._pii import mask_canonical_key as _mask_canonical_key
 
-    # --- Circuit Breaker Check (Story 2.3) ---
-    # Fast-fail if circuit is open to prevent cascade failures
-    try:
-        await client._circuit_breaker.check()
-    except SdkCircuitBreakerOpenError as e:
-        # Convert SDK error to domain error (autom8y-http >= 0.3.0)
-        raise InsightsServiceError(
-            f"Circuit breaker open. Service appears degraded. "
-            f"Retry in {e.time_remaining:.1f}s.",
-            request_id=request_id,
-            reason="circuit_breaker",
-        ) from e
-
-    http_client = await client._get_client()
+    # S1: Pre-flight (logging, body construction)
     path = "/api/v1/data-service/insights"
 
     # Build PII-safe canonical key for logging (Story 1.9)
@@ -118,10 +230,7 @@ async def execute_insights_request(
     if request.filters:
         request_body["filters"] = request.filters
 
-    # Start timing for latency metrics (Story 1.9)
-    start_time = time.monotonic()
-
-    # --- Request Logging (Story 1.9) ---
+    # Request logging (Story 1.9)
     if client._log:
         client._log.info(
             "insights_request_started",
@@ -134,7 +243,12 @@ async def execute_insights_request(
             },
         )
 
-    # --- Retry Callbacks ---
+    # Build retry callbacks
+    # start_time is used by retry callbacks for their own elapsed_ms metrics
+    import time
+
+    start_time = time.monotonic()
+
     _callbacks = _retry_mod.build_retry_callbacks(
         circuit_breaker=client._circuit_breaker,
         error_class=InsightsServiceError,
@@ -150,70 +264,34 @@ async def execute_insights_request(
         start_time=start_time,
     )
 
-    # --- Retry Loop with Stale Fallback (Story 2.2, Story 1.8) ---
-    # Note: W3C traceparent is auto-injected by HTTPXClientInstrumentor.
-    # X-Request-Id is kept for backwards compatibility with autom8y-data's
-    # RequestIDMiddleware, which uses it for non-OTEL correlation.
-    try:
-        response, attempt = await client._execute_with_retry(
-            lambda: http_client.post(
-                path,
-                json=request_body,
-                headers={"X-Request-Id": request_id},
+    # Build request descriptor
+    descriptor = InsightsRequestDescriptor(
+        path=path,
+        request_body=request_body,
+        request_id=request_id,
+        cache_key=cache_key,
+        factory=factory,
+        retry_callbacks=_callbacks,
+    )
+
+    # S2-S8: Execute via policy (with stale cache fallback)
+    policy: DefaultEndpointPolicy[InsightsRequestDescriptor, InsightsResponse] = (
+        DefaultEndpointPolicy(
+            circuit_breaker=client._circuit_breaker,
+            get_client=client._get_client,
+            execute_with_retry=client._execute_with_retry,
+            cb_error_factory=_cb_error_factory,
+            request_builder=_request_builder,
+            error_handler=lambda resp, req, ms: _error_handler(
+                resp, req, ms, client=client
             ),
-            on_retry=_callbacks.on_retry,
-            on_timeout_exhausted=_callbacks.on_timeout_exhausted,
-            on_http_error=_callbacks.on_http_error,
+            success_handler=lambda resp, req, ms: _success_handler(
+                resp, req, ms, client=client
+            ),
+            pre_execute_error_handler=_make_pre_execute_error_handler(
+                client, cache_key, request_id
+            ),
         )
-    except InsightsServiceError:
-        # Try stale cache fallback on service errors (Story 1.8)
-        stale_response = client._get_stale_response(cache_key, request_id)
-        if stale_response is not None:
-            return stale_response
-        raise
-
-    # Calculate elapsed time
-    elapsed_ms = (time.monotonic() - start_time) * 1000
-
-    # Handle error responses (if we got here after retries exhausted or non-retryable error)
-    if response is not None and response.status_code >= 400:
-        return await client._handle_error_response(
-            response, request_id, cache_key, factory, elapsed_ms
-        )
-
-    # Parse successful response
-    insights_response = client._parse_success_response(response, request_id)
-
-    # --- Response Logging (Story 1.9) ---
-    if client._log:
-        client._log.info(
-            "insights_request_completed",
-            extra={
-                "request_id": request_id,
-                "row_count": insights_response.metadata.row_count,
-                "cache_hit": insights_response.metadata.cache_hit,
-                "is_stale": insights_response.metadata.is_stale,
-                "duration_ms": elapsed_ms,
-                "attempt": attempt + 1,
-            },
-        )
-
-    # --- Success Metrics (Story 1.9) ---
-    client._emit_metric(
-        "insights_request_total",
-        1,
-        {"factory": factory, "status": "success"},
-    )
-    client._emit_metric(
-        "insights_request_latency_ms",
-        elapsed_ms,
-        {"factory": factory, "status": "success"},
     )
 
-    # --- Circuit Breaker Record Success (Story 2.3) ---
-    await client._circuit_breaker.record_success()
-
-    # Cache successful response (Story 1.8)
-    client._cache_response(cache_key, insights_response)
-
-    return insights_response
+    return await policy.execute(descriptor)
