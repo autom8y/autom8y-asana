@@ -363,22 +363,42 @@ class TestUpwardTraversal:
         self,
         mock_client: MagicMock,
     ) -> None:
-        """Traversal stops when Business is detected."""
-        # Task is already a Business (has business structure)
-        business_task = make_mock_task("bus_001", "Acme Corporation")
+        """Traversal stops when Business is detected and does not continue past it."""
+        # Setup: child -> Business (which itself has a parent that should NOT be visited)
+        child_task = make_mock_task(
+            "child_001", "Some Child", parent_gid="bus_001"
+        )
+        business_task = make_mock_task(
+            "bus_001", "Acme Corporation", parent_gid="grandparent_001"
+        )
 
-        # Mock structure inspection for Business detection
+        # Mock structure inspection for Business detection (Tier 4 fallback)
         subtasks = [
             make_subtask("holder_001", "Contacts"),
             make_subtask("holder_002", "Units"),
         ]
-        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(
-            return_value=subtasks
-        )
+        subtasks_mock = MagicMock()
+        subtasks_mock.collect = AsyncMock(return_value=subtasks)
+        mock_client.tasks.subtasks_async = MagicMock(return_value=subtasks_mock)
 
-        # When starting at Business root, should return immediately
-        # This tests internal logic - actually done via hydrate_from_gid_async
-        mock_client.tasks.get_async = AsyncMock(return_value=business_task)
+        # Only bus_001 should be fetched; grandparent_001 should never be reached
+        async def mock_get(gid: str, **kwargs: Any) -> Task:
+            if gid == "bus_001":
+                return business_task
+            raise AssertionError(f"Unexpected fetch for GID: {gid}")
+
+        mock_client.tasks.get_async = mock_get
+
+        # Act
+        business, path = await _traverse_upward_async(child_task, mock_client)
+
+        # Assert: traversal found the Business and stopped
+        assert isinstance(business, Business)
+        assert business.gid == "bus_001"
+        assert business.name == "Acme Corporation"
+        # Path should be empty -- child_task is the start entity (not in path),
+        # and Business is the destination (not in path either)
+        assert len(path) == 0
 
 
 # --- Test: Full Hydration Workflow ---
