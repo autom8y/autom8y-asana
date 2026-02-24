@@ -64,9 +64,7 @@ def compute_metric(
 
         classifier = CLASSIFIERS.get(scope.entity_type)
         if classifier is None:
-            raise ValueError(
-                f"No classifier for entity type '{scope.entity_type}'"
-            )
+            raise ValueError(f"No classifier for entity type '{scope.entity_type}'")
         sections = classifier.sections_for(AccountActivity(scope.classification))
         df = df.filter(pl.col("section").str.to_lowercase().is_in(list(sections)))
 
