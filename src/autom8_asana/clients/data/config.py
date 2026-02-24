@@ -249,8 +249,11 @@ class DataServiceConfig:
     # Per ADR-INS-004: Client-side cache TTL for insights
     cache_ttl: int = 300  # 5 minutes default for live analytics
 
-    # Per FR-006.4: Maximum batch size
-    max_batch_size: int = 50
+    # Per FR-006.4: Maximum batch size (server accepts up to 1000 PVPs).
+    # NOTE: DataServiceJoinFetcher (Phase 1) relies on this being >= 500
+    # to avoid pre-chunking. If this value is lowered, the fetcher must
+    # implement PVP chunking (see architecture-report.md REC-P3).
+    max_batch_size: int = 500
 
     def __post_init__(self) -> None:
         """Validate configuration values."""
@@ -265,6 +268,10 @@ class DataServiceConfig:
         if self.max_batch_size < 1:
             raise ConfigurationError(
                 f"max_batch_size must be at least 1, got {self.max_batch_size}"
+            )
+        if self.max_batch_size > 1000:
+            raise ConfigurationError(
+                f"max_batch_size must not exceed server limit of 1000, got {self.max_batch_size}"
             )
 
     @classmethod
