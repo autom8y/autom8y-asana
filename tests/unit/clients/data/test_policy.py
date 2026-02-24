@@ -18,7 +18,6 @@ from autom8_asana.clients.data._policy import (
     EndpointPolicy,
 )
 
-
 # ---------------------------------------------------------------------------
 # Test fixtures: minimal descriptor and helpers
 # ---------------------------------------------------------------------------
@@ -83,9 +82,7 @@ def _make_policy(
 
         cb_error_factory = _default_cb_error_factory
 
-    request_builder = MagicMock(
-        return_value=MagicMock(name="make_request_callable")
-    )
+    request_builder = MagicMock(return_value=MagicMock(name="make_request_callable"))
 
     if error_handler is None:
         error_handler = AsyncMock(return_value={"error": True})
@@ -360,9 +357,7 @@ class TestExecuteTiming:
             circuit_breaker=cb,
             get_client=AsyncMock(return_value=MagicMock()),
             execute_with_retry=slow_execute,
-            cb_error_factory=lambda e, r: (_ for _ in ()).throw(
-                RuntimeError("cb")
-            ),
+            cb_error_factory=lambda e, r: (_ for _ in ()).throw(RuntimeError("cb")),
             request_builder=MagicMock(return_value=MagicMock()),
             error_handler=AsyncMock(),
             success_handler=success_handler,

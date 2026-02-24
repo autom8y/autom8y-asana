@@ -15,8 +15,8 @@ import os
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from autom8y_http import HttpClientConfig
 import pytest
+from autom8y_http import HttpClientConfig
 
 from autom8_asana.clients.data.client import DataServiceClient
 from autom8_asana.clients.data.config import (
@@ -300,7 +300,10 @@ class TestDataServiceClientGetClient:
 
             await client._get_client()
 
-            assert mock_instance._client.headers["Authorization"] == "Bearer test-jwt-token"
+            assert (
+                mock_instance._client.headers["Authorization"]
+                == "Bearer test-jwt-token"
+            )
 
     @pytest.mark.asyncio
     async def test_no_auth_header_when_no_token(self) -> None:

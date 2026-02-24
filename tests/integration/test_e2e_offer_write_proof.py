@@ -16,11 +16,11 @@ Run: .venv/bin/pytest tests/integration/test_e2e_offer_write_proof.py -v -s --ti
 from __future__ import annotations
 
 import os
-
-from autom8_asana.core.exceptions import Autom8Error
 import time
 
 import pytest
+
+from autom8_asana.core.exceptions import Autom8Error
 
 ASANA_PAT = os.getenv("ASANA_PAT")
 EXISTING_OFFER_GID = "1205571482650639"

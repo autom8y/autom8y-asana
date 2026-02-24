@@ -124,7 +124,9 @@ class TestFieldNameDerivation:
             pytest.param(TextField, "sms_number", "SMS Number", id="abbrev-sms"),
             pytest.param(TextField, "google_cal_id", "Google CAL ID", id="abbrev-cal"),
             pytest.param(MultiEnumField, "ad_types", "AD Types", id="abbrev-ad"),
-            pytest.param(TextField, "ai_ad_url_id", "AI AD URL ID", id="multiple-abbreviations"),
+            pytest.param(
+                TextField, "ai_ad_url_id", "AI AD URL ID", id="multiple-abbreviations"
+            ),
         ],
     )
     def test_field_name_derivation(
@@ -842,7 +844,9 @@ class TestFieldsClassGeneration:
     def test_fields_has_constant(self, constant_name: str, expected_value: str) -> None:
         """Verify Fields class has constant with correct value."""
         assert hasattr(StubEntityWithDescriptors.Fields, constant_name)
-        assert getattr(StubEntityWithDescriptors.Fields, constant_name) == expected_value
+        assert (
+            getattr(StubEntityWithDescriptors.Fields, constant_name) == expected_value
+        )
 
 
 class TestFieldsClassWithExistingFields:

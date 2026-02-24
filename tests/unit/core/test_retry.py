@@ -13,7 +13,6 @@ import threading
 import time
 
 import pytest
-
 from botocore.exceptions import ClientError
 
 from autom8_asana.core.exceptions import (

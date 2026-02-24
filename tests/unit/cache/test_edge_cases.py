@@ -274,8 +274,9 @@ class TestMemoryManagement:
     @pytest.mark.slow
     def test_no_memory_leak_on_repeated_clear(self) -> None:
         """Test that repeated fill-and-clear cycles don't leak memory."""
-        from autom8_asana.cache.models.entry import CacheEntry, EntryType
         from datetime import UTC, datetime
+
+        from autom8_asana.cache.models.entry import CacheEntry, EntryType
 
         cache = EnhancedInMemoryCacheProvider(max_size=1000)
         now = datetime.now(UTC)

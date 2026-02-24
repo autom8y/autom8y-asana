@@ -1544,7 +1544,9 @@ class TestMetricsLogging:
         mock_batch = AsyncMock()
         mock_batch.execute_async.return_value = [
             BatchResult(status_code=200, body={"data": {"gid": "r1"}}),
-            BatchResult(status_code=500, body={"errors": [{"message": "Server error"}]}),
+            BatchResult(
+                status_code=500, body={"errors": [{"message": "Server error"}]}
+            ),
             BatchResult(status_code=200, body={"data": {"gid": "r3"}}),
         ]
 

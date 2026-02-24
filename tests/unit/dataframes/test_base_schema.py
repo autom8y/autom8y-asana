@@ -65,10 +65,16 @@ class TestBaseSchemaColumns:
             pytest.param("date", "Date", True, None, id="date"),
             pytest.param("created", "Datetime", False, "created_at", id="created"),
             pytest.param("due_on", "Date", True, "due_on", id="due_on"),
-            pytest.param("is_completed", "Boolean", False, "completed", id="is_completed"),
-            pytest.param("completed_at", "Datetime", True, "completed_at", id="completed_at"),
+            pytest.param(
+                "is_completed", "Boolean", False, "completed", id="is_completed"
+            ),
+            pytest.param(
+                "completed_at", "Datetime", True, "completed_at", id="completed_at"
+            ),
             pytest.param("url", "Utf8", False, None, id="url"),
-            pytest.param("last_modified", "Datetime", False, "modified_at", id="last_modified"),
+            pytest.param(
+                "last_modified", "Datetime", False, "modified_at", id="last_modified"
+            ),
             pytest.param("section", "Utf8", True, None, id="section"),
             pytest.param("tags", "List[Utf8]", False, "tags", id="tags"),
         ],

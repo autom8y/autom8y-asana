@@ -272,17 +272,13 @@ class TestClientGIDValidation:
             await client_fixture.tasks.add_to_project_async("invalid-task", "123")
 
         with pytest.raises(ValidationError):
-            await client_fixture.tasks.add_to_project_async(
-                "123", "invalid-project"
-            )
+            await client_fixture.tasks.add_to_project_async("123", "invalid-project")
 
     @pytest.mark.asyncio
     async def test_remove_from_project_async_validates_gids(self, client_fixture):
         """TasksClient.remove_from_project_async() validates GIDs."""
         with pytest.raises(ValidationError):
-            await client_fixture.tasks.remove_from_project_async(
-                "invalid-task", "123"
-            )
+            await client_fixture.tasks.remove_from_project_async("invalid-task", "123")
 
         with pytest.raises(ValidationError):
             await client_fixture.tasks.remove_from_project_async(

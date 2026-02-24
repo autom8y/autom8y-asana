@@ -45,8 +45,9 @@ logger = get_logger(__name__)
 # --- Utility Functions ---
 
 
-from autom8_asana.core.string_utils import to_pascal_case as to_pascal_case  # noqa: E501 — re-export for backward compat
-
+from autom8_asana.core.string_utils import (
+    to_pascal_case as to_pascal_case,  # noqa: E501 — re-export for backward compat
+)
 
 # --- Data Models ---
 

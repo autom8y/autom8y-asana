@@ -7,10 +7,11 @@ a concrete DataServiceClient import.
 
 from __future__ import annotations
 
-from datetime import date
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
+    from datetime import date
+
     from autom8_asana.clients.data.models import InsightsResponse
 
 

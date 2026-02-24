@@ -64,9 +64,7 @@ def _cb_error_factory(
     ) from e
 
 
-def _request_builder(
-    http_client: Any, request: ExportRequestDescriptor
-) -> Any:
+def _request_builder(http_client: Any, request: ExportRequestDescriptor) -> Any:
     """Build the make_request lambda for export GET."""
     return lambda: http_client.get(
         request.path,
@@ -111,9 +109,7 @@ async def _success_handler(
 
     # Parse response headers
     row_count = int(response.headers.get("X-Export-Row-Count", "0"))
-    truncated = (
-        response.headers.get("X-Export-Truncated", "false").lower() == "true"
-    )
+    truncated = response.headers.get("X-Export-Truncated", "false").lower() == "true"
 
     # Extract filename from Content-Disposition header
     content_disp = response.headers.get("Content-Disposition", "")

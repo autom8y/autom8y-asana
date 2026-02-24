@@ -37,7 +37,10 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-from autom8_asana.core.registry import HOLDER_REGISTRY, register_holder  # noqa: F401 — re-export for backward compat
+from autom8_asana.core.registry import (  # noqa: E402, F401 — re-export for backward compat
+    HOLDER_REGISTRY,
+    register_holder,
+)
 
 
 def reset_holder_registry() -> None:

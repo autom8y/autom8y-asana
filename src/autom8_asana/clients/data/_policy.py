@@ -199,7 +199,7 @@ class DefaultEndpointPolicy(Generic[T, R]):
 
         # S4-S5: Build request + execute with retry
         make_request = self._request_builder(http_client, request)
-        callbacks = request.retry_callbacks  # type: ignore[attr-error]
+        callbacks = request.retry_callbacks  # type: ignore[attr-defined]
         try:
             response, _attempt = await self._execute_with_retry(
                 make_request,
