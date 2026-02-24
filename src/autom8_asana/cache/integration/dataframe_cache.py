@@ -18,21 +18,6 @@ from autom8_asana.cache.models.freshness_unified import FreshnessState
 # Backward-compatible alias. New code should use FreshnessState directly.
 FreshnessStatus = FreshnessState
 
-try:
-    from autom8_asana.api.metrics import (  # nosemgrep: autom8y.asana-no-lower-imports-api, autom8y.no-lower-imports-api  # soft optional dep, guarded by try/except
-        record_cache_op,
-        record_rows_cached,
-        record_swr_refresh,
-    )
-
-    _HAS_METRICS = True
-except ImportError:
-    # Catches: prometheus_client not installed (Lambda), or circular import when
-    # dataframe_cache is imported before api.__init__ finishes (standalone SDK).
-    # In the ECS FastAPI path, create_app() imports api.metrics first, so this
-    # import succeeds and _HAS_METRICS is True by the time requests arrive.
-    _HAS_METRICS = False
-
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
@@ -42,6 +27,7 @@ if TYPE_CHECKING:
     from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
     from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
     from autom8_asana.cache.dataframe.tiers.progressive import ProgressiveTier
+    from autom8_asana.protocols.metrics import MetricsEmitter
 
 logger = get_logger(__name__)
 
@@ -206,6 +192,7 @@ class DataFrameCache:
     coalescer: DataFrameCacheCoalescer
     circuit_breaker: CircuitBreaker
     schema_version: str = "1.0.0"
+    metrics_emitter: MetricsEmitter | None = None
 
     # Last freshness info per cache key (side-channel for API layer)
     _last_freshness: dict[str, FreshnessInfo] = field(
@@ -301,8 +288,8 @@ class DataFrameCache:
                 return result
 
         self._stats[entity_type]["memory_misses"] += 1
-        if _HAS_METRICS:
-            record_cache_op(entity_type, "memory", "miss")
+        if self.metrics_emitter:
+            self.metrics_emitter.record_cache_op(entity_type, "memory", "miss")
 
         # Try progressive tier (S3 via SectionPersistence)
         entry = await self.progressive_tier.get_async(cache_key)
@@ -317,8 +304,8 @@ class DataFrameCache:
                 return result
 
         self._stats[entity_type]["s3_misses"] += 1
-        if _HAS_METRICS:
-            record_cache_op(entity_type, "s3", "miss")
+        if self.metrics_emitter:
+            self.metrics_emitter.record_cache_op(entity_type, "s3", "miss")
         return None
 
     async def _get_circuit_lkg(
@@ -425,8 +412,8 @@ class DataFrameCache:
 
         if status == FreshnessState.FRESH:
             self._stats[entity_type][f"{tier}_hits"] += 1
-            if _HAS_METRICS:
-                record_cache_op(entity_type, tier, "hit")
+            if self.metrics_emitter:
+                self.metrics_emitter.record_cache_op(entity_type, tier, "hit")
             logger.debug(
                 f"dataframe_cache_{tier}_hit",
                 extra={
@@ -441,8 +428,8 @@ class DataFrameCache:
         if status == FreshnessState.APPROACHING_STALE:
             assert info is not None  # Guaranteed by status check above
             self._stats[entity_type][f"{tier}_hits"] += 1
-            if _HAS_METRICS:
-                record_cache_op(entity_type, tier, "hit")
+            if self.metrics_emitter:
+                self.metrics_emitter.record_cache_op(entity_type, tier, "hit")
             self._stats[entity_type]["swr_serves"] += 1
             logger.info(
                 f"dataframe_cache_{tier}_swr_serve",
@@ -482,8 +469,8 @@ class DataFrameCache:
 
             # LKG: Serve expired entry with warning, trigger refresh
             self._stats[entity_type][f"{tier}_hits"] += 1
-            if _HAS_METRICS:
-                record_cache_op(entity_type, tier, "hit")
+            if self.metrics_emitter:
+                self.metrics_emitter.record_cache_op(entity_type, tier, "hit")
             self._stats[entity_type]["lkg_serves"] += 1
             logger.warning(
                 f"dataframe_cache_{tier}_lkg_serve",
@@ -578,8 +565,8 @@ class DataFrameCache:
         self.circuit_breaker.close(project_gid)
 
         # Record Prometheus metrics for cache write
-        if _HAS_METRICS:
-            record_rows_cached(entity_type, entry.row_count)
+        if self.metrics_emitter:
+            self.metrics_emitter.record_rows_cached(entity_type, entry.row_count)
 
         logger.info(
             "dataframe_cache_put",
@@ -947,8 +934,8 @@ class DataFrameCache:
                 extra={"project_gid": project_gid, "entity_type": entity_type},
             )
         finally:
-            if _HAS_METRICS:
-                record_swr_refresh(entity_type, "success" if success else "failure")
+            if self.metrics_emitter:
+                self.metrics_emitter.record_swr_refresh(entity_type, "success" if success else "failure")
             await self.release_build_lock_async(
                 project_gid, entity_type, success=success
             )

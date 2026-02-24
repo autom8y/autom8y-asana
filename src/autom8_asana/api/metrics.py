@@ -129,3 +129,29 @@ def record_api_call(
         method=method,
         path_pattern=path_pattern,
     ).observe(duration_seconds)
+
+
+# --- Concrete MetricsEmitter Implementation ---
+# Satisfies protocols.metrics.MetricsEmitter via structural typing.
+
+
+class PrometheusMetricsEmitter:
+    """Concrete MetricsEmitter backed by prometheus_client counters/gauges.
+
+    Injected into DataFrameCache at startup to decouple cache layer from
+    api layer (eliminates Cycle 5).
+    """
+
+    def record_cache_op(self, entity_type: str, tier: str, result: str) -> None:
+        """Record a cache operation (hit/miss/error)."""
+        DATAFRAME_CACHE_OPS.labels(
+            entity_type=entity_type, tier=tier, result=result
+        ).inc()
+
+    def record_rows_cached(self, entity_type: str, row_count: int) -> None:
+        """Update the rows-cached gauge for an entity type."""
+        DATAFRAME_ROWS_CACHED.labels(entity_type=entity_type).set(row_count)
+
+    def record_swr_refresh(self, entity_type: str, result: str) -> None:
+        """Record an SWR refresh attempt (success/failure)."""
+        DATAFRAME_SWR_REFRESHES.labels(entity_type=entity_type, result=result).inc()
