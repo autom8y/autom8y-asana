@@ -490,14 +490,12 @@ class TestMixedFieldTypes:
 class TestValidationEdgeCases:
     """Test edge cases in validation."""
 
-    def test_boolean_rejected_as_number(self):
-        """Boolean should not be accepted as number (bool is int subclass)."""
+    def test_boolean_accepted_as_number(self):
+        """Boolean is accepted as number because bool is a subclass of int in Python."""
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Budget", "resource_subtype": "number"}]
         )
-        # Note: bool is a subclass of int in Python, so this will be accepted
-        # This is consistent with Python's type system
-        accessor.set("Budget", True)  # Allowed because bool is int subclass
+        accessor.set("Budget", True)  # bool is int subclass; accepted by Python type system
         assert accessor.get("Budget") is True
 
     def test_empty_string_accepted_for_text(self):

@@ -992,7 +992,7 @@ class TestProcessEdgeCase:
         for attr_name in dir(Process):
             try:
                 attr = getattr(Process, attr_name)
-            except Exception:
+            except (AttributeError, TypeError):
                 continue
             if isinstance(attr, CustomFieldDescriptor) and attr.field_name:
                 descriptors.append(attr_name)

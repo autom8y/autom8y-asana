@@ -592,6 +592,9 @@ class TestPerformanceTiming:
 
         # Log timing (informational, no assertion)
         print(f"\n100 unified store lookups: {elapsed_ms:.2f}ms")
+        assert elapsed_ms < 1000.0, (
+            f"100 lookups took {elapsed_ms:.2f}ms, expected < 1000ms"
+        )
 
     @pytest.mark.asyncio
     async def test_legacy_coordinator_lookup_timing(
@@ -622,3 +625,6 @@ class TestPerformanceTiming:
 
         # Log timing (informational, no assertion)
         print(f"\n100 legacy coordinator lookups: {elapsed_ms:.2f}ms")
+        assert elapsed_ms < 1000.0, (
+            f"100 lookups took {elapsed_ms:.2f}ms, expected < 1000ms"
+        )
