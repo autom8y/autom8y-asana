@@ -349,6 +349,8 @@ async def build_for_project(
     persistence = create_section_persistence()
 
     async with persistence:
+        from autom8_asana.services.gid_lookup import build_gid_index_data
+
         builder = ProgressiveProjectBuilder(
             client=client,
             project_gid=project.gid,
@@ -358,6 +360,7 @@ async def build_for_project(
             resolver=resolver,
             store=client.unified_store,
             max_concurrent_sections=max_concurrent_sections,
+            index_builder=build_gid_index_data,
         )
 
         result = await builder.build_progressive_async(resume=use_cache)

@@ -660,7 +660,7 @@ def _bind_entity_types() -> None:
     frozen dataclass instances (safe because this runs exactly once
     before any consumer reads the descriptors).
     """
-    from autom8_asana.models.business.detection.types import EntityType
+    from autom8_asana.core.types import EntityType
 
     _TYPE_MAP: dict[str, Any] = {
         "business": EntityType.BUSINESS,
