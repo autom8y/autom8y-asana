@@ -164,7 +164,8 @@ async def query_rows(
     )
 
     # 3. Execute query
-    engine = QueryEngine()
+    query_service = EntityQueryService()
+    engine = QueryEngine(provider=query_service)
     try:
         async with AsanaClient(token=ctx.bot_pat) as client:
             result = await engine.execute_rows(
@@ -230,7 +231,8 @@ async def query_aggregate(
     )
 
     # 3. Execute aggregate query
-    engine = QueryEngine()
+    query_service = EntityQueryService()
+    engine = QueryEngine(provider=query_service)
     try:
         async with AsanaClient(token=ctx.bot_pat) as client:
             result = await engine.execute_aggregate(
