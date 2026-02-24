@@ -342,7 +342,7 @@ class TestDataServiceConfig:
         assert config.base_url == "http://localhost:8000"
         assert config.token_key == "AUTOM8_DATA_API_KEY"
         assert config.cache_ttl == 300
-        assert config.max_batch_size == 50
+        assert config.max_batch_size == 500
 
         # Verify nested configs
         assert isinstance(config.timeout, TimeoutConfig)
@@ -420,6 +420,20 @@ class TestDataServiceConfig:
             DataServiceConfig(max_batch_size=-10)
 
         assert "max_batch_size" in str(exc_info.value)
+
+    def test_rejects_max_batch_size_above_server_limit(self) -> None:
+        """Rejects max_batch_size exceeding server limit of 1000."""
+        with pytest.raises(ConfigurationError) as exc_info:
+            DataServiceConfig(max_batch_size=1001)
+
+        assert "max_batch_size" in str(exc_info.value)
+        assert "1000" in str(exc_info.value)
+
+    def test_accepts_max_batch_size_at_server_limit(self) -> None:
+        """Accepts max_batch_size exactly at server limit of 1000."""
+        config = DataServiceConfig(max_batch_size=1000)
+
+        assert config.max_batch_size == 1000
 
 
 class TestDataServiceConfigFromEnv:

@@ -204,9 +204,13 @@ class S2SAuditLogger:
         # Emit structured log using appropriate level
         # Use include_event=False since event is passed as positional arg
         if status >= 400:
-            self._logger.warning("s2s_request", **entry.to_dict(include_event=False))
+            self._logger.warning(  # nosemgrep: autom8y.no-logger-positional-args
+                "s2s_request", **entry.to_dict(include_event=False)
+            )
         else:
-            self._logger.info("s2s_request", **entry.to_dict(include_event=False))
+            self._logger.info(  # nosemgrep: autom8y.no-logger-positional-args
+                "s2s_request", **entry.to_dict(include_event=False)
+            )
 
         return entry
 

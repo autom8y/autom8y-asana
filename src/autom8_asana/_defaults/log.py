@@ -245,4 +245,4 @@ class DefaultLogProvider:
             event_data.update(metadata)
 
         # Log at DEBUG level to avoid noise
-        self._logger.debug("cache_event: %s", json.dumps(event_data))
+        self._logger.debug(f"cache_event: {json.dumps(event_data)}")

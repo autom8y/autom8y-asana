@@ -363,12 +363,12 @@ class Task(AsanaResource):
                 "Task must be obtained via client.tasks.get() or similar."
             )
 
-        from autom8_asana.persistence.exceptions import (
+        from autom8_asana.persistence.exceptions import (  # nosemgrep: autom8y.no-models-import-upper
             SaveSessionError,
-        )  # nosemgrep: autom8y.no-models-import-upper
-        from autom8_asana.persistence.session import (
+        )
+        from autom8_asana.persistence.session import (  # nosemgrep: autom8y.no-models-import-upper
             SaveSession,
-        )  # nosemgrep: autom8y.no-models-import-upper
+        )
 
         async with SaveSession(self._client) as session:
             session.track(self)

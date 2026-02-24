@@ -154,13 +154,21 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
         # Determine log level based on status code and duration
         if response.status_code >= 500:
-            logger.error("request_failed", **log_data)
+            logger.error(  # nosemgrep: autom8y.no-logger-positional-args
+                "request_failed", **log_data
+            )
         elif response.status_code >= 400:
-            logger.warning("client_error", **log_data)
+            logger.warning(  # nosemgrep: autom8y.no-logger-positional-args
+                "client_error", **log_data
+            )
         elif duration_ms > SLOW_REQUEST_THRESHOLD_MS:
-            logger.warning("slow_request", **log_data)
+            logger.warning(  # nosemgrep: autom8y.no-logger-positional-args
+                "slow_request", **log_data
+            )
         else:
-            logger.info("request_completed", **log_data)
+            logger.info(  # nosemgrep: autom8y.no-logger-positional-args
+                "request_completed", **log_data
+            )
 
         return response
 
