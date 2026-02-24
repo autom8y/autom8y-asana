@@ -9,6 +9,8 @@ from __future__ import annotations
 import threading
 from typing import TYPE_CHECKING, Callable, ClassVar
 
+from autom8y_log import get_logger
+
 from autom8_asana.dataframes.exceptions import SchemaNotFoundError, SchemaVersionError
 
 if TYPE_CHECKING:
@@ -294,6 +296,33 @@ class SchemaRegistry:
 
         with self._lock:
             return dict(self._schemas)
+
+
+def get_schema_version(entity_type: str | None) -> str | None:
+    """Look up schema version from SchemaRegistry for an entity type.
+
+    Args:
+        entity_type: Entity type in lowercase (e.g., "unit", "contact").
+            Returns None if entity_type is None or empty.
+
+    Returns:
+        Schema version string if found, None if lookup fails.
+    """
+    if not entity_type:
+        return None
+    try:
+        from autom8_asana.core.string_utils import to_pascal_case
+
+        registry = SchemaRegistry.get_instance()
+        registry_key = to_pascal_case(entity_type)
+        schema = registry.get_schema(registry_key)
+        return schema.version if schema else None
+    except (ValueError, KeyError, TypeError, AttributeError, RuntimeError) as e:
+        get_logger(__name__).warning(
+            "schema_version_lookup_failed",
+            extra={"entity_type": entity_type, "error": str(e)},
+        )
+        return None
 
 
 # Self-register for SystemContext.reset_all()

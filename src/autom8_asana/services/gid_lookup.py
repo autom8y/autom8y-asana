@@ -304,3 +304,23 @@ class GidLookupIndex:
             lookup_dict=lookup_dict,
             created_at=datetime.now(UTC),
         )
+
+
+def build_gid_index_data(df: pl.DataFrame, entity_type: str) -> dict[str, Any] | None:
+    """Build serialized GidLookupIndex data from a DataFrame.
+
+    Intended as the ``index_builder`` callback for
+    :class:`~autom8_asana.dataframes.builders.progressive.ProgressiveProjectBuilder`.
+
+    Args:
+        df: Merged DataFrame with entity rows.
+        entity_type: Entity type key for column lookup.
+
+    Returns:
+        Serialized index dict, or *None* if required columns are missing.
+    """
+    from autom8_asana.services.universal_strategy import DEFAULT_KEY_COLUMNS
+
+    key_columns = DEFAULT_KEY_COLUMNS.get(entity_type, ["gid"])
+    index = GidLookupIndex.from_dataframe(df, key_columns=key_columns)
+    return index.serialize()

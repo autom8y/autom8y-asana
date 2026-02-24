@@ -17,6 +17,7 @@ import asyncio
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
@@ -130,6 +131,7 @@ class ProgressiveProjectBuilder:
         resolver: CustomFieldResolver | None = None,
         store: Any | None = None,
         max_concurrent_sections: int = 8,
+        index_builder: Callable[[pl.DataFrame, str], dict[str, Any] | None] | None = None,
     ) -> None:
         """Initialize progressive builder.
 
@@ -142,6 +144,9 @@ class ProgressiveProjectBuilder:
             resolver: Optional custom field resolver.
             store: Optional UnifiedStore for cascade field resolution.
             max_concurrent_sections: Max parallel section fetches.
+            index_builder: Optional callback ``(df, entity_type) -> dict | None``
+                that builds a serialized GidLookupIndex. When *None*, index
+                building is skipped.
         """
         self._client = client
         self._project_gid = project_gid
@@ -151,6 +156,7 @@ class ProgressiveProjectBuilder:
         self._resolver = resolver
         self._store = store
         self._max_concurrent = max_concurrent_sections
+        self._index_builder = index_builder
         self._dataframe_view: DataFrameViewPlugin | None = None
         self._section_dfs: dict[str, pl.DataFrame] = {}
         self._manifest: SectionManifest | None = None
@@ -1229,14 +1235,15 @@ class ProgressiveProjectBuilder:
             )
 
     def _build_index_data(self, df: pl.DataFrame) -> dict[str, Any] | None:
-        """Build GidLookupIndex serialized data from DataFrame."""
-        try:
-            from autom8_asana.services.gid_lookup import GidLookupIndex
-            from autom8_asana.services.universal_strategy import DEFAULT_KEY_COLUMNS
+        """Build GidLookupIndex serialized data from DataFrame.
 
-            key_columns = DEFAULT_KEY_COLUMNS.get(self._entity_type, ["gid"])
-            index = GidLookupIndex.from_dataframe(df, key_columns=key_columns)
-            return index.serialize()
+        Delegates to the ``index_builder`` callback provided at construction.
+        Returns *None* when no builder was supplied.
+        """
+        if self._index_builder is None:
+            return None
+        try:
+            return self._index_builder(df, self._entity_type)
         except Exception as e:  # BROAD-CATCH: enrichment
             logger.warning(
                 "progressive_build_index_failed",
@@ -1282,6 +1289,7 @@ async def build_project_progressive_async(
     resolver: CustomFieldResolver | None = None,
     store: Any | None = None,
     resume: bool = True,
+    index_builder: Callable[[pl.DataFrame, str], dict[str, Any] | None] | None = None,
 ) -> BuildResult:
     """Convenience function for progressive project build.
 
@@ -1294,6 +1302,7 @@ async def build_project_progressive_async(
         resolver: Optional custom field resolver.
         store: Optional UnifiedStore for cascade field resolution.
         resume: If True, resume from existing manifest.
+        index_builder: Optional callback for building GidLookupIndex data.
 
     Returns:
         BuildResult with classified status and per-section detail.
@@ -1306,5 +1315,6 @@ async def build_project_progressive_async(
         persistence=persistence,
         resolver=resolver,
         store=store,
+        index_builder=index_builder,
     )
     return await builder.build_progressive_async(resume=resume)
