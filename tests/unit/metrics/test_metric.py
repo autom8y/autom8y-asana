@@ -44,6 +44,14 @@ class TestScope:
         # Original unchanged (frozen)
         assert scope.section is None
 
+    def test_classification_field_default_none(self) -> None:
+        scope = Scope(entity_type="offer")
+        assert scope.classification is None
+
+    def test_classification_field_set(self) -> None:
+        scope = Scope(entity_type="offer", classification="active")
+        assert scope.classification == "active"
+
     def test_frozen(self) -> None:
         scope = Scope(entity_type="offer")
         with pytest.raises(AttributeError):

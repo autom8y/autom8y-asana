@@ -15,13 +15,11 @@ import polars as pl
 from autom8_asana.metrics.expr import MetricExpr
 from autom8_asana.metrics.metric import Metric, Scope
 from autom8_asana.metrics.registry import MetricRegistry
-from autom8_asana.models.business.sections import OfferSection
 
-# Shared scope: ACTIVE offers deduped by (office_phone, vertical)
+# Shared scope: ACTIVE-classified offers deduped by (office_phone, vertical)
 _ACTIVE_OFFER_SCOPE = Scope(
     entity_type="offer",
-    section=OfferSection.ACTIVE.value,
-    section_name="Active",
+    classification="active",
     dedup_keys=["office_phone", "vertical"],
 )
 

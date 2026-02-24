@@ -53,6 +53,23 @@ def compute_metric(
     expr = metric.expr
     scope = metric.scope
 
+    # Step 0.5: Classification filter (applied before column selection)
+    if scope.classification is not None:
+        if "section" not in df.columns:
+            raise ValueError(
+                f"Classification filter requires 'section' column, "
+                f"but DataFrame has columns: {df.columns}"
+            )
+        from autom8_asana.models.business.activity import CLASSIFIERS, AccountActivity
+
+        classifier = CLASSIFIERS.get(scope.entity_type)
+        if classifier is None:
+            raise ValueError(
+                f"No classifier for entity type '{scope.entity_type}'"
+            )
+        sections = classifier.sections_for(AccountActivity(scope.classification))
+        df = df.filter(pl.col("section").str.to_lowercase().is_in(list(sections)))
+
     # Step 1: Select relevant columns
     # Include "name" for display if present, plus dedup keys and metric column
     select_cols: list[str] = []

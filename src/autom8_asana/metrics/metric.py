@@ -45,6 +45,7 @@ class Scope:
     entity_type: str
     section: str | None = None
     section_name: str | None = None
+    classification: str | None = None
     dedup_keys: list[str] | None = field(default=None)
     pre_filters: list[pl.Expr] | None = field(default=None)
 
