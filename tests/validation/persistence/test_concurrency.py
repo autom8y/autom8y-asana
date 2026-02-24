@@ -209,7 +209,9 @@ class TestThreadSafety:
 
         # Graph should be in consistent state (last build wins)
         levels = graph.get_levels()
-        assert len(levels) >= 0  # Just verify it doesn't crash
+        assert len(levels) >= 1, (
+            f"get_levels() returned empty result after concurrent graph build: {levels!r}"
+        )
 
     def test_tracker_concurrent_get_dirty_entities(self) -> None:
         """get_dirty_entities() is thread-safe."""
