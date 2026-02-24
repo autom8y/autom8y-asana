@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import io
 import os
+from typing import Any
 
 import boto3
 import polars as pl
@@ -67,7 +68,7 @@ def load_project_dataframe(
 
 
 def _list_parquet_keys(
-    client: boto3.client,
+    client: Any,
     bucket: str,
     prefix: str,
 ) -> list[str]:

@@ -2,17 +2,20 @@
 
 Usage:
     python -m autom8_asana.query rows offer --classification active --select gid,name,mrr
+    python -m autom8_asana.query rows offer --join business:booking_type --classification active
+    python -m autom8_asana.query rows offer --join business:booking_type,stripe_id --join-on office_phone
     python -m autom8_asana.query aggregate offer --group-by section --agg sum:mrr
     python -m autom8_asana.query entities
     python -m autom8_asana.query fields offer
     python -m autom8_asana.query relations offer
+    python -m autom8_asana.query timeline offer --moved-to ACTIVE --since 30d --format table
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
-from typing import IO
+from typing import IO, Any
 
 
 class CLIError(Exception):
@@ -57,7 +60,7 @@ def _coerce_value(raw: str) -> str | int | float | bool:
     return raw
 
 
-def parse_where_flag(raw: str) -> dict:
+def parse_where_flag(raw: str) -> dict[str, Any]:
     """Parse 'field op value' into a Comparison-compatible dict.
 
     Supports:
@@ -94,7 +97,7 @@ def parse_where_flag(raw: str) -> dict:
     return {"field": field_name, "op": op.value, "value": value}
 
 
-def parse_where_json(raw: str) -> dict:
+def parse_where_json(raw: str) -> dict[str, Any]:
     """Parse a JSON predicate tree into a dict for Pydantic validation.
 
     Delegates to Pydantic model_validate, which uses the
@@ -116,7 +119,7 @@ def parse_where_json(raw: str) -> dict:
 
 def build_predicate(
     where_flags: list[str] | None, where_json: str | None
-) -> dict | None:
+) -> dict[str, Any] | None:
     """Combine --where and --where-json into a single predicate dict.
 
     Rules:
@@ -127,7 +130,7 @@ def build_predicate(
 
     Raises CLIError if --where-json contains invalid JSON or predicate structure.
     """
-    nodes: list[dict] = []
+    nodes: list[dict[str, Any]] = []
     if where_flags:
         for raw in where_flags:
             nodes.append(parse_where_flag(raw))
@@ -141,7 +144,7 @@ def build_predicate(
     return {"and": nodes}
 
 
-def parse_agg_flag(raw: str) -> dict:
+def parse_agg_flag(raw: str) -> dict[str, Any]:
     """Parse 'function:column[:alias]' into AggSpec-compatible dict.
 
     Examples:
@@ -167,7 +170,7 @@ def parse_agg_flag(raw: str) -> dict:
             f"Unknown aggregation function: '{func_str}'. "
             f"Supported: {', '.join(f.value for f in AggFunction)}"
         ) from None
-    result: dict = {"column": column, "agg": func.value}
+    result: dict[str, Any] = {"column": column, "agg": func.value}
     if alias is not None:
         result["alias"] = alias
     return result
@@ -210,7 +213,7 @@ def resolve_entity_type(entity_type: str) -> tuple[str, str]:
 # ---------------------------------------------------------------------------
 
 
-def print_metadata(meta: object, file: IO[str] | None = None) -> None:
+def print_metadata(meta: Any, file: IO[str] | None = None) -> None:
     """Print query metadata to stderr.
 
     Format:
@@ -224,18 +227,18 @@ def print_metadata(meta: object, file: IO[str] | None = None) -> None:
 
     parts: list[str] = []
     if hasattr(meta, "total_count"):
-        parts.append(f"total: {meta.total_count}")  # type: ignore[attr-defined]
-        parts.append(f"returned: {meta.returned_count}")  # type: ignore[attr-defined]
+        parts.append(f"total: {meta.total_count}")
+        parts.append(f"returned: {meta.returned_count}")
     if hasattr(meta, "group_count"):
-        parts.append(f"groups: {meta.group_count}")  # type: ignore[attr-defined]
-    parts.append(f"query_ms: {meta.query_ms}")  # type: ignore[attr-defined]
-    if hasattr(meta, "freshness") and meta.freshness:  # type: ignore[attr-defined]
-        parts.append(f"freshness: {meta.freshness}")  # type: ignore[attr-defined]
-    if hasattr(meta, "join_entity") and meta.join_entity:  # type: ignore[attr-defined]
+        parts.append(f"groups: {meta.group_count}")
+    parts.append(f"query_ms: {meta.query_ms}")
+    if hasattr(meta, "freshness") and meta.freshness:
+        parts.append(f"freshness: {meta.freshness}")
+    if hasattr(meta, "join_entity") and meta.join_entity:
         parts.append(
-            f"join: {meta.join_entity} "  # type: ignore[attr-defined]
-            f"({meta.join_matched} matched, "  # type: ignore[attr-defined]
-            f"{meta.join_unmatched} unmatched)"  # type: ignore[attr-defined]
+            f"join: {meta.join_entity} "
+            f"({meta.join_matched} matched, "
+            f"{meta.join_unmatched} unmatched)"
         )
     print(", ".join(parts), file=file)
 
@@ -288,7 +291,7 @@ def _get_formatter(args: argparse.Namespace) -> object:
     no_truncate = getattr(args, "no_truncate", False)
     cls = FORMATTERS.get(fmt_name, TableFormatter)
     if cls is TableFormatter:
-        return cls(no_truncate=no_truncate)  # type: ignore[call-arg]
+        return cls(no_truncate=no_truncate)
     return cls()
 
 
@@ -324,20 +327,10 @@ def handle_rows(args: argparse.Namespace) -> int:
     # Build join spec
     join_spec = None
     if args.join:
-        if not args.join_select:
-            raise CLIError(
-                "--join-select is required when --join is specified. "
-                "Example: --join business --join-select booking_type,stripe_id"
-            )
-        join_spec = {
-            "entity_type": args.join,
-            "select": [s.strip() for s in args.join_select.split(",")],
-        }
-        if args.join_on:
-            join_spec["on"] = args.join_on
+        join_spec = _parse_join(args.join, getattr(args, "join_on", None))
 
     # Build RowsRequest
-    request_data: dict = {
+    request_data: dict[str, Any] = {
         "where": predicate,
         "limit": args.limit,
         "offset": args.offset,
@@ -413,7 +406,7 @@ def handle_aggregate(args: argparse.Namespace) -> int:
         having = build_predicate(args.having, None)
 
     # Build AggregateRequest
-    request_data: dict = {
+    request_data: dict[str, Any] = {
         "where": predicate,
         "group_by": [s.strip() for s in args.group_by.split(",")],
         "aggregations": agg_specs,
@@ -559,6 +552,102 @@ def handle_relations(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_timeline(args: argparse.Namespace) -> int:
+    """Handle the 'timeline' subcommand.
+
+    Loads cached SectionTimeline data from local parquet, applies
+    TemporalFilter, and formats matching timelines as flat rows.
+    """
+    from pathlib import Path
+
+    from autom8_asana.query.temporal import TemporalFilter, parse_date_or_relative
+    from autom8_asana.query.timeline_provider import TimelineStore
+
+    # Parse date arguments
+    since = None
+    until = None
+    if args.since:
+        try:
+            since = parse_date_or_relative(args.since)
+        except ValueError as e:
+            raise CLIError(str(e)) from None
+    if args.until:
+        try:
+            until = parse_date_or_relative(args.until)
+        except ValueError as e:
+            raise CLIError(str(e)) from None
+
+    # Build filter
+    temporal_filter = TemporalFilter(
+        moved_to=args.moved_to,
+        moved_from=args.moved_from,
+        since=since,
+        until=until,
+    )
+
+    # Resolve cache directory and load
+    cache_dir = Path(args.cache_dir) if args.cache_dir else None
+    store = TimelineStore(cache_dir=cache_dir) if cache_dir else TimelineStore()
+
+    # We need a project GID to locate cached timelines.
+    # Use the entity_type to resolve it from the registry.
+    _, project_gid = resolve_entity_type(args.entity_type)
+
+    timelines = store.load(project_gid)
+    if timelines is None:
+        cache_path = store._parquet_path(project_gid)
+        raise CLIError(
+            f"No cached timeline data found for '{args.entity_type}' "
+            f"(project {project_gid}).\n"
+            f"Expected: {cache_path}\n"
+            "Timeline data requires live computation from Asana stories. "
+            "A future release will add a --compute flag for live generation."
+        )
+
+    # Apply filter
+    matched = [tl for tl in timelines if temporal_filter.matches(tl)]
+
+    # Flatten to rows for output
+    rows: list[dict[str, object]] = []
+    for tl in matched:
+        for interval in tl.intervals:
+            rows.append(
+                {
+                    "offer_gid": tl.offer_gid,
+                    "office_phone": tl.office_phone,
+                    "offer_id": tl.offer_id,
+                    "section_name": interval.section_name,
+                    "classification": (
+                        interval.classification.value
+                        if interval.classification is not None
+                        else None
+                    ),
+                    "entered_at": str(interval.entered_at),
+                    "exited_at": (
+                        str(interval.exited_at) if interval.exited_at else None
+                    ),
+                }
+            )
+
+    # Output
+    formatter = _get_formatter(args)
+    out = _get_output_stream(args)
+    try:
+        formatter.format_discovery(rows, out)  # type: ignore[attr-defined]
+        # Print summary metadata to stderr
+        print(
+            f"matched: {len(matched)} timelines, "
+            f"intervals: {len(rows)}, "
+            f"total_cached: {len(timelines)}",
+            file=sys.stderr,
+        )
+    finally:
+        if out is not sys.stdout:
+            out.close()
+
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Argument parser construction
 # ---------------------------------------------------------------------------
@@ -614,19 +703,43 @@ def _add_filter_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _parse_join(join_str: str, join_on: str | None) -> dict[str, Any]:
+    """Parse 'entity:col1,col2' to a JoinSpec-compatible dict.
+
+    Args:
+        join_str: Combined entity:columns string (e.g., "business:booking_type,stripe_id").
+        join_on: Optional explicit join key override.
+
+    Returns:
+        Dict suitable for JoinSpec.model_validate().
+
+    Raises:
+        CLIError: If the join string format is invalid.
+    """
+    if ":" not in join_str:
+        raise CLIError(
+            f"Invalid --join format: {join_str!r}. Expected ENTITY:col1,col2"
+        )
+    entity_type, cols_str = join_str.split(":", 1)
+    select = [c.strip() for c in cols_str.split(",") if c.strip()]
+    if not select:
+        raise CLIError(f"No columns specified in --join: {join_str!r}")
+    result: dict[str, Any] = {"entity_type": entity_type.strip(), "select": select}
+    if join_on is not None:
+        result["on"] = join_on
+    return result
+
+
 def _add_join_args(parser: argparse.ArgumentParser) -> None:
     """Cross-entity join args (rows only)."""
     parser.add_argument(
         "--join",
-        help="Entity type to join (e.g., --join business)",
-    )
-    parser.add_argument(
-        "--join-select",
-        help="Comma-separated columns from joined entity. Example: --join-select booking_type,stripe_id",
+        help="Join entity:col1,col2 (e.g., business:booking_type,stripe_id)",
     )
     parser.add_argument(
         "--join-on",
-        help="Override join key (default: auto-resolved from entity relationships)",
+        dest="join_on",
+        help="Explicit join key (default: auto-resolved from relationship)",
     )
 
 
@@ -732,6 +845,46 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_output_args(rel_parser)
 
+    # --- timeline subcommand ---
+    timeline_parser = subparsers.add_parser(
+        "timeline",
+        help="Query section transitions over time",
+        description=(
+            "Query section transitions using cached SectionTimeline data.\n\n"
+            "Examples:\n"
+            "  timeline offer --moved-to ACTIVE --since 30d\n"
+            "  timeline offer --moved-from 'Sales Process' --moved-to ACTIVE --since 2025-01-01"
+        ),
+    )
+    timeline_parser.add_argument(
+        "entity_type",
+        help="Entity type (offer, unit)",
+    )
+    timeline_parser.add_argument(
+        "--moved-to",
+        dest="moved_to",
+        help="Filter to transitions entering this section or classification",
+    )
+    timeline_parser.add_argument(
+        "--moved-from",
+        dest="moved_from",
+        help="Filter to transitions from this section or classification",
+    )
+    timeline_parser.add_argument(
+        "--since",
+        help="Transitions on or after this date (ISO date or relative: 30d, 4w)",
+    )
+    timeline_parser.add_argument(
+        "--until",
+        help="Transitions on or before this date (ISO date or relative: 30d, 4w)",
+    )
+    timeline_parser.add_argument(
+        "--cache-dir",
+        dest="cache_dir",
+        help="Local timeline cache directory (default: ~/.autom8/timelines)",
+    )
+    _add_output_args(timeline_parser)
+
     return parser
 
 
@@ -756,6 +909,7 @@ def main(argv: list[str] | None = None) -> int:
         "entities": handle_entities,
         "fields": handle_fields,
         "relations": handle_relations,
+        "timeline": handle_timeline,
     }
 
     handler = handlers.get(args.command)
