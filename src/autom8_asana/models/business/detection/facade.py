@@ -21,7 +21,6 @@ from typing import TYPE_CHECKING, Any
 from autom8y_log import get_logger
 from pydantic import ValidationError
 
-from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 from autom8_asana.models.business.detection.config import (
     get_holder_attr,
@@ -46,6 +45,7 @@ from autom8_asana.models.business.detection.types import (
 )
 
 if TYPE_CHECKING:
+    from autom8_asana.cache.models.entry import CacheEntry, EntryType
     from autom8_asana.client import AsanaClient
     from autom8_asana.models.task import Task
 
@@ -90,6 +90,8 @@ def _get_cached_detection(
         DetectionResult if cache hit and valid, None otherwise.
     """
     try:
+        from autom8_asana.cache.models.entry import EntryType
+
         entry = cache.get(task_gid, EntryType.DETECTION)  # type: ignore[attr-defined]
         if entry is None:
             return None
@@ -134,6 +136,8 @@ def _cache_detection_result(
     # FR-CACHE-006: Don't cache UNKNOWN results
     if result.entity_type == EntityType.UNKNOWN:
         return
+
+    from autom8_asana.cache.models.entry import CacheEntry, EntryType
 
     # Serialize DetectionResult to dict
     # Per FR-ENTRY-003: All 5 fields preserved with EntityType as string

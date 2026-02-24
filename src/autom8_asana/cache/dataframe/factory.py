@@ -74,6 +74,8 @@ async def _swr_build_callback(
         section_persistence = create_section_persistence()
 
         async with section_persistence:
+            from autom8_asana.services.gid_lookup import build_gid_index_data
+
             builder = ProgressiveProjectBuilder(
                 client=client,
                 project_gid=project_gid,
@@ -82,6 +84,7 @@ async def _swr_build_callback(
                 persistence=section_persistence,
                 resolver=resolver,
                 store=client.unified_store,
+                index_builder=build_gid_index_data,
             )
             result = await builder.build_progressive_async(resume=True)
 
