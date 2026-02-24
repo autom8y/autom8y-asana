@@ -329,9 +329,7 @@ class TestBuildResult:
         )
         assert result.sections_resumed == 2
 
-    def test_build_result_total_rows_uses_dataframe(
-        self, now: datetime
-    ) -> None:
+    def test_build_result_total_rows_uses_dataframe(self, now: datetime) -> None:
         """total_rows returns len(dataframe) when DataFrame is available."""
         df = pl.DataFrame({"gid": ["1", "2", "3", "4", "5"]})
         result = BuildResult.from_section_results(
@@ -395,9 +393,7 @@ class TestBuildResult:
         assert result.total_rows == 50
         assert result.fetched_rows == 50
 
-    def test_build_result_fetched_rows(
-        self, now: datetime
-    ) -> None:
+    def test_build_result_fetched_rows(self, now: datetime) -> None:
         """fetched_rows always counts only SUCCESS sections."""
         df = pl.DataFrame({"gid": ["1", "2", "3"]})
         result = BuildResult.from_section_results(
