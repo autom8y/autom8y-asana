@@ -5,6 +5,8 @@ Usage:
     python -m autom8_asana.query rows offer --join business:booking_type --classification active
     python -m autom8_asana.query rows offer --join business:booking_type,stripe_id --join-on office_phone
     python -m autom8_asana.query aggregate offer --group-by section --agg sum:mrr
+    python -m autom8_asana.query run active_offers
+    python -m autom8_asana.query run ./queries/mrr_by_vertical.yaml --format json
     python -m autom8_asana.query entities
     python -m autom8_asana.query fields offer
     python -m autom8_asana.query relations offer
@@ -324,10 +326,17 @@ def handle_rows(args: argparse.Namespace) -> int:
         getattr(args, "where_json", None),
     )
 
-    # Build join spec
+    # Build join spec (--join accepts multiple flags via action="append")
     join_spec = None
-    if args.join:
-        join_spec = _parse_join(args.join, getattr(args, "join_on", None))
+    join_list = getattr(args, "join", None)
+    if join_list:
+        if len(join_list) > 1:
+            print(
+                f"Note: Only one --join is supported per query. "
+                f"Using first: {join_list[0]}",
+                file=sys.stderr,
+            )
+        join_spec = _parse_join(join_list[0], getattr(args, "join_on", None))
 
     # Build RowsRequest
     request_data: dict[str, Any] = {
@@ -448,19 +457,9 @@ def handle_aggregate(args: argparse.Namespace) -> int:
 
 def handle_entities(args: argparse.Namespace) -> int:
     """Handle the 'entities' subcommand."""
-    from autom8_asana.core.entity_registry import get_registry
+    from autom8_asana.query.introspection import list_entities
 
-    registry = get_registry()
-    rows: list[dict[str, object]] = []
-    for desc in registry.warmable_entities():
-        rows.append(
-            {
-                "entity_type": desc.name,
-                "display_name": desc.display_name,
-                "project_gid": desc.primary_project_gid,
-                "category": desc.category.value,
-            }
-        )
+    rows = list_entities()
 
     formatter = _get_formatter(args)
     out = _get_output_stream(args)
@@ -475,34 +474,12 @@ def handle_entities(args: argparse.Namespace) -> int:
 
 def handle_fields(args: argparse.Namespace) -> int:
     """Handle the 'fields' subcommand."""
-    from autom8_asana.dataframes.models.registry import SchemaRegistry
-    from autom8_asana.query.engine import _to_pascal_case
+    from autom8_asana.query.introspection import list_fields
 
-    pascal_name = _to_pascal_case(args.entity_type)
-    registry = SchemaRegistry.get_instance()
-
-    if not registry.has_schema(pascal_name):
-        from autom8_asana.core.entity_registry import get_registry as get_er
-
-        available = sorted(
-            d.name for d in get_er().all_descriptors() if d.schema_module_path
-        )
-        raise CLIError(
-            f"No schema available for '{args.entity_type}'. "
-            f"Queryable entities: {', '.join(available)}"
-        )
-
-    schema = registry.get_schema(pascal_name)
-    rows: list[dict[str, object]] = []
-    for col in schema.columns:
-        rows.append(
-            {
-                "name": col.name,
-                "dtype": col.dtype,
-                "nullable": col.nullable,
-                "description": col.description or "",
-            }
-        )
+    try:
+        rows = list_fields(args.entity_type)
+    except ValueError as e:
+        raise CLIError(str(e)) from None
 
     formatter = _get_formatter(args)
     out = _get_output_stream(args)
@@ -517,29 +494,9 @@ def handle_fields(args: argparse.Namespace) -> int:
 
 def handle_relations(args: argparse.Namespace) -> int:
     """Handle the 'relations' subcommand."""
-    from autom8_asana.query.hierarchy import ENTITY_RELATIONSHIPS
+    from autom8_asana.query.introspection import list_relations
 
-    entity_type = args.entity_type
-    rows: list[dict[str, object]] = []
-    for rel in ENTITY_RELATIONSHIPS:
-        if rel.parent_type == entity_type:
-            rows.append(
-                {
-                    "target": rel.child_type,
-                    "direction": "parent->child",
-                    "default_join_key": rel.default_join_key,
-                    "description": rel.description,
-                }
-            )
-        elif rel.child_type == entity_type:
-            rows.append(
-                {
-                    "target": rel.parent_type,
-                    "direction": "child->parent",
-                    "default_join_key": rel.default_join_key,
-                    "description": rel.description,
-                }
-            )
+    rows = list_relations(args.entity_type)
 
     formatter = _get_formatter(args)
     out = _get_output_stream(args)
@@ -648,6 +605,144 @@ def handle_timeline(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_run(args: argparse.Namespace) -> int:
+    """Handle the 'run' subcommand -- execute a saved query template.
+
+    Loads a SavedQuery from a file path or by name, constructs the
+    appropriate RowsRequest or AggregateRequest, and executes it.
+    """
+    import asyncio
+    from pathlib import Path
+
+    from autom8_asana.query.engine import QueryEngine
+    from autom8_asana.query.models import AggregateRequest, RowsRequest
+    from autom8_asana.query.saved import (
+        SavedQuery,
+        find_saved_query,
+        load_saved_query,
+    )
+
+    from .offline_provider import (
+        NullClient,
+        OfflineDataFrameProvider,
+        OfflineProjectRegistry,
+    )
+
+    # 1. Locate the query
+    query_arg = args.query
+    query_path = Path(query_arg)
+    if query_path.exists():
+        saved = load_saved_query(query_path)
+    else:
+        found = find_saved_query(query_arg)
+        if found is None:
+            raise CLIError(
+                f"Saved query not found: '{query_arg}'. "
+                "Provide a file path or place query YAML in ./queries/ "
+                "or ~/.autom8/queries/"
+            )
+        saved = load_saved_query(found)
+
+    # 2. Resolve format override
+    fmt_override = getattr(args, "output_format", None)
+    if fmt_override:
+        saved = SavedQuery(**{**saved.model_dump(), "format": fmt_override})
+
+    # 3. Resolve entity type
+    entity_type, project_gid = resolve_entity_type(saved.entity_type)
+
+    # 4. Build and execute based on command type
+    provider = OfflineDataFrameProvider()
+    engine = QueryEngine(provider=provider)
+    client = NullClient()
+    project_registry = OfflineProjectRegistry()
+
+    # Override args for formatter
+    args.output_format = saved.format
+    if not hasattr(args, "no_truncate"):
+        args.no_truncate = False
+
+    if saved.command == "rows":
+        request_data: dict[str, Any] = {
+            "limit": saved.limit,
+            "offset": saved.offset,
+        }
+        if saved.where:
+            request_data["where"] = saved.where
+        if saved.section:
+            request_data["section"] = saved.section
+        if saved.classification:
+            request_data["classification"] = saved.classification
+        if saved.select:
+            request_data["select"] = saved.select
+        if saved.order_by:
+            request_data["order_by"] = saved.order_by
+        if saved.order_dir:
+            request_data["order_dir"] = saved.order_dir
+        if saved.join:
+            request_data["join"] = saved.join.model_dump(exclude_none=True)
+
+        request = RowsRequest.model_validate(request_data)
+
+        result = asyncio.run(
+            engine.execute_rows(
+                entity_type=entity_type,
+                project_gid=project_gid,
+                client=client,  # type: ignore[arg-type]
+                request=request,
+                entity_project_registry=project_registry,
+            )
+        )
+
+        formatter = _get_formatter(args)
+        out = _get_output_stream(args)
+        try:
+            formatter.format_rows(result, out)  # type: ignore[attr-defined]
+            print_metadata(result.meta)
+        finally:
+            if out is not sys.stdout:
+                out.close()
+
+    elif saved.command == "aggregate":
+        if not saved.group_by:
+            raise CLIError("Saved aggregate query must specify 'group_by'")
+        if not saved.aggregations:
+            raise CLIError("Saved aggregate query must specify 'aggregations'")
+
+        agg_data: dict[str, Any] = {
+            "group_by": saved.group_by,
+            "aggregations": saved.aggregations,
+        }
+        if saved.where:
+            agg_data["where"] = saved.where
+        if saved.section:
+            agg_data["section"] = saved.section
+        if saved.having:
+            agg_data["having"] = saved.having
+
+        agg_request = AggregateRequest.model_validate(agg_data)
+
+        agg_result = asyncio.run(
+            engine.execute_aggregate(
+                entity_type=entity_type,
+                project_gid=project_gid,
+                client=client,  # type: ignore[arg-type]
+                request=agg_request,
+            )
+        )
+
+        formatter = _get_formatter(args)
+        out = _get_output_stream(args)
+        try:
+            formatter.format_aggregate(agg_result, out)  # type: ignore[attr-defined]
+            print_metadata(agg_result.meta)
+        finally:
+            if out is not sys.stdout:
+                out.close()
+
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Argument parser construction
 # ---------------------------------------------------------------------------
@@ -731,10 +826,17 @@ def _parse_join(join_str: str, join_on: str | None) -> dict[str, Any]:
 
 
 def _add_join_args(parser: argparse.ArgumentParser) -> None:
-    """Cross-entity join args (rows only)."""
+    """Cross-entity join args (rows only).
+
+    Accepts multiple --join flags via action="append". Currently only the
+    first join is used (RowsRequest supports single join). A warning is
+    printed to stderr if more than one --join is provided.
+    """
     parser.add_argument(
         "--join",
-        help="Join entity:col1,col2 (e.g., business:booking_type,stripe_id)",
+        action="append",
+        help="Join entity:col1,col2 (e.g., --join business:booking_type). "
+        "Can be specified multiple times (only first used in current release).",
     )
     parser.add_argument(
         "--join-on",
@@ -885,6 +987,39 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_output_args(timeline_parser)
 
+    # --- run subcommand (saved queries) ---
+    run_parser = subparsers.add_parser(
+        "run",
+        help="Execute a saved query template",
+        description=(
+            "Execute a saved query from a YAML/JSON template file.\n\n"
+            "Examples:\n"
+            "  run active_offers\n"
+            "  run ./queries/mrr_by_vertical.yaml --format json\n"
+            "  run offers_with_business --format csv"
+        ),
+    )
+    run_parser.add_argument(
+        "query",
+        help="Saved query name or path to YAML/JSON file",
+    )
+    run_parser.add_argument(
+        "--format",
+        choices=["table", "json", "csv", "jsonl"],
+        dest="output_format",
+        default=None,
+        help="Override output format from saved query",
+    )
+    run_parser.add_argument(
+        "--output",
+        help="Write to file instead of stdout",
+    )
+    run_parser.add_argument(
+        "--no-truncate",
+        action="store_true",
+        help="Disable table column truncation",
+    )
+
     return parser
 
 
@@ -910,6 +1045,7 @@ def main(argv: list[str] | None = None) -> int:
         "fields": handle_fields,
         "relations": handle_relations,
         "timeline": handle_timeline,
+        "run": handle_run,
     }
 
     handler = handlers.get(args.command)

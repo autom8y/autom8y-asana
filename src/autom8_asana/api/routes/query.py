@@ -1,6 +1,9 @@
 """Entity Query routes for list/filter operations on DataFrame cache.
 
 Routes:
+- GET  /v1/query/entities - List queryable entity types (introspection)
+- GET  /v1/query/{entity_type}/fields - List entity fields (introspection)
+- GET  /v1/query/{entity_type}/relations - List joinable entities (introspection)
 - POST /v1/query/{entity_type} - Legacy query with flat equality filtering (deprecated, sunset 2026-06-01)
 - POST /v1/query/{entity_type}/rows - Filtered row retrieval with composable predicates
 - POST /v1/query/{entity_type}/aggregate - Aggregate entity data with grouping
@@ -8,6 +11,7 @@ Routes:
 Authentication:
 - All routes require service token (S2S JWT) authentication
 - PAT pass-through is NOT supported
+- GET introspection endpoints require service token
 """
 
 from __future__ import annotations
@@ -134,6 +138,64 @@ class QueryResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
     data: list[dict[str, Any]]
     meta: QueryMeta
+
+
+# ---------------------------------------------------------------------------
+# Introspection endpoints (GET, no body)
+# ---------------------------------------------------------------------------
+# IMPORTANT: These static GET routes are defined BEFORE the /{entity_type}
+# routes so FastAPI matches them before the path parameter catches "entities".
+
+
+@router.get("/entities")
+async def list_query_entities(
+    claims: Annotated[ServiceClaims, Depends(require_service_claims)],
+) -> dict[str, Any]:
+    """List all queryable entity types.
+
+    Returns entity metadata including type name, display name, project GID,
+    and category. Shares logic with CLI 'entities' subcommand via
+    introspection module.
+    """
+    from autom8_asana.query.introspection import list_entities
+
+    return {"data": list_entities()}
+
+
+@router.get("/{entity_type}/fields")
+async def list_query_fields(
+    entity_type: str,
+    request_id: RequestId,
+    claims: Annotated[ServiceClaims, Depends(require_service_claims)],
+) -> dict[str, Any]:
+    """List available fields for an entity type.
+
+    Returns column metadata including name, dtype, nullable, and description.
+    Shares logic with CLI 'fields' subcommand via introspection module.
+    """
+    from autom8_asana.query.introspection import list_fields
+
+    try:
+        data = list_fields(entity_type)
+    except ValueError as e:
+        raise_api_error(request_id, 404, "UNKNOWN_ENTITY", str(e))
+    return {"data": data}
+
+
+@router.get("/{entity_type}/relations")
+async def list_query_relations(
+    entity_type: str,
+    claims: Annotated[ServiceClaims, Depends(require_service_claims)],
+) -> dict[str, Any]:
+    """List joinable entity types and their join keys.
+
+    Returns relationship metadata including target entity, direction,
+    default join key, cardinality, and description.
+    Shares logic with CLI 'relations' subcommand via introspection module.
+    """
+    from autom8_asana.query.introspection import list_relations
+
+    return {"data": list_relations(entity_type)}
 
 
 # ---------------------------------------------------------------------------
