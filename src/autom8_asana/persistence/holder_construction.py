@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
+from autom8_asana.core.registry import HOLDER_REGISTRY, register_holder
 from autom8_asana.models.common import NameGid
 
 if TYPE_CHECKING:
@@ -35,12 +36,6 @@ if TYPE_CHECKING:
     from autom8_asana.models.base import AsanaResource
 
 logger = get_logger(__name__)
-
-
-from autom8_asana.core.registry import (  # noqa: E402, F401 — re-export for backward compat
-    HOLDER_REGISTRY,
-    register_holder,
-)
 
 
 def reset_holder_registry() -> None:

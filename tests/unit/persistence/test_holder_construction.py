@@ -12,8 +12,8 @@ import pytest
 
 from autom8_asana.models import Task
 from autom8_asana.models.common import NameGid
+from autom8_asana.core.registry import HOLDER_REGISTRY
 from autom8_asana.persistence.holder_construction import (
-    HOLDER_REGISTRY,
     construct_holder,
     detect_existing_holders,
     get_holder_class_map,
