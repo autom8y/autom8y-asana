@@ -41,12 +41,16 @@ Response:
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 from autom8y_log import get_logger
 from fastapi import APIRouter, Depends
 
 from autom8_asana import AsanaClient
+from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
+    AuthContextDep,
+    RequestId,
+)
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.routes.internal import (
     ServiceClaims,
@@ -68,9 +72,6 @@ from autom8_asana.services.resolver import (
     get_strategy,
     is_entity_resolvable,
 )
-
-if TYPE_CHECKING:
-    from autom8_asana.api.dependencies import AuthContextDep, RequestId
 
 __all__ = [
     "router",

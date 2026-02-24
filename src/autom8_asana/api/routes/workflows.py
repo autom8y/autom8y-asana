@@ -16,15 +16,15 @@ from autom8y_log import get_logger
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, field_validator
 
+from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
+    AuthContextDep,
+    RequestId,
+)
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.rate_limit import limiter
 from autom8_asana.core.scope import EntityScope
 
 if TYPE_CHECKING:
-    from autom8_asana.api.dependencies import (
-        AuthContextDep,
-        RequestId,
-    )
     from autom8_asana.lambda_handlers.workflow_handler import WorkflowHandlerConfig
 
 logger = get_logger(__name__)

@@ -35,18 +35,14 @@ from __future__ import annotations
 from io import StringIO
 from typing import TYPE_CHECKING, Annotated
 
-if TYPE_CHECKING:
-    import polars as pl
-
-    from autom8_asana.api.dependencies import (
-        AsanaClientDualMode,
-        DataFrameServiceDep,
-        RequestId,
-    )
-
 from fastapi import APIRouter, Header, Query
 from fastapi.responses import JSONResponse, Response
 
+from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
+    AsanaClientDualMode,
+    DataFrameServiceDep,
+    RequestId,
+)
 from autom8_asana.api.errors import raise_service_error
 from autom8_asana.api.models import (
     PaginationMeta,
@@ -55,6 +51,9 @@ from autom8_asana.api.models import (
 )
 from autom8_asana.services.dataframe_service import InvalidSchemaError
 from autom8_asana.services.errors import EntityNotFoundError
+
+if TYPE_CHECKING:
+    import polars as pl
 
 router = APIRouter(prefix="/api/v1/dataframes", tags=["dataframes"])
 
