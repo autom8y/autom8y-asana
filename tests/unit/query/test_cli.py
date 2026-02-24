@@ -1123,8 +1123,9 @@ class TestGetLiveConfig:
         mock_manager = MagicMock()
         mock_manager.get_token.return_value = "jwt-token-abc"
 
-        with patch("autom8y_core.Config.from_env") as mock_config, patch(
-            "autom8y_core.TokenManager", return_value=mock_manager
+        with (
+            patch("autom8y_core.Config.from_env") as mock_config,
+            patch("autom8y_core.TokenManager", return_value=mock_manager),
         ):
             mock_config.return_value = MagicMock()
             base_url, headers = _get_live_config()
@@ -1143,8 +1144,9 @@ class TestGetLiveConfig:
         mock_manager = MagicMock()
         mock_manager.get_token.return_value = "jwt-token"
 
-        with patch("autom8y_core.Config.from_env") as mock_config, patch(
-            "autom8y_core.TokenManager", return_value=mock_manager
+        with (
+            patch("autom8y_core.Config.from_env") as mock_config,
+            patch("autom8y_core.TokenManager", return_value=mock_manager),
         ):
             mock_config.return_value = MagicMock()
             base_url, _ = _get_live_config()
@@ -1167,8 +1169,9 @@ class TestGetLiveConfig:
         mock_manager = MagicMock()
         mock_manager.get_token.side_effect = TokenAcquisitionError("Invalid key")
 
-        with patch("autom8y_core.Config.from_env") as mock_config, patch(
-            "autom8y_core.TokenManager", return_value=mock_manager
+        with (
+            patch("autom8y_core.Config.from_env") as mock_config,
+            patch("autom8y_core.TokenManager", return_value=mock_manager),
         ):
             mock_config.return_value = MagicMock()
             with pytest.raises(CLIError, match="Auth failed"):
@@ -1184,7 +1187,10 @@ class TestExecuteLiveRows:
             "autom8_asana.query.__main__._get_live_config",
             return_value=(
                 "http://mock:5200",
-                {"Authorization": "Bearer jwt-test", "Content-Type": "application/json"},
+                {
+                    "Authorization": "Bearer jwt-test",
+                    "Content-Type": "application/json",
+                },
             ),
         )
 
@@ -1210,7 +1216,10 @@ class TestExecuteLiveRows:
         mock_resp.json.return_value = mock_response_data
         mock_resp.raise_for_status = MagicMock()
 
-        with self._mock_live_config(), patch("httpx.post", return_value=mock_resp) as mock_post:
+        with (
+            self._mock_live_config(),
+            patch("httpx.post", return_value=mock_resp) as mock_post,
+        ):
             result = execute_live_rows("offer", {"limit": 100, "offset": 0})
             mock_post.assert_called_once()
             call_args = mock_post.call_args
@@ -1224,7 +1233,10 @@ class TestExecuteLiveRows:
         """execute_live_rows raises CLIError with exit_code=2 on connection failure."""
         import httpx
 
-        with self._mock_live_config(), patch("httpx.post", side_effect=httpx.ConnectError("Connection refused")):
+        with (
+            self._mock_live_config(),
+            patch("httpx.post", side_effect=httpx.ConnectError("Connection refused")),
+        ):
             with pytest.raises(CLIError, match="Cannot connect") as exc_info:
                 execute_live_rows("offer", {"limit": 100})
             assert exc_info.value.exit_code == 2
@@ -1249,7 +1261,10 @@ class TestExecuteLiveRows:
         """execute_live_rows raises CLIError with exit_code=2 on timeout."""
         import httpx
 
-        with self._mock_live_config(), patch("httpx.post", side_effect=httpx.TimeoutException("timed out")):
+        with (
+            self._mock_live_config(),
+            patch("httpx.post", side_effect=httpx.TimeoutException("timed out")),
+        ):
             with pytest.raises(CLIError, match="timed out") as exc_info:
                 execute_live_rows("offer", {"limit": 100})
             assert exc_info.value.exit_code == 2
@@ -1264,7 +1279,10 @@ class TestExecuteLiveAggregate:
             "autom8_asana.query.__main__._get_live_config",
             return_value=(
                 "http://mock:5200",
-                {"Authorization": "Bearer jwt-test", "Content-Type": "application/json"},
+                {
+                    "Authorization": "Bearer jwt-test",
+                    "Content-Type": "application/json",
+                },
             ),
         )
 
@@ -1289,7 +1307,10 @@ class TestExecuteLiveAggregate:
         mock_resp.json.return_value = mock_response_data
         mock_resp.raise_for_status = MagicMock()
 
-        with self._mock_live_config(), patch("httpx.post", return_value=mock_resp) as mock_post:
+        with (
+            self._mock_live_config(),
+            patch("httpx.post", return_value=mock_resp) as mock_post,
+        ):
             result = execute_live_aggregate(
                 "offer",
                 {
@@ -1308,7 +1329,10 @@ class TestExecuteLiveAggregate:
         """execute_live_aggregate raises CLIError on connection failure."""
         import httpx
 
-        with self._mock_live_config(), patch("httpx.post", side_effect=httpx.ConnectError("refused")):
+        with (
+            self._mock_live_config(),
+            patch("httpx.post", side_effect=httpx.ConnectError("refused")),
+        ):
             with pytest.raises(CLIError, match="Cannot connect"):
                 execute_live_aggregate(
                     "offer",
@@ -1328,7 +1352,10 @@ class TestLiveCLIIntegration:
             "autom8_asana.query.__main__._get_live_config",
             return_value=(
                 "http://mock:5200",
-                {"Authorization": "Bearer jwt-test", "Content-Type": "application/json"},
+                {
+                    "Authorization": "Bearer jwt-test",
+                    "Content-Type": "application/json",
+                },
             ),
         )
 

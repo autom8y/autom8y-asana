@@ -150,7 +150,7 @@ class Contact(BusinessEntity, UpwardTraversalMixin):
             First name or None.
         """
         try:
-            from nameparser import HumanName  # type: ignore[import-not-found]
+            from nameparser import HumanName
 
             parsed = HumanName(self.name or "")
             return parsed.first or None
