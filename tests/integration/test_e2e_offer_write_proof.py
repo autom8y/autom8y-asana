@@ -16,6 +16,8 @@ Run: .venv/bin/pytest tests/integration/test_e2e_offer_write_proof.py -v -s --ti
 from __future__ import annotations
 
 import os
+
+from autom8_asana.core.exceptions import Autom8Error
 import time
 
 import pytest
@@ -332,5 +334,5 @@ async def test_e2e_offer_write_proof():
             try:
                 await client.tasks.delete_async(created_gid)
                 print(f"\n--- Cleanup: deleted offer {created_gid} ---")
-            except Exception as e:
+            except (Autom8Error, OSError) as e:
                 print(f"\n--- Cleanup warning: {e} ---")

@@ -1692,24 +1692,6 @@ class TestEdgeCasesAdversarial:
         assert result.success is False
         assert "not yet implemented" in result.error.lower()
 
-    @pytest.mark.skip(
-        reason="_CompletionAdapter removed: CompletionService is now used directly "
-        "without a shim adapter (see _import_completion_service in engine.py)"
-    )
-    def test_completion_adapter_returns_empty(self):
-        """The _CompletionAdapter should return empty
-        CompletionResult."""
-        from autom8_asana.lifecycle.engine import _CompletionAdapter
-
-        adapter = _CompletionAdapter(MagicMock())
-        process = _make_mock_process()
-
-        async def _run():
-            return await adapter.complete_source_async(process)
-
-        result = _run_async(_run())
-        assert result.completed == []
-
     def test_dnc_action_values_per_stage(self):
         """Verify exact DNC actions for each active stage."""
         from autom8_asana.lifecycle.config import LifecycleConfig

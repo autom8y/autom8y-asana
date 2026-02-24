@@ -184,6 +184,7 @@ class TestThreadSafety:
             t.join()
 
         assert len(errors) == 0
+        assert len(tracker.get_dirty_entities()) == 50
 
     def test_graph_concurrent_builds(self) -> None:
         """DependencyGraph handles concurrent builds (each build is atomic)."""
@@ -331,8 +332,8 @@ class TestConcurrentCommits:
             assert result.success, f"Session {idx} failed"
 
     @pytest.mark.asyncio
-    async def test_concurrent_commits_with_shared_entities(self) -> None:
-        """Different sessions can track same entity object independently."""
+    async def test_sequential_sessions_with_shared_entity(self) -> None:
+        """Different sessions can track same entity object independently via sequential execution."""
         shared_task = Task(gid="shared", name="Shared Task")
 
         def make_mock_client() -> MagicMock:
@@ -478,9 +479,6 @@ class TestRaceConditions:
 
         # Snapshot before should show no changes (at track time)
         # Snapshot after should show the change
-        assert "name" not in snapshot_before or snapshot_before.get("name") == (
-            "Original",
-            "Original",
-        )
+        assert "name" not in snapshot_before
         assert "name" in snapshot_after
         assert snapshot_after["name"] == ("Original", "Modified")

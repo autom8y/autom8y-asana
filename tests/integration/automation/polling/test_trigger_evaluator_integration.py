@@ -464,9 +464,8 @@ def test_no_conditions_without_schedule_rejected(
 ) -> None:
     """Test that a rule with no conditions AND no schedule is rejected.
 
-    Per TDD-CONV-AUDIT-001: Empty conditions are only allowed for
-    schedule-driven workflow rules. Condition-based rules must have
-    at least one condition.
+    Empty conditions are only allowed for schedule-driven workflow rules.
+    Condition-based rules must have at least one condition.
     """
     from pydantic import ValidationError
 
