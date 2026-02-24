@@ -102,7 +102,7 @@ def mock_client() -> AsyncMock:
 
 @pytest.fixture
 def engine(mock_query_service: EntityQueryService) -> QueryEngine:
-    return QueryEngine(query_service=mock_query_service)
+    return QueryEngine(provider=mock_query_service)
 
 
 def _patch_schema(schema: DataFrameSchema):
@@ -366,7 +366,7 @@ class TestClassificationQueryExecution:
                 {"gid": ["1"], "name": ["A"], "section": ["X"], "vertical": ["v"]}
             )
         )
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         request = RowsRequest.model_validate({"classification": "active"})
         with _patch_schema(test_schema):
@@ -418,7 +418,7 @@ class TestClassificationQueryExecution:
         )
         service = EntityQueryService()
         service.get_dataframe = AsyncMock(return_value=df)  # type: ignore[method-assign]
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         request = RowsRequest.model_validate({"classification": "active"})
         with _patch_schema(test_schema):

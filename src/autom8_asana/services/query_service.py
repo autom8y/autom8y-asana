@@ -313,6 +313,11 @@ class EntityQueryService:
         default=None, init=False, repr=False
     )
 
+    @property
+    def last_freshness_info(self) -> FreshnessInfo | None:
+        """Public accessor for freshness info (DataFrameProvider protocol)."""
+        return self._last_freshness_info
+
     def __post_init__(self) -> None:
         """Initialize default strategy factory."""
         if self.strategy_factory is None:

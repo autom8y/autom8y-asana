@@ -2,18 +2,23 @@
 
 Composes cache access, schema validation, predicate compilation,
 section scoping, and response shaping.
+
+Per R-010 (WS-QUERY): Accepts a DataFrameProvider protocol instead of
+importing EntityQueryService directly, decoupling the query engine
+(computational) from the services layer (orchestration).
 """
 
 from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 from autom8y_log import get_logger
 
 from autom8_asana.dataframes.models.registry import SchemaRegistry
+from autom8_asana.protocols.dataframe_provider import DataFrameProvider
 from autom8_asana.query.compiler import PredicateCompiler
 from autom8_asana.query.errors import (
     AggregateGroupLimitError,
@@ -37,15 +42,17 @@ from autom8_asana.query.models import (
     RowsRequest,
     RowsResponse,
 )
-from autom8_asana.services.query_service import EntityQueryService
-from autom8_asana.services.resolver import to_pascal_case
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
     from autom8_asana.metrics.resolve import SectionIndex
-    from autom8_asana.services.resolver import EntityProjectRegistry
 
 logger = get_logger(__name__)
+
+
+def _to_pascal_case(s: str) -> str:
+    """Convert snake_case to PascalCase for schema key lookup."""
+    return "".join(word.capitalize() for word in s.split("_"))
 
 
 @dataclass
@@ -54,9 +61,12 @@ class QueryEngine:
 
     Composes cache access, schema validation, predicate compilation,
     section scoping, and response shaping.
+
+    Per R-010 (WS-QUERY): Accepts a DataFrameProvider protocol for
+    DataFrame retrieval, decoupling from the services layer.
     """
 
-    query_service: EntityQueryService = field(default_factory=EntityQueryService)
+    provider: DataFrameProvider
     compiler: PredicateCompiler = field(default_factory=PredicateCompiler)
     limits: QueryLimits = field(default_factory=QueryLimits)
 
@@ -67,14 +77,14 @@ class QueryEngine:
         client: AsanaClient,
         request: RowsRequest,
         section_index: SectionIndex | None = None,
-        entity_project_registry: EntityProjectRegistry | None = None,
+        entity_project_registry: Any = None,
     ) -> RowsResponse:
         """Execute a /rows query.
 
         Flow:
         1. Validate predicate depth (fail-fast guard).
         2. Resolve section parameter to name filter.
-        3. Load DataFrame via EntityQueryService.get_dataframe().
+        3. Load DataFrame via DataFrameProvider.get_dataframe().
         4. Compile predicate AST to pl.Expr.
         5. Apply section filter + predicate filter.
         6. Apply pagination (offset/limit clamped to MAX_RESULT_ROWS).
@@ -113,7 +123,7 @@ class QueryEngine:
         )
 
         # 4. Load DataFrame
-        df = await self.query_service.get_dataframe(
+        df = await self.provider.get_dataframe(
             entity_type,
             project_gid,
             client,
@@ -121,7 +131,7 @@ class QueryEngine:
 
         # 5. Get schema for validation
         registry = SchemaRegistry.get_instance()
-        schema = registry.get_schema(to_pascal_case(entity_type))
+        schema = registry.get_schema(_to_pascal_case(entity_type))
 
         # 6. Build filter expression
         filter_expr: pl.Expr | None = None
@@ -166,7 +176,7 @@ class QueryEngine:
 
             # Validate join target columns against target schema
             target_schema = registry.get_schema(
-                to_pascal_case(request.join.entity_type)
+                _to_pascal_case(request.join.entity_type)
             )
             for col_name in request.join.select:
                 if target_schema.get_column(col_name) is None:
@@ -184,11 +194,9 @@ class QueryEngine:
 
             # Load target entity DataFrame
             if entity_project_registry is None:
-                from autom8_asana.services.resolver import (
-                    EntityProjectRegistry as _EPR,
+                raise JoinError(
+                    "entity_project_registry is required for join operations"
                 )
-
-                entity_project_registry = _EPR.get_instance()
 
             target_project_gid = entity_project_registry.get_project_gid(
                 request.join.entity_type
@@ -198,7 +206,7 @@ class QueryEngine:
                     f"No project configured for join target: {request.join.entity_type}"
                 )
 
-            target_df = await self.query_service.get_dataframe(
+            target_df = await self.provider.get_dataframe(
                 request.join.entity_type,
                 target_project_gid,
                 client,
@@ -295,7 +303,7 @@ class QueryEngine:
         1. Validate predicate depth for WHERE (fail-fast guard).
         2. Validate predicate depth for HAVING (fail-fast guard).
         3. Resolve section parameter to name filter.
-        4. Load DataFrame via EntityQueryService.get_dataframe().
+        4. Load DataFrame via DataFrameProvider.get_dataframe().
         5. Get schema, validate group_by columns exist + not List dtype.
         6. Validate aggregation specs (column existence + dtype compatibility).
         7. Apply WHERE filter (reuse PredicateCompiler).
@@ -335,7 +343,7 @@ class QueryEngine:
         )
 
         # 4. Load DataFrame
-        df = await self.query_service.get_dataframe(
+        df = await self.provider.get_dataframe(
             entity_type,
             project_gid,
             client,
@@ -343,7 +351,7 @@ class QueryEngine:
 
         # 5. Get schema for validation
         registry = SchemaRegistry.get_instance()
-        schema = registry.get_schema(to_pascal_case(entity_type))
+        schema = registry.get_schema(_to_pascal_case(entity_type))
 
         # 6. Validate group_by columns
         self.limits.check_group_by(request.group_by, schema)
@@ -496,11 +504,8 @@ class QueryEngine:
         return section
 
     def _get_freshness_meta(self) -> dict[str, object]:
-        """Read freshness info from query_service.
-
-        Note: Accesses typed attribute on EntityQueryService.
-        """
-        freshness_info = self.query_service._last_freshness_info
+        """Read freshness info from the DataFrameProvider."""
+        freshness_info = self.provider.last_freshness_info
         if freshness_info is None:
             return {}
         return {

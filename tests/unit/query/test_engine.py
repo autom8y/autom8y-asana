@@ -69,7 +69,7 @@ def mock_client() -> AsyncMock:
 
 @pytest.fixture
 def engine(mock_query_service: EntityQueryService) -> QueryEngine:
-    return QueryEngine(query_service=mock_query_service)
+    return QueryEngine(provider=mock_query_service)
 
 
 class TestQueryEngineBasic:
@@ -188,7 +188,7 @@ class TestQueryEnginePagination:
     ) -> None:
         """Limit is clamped to max_result_rows."""
         engine = QueryEngine(
-            query_service=mock_query_service,
+            provider=mock_query_service,
             limits=QueryLimits(max_result_rows=3),
         )
         request = RowsRequest.model_validate({"limit": 1000})
@@ -469,7 +469,7 @@ class TestQueryEngineJoin:
         service.get_dataframe = AsyncMock(  # type: ignore[method-assign]
             side_effect=[offer_df_with_phone, business_df]
         )
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         mock_epr = MagicMock()
         mock_epr.get_project_gid.return_value = "biz-proj-123"
@@ -520,7 +520,7 @@ class TestQueryEngineJoin:
         service.get_dataframe = AsyncMock(  # type: ignore[method-assign]
             side_effect=[offer_df_with_phone, business_df]
         )
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         mock_epr = MagicMock()
         mock_epr.get_project_gid.return_value = "biz-proj-123"
@@ -565,7 +565,7 @@ class TestQueryEngineJoin:
         service.get_dataframe = AsyncMock(  # type: ignore[method-assign]
             return_value=offer_df_with_phone
         )
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         request = RowsRequest.model_validate(
             {
@@ -604,7 +604,7 @@ class TestQueryEngineJoin:
         service.get_dataframe = AsyncMock(  # type: ignore[method-assign]
             return_value=offer_df_with_phone
         )
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         request = RowsRequest.model_validate(
             {
@@ -644,7 +644,7 @@ class TestQueryEngineJoin:
         service.get_dataframe = AsyncMock(  # type: ignore[method-assign]
             return_value=offer_df_with_phone
         )
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         mock_epr = MagicMock()
         mock_epr.get_project_gid.return_value = None
@@ -688,7 +688,7 @@ class TestQueryEngineJoin:
         service.get_dataframe = AsyncMock(  # type: ignore[method-assign]
             side_effect=[offer_df_with_phone, business_df]
         )
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         mock_epr = MagicMock()
         mock_epr.get_project_gid.return_value = "biz-proj-123"
@@ -764,7 +764,7 @@ class TestQueryEngineJoin:
         service.get_dataframe = AsyncMock(  # type: ignore[method-assign]
             side_effect=[offer_df_with_phone, business_df]
         )
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         mock_epr = MagicMock()
         mock_epr.get_project_gid.return_value = "biz-proj-123"
@@ -812,7 +812,7 @@ class TestQueryEngineJoin:
         service.get_dataframe = AsyncMock(  # type: ignore[method-assign]
             side_effect=[offer_df_with_phone, business_df]
         )
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         mock_epr = MagicMock()
         mock_epr.get_project_gid.return_value = "biz-proj-123"
@@ -903,7 +903,7 @@ def agg_mock_service(agg_df: pl.DataFrame) -> EntityQueryService:
 
 @pytest.fixture
 def agg_engine(agg_mock_service: EntityQueryService) -> QueryEngine:
-    return QueryEngine(query_service=agg_mock_service)
+    return QueryEngine(provider=agg_mock_service)
 
 
 def _patch_schema(schema: DataFrameSchema):
@@ -1199,7 +1199,7 @@ class TestExecuteAggregate:
         )
         service = EntityQueryService()
         service.get_dataframe = AsyncMock(return_value=empty_df)  # type: ignore[method-assign]
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         request = AggregateRequest.model_validate(
             {
@@ -1238,7 +1238,7 @@ class TestExecuteAggregate:
         )
         service = EntityQueryService()
         service.get_dataframe = AsyncMock(return_value=df)  # type: ignore[method-assign]
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         request = AggregateRequest.model_validate(
             {
@@ -1277,7 +1277,7 @@ class TestExecuteAggregate:
         )
         service = EntityQueryService()
         service.get_dataframe = AsyncMock(return_value=df)  # type: ignore[method-assign]
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         request = AggregateRequest.model_validate(
             {
@@ -1319,7 +1319,7 @@ class TestExecuteAggregate:
         )
         service = EntityQueryService()
         service.get_dataframe = AsyncMock(return_value=df)  # type: ignore[method-assign]
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         request = AggregateRequest.model_validate(
             {
@@ -1466,7 +1466,7 @@ class TestExecuteAggregate:
         )
         service = EntityQueryService()
         service.get_dataframe = AsyncMock(return_value=df)  # type: ignore[method-assign]
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         request = AggregateRequest.model_validate(
             {
@@ -1570,7 +1570,7 @@ class TestExecuteAggregate:
         service.get_dataframe = AsyncMock(return_value=df)  # type: ignore[method-assign]
         # Set max_aggregate_groups to 3 so 5 groups triggers the guard
         engine = QueryEngine(
-            query_service=service,
+            provider=service,
             limits=QueryLimits(max_aggregate_groups=3),
         )
 
@@ -1682,7 +1682,7 @@ class TestExecuteAggregate:
         )
         service = EntityQueryService()
         service.get_dataframe = AsyncMock(return_value=df)  # type: ignore[method-assign]
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         request = AggregateRequest.model_validate(
             {
@@ -1745,3 +1745,112 @@ class TestExecuteAggregate:
         assert d["max_groups"] == 10000
         assert "15000" in d["message"]
         assert "10000" in d["message"]
+
+
+# ---------------------------------------------------------------------------
+# R-010: DataFrameProvider protocol decoupling tests
+# ---------------------------------------------------------------------------
+
+
+class TestQueryEngineWithMockProvider:
+    """Verify QueryEngine works with a pure mock DataFrameProvider (no EntityQueryService)."""
+
+    @pytest.mark.asyncio
+    async def test_mock_provider_rows(
+        self,
+        mock_client: AsyncMock,
+        test_schema: DataFrameSchema,
+        sample_df: pl.DataFrame,
+    ) -> None:
+        """QueryEngine works with a bare mock implementing DataFrameProvider."""
+        mock_provider = AsyncMock()
+        mock_provider.get_dataframe = AsyncMock(return_value=sample_df)
+        mock_provider.last_freshness_info = None
+
+        engine = QueryEngine(provider=mock_provider)
+
+        request = RowsRequest.model_validate({})
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_registry_cls:
+            mock_registry = MagicMock()
+            mock_registry.get_schema.return_value = test_schema
+            mock_registry_cls.get_instance.return_value = mock_registry
+
+            result = await engine.execute_rows(
+                entity_type="offer",
+                project_gid="proj-123",
+                client=mock_client,
+                request=request,
+            )
+
+        assert result.meta.total_count == 5
+        assert result.meta.returned_count == 5
+        mock_provider.get_dataframe.assert_awaited_once_with("offer", "proj-123", mock_client)
+
+    @pytest.mark.asyncio
+    async def test_mock_provider_aggregate(
+        self,
+        mock_client: AsyncMock,
+        agg_schema: DataFrameSchema,
+        agg_df: pl.DataFrame,
+    ) -> None:
+        """QueryEngine aggregate works with a bare mock DataFrameProvider."""
+        mock_provider = AsyncMock()
+        mock_provider.get_dataframe = AsyncMock(return_value=agg_df)
+        mock_provider.last_freshness_info = None
+
+        engine = QueryEngine(provider=mock_provider)
+
+        request = AggregateRequest.model_validate(
+            {
+                "group_by": ["vertical"],
+                "aggregations": [{"column": "amount", "agg": "sum", "alias": "total"}],
+            }
+        )
+        with _patch_schema(agg_schema):
+            result = await engine.execute_aggregate(
+                entity_type="test_entity",
+                project_gid="proj-1",
+                client=mock_client,
+                request=request,
+            )
+
+        assert result.meta.group_count == 2
+        mock_provider.get_dataframe.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_mock_provider_freshness_passthrough(
+        self,
+        mock_client: AsyncMock,
+        test_schema: DataFrameSchema,
+        sample_df: pl.DataFrame,
+    ) -> None:
+        """Freshness metadata from provider flows through to response."""
+        from autom8_asana.cache.integration.dataframe_cache import FreshnessInfo
+
+        freshness = FreshnessInfo(
+            freshness="fresh",
+            data_age_seconds=10.0,
+            staleness_ratio=0.1,
+        )
+        mock_provider = AsyncMock()
+        mock_provider.get_dataframe = AsyncMock(return_value=sample_df)
+        mock_provider.last_freshness_info = freshness
+
+        engine = QueryEngine(provider=mock_provider)
+
+        request = RowsRequest.model_validate({})
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_registry_cls:
+            mock_registry = MagicMock()
+            mock_registry.get_schema.return_value = test_schema
+            mock_registry_cls.get_instance.return_value = mock_registry
+
+            result = await engine.execute_rows(
+                entity_type="offer",
+                project_gid="proj-123",
+                client=mock_client,
+                request=request,
+            )
+
+        assert result.meta.freshness == "fresh"
+        assert result.meta.data_age_seconds == 10.0
+        assert result.meta.staleness_ratio == 0.1

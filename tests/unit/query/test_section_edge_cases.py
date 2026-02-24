@@ -52,7 +52,7 @@ def section_df() -> pl.DataFrame:
 def section_engine(section_df: pl.DataFrame) -> QueryEngine:
     service = EntityQueryService()
     service.get_dataframe = AsyncMock(return_value=section_df)  # type: ignore[method-assign]
-    return QueryEngine(query_service=service)
+    return QueryEngine(provider=service)
 
 
 class TestSectionEdgeCases:
@@ -132,7 +132,7 @@ class TestSectionEdgeCases:
         )
         service = EntityQueryService()
         service.get_dataframe = AsyncMock(return_value=df)  # type: ignore[method-assign]
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         # Request with section param AND a name predicate (section stripped already)
         section_index = SectionIndex(_name_to_gid={"active": "gid-1"})
@@ -175,7 +175,7 @@ class TestSectionEdgeCases:
         )
         service = EntityQueryService()
         service.get_dataframe = AsyncMock(return_value=df)  # type: ignore[method-assign]
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         # SectionIndex resolves case-insensitively, but DataFrame filter is exact
         section_index = SectionIndex(_name_to_gid={"active": "gid-1"})
@@ -221,7 +221,7 @@ class TestSchemaDriftEdgeCases:
         df = pl.DataFrame({"gid": ["1"], "name": ["A"], "section": ["S"]})
         service = EntityQueryService()
         service.get_dataframe = AsyncMock(return_value=df)  # type: ignore[method-assign]
-        engine = QueryEngine(query_service=service)
+        engine = QueryEngine(provider=service)
 
         request = RowsRequest.model_validate(
             {"where": {"field": "phantom", "op": "eq", "value": "ghost"}}
