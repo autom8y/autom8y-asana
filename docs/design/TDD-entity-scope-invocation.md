@@ -47,7 +47,7 @@ This is **Revision 2**. The following decisions were overridden by stakeholder i
 | `WorkflowAction` ABC has 3 production implementations | base.py, insights_export.py, conversation_audit.py, pipeline_transition.py | All must implement `enumerate_async` and adapt to new `execute_async` signature |
 | Whitelist merge in handler factory | `create_workflow_handler` lines 121-124 | Handler factory now calls `enumerate_async` before `execute_async` |
 | Per-request AsanaClient in API context | ADR-ASANA-007 | Workflows in API context need freshly constructed clients |
-| DataServiceClient token via `AUTOM8_DATA_API_KEY` env var | `config.py`, `resolve_secret_from_env` | Production auth uses `ASANA_SERVICE_KEY` -> JWT exchange -> data service |
+| DataServiceClient token via `AUTOM8_DATA_API_KEY` env var | `config.py`, `resolve_secret_from_env` | Production auth uses `SERVICE_API_KEY` -> JWT exchange -> data service |
 | Existing test suite assumes `execute_async(params: dict)` signature | ~34 test files reference execute_async | Clean break requires test migration |
 
 ---
@@ -1118,7 +1118,7 @@ Caller Service                     autom8_asana API                   autom8_dat
      |                          DataServiceClient()                        |
      |                          _get_token()                               |
      |                          resolve_secret_from_env(AUTOM8_DATA_API_KEY)|
-     |                          -> ASANA_SERVICE_KEY value                  |
+     |                          -> SERVICE_API_KEY value                  |
      |                                    |-- GET /insights                |
      |                                    |   Authorization: Bearer <key>  |
      |                                    |<- 200 data                     |
@@ -1126,9 +1126,9 @@ Caller Service                     autom8_asana API                   autom8_dat
      |<- 200 WorkflowInvokeResponse       |                                |
 ```
 
-### 3.2 ASANA_SERVICE_KEY Configuration
+### 3.2 SERVICE_API_KEY Configuration
 
-The `ASANA_SERVICE_KEY` (`sk_prod_c5PNK7aViFlAulrMPB2m6XQAbmxP1JfV`) is the service key for authenticating with the data service in production.
+The `SERVICE_API_KEY` (`sk_prod_c5PNK7aViFlAulrMPB2m6XQAbmxP1JfV`) is the service key for authenticating with the data service in production.
 
 **Current auth mechanism**: `DataServiceClient._get_token()` calls `resolve_secret_from_env(self._config.token_key)` where `token_key` defaults to `"AUTOM8_DATA_API_KEY"`. This resolves the environment variable (or Lambda extension ARN) to get the API key.
 
@@ -1136,7 +1136,7 @@ The `ASANA_SERVICE_KEY` (`sk_prod_c5PNK7aViFlAulrMPB2m6XQAbmxP1JfV`) is the serv
 
 **JWT exchange path (future)**: If the auth service's `POST /internal/service-token` endpoint becomes available, the flow would be:
 
-1. `ASANA_SERVICE_KEY` sent to auth service
+1. `SERVICE_API_KEY` sent to auth service
 2. Auth service returns a short-lived JWT
 3. JWT used as Bearer token for data service calls
 
@@ -1146,7 +1146,7 @@ This is a **future enhancement**, not part of this TDD. The current direct API k
 
 - `AUTH_DEV_MODE=true` bypasses JWT validation on both autom8_asana and autom8_data
 - `DataServiceClient._get_token()` returns `None` when `AUTOM8_DATA_API_KEY` is unset, which is accepted under dev mode
-- No `ASANA_SERVICE_KEY` needed locally
+- No `SERVICE_API_KEY` needed locally
 
 ---
 

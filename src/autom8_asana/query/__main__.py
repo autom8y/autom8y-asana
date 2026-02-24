@@ -229,27 +229,43 @@ def resolve_entity_type(entity_type: str) -> tuple[str, str]:
 
 
 def _get_live_config() -> tuple[str, dict[str, str]]:
-    """Resolve live API base URL and auth headers.
+    """Resolve live API URL + auth headers via platform TokenManager.
 
-    Requires ASANA_SERVICE_KEY environment variable for S2S JWT auth.
+    Uses autom8y_core.TokenManager for S2S JWT exchange with retry,
+    backoff, and proper error handling. Reads SERVICE_API_KEY from
+    environment (platform convention per autom8y-core Config).
 
     Returns:
-        Tuple of (base_url, headers).
+        Tuple of (base_url, headers_with_jwt).
 
     Raises:
-        CLIError: If ASANA_SERVICE_KEY is not set.
+        CLIError: If SERVICE_API_KEY is not set or auth exchange fails.
     """
     import os
 
-    key = os.environ.get("ASANA_SERVICE_KEY")
-    if not key:
+    from autom8y_core import Config, TokenManager
+    from autom8y_core.errors import TokenAcquisitionError
+
+    base_url = os.environ.get("AUTOM8_DATA_URL", "https://data.api.autom8y.io")
+    try:
+        config = Config.from_env()
+    except ValueError:
         raise CLIError(
-            "Live mode requires ASANA_SERVICE_KEY environment variable. "
+            "Live mode requires SERVICE_API_KEY environment variable. "
             "Set it or remove --live for offline (S3 cache) mode.",
             exit_code=2,
         )
-    base_url = os.environ.get("AUTOM8_DATA_URL", "http://localhost:5200")
-    headers = {"Authorization": f"Bearer {key}"}
+    try:
+        manager = TokenManager(config)
+        token = manager.get_token()
+        manager.close()
+    except TokenAcquisitionError as e:
+        raise CLIError(f"Auth failed: {e}", exit_code=2)
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
     return base_url, headers
 
 
@@ -1262,7 +1278,7 @@ def build_parser() -> argparse.ArgumentParser:
     rows_parser.add_argument(
         "--live",
         action="store_true",
-        help="Use live API instead of S3 cache (requires ASANA_SERVICE_KEY)",
+        help="Use live API instead of S3 cache (requires SERVICE_API_KEY)",
     )
 
     # --- aggregate subcommand ---
@@ -1299,7 +1315,7 @@ def build_parser() -> argparse.ArgumentParser:
     agg_parser.add_argument(
         "--live",
         action="store_true",
-        help="Use live API instead of S3 cache (requires ASANA_SERVICE_KEY)",
+        help="Use live API instead of S3 cache (requires SERVICE_API_KEY)",
     )
 
     # --- discovery subcommands ---

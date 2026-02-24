@@ -1107,46 +1107,90 @@ class TestLiveFlagParser:
 
 
 class TestGetLiveConfig:
-    """Test live mode configuration resolution."""
+    """Test live mode configuration resolution via platform TokenManager."""
 
     def test_missing_service_key_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """_get_live_config raises CLIError when ASANA_SERVICE_KEY is not set."""
-        monkeypatch.delenv("ASANA_SERVICE_KEY", raising=False)
-        with pytest.raises(CLIError, match="ASANA_SERVICE_KEY"):
+        """_get_live_config raises CLIError when SERVICE_API_KEY is not set."""
+        monkeypatch.delenv("SERVICE_API_KEY", raising=False)
+        with pytest.raises(CLIError, match="SERVICE_API_KEY"):
             _get_live_config()
 
-    def test_returns_url_and_headers(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """_get_live_config returns base URL and Bearer auth headers."""
-        monkeypatch.setenv("ASANA_SERVICE_KEY", "test-key-123")
+    def test_returns_url_and_jwt_headers(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """_get_live_config exchanges service key for JWT via TokenManager."""
+        monkeypatch.setenv("SERVICE_API_KEY", "sk_test_key")
         monkeypatch.setenv("AUTOM8_DATA_URL", "http://myhost:9999")
-        base_url, headers = _get_live_config()
-        assert base_url == "http://myhost:9999"
-        assert headers == {"Authorization": "Bearer test-key-123"}
 
-    def test_default_url_when_not_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """_get_live_config uses localhost:5200 as default URL."""
-        monkeypatch.setenv("ASANA_SERVICE_KEY", "test-key-123")
+        mock_manager = MagicMock()
+        mock_manager.get_token.return_value = "jwt-token-abc"
+
+        with patch("autom8y_core.Config.from_env") as mock_config, patch(
+            "autom8y_core.TokenManager", return_value=mock_manager
+        ):
+            mock_config.return_value = MagicMock()
+            base_url, headers = _get_live_config()
+
+        assert base_url == "http://myhost:9999"
+        assert headers["Authorization"] == "Bearer jwt-token-abc"
+        assert headers["Content-Type"] == "application/json"
+        mock_manager.get_token.assert_called_once()
+        mock_manager.close.assert_called_once()
+
+    def test_default_url_is_production(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """_get_live_config defaults to production API URL."""
+        monkeypatch.setenv("SERVICE_API_KEY", "sk_test_key")
         monkeypatch.delenv("AUTOM8_DATA_URL", raising=False)
-        base_url, _ = _get_live_config()
-        assert base_url == "http://localhost:5200"
+
+        mock_manager = MagicMock()
+        mock_manager.get_token.return_value = "jwt-token"
+
+        with patch("autom8y_core.Config.from_env") as mock_config, patch(
+            "autom8y_core.TokenManager", return_value=mock_manager
+        ):
+            mock_config.return_value = MagicMock()
+            base_url, _ = _get_live_config()
+
+        assert base_url == "https://data.api.autom8y.io"
 
     def test_exit_code_is_2(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Missing service key exits with code 2 (infrastructure error)."""
-        monkeypatch.delenv("ASANA_SERVICE_KEY", raising=False)
+        monkeypatch.delenv("SERVICE_API_KEY", raising=False)
         with pytest.raises(CLIError) as exc_info:
             _get_live_config()
         assert exc_info.value.exit_code == 2
+
+    def test_token_acquisition_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """_get_live_config raises CLIError when token exchange fails."""
+        monkeypatch.setenv("SERVICE_API_KEY", "sk_bad_key")
+
+        from autom8y_core.errors import TokenAcquisitionError
+
+        mock_manager = MagicMock()
+        mock_manager.get_token.side_effect = TokenAcquisitionError("Invalid key")
+
+        with patch("autom8y_core.Config.from_env") as mock_config, patch(
+            "autom8y_core.TokenManager", return_value=mock_manager
+        ):
+            mock_config.return_value = MagicMock()
+            with pytest.raises(CLIError, match="Auth failed"):
+                _get_live_config()
 
 
 class TestExecuteLiveRows:
     """Test execute_live_rows HTTP client function."""
 
-    def test_successful_request(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def _mock_live_config(self) -> Any:
+        """Patch _get_live_config to return mock URL + JWT headers."""
+        return patch(
+            "autom8_asana.query.__main__._get_live_config",
+            return_value=(
+                "http://mock:5200",
+                {"Authorization": "Bearer jwt-test", "Content-Type": "application/json"},
+            ),
+        )
+
+    def test_successful_request(self) -> None:
         """execute_live_rows returns RowsResponse on successful HTTP call."""
         import httpx
-
-        monkeypatch.setenv("ASANA_SERVICE_KEY", "test-key")
-        monkeypatch.setenv("AUTOM8_DATA_URL", "http://mock:5200")
 
         mock_response_data = {
             "data": [{"gid": "1", "name": "Alpha"}],
@@ -1166,34 +1210,28 @@ class TestExecuteLiveRows:
         mock_resp.json.return_value = mock_response_data
         mock_resp.raise_for_status = MagicMock()
 
-        with patch("httpx.post", return_value=mock_resp) as mock_post:
+        with self._mock_live_config(), patch("httpx.post", return_value=mock_resp) as mock_post:
             result = execute_live_rows("offer", {"limit": 100, "offset": 0})
             mock_post.assert_called_once()
             call_args = mock_post.call_args
             assert "/v1/query/offer/rows" in call_args.args[0]
-            assert call_args.kwargs["headers"]["Authorization"] == "Bearer test-key"
+            assert call_args.kwargs["headers"]["Authorization"] == "Bearer jwt-test"
 
         assert result.data == [{"gid": "1", "name": "Alpha"}]
         assert result.meta.total_count == 1
 
-    def test_connect_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_connect_error(self) -> None:
         """execute_live_rows raises CLIError with exit_code=2 on connection failure."""
         import httpx
 
-        monkeypatch.setenv("ASANA_SERVICE_KEY", "test-key")
-        monkeypatch.setenv("AUTOM8_DATA_URL", "http://unreachable:5200")
-
-        with patch("httpx.post", side_effect=httpx.ConnectError("Connection refused")):
+        with self._mock_live_config(), patch("httpx.post", side_effect=httpx.ConnectError("Connection refused")):
             with pytest.raises(CLIError, match="Cannot connect") as exc_info:
                 execute_live_rows("offer", {"limit": 100})
             assert exc_info.value.exit_code == 2
 
-    def test_http_status_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_http_status_error(self) -> None:
         """execute_live_rows raises CLIError with exit_code=1 on HTTP errors."""
         import httpx
-
-        monkeypatch.setenv("ASANA_SERVICE_KEY", "test-key")
-        monkeypatch.setenv("AUTOM8_DATA_URL", "http://mock:5200")
 
         mock_resp = MagicMock(spec=httpx.Response)
         mock_resp.status_code = 503
@@ -1202,19 +1240,16 @@ class TestExecuteLiveRows:
             "503", request=MagicMock(), response=mock_resp
         )
 
-        with patch("httpx.post", return_value=mock_resp):
+        with self._mock_live_config(), patch("httpx.post", return_value=mock_resp):
             with pytest.raises(CLIError, match="API error") as exc_info:
                 execute_live_rows("offer", {"limit": 100})
             assert exc_info.value.exit_code == 1
 
-    def test_timeout_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_timeout_error(self) -> None:
         """execute_live_rows raises CLIError with exit_code=2 on timeout."""
         import httpx
 
-        monkeypatch.setenv("ASANA_SERVICE_KEY", "test-key")
-        monkeypatch.setenv("AUTOM8_DATA_URL", "http://mock:5200")
-
-        with patch("httpx.post", side_effect=httpx.TimeoutException("timed out")):
+        with self._mock_live_config(), patch("httpx.post", side_effect=httpx.TimeoutException("timed out")):
             with pytest.raises(CLIError, match="timed out") as exc_info:
                 execute_live_rows("offer", {"limit": 100})
             assert exc_info.value.exit_code == 2
@@ -1223,12 +1258,19 @@ class TestExecuteLiveRows:
 class TestExecuteLiveAggregate:
     """Test execute_live_aggregate HTTP client function."""
 
-    def test_successful_request(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def _mock_live_config(self) -> Any:
+        """Patch _get_live_config to return mock URL + JWT headers."""
+        return patch(
+            "autom8_asana.query.__main__._get_live_config",
+            return_value=(
+                "http://mock:5200",
+                {"Authorization": "Bearer jwt-test", "Content-Type": "application/json"},
+            ),
+        )
+
+    def test_successful_request(self) -> None:
         """execute_live_aggregate returns AggregateResponse on success."""
         import httpx
-
-        monkeypatch.setenv("ASANA_SERVICE_KEY", "test-key")
-        monkeypatch.setenv("AUTOM8_DATA_URL", "http://mock:5200")
 
         mock_response_data = {
             "data": [{"section": "Active", "sum_mrr": 400}],
@@ -1247,7 +1289,7 @@ class TestExecuteLiveAggregate:
         mock_resp.json.return_value = mock_response_data
         mock_resp.raise_for_status = MagicMock()
 
-        with patch("httpx.post", return_value=mock_resp) as mock_post:
+        with self._mock_live_config(), patch("httpx.post", return_value=mock_resp) as mock_post:
             result = execute_live_aggregate(
                 "offer",
                 {
@@ -1262,14 +1304,11 @@ class TestExecuteLiveAggregate:
         assert result.data == [{"section": "Active", "sum_mrr": 400}]
         assert result.meta.group_count == 1
 
-    def test_connect_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_connect_error(self) -> None:
         """execute_live_aggregate raises CLIError on connection failure."""
         import httpx
 
-        monkeypatch.setenv("ASANA_SERVICE_KEY", "test-key")
-        monkeypatch.setenv("AUTOM8_DATA_URL", "http://unreachable:5200")
-
-        with patch("httpx.post", side_effect=httpx.ConnectError("refused")):
+        with self._mock_live_config(), patch("httpx.post", side_effect=httpx.ConnectError("refused")):
             with pytest.raises(CLIError, match="Cannot connect"):
                 execute_live_aggregate(
                     "offer",
@@ -1283,16 +1322,22 @@ class TestExecuteLiveAggregate:
 class TestLiveCLIIntegration:
     """End-to-end CLI tests for --live mode with mocked HTTP."""
 
+    def _mock_live_config(self) -> Any:
+        """Patch _get_live_config to return mock URL + JWT headers."""
+        return patch(
+            "autom8_asana.query.__main__._get_live_config",
+            return_value=(
+                "http://mock:5200",
+                {"Authorization": "Bearer jwt-test", "Content-Type": "application/json"},
+            ),
+        )
+
     def test_rows_live_mode(
         self,
-        monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture,
     ) -> None:
         """'rows offer --live --format json' calls the HTTP API and formats output."""
         import httpx
-
-        monkeypatch.setenv("ASANA_SERVICE_KEY", "test-key")
-        monkeypatch.setenv("AUTOM8_DATA_URL", "http://mock:5200")
 
         mock_response_data = {
             "data": [
@@ -1316,7 +1361,7 @@ class TestLiveCLIIntegration:
         mock_resp.raise_for_status = MagicMock()
 
         capsys.readouterr()
-        with patch("httpx.post", return_value=mock_resp):
+        with self._mock_live_config(), patch("httpx.post", return_value=mock_resp):
             exit_code = main(["rows", "offer", "--live", "--format", "json"])
 
         assert exit_code == 0
@@ -1329,14 +1374,10 @@ class TestLiveCLIIntegration:
 
     def test_aggregate_live_mode(
         self,
-        monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture,
     ) -> None:
         """'aggregate offer --group-by section --agg sum:mrr --live --format json' works."""
         import httpx
-
-        monkeypatch.setenv("ASANA_SERVICE_KEY", "test-key")
-        monkeypatch.setenv("AUTOM8_DATA_URL", "http://mock:5200")
 
         mock_response_data = {
             "data": [{"section": "Active", "sum_mrr": 400}],
@@ -1356,7 +1397,7 @@ class TestLiveCLIIntegration:
         mock_resp.raise_for_status = MagicMock()
 
         capsys.readouterr()
-        with patch("httpx.post", return_value=mock_resp):
+        with self._mock_live_config(), patch("httpx.post", return_value=mock_resp):
             exit_code = main(
                 [
                     "aggregate",
@@ -1384,9 +1425,9 @@ class TestLiveCLIIntegration:
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture,
     ) -> None:
-        """--live without ASANA_SERVICE_KEY exits with code 2."""
-        monkeypatch.delenv("ASANA_SERVICE_KEY", raising=False)
+        """--live without SERVICE_API_KEY exits with code 2."""
+        monkeypatch.delenv("SERVICE_API_KEY", raising=False)
         exit_code = main(["rows", "offer", "--live"])
         assert exit_code == 2
         captured = capsys.readouterr()
-        assert "ASANA_SERVICE_KEY" in captured.err
+        assert "SERVICE_API_KEY" in captured.err

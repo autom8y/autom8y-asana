@@ -18,7 +18,7 @@
 # Requirements:
 #   - curl
 #   - jq
-#   - ASANA_SERVICE_KEY environment variable set
+#   - SERVICE_API_KEY environment variable set
 #   - Internet connectivity to https://auth.api.autom8y.io and https://api.autom8y.io
 ################################################################################
 
@@ -60,19 +60,19 @@ echo -e "${BLUE}═════════════════════�
 echo ""
 
 # Step 1: Check for API key
-if [ -z "$ASANA_SERVICE_KEY" ]; then
-  echo -e "${RED}✗ ASANA_SERVICE_KEY environment variable not set${NC}"
-  echo "Run: export ASANA_SERVICE_KEY=sk_prod_..."
+if [ -z "$SERVICE_API_KEY" ]; then
+  echo -e "${RED}✗ SERVICE_API_KEY environment variable not set${NC}"
+  echo "Run: export SERVICE_API_KEY=sk_prod_..."
   exit 1
 fi
 
 echo -e "${YELLOW}[1/6] Getting access token...${NC}"
-echo "Using key: ${ASANA_SERVICE_KEY:0:15}..."
+echo "Using key: ${SERVICE_API_KEY:0:15}..."
 
 TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
   "$AUTH_URL" \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: $ASANA_SERVICE_KEY" \
+  -H "X-API-Key: $SERVICE_API_KEY" \
   -d '{"service_name": "demo_dynamic_api"}')
 
 # Extract HTTP status code (last line) and body (everything else)

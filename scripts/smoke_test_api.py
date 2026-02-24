@@ -123,32 +123,31 @@ class DiscoveredFixtures:
 # ---------------------------------------------------------------------------
 
 
-def exchange_service_key_for_jwt(service_key: str, auth_base: str) -> str:
-    """Exchange ASANA_SERVICE_KEY for a short-lived S2S JWT."""
-    resp = httpx.post(
-        f"{auth_base}/internal/service-token",
-        json={"service_name": "autom8y-asana"},
-        headers={"X-API-Key": service_key, "Content-Type": "application/json"},
-        timeout=15.0,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    token = data["access_token"]
-    print(f"  JWT acquired (len={len(token)}, expires_in={data.get('expires_in')}s)")
-    return token
+def _acquire_jwt(auth_base: str) -> str | None:
+    """Acquire S2S JWT via platform TokenManager.
 
+    Reads SERVICE_API_KEY from environment (platform convention).
+    Returns None if key is missing or exchange fails.
+    """
+    from autom8y_core import Config, TokenManager
 
-def _read_service_key() -> str | None:
-    """Read ASANA_SERVICE_KEY from env or .env/production file."""
-    key = os.environ.get("ASANA_SERVICE_KEY")
-    if key:
-        return key
-    env_file = pathlib.Path(__file__).parent.parent / ".env" / "production"
-    if env_file.exists():
-        for line in env_file.read_text().splitlines():
-            if line.startswith("export ASANA_SERVICE_KEY="):
-                return line.split("=", 1)[1].strip().strip('"')
-    return None
+    key = os.environ.get("SERVICE_API_KEY", "")
+    if not key:
+        return None
+    try:
+        config = Config(
+            service_key=key,
+            auth_url=auth_base,
+            service_name="autom8y-asana",
+        )
+        manager = TokenManager(config)
+        token = manager.get_token()
+        manager.close()
+        print(f"  JWT acquired (len={len(token)})")
+        return token
+    except Exception as e:
+        print(f"  JWT exchange failed: {e}")
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -680,7 +679,7 @@ async def tier2_s2s_readonly(
             name="Tier 2 (all)",
             tier=2,
             status=TestStatus.SKIP,
-            message="No JWT (set ASANA_SERVICE_KEY)",
+            message="No JWT (set SERVICE_API_KEY)",
         )
         results.append(r)
         _print_result(r, config.verbose)
@@ -989,16 +988,10 @@ def parse_args() -> SmokeConfig:
 
     jwt = None
     if (2 in tiers or 3 in tiers) and mode == "production":
-        service_key = _read_service_key()
-        if service_key:
-            try:
-                jwt = exchange_service_key_for_jwt(service_key, AUTH_BASE_PRODUCTION)
-            except Exception as e:
-                print(f"  {YELLOW}JWT exchange failed: {e}{RESET}")
-                print(f"  {YELLOW}Tier 2/3 will be skipped{RESET}")
-        else:
+        jwt = _acquire_jwt(AUTH_BASE_PRODUCTION)
+        if not jwt:
             print(
-                f"  {YELLOW}No ASANA_SERVICE_KEY found, Tier 2/3 will be skipped{RESET}"
+                f"  {YELLOW}No SERVICE_API_KEY found or exchange failed, Tier 2/3 will be skipped{RESET}"
             )
     elif mode == "local":
         jwt = "local-dev-token"
