@@ -38,6 +38,7 @@ from autom8_asana.models.business.detection.tier3 import (
 from autom8_asana.models.business.detection.tier4 import (
     detect_by_structure_inspection,
 )
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.models.business.detection.types import (
     CONFIDENCE_TIER_5,
     DetectionResult,
@@ -45,7 +46,6 @@ from autom8_asana.models.business.detection.types import (
 )
 
 if TYPE_CHECKING:
-    from autom8_asana.cache.models.entry import CacheEntry, EntryType
     from autom8_asana.client import AsanaClient
     from autom8_asana.models.task import Task
 
@@ -90,8 +90,6 @@ def _get_cached_detection(
         DetectionResult if cache hit and valid, None otherwise.
     """
     try:
-        from autom8_asana.cache.models.entry import EntryType
-
         entry = cache.get(task_gid, EntryType.DETECTION)  # type: ignore[attr-defined]
         if entry is None:
             return None
@@ -136,8 +134,6 @@ def _cache_detection_result(
     # FR-CACHE-006: Don't cache UNKNOWN results
     if result.entity_type == EntityType.UNKNOWN:
         return
-
-    from autom8_asana.cache.models.entry import CacheEntry, EntryType
 
     # Serialize DetectionResult to dict
     # Per FR-ENTRY-003: All 5 fields preserved with EntityType as string
