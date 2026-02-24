@@ -15,8 +15,8 @@
 | WS-PARAM | Parametrize copy-paste clusters | A+B | **DONE** | 1 | hygiene | S1: -298 LOC (7/8 clusters). S2: -384 LOC (8/8 clusters). Combined: **-682 LOC** from 15 active clusters. |
 | WS-EXCEPT | Tighten broad exceptions | A | **DONE** | 2 | hygiene | 16/16 replaced. Gate: 0 broad exceptions remaining. |
 | WS-INTEG | Preload manifest integration tests | B | **DONE** | 2 | hygiene | 3 integration tests, 353 LOC. All 3 branches covered. |
-| WS-OVERMOCK | Over-mock investigation spike | B.2 | **READY** | 2 | rnd | SPIKE, 1h time-box. Phase B Lane 2 freed. |
-| WS-SLOP2 | Slop-chop Partition 2 | C | **READY** | 1 | slop-chop | WS-PARAM + WS-EXCEPT both merged. Entry criteria MET. |
+| WS-OVERMOCK | Over-mock investigation spike | B.2 | **DONE** | 2 | rnd | ACCEPT verdict. 75-90% boundary mocks. Commit `2b8edcf`. |
+| WS-SLOP2 | Slop-chop Partition 2 | C | **CONDITIONAL-PASS** | 1 | slop-chop | 68 findings (13 blocking). Commit `5f4676d`. Referral -> REM-HYGIENE. |
 
 ---
 
@@ -26,8 +26,8 @@
 |-------|---------------|--------|---------------|
 | A | WS-HTTPX merged | **COMPLETE** | WS-EXCEPT merged + WS-PARAM S1 checkpoint -- BOTH MET |
 | B | Phase A Lane 2 merged | **COMPLETE** | WS-PARAM S2 merged + WS-INTEG merged -- BOTH MET |
-| B.2 | Phase B Lane 2 merged | **MET** | WS-OVERMOCK findings doc written |
-| C | WS-PARAM + WS-EXCEPT both on main | **MET** | P2 GATE-VERDICT.md + all DEFECT addressed |
+| B.2 | Phase B Lane 2 merged | **COMPLETE** | WS-OVERMOCK findings doc written -- MET (`2b8edcf`) |
+| C | WS-PARAM + WS-EXCEPT both on main | **COMPLETE** | P2 GATE-VERDICT.md produced (`5f4676d`). 13 DEFECT -> REM-HYGIENE. |
 
 ---
 
