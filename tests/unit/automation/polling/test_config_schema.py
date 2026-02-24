@@ -373,31 +373,19 @@ class TestSchedulerConfig:
             config = SchedulerConfig(time=time, timezone="UTC")
             assert config.time == time
 
-    def test_invalid_time_format_24h(self) -> None:
-        """Invalid 24-hour time (25:00) raises validation error."""
+    @pytest.mark.parametrize(
+        "time_str",
+        [
+            pytest.param("25:00", id="invalid-24h-hour"),
+            pytest.param("12:60", id="invalid-minutes"),
+            pytest.param("2:00 PM", id="12h-format-rejected"),
+            pytest.param("2:00", id="single-digit-hour"),
+        ],
+    )
+    def test_invalid_time_format_rejected(self, time_str: str) -> None:
+        """Invalid time formats raise validation error."""
         with pytest.raises(ValidationError) as exc_info:
-            SchedulerConfig(time="25:00", timezone="UTC")
-
-        assert "time must be in HH:MM format" in str(exc_info.value)
-
-    def test_invalid_time_format_minutes(self) -> None:
-        """Invalid minutes (60+) raises validation error."""
-        with pytest.raises(ValidationError) as exc_info:
-            SchedulerConfig(time="12:60", timezone="UTC")
-
-        assert "time must be in HH:MM format" in str(exc_info.value)
-
-    def test_invalid_time_format_12h(self) -> None:
-        """12-hour format with AM/PM raises validation error."""
-        with pytest.raises(ValidationError) as exc_info:
-            SchedulerConfig(time="2:00 PM", timezone="UTC")
-
-        assert "time must be in HH:MM format" in str(exc_info.value)
-
-    def test_invalid_time_format_single_digit(self) -> None:
-        """Single digit hour (2:00 instead of 02:00) raises validation error."""
-        with pytest.raises(ValidationError) as exc_info:
-            SchedulerConfig(time="2:00", timezone="UTC")
+            SchedulerConfig(time=time_str, timezone="UTC")
 
         assert "time must be in HH:MM format" in str(exc_info.value)
 
