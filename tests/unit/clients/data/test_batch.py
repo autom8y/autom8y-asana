@@ -459,24 +459,21 @@ class TestGetInsightsBatchAsync:
 
     @pytest.mark.asyncio
     async def test_chunking_for_large_batches(self) -> None:
-        """IMP-20: Batches > 1000 PVPs are chunked into multiple requests."""
+        """IMP-20: Batches exceeding chunk size are split into multiple requests."""
         import json
+        from unittest.mock import patch
 
         import respx
 
         from autom8_asana.models.contracts import PhoneVerticalPair
 
-        # Create 1500 PVPs to trigger chunking (1000 + 500)
+        # Create 500 PVPs; patch chunk size to 200 so we get 3 chunks (200+200+100)
         large_pvps = [
             PhoneVerticalPair(office_phone=f"+1770575{i:04d}", vertical="chiropractic")
-            for i in range(1500)
+            for i in range(500)
         ]
 
-        # Need max_batch_size >= 1500
-        config = DataServiceConfig(
-            base_url="https://test.example.com",
-            max_batch_size=2000,
-        )
+        config = DataServiceConfig(base_url="https://test.example.com")
         client = DataServiceClient(config=config)
         request_count = 0
 
@@ -516,7 +513,14 @@ class TestGetInsightsBatchAsync:
                 },
             )
 
-        with respx.mock:
+        with (
+            respx.mock,
+            patch.object(
+                DataServiceClient,
+                "_AUTOM8_DATA_MAX_PVP_PER_REQUEST",
+                200,
+            ),
+        ):
             respx.post("/api/v1/data-service/insights").mock(side_effect=handle_request)
 
             async with client:
@@ -525,10 +529,10 @@ class TestGetInsightsBatchAsync:
                     factory="account",
                 )
 
-        # Should chunk into 2 requests: 1000 + 500
-        assert request_count == 2
-        assert result.total_count == 1500
-        assert result.success_count == 1500
+        # 500 PVPs chunked at 200 → 3 requests (200+200+100)
+        assert request_count == 3
+        assert result.total_count == 500
+        assert result.success_count == 500
         assert result.failure_count == 0
 
     @pytest.mark.asyncio
