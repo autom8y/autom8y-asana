@@ -329,17 +329,63 @@ class TestBuildResult:
         )
         assert result.sections_resumed == 2
 
-    def test_build_result_total_rows(
-        self, sample_df: pl.DataFrame, now: datetime
+    def test_build_result_total_rows_uses_dataframe(
+        self, now: datetime
     ) -> None:
-        """total_rows sums only SUCCESS sections."""
+        """total_rows returns len(dataframe) when DataFrame is available."""
+        df = pl.DataFrame({"gid": ["1", "2", "3", "4", "5"]})
         result = BuildResult.from_section_results(
             section_results=[
                 self._make_success("s1", row_count=20),
                 self._make_error("s2"),
                 self._make_success("s3", row_count=30),
             ],
-            dataframe=sample_df,
+            dataframe=df,
+            watermark=now,
+            project_gid="p",
+            entity_type="e",
+            total_time_ms=1.0,
+            fetch_time_ms=1.0,
+        )
+        assert result.total_rows == 5  # len(df), not 50
+
+    def test_build_result_total_rows_all_skipped_with_dataframe(
+        self, now: datetime
+    ) -> None:
+        """total_rows reflects merged DataFrame even when all sections are SKIPPED.
+
+        This is the SWR resume scenario: builder resumes with all sections
+        already complete, delta-updates S3, merges to DataFrame, but all
+        SectionResults are SKIPPED with row_count=0.
+        """
+        df = pl.DataFrame({"gid": [str(i) for i in range(2804)]})
+        result = BuildResult.from_section_results(
+            section_results=[
+                self._make_skipped("s1", resumed=True),
+                self._make_skipped("s2", resumed=True),
+                self._make_skipped("s3", resumed=True),
+            ],
+            dataframe=df,
+            watermark=now,
+            project_gid="p",
+            entity_type="e",
+            total_time_ms=1.0,
+            fetch_time_ms=1.0,
+        )
+        assert result.total_rows == 2804
+        assert result.fetched_rows == 0  # No API fetches
+
+    def test_build_result_total_rows_falls_back_without_dataframe(
+        self, now: datetime
+    ) -> None:
+        """total_rows sums SUCCESS sections when no DataFrame is available."""
+        result = BuildResult.from_section_results(
+            section_results=[
+                self._make_success("s1", row_count=20),
+                self._make_error("s2"),
+                self._make_success("s3", row_count=30),
+            ],
+            dataframe=None,
             watermark=now,
             project_gid="p",
             entity_type="e",
@@ -347,6 +393,28 @@ class TestBuildResult:
             fetch_time_ms=1.0,
         )
         assert result.total_rows == 50
+        assert result.fetched_rows == 50
+
+    def test_build_result_fetched_rows(
+        self, now: datetime
+    ) -> None:
+        """fetched_rows always counts only SUCCESS sections."""
+        df = pl.DataFrame({"gid": ["1", "2", "3"]})
+        result = BuildResult.from_section_results(
+            section_results=[
+                self._make_success("s1", row_count=20),
+                self._make_skipped("s2", resumed=True),
+                self._make_success("s3", row_count=15),
+            ],
+            dataframe=df,
+            watermark=now,
+            project_gid="p",
+            entity_type="e",
+            total_time_ms=1.0,
+            fetch_time_ms=1.0,
+        )
+        assert result.fetched_rows == 35  # 20 + 15, ignores SKIPPED
+        assert result.total_rows == 3  # len(df)
 
     def test_build_result_failed_section_gids(
         self, sample_df: pl.DataFrame, now: datetime
@@ -471,7 +539,7 @@ class TestBuildResult:
         assert isinstance(legacy, ProgressiveBuildResult)
         assert legacy.df is sample_df
         assert legacy.watermark == now
-        assert legacy.total_rows == 40  # 25 + 15
+        assert legacy.total_rows == 3  # len(sample_df), not section sums
         assert legacy.sections_fetched == 2  # succeeded count
         assert legacy.sections_resumed == 1
         assert legacy.fetch_time_ms == 3000.0

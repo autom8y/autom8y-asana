@@ -565,6 +565,7 @@ class ProgressiveProjectBuilder:
                 "sections_succeeded": build_result.sections_succeeded,
                 "sections_failed": build_result.sections_failed,
                 "total_rows": build_result.total_rows,
+                "fetched_rows": build_result.fetched_rows,
                 "sections_probed": resume_result.sections_probed,
                 "sections_delta_updated": resume_result.sections_delta_updated,
                 "fetch_time_ms": round(fetch_time, 2),
