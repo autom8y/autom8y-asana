@@ -17,14 +17,13 @@ Error Contract:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from autom8y_log import get_logger
 
-if TYPE_CHECKING:
-    from autom8_asana.client import AsanaClient
-    from autom8_asana.lifecycle.config import CascadingSectionConfig
-    from autom8_asana.resolution.context import ResolutionContext
+from autom8_asana.client import AsanaClient
+from autom8_asana.lifecycle.config import CascadingSectionConfig
+from autom8_asana.resolution.context import ResolutionContext
 
 logger = get_logger(__name__)
 

@@ -26,10 +26,11 @@ Creation flow:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from autom8y_log import get_logger
 
+from autom8_asana.client import AsanaClient
 from autom8_asana.core.creation import (
     compute_due_date,
     discover_template_async,
@@ -38,17 +39,14 @@ from autom8_asana.core.creation import (
     place_in_section_async,
     wait_for_subtasks_async,
 )
+from autom8_asana.lifecycle.config import (
+    AssigneeConfig,
+    LifecycleConfig,
+    StageConfig,
+)
 from autom8_asana.lifecycle.seeding import AutoCascadeSeeder
-
-if TYPE_CHECKING:
-    from autom8_asana.client import AsanaClient
-    from autom8_asana.lifecycle.config import (
-        AssigneeConfig,
-        LifecycleConfig,
-        StageConfig,
-    )
-    from autom8_asana.models.business.process import Process
-    from autom8_asana.resolution.context import ResolutionContext
+from autom8_asana.models.business.process import Process
+from autom8_asana.resolution.context import ResolutionContext
 
 logger = get_logger(__name__)
 

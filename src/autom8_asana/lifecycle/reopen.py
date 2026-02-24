@@ -16,17 +16,15 @@ Error Contract:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from autom8y_log import get_logger
 
+from autom8_asana.client import AsanaClient
 from autom8_asana.core.creation import place_in_section_async
-
-if TYPE_CHECKING:
-    from autom8_asana.client import AsanaClient
-    from autom8_asana.lifecycle.config import StageConfig
-    from autom8_asana.models.business.process import Process
-    from autom8_asana.resolution.context import ResolutionContext
+from autom8_asana.lifecycle.config import StageConfig
+from autom8_asana.models.business.process import Process
+from autom8_asana.resolution.context import ResolutionContext
 
 logger = get_logger(__name__)
 

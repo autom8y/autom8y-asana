@@ -20,13 +20,10 @@ Design Decision:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
-
 from autom8y_log import get_logger
 
-if TYPE_CHECKING:
-    from autom8_asana.client import AsanaClient
-    from autom8_asana.models.business.process import Process
+from autom8_asana.client import AsanaClient
+from autom8_asana.models.business.process import Process
 
 logger = get_logger(__name__)
 
