@@ -7,11 +7,6 @@ exists for backward compatibility -- callers that already import from
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass  # no type-only imports needed
-
 
 def get_schema_version(entity_type: str | None) -> str | None:
     """Look up schema version from SchemaRegistry for an entity type.

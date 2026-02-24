@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
-    from datetime import datetime
-
     from autom8_asana.cache.integration.dataframe_cache import (
         DataFrameCacheEntry,
         FreshnessInfo,
