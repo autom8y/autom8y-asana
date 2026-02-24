@@ -63,8 +63,9 @@ RUN groupadd --gid 1000 appuser && \
 WORKDIR /app
 
 # Copy virtual environment and source from builder
-COPY --link --from=builder --chown=appuser:appuser /app/.venv /app/.venv
-COPY --link --from=builder --chown=appuser:appuser /app/src /app/src
+# Use numeric UID:GID (--link requires numeric IDs since user table isn't available)
+COPY --link --from=builder --chown=1000:1000 /app/.venv /app/.venv
+COPY --link --from=builder --chown=1000:1000 /app/src /app/src
 
 # Copy entrypoint script
 COPY --link scripts/entrypoint.sh /app/entrypoint.sh
