@@ -12,6 +12,9 @@ concurrency:
 
 jobs:
   ci:
+    permissions:
+      id-token: write
+      contents: read
     uses: autom8y/autom8y/.github/workflows/satellite-ci-reusable.yml@main
     with:
       mypy_targets: 'src/autom8_asana'
