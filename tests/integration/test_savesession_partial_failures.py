@@ -6,14 +6,19 @@ Per TDD-UXR/FR-UXR-004: Verify SaveSessionError shows all failures.
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock
+
 import httpx
 import pytest
 import respx
 
+from autom8_asana.batch.models import BatchResult
 from autom8_asana.client import AsanaClient
 from autom8_asana.config import AsanaConfig, RetryConfig
 from autom8_asana.models import Task
 from autom8_asana.persistence.exceptions import SaveSessionError
+from autom8_asana.persistence.models import OperationType
+from autom8_asana.persistence.session import SaveSession
 
 
 @pytest.fixture
@@ -43,117 +48,150 @@ async def client(config: AsanaConfig, auth_provider, logger) -> AsanaClient:
     await client.close()
 
 
+def _create_mock_client(
+    batch_results: list[BatchResult] | None = None,
+) -> MagicMock:
+    """Create a mock AsanaClient with configurable batch responses.
+
+    Args:
+        batch_results: List of BatchResult to return from execute_async.
+            Defaults to empty list (no batch operations).
+
+    Returns:
+        MagicMock configured as AsanaClient.
+    """
+    mock_client = MagicMock()
+    mock_batch = MagicMock()
+    mock_batch.execute_async = AsyncMock(
+        return_value=batch_results if batch_results is not None else []
+    )
+    mock_client.batch = mock_batch
+    mock_http = AsyncMock()
+    mock_http.request = AsyncMock(return_value={"data": {}})
+    mock_client._http = mock_http
+    mock_client._log = None
+    return mock_client
+
+
+def _failure_batch_results(
+    count: int = 1,
+    status_code: int = 400,
+    message: str = "Bad request",
+) -> list[BatchResult]:
+    """Build a list of failed BatchResult objects.
+
+    Args:
+        count: Number of failure results to create.
+        status_code: HTTP status code for each failure.
+        message: Base error message (index appended).
+
+    Returns:
+        List of failed BatchResult objects.
+    """
+    return [
+        BatchResult(
+            status_code=status_code,
+            body={"errors": [{"message": f"{message} {i}"}]},
+            request_index=i,
+        )
+        for i in range(count)
+    ]
+
+
 class TestSaveAsyncWithPartialFailures:
     """Tests for Task.save_async() with SaveSessionError."""
 
     @pytest.mark.asyncio
-    async def test_save_async_raises_savesession_error_on_failure(
-        self, client: AsanaClient
-    ) -> None:
-        """Task.save_async() raises SaveSessionError on API failure.
+    async def test_save_async_raises_savesession_error_on_failure(self) -> None:
+        """SaveSession.commit_async() produces failures on batch API error.
 
-        This test verifies that when SaveSession commit fails,
-        save_async() raises SaveSessionError (not just the first error).
+        This test verifies that when the batch API returns error responses,
+        commit_async() returns a SaveResult with failures, and wrapping it
+        in SaveSessionError provides the full result for inspection.
         """
-        from autom8_asana.persistence.models import OperationType, SaveError, SaveResult
-
-        # Create a task with client reference
-        task = Task(gid="123", name="Test Task")
-        task._client = client
-
-        # Create a SaveResult with failures to verify SaveSessionError is raised correctly
-        save_error = SaveError(
-            entity=task,
-            operation=OperationType.UPDATE,
-            error=ValueError("Invalid field value"),
-            payload={},
+        mock_client = _create_mock_client(
+            batch_results=_failure_batch_results(count=1),
         )
-        result = SaveResult(failed=[save_error])
 
-        # Verify SaveSessionError is raised with the full result
-        with pytest.raises(SaveSessionError) as exc_info:
-            raise SaveSessionError(result)
+        task = Task(gid="123", name="Test Task")
 
-        error = exc_info.value
-        # Verify we can access the full result
-        assert error.result is not None
+        async with SaveSession(mock_client) as session:
+            session.track(task)
+            task.name = "Updated"
+            result = await session.commit_async()
+
+        # Verify the production code path produces a failed SaveResult
+        assert not result.success
+        assert len(result.failed) == 1
+        assert result.failed[0].operation == OperationType.UPDATE
+        assert result.failed[0].entity.gid == "123"
+        assert result.failed[0].error is not None
+
+        # Verify SaveSessionError wraps it correctly (as save_async() would)
+        error = SaveSessionError(result)
+        assert error.result is result
         assert len(error.result.failed) > 0
 
     @pytest.mark.asyncio
-    async def test_save_async_error_contains_full_result(
-        self, client: AsanaClient
-    ) -> None:
-        """SaveSessionError from save_async() contains full SaveResult.
+    async def test_save_async_error_contains_full_result(self) -> None:
+        """SaveSessionError from commit_async() contains full SaveResult.
 
         Verifies that SaveSessionError properly stores and provides
         access to the full SaveResult for inspection by callers.
+        Uses SaveSession with multiple tracked entities to produce
+        multiple failures in a single commit.
         """
-        from autom8_asana.persistence.models import OperationType, SaveError, SaveResult
-
-        task = Task(gid="456", name="Another Task")
-        task._client = client
-
-        # Create multiple save errors to verify all are accessible
-        error1 = SaveError(
-            entity=task,
-            operation=OperationType.UPDATE,
-            error=ValueError("Validation error"),
-            payload={},
+        mock_client = _create_mock_client(
+            batch_results=_failure_batch_results(count=2),
         )
-        error2 = SaveError(
-            entity=task,
-            operation=OperationType.CREATE,
-            error=RuntimeError("Create failed"),
-            payload={},
-        )
-        result = SaveResult(failed=[error1, error2])
 
-        try:
-            raise SaveSessionError(result)
-        except SaveSessionError as e:
-            # Verify result is accessible
-            assert hasattr(e, "result")
-            assert e.result.failed is not None
-            # Can iterate over all failures
-            failure_count = 0
-            for failed_op in e.result.failed:
-                assert failed_op.error is not None
-                failure_count += 1
-            # Both failures should be present
-            assert failure_count == 2
+        task1 = Task(gid="456", name="Task One")
+        task2 = Task(gid="457", name="Task Two")
+
+        async with SaveSession(mock_client) as session:
+            session.track(task1)
+            task1.name = "Modified One"
+            session.track(task2)
+            task2.name = "Modified Two"
+            result = await session.commit_async()
+
+        # commit_async returns SaveResult; verify via result directly
+        assert not result.success
+        assert result.failed is not None
+        # Can iterate over all failures
+        failure_count = 0
+        for failed_op in result.failed:
+            assert failed_op.error is not None
+            failure_count += 1
+        # Both failures should be present
+        assert failure_count == 2
 
     @pytest.mark.asyncio
-    async def test_save_async_error_message_shows_all_failures(
-        self, client: AsanaClient
-    ) -> None:
+    async def test_save_async_error_message_shows_all_failures(self) -> None:
         """SaveSessionError message includes all failure details."""
-        task = Task(gid="789", name="Multi-failure Task")
-        task._client = client
+        mock_client = _create_mock_client(
+            batch_results=_failure_batch_results(count=3),
+        )
 
-        # Create multiple failures to verify count in message
-        from autom8_asana.persistence.models import OperationType, SaveError, SaveResult
+        task1 = Task(gid="789", name="Task A")
+        task2 = Task(gid="790", name="Task B")
+        task3 = Task(gid="791", name="Task C")
 
-        errors = []
-        for i in range(3):
-            errors.append(
-                SaveError(
-                    entity=task,
-                    operation=OperationType.UPDATE,
-                    error=ValueError(f"Validation error {i}"),
-                    payload={},
-                )
-            )
-        result = SaveResult(failed=errors)
+        async with SaveSession(mock_client) as session:
+            for task in (task1, task2, task3):
+                session.track(task)
+                task.name = f"{task.name} modified"
+            result = await session.commit_async()
 
-        try:
-            raise SaveSessionError(result)
-        except SaveSessionError as e:
-            # Error message should include "SaveSession commit failed"
-            error_msg = str(e)
-            assert "SaveSession commit failed" in error_msg
-            # Message should show failure count
-            assert "failure" in error_msg.lower()
-            assert "3" in error_msg  # Should show count of 3 failures
+        # Build SaveSessionError from the production result
+        assert not result.success
+        error = SaveSessionError(result)
+        error_msg = str(error)
+        # Error message should include "SaveSession commit failed"
+        assert "SaveSession commit failed" in error_msg
+        # Message should show failure count
+        assert "failure" in error_msg.lower()
+        assert "3" in error_msg
 
     @pytest.mark.asyncio
     async def test_save_async_without_client_raises_value_error(self) -> None:
@@ -205,9 +243,7 @@ class TestSaveAsyncWithPartialFailures:
             assert result.gid == "111"
 
     @pytest.mark.asyncio
-    async def test_save_async_error_includes_docstring_example(
-        self, client: AsanaClient
-    ) -> None:
+    async def test_save_async_error_includes_docstring_example(self) -> None:
         """Verify SaveSessionError can be used as shown in docstring example.
 
         This tests the exact pattern shown in the Task.save_async() docstring:
@@ -217,27 +253,19 @@ class TestSaveAsyncWithPartialFailures:
             for failed_op in e.result.failed:
                 print(f"Failed: {failed_op.error}")
         """
-        from autom8_asana.persistence.models import OperationType, SaveError, SaveResult
+        mock_client = _create_mock_client(
+            batch_results=_failure_batch_results(count=1),
+        )
 
         task = Task(gid="222", name="Docstring Example Task")
-        task._client = client
 
-        # Create an error to simulate a failure
-        save_error = SaveError(
-            entity=task,
-            operation=OperationType.UPDATE,
-            error=ValueError("Field error"),
-            payload={},
-        )
-        result = SaveResult(failed=[save_error])
+        async with SaveSession(mock_client) as session:
+            session.track(task)
+            task.name = "Updated"
+            result = await session.commit_async()
 
-        # This mimics the docstring example:
-        # try:
-        #     await task.save_async()
-        # except SaveSessionError as e:
-        #     for failed_op in e.result.failed:
-        #         print(f"Failed: {failed_op.error}")
-
+        # Simulate the docstring pattern using the production SaveResult
+        assert not result.success
         try:
             raise SaveSessionError(result)
         except SaveSessionError as e:

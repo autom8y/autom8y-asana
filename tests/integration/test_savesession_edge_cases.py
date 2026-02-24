@@ -16,6 +16,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from autom8_asana.models import Task
+from autom8_asana.persistence.exceptions import SessionClosedError
+from autom8_asana.persistence.models import OperationType
 from autom8_asana.persistence.session import SaveSession
 
 
@@ -100,9 +102,22 @@ class TestNestedSessionBehavior:
             changes2 = session2.preview()
 
         # Both sessions should see their own independent changes
-        # (Note: Actual test would verify the preview output)
-        assert changes1 is not None
-        assert changes2 is not None
+        # preview() returns (crud_ops, action_ops)
+        crud_ops1, action_ops1 = changes1
+        crud_ops2, action_ops2 = changes2
+
+        # Each session should have exactly 1 CRUD operation (UPDATE for the modified task)
+        assert len(crud_ops1) == 1
+        assert crud_ops1[0].entity.gid == "2000000001"
+        assert crud_ops1[0].operation == OperationType.UPDATE
+
+        assert len(crud_ops2) == 1
+        assert crud_ops2[0].entity.gid == "2000000001"
+        assert crud_ops2[0].operation == OperationType.UPDATE
+
+        # No action operations queued in either session
+        assert action_ops1 == []
+        assert action_ops2 == []
 
     @pytest.mark.asyncio
     async def test_session_isolation_prevents_cross_contamination(self) -> None:
@@ -121,6 +136,10 @@ class TestNestedSessionBehavior:
             session.track(task)
             task.name = "Modified in Session"
             # Session sees the modification
+            crud_ops1, _ = session.preview()
+            assert len(crud_ops1) == 1
+            assert crud_ops1[0].operation == OperationType.UPDATE
+            assert crud_ops1[0].entity.name == "Modified in Session"
 
         # After session closes, future modifications don't retroactively affect
         # what the session would have committed
@@ -131,7 +150,11 @@ class TestNestedSessionBehavior:
         async with SaveSession(mock_client) as session2:
             session2.track(task)
             # session2 sees current state (Modified After Session Close)
-            # but that's independent of first session
+            # but that's independent of first session -- preview should be empty
+            # because the snapshot was taken at track() with the current name
+            crud_ops2, _ = session2.preview()
+            # No dirty entities because snapshot matches current state
+            assert len(crud_ops2) == 0
 
 
 class TestSessionAndAsyncInteraction:
@@ -208,18 +231,25 @@ class TestSessionStateTransitions:
         mock_client = create_mock_client()
 
         async with SaveSession(mock_client) as session:
-            # Initially empty
-            preview1 = session.preview()
-            # (Would verify empty state)
+            # Initially empty -- preview returns empty lists
+            crud_ops_empty, action_ops_empty = session.preview()
+            assert crud_ops_empty == []
+            assert action_ops_empty == []
 
             task = Task(gid="6000000001", name="New Task")
             session.track(task)
 
-            # Now tracking
-            preview2 = session.preview()
-            # (Would verify task appears in preview)
+            # After tracking, entity is CLEAN (no modifications yet) so still empty
+            crud_ops_clean, _ = session.preview()
+            assert crud_ops_clean == []
 
-            assert preview2 is not None
+            # After modification, entity appears in preview
+            task.name = "Modified"
+            crud_ops_dirty, action_ops_dirty = session.preview()
+            assert len(crud_ops_dirty) == 1
+            assert crud_ops_dirty[0].entity.gid == "6000000001"
+            assert crud_ops_dirty[0].operation == OperationType.UPDATE
+            assert action_ops_dirty == []
 
     @pytest.mark.asyncio
     async def test_session_retracking_same_entity_is_idempotent(self) -> None:
@@ -243,8 +273,11 @@ class TestSessionStateTransitions:
             # Modify after all track() calls
             task.name = "Modified"
 
-            # Should only see one change (from Track snapshot to current state)
-            # not multiple snapshots
+            # Should only see one operation (not 3) proving idempotency
+            crud_ops, _ = session.preview()
+            assert len(crud_ops) == 1
+            assert crud_ops[0].entity.gid == "7000000001"
+            assert crud_ops[0].operation == OperationType.UPDATE
 
 
 class TestSessionErrorRecovery:
@@ -272,6 +305,12 @@ class TestSessionErrorRecovery:
                 raise ValueError("Simulated error during session")
         except ValueError:
             pass  # Expected
+
+        # Verify session is closed after error exit via __aexit__
+        assert session.state == "closed"
+        # Further operations on the closed session should raise SessionClosedError
+        with pytest.raises(SessionClosedError):
+            session.track(Task(gid="8000000003", name="Should fail"))
 
         # Should be able to create new session without issues
         async with SaveSession(mock_client) as session2:
@@ -308,9 +347,19 @@ class TestSessionMixedOperations:
             new_task = Task(gid="temp_1", name="New Task")
             session.track(new_task)
 
-            preview = session.preview()
-            # (Would verify different operation types)
-            assert preview is not None
+            crud_ops, action_ops = session.preview()
+            # Should have 2 CRUD operations: one UPDATE and one CREATE
+            assert len(crud_ops) == 2
+
+            # Build a lookup by operation type for order-independent assertions
+            ops_by_type = {op.operation: op for op in crud_ops}
+            assert OperationType.UPDATE in ops_by_type
+            assert OperationType.CREATE in ops_by_type
+            assert ops_by_type[OperationType.UPDATE].entity.gid == "9000000001"
+            assert ops_by_type[OperationType.CREATE].entity.gid == "temp_1"
+
+            # No action operations queued
+            assert action_ops == []
 
 
 # Integration documentation notes:
