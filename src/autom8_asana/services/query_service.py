@@ -21,17 +21,19 @@ Components:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 from autom8y_log import get_logger
 
-from autom8_asana.cache.integration.dataframe_cache import FreshnessInfo
-from autom8_asana.client import AsanaClient
-from autom8_asana.metrics.resolve import SectionIndex
-from autom8_asana.query.models import RowsRequest
-from autom8_asana.services.universal_strategy import UniversalResolutionStrategy
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from autom8_asana.cache.integration.dataframe_cache import FreshnessInfo
+    from autom8_asana.client import AsanaClient
+    from autom8_asana.metrics.resolve import SectionIndex
+    from autom8_asana.query.models import RowsRequest
+    from autom8_asana.services.universal_strategy import UniversalResolutionStrategy
 
 __all__ = [
     "CacheNotWarmError",
@@ -65,10 +67,10 @@ def validate_fields(
     Raises:
         InvalidFieldError: If any field is not in the schema.
     """
+    from autom8_asana.core.string_utils import to_pascal_case
     from autom8_asana.dataframes.exceptions import SchemaNotFoundError
     from autom8_asana.dataframes.models.registry import SchemaRegistry
     from autom8_asana.services.errors import InvalidFieldError
-    from autom8_asana.core.string_utils import to_pascal_case
 
     registry = SchemaRegistry.get_instance()
     schema_key = to_pascal_case(entity_type)

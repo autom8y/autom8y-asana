@@ -24,9 +24,12 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
 from autom8y_log import get_logger
 
-from autom8_asana.core.entity_registry import EntityRegistry
+if TYPE_CHECKING:
+    from autom8_asana.core.entity_registry import EntityRegistry
 
 logger = get_logger(__name__)
 

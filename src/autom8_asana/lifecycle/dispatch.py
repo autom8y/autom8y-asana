@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.client import AsanaClient
-from autom8_asana.lifecycle.engine import LifecycleEngine
+if TYPE_CHECKING:
+    from autom8_asana.client import AsanaClient
+    from autom8_asana.lifecycle.engine import LifecycleEngine
 
 logger = get_logger(__name__)
 

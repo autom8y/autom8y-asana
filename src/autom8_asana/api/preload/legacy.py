@@ -449,11 +449,11 @@ async def _do_incremental_catchup(
     from autom8_asana import AsanaClient
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
     from autom8_asana.config import get_workspace_gid
+    from autom8_asana.core.string_utils import to_pascal_case
     from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
     from autom8_asana.dataframes.models.registry import get_schema
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
     from autom8_asana.dataframes.section_persistence import create_section_persistence
-    from autom8_asana.core.string_utils import to_pascal_case
 
     # Get bot PAT for API access
     try:
@@ -553,11 +553,11 @@ async def _do_full_rebuild(
     from autom8_asana import AsanaClient
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
     from autom8_asana.config import get_workspace_gid
+    from autom8_asana.core.string_utils import to_pascal_case
     from autom8_asana.dataframes.builders import ProgressiveProjectBuilder
     from autom8_asana.dataframes.models.registry import get_schema
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
     from autom8_asana.dataframes.section_persistence import create_section_persistence
-    from autom8_asana.core.string_utils import to_pascal_case
 
     now = datetime.now(UTC)
 

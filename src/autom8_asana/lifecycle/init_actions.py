@@ -32,16 +32,18 @@ from __future__ import annotations
 import fnmatch
 from abc import ABC, abstractmethod
 from datetime import date, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.client import AsanaClient
 from autom8_asana.core.project_registry import VIDEOGRAPHY_HOLDER_PROJECT
-from autom8_asana.lifecycle.config import InitActionConfig, LifecycleConfig
 from autom8_asana.lifecycle.creation import CreationResult
-from autom8_asana.models.business.process import Process
-from autom8_asana.resolution.context import ResolutionContext
+
+if TYPE_CHECKING:
+    from autom8_asana.client import AsanaClient
+    from autom8_asana.lifecycle.config import InitActionConfig, LifecycleConfig
+    from autom8_asana.models.business.process import Process
+    from autom8_asana.resolution.context import ResolutionContext
 
 logger = get_logger(__name__)
 
