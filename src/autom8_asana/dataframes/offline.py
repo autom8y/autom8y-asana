@@ -55,9 +55,7 @@ def load_project_dataframe(
     keys = _list_parquet_keys(client, bucket, prefix)
 
     if not keys:
-        raise FileNotFoundError(
-            f"No parquet files found under s3://{bucket}/{prefix}"
-        )
+        raise FileNotFoundError(f"No parquet files found under s3://{bucket}/{prefix}")
 
     frames: list[pl.DataFrame] = []
     for key in keys:

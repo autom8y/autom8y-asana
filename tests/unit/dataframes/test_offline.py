@@ -156,7 +156,9 @@ class TestLoadProjectDataframe:
         assert client.get_object.call_count == 1
 
     @patch("autom8_asana.dataframes.offline.boto3")
-    def test_env_var_fallback(self, mock_boto3: MagicMock, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_env_var_fallback(
+        self, mock_boto3: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Bucket falls back to ASANA_CACHE_S3_BUCKET env var."""
         monkeypatch.setenv("ASANA_CACHE_S3_BUCKET", "env-bucket")
 

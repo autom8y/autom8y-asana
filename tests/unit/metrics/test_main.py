@@ -21,7 +21,9 @@ def _reset_registry() -> None:
 class TestCliList:
     """Test --list functionality."""
 
-    def test_list_outputs_metric_names(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_list_outputs_metric_names(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         with patch("sys.argv", ["metrics", "--list"]):
             main()
         captured = capsys.readouterr()
