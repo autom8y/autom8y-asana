@@ -10,16 +10,8 @@ concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  # Prevent AsanaClient._auto_detect_workspace() from creating a SyncHttpClient
-  # in async test contexts. Tests mock the Asana API; this GID is never used.
-  ASANA_WORKSPACE_GID: "1234567890123456"
-
 jobs:
   ci:
-    permissions:
-      id-token: write
-      contents: read
     uses: autom8y/autom8y/.github/workflows/satellite-ci-reusable.yml@main
     with:
       mypy_targets: 'src/autom8_asana'
@@ -27,4 +19,5 @@ jobs:
       coverage_threshold: 80
       test_parallel: true
       run_integration: ${{ github.event_name == 'push' }}
+      test_env: 'ASANA_WORKSPACE_GID=1234567890123456'
     secrets: inherit
