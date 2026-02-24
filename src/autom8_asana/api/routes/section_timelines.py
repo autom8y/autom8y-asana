@@ -12,12 +12,19 @@ from derived cache on subsequent requests.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Annotated
+from datetime import (
+    date,  # noqa: TC003 — FastAPI needs this at runtime for query param validation
+)
+from typing import Annotated
 
 from autom8y_log import get_logger
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
+from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
+    AsanaClientDualMode,
+    RequestId,
+)
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.models import SuccessResponse, build_success_response
 from autom8_asana.models.business.activity import AccountActivity
@@ -26,11 +33,6 @@ from autom8_asana.services.section_timeline_service import (
     BUSINESS_OFFERS_PROJECT_GID,
     get_or_compute_timelines,
 )
-
-if TYPE_CHECKING:
-    from datetime import date
-
-    from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
 
 logger = get_logger(__name__)
 
