@@ -484,6 +484,8 @@ async def _do_incremental_catchup(
             section_persistence = create_section_persistence()
 
             async with section_persistence:
+                from autom8_asana.services.gid_lookup import build_gid_index_data
+
                 builder = ProgressiveProjectBuilder(
                     client=client,
                     project_gid=project_gid,
@@ -492,6 +494,7 @@ async def _do_incremental_catchup(
                     persistence=section_persistence,
                     resolver=resolver,
                     store=client.unified_store,
+                    index_builder=build_gid_index_data,
                 )
 
                 build_result = await builder.build_progressive_async(resume=True)
@@ -586,6 +589,8 @@ async def _do_full_rebuild(
             section_persistence = create_section_persistence()
 
             async with section_persistence:
+                from autom8_asana.services.gid_lookup import build_gid_index_data
+
                 builder = ProgressiveProjectBuilder(
                     client=client,
                     project_gid=project_gid,
@@ -594,6 +599,7 @@ async def _do_full_rebuild(
                     persistence=section_persistence,
                     resolver=resolver,
                     store=client.unified_store,
+                    index_builder=build_gid_index_data,
                 )
 
                 # Full fetch with resume=False to force fresh build

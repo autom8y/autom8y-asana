@@ -8,13 +8,18 @@ This module provides:
 - EntityTypeInfo: Master configuration dataclass for entity type metadata
 - CONFIDENCE_TIER_*: Float constants for detection tier confidence levels
 
-Dependencies: Standard library only (dataclasses, enum)
+EntityType was extracted to ``core.types`` to break the core <-> models
+bidirectional package dependency. This module re-exports it for backward
+compatibility.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+
+# Re-exported from core.types for backward compatibility.
+# Extracted to break the core <-> models package cycle.
+from autom8_asana.core.types import EntityType
 
 __all__ = [
     "EntityType",
@@ -26,49 +31,6 @@ __all__ = [
     "CONFIDENCE_TIER_4",
     "CONFIDENCE_TIER_5",
 ]
-
-
-class EntityType(Enum):
-    """Types of entities in the business model hierarchy.
-
-    Per TDD-DETECTION: Complete enumeration of all business model entity types.
-
-    This enum covers:
-    - Root entity: BUSINESS
-    - Holder types: *_HOLDER variants for container tasks
-    - Leaf entities: CONTACT, OFFER, PROCESS, LOCATION, HOURS
-    - Composite: UNIT (has nested holders)
-    - Fallback: UNKNOWN for unrecognized entities
-    """
-
-    # Root entity
-    BUSINESS = "business"
-
-    # Business-level holders
-    CONTACT_HOLDER = "contact_holder"
-    UNIT_HOLDER = "unit_holder"
-    LOCATION_HOLDER = "location_holder"
-    DNA_HOLDER = "dna_holder"
-    RECONCILIATIONS_HOLDER = "reconciliations_holder"
-    ASSET_EDIT_HOLDER = "asset_edit_holder"
-    VIDEOGRAPHY_HOLDER = "videography_holder"
-
-    # Unit-level holders
-    OFFER_HOLDER = "offer_holder"
-    PROCESS_HOLDER = "process_holder"
-
-    # Composite entity (has nested holders)
-    UNIT = "unit"
-
-    # Leaf entities
-    CONTACT = "contact"
-    OFFER = "offer"
-    PROCESS = "process"
-    LOCATION = "location"
-    HOURS = "hours"
-
-    # Fallback
-    UNKNOWN = "unknown"
 
 
 # --- Confidence Constants ---

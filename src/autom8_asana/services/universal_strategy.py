@@ -600,6 +600,8 @@ class UniversalResolutionStrategy:
 
             # Build DataFrame using ProgressiveProjectBuilder
             async with persistence:
+                from autom8_asana.services.gid_lookup import build_gid_index_data
+
                 builder = ProgressiveProjectBuilder(
                     client=client,
                     project_gid=project_gid,
@@ -608,6 +610,7 @@ class UniversalResolutionStrategy:
                     persistence=persistence,
                     resolver=resolver,
                     store=client.unified_store,
+                    index_builder=build_gid_index_data,
                 )
 
                 result = await builder.build_progressive_async(resume=True)

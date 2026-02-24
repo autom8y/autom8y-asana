@@ -283,6 +283,8 @@ async def _perform_incremental_rebuild(
                 resolver = DefaultCustomFieldResolver()
 
                 async with persistence:
+                    from autom8_asana.services.gid_lookup import build_gid_index_data
+
                     builder = ProgressiveProjectBuilder(
                         client=client,
                         project_gid=project_gid,
@@ -291,6 +293,7 @@ async def _perform_incremental_rebuild(
                         persistence=persistence,
                         resolver=resolver,
                         store=client.unified_store,
+                        index_builder=build_gid_index_data,
                     )
 
                     build_result = await builder.build_progressive_async(resume=True)

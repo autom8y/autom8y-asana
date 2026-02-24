@@ -300,6 +300,10 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                             schema = get_schema(task_type)
                             resolver = DefaultCustomFieldResolver()
 
+                            from autom8_asana.services.gid_lookup import (
+                                build_gid_index_data,
+                            )
+
                             builder = ProgressiveProjectBuilder(
                                 client=client,
                                 project_gid=project_gid,
@@ -308,6 +312,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                 persistence=persistence,
                                 resolver=resolver,
                                 store=shared_store,  # Use SHARED store for cascade resolution
+                                index_builder=build_gid_index_data,
                             )
 
                             # Check if manifest exists — if not, the
