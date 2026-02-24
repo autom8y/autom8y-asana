@@ -19,7 +19,7 @@ from autom8y_log import get_logger
 
 from autom8_asana.services.dynamic_index import DynamicIndex, DynamicIndexCache
 from autom8_asana.services.resolution_result import ResolutionResult
-from autom8_asana.services.resolver import to_pascal_case
+from autom8_asana.core.string_utils import to_pascal_case
 
 if TYPE_CHECKING:
     import polars as pl

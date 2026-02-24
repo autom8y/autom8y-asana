@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from autom8y_log import get_logger
 
+from autom8_asana.core.string_utils import to_pascal_case
 from autom8_asana.dataframes.exceptions import SchemaNotFoundError
 from autom8_asana.services.resolution_result import ResolutionResult
 
@@ -35,7 +36,6 @@ __all__ = [
     "validate_criterion_for_entity",
     "CriterionValidationResult",
     "ENTITY_ALIASES",
-    "to_pascal_case",
     "_clear_resolvable_cache",
 ]
 
@@ -44,10 +44,6 @@ logger = get_logger(__name__)
 
 # --- Utility Functions ---
 
-
-from autom8_asana.core.string_utils import (
-    to_pascal_case as to_pascal_case,  # noqa: E501 — re-export for backward compat
-)
 
 # --- Data Models ---
 

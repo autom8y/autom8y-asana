@@ -92,7 +92,8 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
     from autom8_asana.dataframes.section_persistence import SectionPersistence
     from autom8_asana.dataframes.watermark import get_watermark_repo
-    from autom8_asana.services.resolver import EntityProjectRegistry, to_pascal_case
+    from autom8_asana.core.string_utils import to_pascal_case
+    from autom8_asana.services.resolver import EntityProjectRegistry
 
     start_time = time.perf_counter()
     loaded_count = 0
