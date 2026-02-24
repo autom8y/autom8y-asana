@@ -148,12 +148,20 @@ class TestBuildIndexData:
         mock_schema = MagicMock()
         mock_persistence = MagicMock()
 
+        def _index_builder(df, entity_type):
+            from autom8_asana.services.gid_lookup import GidLookupIndex
+
+            return GidLookupIndex.from_dataframe(
+                df, key_columns=["office_phone", "vertical", "offer_id"]
+            ).serialize()
+
         builder = ProgressiveProjectBuilder(
             client=mock_client,
             project_gid="proj_123",
             entity_type="offer",
             schema=mock_schema,
             persistence=mock_persistence,
+            index_builder=_index_builder,
         )
 
         # DataFrame with required columns for index
