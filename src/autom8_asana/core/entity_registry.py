@@ -857,3 +857,19 @@ def get_registry() -> EntityRegistry:
         The singleton EntityRegistry instance.
     """
     return _REGISTRY
+
+
+def _reset_entity_registry() -> None:
+    """Reset the EntityRegistry singleton for test isolation.
+
+    Rebinds EntityType values and rebuilds the singleton from
+    ENTITY_DESCRIPTORS. Registered with SystemContext.reset_all().
+    """
+    global _REGISTRY
+    _bind_entity_types()
+    _REGISTRY = EntityRegistry(ENTITY_DESCRIPTORS)
+
+
+from autom8_asana.core.system_context import register_reset  # noqa: E402
+
+register_reset(_reset_entity_registry)

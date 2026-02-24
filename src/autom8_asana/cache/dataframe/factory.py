@@ -52,7 +52,7 @@ async def _swr_build_callback(
     from autom8_asana.dataframes.models.registry import get_schema
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
     from autom8_asana.dataframes.section_persistence import create_section_persistence
-    from autom8_asana.services.resolver import to_pascal_case
+    from autom8_asana.core.string_utils import to_pascal_case
 
     try:
         bot_pat = get_bot_pat()
