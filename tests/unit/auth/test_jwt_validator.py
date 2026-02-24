@@ -22,8 +22,15 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture(autouse=True)
-def reset_client() -> Generator[None, None, None]:
-    """Reset the auth client singleton before and after each test."""
+def reset_client(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+    """Reset the auth client singleton before and after each test.
+
+    Also removes production URL env vars that trigger the SDK's
+    production URL guard (FATAL: Production URL detected in local environment).
+    """
+    monkeypatch.delenv("AUTOM8_DATA_URL", raising=False)
+    monkeypatch.delenv("AUTOM8Y_ENV", raising=False)
+    monkeypatch.delenv("ASANA_ENVIRONMENT", raising=False)
     reset_auth_client()
     yield
     reset_auth_client()
