@@ -12,6 +12,11 @@ concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Prevent AsanaClient._auto_detect_workspace() from creating a SyncHttpClient
+  # in async test contexts. Tests mock the Asana API; this GID is never used.
+  ASANA_WORKSPACE_GID: "1234567890123456"
+
 jobs:
   lint-check:
     runs-on: ubuntu-latest
