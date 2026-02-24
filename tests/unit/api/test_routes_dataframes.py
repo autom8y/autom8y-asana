@@ -18,6 +18,7 @@ Per TDD-ASANA-SATELLITE (FR-API-DF-001 through FR-API-DF-005).
 
 from unittest.mock import MagicMock
 
+import pytest
 from fastapi.testclient import TestClient
 
 from tests.unit.api.conftest import TEST_PROJECT_GID, TEST_SECTION_GID
@@ -818,57 +819,24 @@ class TestDynamicSchemaValidation:
 class TestNewSchemaAccess:
     """Tests for newly exposed schemas (PRD US-001)."""
 
-    def test_offer_schema_accessible(
-        self, authed_client: tuple[TestClient, MagicMock]
+    @pytest.mark.parametrize(
+        "schema",
+        [
+            pytest.param("offer", id="offer"),
+            pytest.param("business", id="business"),
+            pytest.param("asset_edit", id="asset-edit"),
+            pytest.param("asset_edit_holder", id="asset-edit-holder"),
+        ],
+    )
+    def test_new_schema_accessible(
+        self, authed_client: tuple[TestClient, MagicMock], schema: str
     ) -> None:
-        """Offer schema is now accessible."""
+        """Newly exposed schemas are accessible via project endpoint."""
         client, mock_sdk = authed_client
         mock_sdk._http.get_paginated.return_value = ([], None)
 
         response = client.get(
-            f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema=offer",
-            headers={"Authorization": "Bearer test_pat_token_12345"},
-        )
-
-        assert response.status_code == 200
-
-    def test_business_schema_accessible(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
-        """Business schema is now accessible."""
-        client, mock_sdk = authed_client
-        mock_sdk._http.get_paginated.return_value = ([], None)
-
-        response = client.get(
-            f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema=business",
-            headers={"Authorization": "Bearer test_pat_token_12345"},
-        )
-
-        assert response.status_code == 200
-
-    def test_asset_edit_schema_accessible(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
-        """AssetEdit schema is now accessible."""
-        client, mock_sdk = authed_client
-        mock_sdk._http.get_paginated.return_value = ([], None)
-
-        response = client.get(
-            f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema=asset_edit",
-            headers={"Authorization": "Bearer test_pat_token_12345"},
-        )
-
-        assert response.status_code == 200
-
-    def test_asset_edit_holder_schema_accessible(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
-        """AssetEditHolder schema is now accessible."""
-        client, mock_sdk = authed_client
-        mock_sdk._http.get_paginated.return_value = ([], None)
-
-        response = client.get(
-            f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema=asset_edit_holder",
+            f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema={schema}",
             headers={"Authorization": "Bearer test_pat_token_12345"},
         )
 
