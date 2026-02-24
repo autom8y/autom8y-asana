@@ -12,10 +12,10 @@
 | WS-ID | Name | Phase | Status | Lane | Rite | Notes |
 |-------|------|-------|--------|------|------|-------|
 | WS-HTTPX | Fix phantom httpx patches | -- | **DONE** | -- | -- | Commit `10c15db`, 20 tests fixed, gate -> PASS |
-| WS-PARAM | Parametrize copy-paste clusters | A->B | **S1 MERGED** | 1 | hygiene | S1: 7/8 clusters done (LS-014 N/A), -298 LOC. S2 ready. |
+| WS-PARAM | Parametrize copy-paste clusters | A+B | **DONE** | 1 | hygiene | S1: -298 LOC (7/8 clusters). S2: -384 LOC (8/8 clusters). Combined: **-682 LOC** from 15 active clusters. |
 | WS-EXCEPT | Tighten broad exceptions | A | **DONE** | 2 | hygiene | 16/16 replaced. Gate: 0 broad exceptions remaining. |
-| WS-INTEG | Preload manifest integration tests | B | **READY** | 2 | hygiene | SPOT, 1 session. Phase A Lane 2 freed. Rite changed from 10x-dev (saves 1 switch). |
-| WS-OVERMOCK | Over-mock investigation spike | B.2 | BLOCKED | 2 | rnd | SPIKE, 1h time-box (after Phase B Lane 2 frees) |
+| WS-INTEG | Preload manifest integration tests | B | **DONE** | 2 | hygiene | 3 integration tests, 353 LOC. All 3 branches covered. |
+| WS-OVERMOCK | Over-mock investigation spike | B.2 | **READY** | 2 | rnd | SPIKE, 1h time-box. Phase B Lane 2 freed. |
 | WS-SLOP2 | Slop-chop Partition 2 | C | **READY** | 1 | slop-chop | WS-PARAM + WS-EXCEPT both merged. Entry criteria MET. |
 
 ---
@@ -25,46 +25,32 @@
 | Phase | Entry Criteria | Status | Exit Criteria |
 |-------|---------------|--------|---------------|
 | A | WS-HTTPX merged | **COMPLETE** | WS-EXCEPT merged + WS-PARAM S1 checkpoint -- BOTH MET |
-| B | Phase A Lane 2 merged | **MET** | WS-PARAM S2 merged + WS-INTEG merged |
-| B.2 | Phase B Lane 2 merged | PENDING | WS-OVERMOCK findings doc written |
-| C | WS-PARAM + WS-EXCEPT both on main | **MET** (entry only) | P2 GATE-VERDICT.md + all DEFECT addressed |
+| B | Phase A Lane 2 merged | **COMPLETE** | WS-PARAM S2 merged + WS-INTEG merged -- BOTH MET |
+| B.2 | Phase B Lane 2 merged | **MET** | WS-OVERMOCK findings doc written |
+| C | WS-PARAM + WS-EXCEPT both on main | **MET** | P2 GATE-VERDICT.md + all DEFECT addressed |
 
 ---
 
-## Lane Allocation (Current Phase: B)
+## Lane Allocation (Current Phase: B.2 / C)
 
 ```
 Phase A: COMPLETE
   Lane 1: WS-PARAM S1     (hygiene/MODULE)      -- MERGED
   Lane 2: WS-EXCEPT       (hygiene/SPOT)         -- DONE
 
-Phase B (CURRENT):
-  Lane 1: WS-PARAM S2     (hygiene/MODULE)      <- READY for dispatch
-  Lane 2: WS-INTEG        (hygiene/SPOT)         <- READY for dispatch
+Phase B: COMPLETE
+  Lane 1: WS-PARAM S2     (hygiene/MODULE)      -- MERGED (9b9786b, -384 LOC)
+  Lane 2: WS-INTEG        (hygiene/SPOT)         -- MERGED (634ed34, 3 tests)
 
-Phase B.2 (after Phase B Lane 2 frees):
-  Lane 1: (done)
-  Lane 2: WS-OVERMOCK     (rnd/SPIKE, rite switch)
+Phase B.2 (CURRENT):
+  Lane 2: WS-OVERMOCK     (rnd/SPIKE, rite switch)  <- READY for dispatch
 
-Phase C (entry criteria MET, but blocked on WS-PARAM S2 merge):
-  Lane 1: WS-SLOP2        (slop-chop/MODULE, rite switch)
+Phase C (CURRENT — entry criteria MET):
+  Lane 1: WS-SLOP2        (slop-chop/MODULE, rite switch)  <- READY for dispatch
 ```
 
 Max concurrent: 2 worktrees
 Rite switches remaining: 2 (rnd for WS-OVERMOCK, slop-chop for WS-SLOP2)
-
----
-
-## Active Worktrees
-
-| Worktree | WS-ID | Lane | Rite | Created | Status |
-|----------|-------|------|------|---------|--------|
-| -- | -- | -- | -- | -- | Phase A worktrees merged and available for cleanup |
-
-Stale worktrees to clean up:
-- `wt-20260223-235021-e8ee` (WS-PARAM S1, merged as `986e95c`)
-- `wt-20260223-235408-290c` (WS-EXCEPT, merged as `e073de7`)
-- Other detached worktrees from prior sessions
 
 ---
 
@@ -73,8 +59,10 @@ Stale worktrees to clean up:
 | Date | WS-ID | Branch/Commit | Merge Commit | Tests After |
 |------|-------|---------------|-------------|-------------|
 | 2026-02-23 | WS-HTTPX | main | `10c15db` | 63 passed, 0 failed |
-| 2026-02-24 | WS-EXCEPT | `e073de7` | fast-forward to `e073de7` | 10,485 passed, 178 failed (pre-existing) |
+| 2026-02-24 | WS-EXCEPT | `e073de7` | fast-forward | 10,485 passed, 178 failed (pre-existing) |
 | 2026-02-24 | WS-PARAM S1 | `986e95c` | merge commit | 10,485 passed, 178 failed (pre-existing) |
+| 2026-02-24 | WS-PARAM S2 | `9b9786b` | `29a8982` | 10,492 passed, 178 failed (pre-existing) |
+| 2026-02-24 | WS-INTEG | `634ed34` | merge commit | 10,492 passed, 178 failed; 3/3 integration tests PASS |
 
 ---
 
@@ -84,14 +72,14 @@ Stale worktrees to clean up:
 |------|-------|-------------|--------|------|
 | Phase A exit | A | Zero broad `pytest.raises(Exception)` in target files | **PASS** | 2026-02-24 |
 | Phase A exit | A | WS-PARAM S1 checkpoint written | **PASS** | 2026-02-24 |
-| Phase B exit | B | Test count stable after parametrization; WS-INTEG tests pass | PENDING | |
+| Phase B exit | B | Test count stable after parametrization (10,492); WS-INTEG 3/3 pass | **PASS** | 2026-02-24 |
 | Phase C exit | C | P2 GATE-VERDICT.md exists; full suite green | PENDING | |
 
 ---
 
 ## Blockers
 
-None. Phase B is ready for dispatch. Phase C entry criteria also met (but WS-PARAM S2 should complete first for clean P2 baseline).
+None. Phase B.2 (WS-OVERMOCK) and Phase C (WS-SLOP2) are both ready for dispatch.
 
 ---
 
@@ -99,8 +87,12 @@ None. Phase B is ready for dispatch. Phase C entry criteria also met (but WS-PAR
 
 | WS-ID | Session/Agent ID | Notes |
 |-------|-----------------|-------|
-| WS-PARAM S1 | wt-235021-e8ee | MERGED. Checkpoint at WS-PARAM-CHECKPOINT.md |
-| WS-EXCEPT | wt-235408-290c | MERGED. 16/16 replaced. |
+| WS-PARAM S1 | wt-235021-e8ee | MERGED. |
+| WS-EXCEPT | wt-235408-290c | MERGED. |
+| WS-PARAM S2 | wt-003956-c12d | MERGED (`9b9786b`). -384 LOC. |
+| WS-INTEG | wt-004114-e156 | MERGED (`634ed34`). 3/3 integration tests. |
+| Context-engineer | a62d24fa4c6c74c69 | Throughline agent |
+| Consultant | a828a88ec773291b4 | Throughline agent |
 
 ---
 
