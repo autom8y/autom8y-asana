@@ -198,6 +198,37 @@ async def list_query_relations(
     return {"data": list_relations(entity_type)}
 
 
+@router.get("/{entity_type}/sections")
+async def list_query_sections(
+    entity_type: str,
+    request_id: RequestId,
+    claims: Annotated[ServiceClaims, Depends(require_service_claims)],
+) -> dict[str, Any]:
+    """List section names and classifications for an entity type.
+
+    Returns section metadata including section_name and classification
+    (active, activating, inactive, ignored). Only entity types with a
+    registered SectionClassifier are supported.
+
+    Shares logic with CLI 'sections' subcommand via introspection module.
+    """
+    from autom8_asana.query.introspection import list_sections
+
+    try:
+        data = list_sections(entity_type)
+    except ValueError as e:
+        raise_api_error(request_id, 404, "NO_SECTION_CLASSIFIER", str(e))
+    return {"data": data, "entity_type": entity_type}
+
+
+# NOTE (C-3/AC-9.2): A dedicated /schema endpoint is not needed.
+# The existing /fields endpoint returns column definitions (name, dtype,
+# nullable, description) which constitutes the entity schema.  Callers
+# needing a full schema view can combine /fields + /relations + /sections
+# from the introspection surface.  This avoids a redundant endpoint that
+# would just wrap those three calls.
+
+
 # ---------------------------------------------------------------------------
 # Active endpoints
 # ---------------------------------------------------------------------------

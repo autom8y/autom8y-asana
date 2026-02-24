@@ -1,0 +1,10 @@
+name: active_offers
+description: All active-classified offers with key fields
+command: rows
+entity_type: offer
+classification: active
+select: [gid, name, mrr, office_phone, vertical, section]
+order_by: mrr
+order_dir: desc
+limit: 500
+format: table
