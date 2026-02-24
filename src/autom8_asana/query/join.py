@@ -8,9 +8,10 @@ a shared column join.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 import polars as pl
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from autom8_asana.query.errors import JoinError
 
@@ -18,11 +19,20 @@ from autom8_asana.query.errors import JoinError
 class JoinSpec(BaseModel):
     """Specification for a cross-entity join on /rows.
 
-    Example:
+    Supports two sources:
+    - "entity" (default): Join with another Asana entity DataFrame.
+    - "data-service": Join with data from autom8y-data analytics API.
+
+    Example (entity join):
+        {"entity_type": "business", "select": ["booking_type"], "on": "office_phone"}
+
+    Example (data-service join):
         {
-            "entity_type": "business",
-            "select": ["booking_type", "stripe_id"],
-            "on": "office_phone"
+            "source": "data-service",
+            "entity_type": "spend",
+            "factory": "spend",
+            "period": "T30",
+            "select": ["spend", "cps", "leads"]
         }
     """
 
@@ -31,6 +41,20 @@ class JoinSpec(BaseModel):
     entity_type: str
     select: list[str] = Field(min_length=1, max_length=10)
     on: str | None = None  # Explicit join key; defaults to relationship default
+
+    # Cross-service extension (Phase 1)
+    source: Literal["entity", "data-service"] = "entity"
+    factory: str | None = None  # DataServiceClient factory name
+    period: str = "LIFETIME"  # T7, T30, LIFETIME, etc.
+
+    @model_validator(mode="after")
+    def validate_source_params(self) -> JoinSpec:
+        """Ensure factory is provided for data-service joins and absent for entity joins."""
+        if self.source == "data-service" and self.factory is None:
+            raise ValueError("factory is required when source='data-service'")
+        if self.source == "entity" and self.factory is not None:
+            raise ValueError("factory is only valid when source='data-service'")
+        return self
 
     @field_validator("select")
     @classmethod

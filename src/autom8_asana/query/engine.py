@@ -44,6 +44,7 @@ from autom8_asana.query.models import (
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
+    from autom8_asana.clients.data.client import DataServiceClient
     from autom8_asana.metrics.resolve import SectionIndex
     from autom8_asana.protocols.dataframe_provider import DataFrameProvider
 
@@ -69,6 +70,7 @@ class QueryEngine:
     provider: DataFrameProvider
     compiler: PredicateCompiler = field(default_factory=PredicateCompiler)
     limits: QueryLimits = field(default_factory=QueryLimits)
+    data_client: DataServiceClient | None = None  # For cross-service joins
 
     async def execute_rows(
         self,
@@ -165,74 +167,19 @@ class QueryEngine:
         # 7.5 Join enrichment (after filter, before pagination)
         join_meta: dict[str, object] = {}
         if request.join is not None:
-            # Validate relationship exists
-            rel = find_relationship(entity_type, request.join.entity_type)
-            if rel is None:
-                raise JoinError(
-                    f"No relationship between '{entity_type}' and "
-                    f"'{request.join.entity_type}'. "
-                    f"Joinable types: {get_joinable_types(entity_type)}"
+            if request.join.source == "data-service":
+                # Cross-service join via DataServiceClient
+                df, join_meta = await self._execute_data_service_join(df, request.join)
+            else:
+                # Entity join (existing path)
+                df, join_meta = await self._execute_entity_join(
+                    df,
+                    request.join,
+                    entity_type,
+                    registry,
+                    client,
+                    entity_project_registry,
                 )
-
-            # Validate join target columns against target schema
-            target_schema = registry.get_schema(
-                _to_pascal_case(request.join.entity_type)
-            )
-            for col_name in request.join.select:
-                if target_schema.get_column(col_name) is None:
-                    raise UnknownFieldError(
-                        field=col_name,
-                        available=target_schema.column_names(),
-                    )
-
-            # Determine join key
-            join_key = get_join_key(
-                entity_type,
-                request.join.entity_type,
-                request.join.on,
-            )
-
-            # Load target entity DataFrame
-            if entity_project_registry is None:
-                raise JoinError(
-                    "entity_project_registry is required for join operations"
-                )
-
-            target_project_gid = entity_project_registry.get_project_gid(
-                request.join.entity_type
-            )
-            if target_project_gid is None:
-                raise JoinError(
-                    f"No project configured for join target: {request.join.entity_type}"
-                )
-
-            target_df = await self.provider.get_dataframe(
-                request.join.entity_type,
-                target_project_gid,
-                client,
-            )
-
-            if join_key is None:
-                raise JoinError(
-                    f"No join key found between {entity_type} "
-                    f"and {request.join.entity_type}"
-                )
-
-            # Execute join
-            join_result = execute_join(
-                primary_df=df,
-                target_df=target_df,
-                join_key=join_key,
-                select_columns=request.join.select,
-                target_entity_type=request.join.entity_type,
-            )
-            df = join_result.df
-            join_meta = {
-                "join_entity": request.join.entity_type,
-                "join_key": join_result.join_key,
-                "join_matched": join_result.matched_count,
-                "join_unmatched": join_result.unmatched_count,
-            }
 
         # 8. Total count (before pagination)
         total_count = len(df)
@@ -256,10 +203,16 @@ class QueryEngine:
 
         columns = list(dict.fromkeys(["gid"] + select_fields))  # dedupe, preserve order
 
-        # Include join-enriched columns (prefixed with target entity type)
+        # Include join-enriched columns (prefixed with target entity type or factory)
         if request.join is not None:
+            # Data-service joins use factory as prefix; entity joins use entity_type
+            prefix = (
+                request.join.factory
+                if request.join.source == "data-service"
+                else request.join.entity_type
+            )
             for col_name in request.join.select:
-                prefixed = f"{request.join.entity_type}_{col_name}"
+                prefixed = f"{prefix}_{col_name}"
                 if prefixed not in columns:
                     columns.append(prefixed)
 
@@ -512,4 +465,171 @@ class QueryEngine:
             "freshness": freshness_info.freshness,
             "data_age_seconds": freshness_info.data_age_seconds,
             "staleness_ratio": freshness_info.staleness_ratio,
+        }
+
+    async def _execute_entity_join(
+        self,
+        df: pl.DataFrame,
+        join_spec: Any,
+        entity_type: str,
+        registry: SchemaRegistry,
+        client: AsanaClient,
+        entity_project_registry: Any,
+    ) -> tuple[pl.DataFrame, dict[str, object]]:
+        """Execute a same-service entity join (existing behavior).
+
+        Returns:
+            Tuple of (enriched DataFrame, join metadata dict).
+        """
+        # Validate relationship exists
+        rel = find_relationship(entity_type, join_spec.entity_type)
+        if rel is None:
+            raise JoinError(
+                f"No relationship between '{entity_type}' and "
+                f"'{join_spec.entity_type}'. "
+                f"Joinable types: {get_joinable_types(entity_type)}"
+            )
+
+        # Validate join target columns against target schema
+        target_schema = registry.get_schema(_to_pascal_case(join_spec.entity_type))
+        for col_name in join_spec.select:
+            if target_schema.get_column(col_name) is None:
+                raise UnknownFieldError(
+                    field=col_name,
+                    available=target_schema.column_names(),
+                )
+
+        # Determine join key
+        join_key = get_join_key(
+            entity_type,
+            join_spec.entity_type,
+            join_spec.on,
+        )
+
+        # Load target entity DataFrame
+        if entity_project_registry is None:
+            raise JoinError("entity_project_registry is required for join operations")
+
+        target_project_gid = entity_project_registry.get_project_gid(
+            join_spec.entity_type
+        )
+        if target_project_gid is None:
+            raise JoinError(
+                f"No project configured for join target: {join_spec.entity_type}"
+            )
+
+        target_df = await self.provider.get_dataframe(
+            join_spec.entity_type,
+            target_project_gid,
+            client,
+        )
+
+        if join_key is None:
+            raise JoinError(
+                f"No join key found between {entity_type} and {join_spec.entity_type}"
+            )
+
+        # Execute join
+        join_result = execute_join(
+            primary_df=df,
+            target_df=target_df,
+            join_key=join_key,
+            select_columns=join_spec.select,
+            target_entity_type=join_spec.entity_type,
+        )
+        return join_result.df, {
+            "join_entity": join_spec.entity_type,
+            "join_key": join_result.join_key,
+            "join_matched": join_result.matched_count,
+            "join_unmatched": join_result.unmatched_count,
+        }
+
+    async def _execute_data_service_join(
+        self,
+        df: pl.DataFrame,
+        join_spec: Any,
+    ) -> tuple[pl.DataFrame, dict[str, object]]:
+        """Execute a cross-service join via DataServiceClient.
+
+        Fetches analytics metrics from autom8y-data and joins them onto
+        the primary entity DataFrame.
+
+        Returns:
+            Tuple of (enriched DataFrame, join metadata dict).
+
+        Raises:
+            JoinError: If no DataServiceClient is configured or join key
+                is not found in the primary DataFrame.
+        """
+        if self.data_client is None:
+            raise JoinError(
+                "data_client is required for data-service joins. "
+                "Ensure DataServiceClient is configured."
+            )
+
+        from autom8_asana.query.data_service_entities import (
+            get_data_service_entity,
+        )
+        from autom8_asana.query.fetcher import DataServiceJoinFetcher
+
+        # Resolve join key (explicit or default from virtual entity registry)
+        join_key = join_spec.on
+        if join_key is None:
+            entity_info = get_data_service_entity(join_spec.entity_type)
+            join_key = entity_info.join_key if entity_info else "office_phone"
+
+        # Validate select columns against virtual entity registry (advisory)
+        entity_info = get_data_service_entity(join_spec.entity_type)
+        if entity_info is not None and entity_info.columns:
+            for col_name in join_spec.select:
+                if col_name not in entity_info.columns:
+                    logger.warning(
+                        "data_service_join_unknown_column",
+                        extra={
+                            "column": col_name,
+                            "entity_type": join_spec.entity_type,
+                            "known_columns": entity_info.columns,
+                        },
+                    )
+
+        # Fetch target DataFrame from data service
+        fetcher = DataServiceJoinFetcher(self.data_client)
+        target_df = await fetcher.fetch_for_join(
+            primary_df=df,
+            factory=join_spec.factory,
+            period=join_spec.period,
+            join_key=join_key,
+        )
+
+        if target_df.height == 0:
+            logger.warning(
+                "data_service_join_empty_target",
+                extra={
+                    "factory": join_spec.factory,
+                    "period": join_spec.period,
+                },
+            )
+            return df, {
+                "join_entity": f"data-service:{join_spec.factory}",
+                "join_key": join_key,
+                "join_matched": 0,
+                "join_unmatched": len(df),
+            }
+
+        # Use factory name as the entity type prefix for column naming
+        target_entity_label = join_spec.factory
+
+        # Execute join (same machinery as entity joins)
+        join_result = execute_join(
+            primary_df=df,
+            target_df=target_df,
+            join_key=join_key,
+            select_columns=join_spec.select,
+            target_entity_type=target_entity_label,
+        )
+        return join_result.df, {
+            "join_entity": f"data-service:{join_spec.factory}",
+            "join_key": join_result.join_key,
+            "join_matched": join_result.matched_count,
+            "join_unmatched": join_result.unmatched_count,
         }

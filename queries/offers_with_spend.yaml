@@ -1,0 +1,15 @@
+name: offers_with_spend
+description: Active offers enriched with trailing 30-day ad spend metrics
+command: rows
+entity_type: offer
+classification: active
+select: [gid, name, mrr, office_phone, vertical]
+join:
+  source: data-service
+  entity_type: spend
+  factory: spend
+  period: T30
+  select: [spend, cps, leads]
+  "on": office_phone
+limit: 50
+format: table
