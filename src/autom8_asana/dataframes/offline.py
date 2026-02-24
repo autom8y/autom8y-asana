@@ -46,9 +46,7 @@ def load_project_dataframe(
         ValueError: If no bucket is configured.
         FileNotFoundError: If no parquet files found under the project prefix.
     """
-    df, _ = load_project_dataframe_with_meta(
-        project_gid, bucket=bucket, region=region
-    )
+    df, _ = load_project_dataframe_with_meta(project_gid, bucket=bucket, region=region)
     return df
 
 
