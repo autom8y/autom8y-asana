@@ -70,7 +70,7 @@ def validate_fields(
     from autom8_asana.dataframes.exceptions import SchemaNotFoundError
     from autom8_asana.dataframes.models.registry import SchemaRegistry
     from autom8_asana.services.errors import InvalidFieldError
-    from autom8_asana.services.resolver import to_pascal_case
+    from autom8_asana.core.string_utils import to_pascal_case
 
     registry = SchemaRegistry.get_instance()
     schema_key = to_pascal_case(entity_type)

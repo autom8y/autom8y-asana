@@ -223,7 +223,8 @@ async def _perform_incremental_rebuild(
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
     from autom8_asana.dataframes.section_persistence import create_section_persistence
     from autom8_asana.dataframes.watermark import get_watermark_repo
-    from autom8_asana.services.resolver import EntityProjectRegistry, to_pascal_case
+    from autom8_asana.core.string_utils import to_pascal_case
+    from autom8_asana.services.resolver import EntityProjectRegistry
 
     try:
         bot_pat = get_bot_pat()
