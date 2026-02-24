@@ -166,7 +166,19 @@ class BuildResult:
 
     @property
     def total_rows(self) -> int:
-        """Total rows across all successful sections."""
+        """Total rows in the build output.
+
+        Uses the merged DataFrame row count when available (covers resumed
+        and delta-updated sections). Falls back to summing SUCCESS section
+        row counts for builds without a merged DataFrame.
+        """
+        if self.dataframe is not None:
+            return len(self.dataframe)
+        return sum(s.row_count for s in self.sections if s.is_success)
+
+    @property
+    def fetched_rows(self) -> int:
+        """Rows fetched from API (SUCCESS sections only, excludes resumed)."""
         return sum(s.row_count for s in self.sections if s.is_success)
 
     @property
