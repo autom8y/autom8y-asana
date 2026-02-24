@@ -4,9 +4,9 @@
 
 **Success Criteria**:
 - ~~Gate verdict upgrades from CONDITIONAL-PASS to PASS (20 httpx failures resolved)~~ **DONE** (commit `10c15db`)
-- 400-600 LOC reduction from copy-paste parametrization (15 active clusters; LS-014 removed in prior refactoring)
+- ~~400-600 LOC reduction from copy-paste parametrization (15 active clusters; LS-014 removed in prior refactoring)~~ **DONE** -- exceeded: -682 LOC (S1: -298, S2: -384)
 - ~~16 broad `pytest.raises(Exception)` replaced with specific exception types~~ **DONE** (commit `e073de7`)
-- Preload manifest check has proper integration test coverage
+- ~~Preload manifest check has proper integration test coverage~~ **DONE** (commit `634ed34`, 3 integration tests)
 - Slop-chop Partition 2 scanned and findings addressed
 - Zero regressions: test pass count stable or improved
 
@@ -17,9 +17,9 @@
 | WS-ID | Name | Scope | Files | Est. Effort | Phase |
 |-------|------|-------|-------|-------------|-------|
 | ~~WS-HTTPX~~ | ~~Fix phantom httpx patches~~ | ~~H-001, H-002 (20 tests)~~ | ~~2~~ | **DONE** | -- |
-| WS-PARAM | Parametrize copy-paste clusters | LS-009 to LS-024 (16 clusters) | 16 | 4-6h | A+B |
-| WS-EXCEPT | Tighten broad exceptions | LS-025 to LS-027 (16 sites) | 8 | 2-3h | A |
-| WS-INTEG | Preload manifest integration tests | LS-008 referral | 2 | 2-3h | B |
+| ~~WS-PARAM~~ | ~~Parametrize copy-paste clusters~~ | ~~LS-009 to LS-024 (16 clusters)~~ | ~~16~~ | **DONE** (-682 LOC) | A+B |
+| ~~WS-EXCEPT~~ | ~~Tighten broad exceptions~~ | ~~LS-025 to LS-027 (16 sites)~~ | ~~8~~ | **DONE** | A |
+| ~~WS-INTEG~~ | ~~Preload manifest integration tests~~ | ~~LS-008 referral~~ | ~~2~~ | **DONE** (3 tests) | B |
 | WS-OVERMOCK | Over-mock investigation spike | LS-028, LS-029 | 3 | 1h (spike) | B.2 |
 | WS-SLOP2 | Slop-chop Partition 2 | tests/{integration,validation,benchmarks} | ~52 | Full sprint | C |
 
