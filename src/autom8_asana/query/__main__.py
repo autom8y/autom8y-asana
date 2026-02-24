@@ -3,19 +3,28 @@
 Usage:
     python -m autom8_asana.query rows offer --classification active --select gid,name,mrr
     python -m autom8_asana.query rows offer --join business:booking_type --classification active
-    python -m autom8_asana.query rows offer --join business:booking_type,stripe_id --join-on office_phone
+    python -m autom8_asana.query rows offer --live --select gid,name,mrr
+    python -m autom8_asana.query rows offer --save my_active_offers
     python -m autom8_asana.query aggregate offer --group-by section --agg sum:mrr
+    python -m autom8_asana.query aggregate offer --group-by section --agg sum:mrr --live
     python -m autom8_asana.query run active_offers
+    python -m autom8_asana.query run active_offers --classification inactive --limit 50
     python -m autom8_asana.query run ./queries/mrr_by_vertical.yaml --format json
     python -m autom8_asana.query entities
     python -m autom8_asana.query fields offer
     python -m autom8_asana.query relations offer
+    python -m autom8_asana.query sections offer
+    python -m autom8_asana.query list-queries
     python -m autom8_asana.query timeline offer --moved-to ACTIVE --since 30d --format table
+
+For a standalone entry point that bypasses the settings guard, use:
+    python -m autom8_asana.query.cli <subcommand> [options]
 """
 
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from typing import IO, Any
 
@@ -211,15 +220,163 @@ def resolve_entity_type(entity_type: str) -> tuple[str, str]:
 
 
 # ---------------------------------------------------------------------------
+# Live mode (--live): HTTP client that hits the existing API
+# ---------------------------------------------------------------------------
+# ADR-AQ-007: --live mode uses the existing HTTP API surface rather than
+# wiring up EntityQueryService's full DI stack (UniversalResolutionStrategy,
+# DataFrameCache, AsanaClient, EntityProjectRegistry). This keeps the CLI
+# thin and avoids duplicating the service wiring that the API already handles.
+
+
+def _get_live_config() -> tuple[str, dict[str, str]]:
+    """Resolve live API base URL and auth headers.
+
+    Requires ASANA_SERVICE_KEY environment variable for S2S JWT auth.
+
+    Returns:
+        Tuple of (base_url, headers).
+
+    Raises:
+        CLIError: If ASANA_SERVICE_KEY is not set.
+    """
+    import os
+
+    key = os.environ.get("ASANA_SERVICE_KEY")
+    if not key:
+        raise CLIError(
+            "Live mode requires ASANA_SERVICE_KEY environment variable. "
+            "Set it or remove --live for offline (S3 cache) mode.",
+            exit_code=2,
+        )
+    base_url = os.environ.get("AUTOM8_DATA_URL", "http://localhost:5200")
+    headers = {"Authorization": f"Bearer {key}"}
+    return base_url, headers
+
+
+def execute_live_rows(
+    entity_type: str,
+    request_data: dict[str, Any],
+) -> Any:
+    """Execute a rows query via the live HTTP API.
+
+    Args:
+        entity_type: Entity type to query.
+        request_data: RowsRequest-compatible dict for the POST body.
+
+    Returns:
+        RowsResponse parsed from the API response.
+
+    Raises:
+        CLIError: On HTTP errors or connectivity issues.
+    """
+    import httpx
+
+    from autom8_asana.query.models import RowsResponse
+
+    base_url, headers = _get_live_config()
+    url = f"{base_url}/v1/query/{entity_type}/rows"
+
+    try:
+        resp = httpx.post(
+            url,
+            json=request_data,
+            headers=headers,
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+    except httpx.ConnectError:
+        raise CLIError(
+            f"Cannot connect to {base_url}. "
+            "Is the data service running? Start with 'just dev-up data'.",
+            exit_code=2,
+        )
+    except httpx.HTTPStatusError as e:
+        raise CLIError(
+            f"API error ({e.response.status_code}): {e.response.text}",
+            exit_code=1,
+        )
+    except httpx.TimeoutException:
+        raise CLIError(
+            f"Request to {url} timed out after 30s.",
+            exit_code=2,
+        )
+
+    return RowsResponse.model_validate(resp.json())
+
+
+def execute_live_aggregate(
+    entity_type: str,
+    request_data: dict[str, Any],
+) -> Any:
+    """Execute an aggregate query via the live HTTP API.
+
+    Args:
+        entity_type: Entity type to query.
+        request_data: AggregateRequest-compatible dict for the POST body.
+
+    Returns:
+        AggregateResponse parsed from the API response.
+
+    Raises:
+        CLIError: On HTTP errors or connectivity issues.
+    """
+    import httpx
+
+    from autom8_asana.query.models import AggregateResponse
+
+    base_url, headers = _get_live_config()
+    url = f"{base_url}/v1/query/{entity_type}/aggregate"
+
+    try:
+        resp = httpx.post(
+            url,
+            json=request_data,
+            headers=headers,
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+    except httpx.ConnectError:
+        raise CLIError(
+            f"Cannot connect to {base_url}. "
+            "Is the data service running? Start with 'just dev-up data'.",
+            exit_code=2,
+        )
+    except httpx.HTTPStatusError as e:
+        raise CLIError(
+            f"API error ({e.response.status_code}): {e.response.text}",
+            exit_code=1,
+        )
+    except httpx.TimeoutException:
+        raise CLIError(
+            f"Request to {url} timed out after 30s.",
+            exit_code=2,
+        )
+
+    return AggregateResponse.model_validate(resp.json())
+
+
+# ---------------------------------------------------------------------------
 # Metadata output
 # ---------------------------------------------------------------------------
+
+
+def _format_age(seconds: float) -> str:
+    """Format age in seconds to a human-readable string."""
+    if seconds < 60:
+        return f"{seconds:.0f}s"
+    elif seconds < 3600:
+        return f"{seconds / 60:.1f}m"
+    elif seconds < 86400:
+        return f"{seconds / 3600:.1f}h"
+    else:
+        return f"{seconds / 86400:.1f}d"
 
 
 def print_metadata(meta: Any, file: IO[str] | None = None) -> None:
     """Print query metadata to stderr.
 
     Format:
-      total: 342, returned: 100, query_ms: 1247.3, freshness: s3_offline
+      total: 342, returned: 100, query_ms: 1247.3, freshness: s3_offline, data_age: 2.3h
 
     Per AC-4.7: metadata to stderr prevents contamination of
     stdout data when piping to jq/csv tools.
@@ -236,6 +393,9 @@ def print_metadata(meta: Any, file: IO[str] | None = None) -> None:
     parts.append(f"query_ms: {meta.query_ms}")
     if hasattr(meta, "freshness") and meta.freshness:
         parts.append(f"freshness: {meta.freshness}")
+    if hasattr(meta, "data_age_seconds") and meta.data_age_seconds is not None:
+        age = meta.data_age_seconds
+        parts.append(f"data_age: {_format_age(age)}")
     if hasattr(meta, "join_entity") and meta.join_entity:
         parts.append(
             f"join: {meta.join_entity} "
@@ -312,12 +472,6 @@ def handle_rows(args: argparse.Namespace) -> int:
     from autom8_asana.query.engine import QueryEngine
     from autom8_asana.query.models import RowsRequest
 
-    from .offline_provider import (
-        NullClient,
-        OfflineDataFrameProvider,
-        OfflineProjectRegistry,
-    )
-
     entity_type, project_gid = resolve_entity_type(args.entity_type)
 
     # Build predicate
@@ -338,7 +492,7 @@ def handle_rows(args: argparse.Namespace) -> int:
             )
         join_spec = _parse_join(join_list[0], getattr(args, "join_on", None))
 
-    # Build RowsRequest
+    # Build RowsRequest dict
     request_data: dict[str, Any] = {
         "where": predicate,
         "limit": args.limit,
@@ -357,24 +511,32 @@ def handle_rows(args: argparse.Namespace) -> int:
     if join_spec:
         request_data["join"] = join_spec
 
-    request = RowsRequest.model_validate(request_data)
-
-    # Build engine
-    provider = OfflineDataFrameProvider()
-    engine = QueryEngine(provider=provider)
-    client = NullClient()
-    project_registry = OfflineProjectRegistry()
-
-    # Execute
-    result = asyncio.run(
-        engine.execute_rows(
-            entity_type=entity_type,
-            project_gid=project_gid,
-            client=client,  # type: ignore[arg-type]
-            request=request,
-            entity_project_registry=project_registry,
+    # --live: execute via HTTP API instead of local S3 parquets
+    if getattr(args, "live", False):
+        result = execute_live_rows(entity_type, request_data)
+    else:
+        from .offline_provider import (
+            NullClient,
+            OfflineDataFrameProvider,
+            OfflineProjectRegistry,
         )
-    )
+
+        request = RowsRequest.model_validate(request_data)
+
+        provider = OfflineDataFrameProvider()
+        engine = QueryEngine(provider=provider)
+        client = NullClient()
+        project_registry = OfflineProjectRegistry()
+
+        result = asyncio.run(
+            engine.execute_rows(
+                entity_type=entity_type,
+                project_gid=project_gid,
+                client=client,  # type: ignore[arg-type]
+                request=request,
+                entity_project_registry=project_registry,
+            )
+        )
 
     # Output
     formatter = _get_formatter(args)
@@ -386,7 +548,57 @@ def handle_rows(args: argparse.Namespace) -> int:
         if out is not sys.stdout:
             out.close()
 
+    # --save post-execution hook
+    save_name = getattr(args, "save", None)
+    if save_name:
+        _save_rows_query(args, save_name)
+
     return 0
+
+
+def _save_rows_query(args: argparse.Namespace, name: str) -> None:
+    """Build a SavedQuery from rows args and persist to disk."""
+    from autom8_asana.query.saved import SavedQuery, save_query
+
+    data: dict[str, Any] = {
+        "name": name,
+        "command": "rows",
+        "entity_type": args.entity_type,
+        "format": getattr(args, "output_format", "table") or "table",
+    }
+    if args.classification:
+        data["classification"] = args.classification
+    if args.section:
+        data["section"] = args.section
+    if args.select:
+        data["select"] = [s.strip() for s in args.select.split(",")]
+    if args.limit != 100:
+        data["limit"] = args.limit
+    if args.offset != 0:
+        data["offset"] = args.offset
+    if args.order_by:
+        data["order_by"] = args.order_by
+    if args.order_dir != "asc":
+        data["order_dir"] = args.order_dir
+
+    predicate = build_predicate(
+        getattr(args, "where", None),
+        getattr(args, "where_json", None),
+    )
+    if predicate:
+        data["where"] = predicate
+
+    join_list = getattr(args, "join", None)
+    if join_list:
+        join_spec = _parse_join(join_list[0], getattr(args, "join_on", None))
+        data["join"] = join_spec
+
+    saved = SavedQuery.model_validate(data)
+    try:
+        path = save_query(saved, name)
+        print(f"Query saved: {path}", file=sys.stderr)
+    except FileExistsError as e:
+        print(f"Warning: {e}", file=sys.stderr)
 
 
 def handle_aggregate(args: argparse.Namespace) -> int:
@@ -395,8 +607,6 @@ def handle_aggregate(args: argparse.Namespace) -> int:
 
     from autom8_asana.query.engine import QueryEngine
     from autom8_asana.query.models import AggregateRequest
-
-    from .offline_provider import NullClient, OfflineDataFrameProvider
 
     entity_type, project_gid = resolve_entity_type(args.entity_type)
 
@@ -414,7 +624,7 @@ def handle_aggregate(args: argparse.Namespace) -> int:
     if args.having:
         having = build_predicate(args.having, None)
 
-    # Build AggregateRequest
+    # Build AggregateRequest dict
     request_data: dict[str, Any] = {
         "where": predicate,
         "group_by": [s.strip() for s in args.group_by.split(",")],
@@ -425,22 +635,26 @@ def handle_aggregate(args: argparse.Namespace) -> int:
     if having:
         request_data["having"] = having
 
-    request = AggregateRequest.model_validate(request_data)
+    # --live: execute via HTTP API instead of local S3 parquets
+    if getattr(args, "live", False):
+        result = execute_live_aggregate(entity_type, request_data)
+    else:
+        from .offline_provider import NullClient, OfflineDataFrameProvider
 
-    # Build engine
-    provider = OfflineDataFrameProvider()
-    engine = QueryEngine(provider=provider)
-    client = NullClient()
+        request = AggregateRequest.model_validate(request_data)
 
-    # Execute
-    result = asyncio.run(
-        engine.execute_aggregate(
-            entity_type=entity_type,
-            project_gid=project_gid,
-            client=client,  # type: ignore[arg-type]
-            request=request,
+        provider = OfflineDataFrameProvider()
+        engine = QueryEngine(provider=provider)
+        client = NullClient()
+
+        result = asyncio.run(
+            engine.execute_aggregate(
+                entity_type=entity_type,
+                project_gid=project_gid,
+                client=client,  # type: ignore[arg-type]
+                request=request,
+            )
         )
-    )
 
     # Output
     formatter = _get_formatter(args)
@@ -452,7 +666,50 @@ def handle_aggregate(args: argparse.Namespace) -> int:
         if out is not sys.stdout:
             out.close()
 
+    # --save post-execution hook
+    save_name = getattr(args, "save", None)
+    if save_name:
+        _save_aggregate_query(args, save_name)
+
     return 0
+
+
+def _save_aggregate_query(args: argparse.Namespace, name: str) -> None:
+    """Build a SavedQuery from aggregate args and persist to disk."""
+    from autom8_asana.query.saved import SavedQuery, save_query
+
+    data: dict[str, Any] = {
+        "name": name,
+        "command": "aggregate",
+        "entity_type": args.entity_type,
+        "format": getattr(args, "output_format", "table") or "table",
+        "group_by": [s.strip() for s in args.group_by.split(",")],
+        "aggregations": [parse_agg_flag(raw) for raw in args.agg],
+    }
+    if args.classification:
+        data["classification"] = args.classification
+    if args.section:
+        data["section"] = args.section
+
+    predicate = build_predicate(
+        getattr(args, "where", None),
+        getattr(args, "where_json", None),
+    )
+    if predicate:
+        data["where"] = predicate
+
+    having = None
+    if args.having:
+        having = build_predicate(args.having, None)
+    if having:
+        data["having"] = having
+
+    saved = SavedQuery.model_validate(data)
+    try:
+        path = save_query(saved, name)
+        print(f"Query saved: {path}", file=sys.stderr)
+    except FileExistsError as e:
+        print(f"Warning: {e}", file=sys.stderr)
 
 
 def handle_entities(args: argparse.Namespace) -> int:
@@ -497,6 +754,26 @@ def handle_relations(args: argparse.Namespace) -> int:
     from autom8_asana.query.introspection import list_relations
 
     rows = list_relations(args.entity_type)
+
+    formatter = _get_formatter(args)
+    out = _get_output_stream(args)
+    try:
+        formatter.format_discovery(rows, out)  # type: ignore[attr-defined]
+    finally:
+        if out is not sys.stdout:
+            out.close()
+
+    return 0
+
+
+def handle_sections(args: argparse.Namespace) -> int:
+    """Handle the 'sections' subcommand."""
+    from autom8_asana.query.introspection import list_sections
+
+    try:
+        rows = list_sections(args.entity_type)
+    except ValueError as e:
+        raise CLIError(str(e)) from None
 
     formatter = _get_formatter(args)
     out = _get_output_stream(args)
@@ -605,6 +882,62 @@ def handle_timeline(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_list_queries(args: argparse.Namespace) -> int:
+    """Handle the 'list-queries' subcommand -- discover saved query templates.
+
+    Scans ``./queries/`` and ``~/.autom8/queries/`` for YAML/JSON files,
+    loads each via ``load_saved_query()``, and displays a discovery table
+    with name, description, entity_type, and command.
+    """
+    from pathlib import Path
+
+    from autom8_asana.query.saved import load_saved_query
+
+    search_dirs = [
+        Path.cwd() / "queries",
+        Path.home() / ".autom8" / "queries",
+    ]
+
+    rows: list[dict[str, object]] = []
+    for d in search_dirs:
+        if not d.is_dir():
+            continue
+        for p in sorted(d.iterdir()):
+            if p.suffix not in (".yaml", ".yml", ".json"):
+                continue
+            try:
+                saved = load_saved_query(p)
+                rows.append(
+                    {
+                        "name": saved.name,
+                        "description": saved.description,
+                        "entity_type": saved.entity_type,
+                        "command": saved.command,
+                        "path": str(p),
+                    }
+                )
+            except Exception:
+                # Skip malformed query files silently
+                continue
+
+    if not rows:
+        print(
+            "No saved queries found. Place .yaml/.json files in "
+            "./queries/ or ~/.autom8/queries/",
+            file=sys.stderr,
+        )
+
+    formatter = _get_formatter(args)
+    out = _get_output_stream(args)
+    try:
+        formatter.format_discovery(rows, out)  # type: ignore[attr-defined]
+    finally:
+        if out is not sys.stdout:
+            out.close()
+
+    return 0
+
+
 def handle_run(args: argparse.Namespace) -> int:
     """Handle the 'run' subcommand -- execute a saved query template.
 
@@ -643,10 +976,36 @@ def handle_run(args: argparse.Namespace) -> int:
             )
         saved = load_saved_query(found)
 
-    # 2. Resolve format override
+    # 2. Apply CLI overrides -- explicitly provided flags win over saved values
+    overrides: dict[str, Any] = {}
     fmt_override = getattr(args, "output_format", None)
-    if fmt_override:
-        saved = SavedQuery(**{**saved.model_dump(), "format": fmt_override})
+    if fmt_override is not None:
+        overrides["format"] = fmt_override
+
+    # Predicate overrides
+    cli_where = getattr(args, "where", None)
+    cli_where_json = getattr(args, "where_json", None)
+    cli_predicate = build_predicate(cli_where, cli_where_json)
+    if cli_predicate is not None:
+        overrides["where"] = cli_predicate
+
+    if getattr(args, "classification", None) is not None:
+        overrides["classification"] = args.classification
+    if getattr(args, "section", None) is not None:
+        overrides["section"] = args.section
+    if getattr(args, "select", None) is not None:
+        overrides["select"] = [s.strip() for s in args.select.split(",")]
+    if getattr(args, "limit", None) is not None:
+        overrides["limit"] = args.limit
+    if getattr(args, "offset", None) is not None:
+        overrides["offset"] = args.offset
+    if getattr(args, "order_by", None) is not None:
+        overrides["order_by"] = args.order_by
+    if getattr(args, "order_dir", None) is not None:
+        overrides["order_dir"] = args.order_dir
+
+    if overrides:
+        saved = SavedQuery(**{**saved.model_dump(), **overrides})
 
     # 3. Resolve entity type
     entity_type, project_gid = resolve_entity_type(saved.entity_type)
@@ -851,6 +1210,20 @@ def build_parser() -> argparse.ArgumentParser:
         prog="autom8_asana.query",
         description="Query entity data from cached Asana section parquets",
     )
+    # Logging verbosity (mutually exclusive)
+    log_group = parser.add_mutually_exclusive_group()
+    log_group.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Enable debug logging output",
+    )
+    log_group.add_argument(
+        "--quiet",
+        "-q",
+        action="store_true",
+        help="Suppress all logging (including errors)",
+    )
     subparsers = parser.add_subparsers(dest="command")
 
     # --- rows subcommand ---
@@ -882,6 +1255,15 @@ def build_parser() -> argparse.ArgumentParser:
         default="asc",
         help="Sort direction (default: asc)",
     )
+    rows_parser.add_argument(
+        "--save",
+        help="Save this query as a reusable template to ~/.autom8/queries/<name>.yaml",
+    )
+    rows_parser.add_argument(
+        "--live",
+        action="store_true",
+        help="Use live API instead of S3 cache (requires ASANA_SERVICE_KEY)",
+    )
 
     # --- aggregate subcommand ---
     agg_parser = subparsers.add_parser(
@@ -910,12 +1292,31 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         help="Post-agg filter: 'field op value'. Example: --having 'sum_mrr gt 1000'",
     )
+    agg_parser.add_argument(
+        "--save",
+        help="Save this query as a reusable template to ~/.autom8/queries/<name>.yaml",
+    )
+    agg_parser.add_argument(
+        "--live",
+        action="store_true",
+        help="Use live API instead of S3 cache (requires ASANA_SERVICE_KEY)",
+    )
 
     # --- discovery subcommands ---
     ent_parser = subparsers.add_parser(
         "entities",
         help="List queryable entity types",
         description="List all queryable entity types with project GIDs and categories.",
+        epilog=(
+            "Examples:\n"
+            "  %(prog)s                          # table output\n"
+            "  %(prog)s --format json             # JSON output for scripting\n"
+            "  %(prog)s --format csv --output entities.csv\n"
+            "\n"
+            "Use 'fields <entity>' to see columns, "
+            "'sections <entity>' for classification mapping."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     _add_output_args(ent_parser)
 
@@ -946,6 +1347,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Entity type to inspect",
     )
     _add_output_args(rel_parser)
+
+    # --- sections subcommand ---
+    sections_parser = subparsers.add_parser(
+        "sections",
+        help="List section names and classifications for an entity type",
+        description=(
+            "List all Asana project sections and their activity classifications\n"
+            "(active, activating, inactive, ignored) for the given entity type.\n\n"
+            "Example: sections offer"
+        ),
+    )
+    sections_parser.add_argument(
+        "entity_type",
+        help="Entity type to inspect (offer, unit)",
+    )
+    _add_output_args(sections_parser)
 
     # --- timeline subcommand ---
     timeline_parser = subparsers.add_parser(
@@ -987,6 +1404,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_output_args(timeline_parser)
 
+    # --- list-queries subcommand ---
+    list_queries_parser = subparsers.add_parser(
+        "list-queries",
+        help="Discover available saved query templates",
+        description=(
+            "Scan ./queries/ and ~/.autom8/queries/ for saved query templates\n"
+            "and display their name, description, entity type, and command.\n\n"
+            "Example: list-queries --format json"
+        ),
+    )
+    _add_output_args(list_queries_parser)
+
     # --- run subcommand (saved queries) ---
     run_parser = subparsers.add_parser(
         "run",
@@ -1019,6 +1448,54 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable table column truncation",
     )
+    # Override flags for saved query parameters
+    run_parser.add_argument(
+        "--where",
+        action="append",
+        help="Override filter: 'field op value' (multiple ANDed)",
+    )
+    run_parser.add_argument(
+        "--where-json",
+        help="Override complex predicate tree as JSON",
+    )
+    run_parser.add_argument(
+        "--classification",
+        default=None,
+        help="Override classification filter",
+    )
+    run_parser.add_argument(
+        "--section",
+        default=None,
+        help="Override section name filter",
+    )
+    run_parser.add_argument(
+        "--select",
+        default=None,
+        help="Override comma-separated column list",
+    )
+    run_parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Override max rows to return",
+    )
+    run_parser.add_argument(
+        "--offset",
+        type=int,
+        default=None,
+        help="Override row offset",
+    )
+    run_parser.add_argument(
+        "--order-by",
+        default=None,
+        help="Override sort column",
+    )
+    run_parser.add_argument(
+        "--order-dir",
+        choices=["asc", "desc"],
+        default=None,
+        help="Override sort direction",
+    )
 
     return parser
 
@@ -1028,10 +1505,72 @@ def build_parser() -> argparse.ArgumentParser:
 # ---------------------------------------------------------------------------
 
 
+def _configure_logging(*, verbose: bool = False, quiet: bool = False) -> None:
+    """Configure logging for CLI usage.
+
+    By default, suppresses all library noise (structlog JSON lines from
+    HolderFactory, schema warnings, etc.) so only query output appears.
+    --verbose enables DEBUG output; --quiet suppresses everything.
+    """
+    from autom8y_log import LogConfig, configure_logging
+
+    if quiet:
+        level_name = "ERROR"
+        level = logging.CRITICAL + 10  # Suppress everything via stdlib
+    elif verbose:
+        level_name = "DEBUG"
+        level = logging.DEBUG
+    else:
+        level_name = "ERROR"
+        level = logging.ERROR
+
+    # Configure stdlib logging to suppress library noise
+    logging.basicConfig(
+        level=level,
+        format="%(message)s",
+        stream=sys.stderr,
+        force=True,
+    )
+    for logger_name in (
+        "autom8_asana",
+        "autom8y_log",
+        "autom8y_config",
+        "httpx",
+        "httpcore",
+        "boto3",
+        "botocore",
+        "urllib3",
+    ):
+        logging.getLogger(logger_name).setLevel(level)
+
+    # Reconfigure autom8y_log/structlog to match
+    configure_logging(LogConfig(level=level_name))
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns exit code."""
+    import os
+
+    # G-01: Bypass settings guard for offline CLI -- we never need the
+    # data service or workspace GID.  setdefault() is safe: it only sets
+    # the value when the var is absent, so it won't interfere with tests
+    # or production environments that already set these.
+    os.environ.setdefault("AUTOM8_DATA_URL", "http://offline-cli.local")
+    os.environ.setdefault("ASANA_WORKSPACE_GID", "offline")
+    # G-02: Suppress import-time log noise.  When invoked via
+    # `python -m autom8_asana.query`, the package __init__.py has already
+    # loaded and emitted logs by this point.  For fully clean output, use
+    # `python -m autom8_asana.query.cli` which sets LOG_LEVEL before imports.
+    os.environ.setdefault("LOG_LEVEL", "ERROR")
+
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    # G-02: Suppress log noise before any handler imports trigger logging
+    _configure_logging(
+        verbose=getattr(args, "verbose", False),
+        quiet=getattr(args, "quiet", False),
+    )
 
     if not args.command:
         parser.print_help()
@@ -1044,7 +1583,9 @@ def main(argv: list[str] | None = None) -> int:
         "entities": handle_entities,
         "fields": handle_fields,
         "relations": handle_relations,
+        "sections": handle_sections,
         "timeline": handle_timeline,
+        "list-queries": handle_list_queries,
         "run": handle_run,
     }
 

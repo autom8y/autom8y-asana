@@ -1,0 +1,14 @@
+name: mrr_by_vertical
+description: Total MRR grouped by vertical for active offers
+command: aggregate
+entity_type: offer
+classification: active
+group_by: [vertical]
+aggregations:
+  - column: mrr
+    agg: sum
+    alias: total_mrr
+  - column: gid
+    agg: count
+    alias: offer_count
+format: table

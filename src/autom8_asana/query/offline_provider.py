@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import os
 import time
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, NoReturn
 
 if TYPE_CHECKING:
@@ -112,11 +113,11 @@ class OfflineDataFrameProvider:
         if project_gid in self._cache:
             return self._cache[project_gid]
 
-        from autom8_asana.dataframes.offline import load_project_dataframe
+        from autom8_asana.dataframes.offline import load_project_dataframe_with_meta
 
         # Sync call in async wrapper -- acceptable for single-threaded CLI
         start = time.monotonic()
-        df = load_project_dataframe(
+        df, last_modified = load_project_dataframe_with_meta(
             project_gid,
             bucket=self._bucket,
             region=self._region,
@@ -124,17 +125,29 @@ class OfflineDataFrameProvider:
         elapsed = time.monotonic() - start
 
         self._cache[project_gid] = df
-        self._last_freshness = _build_offline_freshness(elapsed)
+        self._last_freshness = _build_offline_freshness(elapsed, last_modified)
         return df
 
 
-def _build_offline_freshness(load_seconds: float) -> FreshnessInfo:
+def _build_offline_freshness(
+    load_seconds: float,
+    last_modified: datetime | None = None,
+) -> FreshnessInfo:
     """Build FreshnessInfo for offline S3 data.
 
-    Since S3 parquets have no TTL concept, we report a fixed
-    freshness state that communicates "offline cache, age unknown".
+    When S3 LastModified metadata is available, computes real data age
+    as the delta between now and the most recent object modification.
+    Otherwise falls back to load duration as a proxy.
     """
     from autom8_asana.cache.integration.dataframe_cache import FreshnessInfo
+
+    if last_modified is not None:
+        age = (datetime.now(UTC) - last_modified).total_seconds()
+        return FreshnessInfo(
+            freshness="s3_offline",
+            data_age_seconds=age,
+            staleness_ratio=0.0,
+        )
 
     return FreshnessInfo(
         freshness="s3_offline",

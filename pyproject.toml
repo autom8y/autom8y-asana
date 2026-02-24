@@ -72,8 +72,11 @@ dev = [
     "autom8y-auth[testing]>=1.1.0",
 ]
 
+[project.scripts]
+autom8-query = "autom8_query_cli:main"
+
 [tool.hatch.build.targets.wheel]
-packages = ["src/autom8_asana"]
+packages = ["src/autom8_asana", "src/autom8_query_cli.py"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -179,6 +182,10 @@ ignore = [
 "src/autom8_asana/api/dependencies.py" = ["E402"]
 "src/autom8_asana/services/resolver.py" = ["E402"]
 "src/autom8_asana/services/universal_strategy.py" = ["E402"]
+# CLI --live mode uses raw httpx as a thin HTTP client (not a service integration).
+# Autom8yHttpClient is async-only and requires full platform config, which is
+# inappropriate for a synchronous CLI development tool.
+"src/autom8_asana/query/__main__.py" = ["TID251"]
 
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = [

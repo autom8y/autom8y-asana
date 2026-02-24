@@ -1,0 +1,11 @@
+name: offers_with_business
+description: Active offers enriched with business booking type
+command: rows
+entity_type: offer
+classification: active
+select: [gid, name, mrr, office_phone]
+join:
+  entity_type: business
+  select: [booking_type]
+limit: 100
+format: table
