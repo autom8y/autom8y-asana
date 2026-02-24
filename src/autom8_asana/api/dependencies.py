@@ -501,6 +501,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from autom8_asana.cache.integration.dataframe_cache import DataFrameCache
+    from autom8_asana.clients.data.client import DataServiceClient
     from autom8_asana.resolution.write_registry import EntityWriteRegistry
     from autom8_asana.services.dataframe_service import DataFrameService
     from autom8_asana.services.entity_service import EntityService
@@ -512,6 +513,42 @@ TaskServiceDep = Annotated["TaskService", Depends(get_task_service)]
 SectionServiceDep = Annotated["SectionService", Depends(get_section_service)]
 DataFrameServiceDep = Annotated["DataFrameService", Depends(get_dataframe_service)]
 DataFrameCacheDep = Annotated["DataFrameCache | None", Depends(get_dataframe_cache)]
+
+
+def get_data_service_client(request: Request) -> DataServiceClient | None:
+    """Get DataServiceClient singleton from app state.
+
+    Lazy initialization: creates on first access, stores on app.state.
+    Returns None if initialization fails (e.g., missing env config),
+    since data-service joins are optional — the engine raises JoinError
+    with a clear message when a data-service join is requested without a client.
+
+    Pattern: Same as get_entity_service() — lazy singleton on app.state.
+    """
+    client: DataServiceClient | None = getattr(
+        request.app.state, "data_service_client", None
+    )
+    if client is not None:
+        return client
+
+    # Sentinel to avoid retrying failed init on every request
+    if getattr(request.app.state, "_data_service_client_failed", False):
+        return None
+
+    try:
+        from autom8_asana.clients.data.client import DataServiceClient
+
+        client = DataServiceClient()
+        request.app.state.data_service_client = client
+        return client
+    except Exception:
+        request.app.state._data_service_client_failed = True
+        return None
+
+
+DataServiceClientDep = Annotated[
+    "DataServiceClient | None", Depends(get_data_service_client)
+]
 
 
 __all__ = [
@@ -534,6 +571,9 @@ __all__ = [
     "TaskServiceDep",
     "SectionServiceDep",
     "DataFrameServiceDep",
+    # Data service client (cross-service enrichment)
+    "get_data_service_client",
+    "DataServiceClientDep",
     # Entity write registry
     "get_entity_write_registry",
     "EntityWriteRegistryDep",

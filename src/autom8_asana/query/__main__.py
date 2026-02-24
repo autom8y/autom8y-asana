@@ -255,12 +255,13 @@ def _get_live_config() -> tuple[str, dict[str, str]]:
             "Set it or remove --live for offline (S3 cache) mode.",
             exit_code=2,
         )
+    manager = TokenManager(config)
     try:
-        manager = TokenManager(config)
         token = manager.get_token()
-        manager.close()
     except TokenAcquisitionError as e:
         raise CLIError(f"Auth failed: {e}", exit_code=2)
+    finally:
+        manager.close()
 
     headers = {
         "Authorization": f"Bearer {token}",
@@ -481,6 +482,28 @@ def _get_output_stream(args: argparse.Namespace) -> IO[str]:
     return sys.stdout
 
 
+def _create_data_client_if_needed(
+    join_spec: dict[str, Any] | None,
+) -> Any:
+    """Create DataServiceClient when a data-service join is requested.
+
+    Returns None for entity joins (no data-service access needed).
+    Raises CLIError with clear message if init fails for data-service joins.
+    """
+    if join_spec is None or join_spec.get("source") != "data-service":
+        return None
+
+    try:
+        from autom8_asana.clients.data.client import DataServiceClient
+
+        return DataServiceClient()
+    except Exception as e:
+        raise CLIError(
+            f"Data-service joins require AUTOM8_DATA_URL and authentication "
+            f"(AUTOM8_DATA_API_KEY or ASANA_SERVICE_KEY). Error: {e}"
+        ) from None
+
+
 def handle_rows(args: argparse.Namespace) -> int:
     """Handle the 'rows' subcommand."""
     import asyncio
@@ -496,17 +519,37 @@ def handle_rows(args: argparse.Namespace) -> int:
         getattr(args, "where_json", None),
     )
 
-    # Build join spec (--join accepts multiple flags via action="append")
+    # Build join spec (--join or --enrich)
     join_spec = None
+    enrich_str = getattr(args, "enrich", None)
     join_list = getattr(args, "join", None)
-    if join_list:
+
+    if enrich_str and join_list:
+        raise CLIError("--enrich and --join are mutually exclusive")
+
+    if enrich_str:
+        # --enrich is shorthand for data-service join
+        join_spec = _parse_join(
+            enrich_str,
+            join_on=getattr(args, "join_on", None),
+            source="data-service",
+            factory=enrich_str.split(":")[0].strip() if ":" in enrich_str else None,
+            period=getattr(args, "join_period", "LIFETIME"),
+        )
+    elif join_list:
         if len(join_list) > 1:
             print(
                 f"Note: Only one --join is supported per query. "
                 f"Using first: {join_list[0]}",
                 file=sys.stderr,
             )
-        join_spec = _parse_join(join_list[0], getattr(args, "join_on", None))
+        join_spec = _parse_join(
+            join_list[0],
+            getattr(args, "join_on", None),
+            source=getattr(args, "join_source", "entity"),
+            factory=getattr(args, "join_factory", None),
+            period=getattr(args, "join_period", "LIFETIME"),
+        )
 
     # Build RowsRequest dict
     request_data: dict[str, Any] = {
@@ -540,7 +583,8 @@ def handle_rows(args: argparse.Namespace) -> int:
         request = RowsRequest.model_validate(request_data)
 
         provider = OfflineDataFrameProvider()
-        engine = QueryEngine(provider=provider)
+        data_client = _create_data_client_if_needed(join_spec)
+        engine = QueryEngine(provider=provider, data_client=data_client)
         client = NullClient()
         project_registry = OfflineProjectRegistry()
 
@@ -660,7 +704,7 @@ def handle_aggregate(args: argparse.Namespace) -> int:
         request = AggregateRequest.model_validate(request_data)
 
         provider = OfflineDataFrameProvider()
-        engine = QueryEngine(provider=provider)
+        engine = QueryEngine(provider=provider, data_client=None)
         client = NullClient()
 
         result = asyncio.run(
@@ -733,6 +777,23 @@ def handle_entities(args: argparse.Namespace) -> int:
     from autom8_asana.query.introspection import list_entities
 
     rows = list_entities()
+
+    formatter = _get_formatter(args)
+    out = _get_output_stream(args)
+    try:
+        formatter.format_discovery(rows, out)  # type: ignore[attr-defined]
+    finally:
+        if out is not sys.stdout:
+            out.close()
+
+    return 0
+
+
+def handle_data_sources(args: argparse.Namespace) -> int:
+    """Handle the 'data-sources' subcommand."""
+    from autom8_asana.query.data_service_entities import list_data_service_entities
+
+    rows = list_data_service_entities()
 
     formatter = _get_formatter(args)
     out = _get_output_stream(args)
@@ -1028,7 +1089,12 @@ def handle_run(args: argparse.Namespace) -> int:
 
     # 4. Build and execute based on command type
     provider = OfflineDataFrameProvider()
-    engine = QueryEngine(provider=provider)
+
+    # Create DataServiceClient for saved queries with data-service joins
+    saved_join_dict = saved.join.model_dump(exclude_none=True) if saved.join else None
+    data_client = _create_data_client_if_needed(saved_join_dict)
+
+    engine = QueryEngine(provider=provider, data_client=data_client)
     client = NullClient()
     project_registry = OfflineProjectRegistry()
 
@@ -1173,12 +1239,21 @@ def _add_filter_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _parse_join(join_str: str, join_on: str | None) -> dict[str, Any]:
+def _parse_join(
+    join_str: str,
+    join_on: str | None,
+    source: str = "entity",
+    factory: str | None = None,
+    period: str = "LIFETIME",
+) -> dict[str, Any]:
     """Parse 'entity:col1,col2' to a JoinSpec-compatible dict.
 
     Args:
         join_str: Combined entity:columns string (e.g., "business:booking_type,stripe_id").
         join_on: Optional explicit join key override.
+        source: Join source ("entity" or "data-service").
+        factory: DataService factory name (required when source="data-service").
+        period: Period for data-service joins (default: LIFETIME).
 
     Returns:
         Dict suitable for JoinSpec.model_validate().
@@ -1197,6 +1272,15 @@ def _parse_join(join_str: str, join_on: str | None) -> dict[str, Any]:
     result: dict[str, Any] = {"entity_type": entity_type.strip(), "select": select}
     if join_on is not None:
         result["on"] = join_on
+
+    # Cross-service join parameters
+    if source == "data-service":
+        if factory is None:
+            raise CLIError("--join-factory is required when --join-source=data-service")
+        result["source"] = "data-service"
+        result["factory"] = factory
+        result["period"] = period
+
     return result
 
 
@@ -1217,6 +1301,33 @@ def _add_join_args(parser: argparse.ArgumentParser) -> None:
         "--join-on",
         dest="join_on",
         help="Explicit join key (default: auto-resolved from relationship)",
+    )
+    # Cross-service join parameters
+    parser.add_argument(
+        "--join-source",
+        dest="join_source",
+        choices=["entity", "data-service"],
+        default="entity",
+        help="Join source: 'entity' (Asana cache) or 'data-service' (autom8y-data API)",
+    )
+    parser.add_argument(
+        "--join-factory",
+        dest="join_factory",
+        help="DataService factory name (required when --join-source=data-service). "
+        "E.g., spend, leads, appts, campaigns, base.",
+    )
+    parser.add_argument(
+        "--join-period",
+        dest="join_period",
+        default="LIFETIME",
+        help="Period for data-service joins (T7, T30, LIFETIME). Default: LIFETIME",
+    )
+    # Shorthand for data-service enrichment joins
+    parser.add_argument(
+        "--enrich",
+        help="Shorthand for data-service join: FACTORY:col1,col2 "
+        "(e.g., --enrich spend:spend,cps). Implies --join-source=data-service. "
+        "Use --join-period to set period (default: LIFETIME).",
     )
 
 
@@ -1379,6 +1490,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Entity type to inspect (offer, unit)",
     )
     _add_output_args(sections_parser)
+
+    # --- data-sources subcommand ---
+    ds_parser = subparsers.add_parser(
+        "data-sources",
+        help="List available data-service factories for cross-service joins",
+        description=(
+            "List analytics data sources from autom8y-data that can be used\n"
+            "with --enrich or --join-source=data-service for cross-service joins.\n\n"
+            "Example: data-sources --format json"
+        ),
+    )
+    _add_output_args(ds_parser)
 
     # --- timeline subcommand ---
     timeline_parser = subparsers.add_parser(
@@ -1601,6 +1724,7 @@ def main(argv: list[str] | None = None) -> int:
         "fields": handle_fields,
         "relations": handle_relations,
         "sections": handle_sections,
+        "data-sources": handle_data_sources,
         "timeline": handle_timeline,
         "list-queries": handle_list_queries,
         "run": handle_run,

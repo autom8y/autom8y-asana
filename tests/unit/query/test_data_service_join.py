@@ -467,8 +467,24 @@ class TestDataServiceEntityRegistry:
     """Virtual entity registry for data-service join targets."""
 
     def test_known_entities_registered(self) -> None:
-        """Core factories are registered."""
-        for name in ["spend", "leads", "appts", "campaigns", "base"]:
+        """All 14 factories are registered."""
+        all_factories = [
+            "spend",
+            "leads",
+            "appts",
+            "campaigns",
+            "base",
+            "account",
+            "ads",
+            "adsets",
+            "targeting",
+            "payments",
+            "business_offers",
+            "ad_questions",
+            "ad_tests",
+            "assets",
+        ]
+        for name in all_factories:
             info = get_data_service_entity(name)
             assert info is not None, f"Missing entity: {name}"
             assert info.factory == name

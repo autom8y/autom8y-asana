@@ -14,15 +14,33 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class SavedJoinSpec(BaseModel):
-    """Join specification within a saved query."""
+    """Join specification within a saved query.
+
+    Mirrors JoinSpec fields from query/join.py to support both
+    entity joins (Asana-to-Asana) and data-service joins (Asana-to-autom8y-data).
+    """
 
     entity_type: str
     select: list[str] = Field(min_length=1, max_length=10)
     on: str | None = None
+
+    # Cross-service extension (mirrors JoinSpec)
+    source: Literal["entity", "data-service"] = "entity"
+    factory: str | None = None
+    period: str = "LIFETIME"
+
+    @model_validator(mode="after")
+    def validate_source_params(self) -> SavedJoinSpec:
+        """Ensure factory is provided for data-service joins and absent for entity joins."""
+        if self.source == "data-service" and self.factory is None:
+            raise ValueError("factory is required when source='data-service'")
+        if self.source == "entity" and self.factory is not None:
+            raise ValueError("factory is only valid when source='data-service'")
+        return self
 
 
 class SavedQuery(BaseModel):
