@@ -26,10 +26,10 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
+from autom8_asana.automation.seeding import FieldSeeder
 from autom8_asana.core.field_utils import get_field_attr, normalize_custom_fields
 
 if TYPE_CHECKING:
-    from autom8_asana.automation.seeding import FieldSeeder
     from autom8_asana.client import AsanaClient
     from autom8_asana.models.business.business import Business
     from autom8_asana.models.business.process import Process
@@ -182,8 +182,6 @@ class AutoCascadeSeeder:
 
         # Write using FieldSeeder infrastructure (enum resolution + API call)
         # Pass target_task to avoid re-fetching (IMP-02: eliminates double-fetch)
-        from autom8_asana.automation.seeding import FieldSeeder
-
         field_seeder = FieldSeeder(self._client)
         write_result = await field_seeder.write_fields_async(
             target_task_gid,
