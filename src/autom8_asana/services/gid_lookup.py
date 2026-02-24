@@ -10,12 +10,11 @@ Per task-002: Builds on cache population pattern from task-001.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    import polars as pl
+import polars as pl
 
-    from autom8_asana.models.contracts.phone_vertical import PhoneVerticalPair
+from autom8_asana.models.contracts.phone_vertical import PhoneVerticalPair
 
 
 class GidLookupIndex:

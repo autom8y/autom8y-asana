@@ -11,15 +11,11 @@ ADR-AGG-005: Utf8 columns cast to Float64 for sum/mean/min/max (financial column
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
-
 import polars as pl
 
+from autom8_asana.dataframes.models.schema import DataFrameSchema
 from autom8_asana.query.errors import AggregationError
 from autom8_asana.query.models import AggFunction, AggSpec
-
-if TYPE_CHECKING:
-    from autom8_asana.dataframes.models.schema import DataFrameSchema
 
 __all__ = [
     "AGG_COMPATIBILITY",
