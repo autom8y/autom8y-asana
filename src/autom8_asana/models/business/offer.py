@@ -321,6 +321,6 @@ class OfferHolder(
 
 
 # Self-register OfferHolder with HOLDER_REGISTRY (R-009)
-from autom8_asana.persistence.holder_construction import register_holder  # noqa: E402
+from autom8_asana.core.registry import register_holder  # noqa: E402
 
 register_holder("offer_holder", OfferHolder)

@@ -24,7 +24,7 @@ from autom8y_cache import CompatibilityMode, SchemaVersion
 from autom8y_log import get_logger
 
 from autom8_asana.dataframes.models.registry import get_schema
-from autom8_asana.services.resolver import to_pascal_case
+from autom8_asana.core.string_utils import to_pascal_case
 
 logger = get_logger(__name__)
 

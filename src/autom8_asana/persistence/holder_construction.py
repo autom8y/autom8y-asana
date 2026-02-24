@@ -37,23 +37,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-# Public registry: populated by each Holder module at import time.
-# Each Holder file calls register_holder(key, cls) at module level.
-HOLDER_REGISTRY: dict[str, type] = {}
-
-
-def register_holder(holder_key: str, holder_class: type) -> None:
-    """Register a Holder class for the given holder_key.
-
-    Called at module level in each Holder file so that importing the file
-    automatically populates HOLDER_REGISTRY. Duplicates are silently ignored.
-
-    Args:
-        holder_key: Canonical key (e.g., "contact_holder", "unit_holder").
-        holder_class: The Holder class to register.
-    """
-    if holder_key not in HOLDER_REGISTRY:
-        HOLDER_REGISTRY[holder_key] = holder_class
+from autom8_asana.core.registry import HOLDER_REGISTRY, register_holder  # noqa: F401 — re-export for backward compat
 
 
 def reset_holder_registry() -> None:

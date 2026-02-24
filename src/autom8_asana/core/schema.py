@@ -23,7 +23,7 @@ def get_schema_version(entity_type: str | None) -> str | None:
         return None
     try:
         from autom8_asana.dataframes.models.registry import SchemaRegistry
-        from autom8_asana.services.resolver import to_pascal_case
+        from autom8_asana.core.string_utils import to_pascal_case
 
         registry = SchemaRegistry.get_instance()
         registry_key = to_pascal_case(entity_type)

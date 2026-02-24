@@ -45,29 +45,7 @@ logger = get_logger(__name__)
 # --- Utility Functions ---
 
 
-def to_pascal_case(s: str) -> str:
-    """Convert snake_case to PascalCase.
-
-    Used for entity type to schema key conversion.
-    Python's .title() incorrectly handles underscores:
-    - "asset_edit".title() -> "Asset_Edit" (WRONG)
-    - to_pascal_case("asset_edit") -> "AssetEdit" (CORRECT)
-
-    Args:
-        s: Snake_case string to convert.
-
-    Returns:
-        PascalCase string suitable for SchemaRegistry lookups.
-
-    Examples:
-        >>> to_pascal_case("unit")
-        "Unit"
-        >>> to_pascal_case("asset_edit")
-        "AssetEdit"
-        >>> to_pascal_case("asset_edit_holder")
-        "AssetEditHolder"
-    """
-    return "".join(word.capitalize() for word in s.split("_"))
+from autom8_asana.core.string_utils import to_pascal_case as to_pascal_case  # noqa: E501 — re-export for backward compat
 
 
 # --- Data Models ---
