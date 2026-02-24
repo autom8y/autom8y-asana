@@ -25,6 +25,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
+    DataServiceClientDep,
     EntityServiceDep,
     RequestId,
 )
@@ -35,6 +36,7 @@ from autom8_asana.query.engine import QueryEngine
 from autom8_asana.query.errors import (
     AggregateGroupLimitError,
     ClassificationError,
+    JoinError,
     QueryEngineError,
     QueryTooComplexError,
 )
@@ -74,6 +76,7 @@ _ERROR_STATUS: dict[type[QueryEngineError], int] = {
     QueryTooComplexError: 400,
     AggregateGroupLimitError: 400,
     ClassificationError: 400,
+    JoinError: 422,
 }
 _DEFAULT_ERROR_STATUS = 422
 
@@ -162,6 +165,52 @@ async def list_query_entities(
     return {"data": list_entities()}
 
 
+@router.get("/data-sources")
+async def list_data_sources(
+    claims: Annotated[ServiceClaims, Depends(require_service_claims)],
+) -> dict[str, Any]:
+    """List available data-service factories for cross-service joins.
+
+    Returns metadata for each registered data-service entity including
+    factory name, frame type, description, columns, and default period.
+    """
+    from autom8_asana.query.data_service_entities import list_data_service_entities
+
+    return {"data": list_data_service_entities()}
+
+
+@router.get("/data-sources/{factory}/fields")
+async def list_data_source_fields(
+    factory: str,
+    request_id: RequestId,
+    claims: Annotated[ServiceClaims, Depends(require_service_claims)],
+) -> dict[str, Any]:
+    """List known columns for a data-service factory.
+
+    Returns column names from the virtual entity registry. Note that
+    actual columns returned by autom8y-data may differ — this is an
+    advisory list based on common factory configurations.
+    """
+    from autom8_asana.query.data_service_entities import get_data_service_entity
+
+    info = get_data_service_entity(factory)
+    if info is None:
+        raise_api_error(
+            request_id,
+            404,
+            "UNKNOWN_DATA_SOURCE",
+            f"Unknown data-service factory: '{factory}'. "
+            "Use GET /v1/query/data-sources to list available factories.",
+        )
+    return {
+        "data": [{"name": col} for col in info.columns],
+        "factory": factory,
+        "description": info.description,
+        "default_period": info.default_period,
+        "join_key": info.join_key,
+    }
+
+
 @router.get("/{entity_type}/fields")
 async def list_query_fields(
     entity_type: str,
@@ -241,6 +290,7 @@ async def query_rows(
     request_id: RequestId,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
     entity_service: EntityServiceDep,
+    data_service_client: DataServiceClientDep = None,
 ) -> RowsResponse:
     """Query entity rows with composable predicate filtering.
 
@@ -259,7 +309,7 @@ async def query_rows(
 
     # 3. Execute query
     query_service = EntityQueryService()
-    engine = QueryEngine(provider=query_service)
+    engine = QueryEngine(provider=query_service, data_client=data_service_client)
     try:
         async with AsanaClient(token=ctx.bot_pat) as client:
             result = await engine.execute_rows(
@@ -308,6 +358,7 @@ async def query_aggregate(
     request_id: RequestId,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
     entity_service: EntityServiceDep,
+    data_service_client: DataServiceClientDep = None,
 ) -> AggregateResponse:
     """Aggregate entity data with grouping and optional HAVING filter.
 
@@ -326,7 +377,7 @@ async def query_aggregate(
 
     # 3. Execute aggregate query
     query_service = EntityQueryService()
-    engine = QueryEngine(provider=query_service)
+    engine = QueryEngine(provider=query_service, data_client=data_service_client)
     try:
         async with AsanaClient(token=ctx.bot_pat) as client:
             result = await engine.execute_aggregate(

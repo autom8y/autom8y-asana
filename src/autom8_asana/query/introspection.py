@@ -122,6 +122,7 @@ def list_relations(entity_type: str) -> list[dict[str, object]]:
         List of dicts with keys: target, direction, default_join_key,
         cardinality, description.
     """
+    from autom8_asana.query.data_service_entities import DATA_SERVICE_ENTITIES
     from autom8_asana.query.hierarchy import ENTITY_RELATIONSHIPS
 
     rows: list[dict[str, object]] = []
@@ -146,4 +147,20 @@ def list_relations(entity_type: str) -> list[dict[str, object]]:
                     "description": rel.description,
                 }
             )
+
+    # Append data-service enrichment targets (cross-service joins)
+    for name, info in DATA_SERVICE_ENTITIES.items():
+        # Data-service entities join via office_phone to offer/unit frame types
+        if entity_type in ("offer", "unit") or info.frame_type == entity_type:
+            rows.append(
+                {
+                    "target": name,
+                    "direction": "enrichment",
+                    "default_join_key": info.join_key,
+                    "cardinality": "1:1",
+                    "description": f"[data-service] {info.description}",
+                    "source": "data-service",
+                }
+            )
+
     return rows
