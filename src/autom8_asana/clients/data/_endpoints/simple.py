@@ -44,9 +44,7 @@ def _cb_error_factory(
     ) from e
 
 
-def _request_builder(
-    http_client: Any, request: SimpleRequestDescriptor
-) -> Any:
+def _request_builder(http_client: Any, request: SimpleRequestDescriptor) -> Any:
     """Build the make_request lambda for a simple GET endpoint."""
     return lambda: http_client.get(
         request.path,
@@ -80,9 +78,7 @@ async def _success_handler(
     client: DataServiceClient,
 ) -> InsightsResponse:
     """Parse success response + record CB success for simple endpoints."""
-    insights_response = client._parse_success_response(
-        response, request.request_id
-    )
+    insights_response = client._parse_success_response(response, request.request_id)
     await client._circuit_breaker.record_success()
     return insights_response
 

@@ -14,14 +14,16 @@ Both return DataFrameResult as the common abstraction boundary.
 
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import polars as pl
 from autom8y_log import get_logger
 
-from autom8_asana.dataframes.builders import ProgressiveProjectBuilder, SectionDataFrameBuilder
+from autom8_asana.dataframes.builders import (
+    ProgressiveProjectBuilder,
+    SectionDataFrameBuilder,
+)
 from autom8_asana.dataframes.models.registry import SchemaRegistry, get_schema
 from autom8_asana.dataframes.section_persistence import create_section_persistence
 from autom8_asana.services.errors import EntityNotFoundError, InvalidParameterError

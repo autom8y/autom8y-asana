@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 from autom8y_log import get_logger
 from pydantic import ValidationError
 
+from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 from autom8_asana.models.business.detection.config import (
     get_holder_attr,
@@ -38,7 +39,6 @@ from autom8_asana.models.business.detection.tier3 import (
 from autom8_asana.models.business.detection.tier4 import (
     detect_by_structure_inspection,
 )
-from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.models.business.detection.types import (
     CONFIDENCE_TIER_5,
     DetectionResult,

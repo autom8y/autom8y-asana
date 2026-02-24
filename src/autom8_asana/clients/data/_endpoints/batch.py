@@ -55,9 +55,7 @@ def _cb_error_factory(
     return results
 
 
-def _request_builder(
-    http_client: Any, request: BatchRequestDescriptor
-) -> Any:
+def _request_builder(http_client: Any, request: BatchRequestDescriptor) -> Any:
     """Build the make_request lambda for batch POST."""
     return lambda: http_client.post(
         request.path,
@@ -195,9 +193,7 @@ async def _success_handler(
     for error_entry in errors_list:
         error_phone = error_entry.get("office_phone", "")
         error_vertical = error_entry.get("vertical", "")
-        error_msg = _mask_pii_in_string(
-            error_entry.get("error", "Unknown error")
-        )
+        error_msg = _mask_pii_in_string(error_entry.get("error", "Unknown error"))
         canonical_key = f"pv1:{error_phone}:{error_vertical.lower()}"
 
         error_pvp = request.pvp_by_key.get(canonical_key)
@@ -285,8 +281,7 @@ async def execute_batch_request(
     request_body: dict[str, Any] = {
         "frame_type": frame_type,
         "phone_vertical_pairs": [
-            {"phone": pvp.office_phone, "vertical": pvp.vertical}
-            for pvp in pvp_list
+            {"phone": pvp.office_phone, "vertical": pvp.vertical} for pvp in pvp_list
         ],
         "period": normalized_period,
     }

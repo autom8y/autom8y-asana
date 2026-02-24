@@ -529,7 +529,12 @@ class TestTTLCeilingBoundaryAdversarial:
             return_value=[
                 BatchResult(
                     status_code=200,
-                    body={"data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}},
+                    body={
+                        "data": {
+                            "gid": "123",
+                            "modified_at": "2025-12-23T10:00:00.000Z",
+                        }
+                    },
                 )
             ]
         )
@@ -579,7 +584,12 @@ class TestExtensionCountOverflowAdversarial:
             return_value=[
                 BatchResult(
                     status_code=200,
-                    body={"data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}},
+                    body={
+                        "data": {
+                            "gid": "123",
+                            "modified_at": "2025-12-23T10:00:00.000Z",
+                        }
+                    },
                 )
             ]
         )
@@ -620,7 +630,12 @@ class TestCoordinatorGracefulDegradation:
             return_value=[
                 BatchResult(
                     status_code=200,
-                    body={"data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}},
+                    body={
+                        "data": {
+                            "gid": "123",
+                            "modified_at": "2025-12-23T10:00:00.000Z",
+                        }
+                    },
                 )
             ]
         )

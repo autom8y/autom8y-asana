@@ -30,7 +30,10 @@ logger = get_logger(__name__)
 
 # Re-exported from core.field_utils for backward compatibility.
 # These were extracted to break the lifecycle -> automation package cycle.
-from autom8_asana.core.field_utils import get_field_attr, normalize_custom_fields, to_dict
+from autom8_asana.core.field_utils import (  # noqa: E402
+    get_field_attr,
+    normalize_custom_fields,
+)
 
 
 @dataclass

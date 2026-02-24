@@ -365,9 +365,7 @@ class TestUpwardTraversal:
     ) -> None:
         """Traversal stops when Business is detected and does not continue past it."""
         # Setup: child -> Business (which itself has a parent that should NOT be visited)
-        child_task = make_mock_task(
-            "child_001", "Some Child", parent_gid="bus_001"
-        )
+        child_task = make_mock_task("child_001", "Some Child", parent_gid="bus_001")
         business_task = make_mock_task(
             "bus_001", "Acme Corporation", parent_gid="grandparent_001"
         )

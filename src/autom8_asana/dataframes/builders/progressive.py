@@ -17,7 +17,6 @@ import asyncio
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
@@ -47,6 +46,8 @@ from autom8_asana.dataframes.section_persistence import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from autom8_asana.client import AsanaClient
     from autom8_asana.dataframes.models.schema import DataFrameSchema
     from autom8_asana.dataframes.resolver.protocol import CustomFieldResolver
@@ -131,7 +132,8 @@ class ProgressiveProjectBuilder:
         resolver: CustomFieldResolver | None = None,
         store: Any | None = None,
         max_concurrent_sections: int = 8,
-        index_builder: Callable[[pl.DataFrame, str], dict[str, Any] | None] | None = None,
+        index_builder: Callable[[pl.DataFrame, str], dict[str, Any] | None]
+        | None = None,
     ) -> None:
         """Initialize progressive builder.
 

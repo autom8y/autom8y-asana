@@ -127,9 +127,7 @@ class TestEnumFieldValidation:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Status", "resource_subtype": "enum"}]
         )
-        accessor.set(
-            "Status", {"gid": "1234567890", "name": "High"}
-        )
+        accessor.set("Status", {"gid": "1234567890", "name": "High"})
         assert accessor.get("Status") == {"gid": "1234567890", "name": "High"}
 
     def test_enum_field_rejects_list(self):
@@ -518,7 +516,9 @@ class TestValidationEdgeCases:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Budget", "resource_subtype": "number"}]
         )
-        accessor.set("Budget", True)  # bool is int subclass; accepted by Python type system
+        accessor.set(
+            "Budget", True
+        )  # bool is int subclass; accepted by Python type system
         assert accessor.get("Budget") is True
 
     def test_empty_string_accepted_for_text(self):
@@ -534,9 +534,7 @@ class TestValidationEdgeCases:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Custom", "resource_subtype": "unknown_type"}]
         )
-        accessor.set(
-            "Custom", "anything"
-        )
+        accessor.set("Custom", "anything")
         assert accessor.get("Custom") == "anything"
 
     def test_validation_with_missing_field(self):

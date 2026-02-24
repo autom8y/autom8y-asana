@@ -935,7 +935,9 @@ class DataFrameCache:
             )
         finally:
             if self.metrics_emitter:
-                self.metrics_emitter.record_swr_refresh(entity_type, "success" if success else "failure")
+                self.metrics_emitter.record_swr_refresh(
+                    entity_type, "success" if success else "failure"
+                )
             await self.release_build_lock_async(
                 project_gid, entity_type, success=success
             )

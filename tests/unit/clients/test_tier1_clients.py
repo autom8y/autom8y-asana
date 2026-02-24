@@ -1039,7 +1039,6 @@ class TestAsanaClientThreadSafety:
     def test_concurrent_access_same_client(self) -> None:
         """Concurrent access from multiple threads returns same client."""
         import threading
-
         from unittest.mock import MagicMock, patch
 
         with patch("autom8_asana.client.AsanaHttpClient") as mock_http_class:

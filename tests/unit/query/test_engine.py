@@ -1784,7 +1784,9 @@ class TestQueryEngineWithMockProvider:
 
         assert result.meta.total_count == 5
         assert result.meta.returned_count == 5
-        mock_provider.get_dataframe.assert_awaited_once_with("offer", "proj-123", mock_client)
+        mock_provider.get_dataframe.assert_awaited_once_with(
+            "offer", "proj-123", mock_client
+        )
 
     @pytest.mark.asyncio
     async def test_mock_provider_aggregate(

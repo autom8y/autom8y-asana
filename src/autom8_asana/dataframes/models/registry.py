@@ -7,13 +7,15 @@ and runtime registration support.
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING, Callable, ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from autom8y_log import get_logger
 
 from autom8_asana.dataframes.exceptions import SchemaNotFoundError, SchemaVersionError
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from autom8_asana.dataframes.models.schema import DataFrameSchema
 
 

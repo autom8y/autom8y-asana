@@ -26,8 +26,6 @@ from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.dataframes.resolver.cascading import CascadingFieldResolver
 from autom8_asana.dataframes.views.cascade_view import CascadeViewPlugin
 
-
-
 # =============================================================================
 # Test Fixtures
 # =============================================================================

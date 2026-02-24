@@ -135,5 +135,3 @@ def create_task(
     """
     parent = NameGid(gid=parent_gid) if parent_gid else None
     return Task(gid=gid, name=name, parent=parent)
-
-

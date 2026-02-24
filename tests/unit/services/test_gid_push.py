@@ -9,9 +9,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from autom8y_http import TimeoutException
 import httpx
 import pytest
+from autom8y_http import TimeoutException
 
 from autom8_asana.services.gid_lookup import GidLookupIndex
 from autom8_asana.services.gid_push import (
@@ -251,9 +251,7 @@ class TestPushGidMappingsToDataService:
             json={"accepted": 2, "replaced": 0, "meta": {"request_id": "abc"}},
         )
 
-        with patch(
-            "autom8_asana.services.gid_push.Autom8yHttpClient"
-        ) as mock_http_cls:
+        with patch("autom8_asana.services.gid_push.Autom8yHttpClient") as mock_http_cls:
             mock_raw_client = _make_push_mocks(mock_http_cls, post_return=mock_response)
 
             result = await push_gid_mappings_to_data_service(
@@ -297,9 +295,7 @@ class TestPushGidMappingsToDataService:
             captured_payload = json
             return mock_response
 
-        with patch(
-            "autom8_asana.services.gid_push.Autom8yHttpClient"
-        ) as mock_http_cls:
+        with patch("autom8_asana.services.gid_push.Autom8yHttpClient") as mock_http_cls:
             mock_raw_client = _make_push_mocks(mock_http_cls)
             mock_raw_client.post = capture_post
 
@@ -324,9 +320,7 @@ class TestPushGidMappingsToDataService:
             text="Internal Server Error",
         )
 
-        with patch(
-            "autom8_asana.services.gid_push.Autom8yHttpClient"
-        ) as mock_http_cls:
+        with patch("autom8_asana.services.gid_push.Autom8yHttpClient") as mock_http_cls:
             _make_push_mocks(mock_http_cls, post_return=mock_response)
 
             result = await push_gid_mappings_to_data_service(
@@ -341,9 +335,7 @@ class TestPushGidMappingsToDataService:
     @pytest.mark.asyncio
     async def test_timeout_returns_false(self, sample_index: GidLookupIndex) -> None:
         """Returns False on HTTP timeout (non-blocking)."""
-        with patch(
-            "autom8_asana.services.gid_push.Autom8yHttpClient"
-        ) as mock_http_cls:
+        with patch("autom8_asana.services.gid_push.Autom8yHttpClient") as mock_http_cls:
             _make_push_mocks(
                 mock_http_cls,
                 post_side_effect=TimeoutException("timed out"),
@@ -363,9 +355,7 @@ class TestPushGidMappingsToDataService:
         self, sample_index: GidLookupIndex
     ) -> None:
         """Returns False on unexpected exceptions (non-blocking)."""
-        with patch(
-            "autom8_asana.services.gid_push.Autom8yHttpClient"
-        ) as mock_http_cls:
+        with patch("autom8_asana.services.gid_push.Autom8yHttpClient") as mock_http_cls:
             _make_push_mocks(
                 mock_http_cls,
                 post_side_effect=RuntimeError("unexpected"),
@@ -385,9 +375,7 @@ class TestPushGidMappingsToDataService:
         """data_service_url parameter overrides environment variable."""
         mock_response = httpx.Response(status_code=200, json={"accepted": 2})
 
-        with patch(
-            "autom8_asana.services.gid_push.Autom8yHttpClient"
-        ) as mock_http_cls:
+        with patch("autom8_asana.services.gid_push.Autom8yHttpClient") as mock_http_cls:
             mock_raw_client = _make_push_mocks(mock_http_cls, post_return=mock_response)
 
             await push_gid_mappings_to_data_service(
@@ -407,9 +395,7 @@ class TestPushGidMappingsToDataService:
         """Trailing slash in base URL does not cause double-slash."""
         mock_response = httpx.Response(status_code=200, json={"accepted": 2})
 
-        with patch(
-            "autom8_asana.services.gid_push.Autom8yHttpClient"
-        ) as mock_http_cls:
+        with patch("autom8_asana.services.gid_push.Autom8yHttpClient") as mock_http_cls:
             mock_raw_client = _make_push_mocks(mock_http_cls, post_return=mock_response)
 
             await push_gid_mappings_to_data_service(
@@ -452,9 +438,7 @@ class TestPiiMaskingInLogs:
             ),
         )
 
-        with patch(
-            "autom8_asana.services.gid_push.Autom8yHttpClient"
-        ) as mock_http_cls:
+        with patch("autom8_asana.services.gid_push.Autom8yHttpClient") as mock_http_cls:
             _make_push_mocks(mock_http_cls, post_return=mock_response)
 
             with patch("autom8_asana.services.gid_push.logger") as mock_logger:

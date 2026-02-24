@@ -45,9 +45,7 @@ def _cb_error_factory(
     ) from e
 
 
-def _request_builder(
-    http_client: Any, request: InsightsRequestDescriptor
-) -> Any:
+def _request_builder(http_client: Any, request: InsightsRequestDescriptor) -> Any:
     """Build the make_request lambda for insights POST."""
     return lambda: http_client.post(
         request.path,
@@ -104,9 +102,7 @@ async def _success_handler(
     attempt: int = 0,
 ) -> InsightsResponse:
     """Parse success + record metrics + cache for insights endpoint."""
-    insights_response = client._parse_success_response(
-        response, request.request_id
-    )
+    insights_response = client._parse_success_response(response, request.request_id)
 
     # Response logging (Story 1.9)
     if client._log:
