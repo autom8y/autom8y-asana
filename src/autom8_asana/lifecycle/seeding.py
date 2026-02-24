@@ -22,18 +22,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from autom8y_log import get_logger
 
 from autom8_asana.automation.seeding import FieldSeeder
+from autom8_asana.client import AsanaClient
 from autom8_asana.core.field_utils import get_field_attr, normalize_custom_fields
-
-if TYPE_CHECKING:
-    from autom8_asana.client import AsanaClient
-    from autom8_asana.models.business.business import Business
-    from autom8_asana.models.business.process import Process
-    from autom8_asana.models.business.unit import Unit
+from autom8_asana.models.business.business import Business
+from autom8_asana.models.business.process import Process
+from autom8_asana.models.business.unit import Unit
 
 logger = get_logger(__name__)
 
