@@ -27,8 +27,9 @@ class TestOfferDefinitions:
         assert metric.expr.cast_dtype == pl.Float64
         assert metric.expr.agg == "sum"
         assert metric.scope.entity_type == "offer"
-        assert metric.scope.section == "1143843662099256"
-        assert metric.scope.section_name == "Active"
+        assert metric.scope.section is None
+        assert metric.scope.section_name is None
+        assert metric.scope.classification == "active"
         assert metric.scope.dedup_keys == ["office_phone", "vertical"]
 
     def test_active_ad_spend_definition(self) -> None:
@@ -39,7 +40,9 @@ class TestOfferDefinitions:
         assert metric.expr.cast_dtype == pl.Float64
         assert metric.expr.agg == "sum"
         assert metric.scope.entity_type == "offer"
-        assert metric.scope.section == "1143843662099256"
+        assert metric.scope.section is None
+        assert metric.scope.section_name is None
+        assert metric.scope.classification == "active"
         assert metric.scope.dedup_keys == ["office_phone", "vertical"]
 
     def test_definitions_registered(self) -> None:
