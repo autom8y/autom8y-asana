@@ -6,7 +6,8 @@ Per FR-008: configurable limits to prevent abuse.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from autom8_asana.dataframes.models.schema import DataFrameSchema
+from typing import TYPE_CHECKING
+
 from autom8_asana.query.errors import QueryTooComplexError
 from autom8_asana.query.models import (
     AndGroup,
@@ -15,6 +16,9 @@ from autom8_asana.query.models import (
     OrGroup,
     PredicateNode,
 )
+
+if TYPE_CHECKING:
+    from autom8_asana.dataframes.models.schema import DataFrameSchema
 
 MAX_GROUP_BY_COLUMNS: int = 5
 MAX_AGGREGATIONS: int = 10

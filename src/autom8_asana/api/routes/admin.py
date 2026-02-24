@@ -218,12 +218,12 @@ async def _perform_incremental_rebuild(
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
     from autom8_asana.cache.dataframe.factory import get_dataframe_cache
     from autom8_asana.config import get_workspace_gid
+    from autom8_asana.core.string_utils import to_pascal_case
     from autom8_asana.dataframes.builders.progressive import ProgressiveProjectBuilder
     from autom8_asana.dataframes.models.registry import get_schema
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
     from autom8_asana.dataframes.section_persistence import create_section_persistence
     from autom8_asana.dataframes.watermark import get_watermark_repo
-    from autom8_asana.core.string_utils import to_pascal_case
     from autom8_asana.services.resolver import EntityProjectRegistry
 
     try:

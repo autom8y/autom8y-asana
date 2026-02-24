@@ -10,9 +10,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from autom8_asana.core.registry import HOLDER_REGISTRY
 from autom8_asana.models import Task
 from autom8_asana.models.common import NameGid
-from autom8_asana.core.registry import HOLDER_REGISTRY
 from autom8_asana.persistence.holder_construction import (
     construct_holder,
     detect_existing_holders,

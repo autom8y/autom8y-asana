@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
@@ -43,10 +43,11 @@ from autom8_asana.services.errors import (
     TaskNotFoundError,
 )
 
-from autom8_asana.cache.integration.mutation_invalidator import (
-    MutationInvalidator,
-)
-from autom8_asana.client import AsanaClient
+if TYPE_CHECKING:
+    from autom8_asana.cache.integration.mutation_invalidator import (
+        MutationInvalidator,
+    )
+    from autom8_asana.client import AsanaClient
 
 logger = get_logger(__name__)
 

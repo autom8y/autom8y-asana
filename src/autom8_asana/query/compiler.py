@@ -9,11 +9,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 from functools import reduce
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
-from autom8_asana.dataframes.models.schema import DataFrameSchema
 from autom8_asana.query.errors import (
     CoercionError,
     InvalidOperatorError,
@@ -27,6 +26,9 @@ from autom8_asana.query.models import (
     OrGroup,
     PredicateNode,
 )
+
+if TYPE_CHECKING:
+    from autom8_asana.dataframes.models.schema import DataFrameSchema
 
 __all__ = [
     "PredicateCompiler",

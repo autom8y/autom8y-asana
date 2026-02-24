@@ -35,9 +35,6 @@ from autom8y_log import get_logger
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-if TYPE_CHECKING:
-    from autom8_asana.services.errors import ServiceError
-
 from autom8_asana.exceptions import (
     AsanaError,
     AuthenticationError,
@@ -50,6 +47,9 @@ from autom8_asana.exceptions import (
 from autom8_asana.persistence.exceptions import GidValidationError
 
 from .models import ErrorDetail, ErrorResponse, ResponseMeta
+
+if TYPE_CHECKING:
+    from autom8_asana.services.errors import ServiceError
 
 logger = get_logger(__name__)
 

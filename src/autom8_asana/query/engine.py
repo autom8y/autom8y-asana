@@ -12,15 +12,12 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 from autom8y_log import get_logger
 
-from autom8_asana.client import AsanaClient
 from autom8_asana.dataframes.models.registry import SchemaRegistry
-from autom8_asana.metrics.resolve import SectionIndex
-from autom8_asana.protocols.dataframe_provider import DataFrameProvider
 from autom8_asana.query.compiler import PredicateCompiler
 from autom8_asana.query.errors import (
     AggregateGroupLimitError,
@@ -44,6 +41,11 @@ from autom8_asana.query.models import (
     RowsRequest,
     RowsResponse,
 )
+
+if TYPE_CHECKING:
+    from autom8_asana.client import AsanaClient
+    from autom8_asana.metrics.resolve import SectionIndex
+    from autom8_asana.protocols.dataframe_provider import DataFrameProvider
 
 logger = get_logger(__name__)
 
