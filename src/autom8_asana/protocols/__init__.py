@@ -11,6 +11,7 @@ from autom8_asana.protocols.cache import (
 )
 from autom8_asana.protocols.insights import InsightsProvider
 from autom8_asana.protocols.item_loader import ItemLoader
+from autom8_asana.protocols.metrics import MetricsEmitter
 from autom8_asana.protocols.log import LogProvider
 from autom8_asana.protocols.observability import ObservabilityHook
 
@@ -20,6 +21,7 @@ __all__ = [
     "DataFrameCacheProtocol",
     "InsightsProvider",
     "ItemLoader",
+    "MetricsEmitter",
     "LogProvider",
     "WarmResult",
     # TDD-HARDENING-A/FR-OBS-008

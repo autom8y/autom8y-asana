@@ -33,6 +33,10 @@ def _initialize_dataframe_cache(app: FastAPI) -> None:
     app.state.dataframe_cache = cache
 
     if cache is not None:
+        from autom8_asana.api.metrics import PrometheusMetricsEmitter
+
+        cache.metrics_emitter = PrometheusMetricsEmitter()
+
         logger.info(
             "dataframe_cache_ready",
             extra={
