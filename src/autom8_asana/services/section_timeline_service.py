@@ -16,10 +16,11 @@ import asyncio
 import time as time_module
 from collections import defaultdict
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from autom8y_log import get_logger
 
+from autom8_asana.client import AsanaClient
 from autom8_asana.models.business.activity import (
     CLASSIFIERS,
     OFFER_CLASSIFIER,
@@ -33,10 +34,7 @@ from autom8_asana.models.business.section_timeline import (
     SectionTimeline,
 )
 from autom8_asana.models.story import Story
-
-if TYPE_CHECKING:
-    from autom8_asana.client import AsanaClient
-    from autom8_asana.protocols.cache import CacheProvider
+from autom8_asana.protocols.cache import CacheProvider
 
 logger = get_logger(__name__)
 

@@ -15,20 +15,18 @@ is Phase 3/4 work per the migration plan.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from autom8y_log import get_logger
 
+from autom8_asana import AsanaClient
+from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator
 from autom8_asana.cache.models.mutation_event import (
     EntityKind,
     MutationEvent,
     MutationType,
 )
 from autom8_asana.services.errors import InvalidParameterError
-
-if TYPE_CHECKING:
-    from autom8_asana import AsanaClient
-    from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator
 
 logger = get_logger(__name__)
 

@@ -5,27 +5,25 @@ Per TDD: Resolution Primitives -- ResolutionContext and ResolutionError.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, TypeVar, cast
+from typing import Any, TypeVar, cast
 
 from autom8y_log import get_logger
 
+from autom8_asana.client import AsanaClient
 from autom8_asana.models.business.base import BusinessEntity
+from autom8_asana.models.business.business import Business
+from autom8_asana.models.business.contact import Contact
+from autom8_asana.models.business.offer import Offer
+from autom8_asana.models.business.process import Process
+from autom8_asana.models.business.unit import Unit
 from autom8_asana.resolution.budget import ApiBudget
 from autom8_asana.resolution.result import ResolutionResult, ResolutionStatus
+from autom8_asana.resolution.selection import SelectionPredicate
 from autom8_asana.resolution.strategies import (
     BUSINESS_CHAIN,
     DEFAULT_CHAIN,
     ResolutionStrategy,
 )
-
-if TYPE_CHECKING:
-    from autom8_asana.client import AsanaClient
-    from autom8_asana.models.business.business import Business
-    from autom8_asana.models.business.contact import Contact
-    from autom8_asana.models.business.offer import Offer
-    from autom8_asana.models.business.process import Process
-    from autom8_asana.models.business.unit import Unit
-    from autom8_asana.resolution.selection import SelectionPredicate
 
 logger = get_logger(__name__)
 

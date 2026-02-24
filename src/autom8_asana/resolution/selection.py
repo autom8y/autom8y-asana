@@ -7,11 +7,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    from autom8_asana.models.business.base import BusinessEntity
-    from autom8_asana.models.business.process import Process, ProcessType
+from autom8_asana.models.business.base import BusinessEntity
+from autom8_asana.models.business.process import Process, ProcessType
 
 
 class SelectionPredicate(ABC):

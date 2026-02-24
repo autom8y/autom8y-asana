@@ -21,19 +21,17 @@ Components:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from collections.abc import Callable
+from typing import Any
 
 import polars as pl
 from autom8y_log import get_logger
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from autom8_asana.cache.integration.dataframe_cache import FreshnessInfo
-    from autom8_asana.client import AsanaClient
-    from autom8_asana.metrics.resolve import SectionIndex
-    from autom8_asana.query.models import RowsRequest
-    from autom8_asana.services.universal_strategy import UniversalResolutionStrategy
+from autom8_asana.cache.integration.dataframe_cache import FreshnessInfo
+from autom8_asana.client import AsanaClient
+from autom8_asana.metrics.resolve import SectionIndex
+from autom8_asana.query.models import RowsRequest
+from autom8_asana.services.universal_strategy import UniversalResolutionStrategy
 
 __all__ = [
     "CacheNotWarmError",
