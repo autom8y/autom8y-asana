@@ -16,7 +16,8 @@ class TestTextFieldValidation:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Description", "resource_subtype": "text"}]
         )
-        accessor.set("Description", "Valid text")  # Should not raise
+        accessor.set("Description", "Valid text")
+        assert accessor.get("Description") == "Valid text"
 
     def test_text_field_rejects_int(self):
         """Text field rejects integer."""
@@ -42,7 +43,8 @@ class TestTextFieldValidation:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Description", "resource_subtype": "text"}]
         )
-        accessor.set("Description", None)  # Should not raise
+        accessor.set("Description", None)
+        assert accessor.get("Description") is None
 
     def test_text_field_rejects_list(self):
         """Text field rejects list."""
@@ -62,21 +64,24 @@ class TestNumberFieldValidation:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Budget", "resource_subtype": "number"}]
         )
-        accessor.set("Budget", 1000)  # Should not raise
+        accessor.set("Budget", 1000)
+        assert accessor.get("Budget") == 1000
 
     def test_number_field_accepts_float(self):
         """Number field accepts float."""
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Budget", "resource_subtype": "number"}]
         )
-        accessor.set("Budget", 1000.50)  # Should not raise
+        accessor.set("Budget", 1000.50)
+        assert accessor.get("Budget") == 1000.50
 
     def test_number_field_accepts_decimal(self):
         """Number field accepts Decimal for precision."""
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Budget", "resource_subtype": "number"}]
         )
-        accessor.set("Budget", Decimal("1000.50"))  # Should not raise
+        accessor.set("Budget", Decimal("1000.50"))
+        assert accessor.get("Budget") == Decimal("1000.50")
 
     def test_number_field_rejects_string(self):
         """Number field rejects string."""
@@ -93,7 +98,8 @@ class TestNumberFieldValidation:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Budget", "resource_subtype": "number"}]
         )
-        accessor.set("Budget", None)  # Should not raise
+        accessor.set("Budget", None)
+        assert accessor.get("Budget") is None
 
     def test_number_field_rejects_list(self):
         """Number field rejects list."""
@@ -113,7 +119,8 @@ class TestEnumFieldValidation:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Status", "resource_subtype": "enum"}]
         )
-        accessor.set("Status", "1234567890")  # Should not raise
+        accessor.set("Status", "1234567890")
+        assert accessor.get("Status") == "1234567890"
 
     def test_enum_field_accepts_dict_with_gid(self):
         """Enum field accepts dict with gid key."""
@@ -122,7 +129,8 @@ class TestEnumFieldValidation:
         )
         accessor.set(
             "Status", {"gid": "1234567890", "name": "High"}
-        )  # Should not raise
+        )
+        assert accessor.get("Status") == {"gid": "1234567890", "name": "High"}
 
     def test_enum_field_rejects_list(self):
         """Enum field rejects list."""
@@ -157,7 +165,8 @@ class TestEnumFieldValidation:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Status", "resource_subtype": "enum"}]
         )
-        accessor.set("Status", None)  # Should not raise
+        accessor.set("Status", None)
+        assert accessor.get("Status") is None
 
 
 class TestMultiEnumFieldValidation:
@@ -168,7 +177,8 @@ class TestMultiEnumFieldValidation:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Tags", "resource_subtype": "multi_enum"}]
         )
-        accessor.set("Tags", ["1234567890", "0987654321"])  # Should not raise
+        accessor.set("Tags", ["1234567890", "0987654321"])
+        assert accessor.get("Tags") == ["1234567890", "0987654321"]
 
     def test_multi_enum_field_rejects_string(self):
         """Multi_enum field rejects string."""
@@ -185,7 +195,8 @@ class TestMultiEnumFieldValidation:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Tags", "resource_subtype": "multi_enum"}]
         )
-        accessor.set("Tags", [])  # Should not raise
+        accessor.set("Tags", [])
+        assert accessor.get("Tags") == []
 
     def test_multi_enum_field_rejects_dict(self):
         """Multi_enum field rejects dict."""
@@ -201,7 +212,8 @@ class TestMultiEnumFieldValidation:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Tags", "resource_subtype": "multi_enum"}]
         )
-        accessor.set("Tags", None)  # Should not raise
+        accessor.set("Tags", None)
+        assert accessor.get("Tags") is None
 
 
 class TestDateFieldValidation:
@@ -212,7 +224,8 @@ class TestDateFieldValidation:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Due Date", "resource_subtype": "date"}]
         )
-        accessor.set("Due Date", "2025-12-31")  # Should not raise
+        accessor.set("Due Date", "2025-12-31")
+        assert accessor.get("Due Date") == "2025-12-31"
 
     def test_date_field_rejects_int(self):
         """Date field rejects integer."""
@@ -228,7 +241,8 @@ class TestDateFieldValidation:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Due Date", "resource_subtype": "date"}]
         )
-        accessor.set("Due Date", None)  # Should not raise
+        accessor.set("Due Date", None)
+        assert accessor.get("Due Date") is None
 
     def test_date_field_rejects_list(self):
         """Date field rejects list."""
@@ -248,7 +262,8 @@ class TestPeopleFieldValidation:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Team Members", "resource_subtype": "people"}]
         )
-        accessor.set("Team Members", ["1234567890", "0987654321"])  # Should not raise
+        accessor.set("Team Members", ["1234567890", "0987654321"])
+        assert accessor.get("Team Members") == ["1234567890", "0987654321"]
 
     def test_people_field_rejects_string(self):
         """People field rejects string."""
@@ -265,14 +280,16 @@ class TestPeopleFieldValidation:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Team Members", "resource_subtype": "people"}]
         )
-        accessor.set("Team Members", [])  # Should not raise
+        accessor.set("Team Members", [])
+        assert accessor.get("Team Members") == []
 
     def test_people_field_accepts_none(self):
         """People field accepts None to clear."""
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Team Members", "resource_subtype": "people"}]
         )
-        accessor.set("Team Members", None)  # Should not raise
+        accessor.set("Team Members", None)
+        assert accessor.get("Team Members") is None
 
     def test_people_field_rejects_dict(self):
         """People field rejects dict."""
@@ -378,14 +395,16 @@ class TestDecimalSupport:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Amount", "resource_subtype": "number"}]
         )
-        accessor.set("Amount", Decimal("0"))  # Should not raise
+        accessor.set("Amount", Decimal("0"))
+        assert accessor.get("Amount") == Decimal("0")
 
     def test_negative_decimal_accepted(self):
         """Negative Decimal is accepted."""
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Amount", "resource_subtype": "number"}]
         )
-        accessor.set("Amount", Decimal("-500.50"))  # Should not raise
+        accessor.set("Amount", Decimal("-500.50"))
+        assert accessor.get("Amount") == Decimal("-500.50")
 
 
 class TestValidationByGid:
@@ -397,7 +416,8 @@ class TestValidationByGid:
             data=[{"gid": "1234567890", "name": "Priority", "resource_subtype": "enum"}]
         )
         # Use numeric string GID
-        accessor.set("1234567890", "valid_gid")  # Should not raise
+        accessor.set("1234567890", "valid_gid")
+        assert accessor.get("1234567890") == "valid_gid"
 
     def test_validation_by_gid_string_rejects_invalid(self):
         """Validation rejects invalid type when setting by GID."""
@@ -419,7 +439,8 @@ class TestValidationWithRemove:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Priority", "resource_subtype": "enum"}]
         )
-        accessor.remove("Priority")  # Should not raise
+        accessor.remove("Priority")
+        assert accessor.get("Priority") is None
 
     def test_remove_sets_to_none(self):
         """remove() sets field to None."""
@@ -446,14 +467,16 @@ class TestValidationWithDictSyntax:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Budget", "resource_subtype": "number"}]
         )
-        accessor["Budget"] = 1000  # Should not raise
+        accessor["Budget"] = 1000
+        assert accessor.get("Budget") == 1000
 
     def test_setitem_with_gid(self):
         """__setitem__ works with GID."""
         accessor = CustomFieldAccessor(
             data=[{"gid": "1234567890", "name": "Budget", "resource_subtype": "number"}]
         )
-        accessor["1234567890"] = 500  # Should not raise
+        accessor["1234567890"] = 500
+        assert accessor.get("1234567890") == 500
 
 
 class TestMixedFieldTypes:
@@ -503,7 +526,8 @@ class TestValidationEdgeCases:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Description", "resource_subtype": "text"}]
         )
-        accessor.set("Description", "")  # Should not raise
+        accessor.set("Description", "")
+        assert accessor.get("Description") == ""
 
     def test_unknown_field_type_no_validation(self):
         """Unknown field types skip validation."""
@@ -512,11 +536,13 @@ class TestValidationEdgeCases:
         )
         accessor.set(
             "Custom", "anything"
-        )  # Should not raise - unknown types bypass validation
+        )
+        assert accessor.get("Custom") == "anything"
 
     def test_validation_with_missing_field(self):
         """Validation for missing field does not raise (will fail elsewhere)."""
         # Use non-strict mode for legacy behavior (test was written pre-strict mode)
         accessor = CustomFieldAccessor(data=[], strict=False)
         # When field is not found, validation returns early without raising
-        accessor.set("nonexistent", "value")  # Should not raise during validation
+        accessor.set("nonexistent", "value")
+        assert accessor.get("nonexistent") == "value"
