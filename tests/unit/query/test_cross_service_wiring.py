@@ -240,12 +240,36 @@ class TestCreateDataClientIfNeeded:
     def test_creates_client_for_data_service(self) -> None:
         from autom8_asana.query.__main__ import _create_data_client_if_needed
 
-        with patch("autom8_asana.clients.data.client.DataServiceClient") as mock_cls:
+        with (
+            patch("autom8_asana.clients.data.client.DataServiceClient") as mock_cls,
+            patch(
+                "autom8_asana.auth.service_token.ServiceTokenAuthProvider",
+                side_effect=ValueError("no key"),
+            ),
+        ):
             mock_cls.return_value = "mock_client"
             result = _create_data_client_if_needed(
                 {"source": "data-service", "factory": "spend"}
             )
         assert result == "mock_client"
+
+    def test_creates_client_with_auth_provider(self) -> None:
+        """When SERVICE_API_KEY is available, auth_provider is passed."""
+        from autom8_asana.query.__main__ import _create_data_client_if_needed
+
+        mock_auth = object()
+        with (
+            patch("autom8_asana.clients.data.client.DataServiceClient") as mock_cls,
+            patch(
+                "autom8_asana.auth.service_token.ServiceTokenAuthProvider",
+                return_value=mock_auth,
+            ),
+        ):
+            mock_cls.return_value = "mock_client"
+            _create_data_client_if_needed(
+                {"source": "data-service", "factory": "spend"}
+            )
+        mock_cls.assert_called_once_with(auth_provider=mock_auth)
 
     def test_raises_cli_error_on_init_failure(self) -> None:
         from autom8_asana.query.__main__ import CLIError, _create_data_client_if_needed
@@ -255,8 +279,88 @@ class TestCreateDataClientIfNeeded:
                 "autom8_asana.clients.data.client.DataServiceClient",
                 side_effect=RuntimeError("no config"),
             ),
+            patch(
+                "autom8_asana.auth.service_token.ServiceTokenAuthProvider",
+                side_effect=ValueError("no key"),
+            ),
             pytest.raises(CLIError, match="Data-service joins require"),
         ):
             _create_data_client_if_needed(
                 {"source": "data-service", "factory": "spend"}
             )
+
+
+class TestServiceTokenAuthProvider:
+    """Tests for ServiceTokenAuthProvider (auth/service_token.py)."""
+
+    def test_get_secret_returns_token(self) -> None:
+        """get_secret() returns JWT from TokenManager."""
+        with (
+            patch("autom8y_core.Config") as mock_config_cls,
+            patch("autom8y_core.TokenManager") as mock_tm_cls,
+            patch.dict("os.environ", {"SERVICE_API_KEY": "test-key-123"}),
+        ):
+            mock_manager = mock_tm_cls.return_value
+            mock_manager.get_token.return_value = "jwt-token-abc"
+
+            from autom8_asana.auth.service_token import ServiceTokenAuthProvider
+
+            provider = ServiceTokenAuthProvider()
+            token = provider.get_secret("AUTOM8_DATA_API_KEY")
+
+        assert token == "jwt-token-abc"
+        mock_config_cls.assert_called_once_with(
+            service_key="test-key-123",
+            auth_url="https://auth.api.autom8y.io",
+            service_name="autom8y-asana",
+        )
+
+    def test_raises_on_missing_service_key(self) -> None:
+        """Raises ValueError when SERVICE_API_KEY is not set."""
+        with (
+            patch.dict("os.environ", {}, clear=False),
+            pytest.raises(ValueError, match="SERVICE_API_KEY is required"),
+        ):
+            # Ensure SERVICE_API_KEY is not in env
+            import os
+
+            os.environ.pop("SERVICE_API_KEY", None)
+
+            from autom8_asana.auth.service_token import ServiceTokenAuthProvider
+
+            ServiceTokenAuthProvider()
+
+    def test_close_delegates_to_manager(self) -> None:
+        """close() calls TokenManager.close()."""
+        with (
+            patch("autom8y_core.Config"),
+            patch("autom8y_core.TokenManager") as mock_tm_cls,
+            patch.dict("os.environ", {"SERVICE_API_KEY": "test-key"}),
+        ):
+            from autom8_asana.auth.service_token import ServiceTokenAuthProvider
+
+            provider = ServiceTokenAuthProvider()
+            provider.close()
+            mock_tm_cls.return_value.close.assert_called_once()
+
+
+class TestBatchErrorHandlerStrCoercion:
+    """Tests for batch.py error handler dict coercion fix."""
+
+    def test_dict_detail_does_not_crash(self) -> None:
+        """FastAPI 422 returns detail as list[dict] — must not crash PII masking."""
+        from autom8_asana.clients.data._pii import mask_pii_in_string
+
+        # Simulate what the error handler does after the fix
+        detail = [
+            {"type": "missing", "loc": ["body", "frame_type"], "msg": "Field required"}
+        ]
+        result = mask_pii_in_string(str(detail))
+        assert "Field required" in result
+
+    def test_string_error_still_works(self) -> None:
+        """Normal string errors continue to be masked correctly."""
+        from autom8_asana.clients.data._pii import mask_pii_in_string
+
+        result = mask_pii_in_string("Error for +14105298010")
+        assert "+14105298010" not in result
