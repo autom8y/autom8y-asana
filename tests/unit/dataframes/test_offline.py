@@ -254,10 +254,12 @@ class TestListParquetKeysMetadata:
 
         paginator.paginate.return_value = [
             {"Contents": [{"Key": "p/a.parquet", "LastModified": t1}]},
-            {"Contents": [
-                {"Key": "p/b.parquet", "LastModified": t2},
-                {"Key": "p/c.parquet", "LastModified": t3},
-            ]},
+            {
+                "Contents": [
+                    {"Key": "p/b.parquet", "LastModified": t2},
+                    {"Key": "p/c.parquet", "LastModified": t3},
+                ]
+            },
         ]
 
         keys, max_mtime = _list_parquet_keys(client, "bucket", "p/")
@@ -280,7 +282,11 @@ class TestLoadProjectDataframeWithMeta:
         paginator = MagicMock()
         client.get_paginator.return_value = paginator
         paginator.paginate.return_value = [
-            {"Contents": [{"Key": "dataframes/p/sections/s.parquet", "LastModified": mtime}]}
+            {
+                "Contents": [
+                    {"Key": "dataframes/p/sections/s.parquet", "LastModified": mtime}
+                ]
+            }
         ]
         body = MagicMock()
         body.read.return_value = _make_parquet_bytes(df1)
@@ -323,7 +329,11 @@ class TestLoadProjectDataframeWithMeta:
         paginator = MagicMock()
         client.get_paginator.return_value = paginator
         paginator.paginate.return_value = [
-            {"Contents": [{"Key": "dataframes/p/sections/s.parquet", "LastModified": mtime}]}
+            {
+                "Contents": [
+                    {"Key": "dataframes/p/sections/s.parquet", "LastModified": mtime}
+                ]
+            }
         ]
         body = MagicMock()
         body.read.return_value = _make_parquet_bytes(df1)

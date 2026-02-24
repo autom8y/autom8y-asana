@@ -26,7 +26,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from typing import IO, Any
+from typing import IO, Any, Literal
 
 
 class CLIError(Exception):
@@ -1514,6 +1514,7 @@ def _configure_logging(*, verbose: bool = False, quiet: bool = False) -> None:
     """
     from autom8y_log import LogConfig, configure_logging
 
+    level_name: Literal["DEBUG", "INFO", "WARNING", "ERROR"]
     if quiet:
         level_name = "ERROR"
         level = logging.CRITICAL + 10  # Suppress everything via stdlib
