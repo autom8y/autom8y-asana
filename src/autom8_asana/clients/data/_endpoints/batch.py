@@ -110,9 +110,9 @@ async def _error_handler(
     try:
         body = response.json()
         if "error" in body:
-            error_msg = body["error"]
+            error_msg = str(body["error"])
         elif "detail" in body:
-            error_msg = body["detail"]
+            error_msg = str(body["detail"])
     except (ValueError, KeyError):
         pass
 

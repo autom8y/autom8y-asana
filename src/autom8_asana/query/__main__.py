@@ -496,11 +496,21 @@ def _create_data_client_if_needed(
     try:
         from autom8_asana.clients.data.client import DataServiceClient
 
-        return DataServiceClient()
+        # Prefer SERVICE_API_KEY → TokenManager → JWT (ecosystem standard).
+        # Falls back to AUTOM8_DATA_API_KEY env var via DataServiceClient default.
+        auth_provider = None
+        try:
+            from autom8_asana.auth.service_token import ServiceTokenAuthProvider
+
+            auth_provider = ServiceTokenAuthProvider()
+        except (ValueError, ImportError):
+            pass
+
+        return DataServiceClient(auth_provider=auth_provider)
     except Exception as e:
         raise CLIError(
             f"Data-service joins require AUTOM8_DATA_URL and authentication "
-            f"(AUTOM8_DATA_API_KEY or ASANA_SERVICE_KEY). Error: {e}"
+            f"(SERVICE_API_KEY or AUTOM8_DATA_API_KEY). Error: {e}"
         ) from None
 
 
