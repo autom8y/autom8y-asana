@@ -105,8 +105,7 @@ def make_custom_field(
 def mock_client() -> MagicMock:
     """Create a mock AsanaClient with tasks.get_async method.
 
-    Per MIGRATION-PLAN-legacy-cache-elimination RF-008: Sets unified_store=None
-    to ensure tests use legacy cascade resolution path (not unified cache).
+    Sets unified_store=None to ensure tests use legacy cascade resolution path.
     """
     client = MagicMock()
     client.tasks = MagicMock()

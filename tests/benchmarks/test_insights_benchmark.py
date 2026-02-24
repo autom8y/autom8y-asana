@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Benchmark tests for DataServiceClient performance.
 
-Per Story 3.2: Performance benchmarking to validate P95 < 500ms target.
+Performance benchmarking to validate P95 < 500ms target.
 
 This module measures client-side overhead excluding network latency:
 - Request serialization
@@ -148,7 +148,7 @@ def build_batch_mock_handler(
 ) -> callable:
     """Build a request handler that returns per-entity batch responses.
 
-    Per IMP-20: Batch endpoint returns data with per-entity office_phone
+    Batch endpoint returns data with per-entity office_phone
     and vertical fields so the client can map results back to PVPs.
 
     Args:

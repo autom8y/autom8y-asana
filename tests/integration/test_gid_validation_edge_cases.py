@@ -1,12 +1,48 @@
-"""Integration tests for GID validation.
+"""Integration tests for GID validation."""
 
-Per TDD-TRIAGE-FIXES Issue #5: GID Input Validation.
-"""
+from __future__ import annotations
+
+from unittest.mock import MagicMock
 
 import pytest
 
 from autom8_asana.persistence.exceptions import GidValidationError as ValidationError
 from autom8_asana.persistence.validation import validate_gid
+
+
+@pytest.fixture
+def client_fixture(mock_http, auth_provider, logger):
+    """Create a mock AsanaClient for testing."""
+    from autom8_asana.client import AsanaClient
+    from autom8_asana.clients.tasks import TasksClient
+    from autom8_asana.config import AsanaConfig
+
+    config = AsanaConfig()
+
+    client = MagicMock(spec=AsanaClient)
+    client._http = mock_http
+    client._auth_provider = auth_provider
+    client._log = logger
+    client.config = config
+
+    tasks_client = TasksClient(
+        http=mock_http,
+        config=config,
+        auth_provider=auth_provider,
+        log_provider=logger,
+        client=client,
+    )
+
+    client.tasks = tasks_client
+    return client
+
+
+@pytest.fixture
+def task_fixture():
+    """Create a mock Task for testing."""
+    from autom8_asana.models.task import Task
+
+    return Task(gid="1234567890", name="Test Task")
 
 
 class TestGIDValidation:
@@ -178,119 +214,77 @@ class TestClientGIDValidation:
     before API calls are made.
     """
 
-    def test_get_async_validates_task_gid(self, client_fixture):
+    @pytest.mark.asyncio
+    async def test_get_async_validates_task_gid(self, client_fixture):
         """TasksClient.get_async() validates task_gid."""
-        import asyncio
+        with pytest.raises(ValidationError):
+            await client_fixture.tasks.get_async("invalid-gid")
 
-        import pytest
-
-        async def run_test():
-            with pytest.raises(ValidationError):
-                await client_fixture.tasks.get_async("invalid-gid")
-
-        asyncio.run(run_test())
-
-    def test_add_tag_async_validates_both_gids(self, client_fixture):
+    @pytest.mark.asyncio
+    async def test_add_tag_async_validates_both_gids(self, client_fixture):
         """TasksClient.add_tag_async() validates both GIDs."""
-        import asyncio
+        with pytest.raises(ValidationError):
+            await client_fixture.tasks.add_tag_async("invalid-task", "123")
 
-        import pytest
+        with pytest.raises(ValidationError):
+            await client_fixture.tasks.add_tag_async("123", "invalid-tag")
 
-        async def run_test():
-            with pytest.raises(ValidationError):
-                await client_fixture.tasks.add_tag_async("invalid-task", "123")
-
-            with pytest.raises(ValidationError):
-                await client_fixture.tasks.add_tag_async("123", "invalid-tag")
-
-        asyncio.run(run_test())
-
-    def test_remove_tag_async_validates_both_gids(self, client_fixture):
+    @pytest.mark.asyncio
+    async def test_remove_tag_async_validates_both_gids(self, client_fixture):
         """TasksClient.remove_tag_async() validates both GIDs."""
-        import asyncio
+        with pytest.raises(ValidationError):
+            await client_fixture.tasks.remove_tag_async("invalid-task", "123")
 
-        import pytest
+        with pytest.raises(ValidationError):
+            await client_fixture.tasks.remove_tag_async("123", "invalid-tag")
 
-        async def run_test():
-            with pytest.raises(ValidationError):
-                await client_fixture.tasks.remove_tag_async("invalid-task", "123")
-
-            with pytest.raises(ValidationError):
-                await client_fixture.tasks.remove_tag_async("123", "invalid-tag")
-
-        asyncio.run(run_test())
-
-    def test_move_to_section_async_validates_gids(self, client_fixture):
+    @pytest.mark.asyncio
+    async def test_move_to_section_async_validates_gids(self, client_fixture):
         """TasksClient.move_to_section_async() validates all GIDs."""
-        import asyncio
+        with pytest.raises(ValidationError):
+            await client_fixture.tasks.move_to_section_async(
+                "invalid-task", "123", "456"
+            )
 
-        import pytest
+        with pytest.raises(ValidationError):
+            await client_fixture.tasks.move_to_section_async(
+                "123", "invalid-section", "456"
+            )
 
-        async def run_test():
-            with pytest.raises(ValidationError):
-                await client_fixture.tasks.move_to_section_async(
-                    "invalid-task", "123", "456"
-                )
+        with pytest.raises(ValidationError):
+            await client_fixture.tasks.move_to_section_async(
+                "123", "456", "invalid-project"
+            )
 
-            with pytest.raises(ValidationError):
-                await client_fixture.tasks.move_to_section_async(
-                    "123", "invalid-section", "456"
-                )
-
-            with pytest.raises(ValidationError):
-                await client_fixture.tasks.move_to_section_async(
-                    "123", "456", "invalid-project"
-                )
-
-        asyncio.run(run_test())
-
-    def test_set_assignee_async_validates_both_gids(self, client_fixture):
+    @pytest.mark.asyncio
+    async def test_set_assignee_async_validates_both_gids(self, client_fixture):
         """TasksClient.set_assignee_async() validates both GIDs."""
-        import asyncio
+        with pytest.raises(ValidationError):
+            await client_fixture.tasks.set_assignee_async("invalid-task", "123")
 
-        import pytest
+        with pytest.raises(ValidationError):
+            await client_fixture.tasks.set_assignee_async("123", "invalid-user")
 
-        async def run_test():
-            with pytest.raises(ValidationError):
-                await client_fixture.tasks.set_assignee_async("invalid-task", "123")
-
-            with pytest.raises(ValidationError):
-                await client_fixture.tasks.set_assignee_async("123", "invalid-user")
-
-        asyncio.run(run_test())
-
-    def test_add_to_project_async_validates_gids(self, client_fixture):
+    @pytest.mark.asyncio
+    async def test_add_to_project_async_validates_gids(self, client_fixture):
         """TasksClient.add_to_project_async() validates GIDs."""
-        import asyncio
+        with pytest.raises(ValidationError):
+            await client_fixture.tasks.add_to_project_async("invalid-task", "123")
 
-        import pytest
+        with pytest.raises(ValidationError):
+            await client_fixture.tasks.add_to_project_async(
+                "123", "invalid-project"
+            )
 
-        async def run_test():
-            with pytest.raises(ValidationError):
-                await client_fixture.tasks.add_to_project_async("invalid-task", "123")
-
-            with pytest.raises(ValidationError):
-                await client_fixture.tasks.add_to_project_async(
-                    "123", "invalid-project"
-                )
-
-        asyncio.run(run_test())
-
-    def test_remove_from_project_async_validates_gids(self, client_fixture):
+    @pytest.mark.asyncio
+    async def test_remove_from_project_async_validates_gids(self, client_fixture):
         """TasksClient.remove_from_project_async() validates GIDs."""
-        import asyncio
+        with pytest.raises(ValidationError):
+            await client_fixture.tasks.remove_from_project_async(
+                "invalid-task", "123"
+            )
 
-        import pytest
-
-        async def run_test():
-            with pytest.raises(ValidationError):
-                await client_fixture.tasks.remove_from_project_async(
-                    "invalid-task", "123"
-                )
-
-            with pytest.raises(ValidationError):
-                await client_fixture.tasks.remove_from_project_async(
-                    "123", "invalid-project"
-                )
-
-        asyncio.run(run_test())
+        with pytest.raises(ValidationError):
+            await client_fixture.tasks.remove_from_project_async(
+                "123", "invalid-project"
+            )

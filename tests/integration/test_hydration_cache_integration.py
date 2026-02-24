@@ -88,7 +88,7 @@ class TestTraversalUsesStandardFields:
     def test_hydration_full_fields_equal_standard(self) -> None:
         """hydration._BUSINESS_FULL_OPT_FIELDS equals STANDARD_TASK_OPT_FIELDS.
 
-        Per IMP-23: Hydration module uses full field set for all fetches,
+        Hydration module uses full field set for all fetches,
         eliminating the detection-then-refetch pattern.
         """
         assert set(HYDRATION_FULL_OPT_FIELDS) == set(STANDARD_TASK_OPT_FIELDS)

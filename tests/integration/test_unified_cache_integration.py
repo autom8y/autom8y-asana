@@ -1,16 +1,9 @@
-"""Integration tests for unified cache wiring (Phase 3: TDD-UNIFIED-CACHE-001).
+"""Integration tests for unified cache wiring.
 
 Tests the integration of:
 - ProgressiveProjectBuilder with unified_store
 - CascadingFieldResolver with cascade_plugin
 - TaskCacheCoordinator.from_unified_store() adapter
-
-Per TDD-UNIFIED-CACHE-001 Phase 3 Acceptance Criteria:
-- All existing tests pass (no regression)
-- Unified path produces identical DataFrame output to existing path
-- Cascade resolution produces identical values via both paths
-
-NOTE: Tests using ProjectDataFrameBuilder require migration to ProgressiveProjectBuilder.
 """
 
 from __future__ import annotations
@@ -33,23 +26,6 @@ from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 from autom8_asana.dataframes.resolver.cascading import CascadingFieldResolver
 from autom8_asana.dataframes.views.cascade_view import CascadeViewPlugin
 
-# Skip marker for tests that use ProjectDataFrameBuilder
-MIGRATION_REQUIRED = pytest.mark.skip(
-    reason="Requires migration to ProgressiveProjectBuilder - constructor signatures differ"
-)
-
-
-# Skip marker for tests that explicitly test the legacy path (no unified_store)
-LEGACY_PATH_REMOVED = pytest.mark.skip(
-    reason="unified_store is now mandatory in Phase 4 (TDD-UNIFIED-CACHE-001). "
-    "Legacy path without unified_store has been removed."
-)
-
-# Skip marker for tests that rely on cascade_plugin being optional
-LEGACY_CASCADE_PATH = pytest.mark.skip(
-    reason="CascadingFieldResolver requires cascade_plugin after TDD-UNIFIED-CACHE-001 Phase 4. "
-    "Legacy path without cascade_plugin has been removed."
-)
 
 
 # =============================================================================
@@ -179,47 +155,8 @@ def cascade_schema() -> DataFrameSchema:
 # =============================================================================
 
 
-@MIGRATION_REQUIRED
 class TestProjectDataFrameBuilderUnifiedIntegration:
-    """Tests for ProgressiveProjectBuilder with unified_store parameter.
-
-    NOTE: These tests require migration to ProgressiveProjectBuilder.
-    The old ProjectDataFrameBuilder has been removed.
-    """
-
-    @pytest.mark.asyncio
-    async def test_builder_with_unified_store_branches_correctly(
-        self,
-        mock_unified_store: UnifiedTaskStore,
-        simple_schema: DataFrameSchema,
-    ) -> None:
-        """Test that builder branches to unified path when store provided."""
-        # Migration required: ProjectDataFrameBuilder removed
-        pass
-
-    @LEGACY_PATH_REMOVED
-    @pytest.mark.asyncio
-    async def test_builder_without_unified_store_uses_existing_path(
-        self,
-        simple_schema: DataFrameSchema,
-    ) -> None:
-        """Test that builder uses existing path when no unified store.
-
-        NOTE: This test is skipped - unified_store is now mandatory in Phase 4.
-        """
-        # Migration required: ProjectDataFrameBuilder removed
-        pass
-
-    @pytest.mark.asyncio
-    async def test_unified_path_fetches_from_store(
-        self,
-        mock_cache_provider: MagicMock,
-        simple_schema: DataFrameSchema,
-        sample_task_dict: dict[str, Any],
-    ) -> None:
-        """Test that unified path fetches tasks from UnifiedTaskStore."""
-        # Migration required: ProjectDataFrameBuilder removed
-        pass
+    """Tests for unified cache integration with DataFrame schema."""
 
     @pytest.mark.asyncio
     async def test_unified_and_existing_paths_produce_same_columns(
@@ -277,7 +214,6 @@ class TestCascadingFieldResolverUnifiedIntegration:
         )
         assert result == "555-123-4567"
 
-    @LEGACY_CASCADE_PATH
     @pytest.mark.asyncio
     async def test_resolver_without_plugin_uses_existing_path(
         self,
@@ -296,7 +232,6 @@ class TestCascadingFieldResolverUnifiedIntegration:
         # Verify parent cache exists
         assert resolver._parent_cache == {}
 
-    @LEGACY_CASCADE_PATH
     @pytest.mark.asyncio
     async def test_both_paths_return_same_value_for_unregistered_field(
         self,
@@ -504,21 +439,8 @@ class TestWarmCachePathSharedCache:
 # =============================================================================
 
 
-@MIGRATION_REQUIRED
 class TestNoRegression:
-    """Tests to verify no regression from existing behavior.
-
-    NOTE: Tests using ProjectDataFrameBuilder require migration to ProgressiveProjectBuilder.
-    """
-
-    def test_project_builder_accepts_all_existing_parameters(
-        self,
-        simple_schema: DataFrameSchema,
-    ) -> None:
-        """Test that ProgressiveProjectBuilder accepts all existing parameters."""
-        # Migration required: ProjectDataFrameBuilder removed
-        # ProgressiveProjectBuilder has different constructor signature
-        pass
+    """Tests to verify no regression from existing behavior."""
 
     def test_cascading_resolver_accepts_existing_parameters(
         self,

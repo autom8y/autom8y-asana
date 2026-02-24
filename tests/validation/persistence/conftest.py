@@ -113,43 +113,6 @@ def create_failure_result(
     )
 
 
-def create_multi_result(
-    count: int,
-    failure_indices: set[int] | None = None,
-) -> list[BatchResult]:
-    """Create multiple BatchResults.
-
-    Args:
-        count: Number of results to create.
-        failure_indices: Set of indices to make failures (default: all succeed).
-
-    Returns:
-        List of BatchResult in order.
-    """
-    failure_indices = failure_indices or set()
-    results = []
-
-    for i in range(count):
-        if i in failure_indices:
-            results.append(
-                create_failure_result(
-                    message=f"Error at index {i}",
-                    status_code=400,
-                    request_index=i,
-                )
-            )
-        else:
-            results.append(
-                create_success_result(
-                    gid=f"gid_{i}",
-                    name=f"Result {i}",
-                    request_index=i,
-                )
-            )
-
-    return results
-
-
 # ---------------------------------------------------------------------------
 # Test Entity Builders
 # ---------------------------------------------------------------------------
@@ -174,65 +137,3 @@ def create_task(
     return Task(gid=gid, name=name, parent=parent)
 
 
-def create_task_hierarchy(
-    depth: int = 3,
-    width: int = 2,
-) -> list[Task]:
-    """Create a hierarchical tree of tasks for testing.
-
-    Args:
-        depth: Number of levels in the hierarchy.
-        width: Number of children per parent at each level.
-
-    Returns:
-        Flat list of all tasks in the hierarchy.
-    """
-    tasks: list[Task] = []
-    root = Task(gid="root", name="Root")
-    tasks.append(root)
-
-    current_level = [root]
-
-    for level in range(1, depth):
-        next_level: list[Task] = []
-        for parent in current_level:
-            for child_idx in range(width):
-                child_gid = f"l{level}_p{parent.gid}_{child_idx}"
-                child = Task(
-                    gid=child_gid,
-                    name=f"Level {level} Child {child_idx}",
-                    parent=NameGid(gid=parent.gid or ""),
-                )
-                tasks.append(child)
-                next_level.append(child)
-        current_level = next_level
-
-    return tasks
-
-
-# ---------------------------------------------------------------------------
-# Test Utilities
-# ---------------------------------------------------------------------------
-
-
-class CallTracker:
-    """Utility for tracking function calls in tests."""
-
-    def __init__(self) -> None:
-        self.calls: list[tuple[Any, ...]] = []
-
-    def __call__(self, *args: Any, **kwargs: Any) -> None:
-        self.calls.append(args)
-
-    @property
-    def call_count(self) -> int:
-        return len(self.calls)
-
-    def reset(self) -> None:
-        self.calls.clear()
-
-
-@pytest.fixture
-def call_tracker() -> CallTracker:
-    """Fixture providing a call tracker instance."""
-    return CallTracker()

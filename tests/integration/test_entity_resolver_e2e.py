@@ -143,6 +143,86 @@ def sample_unit_dataframe_with_list_coercion() -> pl.DataFrame:
     )
 
 
+# --- Shared E2E Fixture ---
+
+
+@pytest.fixture
+def resolver_test_client(
+    mock_service_claims: ServiceClaims,
+    sample_unit_dataframe: pl.DataFrame,
+):
+    """Create a TestClient with mocked discovery, auth, and resolution.
+
+    Yields a TestClient configured with:
+    - Mocked entity project discovery
+    - Mocked S2S auth and auth context
+    - Mocked resolution strategy using sample_unit_dataframe
+    """
+    from fastapi.testclient import TestClient
+
+    async def mock_discovery(app):
+        EntityProjectRegistry.reset()
+        registry = EntityProjectRegistry.get_instance()
+        registry.register(
+            entity_type="unit",
+            project_gid="test_project_123",
+            project_name="Test Business Units",
+        )
+        app.state.entity_project_registry = registry
+
+    mock_resolve = _make_mock_strategy_resolve(
+        sample_unit_dataframe, ["office_phone", "vertical"]
+    )
+
+    with (
+        patch(
+            "autom8_asana.api.lifespan._discover_entity_projects",
+            new_callable=AsyncMock,
+            side_effect=mock_discovery,
+        ),
+        patch(
+            "autom8_asana.api.lifespan._preload_dataframe_cache_progressive",
+            new_callable=AsyncMock,
+        ),
+        patch(
+            "autom8_asana.auth.bot_pat.get_bot_pat",
+            return_value="test_bot_pat",
+        ),
+        patch(
+            "autom8_asana.AsanaClient",
+        ) as mock_client_class,
+        patch(
+            "autom8_asana.services.universal_strategy.UniversalResolutionStrategy.resolve",
+            mock_resolve,
+        ),
+    ):
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client_class.return_value = mock_client
+
+        app = create_app()
+
+        async def mock_require_claims():
+            return mock_service_claims
+
+        async def mock_get_auth_context():
+            return AuthContext(
+                mode=AuthMode.JWT,
+                asana_pat="test_bot_pat",
+                caller_service="test_service",
+            )
+
+        app.dependency_overrides[require_service_claims] = mock_require_claims
+        app.dependency_overrides[get_auth_context] = mock_get_auth_context
+
+        try:
+            with TestClient(app) as client:
+                yield client
+        finally:
+            app.dependency_overrides.clear()
+
+
 # --- Test Classes ---
 
 
@@ -155,8 +235,7 @@ class TestEntityResolverE2E:
 
     def test_resolve_unit_with_mocked_discovery(
         self,
-        mock_service_claims: ServiceClaims,
-        sample_unit_dataframe: pl.DataFrame,
+        resolver_test_client,
     ) -> None:
         """Test unit resolution succeeds with mocked discovery and DataFrame.
 
@@ -165,289 +244,81 @@ class TestEntityResolverE2E:
         - Resolution works correctly with test data
         - Meta contains expected entity_type and counts
         """
-        from fastapi.testclient import TestClient
-
-        # Mock discovery to set up registry
-        async def mock_discovery(app):
-            EntityProjectRegistry.reset()
-            registry = EntityProjectRegistry.get_instance()
-            registry.register(
-                entity_type="unit",
-                project_gid="test_project_123",
-                project_name="Test Business Units",
-            )
-            app.state.entity_project_registry = registry
-
-        # Create mock resolve function that uses the sample DataFrame
-        mock_resolve = _make_mock_strategy_resolve(
-            sample_unit_dataframe, ["office_phone", "vertical"]
+        response = resolver_test_client.post(
+            "/v1/resolve/unit",
+            headers={"Authorization": "Bearer test.jwt.token"},
+            json={
+                "criteria": [
+                    {"phone": "+15551234567", "vertical": "dental"},
+                ]
+            },
         )
 
-        with (
-            patch(
-                "autom8_asana.api.lifespan._discover_entity_projects",
-                new_callable=AsyncMock,
-                side_effect=mock_discovery,
-            ),
-            patch(
-                "autom8_asana.api.lifespan._preload_dataframe_cache_progressive",
-                new_callable=AsyncMock,
-            ),
-            patch(
-                "autom8_asana.auth.bot_pat.get_bot_pat",
-                return_value="test_bot_pat",
-            ),
-            patch(
-                "autom8_asana.AsanaClient",
-            ) as mock_client_class,
-            patch(
-                "autom8_asana.services.universal_strategy.UniversalResolutionStrategy.resolve",
-                mock_resolve,
-            ),
-        ):
-            # Setup mock client
-            mock_client = MagicMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_class.return_value = mock_client
+        assert response.status_code == 200, (
+            f"Expected 200, got {response.status_code}: {response.text}"
+        )
 
-            # Create app with mocked components
-            app = create_app()
-
-            # Override both auth dependencies using FastAPI's dependency override system.
-            # require_service_claims: used by resolver route for S2S JWT validation.
-            # get_auth_context: used by AuthContextDep to get the PAT for Asana calls.
-            async def mock_require_claims():
-                return mock_service_claims
-
-            async def mock_get_auth_context():
-                return AuthContext(
-                    mode=AuthMode.JWT,
-                    asana_pat="test_bot_pat",
-                    caller_service="test_service",
-                )
-
-            app.dependency_overrides[require_service_claims] = mock_require_claims
-            app.dependency_overrides[get_auth_context] = mock_get_auth_context
-
-            try:
-                # Use TestClient which properly manages lifespan
-                with TestClient(app) as client:
-                    response = client.post(
-                        "/v1/resolve/unit",
-                        headers={"Authorization": "Bearer test.jwt.token"},
-                        json={
-                            "criteria": [
-                                {"phone": "+15551234567", "vertical": "dental"},
-                            ]
-                        },
-                    )
-
-                # Assert success
-                assert response.status_code == 200, (
-                    f"Expected 200, got {response.status_code}: {response.text}"
-                )
-
-                data = response.json()
-                assert "results" in data
-                assert "meta" in data
-                assert len(data["results"]) == 1
-                assert data["results"][0]["gid"] == "1234567890123456"
-                assert data["results"][0]["error"] is None
-                assert data["meta"]["entity_type"] == "unit"
-                assert data["meta"]["resolved_count"] == 1
-                assert data["meta"]["unresolved_count"] == 0
-            finally:
-                app.dependency_overrides.clear()
+        data = response.json()
+        assert "results" in data
+        assert "meta" in data
+        assert len(data["results"]) == 1
+        assert data["results"][0]["gid"] == "1234567890123456"
+        assert data["results"][0]["error"] is None
+        assert data["meta"]["entity_type"] == "unit"
+        assert data["meta"]["resolved_count"] == 1
+        assert data["meta"]["unresolved_count"] == 0
 
     def test_resolve_unit_not_found_returns_error(
         self,
-        mock_service_claims: ServiceClaims,
-        sample_unit_dataframe: pl.DataFrame,
+        resolver_test_client,
     ) -> None:
         """Test unit resolution returns NOT_FOUND for unknown phone/vertical."""
-        from fastapi.testclient import TestClient
-
-        async def mock_discovery(app):
-            EntityProjectRegistry.reset()
-            registry = EntityProjectRegistry.get_instance()
-            registry.register(
-                entity_type="unit",
-                project_gid="test_project_123",
-                project_name="Test Business Units",
-            )
-            app.state.entity_project_registry = registry
-
-        # Create mock resolve function that uses the sample DataFrame
-        mock_resolve = _make_mock_strategy_resolve(
-            sample_unit_dataframe, ["office_phone", "vertical"]
+        response = resolver_test_client.post(
+            "/v1/resolve/unit",
+            headers={"Authorization": "Bearer test.jwt.token"},
+            json={
+                "criteria": [
+                    {"phone": "+19999999999", "vertical": "unknown"},
+                ]
+            },
         )
 
-        with (
-            patch(
-                "autom8_asana.api.lifespan._discover_entity_projects",
-                new_callable=AsyncMock,
-                side_effect=mock_discovery,
-            ),
-            patch(
-                "autom8_asana.api.lifespan._preload_dataframe_cache_progressive",
-                new_callable=AsyncMock,
-            ),
-            patch(
-                "autom8_asana.auth.bot_pat.get_bot_pat",
-                return_value="test_bot_pat",
-            ),
-            patch(
-                "autom8_asana.AsanaClient",
-            ) as mock_client_class,
-            patch(
-                "autom8_asana.services.universal_strategy.UniversalResolutionStrategy.resolve",
-                mock_resolve,
-            ),
-        ):
-            mock_client = MagicMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_class.return_value = mock_client
-
-            app = create_app()
-
-            async def mock_require_claims():
-                return mock_service_claims
-
-            async def mock_get_auth_context():
-                return AuthContext(
-                    mode=AuthMode.JWT,
-                    asana_pat="test_bot_pat",
-                    caller_service="test_service",
-                )
-
-            app.dependency_overrides[require_service_claims] = mock_require_claims
-            app.dependency_overrides[get_auth_context] = mock_get_auth_context
-
-            try:
-                with TestClient(app) as client:
-                    response = client.post(
-                        "/v1/resolve/unit",
-                        headers={"Authorization": "Bearer test.jwt.token"},
-                        json={
-                            "criteria": [
-                                {"phone": "+19999999999", "vertical": "unknown"},
-                            ]
-                        },
-                    )
-
-                assert response.status_code == 200
-                data = response.json()
-                assert data["results"][0]["gid"] is None
-                assert data["results"][0]["error"] == "NOT_FOUND"
-                assert data["meta"]["resolved_count"] == 0
-                assert data["meta"]["unresolved_count"] == 1
-            finally:
-                app.dependency_overrides.clear()
+        assert response.status_code == 200
+        data = response.json()
+        assert data["results"][0]["gid"] is None
+        assert data["results"][0]["error"] == "NOT_FOUND"
+        assert data["meta"]["resolved_count"] == 0
+        assert data["meta"]["unresolved_count"] == 1
 
     def test_resolve_batch_preserves_order(
         self,
-        mock_service_claims: ServiceClaims,
-        sample_unit_dataframe: pl.DataFrame,
+        resolver_test_client,
     ) -> None:
         """Test batch resolution preserves input order."""
-        from fastapi.testclient import TestClient
-
-        async def mock_discovery(app):
-            EntityProjectRegistry.reset()
-            registry = EntityProjectRegistry.get_instance()
-            registry.register(
-                entity_type="unit",
-                project_gid="test_project_123",
-                project_name="Test Business Units",
-            )
-            app.state.entity_project_registry = registry
-
-        # Create mock resolve function that uses the sample DataFrame
-        mock_resolve = _make_mock_strategy_resolve(
-            sample_unit_dataframe, ["office_phone", "vertical"]
+        response = resolver_test_client.post(
+            "/v1/resolve/unit",
+            headers={"Authorization": "Bearer test.jwt.token"},
+            json={
+                "criteria": [
+                    {"phone": "+15551234567", "vertical": "dental"},  # Found
+                    {"phone": "+19999999999", "vertical": "unknown"},  # Not found
+                    {"phone": "+15559876543", "vertical": "medical"},  # Found
+                ]
+            },
         )
 
-        with (
-            patch(
-                "autom8_asana.api.lifespan._discover_entity_projects",
-                new_callable=AsyncMock,
-                side_effect=mock_discovery,
-            ),
-            patch(
-                "autom8_asana.api.lifespan._preload_dataframe_cache_progressive",
-                new_callable=AsyncMock,
-            ),
-            patch(
-                "autom8_asana.auth.bot_pat.get_bot_pat",
-                return_value="test_bot_pat",
-            ),
-            patch(
-                "autom8_asana.AsanaClient",
-            ) as mock_client_class,
-            patch(
-                "autom8_asana.services.universal_strategy.UniversalResolutionStrategy.resolve",
-                mock_resolve,
-            ),
-        ):
-            mock_client = MagicMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client_class.return_value = mock_client
+        assert response.status_code == 200
+        data = response.json()
 
-            app = create_app()
+        # Verify order is preserved
+        assert len(data["results"]) == 3
+        assert data["results"][0]["gid"] == "1234567890123456"  # First found
+        assert data["results"][1]["gid"] is None  # Not found
+        assert data["results"][1]["error"] == "NOT_FOUND"
+        assert data["results"][2]["gid"] == "9876543210987654"  # Second found
 
-            async def mock_require_claims():
-                return mock_service_claims
-
-            async def mock_get_auth_context():
-                return AuthContext(
-                    mode=AuthMode.JWT,
-                    asana_pat="test_bot_pat",
-                    caller_service="test_service",
-                )
-
-            app.dependency_overrides[require_service_claims] = mock_require_claims
-            app.dependency_overrides[get_auth_context] = mock_get_auth_context
-
-            try:
-                with TestClient(app) as client:
-                    response = client.post(
-                        "/v1/resolve/unit",
-                        headers={"Authorization": "Bearer test.jwt.token"},
-                        json={
-                            "criteria": [
-                                {
-                                    "phone": "+15551234567",
-                                    "vertical": "dental",
-                                },  # Found
-                                {
-                                    "phone": "+19999999999",
-                                    "vertical": "unknown",
-                                },  # Not found
-                                {
-                                    "phone": "+15559876543",
-                                    "vertical": "medical",
-                                },  # Found
-                            ]
-                        },
-                    )
-
-                assert response.status_code == 200
-                data = response.json()
-
-                # Verify order is preserved
-                assert len(data["results"]) == 3
-                assert data["results"][0]["gid"] == "1234567890123456"  # First found
-                assert data["results"][1]["gid"] is None  # Not found
-                assert data["results"][1]["error"] == "NOT_FOUND"
-                assert data["results"][2]["gid"] == "9876543210987654"  # Second found
-
-                assert data["meta"]["resolved_count"] == 2
-                assert data["meta"]["unresolved_count"] == 1
-            finally:
-                app.dependency_overrides.clear()
+        assert data["meta"]["resolved_count"] == 2
+        assert data["meta"]["unresolved_count"] == 1
 
 
 class TestTypeCoercionIntegration:
