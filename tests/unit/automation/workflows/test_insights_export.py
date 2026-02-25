@@ -19,7 +19,6 @@ from autom8_asana.automation.workflows.insights_export import (
     DEFAULT_MAX_CONCURRENCY,
     DEFAULT_ROW_LIMITS,
     EXPORT_ENABLED_ENV_VAR,
-    LEGACY_ATTACHMENT_PATTERN,
     OFFER_PROJECT_GID,
     TABLE_NAMES,
     TOTAL_TABLE_COUNT,
@@ -1243,9 +1242,6 @@ class TestConstants:
 
     def test_default_attachment_pattern(self) -> None:
         assert DEFAULT_ATTACHMENT_PATTERN == "insights_export_*.html"
-
-    def test_legacy_attachment_pattern(self) -> None:
-        assert LEGACY_ATTACHMENT_PATTERN == "insights_export_*.md"
 
 
 # --- QA-ADVERSARY: Additional Edge Case Tests ---
