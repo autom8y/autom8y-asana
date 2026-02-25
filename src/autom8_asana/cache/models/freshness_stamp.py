@@ -15,11 +15,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
 
-from autom8_asana.cache.models.freshness_unified import FreshnessState
-
-# Backward-compatible alias. New code should use FreshnessState directly.
-FreshnessClassification = FreshnessState
-
 
 class VerificationSource(str, Enum):
     """How the data was verified as fresh.

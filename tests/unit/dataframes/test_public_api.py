@@ -1,6 +1,5 @@
 """Tests for public DataFrame API via DataFrameService.
 
-Per TDD-0009 Phase 5 / R-006 (REM-ASANA-ARCH WS-DFEX):
 Validates the service functions that replaced model convenience methods:
 - build_for_project() — replaces Project.to_dataframe() / to_dataframe_async()
 - build_for_section() — replaces Section.to_dataframe() / to_dataframe_async()

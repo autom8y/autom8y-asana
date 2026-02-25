@@ -1,6 +1,5 @@
 """Detection facade - main orchestration functions.
 
-Per TDD-SPRINT-3-DETECTION-DECOMPOSITION: Central orchestration for tiered detection.
 Per PRD-CACHE-PERF-DETECTION: Caches Tier 4 detection results for performance.
 
 This module provides the main detection entry points that coordinate the tier chain:

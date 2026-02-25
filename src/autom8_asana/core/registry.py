@@ -3,8 +3,6 @@
 Extracted from persistence/holder_construction.py to avoid cross-layer imports
 (models/business/ should not import from persistence/).
 
-Per R-009 (REM-ASANA-ARCH WS-DFEX): Each Holder module self-registers via
-register_holder() at module level, following the register_reset() pattern.
 """
 
 from __future__ import annotations

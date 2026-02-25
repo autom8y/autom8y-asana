@@ -1,7 +1,5 @@
 """Tier 2: Name pattern detection.
 
-Per TDD-SPRINT-3-DETECTION-DECOMPOSITION: Name convention detection, ~60% accuracy.
-
 This module provides entity type detection via name pattern matching.
 Uses word boundary matching to avoid false positives.
 

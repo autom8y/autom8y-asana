@@ -1,7 +1,5 @@
 """Entity type configuration for business model hierarchy.
 
-Per TDD-SPRINT-3-DETECTION-DECOMPOSITION: Master configuration and derived lookup maps.
-
 This module provides:
 - ENTITY_TYPE_INFO: Master configuration dict mapping EntityType to EntityTypeInfo
 - NAME_PATTERNS: Derived name pattern map for Tier 2 detection

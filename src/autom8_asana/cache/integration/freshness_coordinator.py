@@ -17,9 +17,6 @@ from autom8_asana.batch.models import BatchRequest
 from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 
-# Backward-compatible alias. New code should use FreshnessIntent directly.
-FreshnessMode = FreshnessIntent
-
 if TYPE_CHECKING:
     from autom8_asana.batch.client import BatchClient
     from autom8_asana.cache.models.entry import CacheEntry
