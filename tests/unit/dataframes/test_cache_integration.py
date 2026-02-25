@@ -726,11 +726,11 @@ class TestCacheIntegrationErrorHandling:
         mock_logger.log_cache_event.assert_called()
 
     @pytest.mark.asyncio
-    async def test_warm_struc_graceful_degradation(
+    async def test_warm_dataframe_graceful_degradation(
         self,
         mock_logger: MagicMock,
     ) -> None:
-        """Test warm_struc handles exceptions gracefully."""
+        """Test warm_dataframe handles exceptions gracefully."""
         failing_cache = MagicMock()
         failing_cache.warm = MagicMock(side_effect=ConnectionError("Redis down"))
 
@@ -740,7 +740,7 @@ class TestCacheIntegrationErrorHandling:
         )
 
         # Should not raise, should return 0
-        count = await integration.warm_struc_async(
+        count = await integration.warm_dataframe_async(
             [
                 ("task1", "proj1"),
             ]
