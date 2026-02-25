@@ -18,9 +18,9 @@ Example - Basic Usage:
     config = AutomationConfig(
         enabled=True,
         max_cascade_depth=5,
-        pipeline_templates={
-            "sales": "1234567890123",
-            "onboarding": "9876543210987",
+        pipeline_stages={
+            "sales": PipelineStage(project_gid="1234567890123"),
+            "onboarding": PipelineStage(project_gid="9876543210987"),
         },
     )
 

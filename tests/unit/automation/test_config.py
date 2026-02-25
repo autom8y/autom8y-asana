@@ -21,7 +21,7 @@ class TestAutomationConfig:
         assert config.enabled is True
         assert config.max_cascade_depth == 5
         assert config.rules_source == "inline"
-        assert config.pipeline_templates == {}
+        assert config.pipeline_stages == {}
 
     def test_custom_values(self) -> None:
         """Test custom configuration values."""
@@ -29,13 +29,17 @@ class TestAutomationConfig:
             enabled=False,
             max_cascade_depth=3,
             rules_source="file",
-            pipeline_templates={"sales": "123", "onboarding": "456"},
+            pipeline_stages={
+                "sales": PipelineStage(project_gid="123"),
+                "onboarding": PipelineStage(project_gid="456"),
+            },
         )
 
         assert config.enabled is False
         assert config.max_cascade_depth == 3
         assert config.rules_source == "file"
-        assert config.pipeline_templates == {"sales": "123", "onboarding": "456"}
+        assert "sales" in config.pipeline_stages
+        assert config.pipeline_stages["sales"].project_gid == "123"
 
     @pytest.mark.parametrize(
         "depth",
@@ -76,12 +80,12 @@ class TestAutomationConfig:
         config = AutomationConfig(rules_source=source)
         assert config.rules_source == source
 
-    def test_pipeline_templates_mutable(self) -> None:
-        """Test that pipeline_templates can be modified."""
+    def test_pipeline_stages_mutable(self) -> None:
+        """Test that pipeline_stages can be modified."""
         config = AutomationConfig()
-        config.pipeline_templates["new_pipeline"] = "789"
+        config.pipeline_stages["new_pipeline"] = PipelineStage(project_gid="789")
 
-        assert config.pipeline_templates == {"new_pipeline": "789"}
+        assert config.pipeline_stages["new_pipeline"].project_gid == "789"
 
 
 class TestPipelineStage:
@@ -156,32 +160,11 @@ class TestPipelineStage:
         assert stage.due_date_offset_days == 7
         assert stage.assignee_gid == "user123"
 
-    def test_get_pipeline_stage_fallback_to_templates(self) -> None:
-        """Test get_pipeline_stage falls back to pipeline_templates."""
+    def test_get_pipeline_stage_returns_none_for_unknown(self) -> None:
+        """Test get_pipeline_stage returns None for unknown process type."""
         config = AutomationConfig(
-            pipeline_templates={"onboarding": "789"},
+            pipeline_stages={"onboarding": PipelineStage(project_gid="789")},
         )
 
-        stage = config.get_pipeline_stage("onboarding")
-        assert stage is not None
-        assert stage.project_gid == "789"
-        # Defaults for fallback stage
-        assert stage.due_date_offset_days is None
-        assert stage.assignee_gid is None
-
-    def test_get_pipeline_stage_prefers_stages_over_templates(self) -> None:
-        """Test that pipeline_stages takes precedence over pipeline_templates."""
-        config = AutomationConfig(
-            pipeline_templates={"onboarding": "old_gid"},
-            pipeline_stages={
-                "onboarding": PipelineStage(
-                    project_gid="new_gid",
-                    due_date_offset_days=5,
-                ),
-            },
-        )
-
-        stage = config.get_pipeline_stage("onboarding")
-        assert stage is not None
-        assert stage.project_gid == "new_gid"
-        assert stage.due_date_offset_days == 5
+        stage = config.get_pipeline_stage("unknown")
+        assert stage is None
