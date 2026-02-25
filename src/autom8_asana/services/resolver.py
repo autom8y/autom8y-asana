@@ -404,8 +404,8 @@ def validate_criterion_for_entity(
     """
     from autom8_asana.dataframes.models.registry import SchemaRegistry
 
-    # Apply legacy field mapping first
-    normalized = _apply_legacy_mapping(entity_type, criterion)
+    # Normalize field names (prefix expansion, alias resolution, schema fallback)
+    normalized = _normalize_criterion_fields(entity_type, criterion)
 
     # Get schema for entity type
     schema_registry = SchemaRegistry.get_instance()
@@ -525,14 +525,14 @@ def _normalize_field(
     return field_name
 
 
-def _apply_legacy_mapping(
+def _normalize_criterion_fields(
     entity_type: str,
     criterion: dict[str, Any],
 ) -> dict[str, Any]:
-    """Apply field normalization with hierarchical alias resolution.
+    """Normalize criterion field names using hierarchical alias resolution.
 
     Per TDD-dynamic-field-normalization:
-    Replaces static LEGACY_FIELD_MAPPING with dynamic algorithm.
+    Uses 6-step resolution with prefix expansion, alias lookup, and schema fallback.
 
     Args:
         entity_type: Entity type for context (e.g., "unit", "contact").
