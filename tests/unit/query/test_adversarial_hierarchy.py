@@ -245,7 +245,7 @@ class TestJoinExecutionAdversarial:
                 "booking_type": ["Online"],
             }
         )
-        with pytest.raises(Exception):  # polars.exceptions.SchemaError
+        with pytest.raises(pl.exceptions.SchemaError):
             execute_join(
                 primary_df=primary,
                 target_df=target,

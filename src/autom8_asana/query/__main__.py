@@ -449,7 +449,7 @@ def handle_error(error: Exception) -> int:
         # S3 bucket not configured or other value errors
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
-    if isinstance(error, (OSError, PermissionError)):
+    if isinstance(error, OSError):
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
     # Unexpected

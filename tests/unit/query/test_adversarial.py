@@ -1132,7 +1132,7 @@ class TestFieldValidation:
             mock_reg_cls.get_instance.return_value = mock_reg
 
             # Polars raises ColumnNotFoundError when filtering by missing column
-            with pytest.raises(Exception):
+            with pytest.raises(pl.exceptions.ColumnNotFoundError):
                 await engine.execute_rows(
                     entity_type="test",
                     project_gid="proj-1",

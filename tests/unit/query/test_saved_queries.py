@@ -20,6 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import yaml
+from pydantic import ValidationError
 
 from autom8_asana.query.__main__ import CLIError, build_parser, main
 from autom8_asana.query.saved import SavedQuery, find_saved_query, load_saved_query
@@ -185,7 +186,7 @@ class TestInvalidYaml:
         query_file = tmp_path / "bad.yaml"
         query_file.write_text(yaml.dump({"description": "no name or entity_type"}))
 
-        with pytest.raises(Exception):  # pydantic ValidationError
+        with pytest.raises(ValidationError):
             load_saved_query(query_file)
 
     def test_invalid_command_value(self, tmp_path: Path) -> None:
@@ -198,7 +199,7 @@ class TestInvalidYaml:
         query_file = tmp_path / "bad_cmd.yaml"
         query_file.write_text(yaml.dump(data))
 
-        with pytest.raises(Exception):  # pydantic ValidationError
+        with pytest.raises(ValidationError):
             load_saved_query(query_file)
 
 
