@@ -177,8 +177,8 @@ class DependencyShortcutStrategy(ResolutionStrategy):
 
         # Guard against permissive model_validate for Business type
         if target_type is Business:
+            from autom8_asana.core.types import EntityType
             from autom8_asana.models.business.detection import detect_entity_type
-            from autom8_asana.models.business.detection.types import EntityType
 
             detection_result = detect_entity_type(task)
             if (
@@ -297,8 +297,8 @@ class HierarchyTraversalStrategy(ResolutionStrategy):
             # Business.model_validate() is too permissive (any Task validates as Business),
             # so we gate it behind detect_entity_type() which uses ProjectTypeRegistry
             # for O(1) project membership lookup on already-fetched data.
+            from autom8_asana.core.types import EntityType
             from autom8_asana.models.business.detection import detect_entity_type
-            from autom8_asana.models.business.detection.types import EntityType
 
             detection_result = detect_entity_type(parent)
             if detection_result and detection_result.entity_type == EntityType.BUSINESS:

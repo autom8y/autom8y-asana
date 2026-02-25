@@ -43,6 +43,7 @@ def register_all_models() -> None:
     # to avoid circular imports at module load time
     # Import all entity model classes INSIDE the function
     # to avoid circular imports at module load time
+    from autom8_asana.core.types import EntityType
     from autom8_asana.models.business.business import (
         AssetEditHolder,
         Business,
@@ -51,7 +52,6 @@ def register_all_models() -> None:
         VideographyHolder,
     )
     from autom8_asana.models.business.contact import Contact, ContactHolder
-    from autom8_asana.models.business.detection.types import EntityType
     from autom8_asana.models.business.hours import Hours
     from autom8_asana.models.business.location import Location, LocationHolder
     from autom8_asana.models.business.offer import Offer, OfferHolder
