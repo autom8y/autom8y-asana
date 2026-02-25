@@ -225,8 +225,7 @@ class CacheProviderFactory:
     ) -> UnifiedTaskStore:
         """Create unified task store with environment-aware provider selection.
 
-        Per MIGRATION-PLAN-legacy-cache-elimination RF-001:
-        Follows same detection chain as create() for provider selection.
+        Uses the same detection chain as create() for provider selection.
 
         Args:
             config: CacheConfig with provider settings.
