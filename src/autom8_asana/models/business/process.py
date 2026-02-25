@@ -51,8 +51,7 @@ logger = get_logger(__name__)
 class ProcessType(str, Enum):
     """Process types representing workflow stages.
 
-    Per TDD-PROCESS-PIPELINE/ADR-0096: ProcessType includes pipeline types
-    and GENERIC fallback for backward compatibility.
+    Per TDD-PROCESS-PIPELINE/ADR-0096: ProcessType includes pipeline types.
     Per TDD-lifecycle-engine: Added MONTH1, ACCOUNT_ERROR, EXPANSION.
 
     Pipeline types are stakeholder-aligned:
@@ -66,7 +65,8 @@ class ProcessType(str, Enum):
     - ACCOUNT_ERROR: Account error handling
     - EXPANSION: Customer expansion opportunities
 
-    GENERIC is preserved for backward compatibility with existing code.
+    UNKNOWN is the fallback for processes whose project name does not
+    match any known pipeline type.
     """
 
     # Pipeline types (stakeholder-aligned)
@@ -82,8 +82,8 @@ class ProcessType(str, Enum):
     ACCOUNT_ERROR = "account_error"
     EXPANSION = "expansion"
 
-    # Fallback (backward compatibility)
-    GENERIC = "generic"
+    # Fallback for unmatched pipeline types
+    UNKNOWN = "unknown"
 
 
 class ProcessSection(str, Enum):
@@ -439,19 +439,19 @@ class Process(
 
         Returns:
             ProcessType based on project name matching.
-            GENERIC if no project or no matching type.
+            UNKNOWN if no project or no matching type.
         """
         if not self.memberships:
-            return ProcessType.GENERIC
+            return ProcessType.UNKNOWN
 
         for membership in self.memberships:
             project_name = membership.get("project", {}).get("name", "").lower()
 
             for pt in ProcessType:
-                if pt != ProcessType.GENERIC and pt.value in project_name:
+                if pt != ProcessType.UNKNOWN and pt.value in project_name:
                     return pt
 
-        return ProcessType.GENERIC
+        return ProcessType.UNKNOWN
 
 
 class ProcessHolder(

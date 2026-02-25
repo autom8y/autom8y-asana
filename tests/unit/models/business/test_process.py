@@ -28,14 +28,14 @@ class TestProcess:
 class TestProcessType:
     """Tests for ProcessType enum."""
 
-    def test_process_type_generic(self) -> None:
-        """ProcessType.GENERIC is available."""
-        assert ProcessType.GENERIC.value == "generic"
+    def test_process_type_unknown(self) -> None:
+        """ProcessType.UNKNOWN is available."""
+        assert ProcessType.UNKNOWN.value == "unknown"
 
-    def test_process_type_property_returns_generic(self) -> None:
-        """process_type property returns GENERIC in Phase 1."""
+    def test_process_type_property_returns_unknown_default(self) -> None:
+        """process_type property returns UNKNOWN when no memberships."""
         process = Process(gid="123", name="Test Process")
-        assert process.process_type == ProcessType.GENERIC
+        assert process.process_type == ProcessType.UNKNOWN
 
 
 class TestProcessNavigation:
@@ -280,18 +280,18 @@ class TestProcessTypeEnum:
 
     def test_process_type_is_string_enum(self) -> None:
         """ProcessType is a string enum."""
-        assert isinstance(ProcessType.GENERIC, str)
-        assert ProcessType.GENERIC == "generic"
+        assert isinstance(ProcessType.UNKNOWN, str)
+        assert ProcessType.UNKNOWN == "unknown"
 
     def test_process_type_enum_member_count(self) -> None:
         """ProcessType includes 10 pipeline types.
 
-        Per FR-TYPE-001: 6 original pipeline types + GENERIC fallback.
+        Per FR-TYPE-001: 6 original pipeline types + UNKNOWN fallback.
         Per TDD-lifecycle-engine: +3 new types (MONTH1, ACCOUNT_ERROR, EXPANSION).
         """
         members = list(ProcessType)
         assert len(members) == 10
-        assert ProcessType.GENERIC in members
+        assert ProcessType.UNKNOWN in members
         # Verify new lifecycle types exist
         assert ProcessType.MONTH1 in members
         assert ProcessType.ACCOUNT_ERROR in members
@@ -310,14 +310,13 @@ class TestProcessTypeEnum:
         assert ProcessType.RETENTION.value == "retention"
         assert ProcessType.REACTIVATION.value == "reactivation"
 
-    def test_process_type_generic_preserved(self) -> None:
-        """ProcessType.GENERIC is preserved for backward compatibility.
+    def test_process_type_unknown_fallback(self) -> None:
+        """ProcessType.UNKNOWN is the fallback for unmatched pipeline types.
 
-        Per FR-TYPE-002: GENERIC preserved.
         Per FR-TYPE-003: Values are lowercase strings.
         """
-        assert ProcessType.GENERIC.value == "generic"
-        assert isinstance(ProcessType.GENERIC, str)
+        assert ProcessType.UNKNOWN.value == "unknown"
+        assert isinstance(ProcessType.UNKNOWN, str)
 
 
 class TestProcessSectionEnum:
@@ -486,13 +485,13 @@ class TestProcessTypeDetection:
     Per ADR-0101: process_type derived from project name.
     """
 
-    def test_process_type_no_memberships_returns_generic(self) -> None:
-        """process_type returns GENERIC when no memberships."""
+    def test_process_type_no_memberships_returns_unknown(self) -> None:
+        """process_type returns UNKNOWN when no memberships."""
         process = Process(gid="123", name="Test Process", memberships=[])
-        assert process.process_type == ProcessType.GENERIC
+        assert process.process_type == ProcessType.UNKNOWN
 
-    def test_process_type_no_matching_name_returns_generic(self) -> None:
-        """process_type returns GENERIC when project name doesn't match any type."""
+    def test_process_type_no_matching_name_returns_unknown(self) -> None:
+        """process_type returns UNKNOWN when project name doesn't match any type."""
         process = Process(
             gid="123",
             name="Test Process",
@@ -502,7 +501,7 @@ class TestProcessTypeDetection:
                 }
             ],
         )
-        assert process.process_type == ProcessType.GENERIC
+        assert process.process_type == ProcessType.UNKNOWN
 
     def test_process_type_sales_project_returns_sales(self) -> None:
         """process_type returns SALES when project name contains 'sales'."""

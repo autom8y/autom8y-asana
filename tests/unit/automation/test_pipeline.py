@@ -320,11 +320,11 @@ class TestShouldTrigger:
 
         assert result is False
 
-    def test_no_trigger_generic_process(self) -> None:
-        """Test no trigger for generic process type."""
+    def test_no_trigger_unknown_process(self) -> None:
+        """Test no trigger for unknown process type."""
         rule = PipelineConversionRule()
-        process = MockProcess(process_type=ProcessType.GENERIC)
-        context = {"section": "converted", "process_type": "generic"}
+        process = MockProcess(process_type=ProcessType.UNKNOWN)
+        context = {"section": "converted", "process_type": "unknown"}
 
         result = rule.should_trigger(process, EventType.SECTION_CHANGED, context)
 
