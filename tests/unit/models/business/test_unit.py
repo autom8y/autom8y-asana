@@ -205,7 +205,7 @@ class TestUnitCustomFields:
         """mrr setter updates value."""
         unit = Unit(gid="123", custom_fields=[])
         unit.mrr = Decimal("6000")
-        assert unit.get_custom_fields().get("MRR") == 6000.0
+        assert unit.custom_fields_editor().get("MRR") == 6000.0
 
     def test_mrr_none(self) -> None:
         """mrr returns None when not set."""
@@ -266,7 +266,7 @@ class TestUnitCustomFields:
         """platforms returns list from multi-enum field."""
         unit = Unit(gid="123", custom_fields=[])
         # Use set() method to properly add multi-value fields
-        unit.get_custom_fields().set(
+        unit.custom_fields_editor().set(
             "Platforms",
             [
                 {"gid": "e1", "name": "Google"},
@@ -295,7 +295,7 @@ class TestUnitCustomFields:
     def test_specialty_multi_enum(self) -> None:
         """specialty returns list from multi-enum per PRD-0024."""
         unit = Unit(gid="123", custom_fields=[])
-        unit.get_custom_fields().set(
+        unit.custom_fields_editor().set(
             "Specialty",
             [
                 {"gid": "s1", "name": "Dental"},
@@ -312,7 +312,7 @@ class TestUnitCustomFields:
     def test_products_multi_enum(self) -> None:
         """products returns list from multi-enum field."""
         unit = Unit(gid="123", custom_fields=[])
-        unit.get_custom_fields().set(
+        unit.custom_fields_editor().set(
             "Products",
             [
                 {"gid": "p1", "name": "Product A"},
@@ -324,7 +324,7 @@ class TestUnitCustomFields:
     def test_languages_multi_enum(self) -> None:
         """languages returns list from multi-enum field."""
         unit = Unit(gid="123", custom_fields=[])
-        unit.get_custom_fields().set(
+        unit.custom_fields_editor().set(
             "Languages",
             [
                 {"gid": "l1", "name": "English"},
@@ -362,7 +362,7 @@ class TestUnitCustomFields:
     def test_gender_multi_enum(self) -> None:
         """gender returns list from multi-enum per PRD-0024."""
         unit = Unit(gid="123", custom_fields=[])
-        unit.get_custom_fields().set(
+        unit.custom_fields_editor().set(
             "Gender",
             [
                 {"gid": "g1", "name": "Female"},
@@ -391,7 +391,7 @@ class TestUnitCustomFields:
     def test_form_questions_multi_enum(self) -> None:
         """form_questions returns list from multi-enum per PRD-0024."""
         unit = Unit(gid="123", custom_fields=[])
-        unit.get_custom_fields().set(
+        unit.custom_fields_editor().set(
             "Form Questions",
             [
                 {"gid": "q1", "name": "Name"},

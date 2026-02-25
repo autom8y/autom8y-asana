@@ -92,7 +92,7 @@ class StubEntityWithDescriptors(BusinessEntity):
         super().__init__(**data)
         self._mock_accessor: MockCustomFieldAccessor | None = None
 
-    def get_custom_fields(self) -> MockCustomFieldAccessor:
+    def custom_fields_editor(self) -> MockCustomFieldAccessor:
         """Return mock accessor."""
         if self._mock_accessor is None:
             self._mock_accessor = MockCustomFieldAccessor()
@@ -195,7 +195,7 @@ class TestTextField:
 
         entity.company_id = "NEW-001"
 
-        accessor = entity.get_custom_fields()
+        accessor = entity.custom_fields_editor()
         assert accessor._modifications.get("Company ID") == "NEW-001"
 
     def test_set_none(self) -> None:
@@ -205,7 +205,7 @@ class TestTextField:
 
         entity.company_id = None
 
-        accessor = entity.get_custom_fields()
+        accessor = entity.custom_fields_editor()
         assert accessor._modifications.get("Company ID") is None
 
     def test_explicit_field_name(self) -> None:
@@ -277,7 +277,7 @@ class TestEnumField:
 
         entity.vertical = "Healthcare"
 
-        accessor = entity.get_custom_fields()
+        accessor = entity.custom_fields_editor()
         assert accessor._modifications.get("Vertical") == "Healthcare"
 
 
@@ -366,7 +366,7 @@ class TestMultiEnumField:
 
         entity.ad_types = ["Image", "Video"]
 
-        accessor = entity.get_custom_fields()
+        accessor = entity.custom_fields_editor()
         assert accessor._modifications.get("AD Types") == ["Image", "Video"]
 
     def test_set_none(self) -> None:
@@ -376,7 +376,7 @@ class TestMultiEnumField:
 
         entity.ad_types = None
 
-        accessor = entity.get_custom_fields()
+        accessor = entity.custom_fields_editor()
         assert accessor._modifications.get("AD Types") is None
 
 
@@ -436,7 +436,7 @@ class TestNumberField:
 
         entity.mrr = Decimal("5000.00")
 
-        accessor = entity.get_custom_fields()
+        accessor = entity.custom_fields_editor()
         assert accessor._modifications.get("MRR") == 5000.0
         assert isinstance(accessor._modifications.get("MRR"), float)
 
@@ -447,7 +447,7 @@ class TestNumberField:
 
         entity.mrr = None
 
-        accessor = entity.get_custom_fields()
+        accessor = entity.custom_fields_editor()
         assert accessor._modifications.get("MRR") is None
 
     def test_explicit_field_name(self) -> None:
@@ -516,7 +516,7 @@ class TestIntField:
 
         entity.num_ai_copies = 3
 
-        accessor = entity.get_custom_fields()
+        accessor = entity.custom_fields_editor()
         assert accessor._modifications.get("NUM AI Copies") == 3
 
     def test_set_none(self) -> None:
@@ -526,7 +526,7 @@ class TestIntField:
 
         entity.num_ai_copies = None
 
-        accessor = entity.get_custom_fields()
+        accessor = entity.custom_fields_editor()
         assert accessor._modifications.get("NUM AI Copies") is None
 
 
@@ -588,7 +588,7 @@ class TestPeopleField:
         people = [{"gid": "789", "name": "New Person"}]
         entity.rep = people
 
-        accessor = entity.get_custom_fields()
+        accessor = entity.custom_fields_editor()
         assert accessor._modifications.get("Rep") == people
 
     def test_set_none(self) -> None:
@@ -598,7 +598,7 @@ class TestPeopleField:
 
         entity.rep = None
 
-        accessor = entity.get_custom_fields()
+        accessor = entity.custom_fields_editor()
         assert accessor._modifications.get("Rep") is None
 
     def test_explicit_field_name(self) -> None:
@@ -691,7 +691,7 @@ class TestDateField:
         arrow_date = arrow.get("2025-12-25")
         entity.due_date = arrow_date
 
-        accessor = entity.get_custom_fields()
+        accessor = entity.custom_fields_editor()
         assert accessor._modifications.get("Due Date") == "2025-12-25"
 
     def test_set_none(self) -> None:
@@ -701,7 +701,7 @@ class TestDateField:
 
         entity.due_date = None
 
-        accessor = entity.get_custom_fields()
+        accessor = entity.custom_fields_editor()
         assert accessor._modifications.get("Due Date") is None
 
     def test_set_arrow_with_time_serializes_date_only(self) -> None:
@@ -712,7 +712,7 @@ class TestDateField:
         arrow_datetime = arrow.get("2025-12-25T15:30:45Z")
         entity.due_date = arrow_datetime
 
-        accessor = entity.get_custom_fields()
+        accessor = entity.custom_fields_editor()
         # Should only serialize date, not time
         assert accessor._modifications.get("Due Date") == "2025-12-25"
 
@@ -811,7 +811,7 @@ class TestCascadingParameter:
 
         entity.office_phone = "555-5678"
 
-        accessor = entity.get_custom_fields()
+        accessor = entity.custom_fields_editor()
         assert accessor._modifications.get("Office Phone") == "555-5678"
 
 
@@ -863,7 +863,7 @@ class TestFieldsClassWithExistingFields:
 
             new_field = TextField()
 
-            def get_custom_fields(self) -> MockCustomFieldAccessor:
+            def custom_fields_editor(self) -> MockCustomFieldAccessor:
                 return MockCustomFieldAccessor()
 
         # Both should exist
@@ -901,7 +901,7 @@ class TestDescriptorProtocol:
 
         entity.company_id = "NEW-001"
 
-        accessor = entity.get_custom_fields()
+        accessor = entity.custom_fields_editor()
         assert "Company ID" in accessor._modifications
 
     def test_slots_defined(self) -> None:
@@ -938,7 +938,7 @@ class TestCustomFieldDescriptorBase:
 
         mock_obj = MagicMock()
         mock_accessor = MagicMock()
-        mock_obj.get_custom_fields.return_value = mock_accessor
+        mock_obj.custom_fields_editor.return_value = mock_accessor
 
         descriptor._set_value(mock_obj, "test value")
 
@@ -996,4 +996,4 @@ class TestPydanticCompatibility:
 
         # Should work, not raise
         entity.company_id = "NEW"
-        assert entity.get_custom_fields()._modifications.get("Company ID") == "NEW"
+        assert entity.custom_fields_editor()._modifications.get("Company ID") == "NEW"

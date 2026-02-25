@@ -249,7 +249,7 @@ class TestOfferCustomFields:
     def test_platforms_multi_enum(self) -> None:
         """platforms returns list from multi-enum field."""
         offer = Offer(gid="123", custom_fields=[])
-        offer.get_custom_fields().set(
+        offer.custom_fields_editor().set(
             "Platforms",
             [
                 {"gid": "e1", "name": "Google"},
@@ -391,7 +391,7 @@ class TestOfferCustomFields:
     def test_targeting_strategies_multi_enum(self) -> None:
         """targeting_strategies returns list from multi-enum field."""
         offer = Offer(gid="123", custom_fields=[])
-        offer.get_custom_fields().set(
+        offer.custom_fields_editor().set(
             "Targeting Strategies",
             [
                 {"gid": "t1", "name": "Lookalike"},
@@ -493,7 +493,7 @@ class TestOfferCustomFields:
     def test_rep_people_field(self) -> None:
         """rep returns list of people dicts."""
         offer = Offer(gid="123", custom_fields=[])
-        offer.get_custom_fields().set(
+        offer.custom_fields_editor().set(
             "Rep",
             [
                 {"gid": "u1", "name": "John Doe"},

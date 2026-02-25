@@ -86,7 +86,7 @@ class CascadingFieldDef:
             value = getattr(source, self.source_field, None)
         else:
             # Get from custom field
-            value = source.get_custom_fields().get(self.name)
+            value = source.custom_fields_editor().get(self.name)
 
         if self.transform and value is not None:
             value = self.transform(value)
@@ -110,7 +110,7 @@ class CascadingFieldDef:
             return True  # DEFAULT: Always overwrite
 
         # allow_override=True: Check if descendant has a value
-        current_value = descendant.get_custom_fields().get(self.name)
+        current_value = descendant.custom_fields_editor().get(self.name)
         return current_value is None
 
 
@@ -182,7 +182,7 @@ class InheritedFieldDef:
         if not self.allow_override:
             return False
 
-        override_value = entity.get_custom_fields().get(self.override_field_name)
+        override_value = entity.custom_fields_editor().get(self.override_field_name)
         return override_value in ("Yes", "yes", True, "true", "1")
 
     def resolve(
@@ -202,7 +202,7 @@ class InheritedFieldDef:
         """
         # Check local override first
         if self.allow_override and self.is_overridden(entity):
-            local_value = entity.get_custom_fields().get(self.name)
+            local_value = entity.custom_fields_editor().get(self.name)
             if local_value is not None:
                 return local_value
 
@@ -210,7 +210,7 @@ class InheritedFieldDef:
         for parent in parent_chain:
             parent_type = type(parent).__name__
             if parent_type in self.inherit_from:
-                value = parent.get_custom_fields().get(self.name)
+                value = parent.custom_fields_editor().get(self.name)
                 if value is not None:
                     return value
 

@@ -175,7 +175,7 @@ class CascadeExecutor:
         for entity, val in updates:
             try:
                 # Update the custom field
-                entity.get_custom_fields().set(field_def.name, val)
+                entity.custom_fields_editor().set(field_def.name, val)
                 result.entities_updated.append(entity)
                 result.operations_succeeded += 1
             except (

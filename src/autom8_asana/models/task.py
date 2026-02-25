@@ -223,8 +223,9 @@ class Task(AsanaResource):
     def _get_or_create_accessor(self) -> CustomFieldAccessor:
         """Internal: Get or create accessor instance.
 
-        Per TDD-TRIAGE-FIXES: Uses strict=False to maintain backward compatibility
-        with existing code that sets unknown custom fields (e.g., business models).
+        Per TDD-TRIAGE-FIXES: Uses strict=False for intentional lenient field access.
+        Business models may set fields that don't exist in the current workspace;
+        strict=False allows this (Asana API validates on write).
 
         Returns:
             CustomFieldAccessor instance (cached for this task).
@@ -252,33 +253,6 @@ class Task(AsanaResource):
         Returns:
             CustomFieldAccessor instance (cached for this task).
         """
-        return self._get_or_create_accessor()
-
-    def get_custom_fields(self) -> CustomFieldAccessor:
-        """Get custom fields accessor for fluent API.
-
-        .. deprecated::
-            Use :meth:`custom_fields_editor` instead.
-
-        Returns a CustomFieldAccessor that provides set/get/remove methods
-        with automatic name->GID resolution. The accessor tracks modifications
-        for change detection.
-
-        Example:
-            accessor = task.get_custom_fields()
-            accessor.set("Priority", "High")
-            value = accessor.get("Status")
-
-        Returns:
-            CustomFieldAccessor instance (cached for this task).
-        """
-        import warnings
-
-        warnings.warn(
-            "get_custom_fields() is deprecated. Use custom_fields_editor() instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
         return self._get_or_create_accessor()
 
     def model_dump(self, **kwargs: Any) -> dict[str, Any]:

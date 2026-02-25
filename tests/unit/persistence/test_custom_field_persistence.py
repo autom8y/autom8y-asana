@@ -165,7 +165,7 @@ class TestTextFieldPersistence:
         session.track(task)
 
         # Modify text field via accessor
-        accessor = task.get_custom_fields()
+        accessor = task.custom_fields_editor()
         accessor.set("Description", "Updated description")
 
         crud_ops, _ = session.preview()
@@ -211,7 +211,7 @@ class TestNumberFieldPersistence:
         session.track(task)
 
         # Modify number field
-        accessor = task.get_custom_fields()
+        accessor = task.custom_fields_editor()
         accessor.set("Priority Score", 10)
 
         crud_ops, _ = session.preview()
@@ -257,7 +257,7 @@ class TestEnumFieldPersistence:
         session.track(task)
 
         # Modify enum field to different value
-        accessor = task.get_custom_fields()
+        accessor = task.custom_fields_editor()
         accessor.set("Status", "Done")
 
         crud_ops, _ = session.preview()
@@ -303,7 +303,7 @@ class TestMultiEnumFieldPersistence:
         session.track(task)
 
         # Modify multi_enum field
-        accessor = task.get_custom_fields()
+        accessor = task.custom_fields_editor()
         accessor.set("Labels", ["Enhancement"])
 
         crud_ops, _ = session.preview()
@@ -349,7 +349,7 @@ class TestDateFieldPersistence:
         session.track(task)
 
         # Modify date field
-        accessor = task.get_custom_fields()
+        accessor = task.custom_fields_editor()
         accessor.set("Target Date", "2025-01-15")
 
         crud_ops, _ = session.preview()
@@ -395,7 +395,7 @@ class TestPeopleFieldPersistence:
         session.track(task)
 
         # Modify people field
-        accessor = task.get_custom_fields()
+        accessor = task.custom_fields_editor()
         accessor.set("Reviewers", ["user_3"])
 
         crud_ops, _ = session.preview()
@@ -451,7 +451,7 @@ class TestMultipleCustomFields:
         session.track(task)
 
         # Modify multiple fields
-        accessor = task.get_custom_fields()
+        accessor = task.custom_fields_editor()
         accessor.set("Description", "New description")
         accessor.set("Priority Score", 100)
 
@@ -509,7 +509,7 @@ class TestCustomFieldEdgeCases:
         session.track(task)
 
         # Remove field value
-        accessor = task.get_custom_fields()
+        accessor = task.custom_fields_editor()
         accessor.remove("Description")
 
         crud_ops, _ = session.preview()
@@ -533,7 +533,7 @@ class TestCustomFieldEdgeCases:
         session.track(task)
 
         # Modify custom field
-        accessor = task.get_custom_fields()
+        accessor = task.custom_fields_editor()
         accessor.set("Description", "Updated value")
 
         result = await session.commit_async()

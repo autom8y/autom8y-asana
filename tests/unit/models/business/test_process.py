@@ -108,7 +108,7 @@ class TestProcessCustomFields:
         """status setter updates value."""
         process = Process(gid="123", custom_fields=[])
         process.status = "Completed"
-        assert process.get_custom_fields().get("Status") == "Completed"
+        assert process.custom_fields_editor().get("Status") == "Completed"
 
     def test_priority_enum(self) -> None:
         """priority extracts name from enum dict."""
@@ -124,13 +124,13 @@ class TestProcessCustomFields:
         """priority setter updates value."""
         process = Process(gid="123", custom_fields=[])
         process.priority = "Low"
-        assert process.get_custom_fields().get("Priority") == "Low"
+        assert process.custom_fields_editor().get("Priority") == "Low"
 
     def test_assigned_to_people_field(self) -> None:
         """assigned_to returns list of people dicts."""
         process = Process(gid="123", custom_fields=[])
         # Use set() method to properly add multi-value fields
-        process.get_custom_fields().set(
+        process.custom_fields_editor().set(
             "Assigned To",
             [
                 {"gid": "u1", "name": "John Doe"},
@@ -614,7 +614,7 @@ class TestSalesPipelineFields:
     def test_sales_rep_people_field(self) -> None:
         """rep returns list of people dicts."""
         process = Process(gid="123", custom_fields=[])
-        process.get_custom_fields().set(
+        process.custom_fields_editor().set(
             "Rep",
             [
                 {"gid": "u1", "name": "Sales Rep"},
@@ -760,7 +760,7 @@ class TestOnboardingPipelineFields:
     def test_onboarding_specialist_people_field(self) -> None:
         """onboarding_specialist returns list of people dicts."""
         process = Process(gid="123", custom_fields=[])
-        process.get_custom_fields().set(
+        process.custom_fields_editor().set(
             "Onboarding Specialist",
             [
                 {"gid": "u1", "name": "Onboarding Lead"},
@@ -875,7 +875,7 @@ class TestImplementationPipelineFields:
     def test_implementation_lead_people_field(self) -> None:
         """implementation_lead returns list of people dicts."""
         process = Process(gid="123", custom_fields=[])
-        process.get_custom_fields().set(
+        process.custom_fields_editor().set(
             "Implementation Lead",
             [
                 {"gid": "u1", "name": "Project Manager"},

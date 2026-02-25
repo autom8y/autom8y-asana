@@ -653,7 +653,7 @@ async def demo_string_cf(
 
     async with client.save_session() as session:
         session.track(task)
-        cf = task.get_custom_fields()
+        cf = task.custom_fields_editor()
         cf.set(field_info.name, test_value_1)
         crud_ops, action_ops = session.preview()
 
@@ -687,7 +687,7 @@ async def demo_string_cf(
 
     async with client.save_session() as session:
         session.track(task)
-        cf = task.get_custom_fields()
+        cf = task.custom_fields_editor()
         cf.set(field_info.name, test_value_2)
         crud_ops, action_ops = session.preview()
 
@@ -719,7 +719,7 @@ async def demo_string_cf(
 
     async with client.save_session() as session:
         session.track(task)
-        cf = task.get_custom_fields()
+        cf = task.custom_fields_editor()
         cf.set(field_info.name, None)
         crud_ops, action_ops = session.preview()
 
@@ -749,7 +749,7 @@ async def demo_string_cf(
 
     async with client.save_session() as session:
         session.track(task)
-        cf = task.get_custom_fields()
+        cf = task.custom_fields_editor()
         cf.set(field_info.name, original_value)
         crud_ops, action_ops = session.preview()
 
@@ -859,7 +859,7 @@ async def demo_people_cf(
 
     async with client.save_session() as session:
         session.track(task)
-        cf = task.get_custom_fields()
+        cf = task.custom_fields_editor()
         # People fields expect a list of user GIDs
         cf.set(field_info.name, [test_user_gid])
         crud_ops, action_ops = session.preview()
@@ -892,7 +892,7 @@ async def demo_people_cf(
 
     async with client.save_session() as session:
         session.track(task)
-        cf = task.get_custom_fields()
+        cf = task.custom_fields_editor()
         cf.set(field_info.name, None)
         crud_ops, action_ops = session.preview()
 
@@ -922,7 +922,7 @@ async def demo_people_cf(
 
     async with client.save_session() as session:
         session.track(task)
-        cf = task.get_custom_fields()
+        cf = task.custom_fields_editor()
         # Restore original list of user GIDs (or None if was empty)
         restore_value = original_value if original_value else None
         cf.set(field_info.name, restore_value)
@@ -1025,7 +1025,7 @@ async def demo_enum_cf(
 
     async with client.save_session() as session:
         session.track(task)
-        cf = task.get_custom_fields()
+        cf = task.custom_fields_editor()
         # Enum fields expect the option GID
         cf.set(field_info.name, new_option_gid)
         crud_ops, action_ops = session.preview()
@@ -1058,7 +1058,7 @@ async def demo_enum_cf(
 
     async with client.save_session() as session:
         session.track(task)
-        cf = task.get_custom_fields()
+        cf = task.custom_fields_editor()
         cf.set(field_info.name, None)
         crud_ops, action_ops = session.preview()
 
@@ -1088,7 +1088,7 @@ async def demo_enum_cf(
 
     async with client.save_session() as session:
         session.track(task)
-        cf = task.get_custom_fields()
+        cf = task.custom_fields_editor()
         cf.set(field_info.name, original_value)
         crud_ops, action_ops = session.preview()
 
@@ -1182,7 +1182,7 @@ async def demo_number_cf(
 
     async with client.save_session() as session:
         session.track(task)
-        cf = task.get_custom_fields()
+        cf = task.custom_fields_editor()
         cf.set(field_info.name, test_value_1)
         crud_ops, action_ops = session.preview()
 
@@ -1216,7 +1216,7 @@ async def demo_number_cf(
 
     async with client.save_session() as session:
         session.track(task)
-        cf = task.get_custom_fields()
+        cf = task.custom_fields_editor()
         cf.set(field_info.name, test_value_2)
         crud_ops, action_ops = session.preview()
 
@@ -1248,7 +1248,7 @@ async def demo_number_cf(
 
     async with client.save_session() as session:
         session.track(task)
-        cf = task.get_custom_fields()
+        cf = task.custom_fields_editor()
         cf.set(field_info.name, None)
         crud_ops, action_ops = session.preview()
 
@@ -1278,7 +1278,7 @@ async def demo_number_cf(
 
     async with client.save_session() as session:
         session.track(task)
-        cf = task.get_custom_fields()
+        cf = task.custom_fields_editor()
         cf.set(field_info.name, original_value)
         crud_ops, action_ops = session.preview()
 
@@ -1389,7 +1389,7 @@ async def demo_multienum_cf(
 
     async with client.save_session() as session:
         session.track(task)
-        cf = task.get_custom_fields()
+        cf = task.custom_fields_editor()
         # Multi-enum expects list of option GIDs
         cf.set(field_info.name, [option_1["gid"]])
         crud_ops, action_ops = session.preview()
@@ -1422,7 +1422,7 @@ async def demo_multienum_cf(
 
     async with client.save_session() as session:
         session.track(task)
-        cf = task.get_custom_fields()
+        cf = task.custom_fields_editor()
         # Replace with both options
         cf.set(field_info.name, [option_1["gid"], option_2["gid"]])
         crud_ops, action_ops = session.preview()
@@ -1458,7 +1458,7 @@ async def demo_multienum_cf(
 
     async with client.save_session() as session:
         session.track(task)
-        cf = task.get_custom_fields()
+        cf = task.custom_fields_editor()
         cf.set(field_info.name, None)
         crud_ops, action_ops = session.preview()
 
@@ -1488,7 +1488,7 @@ async def demo_multienum_cf(
 
     async with client.save_session() as session:
         session.track(task)
-        cf = task.get_custom_fields()
+        cf = task.custom_fields_editor()
         # Restore original list of GIDs (or None if was empty)
         restore_value = original_value if original_value else None
         cf.set(field_info.name, restore_value)
