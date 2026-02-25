@@ -27,7 +27,6 @@ import argparse
 import asyncio
 import json
 import os
-import pathlib
 import sys
 import time
 from dataclasses import dataclass
