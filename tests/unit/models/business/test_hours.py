@@ -30,7 +30,7 @@ class TestHoursNewProperties:
     def test_monday_getter(self) -> None:
         """monday getter returns list from multi-enum."""
         hours = Hours(gid="123", custom_fields=[])
-        hours.get_custom_fields().set(
+        hours.custom_fields_editor().set(
             "Monday",
             [
                 {"gid": "t1", "name": "08:00:00"},
@@ -48,13 +48,13 @@ class TestHoursNewProperties:
         """monday setter updates value."""
         hours = Hours(gid="123", custom_fields=[])
         hours.monday = ["09:00:00", "18:00:00"]
-        assert hours.get_custom_fields().get("Monday") == ["09:00:00", "18:00:00"]
-        assert hours.get_custom_fields().has_changes()
+        assert hours.custom_fields_editor().get("Monday") == ["09:00:00", "18:00:00"]
+        assert hours.custom_fields_editor().has_changes()
 
     def test_tuesday_getter(self) -> None:
         """tuesday getter returns list from multi-enum."""
         hours = Hours(gid="123", custom_fields=[])
-        hours.get_custom_fields().set(
+        hours.custom_fields_editor().set(
             "Tuesday",
             [
                 {"gid": "t1", "name": "09:00:00"},
@@ -65,7 +65,7 @@ class TestHoursNewProperties:
     def test_wednesday_getter(self) -> None:
         """wednesday getter returns list from multi-enum."""
         hours = Hours(gid="123", custom_fields=[])
-        hours.get_custom_fields().set(
+        hours.custom_fields_editor().set(
             "Wednesday",
             [
                 {"gid": "t1", "name": "10:00:00"},
@@ -76,7 +76,7 @@ class TestHoursNewProperties:
     def test_thursday_getter(self) -> None:
         """thursday getter returns list from multi-enum."""
         hours = Hours(gid="123", custom_fields=[])
-        hours.get_custom_fields().set(
+        hours.custom_fields_editor().set(
             "Thursday",
             [
                 {"gid": "t1", "name": "08:30:00"},
@@ -87,7 +87,7 @@ class TestHoursNewProperties:
     def test_friday_getter(self) -> None:
         """friday getter returns list from multi-enum."""
         hours = Hours(gid="123", custom_fields=[])
-        hours.get_custom_fields().set(
+        hours.custom_fields_editor().set(
             "Friday",
             [
                 {"gid": "t1", "name": "08:00:00"},
@@ -99,7 +99,7 @@ class TestHoursNewProperties:
     def test_saturday_getter(self) -> None:
         """saturday getter returns list from multi-enum."""
         hours = Hours(gid="123", custom_fields=[])
-        hours.get_custom_fields().set(
+        hours.custom_fields_editor().set(
             "Saturday",
             [
                 {"gid": "t1", "name": "10:00:00"},
@@ -115,7 +115,7 @@ class TestHoursHelperProperties:
     def test_monday_open(self) -> None:
         """monday_open returns first value from multi-enum."""
         hours = Hours(gid="123", custom_fields=[])
-        hours.get_custom_fields().set(
+        hours.custom_fields_editor().set(
             "Monday",
             [
                 {"gid": "t1", "name": "08:00:00"},
@@ -132,7 +132,7 @@ class TestHoursHelperProperties:
     def test_monday_close(self) -> None:
         """monday_close returns last value from multi-enum."""
         hours = Hours(gid="123", custom_fields=[])
-        hours.get_custom_fields().set(
+        hours.custom_fields_editor().set(
             "Monday",
             [
                 {"gid": "t1", "name": "08:00:00"},
@@ -144,7 +144,7 @@ class TestHoursHelperProperties:
     def test_monday_close_single_value(self) -> None:
         """monday_close returns None when only one value."""
         hours = Hours(gid="123", custom_fields=[])
-        hours.get_custom_fields().set(
+        hours.custom_fields_editor().set(
             "Monday",
             [
                 {"gid": "t1", "name": "08:00:00"},
@@ -159,11 +159,11 @@ class TestHoursComputedProperties:
     def test_weekday_hours(self) -> None:
         """weekday_hours returns Monday-Friday hours."""
         hours = Hours(gid="123", custom_fields=[])
-        hours.get_custom_fields().set("Monday", [{"gid": "1", "name": "9-5"}])
-        hours.get_custom_fields().set("Tuesday", [{"gid": "2", "name": "9-5"}])
-        hours.get_custom_fields().set("Wednesday", [{"gid": "3", "name": "9-5"}])
-        hours.get_custom_fields().set("Thursday", [{"gid": "4", "name": "9-5"}])
-        hours.get_custom_fields().set("Friday", [{"gid": "5", "name": "9-5"}])
+        hours.custom_fields_editor().set("Monday", [{"gid": "1", "name": "9-5"}])
+        hours.custom_fields_editor().set("Tuesday", [{"gid": "2", "name": "9-5"}])
+        hours.custom_fields_editor().set("Wednesday", [{"gid": "3", "name": "9-5"}])
+        hours.custom_fields_editor().set("Thursday", [{"gid": "4", "name": "9-5"}])
+        hours.custom_fields_editor().set("Friday", [{"gid": "5", "name": "9-5"}])
 
         weekday = hours.weekday_hours
         assert weekday["monday"] == ["9-5"]
@@ -188,7 +188,7 @@ class TestHoursIsOpenOn:
     def test_is_open_on_returns_true_when_hours_set(self) -> None:
         """is_open_on returns True when hours are set (non-empty list)."""
         hours = Hours(gid="123", custom_fields=[])
-        hours.get_custom_fields().set(
+        hours.custom_fields_editor().set(
             "Monday",
             [
                 {"gid": "t1", "name": "08:00:00"},
@@ -204,7 +204,7 @@ class TestHoursIsOpenOn:
     def test_is_open_on_case_insensitive(self) -> None:
         """is_open_on is case-insensitive for day names."""
         hours = Hours(gid="123", custom_fields=[])
-        hours.get_custom_fields().set(
+        hours.custom_fields_editor().set(
             "Monday",
             [
                 {"gid": "t1", "name": "08:00:00"},

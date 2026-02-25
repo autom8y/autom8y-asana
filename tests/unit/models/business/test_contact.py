@@ -154,8 +154,8 @@ class TestContactCustomFields:
         """contact_email setter updates value."""
         contact = Contact(gid="123", custom_fields=[])
         contact.contact_email = "new@example.com"
-        assert contact.get_custom_fields().get("Contact Email") == "new@example.com"
-        assert contact.get_custom_fields().has_changes()
+        assert contact.custom_fields_editor().get("Contact Email") == "new@example.com"
+        assert contact.custom_fields_editor().has_changes()
 
     def test_contact_phone_getter(self) -> None:
         """contact_phone getter returns value."""

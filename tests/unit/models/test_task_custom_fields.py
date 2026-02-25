@@ -89,120 +89,22 @@ class TestTaskCustomFieldsEditor:
         editor.set("Priority", "Low")
         assert editor.get("Priority") == "Low"
 
-    def test_custom_fields_editor_and_get_custom_fields_share_instance(self) -> None:
-        """custom_fields_editor() and get_custom_fields() return same instance.
-
-        Per implementation: Both methods use _get_or_create_accessor().
-        """
+    def test_custom_fields_editor_cached(self) -> None:
+        """custom_fields_editor returns same accessor instance (cached)."""
         task = Task(gid="123", custom_fields=[])
-
-        editor = task.custom_fields_editor()
-
-        # Suppress the deprecation warning for this test
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            accessor = task.get_custom_fields()
-
-        assert editor is accessor
-
-
-class TestTaskGetCustomFieldsDeprecation:
-    """Tests for Task.get_custom_fields() deprecation warning.
-
-    Per Initiative B Phase 2: FR-004 - get_custom_fields() emits DeprecationWarning.
-    """
-
-    def test_get_custom_fields_emits_deprecation_warning(self) -> None:
-        """get_custom_fields emits DeprecationWarning.
-
-        Per FR-004: get_custom_fields() emits DeprecationWarning.
-        """
-        task = Task(gid="123", custom_fields=[])
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            task.get_custom_fields()
-
-            # Should emit exactly one deprecation warning
-            deprecation_warnings = [
-                warning
-                for warning in w
-                if issubclass(warning.category, DeprecationWarning)
-            ]
-            assert len(deprecation_warnings) == 1
-            assert "get_custom_fields() is deprecated" in str(
-                deprecation_warnings[0].message
-            )
-            assert "custom_fields_editor()" in str(deprecation_warnings[0].message)
-
-    def test_get_custom_fields_warning_stacklevel(self) -> None:
-        """get_custom_fields warning points to caller, not implementation.
-
-        Per implementation: stacklevel=2 ensures warning points to caller.
-        """
-        task = Task(gid="123", custom_fields=[])
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            task.get_custom_fields()
-
-            assert len(w) >= 1
-            # Warning should reference this test file, not task.py
-            warning = w[0]
-            assert "test_task_custom_fields.py" in warning.filename
-
-    def test_get_custom_fields_still_works(self) -> None:
-        """get_custom_fields still returns accessor despite deprecation.
-
-        Per backward compatibility: Method still works, just warns.
-        """
-        task = Task(
-            gid="123",
-            custom_fields=[{"gid": "456", "name": "Priority", "text_value": "High"}],
-        )
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            accessor = task.get_custom_fields()
-
-        assert isinstance(accessor, CustomFieldAccessor)
-        assert accessor.get("Priority") == "High"
-
-
-class TestTaskGetCustomFields:
-    """Tests for Task.get_custom_fields() method (legacy tests)."""
-
-    def test_get_custom_fields_accessor(self) -> None:
-        """get_custom_fields returns CustomFieldAccessor instance."""
-        task = Task(
-            gid="123",
-            custom_fields=[{"gid": "456", "name": "Priority", "text_value": "High"}],
-        )
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            accessor = task.get_custom_fields()
-        assert isinstance(accessor, CustomFieldAccessor)
-
-    def test_accessor_cached(self) -> None:
-        """get_custom_fields returns same accessor instance (cached)."""
-        task = Task(gid="123", custom_fields=[])
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            accessor1 = task.get_custom_fields()
-            accessor2 = task.get_custom_fields()
+        accessor1 = task.custom_fields_editor()
+        accessor2 = task.custom_fields_editor()
         assert accessor1 is accessor2
 
-    def test_accessor_with_none_custom_fields(self) -> None:
-        """get_custom_fields works when custom_fields is None."""
+    def test_custom_fields_editor_with_none(self) -> None:
+        """custom_fields_editor works when custom_fields is None."""
         task = Task(gid="123")
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            accessor = task.get_custom_fields()
+        accessor = task.custom_fields_editor()
         assert isinstance(accessor, CustomFieldAccessor)
         assert len(accessor) == 0
 
-    def test_accessor_get_value(self) -> None:
-        """Accessor can get values from task custom_fields."""
+    def test_custom_fields_editor_get_value(self) -> None:
+        """Editor can get values from task custom_fields."""
         task = Task(
             gid="123",
             custom_fields=[
@@ -210,21 +112,17 @@ class TestTaskGetCustomFields:
                 {"gid": "789", "name": "MRR", "number_value": 1000.5},
             ],
         )
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            accessor = task.get_custom_fields()
+        accessor = task.custom_fields_editor()
         assert accessor.get("Priority") == "High"
         assert accessor.get("MRR") == 1000.5
 
-    def test_accessor_set_value(self) -> None:
-        """Accessor can set values."""
+    def test_custom_fields_editor_set_value(self) -> None:
+        """Editor can set values."""
         task = Task(
             gid="123",
             custom_fields=[{"gid": "456", "name": "Priority", "text_value": "High"}],
         )
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            accessor = task.get_custom_fields()
+        accessor = task.custom_fields_editor()
         accessor.set("Priority", "Low")
         assert accessor.get("Priority") == "Low"
 
@@ -800,7 +698,7 @@ class TestResetCustomFieldTracking:
     def test_reset_with_no_accessor(self) -> None:
         """reset_custom_field_tracking() works when accessor was never created.
 
-        Per ADR-0074: Safe to call even if get_custom_fields() was never called.
+        Per ADR-0074: Safe to call even if custom_fields_editor() was never called.
         """
         task = Task(
             gid="123",

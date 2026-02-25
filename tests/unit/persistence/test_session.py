@@ -1924,7 +1924,7 @@ class TestCustomFieldTrackingReset:
         session.track(task)
 
         # Make custom field change via accessor
-        accessor = task.get_custom_fields()
+        accessor = task.custom_fields_editor()
         accessor.set("Priority", "Low")
 
         # Verify accessor has changes before commit
@@ -1988,7 +1988,7 @@ class TestCustomFieldTrackingReset:
         session.track(task)
 
         # Make custom field change
-        accessor = task.get_custom_fields()
+        accessor = task.custom_fields_editor()
         accessor.set("Priority", "Low")
 
         # Make name change to trigger CRUD operation
@@ -2037,9 +2037,9 @@ class TestCustomFieldTrackingReset:
         session.track(task2)
 
         # Make changes to both
-        accessor1 = task1.get_custom_fields()
+        accessor1 = task1.custom_fields_editor()
         accessor1.set("Field1", "Modified1")
-        accessor2 = task2.get_custom_fields()
+        accessor2 = task2.custom_fields_editor()
         accessor2.set("Field2", "Modified2")
 
         task1.name = "Modified 1"

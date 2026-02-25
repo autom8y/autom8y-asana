@@ -21,7 +21,7 @@ class TestFieldPredicate:
     def test_matches_exact_value(self) -> None:
         """Test matching exact field value."""
         entity = make_business_entity("test-123", "Test")
-        entity.get_custom_fields = MagicMock(return_value={"position": "Owner"})
+        entity.custom_fields_editor = MagicMock(return_value={"position": "Owner"})
 
         predicate = FieldPredicate("position", "Owner")
         assert predicate.matches(entity) is True
@@ -29,7 +29,7 @@ class TestFieldPredicate:
     def test_no_match(self) -> None:
         """Test no match when values differ."""
         entity = make_business_entity("test-123", "Test")
-        entity.get_custom_fields = MagicMock(return_value={"position": "Manager"})
+        entity.custom_fields_editor = MagicMock(return_value={"position": "Manager"})
 
         predicate = FieldPredicate("position", "Owner")
         assert predicate.matches(entity) is False
@@ -37,7 +37,7 @@ class TestFieldPredicate:
     def test_matches_dict_name(self) -> None:
         """Test matching dict with 'name' key."""
         entity = make_business_entity("test-123", "Test")
-        entity.get_custom_fields = MagicMock(
+        entity.custom_fields_editor = MagicMock(
             return_value={"position": {"name": "Owner", "gid": "123"}}
         )
 
@@ -47,7 +47,7 @@ class TestFieldPredicate:
     def test_matches_dict_display_value(self) -> None:
         """Test matching dict with 'display_value' key."""
         entity = make_business_entity("test-123", "Test")
-        entity.get_custom_fields = MagicMock(
+        entity.custom_fields_editor = MagicMock(
             return_value={"position": {"display_value": "Owner"}}
         )
 
@@ -57,7 +57,7 @@ class TestFieldPredicate:
     def test_field_not_present(self) -> None:
         """Test behavior when field is not present."""
         entity = make_business_entity("test-123", "Test")
-        entity.get_custom_fields = MagicMock(return_value={})
+        entity.custom_fields_editor = MagicMock(return_value={})
 
         predicate = FieldPredicate("position", "Owner")
         assert predicate.matches(entity) is False
@@ -69,7 +69,7 @@ class TestCompoundPredicate:
     def test_and_operator_all_match(self) -> None:
         """Test AND operator when all predicates match."""
         entity = make_business_entity("test-123", "Test")
-        entity.get_custom_fields = MagicMock(
+        entity.custom_fields_editor = MagicMock(
             return_value={"position": "Owner", "status": "Active"}
         )
 
@@ -85,7 +85,7 @@ class TestCompoundPredicate:
     def test_and_operator_partial_match(self) -> None:
         """Test AND operator when only some predicates match."""
         entity = make_business_entity("test-123", "Test")
-        entity.get_custom_fields = MagicMock(
+        entity.custom_fields_editor = MagicMock(
             return_value={"position": "Owner", "status": "Inactive"}
         )
 
@@ -101,7 +101,7 @@ class TestCompoundPredicate:
     def test_or_operator_any_match(self) -> None:
         """Test OR operator when any predicate matches."""
         entity = make_business_entity("test-123", "Test")
-        entity.get_custom_fields = MagicMock(
+        entity.custom_fields_editor = MagicMock(
             return_value={"position": "Manager", "status": "Active"}
         )
 
@@ -117,7 +117,7 @@ class TestCompoundPredicate:
     def test_or_operator_no_match(self) -> None:
         """Test OR operator when no predicates match."""
         entity = make_business_entity("test-123", "Test")
-        entity.get_custom_fields = MagicMock(
+        entity.custom_fields_editor = MagicMock(
             return_value={"position": "Manager", "status": "Inactive"}
         )
 
@@ -163,10 +163,10 @@ class TestEntitySelector:
     def test_select_with_predicate(self) -> None:
         """Test select with matching predicate."""
         entity1 = make_business_entity("1", "First")
-        entity1.get_custom_fields = MagicMock(return_value={"type": "A"})
+        entity1.custom_fields_editor = MagicMock(return_value={"type": "A"})
 
         entity2 = make_business_entity("2", "Second")
-        entity2.get_custom_fields = MagicMock(return_value={"type": "B"})
+        entity2.custom_fields_editor = MagicMock(return_value={"type": "B"})
 
         children = [entity1, entity2]
         selector = EntitySelector()
@@ -176,7 +176,7 @@ class TestEntitySelector:
     def test_select_no_match_returns_none(self) -> None:
         """Test select returns None when no match."""
         entity = make_business_entity("1", "Test")
-        entity.get_custom_fields = MagicMock(return_value={"type": "A"})
+        entity.custom_fields_editor = MagicMock(return_value={"type": "A"})
 
         selector = EntitySelector()
         result = selector.select([entity], FieldPredicate("type", "B"))
@@ -195,13 +195,13 @@ class TestEntitySelector:
     def test_select_all_with_predicate(self) -> None:
         """Test select_all with predicate."""
         entity1 = make_business_entity("1", "First")
-        entity1.get_custom_fields = MagicMock(return_value={"active": "true"})
+        entity1.custom_fields_editor = MagicMock(return_value={"active": "true"})
 
         entity2 = make_business_entity("2", "Second")
-        entity2.get_custom_fields = MagicMock(return_value={"active": "false"})
+        entity2.custom_fields_editor = MagicMock(return_value={"active": "false"})
 
         entity3 = make_business_entity("3", "Third")
-        entity3.get_custom_fields = MagicMock(return_value={"active": "true"})
+        entity3.custom_fields_editor = MagicMock(return_value={"active": "true"})
 
         children = [entity1, entity2, entity3]
         selector = EntitySelector()

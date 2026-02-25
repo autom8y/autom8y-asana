@@ -35,7 +35,7 @@ class FieldPredicate(SelectionPredicate):
     expected_value: Any
 
     def matches(self, entity: BusinessEntity) -> bool:
-        actual = entity.get_custom_fields().get(self.field_name)
+        actual = entity.custom_fields_editor().get(self.field_name)
         if isinstance(actual, dict):
             actual = actual.get("name", actual.get("display_value"))
         return bool(actual == self.expected_value)

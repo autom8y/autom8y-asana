@@ -76,7 +76,7 @@ class TestBusinessEntitySubclass:
             gid="123",
             custom_fields=[{"gid": "456", "name": "Test Field", "text_value": "test"}],
         )
-        assert entity.get_custom_fields().get("Test Field") == "test"
+        assert entity.custom_fields_editor().get("Test Field") == "test"
 
 
 class TestHolderMixin:

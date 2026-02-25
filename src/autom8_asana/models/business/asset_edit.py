@@ -115,7 +115,7 @@ class AssetEdit(Process):
 
     @asset_approval.setter
     def asset_approval(self, value: str | None) -> None:
-        self.get_custom_fields().set(self.Fields.ASSET_APPROVAL, value)
+        self.custom_fields_editor().set(self.Fields.ASSET_APPROVAL, value)
 
     @property
     def asset_id(self) -> str | None:
@@ -124,27 +124,27 @@ class AssetEdit(Process):
 
     @asset_id.setter
     def asset_id(self, value: str | None) -> None:
-        self.get_custom_fields().set(self.Fields.ASSET_ID, value)
+        self.custom_fields_editor().set(self.Fields.ASSET_ID, value)
 
     @property
     def editor(self) -> list[dict[str, Any]]:
         """Editor users (people custom field)."""
-        value: Any = self.get_custom_fields().get(self.Fields.EDITOR)
+        value: Any = self.custom_fields_editor().get(self.Fields.EDITOR)
         return value if isinstance(value, list) else []
 
     @editor.setter
     def editor(self, value: list[dict[str, Any]] | None) -> None:
-        self.get_custom_fields().set(self.Fields.EDITOR, value)
+        self.custom_fields_editor().set(self.Fields.EDITOR, value)
 
     @property
     def reviewer(self) -> list[dict[str, Any]]:
         """Reviewer users (people custom field)."""
-        value: Any = self.get_custom_fields().get(self.Fields.REVIEWER)
+        value: Any = self.custom_fields_editor().get(self.Fields.REVIEWER)
         return value if isinstance(value, list) else []
 
     @reviewer.setter
     def reviewer(self, value: list[dict[str, Any]] | None) -> None:
-        self.get_custom_fields().set(self.Fields.REVIEWER, value)
+        self.custom_fields_editor().set(self.Fields.REVIEWER, value)
 
     @property
     def offer_id(self) -> int | None:
@@ -158,7 +158,7 @@ class AssetEdit(Process):
 
     @offer_id.setter
     def offer_id(self, value: int | None) -> None:
-        self.get_custom_fields().set(self.Fields.OFFER_ID, value)
+        self.custom_fields_editor().set(self.Fields.OFFER_ID, value)
 
     @property
     def raw_assets(self) -> str | None:
@@ -167,7 +167,7 @@ class AssetEdit(Process):
 
     @raw_assets.setter
     def raw_assets(self, value: str | None) -> None:
-        self.get_custom_fields().set(self.Fields.RAW_ASSETS, value)
+        self.custom_fields_editor().set(self.Fields.RAW_ASSETS, value)
 
     @property
     def review_all_ads(self) -> bool | None:
@@ -184,9 +184,9 @@ class AssetEdit(Process):
     def review_all_ads(self, value: bool | None) -> None:
         # Convert bool to enum string
         if value is None:
-            self.get_custom_fields().set(self.Fields.REVIEW_ALL_ADS, None)
+            self.custom_fields_editor().set(self.Fields.REVIEW_ALL_ADS, None)
         else:
-            self.get_custom_fields().set(
+            self.custom_fields_editor().set(
                 self.Fields.REVIEW_ALL_ADS, "Yes" if value else "No"
             )
 
@@ -197,7 +197,7 @@ class AssetEdit(Process):
 
     @score.setter
     def score(self, value: Decimal | None) -> None:
-        self.get_custom_fields().set(
+        self.custom_fields_editor().set(
             self.Fields.SCORE,
             float(value) if value is not None else None,
         )
@@ -212,7 +212,7 @@ class AssetEdit(Process):
 
     @specialty.setter  # type: ignore[override]
     def specialty(self, value: list[str] | None) -> None:
-        self.get_custom_fields().set(self.Fields.SPECIALTY, value)
+        self.custom_fields_editor().set(self.Fields.SPECIALTY, value)
 
     @property
     def template_id(self) -> int | None:
@@ -224,7 +224,7 @@ class AssetEdit(Process):
 
     @template_id.setter
     def template_id(self, value: int | None) -> None:
-        self.get_custom_fields().set(self.Fields.TEMPLATE_ID, value)
+        self.custom_fields_editor().set(self.Fields.TEMPLATE_ID, value)
 
     @property
     def videos_paid(self) -> int | None:
@@ -233,20 +233,20 @@ class AssetEdit(Process):
 
     @videos_paid.setter
     def videos_paid(self, value: int | None) -> None:
-        self.get_custom_fields().set(self.Fields.VIDEOS_PAID, value)
+        self.custom_fields_editor().set(self.Fields.VIDEOS_PAID, value)
 
     # --- Helper methods for custom fields ---
 
     def _get_text_field(self, field_name: str) -> str | None:
         """Get text custom field value."""
-        value: Any = self.get_custom_fields().get(field_name)
+        value: Any = self.custom_fields_editor().get(field_name)
         if value is None or isinstance(value, str):
             return value
         return str(value)
 
     def _get_enum_field(self, field_name: str) -> str | None:
         """Get enum custom field value, extracting name from dict."""
-        value: Any = self.get_custom_fields().get(field_name)
+        value: Any = self.custom_fields_editor().get(field_name)
         if value is None:
             return None
         if isinstance(value, dict):
@@ -257,14 +257,14 @@ class AssetEdit(Process):
 
     def _get_int_field(self, field_name: str) -> int | None:
         """Get number custom field value as integer."""
-        value: Any = self.get_custom_fields().get(field_name)
+        value: Any = self.custom_fields_editor().get(field_name)
         if value is None:
             return None
         return int(value)
 
     def _get_number_field(self, field_name: str) -> Decimal | None:
         """Get number custom field value as Decimal."""
-        value: Any = self.get_custom_fields().get(field_name)
+        value: Any = self.custom_fields_editor().get(field_name)
         if value is None:
             return None
         return Decimal(str(value))
@@ -274,7 +274,7 @@ class AssetEdit(Process):
 
         Per PRD-0024: Used for specialty field which is multi-enum.
         """
-        value: Any = self.get_custom_fields().get(field_name)
+        value: Any = self.custom_fields_editor().get(field_name)
         if value is None:
             return []
         if not isinstance(value, list):

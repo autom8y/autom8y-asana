@@ -105,7 +105,7 @@ class TestAssetEditFields:
         """asset_approval setter updates value."""
         asset_edit = AssetEdit(gid="ae1", custom_fields=[])
         asset_edit.asset_approval = "Pending"
-        assert asset_edit.get_custom_fields().get("Asset Approval") == "Pending"
+        assert asset_edit.custom_fields_editor().get("Asset Approval") == "Pending"
 
     def test_asset_id_getter(self) -> None:
         """asset_id getter returns text value."""
@@ -121,12 +121,12 @@ class TestAssetEditFields:
         """asset_id setter updates value."""
         asset_edit = AssetEdit(gid="ae1", custom_fields=[])
         asset_edit.asset_id = "NEW-ID"
-        assert asset_edit.get_custom_fields().get("Asset ID") == "NEW-ID"
+        assert asset_edit.custom_fields_editor().get("Asset ID") == "NEW-ID"
 
     def test_editor_getter(self) -> None:
         """editor getter returns people list."""
         asset_edit = AssetEdit(gid="ae1", custom_fields=[])
-        asset_edit.get_custom_fields().set(
+        asset_edit.custom_fields_editor().set(
             "Editor",
             [{"gid": "u1", "name": "John Doe"}],
         )
@@ -141,7 +141,7 @@ class TestAssetEditFields:
     def test_reviewer_getter(self) -> None:
         """reviewer getter returns people list."""
         asset_edit = AssetEdit(gid="ae1", custom_fields=[])
-        asset_edit.get_custom_fields().set(
+        asset_edit.custom_fields_editor().set(
             "Reviewer",
             [{"gid": "u2", "name": "Jane Smith"}],
         )
@@ -162,7 +162,7 @@ class TestAssetEditFields:
         """offer_id setter updates value."""
         asset_edit = AssetEdit(gid="ae1", custom_fields=[])
         asset_edit.offer_id = 9876543210
-        assert asset_edit.get_custom_fields().get("Offer ID") == 9876543210
+        assert asset_edit.custom_fields_editor().get("Offer ID") == 9876543210
 
     def test_raw_assets_getter(self) -> None:
         """raw_assets getter returns text value."""
@@ -208,13 +208,13 @@ class TestAssetEditFields:
         asset_edit = AssetEdit(gid="ae1", custom_fields=[])
 
         asset_edit.review_all_ads = True
-        assert asset_edit.get_custom_fields().get("Review All Ads") == "Yes"
+        assert asset_edit.custom_fields_editor().get("Review All Ads") == "Yes"
 
         asset_edit.review_all_ads = False
-        assert asset_edit.get_custom_fields().get("Review All Ads") == "No"
+        assert asset_edit.custom_fields_editor().get("Review All Ads") == "No"
 
         asset_edit.review_all_ads = None
-        assert asset_edit.get_custom_fields().get("Review All Ads") is None
+        assert asset_edit.custom_fields_editor().get("Review All Ads") is None
 
     def test_score_getter(self) -> None:
         """score getter returns Decimal value."""
@@ -228,12 +228,12 @@ class TestAssetEditFields:
         """score setter updates value."""
         asset_edit = AssetEdit(gid="ae1", custom_fields=[])
         asset_edit.score = Decimal("88.3")
-        assert asset_edit.get_custom_fields().get("Score") == 88.3
+        assert asset_edit.custom_fields_editor().get("Score") == 88.3
 
     def test_specialty_getter(self) -> None:
         """specialty getter returns list from multi-enum per PRD-0024."""
         asset_edit = AssetEdit(gid="ae1", custom_fields=[])
-        asset_edit.get_custom_fields().set(
+        asset_edit.custom_fields_editor().set(
             "Specialty",
             [
                 {"gid": "s1", "name": "Video"},
@@ -267,7 +267,7 @@ class TestAssetEditFields:
         """videos_paid setter updates value."""
         asset_edit = AssetEdit(gid="ae1", custom_fields=[])
         asset_edit.videos_paid = 10
-        assert asset_edit.get_custom_fields().get("Videos Paid") == 10
+        assert asset_edit.custom_fields_editor().get("Videos Paid") == 10
 
 
 class TestAssetEditHolder:
@@ -433,9 +433,9 @@ class TestAssetEditResolution:
         # Set up Business with Units
         business = Business(gid="b1")
         unit1 = Unit(gid="u1", name="Unit 1")
-        unit1.get_custom_fields().set("Vertical", {"name": "Healthcare"})
+        unit1.custom_fields_editor().set("Vertical", {"name": "Healthcare"})
         unit2 = Unit(gid="u2", name="Unit 2")
-        unit2.get_custom_fields().set("Vertical", {"name": "Finance"})
+        unit2.custom_fields_editor().set("Vertical", {"name": "Finance"})
 
         # Mock business.units
         from autom8_asana.models.business.unit import UnitHolder
@@ -572,11 +572,11 @@ class TestAssetEditEdgeCases:
         # Set up Business with multiple Units having same vertical
         business = Business(gid="b1")
         unit1 = Unit(gid="u1", name="Unit 1 - Healthcare")
-        unit1.get_custom_fields().set("Vertical", {"name": "Healthcare"})
+        unit1.custom_fields_editor().set("Vertical", {"name": "Healthcare"})
         unit2 = Unit(gid="u2", name="Unit 2 - Healthcare")
-        unit2.get_custom_fields().set("Vertical", {"name": "Healthcare"})
+        unit2.custom_fields_editor().set("Vertical", {"name": "Healthcare"})
         unit3 = Unit(gid="u3", name="Unit 3 - Finance")
-        unit3.get_custom_fields().set("Vertical", {"name": "Finance"})
+        unit3.custom_fields_editor().set("Vertical", {"name": "Finance"})
 
         from autom8_asana.models.business.unit import UnitHolder
 
@@ -635,7 +635,7 @@ class TestAssetEditEdgeCases:
         # Set up Business for CUSTOM_FIELD_MAPPING with single match
         business = Business(gid="b1")
         unit_single = Unit(gid="u3", name="Unit 3 - Healthcare")
-        unit_single.get_custom_fields().set("Vertical", {"name": "Healthcare"})
+        unit_single.custom_fields_editor().set("Vertical", {"name": "Healthcare"})
 
         from autom8_asana.models.business.unit import UnitHolder
 
@@ -736,7 +736,7 @@ class TestAssetEditEdgeCases:
         # Set up Business for CUSTOM_FIELD_MAPPING success
         business = Business(gid="b1")
         unit = Unit(gid="u1", name="Unit 1")
-        unit.get_custom_fields().set("Vertical", {"name": "Healthcare"})
+        unit.custom_fields_editor().set("Vertical", {"name": "Healthcare"})
 
         from autom8_asana.models.business.unit import UnitHolder
 
@@ -791,7 +791,7 @@ class TestAssetEditEdgeCases:
         """CUSTOM_FIELD_MAPPING fails when no Unit has matching vertical."""
         business = Business(gid="b1")
         unit = Unit(gid="u1", name="Unit 1")
-        unit.get_custom_fields().set("Vertical", {"name": "Finance"})
+        unit.custom_fields_editor().set("Vertical", {"name": "Finance"})
 
         from autom8_asana.models.business.unit import UnitHolder
 
@@ -870,7 +870,7 @@ class TestAssetEditEdgeCases:
         # Set up successful Unit resolution via CUSTOM_FIELD_MAPPING
         business = Business(gid="b1")
         unit = Unit(gid="u1", name="Unit 1")
-        unit.get_custom_fields().set("Vertical", {"name": "Healthcare"})
+        unit.custom_fields_editor().set("Vertical", {"name": "Healthcare"})
         # Unit has no offers (empty _offers list)
 
         from autom8_asana.models.business.unit import UnitHolder

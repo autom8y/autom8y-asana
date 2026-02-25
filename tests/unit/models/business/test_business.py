@@ -256,8 +256,8 @@ class TestBusinessCustomFields:
         """company_id setter updates value."""
         business = Business(gid="123", custom_fields=[])
         business.company_id = "NEW-001"
-        assert business.get_custom_fields().get("Company ID") == "NEW-001"
-        assert business.get_custom_fields().has_changes()
+        assert business.custom_fields_editor().get("Company ID") == "NEW-001"
+        assert business.custom_fields_editor().has_changes()
 
     def test_office_phone_getter_setter(self) -> None:
         """office_phone getter and setter work."""

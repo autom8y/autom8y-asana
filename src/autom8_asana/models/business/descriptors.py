@@ -445,7 +445,7 @@ class CustomFieldDescriptor(Generic[T]):
             obj: Instance to set value on.
             value: Value to set (may be transformed by subclass).
         """
-        obj.get_custom_fields().set(self.field_name, value)
+        obj.custom_fields_editor().set(self.field_name, value)
 
 
 class TextField(CustomFieldDescriptor[str | None]):
@@ -467,7 +467,7 @@ class TextField(CustomFieldDescriptor[str | None]):
         Returns:
             String value, or None if not set.
         """
-        value = obj.get_custom_fields().get(self.field_name)
+        value = obj.custom_fields_editor().get(self.field_name)
         if value is None:
             return None
         if isinstance(value, str):
@@ -495,7 +495,7 @@ class EnumField(CustomFieldDescriptor[str | None]):
         Returns:
             Enum name string, or None if not set.
         """
-        value = obj.get_custom_fields().get(self.field_name)
+        value = obj.custom_fields_editor().get(self.field_name)
         if value is None:
             return None
         if isinstance(value, dict):
@@ -525,7 +525,7 @@ class MultiEnumField(CustomFieldDescriptor[list[str]]):
         Returns:
             List of enum name strings. Empty list if not set.
         """
-        value = obj.get_custom_fields().get(self.field_name)
+        value = obj.custom_fields_editor().get(self.field_name)
         if value is None:
             return []
         if not isinstance(value, list):
@@ -550,7 +550,7 @@ class MultiEnumField(CustomFieldDescriptor[list[str]]):
             obj: Instance to set value on.
             value: List of enum names, or None to clear.
         """
-        obj.get_custom_fields().set(self.field_name, value)
+        obj.custom_fields_editor().set(self.field_name, value)
 
 
 class NumberField(CustomFieldDescriptor[Decimal | None]):
@@ -572,7 +572,7 @@ class NumberField(CustomFieldDescriptor[Decimal | None]):
         Returns:
             Decimal value, or None if not set.
         """
-        value = obj.get_custom_fields().get(self.field_name)
+        value = obj.custom_fields_editor().get(self.field_name)
         if value is None:
             return None
         return Decimal(str(value))
@@ -585,7 +585,7 @@ class NumberField(CustomFieldDescriptor[Decimal | None]):
             value: Decimal value, or None to clear.
         """
         api_value = float(value) if value is not None else None
-        obj.get_custom_fields().set(self.field_name, api_value)
+        obj.custom_fields_editor().set(self.field_name, api_value)
 
 
 class IntField(CustomFieldDescriptor[int | None]):
@@ -607,7 +607,7 @@ class IntField(CustomFieldDescriptor[int | None]):
         Returns:
             Integer value (truncated), or None if not set.
         """
-        value = obj.get_custom_fields().get(self.field_name)
+        value = obj.custom_fields_editor().get(self.field_name)
         if value is None:
             return None
         return int(value)
@@ -635,7 +635,7 @@ class PeopleField(CustomFieldDescriptor[list[dict[str, Any]]]):
         Returns:
             List of person dicts. Empty list if not set.
         """
-        value = obj.get_custom_fields().get(self.field_name)
+        value = obj.custom_fields_editor().get(self.field_name)
         if isinstance(value, list):
             return value
         return []
@@ -647,7 +647,7 @@ class PeopleField(CustomFieldDescriptor[list[dict[str, Any]]]):
             obj: Instance to set value on.
             value: List of person dicts, or None to clear.
         """
-        obj.get_custom_fields().set(self.field_name, value)
+        obj.custom_fields_editor().set(self.field_name, value)
 
 
 class DateField(CustomFieldDescriptor[Arrow | None]):
@@ -687,7 +687,7 @@ class DateField(CustomFieldDescriptor[Arrow | None]):
         Returns:
             Arrow object, or None if not set or invalid.
         """
-        value = obj.get_custom_fields().get(self.field_name)
+        value = obj.custom_fields_editor().get(self.field_name)
         if value is None or value == "":
             return None
         if isinstance(value, Arrow):
@@ -717,4 +717,4 @@ class DateField(CustomFieldDescriptor[Arrow | None]):
         else:
             # Serialize to ISO 8601 date format for Asana
             api_value = value.format("YYYY-MM-DD")
-        obj.get_custom_fields().set(self.field_name, api_value)
+        obj.custom_fields_editor().set(self.field_name, api_value)

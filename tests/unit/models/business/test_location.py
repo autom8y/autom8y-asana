@@ -36,7 +36,7 @@ class TestLocationNewFields:
         """street_number setter updates value."""
         location = Location(gid="123", custom_fields=[])
         location.street_number = 456
-        assert location.get_custom_fields().get("Street #") == 456
+        assert location.custom_fields_editor().get("Street #") == 456
 
     def test_street_name_property(self) -> None:
         """street_name returns text value."""
@@ -52,7 +52,7 @@ class TestLocationNewFields:
         """street_name setter updates value."""
         location = Location(gid="123", custom_fields=[])
         location.street_name = "Oak Ave"
-        assert location.get_custom_fields().get("Street Name") == "Oak Ave"
+        assert location.custom_fields_editor().get("Street Name") == "Oak Ave"
 
     def test_city_property(self) -> None:
         """city getter returns value."""
@@ -91,7 +91,7 @@ class TestLocationNewFields:
     def test_time_zone_property(self) -> None:
         """time_zone getter extracts name from enum dict."""
         location = Location(gid="123", custom_fields=[])
-        location.get_custom_fields().set("Time Zone", {"name": "America/New_York"})
+        location.custom_fields_editor().set("Time Zone", {"name": "America/New_York"})
         assert location.time_zone == "America/New_York"
 
     def test_suite_property(self) -> None:
@@ -145,13 +145,13 @@ class TestLocationFullAddress:
     def test_full_address_complete(self) -> None:
         """full_address combines all address fields per TDD."""
         location = Location(gid="123", custom_fields=[])
-        location.get_custom_fields().set("Street #", 123)
-        location.get_custom_fields().set("Street Name", "Main St")
-        location.get_custom_fields().set("Suite", "Suite 100")
-        location.get_custom_fields().set("City", "Springfield")
-        location.get_custom_fields().set("State", "IL")
-        location.get_custom_fields().set("Zip Code", "62701")
-        location.get_custom_fields().set("Country", {"name": "US"})
+        location.custom_fields_editor().set("Street #", 123)
+        location.custom_fields_editor().set("Street Name", "Main St")
+        location.custom_fields_editor().set("Suite", "Suite 100")
+        location.custom_fields_editor().set("City", "Springfield")
+        location.custom_fields_editor().set("State", "IL")
+        location.custom_fields_editor().set("Zip Code", "62701")
+        location.custom_fields_editor().set("Country", {"name": "US"})
 
         expected = "123 Main St, Suite 100, Springfield, IL 62701, US"
         assert location.full_address == expected
@@ -159,10 +159,10 @@ class TestLocationFullAddress:
     def test_full_address_no_suite(self) -> None:
         """full_address works without suite."""
         location = Location(gid="123", custom_fields=[])
-        location.get_custom_fields().set("Street #", 123)
-        location.get_custom_fields().set("Street Name", "Main St")
-        location.get_custom_fields().set("City", "Springfield")
-        location.get_custom_fields().set("State", "IL")
+        location.custom_fields_editor().set("Street #", 123)
+        location.custom_fields_editor().set("Street Name", "Main St")
+        location.custom_fields_editor().set("City", "Springfield")
+        location.custom_fields_editor().set("State", "IL")
 
         expected = "123 Main St, Springfield, IL"
         assert location.full_address == expected
@@ -170,7 +170,7 @@ class TestLocationFullAddress:
     def test_full_address_partial(self) -> None:
         """full_address handles missing fields."""
         location = Location(gid="123", custom_fields=[])
-        location.get_custom_fields().set("City", "Springfield")
+        location.custom_fields_editor().set("City", "Springfield")
 
         assert location.full_address == "Springfield"
 
