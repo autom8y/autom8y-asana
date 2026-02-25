@@ -15,12 +15,12 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from autom8_asana.core.types import EntityType
 from autom8_asana.models.business._bootstrap import (
     bootstrap,
     is_bootstrap_complete,
     reset_bootstrap,
 )
-from autom8_asana.models.business.detection.types import EntityType
 from autom8_asana.models.business.registry import (
     ProjectTypeRegistry,
     get_registry,
