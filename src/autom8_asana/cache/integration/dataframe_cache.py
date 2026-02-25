@@ -60,7 +60,7 @@ def _get_schema_version_for_entity(entity_type: str) -> str | None:
     Returns:
         Schema version string if found, None if lookup fails.
     """
-    from autom8_asana.core.schema import get_schema_version
+    from autom8_asana.dataframes.models.registry import get_schema_version
 
     return get_schema_version(entity_type)
 
