@@ -32,7 +32,7 @@ from autom8_asana.services.dynamic_index import DynamicIndex
 from autom8_asana.services.resolution_result import ResolutionResult
 from autom8_asana.services.resolver import EntityProjectRegistry
 from autom8_asana.services.resolver import (
-    _apply_legacy_mapping as resolver_apply_legacy_mapping,
+    _normalize_criterion_fields as resolver_normalize_criterion_fields,
 )
 
 # ---------------------------------------------------------------------------
@@ -69,9 +69,9 @@ def _mock_jwt_validation(service_name: str = "autom8_data") -> AsyncMock:
     return AsyncMock(return_value=mock_claims)
 
 
-def _apply_legacy_mapping(criterion: dict, entity_type: str) -> dict:
+def _normalize_criterion_fields(criterion: dict, entity_type: str) -> dict:
     """Apply legacy field mapping using resolver's dynamic algorithm."""
-    return resolver_apply_legacy_mapping(entity_type, criterion)
+    return resolver_normalize_criterion_fields(entity_type, criterion)
 
 
 def _make_mock_strategy_resolve(
@@ -85,7 +85,7 @@ def _make_mock_strategy_resolve(
         index = DynamicIndex.from_dataframe(mock_df, key_columns)
         results = []
         for criterion in criteria:
-            mapped = _apply_legacy_mapping(criterion, entity_type)
+            mapped = _normalize_criterion_fields(criterion, entity_type)
             gids = index.lookup(mapped)
             if gids:
                 results.append(ResolutionResult.from_gids(gids))

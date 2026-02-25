@@ -15,7 +15,7 @@ from autom8_asana.services.resolver import (
     ENTITY_ALIASES,
     CriterionValidationResult,
     EntityProjectRegistry,
-    _apply_legacy_mapping,
+    _normalize_criterion_fields,
     _validate_field_type,
     get_resolvable_entities,
     is_entity_resolvable,
@@ -266,12 +266,12 @@ class TestValidateCriterionForEntity:
         assert result.is_valid is True
 
 
-class TestApplyLegacyMapping:
-    """Tests for _apply_legacy_mapping() helper function."""
+class TestNormalizeCriterionFields:
+    """Tests for _normalize_criterion_fields() helper function."""
 
     def test_maps_phone_to_office_phone_for_unit(self) -> None:
         """Maps 'phone' to 'office_phone' for unit entity."""
-        result = _apply_legacy_mapping(
+        result = _normalize_criterion_fields(
             "unit",
             {"phone": "+15551234567", "vertical": "dental"},
         )
@@ -282,7 +282,7 @@ class TestApplyLegacyMapping:
 
     def test_maps_phone_to_office_phone_for_business(self) -> None:
         """Maps 'phone' to 'office_phone' for business entity."""
-        result = _apply_legacy_mapping(
+        result = _normalize_criterion_fields(
             "business",
             {"phone": "+15551234567"},
         )
@@ -296,7 +296,7 @@ class TestApplyLegacyMapping:
         Per TDD-dynamic-field-normalization:
         Short names like 'email' expand to prefixed schema columns like 'contact_email'.
         """
-        result = _apply_legacy_mapping(
+        result = _normalize_criterion_fields(
             "contact",
             {"email": "test@example.com", "phone": "+15551234567"},
         )
@@ -308,7 +308,7 @@ class TestApplyLegacyMapping:
 
     def test_unmapped_fields_pass_through(self) -> None:
         """Fields without mappings pass through unchanged."""
-        result = _apply_legacy_mapping(
+        result = _normalize_criterion_fields(
             "unit",
             {"vertical": "dental", "gid": "12345"},
         )
@@ -318,7 +318,7 @@ class TestApplyLegacyMapping:
 
     def test_unknown_entity_type_no_mapping(self) -> None:
         """Unknown entity types have no mapping applied."""
-        result = _apply_legacy_mapping(
+        result = _normalize_criterion_fields(
             "unknown_entity",
             {"phone": "+15551234567"},
         )
@@ -329,7 +329,7 @@ class TestApplyLegacyMapping:
     def test_entity_mapping_overrides_global(self) -> None:
         """Entity-specific mappings take precedence over global."""
         # If we had a global mapping and entity-specific, entity wins
-        result = _apply_legacy_mapping(
+        result = _normalize_criterion_fields(
             "unit",
             {"phone": "+15551234567"},
         )

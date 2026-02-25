@@ -35,7 +35,7 @@ from autom8_asana.services.resolver import (
     EntityProjectRegistry,
 )
 from autom8_asana.services.resolver import (
-    _apply_legacy_mapping as resolver_apply_legacy_mapping,
+    _normalize_criterion_fields as resolver_normalize_criterion_fields,
 )
 
 
@@ -51,9 +51,9 @@ def _make_mock_cache_provider(mock_df: pl.DataFrame):
     return lambda: mock_cache
 
 
-def _apply_legacy_mapping(criterion: dict, entity_type: str) -> dict:
-    """Apply legacy field mapping to criterion using resolver's dynamic algorithm."""
-    return resolver_apply_legacy_mapping(entity_type, criterion)
+def _normalize_criterion_fields(criterion: dict, entity_type: str) -> dict:
+    """Normalize criterion field names using resolver's hierarchical alias resolution."""
+    return resolver_normalize_criterion_fields(entity_type, criterion)
 
 
 def _make_mock_strategy_resolve(
@@ -66,8 +66,8 @@ def _make_mock_strategy_resolve(
         index = DynamicIndex.from_dataframe(mock_df, key_columns)
         results = []
         for criterion in criteria:
-            # Apply legacy mapping like real strategy does
-            mapped = _apply_legacy_mapping(criterion, entity_type)
+            # Normalize fields like real strategy does
+            mapped = _normalize_criterion_fields(criterion, entity_type)
             gids = index.lookup(mapped)
             if gids:
                 # Enrich if fields requested
