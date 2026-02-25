@@ -19,7 +19,7 @@ Health Contract Envelope:
 """
 
 import os
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -271,8 +271,17 @@ class TestDepsEndpoint:
         with patch.dict(
             os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False
         ):
-            with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
-                mock_get.return_value = mock_response
+            with patch("autom8_asana.api.routes.health.Autom8yHttpClient") as mock_cls:
+                mock_raw_client = AsyncMock()
+                mock_raw_client.get = AsyncMock(return_value=mock_response)
+                raw_ctx = AsyncMock()
+                raw_ctx.__aenter__ = AsyncMock(return_value=mock_raw_client)
+                raw_ctx.__aexit__ = AsyncMock(return_value=None)
+                mock_http_client = AsyncMock()
+                mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
+                mock_http_client.__aexit__ = AsyncMock(return_value=None)
+                mock_http_client.raw = MagicMock(return_value=raw_ctx)
+                mock_cls.return_value = mock_http_client
                 response = client.get("/health/deps")
                 data = response.json()
 
@@ -286,8 +295,19 @@ class TestDepsEndpoint:
         with patch.dict(
             os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False
         ):
-            with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
-                mock_get.side_effect = httpx.TimeoutException("timeout")
+            with patch("autom8_asana.api.routes.health.Autom8yHttpClient") as mock_cls:
+                mock_raw_client = AsyncMock()
+                mock_raw_client.get = AsyncMock(
+                    side_effect=httpx.TimeoutException("timeout")
+                )
+                raw_ctx = AsyncMock()
+                raw_ctx.__aenter__ = AsyncMock(return_value=mock_raw_client)
+                raw_ctx.__aexit__ = AsyncMock(return_value=None)
+                mock_http_client = AsyncMock()
+                mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
+                mock_http_client.__aexit__ = AsyncMock(return_value=None)
+                mock_http_client.raw = MagicMock(return_value=raw_ctx)
+                mock_cls.return_value = mock_http_client
                 response = client.get("/health/deps")
                 data = response.json()
 
@@ -301,8 +321,19 @@ class TestDepsEndpoint:
         with patch.dict(
             os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False
         ):
-            with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
-                mock_get.side_effect = httpx.ConnectError("connection failed")
+            with patch("autom8_asana.api.routes.health.Autom8yHttpClient") as mock_cls:
+                mock_raw_client = AsyncMock()
+                mock_raw_client.get = AsyncMock(
+                    side_effect=httpx.ConnectError("connection failed")
+                )
+                raw_ctx = AsyncMock()
+                raw_ctx.__aenter__ = AsyncMock(return_value=mock_raw_client)
+                raw_ctx.__aexit__ = AsyncMock(return_value=None)
+                mock_http_client = AsyncMock()
+                mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
+                mock_http_client.__aexit__ = AsyncMock(return_value=None)
+                mock_http_client.raw = MagicMock(return_value=raw_ctx)
+                mock_cls.return_value = mock_http_client
                 response = client.get("/health/deps")
                 data = response.json()
 
@@ -316,8 +347,17 @@ class TestDepsEndpoint:
         with patch.dict(
             os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False
         ):
-            with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
-                mock_get.return_value = mock_response
+            with patch("autom8_asana.api.routes.health.Autom8yHttpClient") as mock_cls:
+                mock_raw_client = AsyncMock()
+                mock_raw_client.get = AsyncMock(return_value=mock_response)
+                raw_ctx = AsyncMock()
+                raw_ctx.__aenter__ = AsyncMock(return_value=mock_raw_client)
+                raw_ctx.__aexit__ = AsyncMock(return_value=None)
+                mock_http_client = AsyncMock()
+                mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
+                mock_http_client.__aexit__ = AsyncMock(return_value=None)
+                mock_http_client.raw = MagicMock(return_value=raw_ctx)
+                mock_cls.return_value = mock_http_client
                 data = client.get("/health/deps").json()
                 assert data["checks"]["jwks"]["status"] == "degraded"
                 assert data["checks"]["jwks"]["detail"]["error"] == "invalid_response"
@@ -325,8 +365,19 @@ class TestDepsEndpoint:
     def test_both_deps_failing_returns_degraded(self, client: TestClient) -> None:
         """Returns 'degraded' when both dependencies fail."""
         with patch.dict(os.environ, {"ASANA_PAT": ""}, clear=False):
-            with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
-                mock_get.side_effect = httpx.TimeoutException("timeout")
+            with patch("autom8_asana.api.routes.health.Autom8yHttpClient") as mock_cls:
+                mock_raw_client = AsyncMock()
+                mock_raw_client.get = AsyncMock(
+                    side_effect=httpx.TimeoutException("timeout")
+                )
+                raw_ctx = AsyncMock()
+                raw_ctx.__aenter__ = AsyncMock(return_value=mock_raw_client)
+                raw_ctx.__aexit__ = AsyncMock(return_value=None)
+                mock_http_client = AsyncMock()
+                mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
+                mock_http_client.__aexit__ = AsyncMock(return_value=None)
+                mock_http_client.raw = MagicMock(return_value=raw_ctx)
+                mock_cls.return_value = mock_http_client
                 response = client.get("/health/deps")
                 data = response.json()
 
@@ -339,8 +390,17 @@ class TestDepsEndpoint:
             200,
             json={"keys": [{"kid": "test-key", "kty": "RSA"}]},
         )
-        with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = mock_response
+        with patch("autom8_asana.api.routes.health.Autom8yHttpClient") as mock_cls:
+            mock_raw_client = AsyncMock()
+            mock_raw_client.get = AsyncMock(return_value=mock_response)
+            raw_ctx = AsyncMock()
+            raw_ctx.__aenter__ = AsyncMock(return_value=mock_raw_client)
+            raw_ctx.__aexit__ = AsyncMock(return_value=None)
+            mock_http_client = AsyncMock()
+            mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
+            mock_http_client.__aexit__ = AsyncMock(return_value=None)
+            mock_http_client.raw = MagicMock(return_value=raw_ctx)
+            mock_cls.return_value = mock_http_client
             data = client.get("/health/deps").json()
             assert data["checks"]["jwks"]["latency_ms"] is not None
             assert isinstance(data["checks"]["jwks"]["latency_ms"], float)
