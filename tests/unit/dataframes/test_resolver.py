@@ -284,7 +284,7 @@ class TestDefaultCustomFieldResolver:
         assert value == 5000.0
 
     def test_get_value_number_with_decimal_coercion(self) -> None:
-        """Test number value coerced to Decimal."""
+        """Test number value coerced to Decimal via column_def."""
         resolver = DefaultCustomFieldResolver()
         custom_fields = [
             MockCustomField(gid="123", name="MRR", resource_subtype="number"),
@@ -301,7 +301,16 @@ class TestDefaultCustomFieldResolver:
                 }
             ]
         )
-        value = resolver.get_value(task, "cf:MRR", Decimal)  # type: ignore[arg-type]
+        column_def = ColumnDef(
+            name="mrr",
+            dtype="Decimal",
+            source="cf:MRR",
+        )
+        value = resolver.get_value(
+            task,
+            "cf:MRR",
+            column_def=column_def,  # type: ignore[arg-type]
+        )
         assert value == Decimal("5000.5")
         assert isinstance(value, Decimal)
 
@@ -803,8 +812,8 @@ class TestSchemaAwareCoercion:
         )
         assert value is None
 
-    def test_column_def_takes_precedence_over_expected_type(self) -> None:
-        """Test column_def coercion takes precedence over expected_type."""
+    def test_column_def_coercion_multi_enum_to_string(self) -> None:
+        """Test column_def coercion converts multi_enum to string."""
         resolver = DefaultCustomFieldResolver()
         custom_fields = [
             MockCustomField(gid="123", name="Products", resource_subtype="multi_enum"),
@@ -824,7 +833,6 @@ class TestSchemaAwareCoercion:
             ]
         )
 
-        # expected_type says list, but column_def says Utf8 - column_def wins
         column_def = ColumnDef(
             name="products",
             dtype="Utf8",
@@ -834,36 +842,10 @@ class TestSchemaAwareCoercion:
         value = resolver.get_value(
             task,  # type: ignore[arg-type]
             "cf:Products",
-            expected_type=list,
             column_def=column_def,
         )
-        # Should be string (from column_def), not list (from expected_type)
         assert value == "Product A"
         assert isinstance(value, str)
-
-    def test_legacy_expected_type_still_works(self) -> None:
-        """Test backward compatibility - expected_type works when no column_def."""
-        resolver = DefaultCustomFieldResolver()
-        custom_fields = [
-            MockCustomField(gid="123", name="MRR", resource_subtype="number"),
-        ]
-        resolver.build_index(custom_fields)  # type: ignore[arg-type]
-
-        task = MockTask(
-            custom_fields=[
-                {
-                    "gid": "123",
-                    "name": "MRR",
-                    "resource_subtype": "number",
-                    "number_value": 5000.50,
-                }
-            ]
-        )
-
-        # Using old expected_type parameter without column_def
-        value = resolver.get_value(task, "cf:MRR", Decimal)  # type: ignore[arg-type]
-        assert value == Decimal("5000.5")
-        assert isinstance(value, Decimal)
 
     def test_coerce_with_schema_null_value(self) -> None:
         """Test null value is preserved through schema coercion."""
@@ -1155,108 +1137,11 @@ class TestAdversarialMockResolverConsistency:
         assert value == "A, B, C"
 
 
-class TestAdversarialBackwardCompatibility:
-    """Adversarial tests for backward compatibility.
+class TestAdversarialCoercionBehavior:
+    """Tests for coercion behavior with column_def and raw value fallback."""
 
-    Verifies that the legacy expected_type parameter still works
-    and behaves correctly when mixed with column_def.
-    """
-
-    def test_legacy_expected_type_decimal(self) -> None:
-        """Test legacy expected_type=Decimal still works."""
-        resolver = DefaultCustomFieldResolver()
-        custom_fields = [
-            MockCustomField(gid="123", name="MRR", resource_subtype="number"),
-        ]
-        resolver.build_index(custom_fields)  # type: ignore[arg-type]
-
-        task = MockTask(
-            custom_fields=[
-                {
-                    "gid": "123",
-                    "name": "MRR",
-                    "resource_subtype": "number",
-                    "number_value": 1234.56,
-                }
-            ]
-        )
-
-        # Use legacy expected_type parameter
-        value = resolver.get_value(task, "cf:MRR", Decimal)  # type: ignore[arg-type]
-        assert isinstance(value, Decimal)
-        assert value == Decimal("1234.56")
-
-    def test_legacy_expected_type_str(self) -> None:
-        """Test legacy expected_type=str still works."""
-        resolver = DefaultCustomFieldResolver()
-        custom_fields = [
-            MockCustomField(gid="123", name="Count", resource_subtype="number"),
-        ]
-        resolver.build_index(custom_fields)  # type: ignore[arg-type]
-
-        task = MockTask(
-            custom_fields=[
-                {
-                    "gid": "123",
-                    "name": "Count",
-                    "resource_subtype": "number",
-                    "number_value": 42,
-                }
-            ]
-        )
-
-        value = resolver.get_value(task, "cf:Count", str)  # type: ignore[arg-type]
-        assert isinstance(value, str)
-        assert value == "42"
-
-    def test_legacy_expected_type_int(self) -> None:
-        """Test legacy expected_type=int still works."""
-        resolver = DefaultCustomFieldResolver()
-        custom_fields = [
-            MockCustomField(gid="123", name="Count", resource_subtype="number"),
-        ]
-        resolver.build_index(custom_fields)  # type: ignore[arg-type]
-
-        task = MockTask(
-            custom_fields=[
-                {
-                    "gid": "123",
-                    "name": "Count",
-                    "resource_subtype": "number",
-                    "number_value": 42.9,
-                }
-            ]
-        )
-
-        value = resolver.get_value(task, "cf:Count", int)  # type: ignore[arg-type]
-        assert isinstance(value, int)
-        assert value == 42
-
-    def test_legacy_expected_type_list(self) -> None:
-        """Test legacy expected_type=list wraps single value."""
-        resolver = DefaultCustomFieldResolver()
-        custom_fields = [
-            MockCustomField(gid="123", name="Tag", resource_subtype="text"),
-        ]
-        resolver.build_index(custom_fields)  # type: ignore[arg-type]
-
-        task = MockTask(
-            custom_fields=[
-                {
-                    "gid": "123",
-                    "name": "Tag",
-                    "resource_subtype": "text",
-                    "text_value": "SingleTag",
-                }
-            ]
-        )
-
-        value = resolver.get_value(task, "cf:Tag", list)  # type: ignore[arg-type]
-        assert isinstance(value, list)
-        assert value == ["SingleTag"]
-
-    def test_column_def_overrides_expected_type_decimal(self) -> None:
-        """Test column_def takes precedence over expected_type for Decimal."""
+    def test_column_def_coerces_number_to_int(self) -> None:
+        """Test column_def coerces number to Int64."""
         resolver = DefaultCustomFieldResolver()
         custom_fields = [
             MockCustomField(gid="123", name="MRR", resource_subtype="number"),
@@ -1280,18 +1165,16 @@ class TestAdversarialBackwardCompatibility:
             source="cf:MRR",
         )
 
-        # expected_type says Decimal, column_def says Int64 - column_def wins
         value = resolver.get_value(
             task,  # type: ignore[arg-type]
             "cf:MRR",
-            expected_type=Decimal,
             column_def=column_def,
         )
         assert isinstance(value, int)
         assert value == 100  # Truncated to int
 
-    def test_no_coercion_when_neither_provided(self) -> None:
-        """Test no coercion when neither expected_type nor column_def provided."""
+    def test_no_coercion_when_no_column_def(self) -> None:
+        """Test no coercion when column_def not provided."""
         resolver = DefaultCustomFieldResolver()
         custom_fields = [
             MockCustomField(gid="123", name="MRR", resource_subtype="number"),
@@ -1309,33 +1192,10 @@ class TestAdversarialBackwardCompatibility:
             ]
         )
 
-        # No expected_type, no column_def - raw value returned
+        # No column_def - raw value returned
         value = resolver.get_value(task, "cf:MRR")  # type: ignore[arg-type]
         assert value == 100.5
         assert isinstance(value, float)
-
-    def test_legacy_coercion_failure_returns_none(self) -> None:
-        """Test legacy coercion failure returns None gracefully."""
-        resolver = DefaultCustomFieldResolver()
-        custom_fields = [
-            MockCustomField(gid="123", name="Status", resource_subtype="text"),
-        ]
-        resolver.build_index(custom_fields)  # type: ignore[arg-type]
-
-        task = MockTask(
-            custom_fields=[
-                {
-                    "gid": "123",
-                    "name": "Status",
-                    "resource_subtype": "text",
-                    "text_value": "not-a-number",
-                }
-            ]
-        )
-
-        # Try to coerce text to Decimal - should fail gracefully
-        value = resolver.get_value(task, "cf:Status", Decimal)  # type: ignore[arg-type]
-        assert value is None
 
 
 class TestAdversarialIntegrationEndToEnd:

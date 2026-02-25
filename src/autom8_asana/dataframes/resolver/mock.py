@@ -106,7 +106,6 @@ class MockCustomFieldResolver:
         self,
         task: Task | None,
         field_name: str,
-        expected_type: type | None = None,
         *,
         column_def: ColumnDef | None = None,
     ) -> Any:
@@ -118,7 +117,6 @@ class MockCustomFieldResolver:
         Args:
             task: Ignored in mock implementation
             field_name: Field name with optional prefix
-            expected_type: Ignored in mock (values pre-typed)
             column_def: Column definition for schema-aware coercion
 
         Returns:
@@ -244,7 +242,6 @@ class FailingResolver:
         self,
         task: Task | None,
         field_name: str,
-        expected_type: type | None = None,
         *,
         column_def: ColumnDef | None = None,
     ) -> Any:
@@ -253,7 +250,6 @@ class FailingResolver:
         Args:
             task: Task to extract from (passed to fallback)
             field_name: Field name with optional prefix
-            expected_type: Optional type for coercion (passed to fallback)
             column_def: Optional column definition (passed to fallback)
 
         Raises:
@@ -266,9 +262,7 @@ class FailingResolver:
             raise KeyError(f"Configured to fail on field: {field_name}")
 
         if self._fallback:
-            return self._fallback.get_value(
-                task, field_name, expected_type, column_def=column_def
-            )
+            return self._fallback.get_value(task, field_name, column_def=column_def)
         return None
 
     def has_field(self, field_name: str) -> bool:

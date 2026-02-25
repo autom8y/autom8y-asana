@@ -933,7 +933,7 @@ class TestEdgeCases:
     ) -> None:
         """Process with unknown ProcessType returns error result."""
         process = _make_mock_process(
-            ProcessType.GENERIC,
+            ProcessType.UNKNOWN,
             "unknown_proj",
             "Unknown Pipeline",
         )
@@ -943,7 +943,7 @@ class TestEdgeCases:
 
         assert result.success is False
         assert "No stage config" in result.error
-        assert "generic" in result.rule_id
+        assert "unknown" in result.rule_id
 
     @pytest.mark.asyncio
     async def test_creation_failure_is_hard_failure(
