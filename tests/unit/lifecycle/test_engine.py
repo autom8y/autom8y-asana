@@ -578,7 +578,7 @@ class TestErrorHandling:
         self, lifecycle_config, mock_client
     ):
         """Unknown process type -> error result."""
-        process = _make_mock_process(ProcessType.GENERIC)
+        process = _make_mock_process(ProcessType.UNKNOWN)
         engine = _make_engine(lifecycle_config, mock_client)
 
         result = await engine.handle_transition_async(process, "converted")
@@ -975,7 +975,7 @@ class TestStructuredLogging:
 
     async def test_error_logged_on_unknown_stage(self, lifecycle_config, mock_client):
         """Unknown stage triggers error log."""
-        process = _make_mock_process(ProcessType.GENERIC)
+        process = _make_mock_process(ProcessType.UNKNOWN)
         engine = _make_engine(lifecycle_config, mock_client)
 
         with patch("autom8_asana.lifecycle.engine.logger") as mock_logger:
