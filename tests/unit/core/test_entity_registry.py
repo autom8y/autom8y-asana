@@ -244,7 +244,7 @@ class TestEntityRegistry:
         """EntityType lookup returns correct descriptor."""
         # Use the real registry since it has entity_type bound
         reg = get_registry()
-        from autom8_asana.models.business.detection.types import EntityType
+        from autom8_asana.core.types import EntityType
 
         desc = reg.get_by_type(EntityType.UNIT)
         assert desc is not None
@@ -354,7 +354,7 @@ class TestEntityRegistry:
 
     def test_duplicate_entity_type_raises(self) -> None:
         """Constructor rejects duplicate EntityType values."""
-        from autom8_asana.models.business.detection.types import EntityType
+        from autom8_asana.core.types import EntityType
 
         descriptors = (
             EntityDescriptor(
@@ -390,7 +390,7 @@ class TestGlobalRegistry:
 
     def test_entity_types_bound(self) -> None:
         """EntityType enum values are bound to descriptors."""
-        from autom8_asana.models.business.detection.types import EntityType
+        from autom8_asana.core.types import EntityType
 
         registry = get_registry()
         unit = registry.get("unit")
@@ -406,7 +406,7 @@ class TestGlobalRegistry:
 
     def test_all_entity_types_have_descriptors(self) -> None:
         """Every EntityType enum member (except UNKNOWN) has a registry entry."""
-        from autom8_asana.models.business.detection.types import EntityType
+        from autom8_asana.core.types import EntityType
 
         registry = get_registry()
         for et in EntityType:

@@ -209,10 +209,12 @@ class TestProgressiveTierGet:
             raising=False,
         )
         # The import happens inside the function, so we patch the module-level import target
-        import autom8_asana.core.schema
+        import autom8_asana.dataframes.models.registry
 
         monkeypatch.setattr(
-            autom8_asana.core.schema, "get_schema_version", lambda entity_type: "1.1.0"
+            autom8_asana.dataframes.models.registry,
+            "get_schema_version",
+            lambda entity_type: "1.1.0",
         )
 
         result = await tier.get_async("unit:proj-123")
@@ -247,10 +249,12 @@ class TestProgressiveTierGet:
         tier = ProgressiveTier(persistence=persistence)
 
         # Mock SchemaRegistry
-        import autom8_asana.core.schema
+        import autom8_asana.dataframes.models.registry
 
         monkeypatch.setattr(
-            autom8_asana.core.schema, "get_schema_version", lambda entity_type: "1.1.0"
+            autom8_asana.dataframes.models.registry,
+            "get_schema_version",
+            lambda entity_type: "1.1.0",
         )
 
         result = await tier.get_async("unit:proj-123")
@@ -294,10 +298,12 @@ class TestProgressiveTierGet:
         tier = ProgressiveTier(persistence=persistence)
 
         # Mock SchemaRegistry since metadata is unavailable
-        import autom8_asana.core.schema
+        import autom8_asana.dataframes.models.registry
 
         monkeypatch.setattr(
-            autom8_asana.core.schema, "get_schema_version", lambda entity_type: "2.0.0"
+            autom8_asana.dataframes.models.registry,
+            "get_schema_version",
+            lambda entity_type: "2.0.0",
         )
 
         result = await tier.get_async("unit:proj-123")

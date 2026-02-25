@@ -23,6 +23,7 @@ from pydantic import ValidationError
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
+from autom8_asana.core.types import EntityType
 from autom8_asana.models.business.detection.config import (
     get_holder_attr,
 )
@@ -42,7 +43,6 @@ from autom8_asana.models.business.detection.tier4 import (
 from autom8_asana.models.business.detection.types import (
     CONFIDENCE_TIER_5,
     DetectionResult,
-    EntityType,
 )
 
 if TYPE_CHECKING:

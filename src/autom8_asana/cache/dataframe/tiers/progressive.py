@@ -185,7 +185,7 @@ class ProgressiveTier:
             schema_version = wm_metadata.get("schema_version")
 
         if schema_version is None:
-            from autom8_asana.core.schema import get_schema_version
+            from autom8_asana.dataframes.models.registry import get_schema_version
 
             schema_version = get_schema_version(entity_type) or "unknown"
 

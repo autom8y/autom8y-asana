@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from autom8_asana.clients.attachments import AttachmentsClient
+    from autom8_asana.clients.data.client import DataServiceClient
     from autom8_asana.core.scope import EntityScope
     from autom8_asana.models.business.activity import AccountActivity
 
@@ -28,7 +29,7 @@ from autom8_asana.automation.workflows.base import (
     WorkflowResult,
 )
 from autom8_asana.automation.workflows.mixins import AttachmentReplacementMixin
-from autom8_asana.clients.data.client import DataServiceClient, mask_phone_number
+from autom8_asana.clients.data._pii import mask_phone_number
 from autom8_asana.exceptions import ExportError
 from autom8_asana.models.business.activity import AccountActivity
 from autom8_asana.models.business.contact import ContactHolder

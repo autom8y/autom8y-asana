@@ -172,7 +172,7 @@ async def get_export_csv(
         ExportError: On HTTP errors, circuit breaker open, or timeout.
     """
     # Import here to avoid circular import at module level
-    from autom8_asana.clients.data.client import mask_phone_number
+    from autom8_asana.clients.data._pii import mask_phone_number
 
     # S1: Pre-flight (PII masking, logging)
     masked_phone = mask_phone_number(office_phone)

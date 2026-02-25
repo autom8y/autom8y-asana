@@ -14,7 +14,8 @@ Dependencies: types.py only
 
 from __future__ import annotations
 
-from autom8_asana.models.business.detection.types import EntityType, EntityTypeInfo
+from autom8_asana.core.types import EntityType
+from autom8_asana.models.business.detection.types import EntityTypeInfo
 
 __all__ = [
     "ENTITY_TYPE_INFO",

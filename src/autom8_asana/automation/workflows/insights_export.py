@@ -31,7 +31,7 @@ from autom8_asana.automation.workflows.insights_formatter import (
     compose_report,
 )
 from autom8_asana.automation.workflows.mixins import AttachmentReplacementMixin
-from autom8_asana.clients.data.client import DataServiceClient, mask_phone_number
+from autom8_asana.clients.data._pii import mask_phone_number
 from autom8_asana.models.business.activity import (
     OFFER_CLASSIFIER,
     AccountActivity,
@@ -41,6 +41,7 @@ from autom8_asana.resolution.context import ResolutionContext
 
 if TYPE_CHECKING:
     from autom8_asana.clients.attachments import AttachmentsClient
+    from autom8_asana.clients.data.client import DataServiceClient
     from autom8_asana.core.scope import EntityScope
 
 logger = get_logger(__name__)

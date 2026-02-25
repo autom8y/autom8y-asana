@@ -21,10 +21,10 @@ from autom8_asana.models.business.detection.config import PARENT_CHILD_MAP
 from autom8_asana.models.business.detection.types import (
     CONFIDENCE_TIER_3,
     DetectionResult,
-    EntityType,
 )
 
 if TYPE_CHECKING:
+    from autom8_asana.core.types import EntityType
     from autom8_asana.models.task import Task
 
 __all__ = [
