@@ -60,18 +60,8 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-__all__ = ["DataServiceClient", "mask_phone_number"]
+__all__ = ["DataServiceClient"]
 
-
-# --- PII Redaction (Story 1.9, XR-003) ---
-# Primitives live in _pii.py to avoid circular imports with submodules.
-# Re-exported here for backward compatibility.
-
-# --- Metrics Hook Type (Story 1.9) ---
-# Re-exported from _metrics module for backward compatibility.
-from autom8_asana.clients.data._pii import (  # noqa: E402
-    mask_phone_number,
-)
 from autom8_asana.clients.data._pii import (  # noqa: E402
     mask_pii_in_string as _mask_pii_in_string,
 )
