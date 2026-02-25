@@ -73,33 +73,6 @@ class _ResumeResult:
     sections_delta_updated: int
 
 
-@dataclass
-class ProgressiveBuildResult:
-    """Result of progressive project build.
-
-    Attributes:
-        df: Final merged DataFrame.
-        watermark: Build timestamp.
-        total_rows: Total rows across all sections.
-        sections_fetched: Number of sections fetched from API.
-        sections_resumed: Number of sections loaded from S3 (resumed).
-        fetch_time_ms: Time spent fetching from API.
-        total_time_ms: Total build time including S3 writes.
-        sections_probed: Number of sections checked for freshness.
-        sections_delta_updated: Number of sections updated via delta merge.
-    """
-
-    df: pl.DataFrame
-    watermark: datetime
-    total_rows: int
-    sections_fetched: int
-    sections_resumed: int
-    fetch_time_ms: float
-    total_time_ms: float
-    sections_probed: int = 0
-    sections_delta_updated: int = 0
-
-
 class ProgressiveProjectBuilder:
     """Builder that writes section DataFrames progressively to S3.
 

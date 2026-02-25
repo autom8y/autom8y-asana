@@ -11,8 +11,7 @@ Components:
   row count, and error detail.
 - BuildStatus: Three-state enum for aggregate build classification.
 - BuildResult: Frozen dataclass aggregating all section results with
-  status classification and backward-compatible bridge to
-  ProgressiveBuildResult.
+  status classification.
 - BuildQuality: Metadata about build quality for cache entries.
 """
 
@@ -20,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -112,7 +111,6 @@ class BuildResult:
     a build -- overall status, per-section results, the produced DataFrame
     (if any), timing, and freshness.
 
-    Replaces ProgressiveBuildResult with strictly more information.
     The happy path (all sections succeed) produces BuildStatus.SUCCESS
     with the same DataFrame as before.
 
@@ -203,30 +201,6 @@ class BuildResult:
     def is_usable(self) -> bool:
         """True if a DataFrame was produced (SUCCESS or PARTIAL)."""
         return self.dataframe is not None and self.status != BuildStatus.FAILURE
-
-    def to_legacy(self) -> Any:
-        """Convert to legacy ProgressiveBuildResult for backward compatibility.
-
-        Returns:
-            ProgressiveBuildResult with equivalent aggregate metrics.
-        """
-        import polars as pl
-
-        from autom8_asana.dataframes.builders.progressive import (
-            ProgressiveBuildResult,
-        )
-
-        return ProgressiveBuildResult(
-            df=self.dataframe if self.dataframe is not None else pl.DataFrame(),
-            watermark=self.watermark,
-            total_rows=self.total_rows,
-            sections_fetched=self.sections_succeeded,
-            sections_resumed=self.sections_resumed,
-            fetch_time_ms=self.fetch_time_ms,
-            total_time_ms=self.total_time_ms,
-            sections_probed=self.sections_probed,
-            sections_delta_updated=self.sections_delta_updated,
-        )
 
     @classmethod
     def from_section_results(

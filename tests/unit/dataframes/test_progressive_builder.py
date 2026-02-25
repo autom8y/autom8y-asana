@@ -11,8 +11,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import polars as pl
 import pytest
 
+from autom8_asana.dataframes.builders.build_result import (
+    BuildResult,
+    BuildStatus,
+    SectionOutcome,
+    SectionResult,
+)
 from autom8_asana.dataframes.builders.progressive import (
-    ProgressiveBuildResult,
     ProgressiveProjectBuilder,
     build_project_progressive_async,
 )
@@ -22,32 +27,6 @@ from autom8_asana.dataframes.section_persistence import (
     SectionPersistence,
     SectionStatus,
 )
-
-
-class TestProgressiveBuildResult:
-    """Tests for ProgressiveBuildResult dataclass."""
-
-    def test_create_result(self) -> None:
-        """Result contains all expected fields."""
-        df = pl.DataFrame({"gid": ["1", "2"]})
-        watermark = datetime.now(UTC)
-
-        result = ProgressiveBuildResult(
-            df=df,
-            watermark=watermark,
-            total_rows=100,
-            sections_fetched=5,
-            sections_resumed=3,
-            fetch_time_ms=500.0,
-            total_time_ms=1000.0,
-        )
-
-        assert len(result.df) == 2
-        assert result.total_rows == 100
-        assert result.sections_fetched == 5
-        assert result.sections_resumed == 3
-        assert result.fetch_time_ms == 500.0
-        assert result.total_time_ms == 1000.0
 
 
 class TestProgressiveProjectBuilderInit:
@@ -384,14 +363,15 @@ class TestConvenienceFunction:
         ) as mock_builder_class:
             mock_builder = MagicMock()
             mock_builder.build_progressive_async = AsyncMock(
-                return_value=ProgressiveBuildResult(
-                    df=pl.DataFrame(),
+                return_value=BuildResult(
+                    status=BuildStatus.SUCCESS,
+                    sections=(),
+                    dataframe=pl.DataFrame(),
                     watermark=datetime.now(UTC),
-                    total_rows=0,
-                    sections_fetched=0,
-                    sections_resumed=0,
-                    fetch_time_ms=0,
+                    project_gid="proj_123",
+                    entity_type="offer",
                     total_time_ms=0,
+                    fetch_time_ms=0,
                 )
             )
             mock_builder_class.return_value = mock_builder

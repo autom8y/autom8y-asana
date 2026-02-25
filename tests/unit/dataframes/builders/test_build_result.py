@@ -507,57 +507,6 @@ class TestBuildResult:
         assert partial.is_usable is True
         assert failure.is_usable is False
 
-    def test_build_result_to_legacy(
-        self, sample_df: pl.DataFrame, now: datetime
-    ) -> None:
-        """Converts to ProgressiveBuildResult correctly."""
-        from autom8_asana.dataframes.builders.progressive import (
-            ProgressiveBuildResult,
-        )
-
-        result = BuildResult.from_section_results(
-            section_results=[
-                self._make_skipped("s1", resumed=True),
-                self._make_success("s2", row_count=25),
-                self._make_success("s3", row_count=15),
-            ],
-            dataframe=sample_df,
-            watermark=now,
-            project_gid="p",
-            entity_type="e",
-            total_time_ms=5000.0,
-            fetch_time_ms=3000.0,
-            sections_probed=2,
-            sections_delta_updated=1,
-        )
-        legacy = result.to_legacy()
-
-        assert isinstance(legacy, ProgressiveBuildResult)
-        assert legacy.df is sample_df
-        assert legacy.watermark == now
-        assert legacy.total_rows == 3  # len(sample_df), not section sums
-        assert legacy.sections_fetched == 2  # succeeded count
-        assert legacy.sections_resumed == 1
-        assert legacy.fetch_time_ms == 3000.0
-        assert legacy.total_time_ms == 5000.0
-        assert legacy.sections_probed == 2
-        assert legacy.sections_delta_updated == 1
-
-    def test_build_result_to_legacy_failure(self, now: datetime) -> None:
-        """to_legacy on FAILURE returns empty DataFrame."""
-        result = BuildResult.from_section_results(
-            section_results=[self._make_error("s1")],
-            dataframe=None,
-            watermark=now,
-            project_gid="p",
-            entity_type="e",
-            total_time_ms=100.0,
-            fetch_time_ms=50.0,
-        )
-        legacy = result.to_legacy()
-        assert len(legacy.df) == 0
-        assert legacy.total_rows == 0
-
     def test_build_result_from_section_results(
         self, sample_df: pl.DataFrame, now: datetime
     ) -> None:
