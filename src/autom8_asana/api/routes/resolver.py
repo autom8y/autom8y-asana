@@ -57,7 +57,6 @@ from autom8_asana.api.routes.internal import (
     require_service_claims,
 )
 from autom8_asana.api.routes.resolver_models import (
-    ResolutionCriterion,
     ResolutionMeta,
     ResolutionRequest,
     ResolutionResponse,
@@ -76,12 +75,6 @@ from autom8_asana.services.resolver import (
 __all__ = [
     "router",
     "get_supported_entity_types",
-    # Re-export models for backward compatibility (tests import these)
-    "ResolutionCriterion",
-    "ResolutionRequest",
-    "ResolutionResultModel",
-    "ResolutionMeta",
-    "ResolutionResponse",
 ]
 
 logger = get_logger(__name__)
