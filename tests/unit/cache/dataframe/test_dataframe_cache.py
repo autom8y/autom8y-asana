@@ -186,7 +186,9 @@ class TestDataFrameCache:
 
         cache = make_cache(memory_tier=memory)
 
-        with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task"):
+        with patch(
+            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
+        ):
             result = await cache.get_async("proj-1", "unit")
 
         # Should be served as LKG
@@ -396,7 +398,7 @@ class TestEntityTTLAndSWR:
         cache = make_cache(memory_tier=memory)
 
         with patch(
-            "autom8_asana.cache.dataframe_cache.asyncio.create_task"
+            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
         ) as mock_task:
             result = await cache.get_async("proj-1", "unit")
 
@@ -416,7 +418,9 @@ class TestEntityTTLAndSWR:
 
         cache = make_cache(memory_tier=memory)
 
-        with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task"):
+        with patch(
+            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
+        ):
             result = await cache.get_async("proj-1", "unit")
 
         # Should be served as LKG
@@ -437,7 +441,9 @@ class TestEntityTTLAndSWR:
 
         cache = make_cache(memory_tier=memory)
 
-        with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task"):
+        with patch(
+            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
+        ):
             result = await cache.get_async("proj-1", "offer")
 
         assert result is entry
@@ -454,7 +460,9 @@ class TestEntityTTLAndSWR:
 
         cache = make_cache(memory_tier=memory)
 
-        with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task"):
+        with patch(
+            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
+        ):
             result = await cache.get_async("proj-1", "offer")
 
         # Should be served as LKG
@@ -491,7 +499,7 @@ class TestEntityTTLAndSWR:
         cache = make_cache(memory_tier=memory, coalescer=coalescer)
 
         with patch(
-            "autom8_asana.cache.dataframe_cache.asyncio.create_task"
+            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
         ) as mock_task:
             result = await cache.get_async("proj-1", "unit")
 
@@ -514,7 +522,9 @@ class TestEntityTTLAndSWR:
 
         cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
-        with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task"):
+        with patch(
+            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
+        ):
             result = await cache.get_async("proj-1", "unit")
 
         assert result is entry
@@ -570,7 +580,9 @@ class TestLKGCacheFallback:
 
         cache = make_cache(memory_tier=memory)
 
-        with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task"):
+        with patch(
+            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
+        ):
             result = await cache.get_async("proj-1", "unit")
 
         # Should serve the entry
@@ -638,7 +650,7 @@ class TestLKGCacheFallback:
         cache = make_cache(memory_tier=memory)
 
         with patch(
-            "autom8_asana.cache.dataframe_cache.asyncio.create_task"
+            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
         ) as mock_task:
             result = await cache.get_async("proj-1", "unit")
 
@@ -659,7 +671,9 @@ class TestLKGCacheFallback:
 
         cache = make_cache(memory_tier=memory)
 
-        with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task"):
+        with patch(
+            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
+        ):
             # Serve LKG twice
             await cache.get_async("proj-1", "unit")
             await cache.get_async("proj-1", "unit")
@@ -683,7 +697,9 @@ class TestLKGCacheFallback:
 
         cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
-        with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task"):
+        with patch(
+            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
+        ):
             result = await cache.get_async("proj-1", "unit")
 
         # Should serve entry
@@ -868,7 +884,7 @@ class TestCircuitBreakerLKG:
         cache = make_cache(memory_tier=memory, circuit_breaker=circuit)
 
         with patch(
-            "autom8_asana.cache.dataframe_cache.asyncio.create_task"
+            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
         ) as mock_task:
             result = await cache.get_async("proj-1", "unit")
 
@@ -906,7 +922,9 @@ class TestMaxStalenessEnforcement:
 
         cache = make_cache(memory_tier=memory)
 
-        with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task"):
+        with patch(
+            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
+        ):
             result = await cache.get_async("proj-1", "unit")
 
         assert result is entry
@@ -922,7 +940,9 @@ class TestMaxStalenessEnforcement:
         cache = make_cache(memory_tier=memory)
 
         with patch("autom8_asana.config.LKG_MAX_STALENESS_MULTIPLIER", 10.0):
-            with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task"):
+            with patch(
+                "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
+            ):
                 result = await cache.get_async("proj-1", "unit")
 
         assert result is entry
@@ -986,7 +1006,9 @@ class TestMaxStalenessEnforcement:
         # With a very restrictive multiplier (1.0 = only serve up to 1x TTL)
         with patch("autom8_asana.config.LKG_MAX_STALENESS_MULTIPLIER", 1.0):
             fresh_result = await cache.get_async("proj-fresh", "unit")
-            with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task"):
+            with patch(
+                "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
+            ):
                 swr_result = await cache.get_async("proj-swr", "unit")
 
         # Both should still be served (staleness cap only applies to STALE/LKG entries)
@@ -1015,7 +1037,7 @@ class TestSchemaIsValid:
         entry = make_entry(entity_type="unit")
 
         with patch(
-            "autom8_asana.cache.dataframe_cache._get_schema_version_for_entity",
+            "autom8_asana.cache.integration.dataframe_cache._get_schema_version_for_entity",
             return_value=None,
         ):
             assert cache._schema_is_valid(entry) is False
@@ -1050,7 +1072,9 @@ class TestFreshnessInfoSideChannel:
         memory.put("unit:proj-1", entry)
 
         cache = make_cache(memory_tier=memory)
-        with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task"):
+        with patch(
+            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
+        ):
             await cache.get_async("proj-1", "unit")
 
         info = cache.get_freshness_info("proj-1", "unit")
@@ -1067,7 +1091,9 @@ class TestFreshnessInfoSideChannel:
         memory.put("unit:proj-1", entry)
 
         cache = make_cache(memory_tier=memory)
-        with patch("autom8_asana.cache.dataframe_cache.asyncio.create_task"):
+        with patch(
+            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
+        ):
             await cache.get_async("proj-1", "unit")
 
         info = cache.get_freshness_info("proj-1", "unit")

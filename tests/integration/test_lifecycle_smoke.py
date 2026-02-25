@@ -1676,22 +1676,6 @@ class TestEdgeCasesAdversarial:
         result = engine._build_result("test", process, start, tr)
         assert result.execution_time_ms > 0
 
-    def test_stub_reopen_service_returns_failure(self):
-        """The _StubReopenService should return success=False."""
-        from autom8_asana.lifecycle.engine import _StubReopenService
-
-        stub = _StubReopenService()
-        target_stage = MagicMock()
-        ctx = MagicMock()
-        process = _make_mock_process()
-
-        async def _run():
-            return await stub.reopen_async(target_stage, ctx, process)
-
-        result = _run_async(_run())
-        assert result.success is False
-        assert "not yet implemented" in result.error.lower()
-
     def test_dnc_action_values_per_stage(self):
         """Verify exact DNC actions for each active stage."""
         from autom8_asana.lifecycle.config import LifecycleConfig

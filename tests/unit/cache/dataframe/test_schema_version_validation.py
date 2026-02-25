@@ -170,7 +170,7 @@ class TestSchemaVersionValidation:
         cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
         with patch(
-            "autom8_asana.cache.dataframe_cache._get_schema_version_for_entity"
+            "autom8_asana.cache.integration.dataframe_cache._get_schema_version_for_entity"
         ) as mock_lookup:
             mock_lookup.return_value = None  # Simulate registry failure
 
@@ -217,7 +217,7 @@ class TestPutAsyncSchemaVersion:
         watermark = datetime.now(UTC)
 
         with patch(
-            "autom8_asana.cache.dataframe_cache._get_schema_version_for_entity"
+            "autom8_asana.cache.integration.dataframe_cache._get_schema_version_for_entity"
         ) as mock_lookup:
             mock_lookup.return_value = None  # Simulate registry failure
 

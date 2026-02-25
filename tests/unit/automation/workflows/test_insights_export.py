@@ -878,7 +878,7 @@ class TestUploadAndCleanup:
         """Old matching attachments are deleted after upload."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         old_att = _make_attachment(
-            "old-att-1", "insights_export_Test_Business_20260201.md"
+            "old-att-1", "insights_export_Test_Business_20260201.html"
         )
 
         wf, _, _, mock_att = _make_workflow(
@@ -929,7 +929,7 @@ class TestUploadAndCleanup:
         """Upload-first: upload happens before delete (AC-W03.11)."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         old_att = _make_attachment(
-            "old-att-1", "insights_export_Test_Business_20260201.md"
+            "old-att-1", "insights_export_Test_Business_20260201.html"
         )
 
         call_order: list[str] = []
