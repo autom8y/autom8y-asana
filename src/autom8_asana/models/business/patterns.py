@@ -17,9 +17,9 @@ if TYPE_CHECKING:
 
 __all__ = [
     "PatternSpec",
-    "PATTERN_CONFIG",
-    "PATTERN_PRIORITY",
     "STRIP_PATTERNS",
+    "get_pattern_config",
+    "get_pattern_priority",
 ]
 
 
@@ -127,9 +127,3 @@ def get_pattern_priority() -> list[EntityType]:
     if _PATTERN_PRIORITY is None:
         _PATTERN_PRIORITY = _get_pattern_priority()
     return _PATTERN_PRIORITY
-
-
-# For backward compatibility, expose as module-level constants
-# These will be populated on first import
-PATTERN_CONFIG: dict[EntityType, PatternSpec] = {}  # Populated lazily
-PATTERN_PRIORITY: list[EntityType] = []  # Populated lazily
