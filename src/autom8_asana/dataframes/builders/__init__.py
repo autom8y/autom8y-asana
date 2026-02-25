@@ -6,7 +6,7 @@ into typed Polars DataFrames using schema-driven extraction.
 Per TDD-WATERMARK-CACHE Phase 1: Adds parallel section fetch support.
 
 Per TDD-DATAFRAME-BUILDER-WATERMARK-001: Adds ProgressiveProjectBuilder with
-incremental watermark-based filtering and compatibility shim.
+incremental watermark-based filtering.
 
 Public API:
     - DataFrameBuilder: Abstract base with lazy/eager evaluation
@@ -55,7 +55,6 @@ from autom8_asana.dataframes.builders.parallel_fetch import (
     ParallelSectionFetcher,
 )
 from autom8_asana.dataframes.builders.progressive import (
-    ProgressiveBuildResult,
     ProgressiveProjectBuilder,
 )
 from autom8_asana.dataframes.builders.section import SectionDataFrameBuilder
@@ -75,8 +74,6 @@ __all__ = [
     "BuildQuality",
     "SectionResult",
     "SectionOutcome",
-    # Legacy builder results
-    "ProgressiveBuildResult",
     # Parallel fetch
     "FetchResult",
     "ParallelFetchError",
