@@ -619,7 +619,10 @@ class AsanaConfig:
             dataframe=DataFrameConfig(max_concurrent_sections=4),
             automation=AutomationConfig(
                 enabled=True,
-                pipeline_templates={"sales": "123", "onboarding": "456"},
+                pipeline_stages={
+                    "sales": PipelineStage(project_gid="123"),
+                    "onboarding": PipelineStage(project_gid="456"),
+                },
             ),
         )
         client = AsanaClient(config=config)

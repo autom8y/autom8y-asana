@@ -109,24 +109,10 @@ class AutomationConfig:
             Prevents circular trigger chains per FR-011.
         rules_source: Where to load rules from ("inline", "file", "api").
             V1 only supports "inline" (programmatic registration).
-        pipeline_templates: ProcessType to target project GID mapping (legacy).
-            Used by PipelineConversionRule to find target projects.
-            For section placement, use pipeline_stages instead.
-        pipeline_stages: ProcessType to PipelineStage mapping (preferred).
+        pipeline_stages: ProcessType to PipelineStage mapping.
             Provides full configuration including target section placement.
-            Takes precedence over pipeline_templates when both are specified.
 
-    Example (legacy):
-        config = AutomationConfig(
-            enabled=True,
-            max_cascade_depth=3,
-            pipeline_templates={
-                "sales": "1234567890123",
-                "onboarding": "9876543210987",
-            },
-        )
-
-    Example (with section placement):
+    Example:
         config = AutomationConfig(
             enabled=True,
             pipeline_stages={
@@ -141,7 +127,6 @@ class AutomationConfig:
     enabled: bool = True
     max_cascade_depth: int = 5
     rules_source: str = "inline"  # "inline" | "file" | "api"
-    pipeline_templates: dict[str, str] = field(default_factory=dict)
     pipeline_stages: dict[str, PipelineStage] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -163,21 +148,10 @@ class AutomationConfig:
     def get_pipeline_stage(self, process_type: str) -> PipelineStage | None:
         """Get pipeline stage configuration for a process type.
 
-        Resolves configuration from pipeline_stages (preferred) or
-        pipeline_templates (legacy). Pipeline_stages takes precedence.
-
         Args:
             process_type: Process type name (e.g., "onboarding", "sales").
 
         Returns:
             PipelineStage if configured, None otherwise.
         """
-        # Check pipeline_stages first (preferred)
-        if process_type in self.pipeline_stages:
-            return self.pipeline_stages[process_type]
-
-        # Fall back to pipeline_templates (legacy)
-        if process_type in self.pipeline_templates:
-            return PipelineStage(project_gid=self.pipeline_templates[process_type])
-
-        return None
+        return self.pipeline_stages.get(process_type)

@@ -25,6 +25,7 @@ from autom8_asana.automation import (
     PipelineConversionRule,
     TriggerCondition,
 )
+from autom8_asana.automation.config import PipelineStage
 from autom8_asana.config import AsanaConfig
 from autom8_asana.models.common import NameGid
 from autom8_asana.persistence.models import (
@@ -156,13 +157,16 @@ class TestAsanaConfigAutomationIntegration:
         automation_config = AutomationConfig(
             enabled=True,
             max_cascade_depth=5,
-            pipeline_templates={"sales": "123", "onboarding": "456"},
+            pipeline_stages={
+                "sales": PipelineStage(project_gid="123"),
+                "onboarding": PipelineStage(project_gid="456"),
+            },
         )
         config = AsanaConfig(automation=automation_config)
 
         assert config.automation.enabled is True
         assert config.automation.max_cascade_depth == 5
-        assert config.automation.pipeline_templates["sales"] == "123"
+        assert config.automation.pipeline_stages["sales"].project_gid == "123"
 
 
 class TestClientAutomationProperty:
@@ -207,7 +211,7 @@ class TestRuleRegistrationEndToEnd:
             config = AsanaConfig(
                 automation=AutomationConfig(
                     enabled=True,
-                    pipeline_templates={"onboarding": "123456"},
+                    pipeline_stages={"onboarding": PipelineStage(project_gid="123456")},
                 )
             )
 
@@ -589,9 +593,9 @@ class TestFullFlowIntegration:
             automation_config = AutomationConfig(
                 enabled=True,
                 max_cascade_depth=5,
-                pipeline_templates={
-                    "sales": "sales_project_123",
-                    "onboarding": "onboarding_project_456",
+                pipeline_stages={
+                    "sales": PipelineStage(project_gid="sales_project_123"),
+                    "onboarding": PipelineStage(project_gid="onboarding_project_456"),
                 },
             )
             config = AsanaConfig(automation=automation_config)
