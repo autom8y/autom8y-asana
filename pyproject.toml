@@ -130,7 +130,7 @@ ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 88
-target-version = "py312"
+target-version = "py311"
 src = ["src"]
 
 # Exclude non-production code from strict linting
