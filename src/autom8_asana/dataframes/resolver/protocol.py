@@ -31,7 +31,7 @@ class CustomFieldResolver(Protocol):
         >>> resolver = DefaultCustomFieldResolver()
         >>> resolver.build_index(task.custom_fields)
         >>> gid = resolver.resolve("cf:MRR")
-        >>> value = resolver.get_value(task, "cf:MRR", Decimal)
+        >>> value = resolver.get_value(task, "cf:MRR")
     """
 
     def build_index(self, custom_fields: list[CustomField]) -> None:
@@ -69,7 +69,6 @@ class CustomFieldResolver(Protocol):
         self,
         task: Task,
         field_name: str,
-        expected_type: type | None = None,
         *,
         column_def: ColumnDef | None = None,
     ) -> Any:
@@ -78,7 +77,6 @@ class CustomFieldResolver(Protocol):
         Args:
             task: Task to extract value from
             field_name: Schema field name (with optional prefix)
-            expected_type: Optional type for value coercion (deprecated, use column_def)
             column_def: Optional column definition for schema-aware coercion
 
         Returns:
@@ -89,7 +87,6 @@ class CustomFieldResolver(Protocol):
 
         Note:
             When column_def is provided, its dtype is used for coercion.
-            The expected_type parameter is deprecated in favor of column_def.
 
         Raises:
             KeyError: If strict mode enabled and field not found

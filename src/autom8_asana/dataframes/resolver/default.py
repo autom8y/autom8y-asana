@@ -9,7 +9,6 @@ Thread-safe for concurrent extraction using RLock.
 from __future__ import annotations
 
 import threading
-from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
@@ -37,7 +36,7 @@ class DefaultCustomFieldResolver:
         >>> resolver = DefaultCustomFieldResolver()
         >>> resolver.build_index(task.custom_fields)
         >>> gid = resolver.resolve("cf:MRR")
-        >>> value = resolver.get_value(task, "cf:MRR", Decimal)
+        >>> value = resolver.get_value(task, "cf:MRR")
 
     Attributes:
         strict: If True, raise KeyError on missing fields. Default False.
@@ -150,7 +149,6 @@ class DefaultCustomFieldResolver:
         self,
         task: Task,
         field_name: str,
-        expected_type: type | None = None,
         *,
         column_def: ColumnDef | None = None,
     ) -> Any:
@@ -159,15 +157,13 @@ class DefaultCustomFieldResolver:
         Args:
             task: Task to extract from
             field_name: Schema field name (with optional prefix)
-            expected_type: Optional type for coercion (deprecated, use column_def)
             column_def: Optional column definition for schema-aware coercion
 
         Returns:
-            Extracted value (coerced if type provided), or None
+            Extracted value (coerced if column_def provided), or None
 
         Note:
             When column_def is provided, its dtype is used for coercion.
-            The expected_type parameter is deprecated in favor of column_def.
 
         Raises:
             KeyError: If strict mode and field not found
@@ -190,13 +186,9 @@ class DefaultCustomFieldResolver:
             if cf_gid == gid:
                 raw_value = self._extract_raw_value(cf_data)
 
-                # Schema-aware coercion takes precedence
+                # Schema-aware coercion
                 if column_def is not None:
                     return self._coerce_with_schema(raw_value, column_def, cf_data)
-
-                # Fallback to legacy type-based coercion
-                if expected_type is not None and raw_value is not None:
-                    return self._coerce(raw_value, expected_type)
 
                 return raw_value
 
@@ -304,89 +296,6 @@ class DefaultCustomFieldResolver:
             case _:
                 # Fallback to display_value
                 return get_attr("display_value")
-
-    def _normalize_numeric_string(self, value: str) -> str:
-        """Normalize numeric-like strings by stripping common suffixes.
-
-        Per legacy solution: Enum values like "0%", "5%", "10%" should be
-        converted to their numeric equivalents for Decimal/int coercion.
-
-        Args:
-            value: String value that may have numeric suffix
-
-        Returns:
-            Normalized string with suffix stripped if numeric-like
-        """
-        stripped = value.strip()
-
-        # Handle percentage suffix (e.g., "0%", "5%", "10%")
-        if stripped.endswith("%"):
-            numeric_part = stripped[:-1].strip()
-            # Verify it's actually numeric before stripping
-            try:
-                float(numeric_part)
-                return numeric_part
-            except ValueError:
-                pass
-
-        # Handle currency prefixes (e.g., "$100", "€50")
-        if stripped and stripped[0] in "$€£¥":
-            numeric_part = stripped[1:].strip().replace(",", "")
-            try:
-                float(numeric_part)
-                return numeric_part
-            except ValueError:
-                pass
-
-        return value
-
-    def _coerce(self, value: Any, expected_type: type) -> Any:
-        """Coerce value to expected type.
-
-        Args:
-            value: Raw value to coerce
-            expected_type: Target type
-
-        Returns:
-            Coerced value, or None if coercion fails
-        """
-        if value is None:
-            return None
-
-        try:
-            if expected_type is Decimal:
-                if isinstance(value, Decimal):
-                    return value
-                if isinstance(value, (int, float)):
-                    return Decimal(str(value))
-                if isinstance(value, str):
-                    # Normalize numeric strings (strip %, $, etc.)
-                    normalized = self._normalize_numeric_string(value)
-                    return Decimal(normalized)
-            if expected_type is str:
-                return str(value)
-            if expected_type is int:
-                if isinstance(value, str):
-                    normalized = self._normalize_numeric_string(value)
-                    return int(float(normalized))  # Handle "5.0" -> 5
-                return int(value)
-            if expected_type is float:
-                if isinstance(value, str):
-                    normalized = self._normalize_numeric_string(value)
-                    return float(normalized)
-                return float(value)
-            if expected_type is bool:
-                return bool(value)
-            if expected_type is list and not isinstance(value, list):
-                return [value]
-        except (ValueError, TypeError, ArithmeticError):
-            logger.debug(
-                "Type coercion failed",
-                extra={"value": value, "expected_type": expected_type.__name__},
-            )
-            return None
-
-        return value
 
     def get_resolution_stats(self) -> dict[str, Any]:
         """Get statistics about resolved fields (for debugging).
