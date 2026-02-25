@@ -306,7 +306,9 @@ class TestGidLookupIndexWithCascadedValues:
             }
         )
 
-        index = GidLookupIndex.from_dataframe(df)
+        index = GidLookupIndex.from_dataframe(
+            df, key_columns=["office_phone", "vertical"]
+        )
 
         # Verify index contains expected entries
         assert len(index) == 3
@@ -334,7 +336,9 @@ class TestGidLookupIndexWithCascadedValues:
             }
         )
 
-        index = GidLookupIndex.from_dataframe(df)
+        index = GidLookupIndex.from_dataframe(
+            df, key_columns=["office_phone", "vertical"]
+        )
 
         # Should only index 2 entries (skipping null office_phone)
         assert len(index) == 2
@@ -580,7 +584,9 @@ class TestProductionValidationScenarios:
             }
         )
 
-        index = GidLookupIndex.from_dataframe(df)
+        index = GidLookupIndex.from_dataframe(
+            df, key_columns=["office_phone", "vertical"]
+        )
 
         from autom8_asana.models.contracts.phone_vertical import PhoneVerticalPair
 
@@ -645,7 +651,9 @@ class TestProductionValidationScenarios:
             }
         )
 
-        index = GidLookupIndex.from_dataframe(df)
+        index = GidLookupIndex.from_dataframe(
+            df, key_columns=["office_phone", "vertical"]
+        )
 
         from autom8_asana.models.contracts.phone_vertical import PhoneVerticalPair
 
