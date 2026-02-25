@@ -95,11 +95,20 @@ def main() -> None:
     agg_fn = getattr(result[metric.expr.column], metric.expr.agg)
     total = agg_fn()
 
+    # Guard None: mean/min/max on empty DataFrame returns None
+    if total is None:
+        formatted = "N/A (no data)"
+    elif metric.expr.agg == "count":
+        formatted = f"{int(total):,}"
+    else:
+        # sum, mean, min, max on financial columns
+        formatted = f"${total:,.2f}"
+
     if metric.scope.dedup_keys:
         dedup_desc = ", ".join(metric.scope.dedup_keys)
         print(f"Unique ({dedup_desc}) combos: {len(result)}")
 
-    print(f"\n  {metric.name}: ${total:,.2f}")
+    print(f"\n  {metric.name}: {formatted}")
 
 
 if __name__ == "__main__":
