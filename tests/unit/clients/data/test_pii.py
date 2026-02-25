@@ -31,7 +31,7 @@ class TestMaskPhoneNumber:
     )
     def test_mask_phone_number(self, phone: str, expected: str) -> None:
         """mask_phone_number masks E.164 phones and returns others unchanged."""
-        from autom8_asana.clients.data.client import mask_phone_number
+        from autom8_asana.clients.data._pii import mask_phone_number
 
         result = mask_phone_number(phone)
 

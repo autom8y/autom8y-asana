@@ -115,12 +115,13 @@ async def get_appointments(
     import uuid
 
     import autom8_asana.clients.data.client as _client_mod
+    from autom8_asana.clients.data._pii import mask_phone_number
 
     # S1: Pre-flight
     client._check_feature_enabled()
 
     request_id = str(uuid.uuid4())
-    masked_phone = _client_mod.mask_phone_number(office_phone)
+    masked_phone = mask_phone_number(office_phone)
 
     _client_mod.logger.info(
         "appointments_request_started",
@@ -213,12 +214,13 @@ async def get_leads(
     import uuid
 
     import autom8_asana.clients.data.client as _client_mod
+    from autom8_asana.clients.data._pii import mask_phone_number
 
     # S1: Pre-flight
     client._check_feature_enabled()
 
     request_id = str(uuid.uuid4())
-    masked_phone = _client_mod.mask_phone_number(office_phone)
+    masked_phone = mask_phone_number(office_phone)
 
     _client_mod.logger.info(
         "leads_request_started",

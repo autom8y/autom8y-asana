@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
-from autom8_asana.clients.data.client import mask_phone_number
+from autom8_asana.clients.data._pii import mask_phone_number
 
 # Section order (per PRD FR-W01.6, extended per TDD-WS5)
 TABLE_ORDER: list[str] = [
