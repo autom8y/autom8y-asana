@@ -92,7 +92,7 @@ class TestHolderMixin:
         assert hasattr(holder, "_children_cache")
 
     def test_invalidate_cache(self) -> None:
-        """invalidate_cache sets _children_cache to None."""
+        """invalidate_cache resets children to empty list."""
 
         class MyHolder(Task, HolderMixin[Task]):
             CHILD_TYPE: ClassVar[type[Task]] = Task
@@ -100,7 +100,7 @@ class TestHolderMixin:
         holder = MyHolder(gid="123")
         holder._children_cache = [Task(gid="1"), Task(gid="2")]
         holder.invalidate_cache()
-        assert holder._children_cache is None
+        assert holder._children_cache == []
 
     def test_populate_children_sorts_by_created_at(self) -> None:
         """_populate_children sorts by created_at."""

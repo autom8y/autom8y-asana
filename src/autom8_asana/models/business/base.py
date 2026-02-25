@@ -142,10 +142,6 @@ class HolderMixin(Generic[T]):
         # Store in children list
         setattr(self, children_attr, children)
 
-        # Also update legacy _children_cache for backward compatibility
-        if children_attr != "_children_cache":
-            self._children_cache = children
-
     def _set_child_parent_ref(self, child: T) -> None:
         """Set parent references on a single child.
 
@@ -174,7 +170,6 @@ class HolderMixin(Generic[T]):
         """
         children_attr = getattr(self.__class__, "CHILDREN_ATTR", "_children_cache")
         setattr(self, children_attr, [])
-        self._children_cache = None
 
 
 class BusinessEntity(Task):
