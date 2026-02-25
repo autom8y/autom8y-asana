@@ -251,6 +251,9 @@ class GidLookupIndex:
             df: Polars DataFrame with gid column and key columns.
             key_columns: Columns to use as lookup key. Defaults to
                 ["office_phone", "vertical"] for backwards compatibility.
+                TODO(COMPAT-PURGE): Make key_columns required (no default).
+                ~26 callers (4 source, ~22 test) rely on this default.
+                Migrate callers to pass key_columns explicitly, then remove.
 
         Returns:
             New GidLookupIndex instance with O(1) lookup capability.
@@ -272,6 +275,7 @@ class GidLookupIndex:
             Rows with null values in any key column or gid are skipped.
             The canonical_key format is 'pv1:{col1_val}:{col2_val}:...'.
         """
+        # TODO(COMPAT-PURGE): Remove default once callers are migrated.
         if key_columns is None:
             key_columns = ["office_phone", "vertical"]
 

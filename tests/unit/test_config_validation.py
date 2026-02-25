@@ -599,7 +599,7 @@ class TestCacheConfigEntityTTL:
             "unit": 900,
             "offer": 180,
             "process": 60,
-            "address": 3600,
+            "location": 3600,
             "hours": 3600,
         }
 
@@ -614,7 +614,7 @@ class TestCacheConfigEntityTTL:
         assert config.get_entity_ttl("unit") == 900
         assert config.get_entity_ttl("offer") == 180
         assert config.get_entity_ttl("process") == 60
-        assert config.get_entity_ttl("address") == 3600
+        assert config.get_entity_ttl("location") == 3600
         assert config.get_entity_ttl("hours") == 3600
 
     def test_get_entity_ttl_is_case_insensitive(self) -> None:
