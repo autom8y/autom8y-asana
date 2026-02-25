@@ -535,7 +535,7 @@ class TestResolutionCriterionModel:
 
     def test_valid_phone_vertical(self) -> None:
         """ResolutionCriterion accepts valid phone/vertical."""
-        from autom8_asana.api.routes.resolver import ResolutionCriterion
+        from autom8_asana.api.routes.resolver_models import ResolutionCriterion
 
         criterion = ResolutionCriterion(phone="+15551234567", vertical="dental")
         assert criterion.phone == "+15551234567"
@@ -545,7 +545,7 @@ class TestResolutionCriterionModel:
         """ResolutionCriterion rejects invalid phone format."""
         import pydantic
 
-        from autom8_asana.api.routes.resolver import ResolutionCriterion
+        from autom8_asana.api.routes.resolver_models import ResolutionCriterion
 
         with pytest.raises(pydantic.ValidationError):
             ResolutionCriterion(phone="5551234567", vertical="dental")
@@ -554,14 +554,14 @@ class TestResolutionCriterionModel:
         """Phone starting with zero after + is rejected."""
         import pydantic
 
-        from autom8_asana.api.routes.resolver import ResolutionCriterion
+        from autom8_asana.api.routes.resolver_models import ResolutionCriterion
 
         with pytest.raises(pydantic.ValidationError):
             ResolutionCriterion(phone="+05551234567", vertical="dental")
 
     def test_phone_with_trailing_newline_stripped(self) -> None:
         """Phone with trailing newline is stripped and validated (DEF-002)."""
-        from autom8_asana.api.routes.resolver import ResolutionCriterion
+        from autom8_asana.api.routes.resolver_models import ResolutionCriterion
 
         criterion = ResolutionCriterion(phone="+15551234567\n", vertical="dental")
         assert criterion.phone == "+15551234567"

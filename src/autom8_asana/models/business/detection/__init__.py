@@ -26,6 +26,9 @@ are re-exported for test compatibility. They are internal APIs subject to change
 
 from __future__ import annotations
 
+# Layer 0: Pure types (no dependencies)
+from autom8_asana.core.types import EntityType
+
 # Layer 1: Configuration (depends on types only)
 from autom8_asana.models.business.detection.config import (
     ENTITY_TYPE_INFO,
@@ -67,8 +70,6 @@ from autom8_asana.models.business.detection.tier3 import (
 from autom8_asana.models.business.detection.tier4 import (
     detect_by_structure_inspection,
 )
-
-# Layer 0: Pure types (no dependencies)
 from autom8_asana.models.business.detection.types import (
     CONFIDENCE_TIER_1,
     CONFIDENCE_TIER_2,
@@ -76,7 +77,6 @@ from autom8_asana.models.business.detection.types import (
     CONFIDENCE_TIER_4,
     CONFIDENCE_TIER_5,
     DetectionResult,
-    EntityType,
     EntityTypeInfo,
 )
 

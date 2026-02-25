@@ -804,7 +804,7 @@ class TestGetFieldAttr:
 
     def test_dict_access(self) -> None:
         """Test accessing attributes from dict."""
-        from autom8_asana.automation.seeding import get_field_attr
+        from autom8_asana.core.field_utils import get_field_attr
 
         field_dict = {"gid": "123", "name": "Test Field", "resource_subtype": "text"}
         assert get_field_attr(field_dict, "name") == "Test Field"
@@ -813,7 +813,7 @@ class TestGetFieldAttr:
 
     def test_dict_access_with_default(self) -> None:
         """Test dict access with default value for missing key."""
-        from autom8_asana.automation.seeding import get_field_attr
+        from autom8_asana.core.field_utils import get_field_attr
 
         field_dict = {"gid": "123", "name": "Test Field"}
         assert get_field_attr(field_dict, "missing") is None
@@ -821,7 +821,7 @@ class TestGetFieldAttr:
 
     def test_object_access(self) -> None:
         """Test accessing attributes from object."""
-        from autom8_asana.automation.seeding import get_field_attr
+        from autom8_asana.core.field_utils import get_field_attr
 
         class MockField:
             def __init__(self) -> None:
@@ -836,7 +836,7 @@ class TestGetFieldAttr:
 
     def test_object_access_with_default(self) -> None:
         """Test object access with default value for missing attribute."""
-        from autom8_asana.automation.seeding import get_field_attr
+        from autom8_asana.core.field_utils import get_field_attr
 
         class MockField:
             def __init__(self) -> None:
@@ -848,7 +848,7 @@ class TestGetFieldAttr:
 
     def test_none_input(self) -> None:
         """Test that None input returns default."""
-        from autom8_asana.automation.seeding import get_field_attr
+        from autom8_asana.core.field_utils import get_field_attr
 
         assert get_field_attr(None, "name") is None
         assert get_field_attr(None, "name", "default") == "default"

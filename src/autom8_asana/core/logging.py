@@ -35,10 +35,6 @@ Usage:
     from autom8_asana.core.logging import get_logger
     logger = get_logger(__name__)
     logger.info("message", key="value")
-
-    # Or import the pre-configured module-level logger
-    from autom8_asana.core.logging import logger
-    logger.info("message")
 """
 
 from __future__ import annotations
@@ -47,7 +43,7 @@ from typing import Any
 
 from autom8y_log import LogConfig, configure_logging, get_logger, reset_logging
 
-__all__ = ["configure", "get_logger", "logger", "reset_logging"]
+__all__ = ["configure", "get_logger", "reset_logging"]
 
 _configured = False
 
@@ -99,8 +95,3 @@ def configure(
     )
     configure_logging(config, additional_processors=additional_processors)
     _configured = True
-
-
-# Module-level logger for backward compatibility and convenience
-# Modules can import this directly: from autom8_asana.core.logging import logger
-logger = get_logger("autom8_asana")

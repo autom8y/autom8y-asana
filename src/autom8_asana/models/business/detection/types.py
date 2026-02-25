@@ -3,26 +3,21 @@
 Per TDD-SPRINT-3-DETECTION-DECOMPOSITION: Pure type definitions with zero internal dependencies.
 
 This module provides:
-- EntityType enum: Complete enumeration of all business model entity types
 - DetectionResult: Immutable result container with type, confidence, tier, and healing info
 - EntityTypeInfo: Master configuration dataclass for entity type metadata
 - CONFIDENCE_TIER_*: Float constants for detection tier confidence levels
 
-EntityType was extracted to ``core.types`` to break the core <-> models
-bidirectional package dependency. This module re-exports it for backward
-compatibility.
+EntityType lives in ``core.types``. Import it from there or from the
+``detection`` package __init__.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-# Re-exported from core.types for backward compatibility.
-# Extracted to break the core <-> models package cycle.
 from autom8_asana.core.types import EntityType
 
 __all__ = [
-    "EntityType",
     "DetectionResult",
     "EntityTypeInfo",
     "CONFIDENCE_TIER_1",

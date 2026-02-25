@@ -13,7 +13,7 @@ class TestSystemContextResetAll:
 
     def test_reset_all_clears_project_type_registry(self):
         """ProjectTypeRegistry should be empty after reset."""
-        from autom8_asana.models.business.detection.types import EntityType
+        from autom8_asana.core.types import EntityType
         from autom8_asana.models.business.registry import ProjectTypeRegistry
 
         registry = ProjectTypeRegistry()

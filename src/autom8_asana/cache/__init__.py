@@ -301,9 +301,4 @@ def __getattr__(name: str) -> object:
         )
 
         return register_asana_schemas
-    elif name == "dataframe_cache":
-        # Provide the moved module for backward compatibility
-        from autom8_asana.cache.integration import dataframe_cache
-
-        return dataframe_cache
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
