@@ -18,8 +18,6 @@ The construction function uses HOLDER_KEY_MAP metadata to determine:
 - Parent reference (NameGid with real or temp GID)
 - Project assignment (PRIMARY_PROJECT_GID where available)
 
-Per R-009 (REM-ASANA-ARCH WS-DFEX): Each Holder module self-registers via
-register_holder() at module level, following the register_reset() pattern.
 """
 
 from __future__ import annotations

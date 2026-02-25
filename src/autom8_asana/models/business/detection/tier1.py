@@ -1,7 +1,5 @@
 """Tier 1: Project membership detection.
 
-Per TDD-SPRINT-3-DETECTION-DECOMPOSITION: O(1) registry lookup, 100% accuracy.
-
 This module provides deterministic entity type detection via project membership.
 Tasks are identified by looking up their first project GID in the ProjectTypeRegistry.
 

@@ -1,9 +1,4 @@
-"""Unit tests for GID push integration in cache warmer.
-
-Per SPIKE-BREAK-CIRCULAR-DEP Phase 3: Tests that the cache warmer
-calls the GID push function after successfully warming entities, and
-that push failures do not affect the warmer's success status.
-"""
+"""Unit tests for GID push integration in cache warmer."""
 
 from __future__ import annotations
 

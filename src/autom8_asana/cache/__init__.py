@@ -104,7 +104,6 @@ from autom8_asana.cache.integration.derived import (
 # --- Re-exports ---
 # CacheProviderFactory and MutationInvalidator are public API surface of the cache package.
 from autom8_asana.cache.integration.factory import CacheProviderFactory
-from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
 from autom8_asana.cache.integration.loader import (
     load_batch_entries,
     load_task_entries,
@@ -266,7 +265,6 @@ __all__ = [
     "RequestCoalescer",
     # Unified cache (TDD-UNIFIED-CACHE-001, MIGRATION-PLAN-legacy-cache-elimination RF-003)
     "UnifiedTaskStore",
-    "FreshnessMode",
     "HierarchyIndex",
     # Completeness tracking (TDD-CACHE-COMPLETENESS-001)
     "CompletenessLevel",

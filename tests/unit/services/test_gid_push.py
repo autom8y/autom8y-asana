@@ -1,8 +1,4 @@
-"""Unit tests for GID mapping push to autom8_data.
-
-Per SPIKE-BREAK-CIRCULAR-DEP Phase 3: Tests for the push function that
-sends GID mappings to autom8_data after cache warmer rebuilds.
-"""
+"""Unit tests for GID mapping push to autom8_data."""
 
 from __future__ import annotations
 

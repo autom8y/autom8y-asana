@@ -1,7 +1,5 @@
 """Tier 4: Structure inspection detection.
 
-Per TDD-SPRINT-3-DETECTION-DECOMPOSITION: Async structure inspection, ~90% accuracy.
-
 This module provides entity type detection via subtask structure inspection.
 When sync detection tiers fail, we can examine subtask names to infer parent type.
 

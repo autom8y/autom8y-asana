@@ -15,9 +15,6 @@ from autom8y_log import get_logger
 
 from autom8_asana.cache.models.freshness_unified import FreshnessState
 
-# Backward-compatible alias. New code should use FreshnessState directly.
-FreshnessStatus = FreshnessState
-
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 

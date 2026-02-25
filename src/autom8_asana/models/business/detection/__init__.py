@@ -1,7 +1,5 @@
 """Entity type detection for business model hierarchy.
 
-Per TDD-SPRINT-3-DETECTION-DECOMPOSITION: Package re-exports for backward compatibility.
-
 This package provides tiered type detection capabilities for identifying entity types.
 The detection chain prioritizes deterministic project-membership detection (Tier 1),
 with fallback tiers for name patterns, parent inference, and structure inspection.

@@ -10,7 +10,6 @@ from autom8_asana.cache.integration.derived import (
     make_derived_timeline_key,
     store_derived_timelines,
 )
-from autom8_asana.cache.integration.freshness_coordinator import FreshnessMode
 from autom8_asana.cache.integration.mutation_invalidator import (
     MutationInvalidator,
     SoftInvalidationConfig,
@@ -23,7 +22,6 @@ from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 
 __all__ = [
     "FreshnessIntent",
-    "FreshnessMode",
     "MutationInvalidator",
     "SoftInvalidationConfig",
     # Per TDD-SECTION-TIMELINE-REMEDIATION: New cache primitives

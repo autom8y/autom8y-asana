@@ -1,7 +1,5 @@
 """Tier 3: Parent inference detection.
 
-Per TDD-SPRINT-3-DETECTION-DECOMPOSITION: Parent-based detection, ~80% accuracy.
-
 This module provides entity type detection via parent type inference.
 When the parent's type is known, child type can be inferred from PARENT_CHILD_MAP.
 

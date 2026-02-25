@@ -1,7 +1,5 @@
 """Entity type definitions for business model hierarchy.
 
-Per TDD-SPRINT-3-DETECTION-DECOMPOSITION: Pure type definitions with zero internal dependencies.
-
 This module provides:
 - DetectionResult: Immutable result container with type, confidence, tier, and healing info
 - EntityTypeInfo: Master configuration dataclass for entity type metadata

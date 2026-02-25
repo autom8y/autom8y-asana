@@ -66,11 +66,7 @@ class TestHolderClassMap:
 
 
 class TestHolderRegistryCompleteness:
-    """Verify HOLDER_REGISTRY covers all expected entity types from EntityRegistry.
-
-    Per R-009 (REM-ASANA-ARCH WS-DFEX): Completeness gate ensuring no Holder
-    class is missing from the registry when EntityRegistry adds a new one.
-    """
+    """Verify HOLDER_REGISTRY covers all expected entity types from EntityRegistry."""
 
     def test_holder_registry_is_public(self) -> None:
         """HOLDER_REGISTRY is directly accessible as a public module attribute."""

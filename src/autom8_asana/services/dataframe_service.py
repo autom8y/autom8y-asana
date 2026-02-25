@@ -322,9 +322,6 @@ async def build_for_project(
     Extracted from Project.to_dataframe_async() / Project.to_dataframe_parallel_async().
     Preserves identical behavior; moves deferred imports to module level.
 
-    Per R-006 (REM-ASANA-ARCH WS-DFEX): Service function replacing model
-    convenience methods.
-
     Args:
         project: Project model instance.
         task_type: Task type filter ("Unit", "Contact", "*" for base).
@@ -383,9 +380,6 @@ async def build_for_section(
 
     Extracted from Section.to_dataframe_async().
     Preserves identical behavior; moves deferred imports to module level.
-
-    Per R-006 (REM-ASANA-ARCH WS-DFEX): Service function replacing model
-    convenience methods.
 
     Args:
         section: Section model instance.

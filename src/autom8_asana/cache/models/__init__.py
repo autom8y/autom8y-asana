@@ -45,7 +45,6 @@ except ImportError:
     )
 
 from autom8_asana.cache.models.freshness_stamp import (
-    FreshnessClassification,
     FreshnessStamp,
     VerificationSource,
 )
@@ -81,7 +80,6 @@ __all__ = [
     "FreshnessIntent",
     "FreshnessState",
     "FreshnessStamp",
-    "FreshnessClassification",
     "VerificationSource",
     "MutationEvent",
     "EntityKind",
