@@ -22,18 +22,13 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
+from autom8_asana.core.field_utils import get_field_attr, normalize_custom_fields
+
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
     from autom8_asana.models.business import Business, Process, Unit
 
 logger = get_logger(__name__)
-
-# Re-exported from core.field_utils for backward compatibility.
-# These were extracted to break the lifecycle -> automation package cycle.
-from autom8_asana.core.field_utils import (  # noqa: E402
-    get_field_attr,
-    normalize_custom_fields,
-)
 
 
 @dataclass
