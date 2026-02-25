@@ -830,37 +830,7 @@ def _import_wiring_service(
 
 
 def _import_reopen_service(client: AsanaClient) -> ReopenServiceProtocol:
-    """Lazily import and construct ReopenService.
+    """Import and construct ReopenService."""
+    from autom8_asana.lifecycle.reopen import ReopenService
 
-    Returns a stub if the module is not yet available (parallel rewrite).
-    """
-    try:
-        from autom8_asana.lifecycle.reopen import ReopenService
-
-        return ReopenService(client)  # type: ignore[return-value]
-    except ImportError:
-        return _StubReopenService()
-
-
-# ---------------------------------------------------------------------------
-# Stubs for parallel-rewrite compatibility
-# ---------------------------------------------------------------------------
-
-
-class _StubReopenService:
-    """Stub for ReopenService when module is not yet available."""
-
-    async def reopen_async(
-        self,
-        target_stage: StageConfig,
-        ctx: ResolutionContext,
-        source_process: Process,
-    ) -> ReopenResult:
-        logger.warning(
-            "lifecycle_reopen_stub",
-            msg="ReopenService not yet available",
-        )
-        return ReopenResult(
-            success=False,
-            error="ReopenService not yet implemented",
-        )
+    return ReopenService(client)  # type: ignore[return-value]

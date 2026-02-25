@@ -447,14 +447,6 @@ class DataFrameCacheIntegration:
             )
             return 0
 
-    # Alias for backward compatibility
-    async def warm_struc_async(
-        self,
-        task_project_pairs: list[tuple[str, str]],
-    ) -> int:
-        """Alias for warm_dataframe_async (backward compatibility)."""
-        return await self.warm_dataframe_async(task_project_pairs)
-
     async def invalidate_async(
         self,
         task_gid: str,
@@ -569,16 +561,6 @@ class DataFrameCacheIntegration:
         return asyncio.run(
             self.cache_batch_async(rows=rows, schema_version=schema_version, ttl=ttl)
         )
-
-    def warm_struc(
-        self,
-        task_project_pairs: list[tuple[str, str]],
-    ) -> int:
-        """Sync wrapper for warm_dataframe_async.
-
-        See warm_dataframe_async for full documentation.
-        """
-        return asyncio.run(self.warm_dataframe_async(task_project_pairs))
 
     def invalidate(
         self,

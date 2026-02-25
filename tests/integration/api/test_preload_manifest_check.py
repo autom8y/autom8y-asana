@@ -104,7 +104,7 @@ def _make_mock_builder_result(
     sections_succeeded: int = 2,
     sections_resumed: int = 1,
 ) -> MagicMock:
-    """Build a mock ProgressiveBuildResult."""
+    """Build a mock BuildResult."""
     import polars as pl
 
     result = MagicMock()

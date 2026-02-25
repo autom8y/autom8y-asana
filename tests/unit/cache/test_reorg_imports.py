@@ -64,8 +64,10 @@ def test_canonical_imports():
     from autom8_asana.cache.models.completeness import CompletenessLevel  # noqa: F401
     from autom8_asana.cache.models.entry import CacheEntry, EntryType  # noqa: F401
     from autom8_asana.cache.models.errors import DegradedModeMixin  # noqa: F401
-    from autom8_asana.cache.models.freshness import Freshness  # noqa: F401
     from autom8_asana.cache.models.freshness_stamp import FreshnessStamp  # noqa: F401
+    from autom8_asana.cache.models.freshness_unified import (
+        FreshnessIntent,  # noqa: F401
+    )
     from autom8_asana.cache.models.metrics import CacheEvent, CacheMetrics  # noqa: F401
     from autom8_asana.cache.models.mutation_event import MutationEvent  # noqa: F401
     from autom8_asana.cache.models.settings import CacheSettings  # noqa: F401

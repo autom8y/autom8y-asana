@@ -139,7 +139,16 @@ from autom8_asana.cache.models.events import (
     has_cache_logging,
     setup_cache_logging,
 )
-from autom8_asana.cache.models.freshness import Freshness
+
+# HOTFIX: Make import defensive for Lambda compatibility when autom8y_cache
+# has missing modules (e.g., protocols.resolver in version mismatch scenarios)
+try:
+    from autom8y_cache import Freshness
+except ImportError:
+    from autom8_asana.cache.models.freshness_unified import (  # type: ignore[assignment]
+        FreshnessIntent as Freshness,
+    )
+
 from autom8_asana.cache.models.freshness_unified import FreshnessIntent, FreshnessState
 from autom8_asana.cache.models.metrics import CacheEvent, CacheMetrics
 from autom8_asana.cache.models.settings import (
