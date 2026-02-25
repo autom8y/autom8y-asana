@@ -8,6 +8,8 @@ import polars as pl
 import pytest
 
 from autom8_asana.metrics.__main__ import main
+from autom8_asana.metrics.expr import MetricExpr
+from autom8_asana.metrics.metric import Metric, Scope
 from autom8_asana.metrics.registry import MetricRegistry
 
 
@@ -121,3 +123,92 @@ class TestCliCompute:
 
         captured = capsys.readouterr()
         assert "No S3 bucket configured" in captured.err
+
+    def test_count_metric_formats_as_integer(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """count aggregation formats as plain integer, not dollar amount (LS-DEEP-001)."""
+        registry = MetricRegistry()
+        registry._initialized = True
+        count_metric = Metric(
+            name="test_count",
+            description="Test count metric",
+            expr=MetricExpr(name="count_name", column="name", agg="count"),
+            scope=Scope(entity_type="test", section="999"),
+        )
+        registry.register(count_metric)
+
+        mock_df = pl.DataFrame(
+            {
+                "name": ["A", "B", "C"],
+                "section": ["ACTIVE", "ACTIVE", "ACTIVE"],
+                "office_phone": ["555-1", "555-2", "555-3"],
+                "vertical": ["dental", "dental", "dental"],
+                "mrr": ["1000", "2000", "500"],
+                "weekly_ad_spend": ["100", "200", "50"],
+            }
+        )
+
+        with (
+            patch("sys.argv", ["metrics", "test_count"]),
+            patch(
+                "autom8_asana.dataframes.offline.load_project_dataframe",
+                return_value=mock_df,
+            ),
+            patch(
+                "autom8_asana.models.business.activity.CLASSIFIERS",
+                {"test": type("C", (), {"project_gid": "000"})()},
+            ),
+        ):
+            main()
+
+        captured = capsys.readouterr()
+        assert "test_count:" in captured.out
+        # count of 3 rows should display as "3", never as "$3.00"
+        assert "3" in captured.out
+        assert "$3" not in captured.out
+        assert "$3.00" not in captured.out
+
+    def test_mean_metric_empty_dataframe_shows_no_data(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """mean on empty DataFrame returns None; CLI displays 'N/A (no data)' (LS-DEEP-002)."""
+        registry = MetricRegistry()
+        registry._initialized = True
+        mean_metric = Metric(
+            name="test_mean",
+            description="Test mean metric",
+            expr=MetricExpr(
+                name="mean_mrr",
+                column="mrr",
+                cast_dtype=pl.Float64,
+                agg="mean",
+            ),
+            scope=Scope(entity_type="test", section="999"),
+        )
+        registry.register(mean_metric)
+
+        # Empty DataFrame — mean() returns None, must not raise TypeError
+        mock_df = pl.DataFrame(
+            {
+                "name": pl.Series([], dtype=pl.Utf8),
+                "mrr": pl.Series([], dtype=pl.Utf8),
+            }
+        )
+
+        with (
+            patch("sys.argv", ["metrics", "test_mean"]),
+            patch(
+                "autom8_asana.dataframes.offline.load_project_dataframe",
+                return_value=mock_df,
+            ),
+            patch(
+                "autom8_asana.models.business.activity.CLASSIFIERS",
+                {"test": type("C", (), {"project_gid": "000"})()},
+            ),
+        ):
+            main()  # must NOT raise TypeError
+
+        captured = capsys.readouterr()
+        assert "test_mean:" in captured.out
+        assert "N/A (no data)" in captured.out
