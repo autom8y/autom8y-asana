@@ -599,7 +599,7 @@ class TestCacheConfigEntityTTL:
             "unit": 900,
             "offer": 180,
             "process": 60,
-            "address": 3600,
+            "location": 3600,
             "hours": 3600,
         }
 
