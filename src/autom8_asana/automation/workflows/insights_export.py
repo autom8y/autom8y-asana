@@ -55,11 +55,8 @@ OFFER_PROJECT_GID = "1143843662099250"
 # Default concurrency for parallel offer processing
 DEFAULT_MAX_CONCURRENCY = 5
 
-# Default attachment patterns for cleanup
-# Primary pattern matches current HTML format; legacy pattern cleans up
-# old .md files from pre-migration deployments (transitional, one cycle).
+# Default attachment pattern for cleanup
 DEFAULT_ATTACHMENT_PATTERN = "insights_export_*.html"
-LEGACY_ATTACHMENT_PATTERN = "insights_export_*.md"
 
 # Workflow version identifier (for footer)
 WORKFLOW_VERSION = "insights-export-v1.0"
@@ -572,15 +569,10 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                     size_bytes=len(report_content.encode("utf-8")),
                 )
 
-                # Step F: Delete old matching attachments (current + legacy patterns)
+                # Step F: Delete old matching attachments
                 await self._delete_old_attachments(
                     offer_gid, attachment_pattern, exclude_name=filename
                 )
-                # Transitional: clean up legacy .md files from pre-migration
-                if attachment_pattern != LEGACY_ATTACHMENT_PATTERN:
-                    await self._delete_old_attachments(
-                        offer_gid, LEGACY_ATTACHMENT_PATTERN, exclude_name=filename
-                    )
             else:
                 # Write full HTML to local preview file for validation
                 preview_dir = pathlib.Path(".wip")

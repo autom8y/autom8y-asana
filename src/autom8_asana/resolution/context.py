@@ -427,11 +427,12 @@ class ResolutionContext:
 
         # Step 2: Fetch children for the specific holder (1 API call)
         holder = getattr(business, f"_{holder_key}", None)
-        if holder is not None and not getattr(holder, "_children_cache", None):
-            # Determine children attribute based on holder type
-            children_attr = getattr(
-                holder.__class__, "CHILDREN_ATTR", "_children_cache"
-            )
+        children_attr = (
+            getattr(holder.__class__, "CHILDREN_ATTR", "_children_cache")
+            if holder is not None
+            else "_children_cache"
+        )
+        if holder is not None and not getattr(holder, children_attr, None):
             await business._fetch_holder_children_async(
                 self._client, holder, children_attr
             )
