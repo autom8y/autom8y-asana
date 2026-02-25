@@ -415,6 +415,7 @@ async def _push_gid_mappings_for_completed_entities(
     """
     from autom8_asana.services.gid_lookup import GidLookupIndex
     from autom8_asana.services.gid_push import push_gid_mappings_to_data_service
+    from autom8_asana.services.universal_strategy import DEFAULT_KEY_COLUMNS
 
     push_count = 0
 
@@ -433,9 +434,10 @@ async def _push_gid_mappings_for_completed_entities(
 
             # Attempt to build a GidLookupIndex; skip if columns are missing
             try:
-                index = GidLookupIndex.from_dataframe(df)
+                key_cols = DEFAULT_KEY_COLUMNS.get(entity_type, ["gid"])
+                index = GidLookupIndex.from_dataframe(df, key_columns=key_cols)
             except KeyError:
-                # DataFrame lacks office_phone/vertical/gid columns -- not
+                # DataFrame lacks required key columns -- not
                 # a GID-bearing entity type (e.g., offer, contact). Skip.
                 continue
 

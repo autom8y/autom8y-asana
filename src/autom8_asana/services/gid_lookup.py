@@ -29,7 +29,7 @@ class GidLookupIndex:
         created_at: Timestamp when the index was created.
 
     Example:
-        >>> index = GidLookupIndex.from_dataframe(df)
+        >>> index = GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
         >>> pair = PhoneVerticalPair(office_phone="+17705753103", vertical="chiropractic")
         >>> gid = index.get_gid(pair)
         >>> print(gid)  # "1234567890123456"
@@ -127,7 +127,7 @@ class GidLookupIndex:
 
         Example:
             >>> if index.is_stale(ttl_seconds=3600):  # 1 hour
-            ...     index = GidLookupIndex.from_dataframe(fresh_df)
+            ...     index = GidLookupIndex.from_dataframe(fresh_df, key_columns=["office_phone", "vertical"])
         """
         age = datetime.now(UTC) - self._created_at
         return age.total_seconds() > ttl_seconds
@@ -239,7 +239,7 @@ class GidLookupIndex:
     def from_dataframe(
         cls,
         df: pl.DataFrame,
-        key_columns: list[str] | None = None,
+        key_columns: list[str],
     ) -> GidLookupIndex:
         """Create a GidLookupIndex from a DataFrame.
 
@@ -249,11 +249,7 @@ class GidLookupIndex:
 
         Args:
             df: Polars DataFrame with gid column and key columns.
-            key_columns: Columns to use as lookup key. Defaults to
-                ["office_phone", "vertical"] for backwards compatibility.
-                TODO(COMPAT-PURGE): Make key_columns required (no default).
-                ~26 callers (4 source, ~22 test) rely on this default.
-                Migrate callers to pass key_columns explicitly, then remove.
+            key_columns: Columns to use as lookup key (e.g., ["office_phone", "vertical"]).
 
         Returns:
             New GidLookupIndex instance with O(1) lookup capability.
@@ -267,7 +263,7 @@ class GidLookupIndex:
             ...     "vertical": ["chiropractic", "dental"],
             ...     "gid": ["123", "456"],
             ... })
-            >>> index = GidLookupIndex.from_dataframe(df)
+            >>> index = GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
             >>> len(index)
             2
 
@@ -275,10 +271,6 @@ class GidLookupIndex:
             Rows with null values in any key column or gid are skipped.
             The canonical_key format is 'pv1:{col1_val}:{col2_val}:...'.
         """
-        # TODO(COMPAT-PURGE): Remove default once callers are migrated.
-        if key_columns is None:
-            key_columns = ["office_phone", "vertical"]
-
         required_columns = set(key_columns) | {"gid"}
         missing = required_columns - set(df.columns)
         if missing:

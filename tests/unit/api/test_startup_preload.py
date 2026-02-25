@@ -49,7 +49,9 @@ def sample_dataframe() -> pl.DataFrame:
 @pytest.fixture
 def sample_index(sample_dataframe: pl.DataFrame) -> GidLookupIndex:
     """Create a sample GidLookupIndex for testing."""
-    return GidLookupIndex.from_dataframe(sample_dataframe)
+    return GidLookupIndex.from_dataframe(
+        sample_dataframe, key_columns=["office_phone", "vertical"]
+    )
 
 
 @pytest.fixture

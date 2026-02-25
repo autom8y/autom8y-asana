@@ -169,7 +169,9 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
             try:
                 # Step 1: Try loading persisted index from S3
                 from autom8_asana.services.gid_lookup import GidLookupIndex
+                from autom8_asana.services.universal_strategy import DEFAULT_KEY_COLUMNS
 
+                key_cols = DEFAULT_KEY_COLUMNS.get(entity_type, ["gid"])
                 index_data = await persistence.load_index(project_gid)
                 if index_data is None:
                     index: GidLookupIndex | None = None
@@ -199,7 +201,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                         },
                     )
                     try:
-                        index = GidLookupIndex.from_dataframe(df)
+                        index = GidLookupIndex.from_dataframe(df, key_columns=key_cols)
                         # Persist the recovered index for next startup
                         await persistence.save_index(project_gid, index.serialize())
                         logger.info(
@@ -259,7 +261,9 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                     if updated_df is not df:
                         # DataFrame was updated - rebuild index
                         try:
-                            index = GidLookupIndex.from_dataframe(updated_df)
+                            index = GidLookupIndex.from_dataframe(
+                                updated_df, key_columns=key_cols
+                            )
                         except KeyError as e:
                             logger.warning(
                                 "dataframe_preload_index_rebuild_failed",
@@ -330,7 +334,9 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
 
                     if new_df is not None and len(new_df) > 0:
                         try:
-                            new_index = GidLookupIndex.from_dataframe(new_df)
+                            new_index = GidLookupIndex.from_dataframe(
+                                new_df, key_columns=key_cols
+                            )
 
                             # Persist new index (DataFrame saved by builder)
                             await persistence.save_index(
