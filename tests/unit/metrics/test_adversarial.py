@@ -180,14 +180,16 @@ class TestComputeAdversarial:
         """DataFrame lacks the metric column entirely."""
         df = pl.DataFrame({"name": ["a"], "other": [1]})
         m = _metric("nonexistent")
-        with pytest.raises(Exception):  # ColumnNotFoundError or SchemaError
+        with pytest.raises(
+            (pl.exceptions.ColumnNotFoundError, pl.exceptions.SchemaError)
+        ):
             compute_metric(m, df)
 
     def test_missing_dedup_key_column_raises(self) -> None:
         """DataFrame lacks a dedup_key column."""
         df = pl.DataFrame({"name": ["a"], "val": [1]})
         m = _metric("val", dedup_keys=["missing_key"])
-        with pytest.raises(Exception):
+        with pytest.raises(pl.exceptions.ColumnNotFoundError):
             compute_metric(m, df)
 
     def test_dedup_with_nulls_in_dedup_keys(self) -> None:
