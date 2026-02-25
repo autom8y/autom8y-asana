@@ -103,18 +103,13 @@ LKG_MAX_STALENESS_MULTIPLIER: float = 0.0
 
 # FACADE: Delegates to EntityRegistry. Preserves existing import path.
 # See: src/autom8_asana/core/entity_registry.py for the single source of truth.
-# The "address" entry is a legacy alias for "location" preserved for backward compat.
 from autom8_asana.core.entity_registry import get_registry as _get_entity_registry
 
-# Historically this dict contained: business, contact, unit, offer, process, hours,
-# and "address" (a legacy alias for location). Preserve exact same keys for compat.
-_LEGACY_TTL_EXCLUDE = {"location"}  # Represented as "address" in this dict
 DEFAULT_ENTITY_TTLS: dict[str, int] = {
     d.name: d.default_ttl_seconds
     for d in _get_entity_registry().all_descriptors()
-    if d.default_ttl_seconds != 300 and d.name not in _LEGACY_TTL_EXCLUDE
+    if d.default_ttl_seconds != 300
 }
-DEFAULT_ENTITY_TTLS["address"] = 3600  # Legacy alias for location
 
 
 @dataclass(frozen=True)
@@ -454,7 +449,7 @@ class CacheConfig:
             - unit: 900 (15 minutes)
             - offer: 180 (3 minutes) - frequently updated
             - process: 60 (1 minute) - pipeline state changes often
-            - address: 3600 (1 hour) - rarely changes
+            - location: 3600 (1 hour) - rarely changes
             - hours: 3600 (1 hour) - rarely changes
 
     Example:
@@ -537,7 +532,7 @@ class CacheConfig:
 
         Args:
             entity_type: Entity type name (case-insensitive).
-                Valid types: business, contact, unit, offer, process, address, hours.
+                Valid types: business, contact, unit, offer, process, location, hours.
 
         Returns:
             TTL in seconds for the entity type.
