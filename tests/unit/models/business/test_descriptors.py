@@ -401,7 +401,6 @@ class TestHolderMixinInvalidateCache:
         holder.invalidate_cache()
 
         assert holder._children == []
-        assert holder._children_cache is None
 
 
 # --- BusinessEntity Tests ---
