@@ -46,6 +46,8 @@ async def _swr_build_callback(
 
     Extracted from initialize_dataframe_cache closure for testability.
     """
+    import time
+
     from autom8_asana import AsanaClient
     from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
     from autom8_asana.core.string_utils import to_pascal_case
@@ -67,34 +69,63 @@ async def _swr_build_callback(
         logger.warning("swr_build_no_workspace", extra={"project_gid": project_gid})
         return
 
-    async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
-        task_type = to_pascal_case(entity_type)
-        schema = get_schema(task_type)
-        resolver = DefaultCustomFieldResolver()
-        section_persistence = create_section_persistence()
+    logger.info(
+        "swr_build_started",
+        extra={"project_gid": project_gid, "entity_type": entity_type},
+    )
+    build_start = time.monotonic()
 
-        async with section_persistence:
-            from autom8_asana.services.gid_lookup import build_gid_index_data
+    try:
+        async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
+            task_type = to_pascal_case(entity_type)
+            schema = get_schema(task_type)
+            resolver = DefaultCustomFieldResolver()
+            section_persistence = create_section_persistence()
 
-            builder = ProgressiveProjectBuilder(
-                client=client,
-                project_gid=project_gid,
-                entity_type=entity_type,
-                schema=schema,
-                persistence=section_persistence,
-                resolver=resolver,
-                store=client.unified_store,
-                index_builder=build_gid_index_data,
-            )
-            result = await builder.build_progressive_async(resume=True)
+            async with section_persistence:
+                from autom8_asana.services.gid_lookup import build_gid_index_data
 
-        if result.total_rows > 0 and result.dataframe is not None:
-            await cache.put_async(
-                project_gid,
-                entity_type,
-                result.dataframe,
-                result.watermark,
-            )
+                builder = ProgressiveProjectBuilder(
+                    client=client,
+                    project_gid=project_gid,
+                    entity_type=entity_type,
+                    schema=schema,
+                    persistence=section_persistence,
+                    resolver=resolver,
+                    store=client.unified_store,
+                    index_builder=build_gid_index_data,
+                )
+                result = await builder.build_progressive_async(resume=True)
+
+            if result.total_rows > 0 and result.dataframe is not None:
+                await cache.put_async(
+                    project_gid,
+                    entity_type,
+                    result.dataframe,
+                    result.watermark,
+                )
+
+        duration_ms = (time.monotonic() - build_start) * 1000
+        logger.info(
+            "swr_build_complete",
+            extra={
+                "project_gid": project_gid,
+                "entity_type": entity_type,
+                "total_rows": result.total_rows,
+                "duration_ms": round(duration_ms, 1),
+            },
+        )
+    except Exception:
+        duration_ms = (time.monotonic() - build_start) * 1000
+        logger.exception(
+            "swr_build_failed",
+            extra={
+                "project_gid": project_gid,
+                "entity_type": entity_type,
+                "duration_ms": round(duration_ms, 1),
+            },
+        )
+        raise
 
 
 def initialize_dataframe_cache() -> DataFrameCache | None:

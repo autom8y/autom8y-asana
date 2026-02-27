@@ -91,6 +91,12 @@ class ApiSettings(Autom8yBaseSettings):
 def get_settings() -> ApiSettings:
     """Get cached API settings singleton.
 
+    Not registered with SystemContext.reset_all() because ApiSettings
+    only contains ASANA_API_* prefixed vars (CORS, rate limit, log level, debug)
+    which no test suite modifies. Investigated 2026-02-27 (CACHE-REMEDIATION
+    spike, F-5) and confirmed not a problem. If future tests modify ASANA_API_*
+    env vars, register get_settings.cache_clear with SystemContext.
+
     Returns:
         ApiSettings instance loaded from environment.
     """

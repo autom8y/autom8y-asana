@@ -3,6 +3,7 @@
 Per ADR-0059: Extracted from session.py for Single Responsibility Principle.
 Per FR-INVALIDATE-001 through FR-INVALIDATE-006.
 Per TDD-WATERMARK-CACHE Phase 3: DataFrame cache invalidation.
+Per TDD-CACHE-INVALIDATION-001: Project-level DataFrameCache invalidation.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 
 if TYPE_CHECKING:
+    from autom8_asana.cache.integration.dataframe_cache import DataFrameCache
     from autom8_asana.persistence.models import ActionResult, SaveResult
 
 
@@ -19,7 +21,8 @@ class CacheInvalidator:
     """Coordinates cache invalidation after SaveSession commits.
 
     Per FR-INVALIDATE-001 through FR-INVALIDATE-006.
-    Handles TASK, SUBTASKS, DETECTION, and DataFrame cache entries.
+    Handles TASK, SUBTASKS, DETECTION, DataFrame (per-task), and
+    project-level DataFrameCache entries.
 
     Thread Safety: Stateless - safe for concurrent use.
     No internal state modified after __init__.
@@ -27,7 +30,7 @@ class CacheInvalidator:
     Responsibility: Single - Cache entry invalidation for committed entities.
 
     Usage:
-        >>> invalidator = CacheInvalidator(cache_provider, log)
+        >>> invalidator = CacheInvalidator(cache_provider, log, dataframe_cache)
         >>> gid_lookup = build_gid_to_entity_map(crud_result, action_results, tracker)
         >>> await invalidator.invalidate_for_commit(crud_result, action_results, gid_lookup)
     """
@@ -36,6 +39,7 @@ class CacheInvalidator:
         self,
         cache_provider: Any,
         log: Any | None = None,
+        dataframe_cache: Any | None = None,
     ) -> None:
         """Initialize invalidator with cache provider.
 
@@ -43,9 +47,15 @@ class CacheInvalidator:
             cache_provider: Cache implementation with invalidate() method.
                            Can be None (invalidation becomes no-op).
             log: Optional structured logger for debug/warning messages.
+            dataframe_cache: Optional DataFrameCache for project-level
+                            DataFrame invalidation. If None, project-level
+                            invalidation is silently skipped (current behavior).
+                            Per ADR-CA-002: Optional to avoid breaking existing
+                            construction sites.
         """
         self._cache = cache_provider
         self._log = log
+        self._dataframe_cache: DataFrameCache | None = dataframe_cache
 
     async def invalidate_for_commit(
         self,
@@ -166,6 +176,8 @@ class CacheInvalidator:
 
         Per TDD-WATERMARK-CACHE Phase 3: DataFrame cache invalidation.
         Per FR-INVALIDATE-003: Invalidate all project contexts via memberships.
+        Per TDD-CACHE-INVALIDATION-001: Mirror MutationInvalidator project-level
+        invalidation for SaveSession structural mutations.
 
         Args:
             gids: Set of GIDs to invalidate.
@@ -173,6 +185,7 @@ class CacheInvalidator:
         """
         from autom8_asana.cache.integration.dataframes import invalidate_task_dataframes
 
+        # Step 1: Per-task DataFrame invalidation (System A, unchanged)
         for gid in gids:
             entity = gid_to_entity.get(gid)
             if entity and hasattr(entity, "memberships") and entity.memberships:
@@ -193,3 +206,79 @@ class CacheInvalidator:
                             gid=gid,
                             error=str(exc),
                         )
+
+        # Step 2: Project-level DataFrameCache invalidation (System B, NEW)
+        # Per TDD-CACHE-INVALIDATION-001: Collect all project GIDs affected
+        # by this commit and invalidate their DataFrameCache entries.
+        affected_project_gids = self._collect_project_gids(gids, gid_to_entity)
+        if affected_project_gids:
+            self._invalidate_project_dataframes(affected_project_gids)
+
+    def _collect_project_gids(
+        self,
+        gids: set[str],
+        gid_to_entity: dict[str, Any],
+    ) -> set[str]:
+        """Collect all project GIDs affected by the committed entities.
+
+        Per FR-INVALIDATE-003: Uses membership data to find affected projects.
+        Deduplicates across all entities in the batch.
+
+        Args:
+            gids: Set of entity GIDs that were committed.
+            gid_to_entity: Map of GID -> entity for membership lookup.
+
+        Returns:
+            Set of project GIDs whose DataFrameCache should be invalidated.
+        """
+        project_gids: set[str] = set()
+        for gid in gids:
+            entity = gid_to_entity.get(gid)
+            if entity and hasattr(entity, "memberships") and entity.memberships:
+                for m in entity.memberships:
+                    if isinstance(m, dict):
+                        pgid = m.get("project", {}).get("gid")
+                        if pgid:
+                            project_gids.add(pgid)
+        return project_gids
+
+    def _invalidate_project_dataframes(
+        self,
+        project_gids: set[str],
+    ) -> None:
+        """Invalidate DataFrameCache for entire projects.
+
+        Per TDD-CACHE-INVALIDATION-001: Mirrors MutationInvalidator._invalidate_project_dataframes().
+        When a SaveSession commits entities, the project's full DataFrame
+        may be affected (row count changes, row content changes) and must
+        be invalidated so next read triggers SWR rebuild.
+
+        Called for ALL succeeded entities (conservative approach per ADR-CA-001):
+        CacheInvalidator does not have per-entity operation type context
+        (CREATE vs UPDATE vs DELETE) -- only the committed entity list.
+        Conservative blanket invalidation is correct here.
+
+        Failure mode: Fire-and-forget with logging. A cache invalidation
+        failure must not fail the commit response (NFR-DEGRADE-001).
+
+        Args:
+            project_gids: Set of project GIDs to invalidate.
+        """
+        if not self._dataframe_cache:
+            return
+
+        for project_gid in project_gids:
+            try:
+                self._dataframe_cache.invalidate_project(project_gid)
+                if self._log:
+                    self._log.debug(
+                        "project_dataframe_cache_invalidated",
+                        project_gid=project_gid,
+                    )
+            except Exception as exc:  # BROAD-CATCH: isolation -- per-project loop, single failure must not abort batch
+                if self._log:
+                    self._log.warning(
+                        "project_dataframe_invalidation_failed",
+                        project_gid=project_gid,
+                        error=str(exc),
+                    )

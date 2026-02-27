@@ -129,7 +129,26 @@ async def _invalidate_cache_async(
                 },
             )
 
-            # Clear task cache
+            # BLAST RADIUS: clear_all_tasks() clears ALL entry types under asana:tasks:*
+            # This includes: TASK, SUBTASKS, DETECTION, STORIES, SECTION, USER,
+            # DERIVED_TIMELINE, and _meta (version metadata) for every cached task GID.
+            # It also clears S3 objects under {prefix}/tasks/.
+            #
+            # CRITICAL CONSEQUENCE: Story incremental cursors (ADR-0020) are destroyed.
+            # The 'since' cursor for load_stories_incremental() is the latest story's
+            # created_at in the STORIES cache entry. After this operation, all subsequent
+            # story fetches will be full-history fetches (no 'since' parameter) until
+            # the Lambda warmer re-populates the story cache.
+            #
+            # RECOVERY: Schedule cache_warmer Lambda after this operation.
+            # Estimated recovery: 5-30 minutes depending on offer/contact count.
+            # During recovery, Asana API call volume increases proportionally to
+            # the number of tasks with story history.
+            #
+            # NOTE: This operation does NOT clear DataFrameCache (System B / MemoryTier).
+            # Use clear_dataframes=True for DataFrameCache invalidation.
+            # NOTE: per-task DataFrame entries (asana:struc:*) are NOT cleared by this
+            # operation.
             tasks_cleared = cache.clear_all_tasks()
 
             # Emit CloudWatch metrics for task cache invalidation
