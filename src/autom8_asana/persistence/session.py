@@ -223,10 +223,18 @@ class SaveSession:
         self._log = getattr(client, "_log", None)
 
         # ADR-0059: Cache invalidation coordinator (extracted for SRP)
+        # Per TDD-CACHE-INVALIDATION-001: Wire DataFrameCache for project-level invalidation
         cache_provider = getattr(client, "_cache_provider", None)
-        self._cache_invalidator: CacheInvalidator | None = (
-            CacheInvalidator(cache_provider, self._log) if cache_provider else None
-        )
+        if cache_provider:
+            from autom8_asana.cache.dataframe.factory import get_dataframe_cache
+
+            self._cache_invalidator: CacheInvalidator | None = CacheInvalidator(
+                cache_provider,
+                self._log,
+                dataframe_cache=get_dataframe_cache(),
+            )
+        else:
+            self._cache_invalidator = None
 
         # TDD-GAP-01: Holder auto-creation configuration
         self._auto_create_holders = auto_create_holders

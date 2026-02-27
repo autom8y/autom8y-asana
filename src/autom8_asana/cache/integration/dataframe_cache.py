@@ -303,6 +303,18 @@ class DataFrameCache:
         self._stats[entity_type]["s3_misses"] += 1
         if self.metrics_emitter:
             self.metrics_emitter.record_cache_op(entity_type, "s3", "miss")
+
+        # Emit structured access log for observability (CACHE-1 validation).
+        # Miss case: no freshness info available.
+        logger.debug(
+            "dataframe_cache_access",
+            extra={
+                "project_gid": project_gid,
+                "entity_type": entity_type,
+                "cache_result": "MISS",
+                "staleness_seconds": None,
+            },
+        )
         return None
 
     async def _get_circuit_lkg(
@@ -342,6 +354,16 @@ class DataFrameCache:
                     "age_seconds": info.data_age_seconds,
                 },
             )
+            logger.debug(
+                "dataframe_cache_access",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "cache_result": "LKG",
+                    "freshness_state": FreshnessState.CIRCUIT_FALLBACK.value,
+                    "staleness_seconds": info.data_age_seconds,
+                },
+            )
             return entry
 
         # Try progressive tier (read-only, no refresh)
@@ -363,6 +385,16 @@ class DataFrameCache:
                     "age_seconds": info.data_age_seconds,
                 },
             )
+            logger.debug(
+                "dataframe_cache_access",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "cache_result": "LKG",
+                    "freshness_state": FreshnessState.CIRCUIT_FALLBACK.value,
+                    "staleness_seconds": info.data_age_seconds,
+                },
+            )
             return entry
 
         # No LKG entry available
@@ -371,6 +403,16 @@ class DataFrameCache:
             extra={
                 "project_gid": project_gid,
                 "entity_type": entity_type,
+            },
+        )
+        logger.debug(
+            "dataframe_cache_access",
+            extra={
+                "project_gid": project_gid,
+                "entity_type": entity_type,
+                "cache_result": "MISS",
+                "freshness_state": FreshnessState.CIRCUIT_FALLBACK.value,
+                "staleness_seconds": None,
             },
         )
         return None
@@ -420,6 +462,16 @@ class DataFrameCache:
                     "freshness": "fresh",
                 },
             )
+            logger.debug(
+                "dataframe_cache_access",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "cache_result": "HIT",
+                    "freshness_state": status.value,
+                    "staleness_seconds": info.data_age_seconds if info else None,
+                },
+            )
             return entry
 
         if status == FreshnessState.APPROACHING_STALE:
@@ -436,6 +488,16 @@ class DataFrameCache:
                     "row_count": entry.row_count,
                     "age_seconds": info.data_age_seconds,
                     "freshness": "approaching_stale",
+                },
+            )
+            logger.debug(
+                "dataframe_cache_access",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "cache_result": "STALE",
+                    "freshness_state": status.value,
+                    "staleness_seconds": info.data_age_seconds,
                 },
             )
             self._trigger_swr_refresh(project_gid, entity_type, cache_key)
@@ -477,6 +539,16 @@ class DataFrameCache:
                     "row_count": entry.row_count,
                     "age_seconds": age,
                     "freshness": "stale",
+                },
+            )
+            logger.debug(
+                "dataframe_cache_access",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "cache_result": "LKG",
+                    "freshness_state": status.value,
+                    "staleness_seconds": info.data_age_seconds,
                 },
             )
             self._trigger_swr_refresh(project_gid, entity_type, cache_key)
