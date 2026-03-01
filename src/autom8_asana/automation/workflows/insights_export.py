@@ -25,10 +25,14 @@ from autom8_asana.automation.workflows.base import (
     WorkflowResult,
 )
 from autom8_asana.automation.workflows.insights_formatter import (
-    TABLE_ORDER,
     InsightsReportData,
     TableResult,
     compose_report,
+)
+from autom8_asana.automation.workflows.insights_tables import (
+    TABLE_SPECS,
+    DispatchType,
+    TableSpec,
 )
 from autom8_asana.automation.workflows.mixins import AttachmentReplacementMixin
 from autom8_asana.clients.data._pii import mask_phone_number
@@ -72,9 +76,8 @@ DEFAULT_ROW_LIMITS: dict[str, int] = {
     "ASSET TABLE": 150,
 }
 
-# Table names in section order -- public alias; formatter owns the vocabulary.
-# (per PRD FR-W01.6, extended per TDD-WS5)
-TABLE_NAMES = TABLE_ORDER
+# Table names in section order -- derived from TABLE_SPECS (per TDD-SPRINT-C).
+TABLE_NAMES = [s.table_name for s in TABLE_SPECS]
 
 TOTAL_TABLE_COUNT = len(TABLE_NAMES)  # 12
 
@@ -721,232 +724,105 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         row_limits: dict[str, int],
         offer_gid: str,
     ) -> dict[str, TableResult]:
-        """Fetch all 12 tables concurrently for a single offer.
+        """Fetch all tables concurrently using TABLE_SPECS.
 
-        Per PRD FR-W01.5 + TDD-WS5: All 12 calls dispatched concurrently
-        via asyncio.gather(). Reconciliation tables use the InsightExecutor
-        endpoint via get_reconciliation_async. UNUSED ASSETS uses
-        include_unused=True on the assets factory (server-side filtering).
-
-        Args:
-            office_phone: E.164 phone number.
-            vertical: Business vertical string.
-            row_limits: Per-table row limits.
-            offer_gid: Offer GID for logging.
-
-        Returns:
-            Dict mapping table name to TableResult.
+        Per FR-04: Iterates TABLE_SPECS and dispatches via asyncio.gather().
+        Signature unchanged (per NFR-05: concurrent fetch preserved).
         """
-        # Fetch all 12 tables as independent API calls concurrently
         results = await asyncio.gather(
-            self._fetch_table(
-                "SUMMARY",
-                offer_gid,
-                office_phone,
-                vertical,
-                factory="base",
-                period="lifetime",
-            ),
-            self._fetch_table(
-                "APPOINTMENTS",
-                offer_gid,
-                office_phone,
-                vertical,
-                method="appointments",
-                days=90,
-                limit=row_limits.get("APPOINTMENTS", 100),
-            ),
-            self._fetch_table(
-                "LEADS",
-                offer_gid,
-                office_phone,
-                vertical,
-                method="leads",
-                days=30,
-                exclude_appointments=True,
-                limit=row_limits.get("LEADS", 100),
-            ),
-            self._fetch_table(
-                "LIFETIME RECONCILIATIONS",
-                offer_gid,
-                office_phone,
-                vertical,
-                method="reconciliation",
-            ),
-            self._fetch_table(
-                "T14 RECONCILIATIONS",
-                offer_gid,
-                office_phone,
-                vertical,
-                method="reconciliation",
-                window_days=14,
-            ),
-            self._fetch_table(
-                "BY QUARTER",
-                offer_gid,
-                office_phone,
-                vertical,
-                factory="base",
-                period="quarter",
-            ),
-            self._fetch_table(
-                "BY MONTH",
-                offer_gid,
-                office_phone,
-                vertical,
-                factory="base",
-                period="month",
-            ),
-            self._fetch_table(
-                "BY WEEK",
-                offer_gid,
-                office_phone,
-                vertical,
-                factory="base",
-                period="week",
-            ),
-            self._fetch_table(
-                "AD QUESTIONS",
-                offer_gid,
-                office_phone,
-                vertical,
-                factory="ad_questions",
-                period="lifetime",
-            ),
-            self._fetch_table(
-                "ASSET TABLE",
-                offer_gid,
-                office_phone,
-                vertical,
-                factory="assets",
-                period="t30",
-            ),
-            self._fetch_table(
-                "OFFER TABLE",
-                offer_gid,
-                office_phone,
-                vertical,
-                factory="business_offers",
-                period="t30",
-            ),
-            self._fetch_table(
-                "UNUSED ASSETS",
-                offer_gid,
-                office_phone,
-                vertical,
-                factory="assets",
-                period="t30",
-                include_unused=True,
-            ),
+            *(
+                self._fetch_table(
+                    spec=spec,
+                    offer_gid=offer_gid,
+                    office_phone=office_phone,
+                    vertical=vertical,
+                    row_limits=row_limits,
+                )
+                for spec in TABLE_SPECS
+            )
         )
-
-        table_map: dict[str, TableResult] = {}
-        for r in results:
-            table_map[r.table_name] = r
-
-        return table_map
+        return {r.table_name: r for r in results}
 
     async def _fetch_table(
         self,
-        table_name: str,
+        spec: TableSpec,
         offer_gid: str,
         office_phone: str,
         vertical: str,
-        *,
-        factory: str = "base",
-        period: str | None = None,
-        method: str | None = None,
-        days: int | None = None,
-        limit: int | None = None,
-        exclude_appointments: bool = False,
-        window_days: int | None = None,
-        include_unused: bool = False,
+        row_limits: dict[str, int],
     ) -> TableResult:
         """Fetch a single table with error isolation.
 
-        Per PRD FR-W02.1: Each table fetch is individually wrapped
-        in error handling. A failed table produces a TableResult
-        with success=False.
-
-        Args:
-            table_name: Human-readable table name for the report.
-            offer_gid: Offer GID for logging.
-            office_phone: E.164 phone number.
-            vertical: Business vertical.
-            factory: Factory name for get_insights_async.
-            period: For POST /insights calls.
-            method: "appointments", "leads", or "reconciliation" for detail endpoints.
-            days: For appointment/lead detail endpoints.
-            limit: Row limit for detail endpoints.
-            exclude_appointments: For leads endpoint.
-            window_days: Window size in days for reconciliation windowing.
-            include_unused: Include zero-activity and inventory-only assets.
-
-        Returns:
-            TableResult with data or error information.
+        Per FR-05: Uses match statement on spec.dispatch_type (D-04).
+        Reconciliation phone filtering stays in the dispatcher (D-02).
         """
         fetch_start = time.monotonic()
 
         try:
-            if method == "appointments":
-                response = await self._data_client.get_appointments_async(
-                    office_phone, days=days or 90, limit=limit or 100
-                )
-            elif method == "leads":
-                response = await self._data_client.get_leads_async(
-                    office_phone,
-                    days=days or 30,
-                    exclude_appointments=exclude_appointments,
-                    limit=limit or 100,
-                )
-            elif method == "reconciliation":
-                response = await self._data_client.get_reconciliation_async(
-                    office_phone,
-                    vertical,
-                    period=period,
-                    window_days=window_days,
-                )
-                # Defensive: API may return all businesses for the vertical.
-                # Filter to only rows matching the queried phone when
-                # multiple phones are present in the response.
-                # Uses a local variable to avoid mutating response.data in-place
-                # (per F-08: response may be cached upstream).
-                filtered_data: list[dict[str, Any]] | None = None
-                if hasattr(response, "data") and response.data:
-                    phones_in_data = {
-                        r.get("office_phone")
-                        for r in response.data
-                        if r.get("office_phone") is not None
-                    }
-                    if len(phones_in_data) > 1:
-                        pre_filter = len(response.data)
-                        filtered_data = [
-                            r
+            # Resolve effective limit: runtime override > spec default > None
+            effective_limit = row_limits.get(spec.table_name) or spec.default_limit
+
+            filtered_data: list[dict[str, Any]] | None = None
+
+            match spec.dispatch_type:
+                case DispatchType.APPOINTMENTS:
+                    response = await self._data_client.get_appointments_async(
+                        office_phone,
+                        days=spec.days or 90,
+                        limit=effective_limit or 100,
+                    )
+                case DispatchType.LEADS:
+                    response = await self._data_client.get_leads_async(
+                        office_phone,
+                        days=spec.days or 30,
+                        exclude_appointments=spec.exclude_appointments,
+                        limit=effective_limit or 100,
+                    )
+                case DispatchType.RECONCILIATION:
+                    response = await self._data_client.get_reconciliation_async(
+                        office_phone,
+                        vertical,
+                        period=spec.period,
+                        window_days=spec.window_days,
+                    )
+                    # Defensive phone filtering stays in dispatcher (per D-02).
+                    # Uses local variable to avoid mutating response (per F-08).
+                    if hasattr(response, "data") and response.data:
+                        phones_in_data = {
+                            r.get("office_phone")
                             for r in response.data
-                            if r.get("office_phone") == office_phone
-                        ]
-                        logger.info(
-                            "insights_export_recon_filtered",
-                            offer_gid=offer_gid,
-                            table_name=table_name,
-                            pre_filter=pre_filter,
-                            post_filter=len(filtered_data),
-                            unique_phones=len(phones_in_data),
-                        )
-            else:
-                # Standard POST /insights call with factory parameter
-                response = await self._data_client.get_insights_async(
-                    factory=factory,
-                    office_phone=office_phone,
-                    vertical=vertical,
-                    period=period or "lifetime",
-                    include_unused=include_unused,
-                )
+                            if r.get("office_phone") is not None
+                        }
+                        if len(phones_in_data) > 1:
+                            pre_filter = len(response.data)
+                            filtered_data = [
+                                r
+                                for r in response.data
+                                if r.get("office_phone") == office_phone
+                            ]
+                            logger.info(
+                                "insights_export_recon_filtered",
+                                offer_gid=offer_gid,
+                                table_name=spec.table_name,
+                                pre_filter=pre_filter,
+                                post_filter=len(filtered_data),
+                                unique_phones=len(phones_in_data),
+                            )
+                case DispatchType.INSIGHTS:
+                    response = await self._data_client.get_insights_async(
+                        factory=spec.factory,
+                        office_phone=office_phone,
+                        vertical=vertical,
+                        period=spec.period or "lifetime",
+                        include_unused=spec.include_unused,
+                    )
 
             elapsed_ms = (time.monotonic() - fetch_start) * 1000
-            # Use filtered_data if reconciliation phone filtering was applied,
-            # otherwise fall back to response.data (per F-08: avoid mutating response).
-            if method == "reconciliation" and filtered_data is not None:
+            # Use filtered_data if reconciliation phone filtering was applied
+            if (
+                spec.dispatch_type == DispatchType.RECONCILIATION
+                and filtered_data is not None
+            ):
                 data = filtered_data
             else:
                 data = response.data if hasattr(response, "data") else []
@@ -954,13 +830,13 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             logger.info(
                 "insights_export_table_fetched",
                 offer_gid=offer_gid,
-                table_name=table_name,
+                table_name=spec.table_name,
                 row_count=len(data),
                 duration_ms=elapsed_ms,
             )
 
             return TableResult(
-                table_name=table_name,
+                table_name=spec.table_name,
                 success=True,
                 data=data,
                 row_count=len(data),
@@ -973,14 +849,14 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             logger.warning(
                 "insights_export_table_failed",
                 offer_gid=offer_gid,
-                table_name=table_name,
+                table_name=spec.table_name,
                 error_type=error_type,
                 error_message=str(exc),
                 duration_ms=elapsed_ms,
             )
 
             return TableResult(
-                table_name=table_name,
+                table_name=spec.table_name,
                 success=False,
                 error_type=error_type,
                 error_message=str(exc),
