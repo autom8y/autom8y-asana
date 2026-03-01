@@ -25,6 +25,10 @@ from autom8_asana.automation.workflows.insights_export import (
     InsightsExportWorkflow,
     _sanitize_business_name,
 )
+from autom8_asana.automation.workflows.insights_tables import (
+    DispatchType,
+    TableSpec,
+)
 from autom8_asana.clients.data.models import (
     ColumnInfo,
     InsightsMetadata,
@@ -144,27 +148,12 @@ class _AsyncIterator:
         return self._items
 
 
-def _make_mock_business(
-    office_phone: str | None = "+17705753103",
-    vertical: str | None = "chiropractic",
-    name: str = "Test Business",
-) -> MagicMock:
-    """Create a mock Business entity returned by ResolutionContext."""
-    business = MagicMock()
-    business.office_phone = office_phone
-    business.vertical = vertical
-    business.name = name
-    return business
-
-
 def _make_workflow(
     offers: list[MagicMock] | None = None,
     insights_response: InsightsResponse | None = None,
     insights_error: Exception | None = None,
     table_errors: dict[str, Exception] | None = None,
     existing_attachments: dict[str, list[MagicMock]] | None = None,
-    mock_business: MagicMock | None = None,
-    resolve_returns_none: bool = False,
 ) -> tuple[InsightsExportWorkflow, MagicMock, MagicMock, MagicMock]:
     """Build an InsightsExportWorkflow with configured mocks.
 
@@ -174,8 +163,6 @@ def _make_workflow(
         insights_error: Default error to raise for ALL table fetches.
         table_errors: Dict mapping method name -> error (e.g. "get_insights_async").
         existing_attachments: Dict mapping offer GID -> attachments.
-        mock_business: Custom mock Business for ResolutionContext.
-        resolve_returns_none: If True, ResolutionContext returns None-valued business.
 
     Returns:
         Tuple of (workflow, mock_asana, mock_data_client, mock_attachments).
@@ -345,32 +332,16 @@ class TestEnumeration:
     """Tests for offer enumeration (AC-W01.4) -- via fallback path."""
 
     @pytest.mark.asyncio
-    async def test_only_non_completed_offers(self) -> None:
+    async def test_only_non_completed_offers(self, mock_resolution_context) -> None:
         """Only non-completed offers are enumerated."""
         active_offer = _make_task("o1", "Active Offer", parent_gid="biz1")
         completed_offer = _make_task(
             "o2", "Completed Offer", parent_gid="biz2", completed=True
         )
-        mock_asana = MagicMock()
-        mock_asana.tasks.list_async.return_value = _AsyncIterator(
-            [active_offer, completed_offer]
-        )
 
         wf, _, _, _ = _make_workflow(offers=[active_offer, completed_offer])
 
-        # NOTE: ResolutionContext patch boilerplate is repeated across ~31 test methods.
-        # Consolidation via a shared fixture is deferred (SM-008) to a dedicated test
-        # architecture initiative. The pattern is consistent and functional as-is.
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            result = await _enumerate_and_execute(wf)
+        result = await _enumerate_and_execute(wf)
 
         # Completed offer is filtered out during enumeration
         # Only 1 active offer processed
@@ -399,7 +370,9 @@ class TestActivityFiltering:
     """Tests for section-based activity filtering in _enumerate_offers."""
 
     @pytest.mark.asyncio
-    async def test_offers_in_inactive_section_excluded(self) -> None:
+    async def test_offers_in_inactive_section_excluded(
+        self, mock_resolution_context
+    ) -> None:
         """Offers in an INACTIVE section are excluded by enumeration."""
         active = _make_task(
             "o1", "Active Offer", parent_gid="biz1", section_name="ACTIVE"
@@ -409,23 +382,16 @@ class TestActivityFiltering:
         )
         wf, _, _, _ = _make_workflow(offers=[active, inactive])
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            result = await _enumerate_and_execute(wf)
+        result = await _enumerate_and_execute(wf)
 
         # Only the ACTIVE offer should be processed
         assert result.total == 1
         assert result.succeeded == 1
 
     @pytest.mark.asyncio
-    async def test_offers_in_unknown_section_excluded(self) -> None:
+    async def test_offers_in_unknown_section_excluded(
+        self, mock_resolution_context
+    ) -> None:
         """Offers in an unknown/unclassified section are excluded."""
         active = _make_task(
             "o1", "Active Offer", parent_gid="biz1", section_name="ACTIVE"
@@ -438,22 +404,15 @@ class TestActivityFiltering:
         )
         wf, _, _, _ = _make_workflow(offers=[active, unknown])
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            result = await _enumerate_and_execute(wf)
+        result = await _enumerate_and_execute(wf)
 
         assert result.total == 1
         assert result.succeeded == 1
 
     @pytest.mark.asyncio
-    async def test_offers_with_no_memberships_excluded(self) -> None:
+    async def test_offers_with_no_memberships_excluded(
+        self, mock_resolution_context
+    ) -> None:
         """Offers with no memberships (section_name=None) are excluded."""
         active = _make_task(
             "o1", "Active Offer", parent_gid="biz1", section_name="ACTIVE"
@@ -463,22 +422,13 @@ class TestActivityFiltering:
         )
         wf, _, _, _ = _make_workflow(offers=[active, no_membership])
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            result = await _enumerate_and_execute(wf)
+        result = await _enumerate_and_execute(wf)
 
         assert result.total == 1
         assert result.succeeded == 1
 
     @pytest.mark.asyncio
-    async def test_activating_section_excluded(self) -> None:
+    async def test_activating_section_excluded(self, mock_resolution_context) -> None:
         """Offers in ACTIVATING sections are excluded (only ACTIVE passes)."""
         active = _make_task("o1", "Active", parent_gid="biz1", section_name="ACTIVE")
         activating = _make_task(
@@ -486,16 +436,7 @@ class TestActivityFiltering:
         )
         wf, _, _, _ = _make_workflow(offers=[active, activating])
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            result = await _enumerate_and_execute(wf)
+        result = await _enumerate_and_execute(wf)
 
         assert result.total == 1
         assert result.succeeded == 1
@@ -506,70 +447,45 @@ class TestResolution:
     """Tests for offer resolution (AC-W01.5, AC-W01.6) -- via fallback path."""
 
     @pytest.mark.asyncio
-    async def test_successful_resolution(self) -> None:
+    async def test_successful_resolution(self, mock_resolution_context) -> None:
         """Successful resolution -> offer processed."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         wf, _, _, _ = _make_workflow(offers=[o1])
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business(
-                office_phone="+17705753103",
-                vertical="chiropractic",
-                name="Acme Chiro",
-            )
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_resolution_context.set_business(
+            office_phone="+17705753103",
+            vertical="chiropractic",
+            name="Acme Chiro",
+        )
 
-            result = await _enumerate_and_execute(wf)
+        result = await _enumerate_and_execute(wf)
 
         assert result.succeeded == 1
         assert result.skipped == 0
 
     @pytest.mark.asyncio
-    async def test_skip_missing_phone(self) -> None:
+    async def test_skip_missing_phone(self, mock_resolution_context) -> None:
         """Missing office_phone -> offer skipped."""
         o1 = _make_task("o1", "Offer No Phone", parent_gid="biz1")
         wf, _, _, _ = _make_workflow(offers=[o1])
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business(
-                office_phone=None, vertical="chiropractic"
-            )
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_resolution_context.set_business(office_phone=None)
 
-            result = await _enumerate_and_execute(wf)
+        result = await _enumerate_and_execute(wf)
 
         assert result.total == 1
         assert result.skipped == 1
         assert result.succeeded == 0
 
     @pytest.mark.asyncio
-    async def test_skip_missing_vertical(self) -> None:
+    async def test_skip_missing_vertical(self, mock_resolution_context) -> None:
         """Missing vertical -> offer skipped."""
         o1 = _make_task("o1", "Offer No Vertical", parent_gid="biz1")
         wf, _, _, _ = _make_workflow(offers=[o1])
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business(
-                office_phone="+17705753103", vertical=None
-            )
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_resolution_context.set_business(vertical=None)
 
-            result = await _enumerate_and_execute(wf)
+        result = await _enumerate_and_execute(wf)
 
         assert result.total == 1
         assert result.skipped == 1
@@ -593,21 +509,14 @@ class TestFetchAllTables:
     """Tests for table fetching (AC-W01.7) -- via fallback path."""
 
     @pytest.mark.asyncio
-    async def test_all_twelve_api_calls_dispatched(self) -> None:
+    async def test_all_twelve_api_calls_dispatched(
+        self, mock_resolution_context
+    ) -> None:
         """All 12 API calls are dispatched (each table independently)."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         wf, _, mock_data, _ = _make_workflow(offers=[o1])
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            result = await _enumerate_and_execute(wf)
+        result = await _enumerate_and_execute(wf)
 
         # 8 insights calls + 1 appointments + 1 leads + 2 reconciliation = 12 total
         assert mock_data.get_insights_async.call_count == 8
@@ -615,21 +524,12 @@ class TestFetchAllTables:
         assert mock_data.get_leads_async.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_correct_factory_params(self) -> None:
+    async def test_correct_factory_params(self, mock_resolution_context) -> None:
         """Each table uses the correct factory and period."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         wf, _, mock_data, _ = _make_workflow(offers=[o1])
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            await _enumerate_and_execute(wf)
+        await _enumerate_and_execute(wf)
 
         # Verify factory params in insights calls
         insights_calls = mock_data.get_insights_async.call_args_list
@@ -752,21 +652,14 @@ class TestUploadAndCleanup:
     """Tests for upload and attachment cleanup (AC-W01.8-W01.10, AC-W03.11) -- via fallback."""
 
     @pytest.mark.asyncio
-    async def test_upload_called_with_correct_params(self) -> None:
+    async def test_upload_called_with_correct_params(
+        self, mock_resolution_context
+    ) -> None:
         """Upload creates .md file with correct content type."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         wf, _, _, mock_att = _make_workflow(offers=[o1])
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            await _enumerate_and_execute(wf)
+        await _enumerate_and_execute(wf)
 
         assert mock_att.upload_async.call_count == 1
         call_kwargs = mock_att.upload_async.call_args[1]
@@ -776,7 +669,7 @@ class TestUploadAndCleanup:
         assert call_kwargs["name"].endswith(".html")
 
     @pytest.mark.asyncio
-    async def test_old_attachments_deleted(self) -> None:
+    async def test_old_attachments_deleted(self, mock_resolution_context) -> None:
         """Old matching attachments are deleted after upload."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         old_att = _make_attachment(
@@ -788,22 +681,15 @@ class TestUploadAndCleanup:
             existing_attachments={"o1": [old_att]},
         )
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            await _enumerate_and_execute(wf)
+        await _enumerate_and_execute(wf)
 
         assert mock_att.delete_async.call_count == 1
         assert mock_att.delete_async.call_args[0][0] == "old-att-1"
 
     @pytest.mark.asyncio
-    async def test_non_matching_attachments_not_deleted(self) -> None:
+    async def test_non_matching_attachments_not_deleted(
+        self, mock_resolution_context
+    ) -> None:
         """Non-matching attachments are left alone."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         other_att = _make_attachment("other-att-1", "some_other_file.pdf")
@@ -813,21 +699,12 @@ class TestUploadAndCleanup:
             existing_attachments={"o1": [other_att]},
         )
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            await _enumerate_and_execute(wf)
+        await _enumerate_and_execute(wf)
 
         mock_att.delete_async.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_upload_before_delete(self) -> None:
+    async def test_upload_before_delete(self, mock_resolution_context) -> None:
         """Upload-first: upload happens before delete (AC-W03.11)."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         old_att = _make_attachment(
@@ -856,16 +733,7 @@ class TestUploadAndCleanup:
         mock_att.upload_async = AsyncMock(side_effect=track_upload)
         mock_att.delete_async = AsyncMock(side_effect=track_delete)
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            await _enumerate_and_execute(wf)
+        await _enumerate_and_execute(wf)
 
         assert call_order == ["upload", "delete"]
 
@@ -875,24 +743,15 @@ class TestConcurrency:
     """Tests for semaphore concurrency bounds (AC-W01.11) -- via fallback path."""
 
     @pytest.mark.asyncio
-    async def test_max_concurrency_from_params(self) -> None:
+    async def test_max_concurrency_from_params(self, mock_resolution_context) -> None:
         """Verify max_concurrency parameter is respected."""
         offers = [
             _make_task(f"o{i}", f"Offer {i}", parent_gid=f"biz{i}") for i in range(10)
         ]
         wf, _, _, _ = _make_workflow(offers=offers)
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            params = {**_default_params(), "max_concurrency": 2}
-            result = await _enumerate_and_execute(wf, params=params)
+        params = {**_default_params(), "max_concurrency": 2}
+        result = await _enumerate_and_execute(wf, params=params)
 
         # All should succeed even with low concurrency
         assert result.total == 10
@@ -912,21 +771,14 @@ class TestWorkflowResult:
     """Tests for WorkflowResult structure (AC-W01.12, AC-W02.4) -- via fallback path."""
 
     @pytest.mark.asyncio
-    async def test_result_includes_per_offer_table_counts(self) -> None:
+    async def test_result_includes_per_offer_table_counts(
+        self, mock_resolution_context
+    ) -> None:
         """Result metadata includes per-offer table counts."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         wf, _, _, _ = _make_workflow(offers=[o1])
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            result = await _enumerate_and_execute(wf)
+        result = await _enumerate_and_execute(wf)
 
         assert "per_offer_table_counts" in result.metadata
         assert "total_tables_succeeded" in result.metadata
@@ -936,7 +788,7 @@ class TestWorkflowResult:
         assert result.metadata["total_tables_failed"] == 0
 
     @pytest.mark.asyncio
-    async def test_result_totals(self) -> None:
+    async def test_result_totals(self, mock_resolution_context) -> None:
         """Result has correct total/succeeded/failed/skipped."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         o2 = _make_task("o2", "Offer 2", parent_gid="biz2")
@@ -944,16 +796,7 @@ class TestWorkflowResult:
 
         wf, _, _, _ = _make_workflow(offers=[o1, o2, o3])
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            result = await _enumerate_and_execute(wf)
+        result = await _enumerate_and_execute(wf)
 
         assert result.total == 3
         assert result.succeeded == 2
@@ -966,7 +809,7 @@ class TestPartialFailure:
     """Tests for partial table failure (AC-W02.1, AC-W02.2) -- via fallback path."""
 
     @pytest.mark.asyncio
-    async def test_one_table_fails_rest_succeed(self) -> None:
+    async def test_one_table_fails_rest_succeed(self, mock_resolution_context) -> None:
         """1 of 12 tables fails -> 11 succeed, report still uploaded."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         default_response = _make_insights_response()
@@ -984,16 +827,7 @@ class TestPartialFailure:
         wf, _, mock_data, mock_att = _make_workflow(offers=[o1])
         mock_data.get_insights_async = AsyncMock(side_effect=fail_one_insights)
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            result = await _enumerate_and_execute(wf)
+        result = await _enumerate_and_execute(wf)
 
         # Offer still succeeds with partial data
         assert result.succeeded == 1
@@ -1010,7 +844,7 @@ class TestTotalFailure:
     """Tests for total table failure (AC-W02.3) -- via fallback path."""
 
     @pytest.mark.asyncio
-    async def test_all_tables_fail_no_upload(self) -> None:
+    async def test_all_tables_fail_no_upload(self, mock_resolution_context) -> None:
         """All 12 tables fail -> no upload, offer marked failed."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         wf, _, _, mock_att = _make_workflow(
@@ -1018,16 +852,7 @@ class TestTotalFailure:
             insights_error=ConnectionError("Service down"),
         )
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            result = await _enumerate_and_execute(wf)
+        result = await _enumerate_and_execute(wf)
 
         assert result.total == 1
         assert result.failed == 1
@@ -1045,7 +870,9 @@ class TestDeleteFailureTolerance:
     """Tests for non-fatal delete failure -- via fallback path."""
 
     @pytest.mark.asyncio
-    async def test_delete_failure_still_succeeded(self) -> None:
+    async def test_delete_failure_still_succeeded(
+        self, mock_resolution_context
+    ) -> None:
         """Delete-old fails -> offer still counted as succeeded."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         old_att = _make_attachment(
@@ -1060,16 +887,7 @@ class TestDeleteFailureTolerance:
         # Make delete fail
         mock_att.delete_async = AsyncMock(side_effect=Exception("Asana API error"))
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            result = await _enumerate_and_execute(wf)
+        result = await _enumerate_and_execute(wf)
 
         # Still succeeded because upload worked; delete failure is non-fatal
         assert result.succeeded == 1
@@ -1196,7 +1014,9 @@ class TestAdversarialUploadFailure:
     """QA-ADVERSARY: Upload failure prevents delete loop (AC-W01.10) -- via fallback."""
 
     @pytest.mark.asyncio
-    async def test_upload_failure_prevents_delete(self) -> None:
+    async def test_upload_failure_prevents_delete(
+        self, mock_resolution_context
+    ) -> None:
         """If upload_async raises, delete_old_attachments is never called."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         old_att = _make_attachment(
@@ -1211,16 +1031,7 @@ class TestAdversarialUploadFailure:
         # Make upload fail
         mock_att.upload_async = AsyncMock(side_effect=Exception("Upload failed"))
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            result = await _enumerate_and_execute(wf)
+        result = await _enumerate_and_execute(wf)
 
         # Offer should be failed
         assert result.failed == 1
@@ -1234,27 +1045,18 @@ class TestAdversarialComposeRaisesPreventsUpload:
     """QA-ADVERSARY: If compose_report raises, no upload occurs -- via fallback."""
 
     @pytest.mark.asyncio
-    async def test_compose_failure_marks_offer_failed(self) -> None:
+    async def test_compose_failure_marks_offer_failed(
+        self, mock_resolution_context
+    ) -> None:
         """An exception in compose_report is caught by _process_offer."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
 
         wf, _, _, mock_att = _make_workflow(offers=[o1])
 
-        with (
-            patch(
-                "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-            ) as mock_rc,
-            patch(
-                "autom8_asana.automation.workflows.insights_export.compose_report",
-                side_effect=TypeError("Unexpected data format"),
-            ),
+        with patch(
+            "autom8_asana.automation.workflows.insights_export.compose_report",
+            side_effect=TypeError("Unexpected data format"),
         ):
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
             result = await _enumerate_and_execute(wf)
 
         assert result.failed == 1
@@ -1561,30 +1363,21 @@ class TestDryRun:
 
     @pytest.mark.asyncio
     @pytest.mark.usefixtures("_force_fallback")
-    async def test_dry_run_skips_upload(self) -> None:
+    async def test_dry_run_skips_upload(self, mock_resolution_context) -> None:
         """_attachments_client.upload_async NOT called in dry_run mode."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         wf, _, _, mock_att = _make_workflow(offers=[o1])
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            scope = EntityScope(dry_run=True)
-            entities = await wf.enumerate_async(scope)
-            params = {**_default_params(), "dry_run": True}
-            await wf.execute_async(entities, params)
+        scope = EntityScope(dry_run=True)
+        entities = await wf.enumerate_async(scope)
+        params = {**_default_params(), "dry_run": True}
+        await wf.execute_async(entities, params)
 
         mock_att.upload_async.assert_not_called()
 
     @pytest.mark.asyncio
     @pytest.mark.usefixtures("_force_fallback")
-    async def test_dry_run_skips_delete(self) -> None:
+    async def test_dry_run_skips_delete(self, mock_resolution_context) -> None:
         """_delete_old_attachments NOT called in dry_run mode."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         existing = [_make_attachment("att1", "insights_export_old.md")]
@@ -1593,64 +1386,37 @@ class TestDryRun:
             existing_attachments={"o1": existing},
         )
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            scope = EntityScope(dry_run=True)
-            entities = await wf.enumerate_async(scope)
-            params = {**_default_params(), "dry_run": True}
-            await wf.execute_async(entities, params)
+        scope = EntityScope(dry_run=True)
+        entities = await wf.enumerate_async(scope)
+        params = {**_default_params(), "dry_run": True}
+        await wf.execute_async(entities, params)
 
         mock_att.delete_async.assert_not_called()
 
     @pytest.mark.asyncio
     @pytest.mark.usefixtures("_force_fallback")
-    async def test_dry_run_metadata_flag(self) -> None:
+    async def test_dry_run_metadata_flag(self, mock_resolution_context) -> None:
         """metadata['dry_run'] is True when dry_run=True."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         wf, _, _, _ = _make_workflow(offers=[o1])
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            scope = EntityScope(dry_run=True)
-            entities = await wf.enumerate_async(scope)
-            params = {**_default_params(), "dry_run": True}
-            result = await wf.execute_async(entities, params)
+        scope = EntityScope(dry_run=True)
+        entities = await wf.enumerate_async(scope)
+        params = {**_default_params(), "dry_run": True}
+        result = await wf.execute_async(entities, params)
 
         assert result.metadata.get("dry_run") is True
 
     @pytest.mark.asyncio()
-    async def test_dry_run_writes_preview_files(self) -> None:
+    async def test_dry_run_writes_preview_files(self, mock_resolution_context) -> None:
         """Dry-run writes full HTML to .wip/ and reports paths in metadata."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         wf, _, _, _ = _make_workflow(offers=[o1])
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            scope = EntityScope(dry_run=True)
-            entities = await wf.enumerate_async(scope)
-            params = {**_default_params(), "dry_run": True}
-            result = await wf.execute_async(entities, params)
+        scope = EntityScope(dry_run=True)
+        entities = await wf.enumerate_async(scope)
+        params = {**_default_params(), "dry_run": True}
+        result = await wf.execute_async(entities, params)
 
         paths = result.metadata.get("preview_paths")
         assert paths is not None
@@ -1698,12 +1464,16 @@ class TestReconciliationPhoneFiltering:
             return_value=multi_phone_response
         )
 
+        _lifetime_recon_spec = TableSpec(
+            table_name="LIFETIME RECONCILIATIONS",
+            dispatch_type=DispatchType.RECONCILIATION,
+        )
         result = await wf._fetch_table(
-            "LIFETIME RECONCILIATIONS",
-            "offer-1",
-            queried_phone,
-            "chiropractic",
-            method="reconciliation",
+            spec=_lifetime_recon_spec,
+            offer_gid="offer-1",
+            office_phone=queried_phone,
+            vertical="chiropractic",
+            row_limits={},
         )
 
         assert result.success is True
@@ -1730,13 +1500,17 @@ class TestReconciliationPhoneFiltering:
             return_value=multi_phone_response
         )
 
-        result = await wf._fetch_table(
-            "T14 RECONCILIATIONS",
-            "offer-1",
-            queried_phone,
-            "chiropractic",
-            method="reconciliation",
+        _t14_recon_spec = TableSpec(
+            table_name="T14 RECONCILIATIONS",
+            dispatch_type=DispatchType.RECONCILIATION,
             window_days=14,
+        )
+        result = await wf._fetch_table(
+            spec=_t14_recon_spec,
+            offer_gid="offer-1",
+            office_phone=queried_phone,
+            vertical="chiropractic",
+            row_limits={},
         )
 
         assert result.success is True
@@ -1760,12 +1534,16 @@ class TestReconciliationPhoneFiltering:
             return_value=single_phone_response
         )
 
+        _lifetime_recon_spec = TableSpec(
+            table_name="LIFETIME RECONCILIATIONS",
+            dispatch_type=DispatchType.RECONCILIATION,
+        )
         result = await wf._fetch_table(
-            "LIFETIME RECONCILIATIONS",
-            "offer-1",
-            queried_phone,
-            "chiropractic",
-            method="reconciliation",
+            spec=_lifetime_recon_spec,
+            offer_gid="offer-1",
+            office_phone=queried_phone,
+            vertical="chiropractic",
+            row_limits={},
         )
 
         assert result.success is True
@@ -1788,12 +1566,16 @@ class TestReconciliationPhoneFiltering:
             return_value=multi_phone_response
         )
 
+        _lifetime_recon_spec = TableSpec(
+            table_name="LIFETIME RECONCILIATIONS",
+            dispatch_type=DispatchType.RECONCILIATION,
+        )
         await wf._fetch_table(
-            "LIFETIME RECONCILIATIONS",
-            "offer-1",
-            queried_phone,
-            "chiropractic",
-            method="reconciliation",
+            spec=_lifetime_recon_spec,
+            offer_gid="offer-1",
+            office_phone=queried_phone,
+            vertical="chiropractic",
+            row_limits={},
         )
 
         # Original response.data should still have both rows (not mutated)
@@ -1814,7 +1596,9 @@ class TestBusinessCacheDedup:
     """
 
     @pytest.mark.asyncio
-    async def test_sibling_offers_share_business_cache_entry(self) -> None:
+    async def test_sibling_offers_share_business_cache_entry(
+        self, mock_resolution_context
+    ) -> None:
         """Two offers resolving to the same business_gid share one cache entry."""
         shared_business_gid = "biz-shared-123"
         offer_a = _make_task("offer-a", "Offer A", parent_gid="holder-a")
@@ -1823,23 +1607,15 @@ class TestBusinessCacheDedup:
         wf, mock_asana, _, _ = _make_workflow(offers=[offer_a, offer_b])
 
         # Both offers resolve to the same business
-        mock_business = _make_mock_business(
+        biz = mock_resolution_context.set_business(
             office_phone="+17705553000",
             vertical="chiropractic",
             name="Shared Business",
         )
-        mock_business.gid = shared_business_gid
+        biz.gid = shared_business_gid
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            result_a = await wf._resolve_offer("offer-a")
-            result_b = await wf._resolve_offer("offer-b")
+        result_a = await wf._resolve_offer("offer-a")
+        result_b = await wf._resolve_offer("offer-b")
 
         # Both return same tuple
         assert result_a == ("+17705553000", "chiropractic", "Shared Business")
@@ -1856,30 +1632,23 @@ class TestBusinessCacheDedup:
         assert wf._cache_hits >= 1
 
     @pytest.mark.asyncio
-    async def test_same_offer_gid_hits_offer_cache(self) -> None:
+    async def test_same_offer_gid_hits_offer_cache(
+        self, mock_resolution_context
+    ) -> None:
         """Re-resolving the same offer_gid returns from _offer_to_business cache."""
         offer = _make_task("offer-1", "Offer 1", parent_gid="holder-1")
         wf, _, _, _ = _make_workflow(offers=[offer])
 
-        mock_business = _make_mock_business()
-        mock_business.gid = "biz-1"
+        mock_resolution_context.mock_business.gid = "biz-1"
 
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            first = await wf._resolve_offer("offer-1")
-            second = await wf._resolve_offer("offer-1")
+        first = await wf._resolve_offer("offer-1")
+        second = await wf._resolve_offer("offer-1")
 
         assert first == second
         # Second call should be a cache hit
         assert wf._cache_hits == 1
         # ResolutionContext should only have been entered once
-        assert mock_rc.return_value.__aenter__.call_count == 1
+        assert mock_resolution_context.mock_rc.return_value.__aenter__.call_count == 1
 
     @pytest.mark.asyncio
     async def test_failed_resolution_cached_as_none(self) -> None:
