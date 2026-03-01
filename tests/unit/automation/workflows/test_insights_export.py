@@ -593,8 +593,8 @@ class TestFetchAllTables:
     """Tests for table fetching (AC-W01.7) -- via fallback path."""
 
     @pytest.mark.asyncio
-    async def test_all_nine_api_calls_dispatched(self) -> None:
-        """All 9 API calls are dispatched (UNUSED ASSETS derived)."""
+    async def test_all_twelve_api_calls_dispatched(self) -> None:
+        """All 12 API calls are dispatched (each table independently)."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         wf, _, mock_data, _ = _make_workflow(offers=[o1])
 
@@ -609,8 +609,8 @@ class TestFetchAllTables:
 
             result = await _enumerate_and_execute(wf)
 
-        # 7 insights calls + 1 appointments + 1 leads = 9 total
-        assert mock_data.get_insights_async.call_count == 7
+        # 8 insights calls + 1 appointments + 1 leads + 2 reconciliation = 12 total
+        assert mock_data.get_insights_async.call_count == 8
         assert mock_data.get_appointments_async.call_count == 1
         assert mock_data.get_leads_async.call_count == 1
 
@@ -637,195 +637,76 @@ class TestFetchAllTables:
         for c in insights_calls:
             factory_period_pairs.add((c.kwargs.get("factory"), c.kwargs.get("period")))
 
-        # These are the expected factory+period combinations for the 7 insights calls
+        # 8 insights calls: 7 unique (factory, period) pairs + UNUSED ASSETS
+        # shares ("assets", "t30") with ASSET TABLE
         expected_pairs = {
             ("base", "lifetime"),  # SUMMARY
             ("base", "quarter"),  # BY QUARTER
             ("base", "month"),  # BY MONTH
             ("base", "week"),  # BY WEEK
             ("ad_questions", "lifetime"),  # AD QUESTIONS
-            ("assets", "t30"),  # ASSET TABLE
+            ("assets", "t30"),  # ASSET TABLE + UNUSED ASSETS
             ("business_offers", "t30"),  # OFFER TABLE
         }
         assert factory_period_pairs == expected_pairs
 
+        # Verify UNUSED ASSETS call has include_unused=True
+        unused_calls = [
+            c
+            for c in insights_calls
+            if c.kwargs.get("factory") == "assets"
+            and c.kwargs.get("include_unused") is True
+        ]
+        assert len(unused_calls) == 1
 
-class TestUnusedAssetsFilter:
-    """Tests for UNUSED ASSETS derivation (AC-W03.9)."""
+
+class TestUnusedAssetsApiCall:
+    """Tests for UNUSED ASSETS via data-service include_unused=True."""
 
     @pytest.mark.asyncio
-    async def test_unused_assets_filtered_correctly(self) -> None:
-        """UNUSED ASSETS = spend==0 AND imp==0, excluding disabled and generic."""
-        asset_data = [
-            {"name": "Active Ad", "spend": 100, "imp": 5000},
-            {
-                "name": "Unused Ad 1",
-                "spend": 0,
-                "imp": 0,
-                "disabled": 0,
-                "is_generic": False,
-            },
-            {"name": "Partial Spend", "spend": 0, "imp": 100},
-            {"name": "Partial Imp", "spend": 50, "imp": 0},
-            {
-                "name": "Unused Ad 2",
-                "spend": 0,
-                "imp": 0,
-                "disabled": 0,
-                "is_generic": False,
-            },
-            {
-                "name": "Disabled Unused",
-                "spend": 0,
-                "imp": 0,
-                "disabled": 1,
-                "is_generic": False,
-            },
-            {
-                "name": "Generic Unused",
-                "spend": 0,
-                "imp": 0,
-                "disabled": 0,
-                "is_generic": True,
-            },
+    async def test_unused_assets_fetched_via_api(self) -> None:
+        """UNUSED ASSETS is fetched as its own API call with include_unused=True."""
+        unused_data = [
+            {"name": "Unused Ad 1", "spend": 0, "leads": 0},
+            {"name": "Unused Ad 2", "spend": 0, "leads": 0},
         ]
-        asset_response = _make_insights_response(data=asset_data)
+        unused_response = _make_insights_response(data=unused_data)
+        default_response = _make_insights_response()
 
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
 
-        # Make get_insights_async return asset_data for all calls
-        wf, _, mock_data, _ = _make_workflow(
-            offers=[o1], insights_response=asset_response
+        async def route_insights(factory: str, **kwargs: Any) -> InsightsResponse:
+            if factory == "assets" and kwargs.get("include_unused") is True:
+                return unused_response
+            return default_response
+
+        wf, _, mock_data, _ = _make_workflow(offers=[o1])
+        mock_data.get_insights_async = AsyncMock(side_effect=route_insights)
+
+        table_results = await wf._fetch_all_tables(
+            office_phone="+17705753103",
+            vertical="chiropractic",
+            row_limits=DEFAULT_ROW_LIMITS,
+            offer_gid="o1",
         )
-
-        with patch(
-            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
-        ) as mock_rc:
-            mock_ctx = AsyncMock()
-            mock_business = _make_mock_business()
-            mock_ctx.business_async = AsyncMock(return_value=mock_business)
-            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
-            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
-
-            # We need to verify the UNUSED ASSETS derivation directly.
-            # Invoke _fetch_all_tables to inspect the result.
-            table_results = await wf._fetch_all_tables(
-                office_phone="+17705753103",
-                vertical="chiropractic",
-                row_limits=DEFAULT_ROW_LIMITS,
-                offer_gid="o1",
-            )
 
         unused_result = table_results["UNUSED ASSETS"]
         assert unused_result.success is True
         assert unused_result.row_count == 2
         assert len(unused_result.data) == 2
-        # Only non-disabled, non-generic, zero-spend/imp rows pass
-        assert all(r["spend"] == 0 and r["imp"] == 0 for r in unused_result.data)
-        unused_names = {r["name"] for r in unused_result.data}
-        assert unused_names == {"Unused Ad 1", "Unused Ad 2"}
 
     @pytest.mark.asyncio
-    async def test_disabled_asset_excluded_from_unused(self) -> None:
-        """Assets with disabled=1 are excluded from UNUSED ASSETS."""
-        asset_data = [
-            {"name": "Disabled", "spend": 0, "imp": 0, "disabled": 1},
-            {"name": "Enabled", "spend": 0, "imp": 0, "disabled": 0},
-        ]
-        unused_rows = [
-            row
-            for row in asset_data
-            if row.get("spend", -1) == 0
-            and row.get("imp", -1) == 0
-            and not row.get("disabled")
-            and not row.get("is_generic")
-        ]
-        assert len(unused_rows) == 1
-        assert unused_rows[0]["name"] == "Enabled"
-
-    @pytest.mark.asyncio
-    async def test_generic_asset_excluded_from_unused(self) -> None:
-        """Assets with is_generic=True are excluded from UNUSED ASSETS."""
-        asset_data = [
-            {"name": "Generic", "spend": 0, "imp": 0, "is_generic": True},
-            {"name": "Non-Generic", "spend": 0, "imp": 0, "is_generic": False},
-        ]
-        unused_rows = [
-            row
-            for row in asset_data
-            if row.get("spend", -1) == 0
-            and row.get("imp", -1) == 0
-            and not row.get("disabled")
-            and not row.get("is_generic")
-        ]
-        assert len(unused_rows) == 1
-        assert unused_rows[0]["name"] == "Non-Generic"
-
-    @pytest.mark.asyncio
-    async def test_raw_asset_included_in_unused(self) -> None:
-        """Assets with is_raw=True are NOT excluded — raw unused is interesting."""
-        asset_data = [
-            {
-                "name": "Raw Unused",
-                "spend": 0,
-                "imp": 0,
-                "is_raw": True,
-                "disabled": 0,
-                "is_generic": False,
-            },
-        ]
-        unused_rows = [
-            row
-            for row in asset_data
-            if row.get("spend", -1) == 0
-            and row.get("imp", -1) == 0
-            and not row.get("disabled")
-            and not row.get("is_generic")
-        ]
-        assert len(unused_rows) == 1
-        assert unused_rows[0]["name"] == "Raw Unused"
-
-    @pytest.mark.asyncio
-    async def test_disabled_none_treated_as_enabled(self) -> None:
-        """disabled=None (no platform mapping) → treated as enabled (kept)."""
-        asset_data = [
-            {"name": "Null Disabled", "spend": 0, "imp": 0, "disabled": None},
-        ]
-        unused_rows = [
-            row
-            for row in asset_data
-            if row.get("spend", -1) == 0
-            and row.get("imp", -1) == 0
-            and not row.get("disabled")
-            and not row.get("is_generic")
-        ]
-        assert len(unused_rows) == 1
-
-    @pytest.mark.asyncio
-    async def test_generic_none_treated_as_non_generic(self) -> None:
-        """is_generic=None → treated as non-generic (kept)."""
-        asset_data = [
-            {"name": "Null Generic", "spend": 0, "imp": 0, "is_generic": None},
-        ]
-        unused_rows = [
-            row
-            for row in asset_data
-            if row.get("spend", -1) == 0
-            and row.get("imp", -1) == 0
-            and not row.get("disabled")
-            and not row.get("is_generic")
-        ]
-        assert len(unused_rows) == 1
-
-    @pytest.mark.asyncio
-    async def test_unused_assets_fails_when_asset_table_fails(self) -> None:
-        """UNUSED ASSETS inherits failure from ASSET TABLE."""
-        o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
-
-        # Make only the assets factory call fail
+    async def test_unused_assets_independent_of_asset_table(self) -> None:
+        """UNUSED ASSETS succeeds even when ASSET TABLE fails."""
+        unused_data = [{"name": "Unused", "spend": 0, "leads": 0}]
+        unused_response = _make_insights_response(data=unused_data)
         default_response = _make_insights_response()
 
+        o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
+
         async def selective_insights(factory: str, **kwargs: Any) -> InsightsResponse:
+            if factory == "assets" and kwargs.get("include_unused") is True:
+                return unused_response
             if factory == "assets":
                 raise ConnectionError("Asset fetch failed")
             return default_response
@@ -840,9 +721,30 @@ class TestUnusedAssetsFilter:
             offer_gid="o1",
         )
 
-        unused_result = table_results["UNUSED ASSETS"]
-        assert unused_result.success is False
-        assert "ASSET TABLE which failed" in unused_result.error_message
+        # ASSET TABLE failed but UNUSED ASSETS succeeded independently
+        assert table_results["ASSET TABLE"].success is False
+        assert table_results["UNUSED ASSETS"].success is True
+        assert table_results["UNUSED ASSETS"].row_count == 1
+
+    @pytest.mark.asyncio
+    async def test_unused_assets_passes_include_unused_true(self) -> None:
+        """Verify get_insights_async is called with include_unused=True for UNUSED ASSETS."""
+        o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
+        wf, _, mock_data, _ = _make_workflow(offers=[o1])
+
+        table_results = await wf._fetch_all_tables(
+            office_phone="+17705753103",
+            vertical="chiropractic",
+            row_limits=DEFAULT_ROW_LIMITS,
+            offer_gid="o1",
+        )
+
+        # Find the call with include_unused=True
+        calls = mock_data.get_insights_async.call_args_list
+        unused_calls = [c for c in calls if c.kwargs.get("include_unused") is True]
+        assert len(unused_calls) == 1
+        assert unused_calls[0].kwargs["factory"] == "assets"
+        assert unused_calls[0].kwargs["period"] == "t30"
 
 
 @pytest.mark.usefixtures("_force_fallback")
@@ -1206,7 +1108,11 @@ class TestSanitizeBusinessName:
         assert _sanitize_business_name("Clinic123") == "Clinic123"
 
     def test_empty_string(self) -> None:
-        assert _sanitize_business_name("") == ""
+        assert _sanitize_business_name("") == "unknown"
+
+    def test_all_special_chars_returns_unknown(self) -> None:
+        """All-special-char names produce 'unknown' instead of empty string (F-10)."""
+        assert _sanitize_business_name("!@#$%^&*()") == "unknown"
 
     def test_underscores_preserved(self) -> None:
         assert _sanitize_business_name("my_business") == "my_business"
@@ -1760,3 +1666,230 @@ class TestDryRun:
         assert "Test Business" in content
         # Cleanup
         preview_file.unlink(missing_ok=True)
+
+
+# --- F-15: Reconciliation Phone Filtering Tests ---
+
+
+class TestReconciliationPhoneFiltering:
+    """F-15: Verify reconciliation tables filter to queried phone only.
+
+    The API may return rows for all businesses sharing the same vertical.
+    The phone filter in _fetch_table must retain only rows matching the
+    queried office_phone.
+    """
+
+    @pytest.mark.asyncio
+    async def test_lifetime_recon_filters_to_queried_phone(self) -> None:
+        """LIFETIME RECONCILIATIONS: multi-phone response filtered to queried phone."""
+        queried_phone = "+17705753103"
+        other_phone = "+14045551234"
+
+        multi_phone_response = _make_insights_response(
+            data=[
+                {"office_phone": queried_phone, "collected": 5000.0, "spend": 4200.0},
+                {"office_phone": other_phone, "collected": 3000.0, "spend": 2500.0},
+                {"office_phone": queried_phone, "collected": 1000.0, "spend": 800.0},
+            ],
+        )
+
+        wf, _, mock_data, _ = _make_workflow()
+        mock_data.get_reconciliation_async = AsyncMock(
+            return_value=multi_phone_response
+        )
+
+        result = await wf._fetch_table(
+            "LIFETIME RECONCILIATIONS",
+            "offer-1",
+            queried_phone,
+            "chiropractic",
+            method="reconciliation",
+        )
+
+        assert result.success is True
+        # Only queried phone's rows should survive
+        assert result.row_count == 2
+        for row in result.data:
+            assert row["office_phone"] == queried_phone
+
+    @pytest.mark.asyncio
+    async def test_t14_recon_filters_to_queried_phone(self) -> None:
+        """T14 RECONCILIATIONS: multi-phone response filtered to queried phone."""
+        queried_phone = "+17705753103"
+        other_phone = "+14045551234"
+
+        multi_phone_response = _make_insights_response(
+            data=[
+                {"office_phone": queried_phone, "period": 0, "collected": 1200.0},
+                {"office_phone": other_phone, "period": 0, "collected": 900.0},
+            ],
+        )
+
+        wf, _, mock_data, _ = _make_workflow()
+        mock_data.get_reconciliation_async = AsyncMock(
+            return_value=multi_phone_response
+        )
+
+        result = await wf._fetch_table(
+            "T14 RECONCILIATIONS",
+            "offer-1",
+            queried_phone,
+            "chiropractic",
+            method="reconciliation",
+            window_days=14,
+        )
+
+        assert result.success is True
+        assert result.row_count == 1
+        assert result.data[0]["office_phone"] == queried_phone
+
+    @pytest.mark.asyncio
+    async def test_single_phone_no_filtering(self) -> None:
+        """When all rows share the same phone, no filtering occurs."""
+        queried_phone = "+17705753103"
+
+        single_phone_response = _make_insights_response(
+            data=[
+                {"office_phone": queried_phone, "collected": 5000.0},
+                {"office_phone": queried_phone, "collected": 3000.0},
+            ],
+        )
+
+        wf, _, mock_data, _ = _make_workflow()
+        mock_data.get_reconciliation_async = AsyncMock(
+            return_value=single_phone_response
+        )
+
+        result = await wf._fetch_table(
+            "LIFETIME RECONCILIATIONS",
+            "offer-1",
+            queried_phone,
+            "chiropractic",
+            method="reconciliation",
+        )
+
+        assert result.success is True
+        assert result.row_count == 2
+
+    @pytest.mark.asyncio
+    async def test_response_data_not_mutated(self) -> None:
+        """Original response.data is not mutated by phone filtering (F-08)."""
+        queried_phone = "+17705753103"
+        other_phone = "+14045551234"
+
+        original_data = [
+            {"office_phone": queried_phone, "collected": 5000.0},
+            {"office_phone": other_phone, "collected": 3000.0},
+        ]
+        multi_phone_response = _make_insights_response(data=original_data)
+
+        wf, _, mock_data, _ = _make_workflow()
+        mock_data.get_reconciliation_async = AsyncMock(
+            return_value=multi_phone_response
+        )
+
+        await wf._fetch_table(
+            "LIFETIME RECONCILIATIONS",
+            "offer-1",
+            queried_phone,
+            "chiropractic",
+            method="reconciliation",
+        )
+
+        # Original response.data should still have both rows (not mutated)
+        assert len(multi_phone_response.data) == 2
+
+
+# --- F-02: Business Cache Dedup Tests ---
+
+
+class TestBusinessCacheDedup:
+    """F-02: Verify business cache keys by business_gid, not offer_gid.
+
+    Two sibling offers sharing the same parent Business should:
+    - Share one _business_cache entry (keyed by business_gid)
+    - Have separate _offer_to_business entries
+    - Increment _cache_hits on the sibling detection path
+    - Return identical (phone, vertical, name) tuples
+    """
+
+    @pytest.mark.asyncio
+    async def test_sibling_offers_share_business_cache_entry(self) -> None:
+        """Two offers resolving to the same business_gid share one cache entry."""
+        shared_business_gid = "biz-shared-123"
+        offer_a = _make_task("offer-a", "Offer A", parent_gid="holder-a")
+        offer_b = _make_task("offer-b", "Offer B", parent_gid="holder-b")
+
+        wf, mock_asana, _, _ = _make_workflow(offers=[offer_a, offer_b])
+
+        # Both offers resolve to the same business
+        mock_business = _make_mock_business(
+            office_phone="+17705553000",
+            vertical="chiropractic",
+            name="Shared Business",
+        )
+        mock_business.gid = shared_business_gid
+
+        with patch(
+            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
+        ) as mock_rc:
+            mock_ctx = AsyncMock()
+            mock_ctx.business_async = AsyncMock(return_value=mock_business)
+            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
+            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            result_a = await wf._resolve_offer("offer-a")
+            result_b = await wf._resolve_offer("offer-b")
+
+        # Both return same tuple
+        assert result_a == ("+17705553000", "chiropractic", "Shared Business")
+        assert result_b == result_a
+
+        # One business_cache entry, two offer_to_business entries
+        assert len(wf._business_cache) == 1
+        assert shared_business_gid in wf._business_cache
+        assert len(wf._offer_to_business) == 2
+        assert wf._offer_to_business["offer-a"] == shared_business_gid
+        assert wf._offer_to_business["offer-b"] == shared_business_gid
+
+        # Sibling detection incremented cache_hits
+        assert wf._cache_hits >= 1
+
+    @pytest.mark.asyncio
+    async def test_same_offer_gid_hits_offer_cache(self) -> None:
+        """Re-resolving the same offer_gid returns from _offer_to_business cache."""
+        offer = _make_task("offer-1", "Offer 1", parent_gid="holder-1")
+        wf, _, _, _ = _make_workflow(offers=[offer])
+
+        mock_business = _make_mock_business()
+        mock_business.gid = "biz-1"
+
+        with patch(
+            "autom8_asana.automation.workflows.insights_export.ResolutionContext"
+        ) as mock_rc:
+            mock_ctx = AsyncMock()
+            mock_ctx.business_async = AsyncMock(return_value=mock_business)
+            mock_rc.return_value.__aenter__ = AsyncMock(return_value=mock_ctx)
+            mock_rc.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            first = await wf._resolve_offer("offer-1")
+            second = await wf._resolve_offer("offer-1")
+
+        assert first == second
+        # Second call should be a cache hit
+        assert wf._cache_hits == 1
+        # ResolutionContext should only have been entered once
+        assert mock_rc.return_value.__aenter__.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_failed_resolution_cached_as_none(self) -> None:
+        """Offer whose parent has no GID is cached as None in _offer_to_business."""
+        offer = _make_task("offer-orphan", "Orphan", parent_gid=None)
+        wf, _, _, _ = _make_workflow(offers=[offer])
+
+        result = await wf._resolve_offer("offer-orphan")
+
+        assert result is None
+        assert wf._offer_to_business["offer-orphan"] is None
+        # No business_cache entry for None resolution
+        assert len(wf._business_cache) == 0

@@ -133,7 +133,7 @@ _SECTION_SUBTITLES: dict[str, str] = {
     "AD QUESTIONS": "Lead-qualifying questions and their conversion impact.",
     "ASSET TABLE": "Creative performance by individual ad asset over the last 30 days.",
     "OFFER TABLE": "Offer-level performance metrics over the last 30 days.",
-    "UNUSED ASSETS": "Ad assets with zero spend and zero impressions in the last 30 days.",
+    "UNUSED ASSETS": "Ad assets with zero activity (spend and leads) plus inventory-only assets, over the last 30 days.",
 }
 
 # ASSET TABLE columns to exclude from display.

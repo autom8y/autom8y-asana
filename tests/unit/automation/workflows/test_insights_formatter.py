@@ -890,13 +890,13 @@ class TestAdversarialSanitizeBusinessName:
     """QA-ADVERSARY: Edge cases for _sanitize_business_name."""
 
     def test_all_special_chars(self):
-        """All special characters result in empty string."""
+        """All special characters produce 'unknown' fallback (per F-10)."""
         from autom8_asana.automation.workflows.insights_export import (
             _sanitize_business_name,
         )
 
         result = _sanitize_business_name("!@#$%^&*()")
-        assert result == ""
+        assert result == "unknown"
 
     def test_unicode_chars_stripped(self):
         """Unicode (non-ASCII) characters are stripped."""
@@ -918,73 +918,6 @@ class TestAdversarialSanitizeBusinessName:
         result = _sanitize_business_name(long_name)
         assert len(result) == 500
         assert result == long_name
-
-
-class TestAdversarialUnusedAssetsNoneSpend:
-    """QA-ADVERSARY: spend=None vs spend=0, disabled, is_generic in UNUSED ASSETS filter."""
-
-    @pytest.mark.asyncio
-    async def test_none_spend_excluded_from_unused(self):
-        """Rows with spend=None are NOT matched by spend==0 filter."""
-        asset_data = [
-            {"name": "Normal", "spend": 100, "imp": 5000},
-            {"name": "None Spend", "spend": None, "imp": 0},
-            {"name": "None Imp", "spend": 0, "imp": None},
-            {"name": "Both None", "spend": None, "imp": None},
-            {"name": "Actually Unused", "spend": 0, "imp": 0},
-        ]
-
-        unused_rows = [
-            row
-            for row in asset_data
-            if row.get("spend", -1) == 0
-            and row.get("imp", -1) == 0
-            and not row.get("disabled")
-            and not row.get("is_generic")
-        ]
-
-        assert len(unused_rows) == 1
-        assert unused_rows[0]["name"] == "Actually Unused"
-
-    @pytest.mark.asyncio
-    async def test_missing_spend_key_excluded(self):
-        """Rows with no spend key are excluded (default -1 != 0)."""
-        asset_data = [
-            {"name": "No Spend Key", "imp": 0},
-            {"name": "No Imp Key", "spend": 0},
-            {"name": "Neither Key"},
-        ]
-
-        unused_rows = [
-            row
-            for row in asset_data
-            if row.get("spend", -1) == 0
-            and row.get("imp", -1) == 0
-            and not row.get("disabled")
-            and not row.get("is_generic")
-        ]
-
-        assert len(unused_rows) == 0
-
-    @pytest.mark.asyncio
-    async def test_disabled_asset_excluded_from_unused(self):
-        """Disabled assets (disabled=1) are excluded even with zero spend/imp."""
-        asset_data = [
-            {"name": "Disabled Zero", "spend": 0, "imp": 0, "disabled": 1},
-            {"name": "Enabled Zero", "spend": 0, "imp": 0, "disabled": 0},
-        ]
-
-        unused_rows = [
-            row
-            for row in asset_data
-            if row.get("spend", -1) == 0
-            and row.get("imp", -1) == 0
-            and not row.get("disabled")
-            and not row.get("is_generic")
-        ]
-
-        assert len(unused_rows) == 1
-        assert unused_rows[0]["name"] == "Enabled Zero"
 
 
 class TestAdversarialRowLimitEdgeCases:
@@ -3548,3 +3481,109 @@ class TestPiiPhoneMasking:
         )
         # Masked form should retain last 4 digits
         assert "3103" in html_output
+
+
+# ---------------------------------------------------------------------------
+# TestMaskPiiRows -- F-14: Dedicated unit tests for _mask_pii_rows
+# ---------------------------------------------------------------------------
+
+
+class TestMaskPiiRows:
+    """F-14: Focused tests for _mask_pii_rows edge cases.
+
+    Covers: no-op when no PII columns, phone/canonical_key masking,
+    non-PII column preservation, empty row list, and non-string
+    values in PII columns.
+    """
+
+    def test_no_op_when_no_pii_columns(self):
+        """Rows without any PII column keys pass through unchanged (fast path)."""
+        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+
+        rows = [
+            {"spend": 100.50, "impressions": 5000, "clicks": 200},
+            {"spend": 200.00, "impressions": 8000, "clicks": 350},
+        ]
+        result = _mask_pii_rows(rows)
+        # Fast path returns the original list object (same reference)
+        assert result is rows
+
+    def test_masks_office_phone_column(self):
+        """office_phone values are masked, preserving last 4 digits."""
+        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+
+        rows = [{"office_phone": "+17705753103", "spend": 100.50}]
+        result = _mask_pii_rows(rows)
+        assert len(result) == 1
+        # Full phone should not appear
+        assert "7705753103" not in result[0]["office_phone"]
+        # Last 4 digits preserved
+        assert "3103" in result[0]["office_phone"]
+        # Non-PII column unchanged
+        assert result[0]["spend"] == 100.50
+
+    def test_masks_canonical_key_phone_column(self):
+        """'phone' column (canonical_key alias) is also masked."""
+        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+
+        rows = [{"phone": "+14045551234", "vertical": "dental"}]
+        result = _mask_pii_rows(rows)
+        assert "4045551234" not in result[0]["phone"]
+        assert "1234" in result[0]["phone"]
+        # Non-PII preserved
+        assert result[0]["vertical"] == "dental"
+
+    def test_preserves_non_pii_columns(self):
+        """All non-PII columns pass through with original values and types."""
+        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+
+        rows = [
+            {
+                "office_phone": "+17705753103",
+                "spend": 1234.56,
+                "impressions": 50000,
+                "vertical": "chiro",
+                "active": True,
+                "notes": None,
+            }
+        ]
+        result = _mask_pii_rows(rows)
+        assert result[0]["spend"] == 1234.56
+        assert result[0]["impressions"] == 50000
+        assert result[0]["vertical"] == "chiro"
+        assert result[0]["active"] is True
+        assert result[0]["notes"] is None
+
+    def test_handles_empty_row_list(self):
+        """Empty list returns empty list."""
+        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+
+        result = _mask_pii_rows([])
+        assert result == []
+
+    def test_handles_non_string_values_in_pii_columns(self):
+        """Non-string values in PII columns are left as-is (no masking attempted)."""
+        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+
+        rows = [
+            {"office_phone": None, "spend": 100},
+            {"office_phone": 12345, "spend": 200},
+            {"office_phone": True, "spend": 300},
+        ]
+        result = _mask_pii_rows(rows)
+        # Non-string values should pass through unchanged
+        assert result[0]["office_phone"] is None
+        assert result[1]["office_phone"] == 12345
+        assert result[2]["office_phone"] is True
+
+    def test_does_not_mutate_original_rows(self):
+        """Original row dicts are not modified (shallow copy per row)."""
+        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+
+        original = {"office_phone": "+17705753103", "spend": 100}
+        rows = [original]
+        result = _mask_pii_rows(rows)
+        # Original dict should be untouched
+        assert original["office_phone"] == "+17705753103"
+        # Result should be a different dict
+        assert result[0] is not original
