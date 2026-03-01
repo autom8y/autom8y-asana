@@ -2,7 +2,7 @@
 
 Per TDD-EXPORT-001: Second WorkflowAction implementation.
 Enumerates active Offers, resolves each to office_phone + vertical,
-fetches 10 tables from autom8_data, composes HTML report,
+fetches 12 tables from autom8_data, composes HTML report,
 and uploads as attachment to each Offer task.
 """
 
@@ -37,6 +37,7 @@ from autom8_asana.models.business.activity import (
     AccountActivity,
     extract_section_name,
 )
+from autom8_asana.models.business.offer import Offer
 from autom8_asana.resolution.context import ResolutionContext
 
 if TYPE_CHECKING:
@@ -50,7 +51,7 @@ logger = get_logger(__name__)
 EXPORT_ENABLED_ENV_VAR = "AUTOM8_EXPORT_ENABLED"
 
 # Offer project GID (canonical source: Offer.PRIMARY_PROJECT_GID)
-OFFER_PROJECT_GID = "1143843662099250"
+OFFER_PROJECT_GID: str = Offer.PRIMARY_PROJECT_GID  # type: ignore[assignment]
 
 # Default concurrency for parallel offer processing
 DEFAULT_MAX_CONCURRENCY = 5
@@ -88,7 +89,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
     2. Enumerate active Offer tasks in BusinessOffers project
     3. For each Offer (with concurrency limit):
        a. Resolve parent Business -> office_phone + vertical
-       b. Fetch 10 tables concurrently from DataServiceClient
+       b. Fetch 12 tables concurrently from DataServiceClient
        c. Compose HTML report via insights_formatter
        d. Upload new .html attachment (upload-first)
        e. Delete old matching .html/.md attachments
@@ -109,9 +110,13 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         self._asana_client = asana_client
         self._data_client = data_client
         self._attachments_client = attachments_client
-        # Dedup cache: offer_gid -> (office_phone, vertical, business_name)
+        # Dedup cache: business_gid -> (office_phone, vertical, business_name)
         # Per AT3-001: eliminates redundant Business fetches across offers.
         self._business_cache: dict[str, tuple[str, str, str | None] | None] = {}
+        # Tracks offer_gid -> business_gid for cache lookups
+        self._offer_to_business: dict[str, str | None] = {}
+        # Actual cache hit counter (per F-13: replaces derived formula)
+        self._cache_hits: int = 0
 
     @property
     def workflow_id(self) -> str:  # type: ignore[override]  # read-only property overrides base attribute
@@ -248,8 +253,8 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             extra={
                 "total_offers": len(offers),
                 "unique_businesses": len(self._business_cache),
-                "cache_hits": len(offers) - len(self._business_cache),
-                "api_calls_saved": len(offers) - len(self._business_cache),
+                "cache_hits": self._cache_hits,
+                "api_calls_saved": self._cache_hits,
             },
         )
 
@@ -502,7 +507,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 vertical=vertical,
             )
 
-            # Step B: Fetch all 10 tables concurrently
+            # Step B: Fetch all 12 tables concurrently
             table_results = await self._fetch_all_tables(
                 office_phone=office_phone,
                 vertical=vertical,
@@ -554,10 +559,12 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             filename = f"insights_export_{sanitized_name}_{date_str}.html"
             preview_path: str | None = None
 
+            report_bytes = report_content.encode("utf-8")
+
             if not dry_run:
                 await self._attachments_client.upload_async(
                     parent=offer_gid,
-                    file=report_content.encode("utf-8"),
+                    file=report_bytes,
                     name=filename,
                     content_type="text/html",
                 )
@@ -566,7 +573,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                     "insights_export_upload_succeeded",
                     offer_gid=offer_gid,
                     filename=filename,
-                    size_bytes=len(report_content.encode("utf-8")),
+                    size_bytes=len(report_bytes),
                 )
 
                 # Step F: Delete old matching attachments
@@ -585,7 +592,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                     "insights_export_dry_run_preview",
                     offer_gid=offer_gid,
                     preview_path=str(preview_path),
-                    size_bytes=len(report_content.encode("utf-8")),
+                    size_bytes=len(report_bytes),
                 )
 
             elapsed_ms = (time.monotonic() - offer_start) * 1000
@@ -637,20 +644,28 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         Note: Offer.parent is OfferHolder (NOT Business). The resolution
         chain handles the multi-level traversal correctly.
 
+        Cache is keyed by business_gid (per F-02) so sibling offers
+        sharing the same parent Business hit the cache and avoid
+        redundant API calls.
+
         Args:
             offer_gid: Offer task GID.
 
         Returns:
             Tuple of (office_phone, vertical, business_name) or None.
         """
-        # Check dedup cache first (per AT3-001: same pattern as
-        # conversation_audit._activity_map). Keyed by offer_gid.
-        if offer_gid in self._business_cache:
+        # Check if this offer has already been resolved to a business_gid
+        if offer_gid in self._offer_to_business:
+            biz_gid = self._offer_to_business[offer_gid]
+            self._cache_hits += 1
             logger.debug(
                 "insights_business_cache_hit",
                 offer_gid=offer_gid,
+                business_gid=biz_gid,
             )
-            return self._business_cache[offer_gid]
+            if biz_gid is None:
+                return None
+            return self._business_cache.get(biz_gid)
 
         # Fetch offer task with parent reference for traversal
         offer_task = await self._asana_client.tasks.get_async(
@@ -658,7 +673,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             opt_fields=["parent", "parent.gid"],
         )
         if not offer_task.parent or not offer_task.parent.gid:
-            self._business_cache[offer_gid] = None
+            self._offer_to_business[offer_gid] = None
             return None
 
         # Use trigger_entity so HierarchyTraversalStrategy walks the
@@ -674,6 +689,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             trigger_entity=offer_entity,
         ) as ctx:
             business = await ctx.business_async()
+            business_gid = business.gid
             office_phone = business.office_phone
             vertical = business.vertical
             business_name = business.name
@@ -683,8 +699,18 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         else:
             result = (office_phone, vertical, business_name)
 
-        # Populate dedup cache keyed by offer_gid
-        self._business_cache[offer_gid] = result
+        # Check if another offer already resolved this business
+        if business_gid in self._business_cache:
+            self._cache_hits += 1
+            logger.debug(
+                "insights_business_cache_hit_sibling",
+                offer_gid=offer_gid,
+                business_gid=business_gid,
+            )
+
+        # Populate caches: business_gid -> result, offer_gid -> business_gid
+        self._business_cache[business_gid] = result
+        self._offer_to_business[offer_gid] = business_gid
 
         return result
 
@@ -697,10 +723,10 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
     ) -> dict[str, TableResult]:
         """Fetch all 12 tables concurrently for a single offer.
 
-        Per PRD FR-W01.5 + TDD-WS5: All calls dispatched concurrently via
-        asyncio.gather(). ASSET TABLE and UNUSED ASSETS share a single
-        API call (ADR-EXPORT-002). Reconciliation tables use the
-        InsightExecutor endpoint via get_reconciliation_async.
+        Per PRD FR-W01.5 + TDD-WS5: All 12 calls dispatched concurrently
+        via asyncio.gather(). Reconciliation tables use the InsightExecutor
+        endpoint via get_reconciliation_async. UNUSED ASSETS uses
+        include_unused=True on the assets factory (server-side filtering).
 
         Args:
             office_phone: E.164 phone number.
@@ -711,9 +737,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         Returns:
             Dict mapping table name to TableResult.
         """
-        # Fetch the 11 independent API calls concurrently
-        # Note: UNUSED ASSETS is derived from ASSET TABLE response
-        # so we dispatch 11 API calls and derive the 12th
+        # Fetch all 12 tables as independent API calls concurrently
         results = await asyncio.gather(
             self._fetch_table(
                 "SUMMARY",
@@ -805,47 +829,20 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 factory="business_offers",
                 period="t30",
             ),
+            self._fetch_table(
+                "UNUSED ASSETS",
+                offer_gid,
+                office_phone,
+                vertical,
+                factory="assets",
+                period="t30",
+                include_unused=True,
+            ),
         )
 
         table_map: dict[str, TableResult] = {}
         for r in results:
             table_map[r.table_name] = r
-
-        # Derive UNUSED ASSETS from ASSET TABLE response
-        asset_result = table_map.get("ASSET TABLE")
-        if asset_result is not None and asset_result.success:
-            unused_rows = [
-                row
-                for row in (asset_result.data or [])
-                if row.get("spend", -1) == 0
-                and row.get("imp", -1) == 0
-                and not row.get("disabled")
-                and not row.get("is_generic")
-            ]
-            table_map["UNUSED ASSETS"] = TableResult(
-                table_name="UNUSED ASSETS",
-                success=True,
-                data=unused_rows,
-                row_count=len(unused_rows),
-            )
-        elif asset_result is not None and not asset_result.success:
-            # If ASSET TABLE failed, UNUSED ASSETS also fails
-            table_map["UNUSED ASSETS"] = TableResult(
-                table_name="UNUSED ASSETS",
-                success=False,
-                error_type=asset_result.error_type,
-                error_message=(
-                    f"Derived from ASSET TABLE which failed: "
-                    f"{asset_result.error_message}"
-                ),
-            )
-        else:
-            table_map["UNUSED ASSETS"] = TableResult(
-                table_name="UNUSED ASSETS",
-                success=False,
-                error_type="missing_dependency",
-                error_message="ASSET TABLE result not available",
-            )
 
         return table_map
 
@@ -856,13 +853,14 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         office_phone: str,
         vertical: str,
         *,
-        factory: str | None = None,
+        factory: str = "base",
         period: str | None = None,
         method: str | None = None,
         days: int | None = None,
         limit: int | None = None,
         exclude_appointments: bool = False,
         window_days: int | None = None,
+        include_unused: bool = False,
     ) -> TableResult:
         """Fetch a single table with error isolation.
 
@@ -882,6 +880,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             limit: Row limit for detail endpoints.
             exclude_appointments: For leads endpoint.
             window_days: Window size in days for reconciliation windowing.
+            include_unused: Include zero-activity and inventory-only assets.
 
         Returns:
             TableResult with data or error information.
@@ -910,6 +909,9 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 # Defensive: API may return all businesses for the vertical.
                 # Filter to only rows matching the queried phone when
                 # multiple phones are present in the response.
+                # Uses a local variable to avoid mutating response.data in-place
+                # (per F-08: response may be cached upstream).
+                filtered_data: list[dict[str, Any]] | None = None
                 if hasattr(response, "data") and response.data:
                     phones_in_data = {
                         r.get("office_phone")
@@ -918,7 +920,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                     }
                     if len(phones_in_data) > 1:
                         pre_filter = len(response.data)
-                        response.data = [
+                        filtered_data = [
                             r
                             for r in response.data
                             if r.get("office_phone") == office_phone
@@ -928,20 +930,26 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                             offer_gid=offer_gid,
                             table_name=table_name,
                             pre_filter=pre_filter,
-                            post_filter=len(response.data),
+                            post_filter=len(filtered_data),
                             unique_phones=len(phones_in_data),
                         )
             else:
                 # Standard POST /insights call with factory parameter
                 response = await self._data_client.get_insights_async(
-                    factory=factory or "base",
+                    factory=factory,
                     office_phone=office_phone,
                     vertical=vertical,
                     period=period or "lifetime",
+                    include_unused=include_unused,
                 )
 
             elapsed_ms = (time.monotonic() - fetch_start) * 1000
-            data = response.data if hasattr(response, "data") else []
+            # Use filtered_data if reconciliation phone filtering was applied,
+            # otherwise fall back to response.data (per F-08: avoid mutating response).
+            if method == "reconciliation" and filtered_data is not None:
+                data = filtered_data
+            else:
+                data = response.data if hasattr(response, "data") else []
 
             logger.info(
                 "insights_export_table_fetched",
@@ -995,7 +1003,7 @@ def _sanitize_business_name(name: str) -> str:
     """
     sanitized = name.replace(" ", "_")
     sanitized = re.sub(r"[^a-zA-Z0-9_]", "", sanitized)
-    return sanitized
+    return sanitized or "unknown"
 
 
 # --- Internal Data Structures ---

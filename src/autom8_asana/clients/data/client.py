@@ -672,6 +672,7 @@ class DataServiceClient:
         break_down: list[str] | None = None,
         refresh: bool = False,
         filters: dict[str, Any] | None = None,
+        include_unused: bool = False,
     ) -> InsightsResponse:
         """Fetch analytics insights for a business.
 
@@ -692,6 +693,8 @@ class DataServiceClient:
             break_down: Break down results by these columns.
             refresh: Force cache refresh on autom8_data server.
             filters: Additional factory-specific filters.
+            include_unused: Include zero-activity and inventory-only assets
+                (only affects frame_type="asset"). Default False.
 
         Returns:
             InsightsResponse with data, metadata, and DataFrame conversion methods.
@@ -745,6 +748,7 @@ class DataServiceClient:
             break_down=break_down,
             refresh=refresh,
             filters=filters or {},
+            include_unused=include_unused,
         )
 
         # Build cache key for caching and stale fallback (Story 1.8)

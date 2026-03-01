@@ -225,6 +225,8 @@ async def execute_insights_request(
         request_body["refresh"] = request.refresh
     if request.filters:
         request_body["filters"] = request.filters
+    if request.include_unused:
+        request_body["include_unused"] = True
 
     # Request logging (Story 1.9)
     if client._log:

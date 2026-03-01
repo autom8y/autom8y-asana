@@ -77,6 +77,9 @@ class InsightsRequest(BaseModel):
     # Caching
     refresh: bool = False
 
+    # Asset filtering
+    include_unused: bool = False
+
     # Additional factory-specific filters
     filters: dict[str, Any] = Field(default_factory=dict)
 
