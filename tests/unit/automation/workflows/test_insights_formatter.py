@@ -27,17 +27,14 @@ from unittest.mock import patch
 import pytest
 
 from autom8_asana.automation.workflows.insights_formatter import (
-    _ASSET_EXCLUDE_COLUMNS,
     _COLUMN_TOOLTIPS,
     _CONDITIONAL_FORMAT_THRESHOLDS,
     _DEFAULT_EXPANDED_SECTIONS,
     _DISPLAY_LABELS,
     _FIELD_FORMAT,
-    _PERIOD_DISPLAY_COLUMNS,
     _RECONCILIATION_PENDING_MESSAGE,
     _SECTION_SUBTITLES,
     COLUMN_ORDER,
-    TABLE_ORDER,
     DataSection,
     HtmlRenderer,
     InsightsReportData,
@@ -51,6 +48,19 @@ from autom8_asana.automation.workflows.insights_formatter import (
     _slugify,
     _to_title_case,
     compose_report,
+)
+from autom8_asana.automation.workflows.insights_tables import TABLE_SPECS
+
+# Derived from TABLE_SPECS for backward compatibility in tests.
+TABLE_ORDER: list[str] = [s.table_name for s in TABLE_SPECS]
+
+# Derived from TABLE_SPECS for backward compatibility in tests.
+# ASSET TABLE spec has exclude_columns; period specs have display_columns.
+_ASSET_EXCLUDE_COLUMNS = next(
+    s.exclude_columns for s in TABLE_SPECS if s.table_name == "ASSET TABLE"
+)
+_PERIOD_DISPLAY_COLUMNS = next(
+    s.display_columns for s in TABLE_SPECS if s.table_name == "BY QUARTER"
 )
 
 # ---------------------------------------------------------------------------

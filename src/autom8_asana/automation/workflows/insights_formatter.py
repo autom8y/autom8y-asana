@@ -28,23 +28,11 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
+from autom8_asana.automation.workflows.insights_tables import (
+    TABLE_SPECS,
+    DispatchType,
+)
 from autom8_asana.clients.data._pii import mask_phone_number
-
-# Section order (per PRD FR-W01.6, extended per TDD-WS5)
-TABLE_ORDER: list[str] = [
-    "SUMMARY",
-    "APPOINTMENTS",
-    "LEADS",
-    "LIFETIME RECONCILIATIONS",
-    "T14 RECONCILIATIONS",
-    "BY QUARTER",
-    "BY MONTH",
-    "BY WEEK",
-    "AD QUESTIONS",
-    "ASSET TABLE",
-    "OFFER TABLE",
-    "UNUSED ASSETS",
-]
 
 # Preferred leading columns for period-based and reconciliation tables.
 # Keys must match TABLE_ORDER names exactly.
@@ -136,35 +124,6 @@ _SECTION_SUBTITLES: dict[str, str] = {
     "UNUSED ASSETS": "Ad assets with zero activity (spend and leads) plus inventory-only assets, over the last 30 days.",
 }
 
-# ASSET TABLE columns to exclude from display.
-_ASSET_EXCLUDE_COLUMNS: frozenset[str] = frozenset(
-    {
-        "offer_id",
-        "office_phone",
-        "vertical",
-        "transcript",
-        "is_raw",
-        "is_generic",
-        "platform_id",
-        "disabled",
-    }
-)
-
-# Period table columns to show (display only; Copy TSV exports all columns).
-_PERIOD_DISPLAY_COLUMNS: list[str] = [
-    "period_label",
-    "period_start",
-    "period_end",
-    "spend",
-    "leads",
-    "cpl",
-    "scheds",
-    "booking_rate",
-    "cps",
-    "conv_rate",
-    "ctr",
-    "ltv",
-]
 
 # Sections expanded by default (rest start collapsed).
 _DEFAULT_EXPANDED_SECTIONS: frozenset[str] = frozenset(
@@ -747,7 +706,11 @@ _renderer = HtmlRenderer()
 
 
 def compose_report(data: InsightsReportData) -> str:
-    """Compose a full HTML report from table results."""
+    """Compose a full HTML report from table results.
+
+    Per FR-06: Iterates TABLE_SPECS and applies spec-driven transforms.
+    No table-name branching in the main loop body (per D-07).
+    """
     masked = mask_phone_number(data.office_phone)
     timestamp = datetime.now(UTC).isoformat()
     metadata: dict[str, str] = {
@@ -760,108 +723,109 @@ def compose_report(data: InsightsReportData) -> str:
         metadata["Offer"] = data.offer_gid
 
     sections: list[DataSection] = []
-    _period_tables = frozenset({"BY QUARTER", "BY MONTH", "BY WEEK"})
 
-    for table_name in TABLE_ORDER:
-        result = data.table_results.get(table_name)
+    for spec in TABLE_SPECS:
+        result = data.table_results.get(spec.table_name)
+
+        # --- Step 1: Validate result (missing / error / empty) ---
         if result is None:
             sections.append(
                 DataSection(
-                    name=table_name,
+                    name=spec.table_name,
                     rows=None,
                     error="[ERROR] missing: Table result not available",
                 )
             )
-        elif not result.success:
+            continue
+
+        if not result.success:
             error_type = result.error_type or "unknown"
             error_msg = result.error_message or "Unknown error"
             sections.append(
                 DataSection(
-                    name=table_name,
+                    name=spec.table_name,
                     rows=None,
                     error=f"[ERROR] {error_type}: {error_msg}",
                 )
             )
-        elif not result.data:
-            empty_msg = (
-                "No unused assets found"
-                if table_name == "UNUSED ASSETS"
-                else "No data available"
-            )
+            continue
+
+        if not result.data:
             sections.append(
                 DataSection(
-                    name=table_name,
+                    name=spec.table_name,
                     rows=[],
-                    empty_message=empty_msg,
+                    empty_message=spec.empty_message,
                 )
             )
-        else:
-            # Reconciliation tables: show pending message when payment
-            # data is unavailable (Stripe REC-8 not shipped)
-            if table_name in _RECONCILIATION_TABLES and _is_payment_data_pending(
-                result.data
-            ):
-                sections.append(
-                    DataSection(
-                        name=table_name,
-                        rows=[],
-                        empty_message=_RECONCILIATION_PENDING_MESSAGE,
-                    )
-                )
-                continue
+            continue
 
-            all_rows = result.data
-            display_rows = all_rows
-
-            # ASSET TABLE: sort by spend desc, exclude metadata columns
-            if table_name == "ASSET TABLE":
-                display_rows = sorted(
-                    display_rows,
-                    key=lambda r: r.get("spend") or 0,
-                    reverse=True,
-                )
-
-            # Apply row limit
-            row_limit = data.row_limits.get(table_name)
-            total_rows = len(display_rows)
-            if row_limit:
-                display_rows = display_rows[:row_limit]
-            truncated = row_limit is not None and total_rows > row_limit
-
-            # ASSET TABLE: filter out excluded columns for display
-            if table_name == "ASSET TABLE":
-                display_rows = [
-                    {k: v for k, v in row.items() if k not in _ASSET_EXCLUDE_COLUMNS}
-                    for row in display_rows
-                ]
-
-            # Period tables: filter display columns (Copy TSV gets full data)
-            if table_name in _period_tables:
-                available = [
-                    c
-                    for c in _PERIOD_DISPLAY_COLUMNS
-                    if any(c in r for r in display_rows)
-                ]
-                display_rows = [
-                    {k: v for k, v in row.items() if k in available}
-                    for row in display_rows
-                ]
-
+        # --- Step 2: Reconciliation pending detection (per FR-11) ---
+        if (
+            spec.dispatch_type == DispatchType.RECONCILIATION
+            and _is_payment_data_pending(result.data)
+        ):
             sections.append(
                 DataSection(
-                    name=table_name,
-                    rows=display_rows,
-                    row_count=len(display_rows),
-                    truncated=truncated,
-                    total_rows=total_rows if truncated else None,
-                    full_rows=all_rows,
+                    name=spec.table_name,
+                    rows=[],
+                    empty_message=_RECONCILIATION_PENDING_MESSAGE,
                 )
             )
+            continue
 
-    # Build footer
+        # --- Step 3: Start with full data; display_rows diverges ---
+        all_rows = result.data
+        display_rows = list(all_rows)
+
+        # --- Step 4: Sort (spec.sort_key) ---
+        if spec.sort_key is not None:
+            _sort_key: str = spec.sort_key
+            display_rows = sorted(
+                display_rows,
+                key=lambda r: r.get(_sort_key) or 0,
+                reverse=spec.sort_desc,
+            )
+
+        # --- Step 5: Row limit (runtime override > spec default) ---
+        row_limit = data.row_limits.get(spec.table_name) or spec.default_limit
+        total_rows = len(display_rows)
+        if row_limit:
+            display_rows = display_rows[:row_limit]
+        truncated = row_limit is not None and total_rows > row_limit
+
+        # --- Step 6: Exclude columns (spec.exclude_columns) ---
+        if spec.exclude_columns is not None:
+            display_rows = [
+                {k: v for k, v in row.items() if k not in spec.exclude_columns}
+                for row in display_rows
+            ]
+
+        # --- Step 7: Display columns whitelist (spec.display_columns) ---
+        if spec.display_columns is not None:
+            available = [
+                c for c in spec.display_columns if any(c in r for r in display_rows)
+            ]
+            display_rows = [
+                {k: v for k, v in row.items() if k in available} for row in display_rows
+            ]
+
+        # --- Step 8: Emit DataSection ---
+        sections.append(
+            DataSection(
+                name=spec.table_name,
+                rows=display_rows,
+                row_count=len(display_rows),
+                truncated=truncated,
+                total_rows=total_rows if truncated else None,
+                full_rows=all_rows,
+            )
+        )
+
+    # Build footer (unchanged)
     elapsed = time.monotonic() - data.started_at
     tables_succeeded = sum(1 for r in data.table_results.values() if r.success)
-    tables_failed = len(TABLE_ORDER) - tables_succeeded
+    tables_failed = len(TABLE_SPECS) - tables_succeeded
     total_tables = tables_succeeded + tables_failed
 
     footer: dict[str, str] = {
@@ -895,14 +859,6 @@ _PAYMENT_INDICATOR_COLUMNS = frozenset(
         "variance",
         "expected_collection",
         "expected_variance",
-    }
-)
-
-# Reconciliation table names that should show pending message
-_RECONCILIATION_TABLES = frozenset(
-    {
-        "LIFETIME RECONCILIATIONS",
-        "T14 RECONCILIATIONS",
     }
 )
 
