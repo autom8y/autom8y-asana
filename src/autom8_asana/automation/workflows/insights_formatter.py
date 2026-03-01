@@ -567,6 +567,9 @@ class HtmlRenderer:
         if not columns:
             return self._render_empty_section(section)
 
+        # Pre-compute alignment class per column (O(columns) instead of O(rows*columns))
+        align_by_col = {col: _column_align_class(rows, col) for col in columns}
+
         sid = _slugify(section.name)
         is_expanded = section.name in _DEFAULT_EXPANDED_SECTIONS
         collapsed_class = "" if is_expanded else " collapsed"
@@ -574,7 +577,7 @@ class HtmlRenderer:
         # Build header cells with sort, tooltips, and alignment
         header_cells: list[str] = []
         for col_idx, col in enumerate(columns):
-            align_cls = _column_align_class(rows, col)
+            align_cls = align_by_col[col]
             tooltip = _COLUMN_TOOLTIPS.get(col)
             title_attr = f' title="{html.escape(tooltip)}"' if tooltip else ""
             display_label = html.escape(_to_title_case(col))
@@ -593,7 +596,7 @@ class HtmlRenderer:
             cells: list[str] = []
             for col in columns:
                 value = row.get(col)
-                align_cls = _column_align_class(rows, col)
+                align_cls = align_by_col[col]
                 cond_cls = _conditional_format_class(value, col)
                 # Date columns
                 date_cls = ""
