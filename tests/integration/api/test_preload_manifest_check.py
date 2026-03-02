@@ -56,12 +56,22 @@ def _make_mock_app(project_configs: list[_FakeEntityConfig]) -> MagicMock:
     return app
 
 
-def _make_mock_settings(*, bucket: str = "test-bucket") -> MagicMock:
-    """Build a mock Settings object with S3 config."""
+def _make_mock_settings(
+    *, bucket: str = "test-bucket", is_production: bool = True
+) -> MagicMock:
+    """Build a mock Settings object with S3 config.
+
+    Args:
+        bucket: S3 bucket name.
+        is_production: Value for is_production property. Defaults to True
+            (production behavior) so tests must opt in to local-env behavior.
+    """
     settings = MagicMock()
     settings.s3.bucket = bucket
     settings.s3.region = "us-east-1"
     settings.s3.endpoint_url = None
+    settings.is_production = is_production
+    settings.autom8y_env.value = "production" if is_production else "local"
     return settings
 
 
@@ -349,4 +359,87 @@ class TestPreloadManifestCheckIntegration:
             assert "progressive_preload_no_manifest_no_lambda" in warning_events
 
             # Observable: cache_ready still set to True
+            mock_set_ready.assert_called_with(True)
+
+    async def test_no_manifest_no_lambda_cold_start_in_local_env(self) -> None:
+        """Branch 3b: no manifest + no Lambda ARN + local env -- cold-start build."""
+        entity_config = _FakeEntityConfig(entity_type="unit", project_gid="proj-444")
+        app = _make_mock_app([entity_config])
+        mock_settings = _make_mock_settings(is_production=False)
+        mock_persistence = _make_mock_persistence(manifest=None)
+        mock_df_storage = _make_mock_df_storage(
+            dataframe=None, watermark=None, is_available=True
+        )
+        mock_build_result = _make_mock_builder_result(
+            total_rows=25, sections_succeeded=2, sections_resumed=0
+        )
+        mock_builder_instance = AsyncMock()
+        mock_builder_instance.build_progressive_async = AsyncMock(
+            return_value=mock_build_result
+        )
+
+        # Build an env dict that definitely lacks CACHE_WARMER_LAMBDA_ARN.
+        env_without_lambda = {
+            k: v for k, v in os.environ.items() if k != "CACHE_WARMER_LAMBDA_ARN"
+        }
+
+        with (
+            patch(_PATCHES_COMMON["bot_pat"], return_value="fake-pat"),
+            patch(_PATCHES_COMMON["workspace"], return_value="ws-001"),
+            patch(_PATCHES_COMMON["settings"], return_value=mock_settings),
+            patch(
+                _PATCHES_COMMON["s3_storage_cls"],
+                return_value=mock_df_storage,
+            ),
+            patch(_PATCHES_COMMON["s3_retry"]),
+            patch(
+                _PATCHES_COMMON["section_persist"],
+                return_value=mock_persistence,
+            ),
+            patch(_PATCHES_COMMON["watermark_repo"]) as mock_wm_fn,
+            patch(_PATCHES_COMMON["df_cache"]) as mock_cache_fn,
+            patch(_PATCHES_COMMON["set_ready"]) as mock_set_ready,
+            patch(_PATCHES_COMMON["asana_client"]) as MockClient,
+            patch(
+                _PATCHES_COMMON["builder_cls"],
+                return_value=mock_builder_instance,
+            ),
+            patch(_PATCHES_COMMON["get_schema"]),
+            patch(_PATCHES_COMMON["resolver"]),
+            patch(_PATCHES_COMMON["cpf"]),
+            patch(_PATCHES_COMMON["cache_config"]),
+            patch(
+                f"{_PROGRESSIVE_MODULE}._invoke_cache_warmer_lambda_from_preload",
+            ) as mock_invoke_lambda,
+            patch.dict(os.environ, env_without_lambda, clear=True),
+            patch(f"{_PROGRESSIVE_MODULE}.logger") as mock_logger,
+        ):
+            mock_client_cm = AsyncMock()
+            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_client_cm)
+            MockClient.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            mock_wm_fn.return_value = MagicMock()
+            mock_cache_fn.return_value = AsyncMock()
+
+            await _preload_dataframe_cache_progressive(app)
+
+            # Observable: builder WAS called (cold-start build)
+            mock_builder_instance.build_progressive_async.assert_awaited_once_with(
+                resume=True,
+            )
+
+            # Observable: Lambda was NOT invoked (no ARN, didn't need it)
+            mock_invoke_lambda.assert_not_called()
+
+            # Observable: info event logged (not warning)
+            info_events = [call.args[0] for call in mock_logger.info.call_args_list]
+            assert "progressive_preload_cold_start_build" in info_events
+
+            # Observable: no "skipping" warning
+            warning_events = [
+                call.args[0] for call in mock_logger.warning.call_args_list
+            ]
+            assert "progressive_preload_no_manifest_no_lambda" not in warning_events
+
+            # Observable: cache_ready set to True
             mock_set_ready.assert_called_with(True)

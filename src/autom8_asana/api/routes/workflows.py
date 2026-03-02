@@ -128,7 +128,7 @@ def _get_workflow_factory(workflow_id: str) -> WorkflowHandlerConfig | None:
         504: {"description": "Workflow execution timed out"},
     },
 )
-@limiter.limit("10/minute")  # type: ignore[untyped-decorator]
+@limiter.limit("10/minute")
 async def invoke_workflow(
     workflow_id: str,
     body: WorkflowInvokeRequest,
