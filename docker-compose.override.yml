@@ -18,9 +18,10 @@ services:
     container_name: autom8y-asana
     ports:
       - "5300:8000"
+    env_file:
+      - path: ${AUTOM8Y_ASANA_DIR:-.}/.env/local
+        required: false
     environment:
-      ASANA_PAT: ${ASANA_PAT:-}
-      ASANA_WORKSPACE_GID: ${ASANA_WORKSPACE_GID:-}
       AUTOM8Y_ENV: local
       ASANA_CACHE_ENABLED: "true"
       ASANA_CACHE_PROVIDER: memory
