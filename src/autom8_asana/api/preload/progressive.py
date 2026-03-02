@@ -388,15 +388,30 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                     )
                                     return False
                                 else:
-                                    logger.warning(
-                                        "progressive_preload_no_manifest_no_lambda",
+                                    # No manifest, no parquet, no Lambda ARN.
+                                    # In production/staging, Lambda should handle
+                                    # this — skip and let operators investigate.
+                                    # In local/test, do a cold-start build from
+                                    # the Asana API via the progressive builder.
+                                    if app_settings.is_production:
+                                        logger.warning(
+                                            "progressive_preload_no_manifest_no_lambda",
+                                            extra={
+                                                "project_gid": project_gid,
+                                                "entity_type": entity_type,
+                                                "reason": "no manifest or parquet, no Lambda ARN — skipping",
+                                            },
+                                        )
+                                        return False
+                                    logger.info(
+                                        "progressive_preload_cold_start_build",
                                         extra={
                                             "project_gid": project_gid,
                                             "entity_type": entity_type,
-                                            "reason": "no manifest or parquet, no Lambda ARN — skipping",
+                                            "env": app_settings.autom8y_env.value,
                                         },
                                     )
-                                    return False
+                                    # Fall through to builder.build_progressive_async()
 
                             result = await builder.build_progressive_async(resume=True)
 

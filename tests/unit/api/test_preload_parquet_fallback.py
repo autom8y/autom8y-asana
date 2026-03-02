@@ -48,6 +48,7 @@ def _build_patch_stack(
     mock_dataframe_cache: MagicMock | None = None,
     mock_watermark_repo: MagicMock | None = None,
     env_overrides: dict[str, str] | None = None,
+    settings_overrides: dict[str, object] | None = None,
 ) -> contextlib.ExitStack:
     """Build patch stack for parquet fallback tests."""
     env = {
@@ -120,6 +121,9 @@ def _build_patch_stack(
     mock_settings.s3.bucket = "test-bucket"
     mock_settings.s3.region = "us-east-1"
     mock_settings.s3.endpoint_url = None
+    if settings_overrides:
+        for key, val in settings_overrides.items():
+            setattr(mock_settings, key, val)
     stack.enter_context(
         patch(
             "autom8_asana.settings.get_settings",
@@ -308,3 +312,109 @@ class TestPreloadParquetFallback:
                 await _preload_dataframe_cache_progressive(app)
 
                 mock_lambda.invoke.assert_called_once()
+
+
+class TestPreloadColdStartBuild:
+    """Tests for cold-start build from Asana API when S3 is empty."""
+
+    @pytest.mark.asyncio
+    async def test_cold_start_build_in_local_env(self) -> None:
+        """When local env, no manifest, no parquet, no Lambda — builder is called."""
+        from autom8_asana.api.preload.progressive import (
+            _preload_dataframe_cache_progressive,
+        )
+
+        app, registry = _make_mock_app_and_registry()
+
+        mock_persistence = MagicMock()
+        mock_persistence.is_available = True
+        mock_persistence.get_manifest_async = AsyncMock(return_value=None)
+        mock_persistence.__aenter__ = AsyncMock(return_value=mock_persistence)
+        mock_persistence.__aexit__ = AsyncMock(return_value=None)
+
+        # No parquet in S3
+        mock_df_persistence = MagicMock()
+        mock_df_persistence.load_dataframe = AsyncMock(return_value=(None, None))
+
+        mock_cache = MagicMock()
+        mock_cache.put_async = AsyncMock()
+
+        # Build result returned by builder
+        build_result = MagicMock()
+        build_result.total_rows = 50
+        build_result.sections_succeeded = 3
+        build_result.sections_resumed = 0
+        build_result.watermark = datetime.now(UTC)
+        build_result.dataframe = pl.DataFrame({"gid": [str(i) for i in range(50)]})
+
+        with _build_patch_stack(
+            mock_persistence,
+            mock_df_persistence,
+            mock_dataframe_cache=mock_cache,
+            settings_overrides={"is_production": False},
+        ) as stack:
+            mock_builder_cls = stack.enter_context(
+                patch(
+                    "autom8_asana.dataframes.builders.progressive.ProgressiveProjectBuilder",
+                )
+            )
+            mock_builder_instance = MagicMock()
+            mock_builder_instance.build_progressive_async = AsyncMock(
+                return_value=build_result
+            )
+            mock_builder_cls.return_value = mock_builder_instance
+
+            await _preload_dataframe_cache_progressive(app)
+
+        # Builder should have been called for the cold-start build
+        mock_builder_instance.build_progressive_async.assert_awaited_once_with(
+            resume=True
+        )
+
+        # Cache should have been populated with the build result
+        mock_cache.put_async.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_skips_cold_start_in_production_env(self) -> None:
+        """When production env, no manifest, no parquet, no Lambda — skip."""
+        from autom8_asana.api.preload.progressive import (
+            _preload_dataframe_cache_progressive,
+        )
+
+        app, registry = _make_mock_app_and_registry()
+
+        mock_persistence = MagicMock()
+        mock_persistence.is_available = True
+        mock_persistence.get_manifest_async = AsyncMock(return_value=None)
+        mock_persistence.__aenter__ = AsyncMock(return_value=mock_persistence)
+        mock_persistence.__aexit__ = AsyncMock(return_value=None)
+
+        # No parquet in S3
+        mock_df_persistence = MagicMock()
+        mock_df_persistence.load_dataframe = AsyncMock(return_value=(None, None))
+
+        mock_cache = MagicMock()
+        mock_cache.put_async = AsyncMock()
+
+        with _build_patch_stack(
+            mock_persistence,
+            mock_df_persistence,
+            mock_dataframe_cache=mock_cache,
+            settings_overrides={"is_production": True},
+        ) as stack:
+            mock_builder_cls = stack.enter_context(
+                patch(
+                    "autom8_asana.dataframes.builders.progressive.ProgressiveProjectBuilder",
+                )
+            )
+            mock_builder_instance = MagicMock()
+            mock_builder_instance.build_progressive_async = AsyncMock()
+            mock_builder_cls.return_value = mock_builder_instance
+
+            await _preload_dataframe_cache_progressive(app)
+
+        # Builder should NOT have been called
+        mock_builder_instance.build_progressive_async.assert_not_awaited()
+
+        # Cache should NOT have been populated
+        mock_cache.put_async.assert_not_called()
